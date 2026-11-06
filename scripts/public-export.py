@@ -274,7 +274,7 @@ def check_public_clone(clone, rules):
                           capture_output=True).returncode == 0:
             sys.exit(f"⚠⚠ {clone} shares history with this repository (root {root[:12]}). "
                      "It is a clone of the INTERNAL repo: pushing from it publishes that history.")
-    return rules.get("public_branch", "main")
+    return rules.get("public_branch", "master")
 
 
 def last_sync(clone, branch):

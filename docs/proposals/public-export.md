@@ -19,7 +19,8 @@ cleanup brief, whose findings it absorbs.
 A sync is `scripts/public-export.py --publish <public clone>`. It exports the committed tree,
 cleans and checks it, and commits it as one commit on a `sync/<date>-<sha>` branch of a clone of
 the public repository. The maintainer runs the gate there, pushes, and merges the PR. The first
-sync goes straight onto the empty `main`.
+sync goes straight onto the empty `master`. ⚠ The public branch is `master`, like this one's: the
+site links to `blob/master/…` and the workflows trigger on `master` (`public_branch` in the rules).
 
 **Why not develop in public** (the brief's plan): the tree here carries personal data, real
 location traces and operations detail that are useful to the maintainer and must not be public.

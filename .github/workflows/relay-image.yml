@@ -60,6 +60,9 @@ env:
 
 jobs:
   build-push:
+    # Only the private repository publishes images: these tags are the ones production pulls,
+    # and the public copy of this workflow must never push over them.
+    if: github.repository == 'B3nedikt/TenshuInternal'
     runs-on: ubuntu-latest
     permissions:
       contents: read
