@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+      Entitlements for the Tenshu Drive File Provider extension (.appex)
+      (docs/proposals/desktop-macos-integration.md §5 task 1 / §2.1).
+
+      Unlike the host app and the Control daemon, a File Provider extension MUST
+      be sandboxed. The App Group is what lets the sandboxed extension reach the
+      daemon's group-container UDS — the sole reason the socket lives there (the
+      gate is still the desktop-ipc handshake, not the container). @TEAM_ID@ is
+      substituted by signDesktopApp (gradle/desktop-app-signing.gradle.kts), which signs
+      the .appex with this file because :drive-desktop names it in `tenshu.nestedEntitlements`.
+    -->
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>@TEAM_ID@.app.tenshu.shared</string>
+    </array>
+</dict>
+</plist>

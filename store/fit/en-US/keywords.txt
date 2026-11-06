@@ -1,0 +1,1 @@
+workout,running,cycling,walking,gps,heart rate,steps,sleep,health,encrypted,private,privacy,e2ee

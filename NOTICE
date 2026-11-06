@@ -1,0 +1,17 @@
+Tenshu
+Copyright 2026 Benedikt Löbbecke
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE), with the
+exceptions listed in TRADEMARKS.md: the Tenshu name and brand, and the image and icon files,
+are NOT licensed under it.
+
+This product includes third-party software and data under their own licences:
+- the libraries the apps ship, listed with their licence texts in docs/oss-licences.md and
+  config/oss-licences/;
+- SQLite (core-common/src/nativeInterop/sqlite/), in the public domain;
+- map data (ui-map/src/androidMain/assets/tenshu_basemap.pmtiles), © OpenStreetMap
+  contributors, available under the Open Database License 1.0
+  (https://opendatacommons.org/licenses/odbl/1-0/), built with the Protomaps basemap schema
+  (BSD-3-Clause);
+- data derived from the Open Images Dataset V7 by Google LLC, CC BY 4.0
+  (scripts/inference/OPEN-IMAGES-NOTICE.md).

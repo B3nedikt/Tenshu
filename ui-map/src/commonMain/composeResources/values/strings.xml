@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Offline-basemap chrome (ADR 0016; bare apostrophes only). -->
+    <string name="basemap_offline_attribution">Offline · MapLibre</string>
+    <!-- ⚠⚠ The ODbL credit for live OSM tiles (docs/oss-licences.md §3): "© OpenStreetMap" plus the
+         word for contributors, as osm.org/copyright words it in each language. Never shorten it away. -->
+    <string name="basemap_osm_attribution">Offline · © OpenStreetMap contributors</string>
+    <!-- Over the desktop's elected Apple Maps snapshot: Apple's data, so Apple's credit; the chip
+         opens the acknowledgements page MapKit's own Legal link opens (docs/oss-licences.md §3). -->
+    <string name="basemap_apple_attribution">© Apple Maps · Legal</string>
+    <string name="basemap_scale_200m">200 m</string>
+</resources>

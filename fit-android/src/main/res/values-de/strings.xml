@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- German (de). Mirrors ../values/strings.xml key for key; ADR 0016.
+     See the English file for per-string developer notes. -->
+<resources>
+    <string name="app_name">Fit</string>
+    <string name="recording_channel_name">Trainingsaufzeichnung</string>
+    <string name="recording_interrupted_channel_name">Unterbrochene Aufzeichnung</string>
+    <string name="recording_interrupted_title">Dein Telefon hat die Aufzeichnung beendet</string>
+    <string name="recording_interrupted_text">Tippe, um dort weiterzumachen, wo sie aufgehört hat</string>
+    <string name="recording_notification_title">Training wird aufgezeichnet</string>
+    <string name="recording_notification_paused_title">Aufzeichnung pausiert</string>
+    <string name="recording_notification_text">Fit zeichnet deine Aktivität auf.</string>
+    <string name="recording_notification_distance_km">%1$s km</string>
+    <string name="recording_notification_bpm">%1$d bpm</string>
+    <string name="recording_action_pause">Pause</string>
+    <string name="recording_action_resume">Fortsetzen</string>
+    <string name="recording_action_stop">Beenden</string>
+    <string name="recording_review_notification_title">Training aufgezeichnet</string>
+    <string name="recording_review_notification_text">Tippe, um es zu prüfen und zu speichern.</string>
+    <string name="fit_hc_rationale_title">So nutzt Fit deine Gesundheitsdaten</string>
+    <string name="fit_hc_rationale_reads">Mit deiner Erlaubnis liest Fit Folgendes aus Health Connect: Trainings und ihre Routen, Schritte, Distanz, verbrannte Kalorien, Ernährung, Flüssigkeitszufuhr, Zyklus, Schlaf, Gewicht, Größe, Herzfrequenz, Ruhepuls, Sauerstoffsättigung und Atemfrequenz. Wenn du es zusätzlich erlaubst, liest Fit auch Daten, die älter als 30 Tage sind, damit es deinen ganzen Verlauf importieren kann. Fit nutzt diese Daten nur, um dir deine Aktivität, Trends und deinen Verlauf in den Apps von Tenshu zu zeigen.</string>
+    <string name="fit_hc_rationale_read_only">Fit liest nur. Es schreibt nie in Health Connect und ändert dort keine Daten.</string>
+    <string name="fit_hc_rationale_storage">Fit speichert deine Gesundheitsdaten auf diesem Gerät und synchronisiert sie Ende-zu-Ende-verschlüsselt nur mit deinen eigenen Geräten. Die Server von Tenshu können sie nicht lesen, und sie werden nie für Werbung genutzt.</string>
+    <string name="fit_hc_rationale_control">Du kannst den Zugriff von Fit jederzeit in Health Connect ändern oder widerrufen.</string>
+    <string name="fit_hc_rationale_close">Schließen</string>
+</resources>

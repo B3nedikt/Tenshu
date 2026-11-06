@@ -1,0 +1,1 @@
+location history,places,trips,visits,diary,journal,travel,encrypted,end-to-end,private,privacy,e2ee

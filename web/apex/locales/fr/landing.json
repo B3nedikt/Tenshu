@@ -1,0 +1,332 @@
+{
+  "footer": {
+    "copyright": "© {year} Benedikt Löbbecke",
+    "link": {
+      "whitepaper": "Livre blanc",
+      "threatModel": "Modèle de menace",
+      "github": "GitHub",
+      "licenses": "Licences",
+      "contact": "Contact",
+      "imprint": "Mentions légales",
+      "privacy": "Confidentialité",
+      "terms": "Conditions d’utilisation",
+      "deleteAccount": "Supprimer le compte"
+    },
+    "theme": {
+      "label": "Thème",
+      "light": "Clair",
+      "dark": "Sombre",
+      "auto": "Auto"
+    },
+    "language": {
+      "label": "Langue"
+    }
+  },
+  "banner": {
+    "thisDevice": "cet appareil",
+    "signedInAs": "Vous êtes connecté en tant que <strong>{deviceName}</strong>. <controlPlane>Ouvrir votre centre de contrôle →</controlPlane>",
+    "lock": "Verrouiller",
+    "lockAriaLabel": "Verrouiller cet appareil. Vous devrez le déverrouiller pour continuer",
+    "dismiss": "Fermer"
+  },
+  "header": {
+    "menuAriaLabel": "Menu",
+    "vision": "Vision",
+    "pricing": "Tarifs",
+    "roadmap": "Feuille de route",
+    "docs": "Docs",
+    "support": "Assistance",
+    "navAriaLabel": "Navigation principale"
+  },
+  "section": {
+    "nextSectionAriaLabel": "Aller à la section suivante"
+  },
+  "cta": {
+    "getStarted": "Commencer",
+    "openTenshu": "Ouvrir Tenshu",
+    "welcomeBackUnlock": "Déverrouiller pour continuer",
+    "iAlreadyHaveTenshu": "J’ai déjà Tenshu",
+    "comingSoon": "Bientôt disponible"
+  },
+  "block1": {
+    "heading": "Vos applis. Vos données. Votre contrôle.",
+    "lede": "Tenshu est un écosystème d’applications open source dont vous gardez le contrôle.",
+    "ledeLine2": "La confidentialité par défaut.",
+    "learnMore": "En savoir plus"
+  },
+  "block2": {
+    "heading": "Comment fonctionnent les géants de la tech aujourd’hui.",
+    "body1": "Chaque appli de votre téléphone parle à un serveur. Le serveur garde une copie de tout. Vos photos, vos messages, votre position. Ils peuvent les vendre, entraîner leur IA sur vos données ou les utiliser d’autres manières que vous ne souhaitez peut-être pas, sans même que vous le sachiez.",
+    "body2": "Les géants de la tech ont conçu leurs applis et leurs services pour empiéter sur votre vie privée par défaut.",
+    "bridge": "Ce qu’il faudrait"
+  },
+  "block3": {
+    "heading": "Ce qu’il faudrait.",
+    "body": "Avec Tenshu, vos applis vous parlent à vous, pas à un serveur. Une appli proxy sur votre appareil fixe les règles pour toutes les applis. Vos données restent chiffrées sur tous vos appareils, et le serveur relais entre eux ne voit jamais que des données chiffrées.",
+    "bridgeAriaLabel": "Continuer vers votre realm"
+  },
+  "block4": {
+    "heading": "Votre realm.",
+    "subhead": "Tout ce qui vous appartient, chiffré sur chacun de vos appareils.",
+    "body1": "Vos fichiers, vos photos, vos appareils, et même ce que vous possédez, comme votre stockage : tout cela vit dans un espace privé que Tenshu appelle votre <em>realm</em>. C’est l’image complète de votre vie numérique, et elle n’appartient qu’à vous.",
+    "body2": "Votre realm se synchronise entre vos appareils via le relais de Tenshu, mais seuls vos appareils détiennent les clés. Le relais ne transporte jamais que des données chiffrées. Si les serveurs de Tenshu étaient piratés, il n’y aurait rien à y lire.",
+    "body3": "Vous pouvez ajouter et retirer des appareils de votre realm à tout moment."
+  },
+  "block5": {
+    "heading": "Honnêtes sur les limites.",
+    "body1": "Aucun système n’est parfaitement confidentiel, et nous ne prétendrons pas le contraire. Le relais de Tenshu ne voit jamais vos données, mais il voit des <em>métadonnées</em> : la fréquence de synchronisation de vos appareils, la taille approximative de chaque bloc chiffré et lesquels de vos appareils communiquent entre eux.",
+    "body2": "Tenshu est conçu pour que ce soit tout ce qu’il puisse jamais voir. Partout où Tenshu doit faire tourner un serveur, celui-ci est conçu selon un seul principe : le compromettre ne change rien. Un service Tenshu compromis ne livre que des données chiffrées et des informations de temps. Jamais votre contenu, jamais vos clés. C’est une couche de confort, pas quelque chose à quoi vous devez faire confiance.",
+    "body3": "Nous vous disons exactement ce qui fuit, et concevons chaque partie de Tenshu pour qu’elle en laisse fuir le moins possible. <threatModel>Lire notre modèle de menace.</threatModel>"
+  },
+  "block6": {
+    "heading": "Fonctionne partout.",
+    "lede": "Un seul cœur chiffré de bout en bout, développé une fois et livré sur chacun de vos appareils. Votre realm a le même aspect et fonctionne de la même façon, que vous soyez sur votre téléphone, votre ordinateur portable ou le web.",
+    "platforms": {
+      "android": {
+        "name": "Android",
+        "detail": "Téléphones et tablettes",
+        "blurb": "Tenshu sur votre téléphone et votre tablette Android.",
+        "store": "Disponible sur Google Play"
+      },
+      "desktop": {
+        "name": "Ordinateur",
+        "detail": "Windows · macOS · Linux",
+        "blurb": "Une application native pour profiter de toute l’expérience Tenshu sur votre ordinateur."
+      },
+      "web": {
+        "name": "Web",
+        "detail": "tenshu.app",
+        "blurb": "Tenshu dans votre navigateur. Rien à installer, mais vous pouvez l’ajouter à votre écran d’accueil si vous le souhaitez."
+      },
+      "ios": {
+        "name": "iOS",
+        "detail": "iPhone et iPad",
+        "blurb": "Tenshu sur votre iPhone et votre iPad, dès la première version."
+      }
+    }
+  },
+  "block7": {
+    "heading": "Des applis que vous contrôlez vraiment.",
+    "lede": "Chaque appli est chiffrée de bout en bout. Seuls vos appareils peuvent lire ce qu’elle contient.",
+    "listLabel": "Applis Tenshu",
+    "comingLater": "À venir",
+    "screenshotAlt": "Tenshu {name}",
+    "screenshotLabel": "Capture {index} sur {count} : {name}",
+    "pauseShots": "Mettre les captures en pause",
+    "playShots": "Lire les captures",
+    "showApp": "Afficher {name}",
+    "device": "Appareil",
+    "iphone": "iPhone",
+    "android": "Android",
+    "onlyAndroid": "Pas encore de captures iPhone",
+    "onlyIos": "Pas encore de captures Android",
+    "frameNote": "Les cadres d’appareils sont des illustrations. iPhone est une marque d’Apple Inc., Android est une marque de Google LLC. Tenshu n’est ni affilié à Apple ou Google, ni approuvé par eux.",
+    "apps": {
+      "control": {
+        "name": "Control",
+        "tagline": "L’appli qui garde vos clés et relie vos appareils."
+      },
+      "drive": {
+        "name": "Drive",
+        "tagline": "Vos fichiers et vos photos, chiffrés et synchronisés sur tous vos appareils. Partagez un fichier par lien quand vous le souhaitez."
+      },
+      "photos": {
+        "name": "Photos",
+        "tagline": "Vos photos et vidéos dans une seule photothèque, sur tous vos appareils. Elles sont chiffrées avant de quitter votre téléphone : aucun cloud ne peut les trier, les analyser ni s’en servir pour entraîner une IA."
+      },
+      "maps": {
+        "name": "Maps",
+        "tagline": "Des cartes téléchargées une fois et conservées sur votre appareil : personne ne regarde où vous regardez."
+      },
+      "timeline": {
+        "name": "Timeline",
+        "tagline": "Où vous êtes allé et comment, enregistré sur votre téléphone. Remplace la Chronologie de Google Maps sans envoyer vos déplacements nulle part."
+      },
+      "calendar": {
+        "name": "Calendar",
+        "tagline": "Événements, rappels et agendas auxquels vous êtes abonné. Importe et exporte des fichiers .ics ordinaires, pour que vous ne soyez jamais captif."
+      },
+      "contacts": {
+        "name": "Contacts",
+        "tagline": "Les personnes que vous connaissez, synchronisées entre vos appareils. Vous ne vous connectez à quelqu’un que si vous êtes tous les deux d’accord."
+      },
+      "fit": {
+        "name": "Fit",
+        "tagline": "Vos entraînements et votre historique de santé, importés depuis ce que vous avez déjà. Vos données d’entraînement cessent d’être l’actif d’une entreprise de fitness."
+      },
+      "home": {
+        "name": "Home",
+        "tagline": "La domotique qui tourne dans votre realm plutôt que dans le cloud d’un fabricant, pour que votre maison ne rende de comptes à personne."
+      },
+      "mia": {
+        "name": "Mia",
+        "tagline": "Un assistant vocal qui fonctionne sur votre propre appareil, de la compréhension de vos paroles jusqu’à l’action. Il s’associe à l’enceinte Mia (voir Matériel)."
+      }
+    }
+  },
+  "developers": {
+    "heading": "Créez des applis privées en quelques mois, pas en plusieurs années.",
+    "body1": "Le chiffrement de bout en bout, la synchronisation entre appareils, le partage et la récupération demandent des années de travail pour être bien faits, et c’est pourquoi si peu d’applis les proposent. Les SDK de Tenshu vous fourniront tout cela clés en main, pour Android, iOS, ordinateur et le web, assez simples pour qu’un agent de programmation IA s’en serve aussi facilement que vous.",
+    "body2": "Tout repose sur une idée : tout décrire une seule fois. Vos données, vos services, les autorisations que demande votre appli et le format d’échange découlent tous d’un seul langage, l’IDL Tenshu, au lieu de protobuf ici, de REST là et d’un manifeste d’autorisations qui ne correspond qu’à peu près au code. Ce qu’un utilisateur accorde est donc exactement ce que votre appli peut faire, et Control peut le faire respecter."
+  },
+  "publishing": {
+    "heading": "Publiez partout, digne de confiance partout.",
+    "body1": "Aujourd’hui, une appli atteint ses utilisateurs par l’une de deux boutiques, selon leurs conditions et après leur examen. Tenshu vous offrira plus d’une voie. Depuis la Tenshu App Console, vous publierez une fois et toucherez de nombreux canaux, du Tenshu Store aux boutiques d’applis que vous utilisez déjà.",
+    "body2": "La confiance voyage avec votre appli. Tenshu Rei enregistre qui l’a signée et ce que des évaluateurs indépendants ont confirmé à son sujet, dans des registres ouverts que personne ne contrôle seul. Ainsi, les utilisateurs peuvent faire confiance à votre appli où qu’ils la trouvent, et ce qu’ils achètent dans une boutique peut fonctionner dans une autre."
+  },
+  "block8": {
+    "heading": "Du matériel dédié.",
+    "lede": "Tenshu n’est pas que du logiciel. Nous concevons du matériel qui amène votre realm chez vous. De l’informatique ambiante qui vous appartient, sans personne d’autre à l’écoute.",
+    "items": {
+      "hub": {
+        "name": "Tenshu Hub",
+        "blurb": "Un appareil domotique qui fait tourner un proxy Tenshu : de l’informatique ambiante chez vous, sans confier à un géant de la tech un micro dans chaque pièce. Il s’associe à votre téléphone et héberge votre realm là où vous vivez."
+      },
+      "miaSpeaker": {
+        "name": "Enceinte Mia",
+        "blurb": "Une enceinte Bluetooth qui donne une voix dans la pièce à Mia, l’assistant vocal qui tourne sur l’appareil. La reconnaissance vocale s’exécute localement : votre voix ne quitte jamais votre realm, sauf si vous en donnez l’autorisation."
+      }
+    }
+  },
+  "founder": {
+    "heading": "Qui construit Tenshu.",
+    "body1": "Bonjour, je suis Benedikt. Depuis neuf ans, je développe des applis pour des banques, des assureurs et des constructeurs automobiles, le genre de logiciels à qui l’on doit confier des choses qui comptent. Au fil de ces années, j’ai vu une part toujours plus grande de nos vies finir sur des serveurs que nous n’avons jamais choisis et dont nous ne pouvons rien voir de l’intérieur. Tenshu, c’est ce à quoi devrait ressembler l’alternative selon moi : vos appareils se synchronisent, partagent et sauvegardent sans que personne au milieu ne puisse lire quoi que ce soit.",
+    "body2": "Un <em>tenshu</em> est le donjon, la tour au centre d’un château japonais. Dans Tenshu, votre realm, c’est tout ce qui est à vous : vos fichiers, vos photos, vos appareils. Le donjon est l’endroit d’où vous le gouvernez, et personne n’y entre sans votre accord.",
+    "body3": "Je le construis depuis 2022, seul jusqu’ici : le livre blanc, la synchronisation chiffrée, les applis. Prochaine étape : tout ouvrir. Vous ne devriez pas avoir à croire une promesse de confidentialité sur parole ; le code source va donc être publié sur GitHub pour que vous puissiez le vérifier, et le modèle de menace détaille ce que nous pouvons voir et ce que nous ne pouvons pas voir.",
+    "body4": "Aller plus loin demandera plus d’une personne. Que vous souhaitiez l’essayer en avant-première, créer une appli dessus, devenir partenaire de Tenshu ou y investir, écrivez-moi. Je lis tout.",
+    "company": "Tenshu est exploité par mon entreprise, Cajetan UG (haftungsbeschränkt), à Mühldorf am Inn, en Bavière.",
+    "link": {
+      "github": "GitHub",
+      "linkedin": "LinkedIn",
+      "contact": "Écrivez-moi"
+    }
+  },
+  "block9": {
+    "heading": "Prêt à essayer ?",
+    "lede": "Configurez Tenshu en moins d’une minute. Vos données restent sur vos appareils.",
+    "faqHeading": "Questions fréquentes",
+    "faq": {
+      "free": {
+        "question": "Tenshu est-il gratuit ?",
+        "answer": "Oui, avec une offre gratuite généreuse : actuellement 5 Go de stockage chiffré. Des offres payantes pour plus de stockage (et, à l’avenir, des applis tierces premium que vous pourrez acheter une fois). <pricing>Voir les offres et les tarifs.</pricing>"
+      },
+      "shutdown": {
+        "question": "Et si Tenshu ferme ?",
+        "answer": "Vos données sont sur vos appareils. Le relais de synchronisation est open source : vous pouvez faire tourner le vôtre. Votre code de récupération fonctionne quel que soit l’opérateur de Tenshu. La plateforme est conçue pour que <em>le pire des cas</em> soit un désagrément pratique, pas une catastrophe."
+      },
+      "openSource": {
+        "question": "Pourquoi l’open source ?",
+        "answer": "Parce que des promesses de confidentialité invérifiables ne sont pas de la confidentialité. Chaque ligne de Tenshu peut être auditée, et l’architecture est conçue pour qu’un Tenshu compromis (ou un Tenshu soumis à une contrainte légale) ne puisse pas défaire votre confidentialité. <threatModel>Voir notre modèle de menace.</threatModel>"
+      },
+      "compare": {
+        "question": "Comment cela se compare-t-il à Signal, iCloud, etc. ?",
+        "answer": "Tenshu va plus loin. Signal protège vos messages ; iCloud synchronise vos données, avec Apple qui détient les clés pour une partie d’entre elles ; Tenshu est une plateforme complète où vivent des applis et où vos données restent à vous du début à la fin. Nous reprenons des idées de beaucoup d’entre eux : le chiffrement de bout en bout (comme Signal), la synchronisation transparente entre appareils (comme iCloud), l’open source avec des compilations reproductibles (comme F-Droid)."
+      },
+      "migration": {
+        "question": "Et les données que je crée aujourd’hui dans d’autres applis ?",
+        "answer": "Tenshu n’importe pas directement : la plupart des autres applis n’exposent pas leurs données dans des formats exploitables. À mesure que l’écosystème de Tenshu grandit, chaque appli ajoute ses propres imports (Drive importe depuis Google Takeout, Timeline depuis l’historique des positions Google, etc.). La migration est une vraie préoccupation ; nous la prenons au sérieux."
+      },
+      "learnMore": {
+        "question": "Où en savoir plus ?",
+        "answer": "<whitepaper>Livre blanc</whitepaper> · <architecture>Architecture</architecture> · <threatModel>Modèle de menace</threatModel> · <github>GitHub</github> · <roadmap>Feuille de route</roadmap>."
+      }
+    }
+  },
+  "vision": {
+    "heading": "Tenshu veut vous donner le contrôle total de votre vie numérique.",
+    "intro": "Les applis ont fait beaucoup de chemin depuis les premiers téléphones mobiles. Les écosystèmes qui les entourent n’ont pas suivi. Selon moi, ils restent en retrait dans quatre domaines.",
+    "problems": {
+      "privacy": {
+        "name": "Vie privée",
+        "body": "Pour la plupart des logiciels que nous utilisons chaque jour, qu’il s’agisse de fichiers, de photos, de santé ou de votre maison connectée, c’est quelqu’un d’autre qui contrôle vos données. C’est souvent voulu, parce que de nombreux modèles économiques en dépendent. Vos données peuvent donc être utilisées d’une manière à laquelle vous n’avez jamais consenti, sans que vous le sachiez jamais."
+      },
+      "security": {
+        "name": "Sécurité",
+        "body": "Les boutiques d’applis vous protègent surtout par un examen central unique avant la mise en ligne d’une appli. Les développeurs honnêtes attendent souvent des jours cet examen, et pourtant des applis malveillantes passent régulièrement. Comme deux entreprises se partagent pratiquement le marché, la concurrence pousse peu à faire mieux."
+      },
+      "interoperability": {
+        "name": "Interopérabilité",
+        "body": "Emporter vos données, vos applis et vos achats d’un écosystème à un autre est difficile, et ce n’est pas un hasard : il est plus facile de rester dans un système fermé que d’en sortir. Cela freine l’innovation et coûte de l’argent aux consommateurs. Même une chose aussi simple qu’un chargeur commun à tous les téléphones a demandé des années et une loi européenne."
+      },
+      "sovereignty": {
+        "name": "Souveraineté",
+        "body": "Presque tous les logiciels mobiles sont distribués par deux entreprises, toutes deux basées dans le même pays. C’est beaucoup de pouvoir entre très peu de mains, et un pouvoir aussi concentré peut subir des pressions : politiques, sanctions ou lois sur lesquelles vous n’avez jamais eu votre mot à dire. Où que vous viviez, votre vie numérique ne devrait pas dépendre d’une seule entreprise ou d’un seul pays restant de votre côté."
+      }
+    },
+    "tech": {
+      "heading": "Ce que Tenshu fait autrement.",
+      "lede": "Aucun logiciel ne peut être parfaitement confidentiel. Mais il peut partager le moins possible, uniquement avec ceux qui en ont besoin, et vous donner le contrôle de ce que vous partagez. Pour y parvenir, je construis une pile technologique autour de trois nouvelles technologies :",
+      "control": {
+        "name": "L’appli Control",
+        "tagline": "Vos données, synchronisées et chiffrées de bout en bout",
+        "body": "Vos données ont leur place sur vos appareils, pas sur le serveur de quelqu’un d’autre. Control les y garde, synchronisées et chiffrées de bout en bout, et vous laisse décider de ce que chaque appli peut voir."
+      },
+      "idl": {
+        "name": "L’IDL Tenshu",
+        "tagline": "Des interfaces sémantiques au cœur",
+        "body": "Chaque interaction dans Tenshu est décrite dans un langage de définition d’interfaces, l’IDL Tenshu, des formats d’échange jusqu’aux autorisations qu’accorde un utilisateur. Je crois que cette approche sémantique rend les logiciels plus sûrs, permet aux applis de collaborer bien au-delà de ce que permettent les API REST ou protobuf classiques, et facilite le développement, pour les humains comme pour les agents d’IA."
+      },
+      "rei": {
+        "name": "Tenshu Rei",
+        "tagline": "La couche de confiance ouverte",
+        "body": "La confiance ne devrait pas dépendre d’un seul gardien. Rei la répartit entre de nombreuses parties indépendantes, dans des registres ouverts que personne ne contrôle seul."
+      }
+    },
+    "closing": {
+      "heading": "La vie privée par conception.",
+      "body": "Chacun ne reçoit que les informations dont il a besoin, rien de plus. Et au lieu de vous demander de faire confiance à une autorité unique, Tenshu fournit la technologie qui la rend inutile dès le départ."
+    }
+  },
+  "placeholders": {
+    "screenshotAriaLabel": "{label} (bientôt disponible)",
+    "screenshotDefaultLabel": "Capture d’écran",
+    "status": {
+      "available": "Disponible",
+      "progress": "En cours",
+      "planning": "En préparation"
+    }
+  },
+  "accountDeletion": {
+    "heading": "Supprimer votre compte Tenshu",
+    "intro": "Vous pouvez supprimer votre compte Tenshu ici, sans l'application. Pour confirmer que le compte vous appartient, nous envoyons un code à son adresse e-mail.",
+    "what": {
+      "heading": "Ce que fait la suppression de votre compte",
+      "deleted": "Supprimés immédiatement : votre compte Tenshu, son adresse e-mail et ses sessions de connexion. Chaque appareil connecté avec ce compte est déconnecté du service de stockage de Tenshu.",
+      "subscriptions": "Les abonnements souscrits sur le web ou sur le Google Play Store sont résiliés immédiatement : vous ne serez plus débité. Le reste de la période de facturation en cours est perdu, il n'est pas remboursé.",
+      "apple": "Un abonnement souscrit sur l'App Store d'Apple ne peut être résilié que par vous, dans les réglages de votre identifiant Apple. La suppression de votre compte ne le résilie pas.",
+      "data": "Vos données synchronisées sur les serveurs de Tenshu sont chiffrées de bout en bout : Tenshu ne peut pas les lire. Lorsque vous supprimez votre compte, leur suppression définitive est programmée à l'issue d'un délai de grâce de 30 jours ; une fois supprimées, elles ne peuvent plus être récupérées, pas même par Tenshu. Si vous vous reconnectez avec le même appareil dans ces 30 jours, vos fichiers sont conservés.",
+      "kept": "Conservés : vos factures et la preuve que vous avez accepté les conditions. La loi nous oblige à les garder pendant une durée fixe (environ 10 ans), ils ne sont donc pas supprimés. Ils ne contiennent plus votre adresse e-mail.",
+      "devices": "Non concerné : tout ce qui se trouve sur vos propres appareils, comme les fichiers téléchargés ou disponibles hors ligne. Désinstaller les applications le supprime.",
+      "permanent": "La suppression de votre compte est définitive et irréversible."
+    },
+    "email": {
+      "label": "Adresse e-mail de votre compte Tenshu",
+      "send": "Envoyer le code",
+      "sending": "Envoi…"
+    },
+    "code": {
+      "sent": "Si un compte Tenshu utilise {email}, nous lui avons envoyé un code pour confirmer la suppression. Consultez votre boîte de réception.",
+      "resent": "Nous avons envoyé un nouveau code, si un compte Tenshu utilise cette adresse.",
+      "label": "Code à 6 chiffres",
+      "acknowledge": "Je comprends que la suppression de mon compte est définitive et irréversible.",
+      "delete": "Supprimer mon compte",
+      "deleting": "Suppression…",
+      "resend": "Envoyer un nouveau code",
+      "changeEmail": "Utiliser une autre adresse e-mail"
+    },
+    "done": {
+      "heading": "Votre compte a été supprimé.",
+      "body": "Votre compte et votre adresse e-mail ont été effacés. La suppression des données synchronisées sur nos serveurs est programmée à l'issue d'un délai de grâce de 30 jours.",
+      "apple": "Si vous aviez un abonnement via l'App Store d'Apple, pensez à le résilier dans les réglages de votre identifiant Apple."
+    },
+    "error": {
+      "invalidEmail": "Saisissez une adresse e-mail valide.",
+      "rateLimited": "Trop de tentatives. Veuillez réessayer plus tard.",
+      "sendFailed": "Nous n'avons pas pu envoyer l'e-mail pour le moment. Veuillez réessayer dans quelques minutes.",
+      "invalidCode": "Ce code n'a pas fonctionné. Vérifiez-le et réessayez, ou demandez un nouveau code.",
+      "unreachable": "Impossible de joindre le service de compte. Vérifiez votre connexion et réessayez.",
+      "generic": "Une erreur s'est produite. Veuillez réessayer."
+    },
+    "help": "Des questions, ou le code n'arrive pas ? Écrivez à <mail>support@tenshu.app</mail>."
+  }
+}

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Fired after `git merge` / `git pull`. The pre-merge state isn't reliably available here,
+# so regenerate unconditionally (the script no-ops fast when xcodegen is absent).
+exec "$(dirname "$0")/regenerate-xcode-projects.sh"

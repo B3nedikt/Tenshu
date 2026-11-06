@@ -1,0 +1,8 @@
+[Unit]
+Description=Report the Tenshu box's disk usage to the health check
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/tenshu/tenshu-disk-check.sh

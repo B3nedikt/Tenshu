@@ -1,0 +1,29 @@
+Tenshu Contacts keeps your contacts encrypted and in sync across your devices. Only your own devices can read them.
+
+TENSHU CONTACTS NEEDS TENSHU CONTROL
+Tenshu Control holds your keys and connects your devices. Install Tenshu Control from Google Play and set it up first, then open Contacts. Contacts finds Control on its own.
+
+WHAT YOU CAN DO
+- Add contacts, and edit their phone numbers, email addresses, organization and notes.
+- Bring people in from this phone: pick one contact, import a .vcf file, or import your whole address book.
+- Find a contact by name, phone number, email address or organization.
+- Invite someone with a one-time QR code or link. When they accept, compare a six-digit code to confirm it is them.
+- Verify a person you connected with, and see a warning when their key changes.
+- Find possible duplicates, choose the one to keep, and merge them.
+- Set the name the other Tenshu apps show for you.
+
+HOW CONTACTS KEEPS YOUR CONTACTS PRIVATE
+- Your contacts are encrypted on your device before they are uploaded. Tenshu's servers store only encrypted data, and they don't have the keys to read it.
+- The server can still see some facts it needs to sync: how much you store, how many devices you have, and when they sync.
+- Tenshu has no directory, so nobody can look you up. You connect with someone only when you both accept an invitation.
+- Contacts reads your address book only when you choose to import from it, and it never writes to it.
+- Without a storage plan, your contacts stay on this device.
+
+REQUIREMENTS
+- Android 7.0 or later.
+- Tenshu Control, set up on the same phone.
+- To sync between devices: a storage plan. The free plan has 5 GB.
+
+Tenshu is open source and still in testing: expect rough edges, and tell us what breaks.
+
+Help and common problems: tenshu.app/apps/contacts/support/android/en

@@ -1,0 +1,1311 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light" data-palette="amethyst" data-mark="outline" data-alternates="1">
+<head>
+    <meta charset="utf-8">
+    <title>Tenshu — Brand Foundations</title>
+    <meta name="viewport" content="width=1280">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap"
+          rel="stylesheet">
+    <style>
+        /* ─── Tokens ─────────────────────────────────────────────────────────── */
+        :root {
+          /* palette vars set at runtime by app.jsx; these are the boot fallbacks */
+          --primary: #5A4A96; --primary-soft: #E6DEFF; --on-primary: #fff;
+          --accent: #7B5265; --accent-soft: #FFD8E7;
+          --surface: #FFFBFF; --surface-2: #F4F0F7; --surface-3: #E7E0EC;
+          --text: #1C1B1F; --text-2: #49454E; --text-3: #7A757F;
+          --line: #D9D2DE; --line-strong: #1C1B1F;
+          --success: #1F6B4D; --danger: #BA1A1A; --warning: #7A5310;
+
+          /* type and spacing scales — single density for v0.1, kept as multipliers
+             so a future density mode can rescale without touching every token. */
+          --type-scale: 1; --space-scale: 1;
+
+          /* radii — sharp & confident, but not severe */
+          --r-xs: 2px; --r-s: 4px; --r-m: 8px; --r-l: 14px; --r-pill: 999px;
+
+          /* spacing scale */
+          --s-1: calc(4px  * var(--space-scale));
+          --s-2: calc(8px  * var(--space-scale));
+          --s-3: calc(12px * var(--space-scale));
+          --s-4: calc(16px * var(--space-scale));
+          --s-5: calc(24px * var(--space-scale));
+          --s-6: calc(32px * var(--space-scale));
+          --s-7: calc(48px * var(--space-scale));
+          --s-8: calc(64px * var(--space-scale));
+          --s-9: calc(96px * var(--space-scale));
+
+          /* type families */
+          --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+          /* type sizes — sharp confident scale, big jumps between display & body */
+          --t-mono:    calc(11px * var(--type-scale));
+          --t-caption: calc(12px * var(--type-scale));
+          --t-body-s:  calc(14px * var(--type-scale));
+          --t-body:    calc(16px * var(--type-scale));
+          --t-lead:    calc(20px * var(--type-scale));
+          --t-h3:      calc(24px * var(--type-scale));
+          --t-h2:      calc(36px * var(--type-scale));
+          --t-h1:      calc(56px * var(--type-scale));
+          --t-display: calc(96px * var(--type-scale));
+        }
+
+        * { box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; }
+        body {
+          font-family: var(--font-sans);
+          font-size: var(--t-body);
+          line-height: 1.5;
+          color: var(--text);
+          background: var(--surface);
+          -webkit-font-smoothing: antialiased;
+          font-feature-settings: 'ss01', 'cv11';
+          letter-spacing: -0.005em;
+        }
+
+        /* ─── Shell ──────────────────────────────────────────────────────────── */
+        .shell { max-width: 1280px; margin: 0 auto; padding: 0 var(--s-7); }
+
+        .topbar {
+          position: sticky; top: 0; z-index: 5;
+          display: grid; grid-template-columns: auto 1fr auto;
+          align-items: center; gap: var(--s-5);
+          padding: var(--s-4) 0;
+          background: color-mix(in srgb, var(--surface) 88%, transparent);
+          backdrop-filter: blur(12px);
+          border-bottom: 1px solid var(--line);
+        }
+        .topbar__brand { display: flex; align-items: center; gap: var(--s-3); }
+        .topbar__brand .mark { width: 28px; height: 28px; color: var(--primary); }
+        .topbar__brand .word { font-weight: 700; letter-spacing: -0.02em; font-size: var(--t-body); }
+        .topbar__crumbs { font-family: var(--font-mono); font-size: var(--t-mono); color: var(--text-3); text-transform: uppercase; letter-spacing: 0.08em; }
+        .topbar__meta { font-family: var(--font-mono); font-size: var(--t-mono); color: var(--text-3); }
+
+        /* Section primitives */
+        section { padding: var(--s-9) 0; border-bottom: 1px solid var(--line); }
+        section:last-of-type { border-bottom: 0; }
+        .s-eyebrow {
+          font-family: var(--font-mono); font-size: var(--t-mono);
+          text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-3);
+          display: flex; align-items: baseline; gap: var(--s-3);
+          margin-bottom: var(--s-5);
+        }
+        .s-eyebrow::before {
+          content: ""; width: 24px; height: 1px; background: var(--line-strong);
+          display: inline-block;
+        }
+        .s-eyebrow .num { color: var(--primary); font-weight: 600; }
+        .s-title { font-size: var(--t-h2); font-weight: 700; letter-spacing: -0.025em; line-height: 1.05; max-width: 18ch; margin: 0 0 var(--s-4); text-wrap: balance; }
+        .s-lede { font-size: var(--t-lead); color: var(--text-2); max-width: 56ch; margin: 0 0 var(--s-7); text-wrap: pretty; line-height: 1.4; }
+
+        /* Reusable rule */
+        .rule { height: 1px; background: var(--line); }
+        .rule--strong { background: var(--line-strong); height: 2px; }
+
+        /* ─── 1. Cover ───────────────────────────────────────────────────────── */
+        .cover { padding: var(--s-9) 0 var(--s-9); border-bottom: 1px solid var(--line-strong); }
+        .cover__grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: var(--s-8); align-items: end; }
+        .cover__display {
+          font-size: var(--t-display); font-weight: 800; letter-spacing: -0.04em;
+          line-height: 0.92; margin: 0; color: var(--text); text-wrap: balance;
+        }
+        .cover__display em { font-style: normal; color: var(--primary); }
+        .cover__sub {
+          font-size: var(--t-lead); color: var(--text-2); margin: var(--s-5) 0 0;
+          max-width: 38ch; text-wrap: pretty;
+        }
+        .cover__meta {
+          display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--s-5) var(--s-7);
+          padding: var(--s-5) 0 0; border-top: 1px solid var(--line);
+          font-family: var(--font-mono); font-size: var(--t-mono);
+          text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-3);
+          margin-top: var(--s-7);
+        }
+        .cover__meta b { display: block; color: var(--text); font-weight: 600; letter-spacing: -0.01em; text-transform: none; font-family: var(--font-sans); font-size: var(--t-body-s); margin-top: var(--s-1); }
+        .cover__plate {
+          background: var(--surface-2); border: 1px solid var(--line);
+          padding: var(--s-7); aspect-ratio: 4/5; position: relative;
+          display: grid; place-items: center;
+          background-image:
+            linear-gradient(to right, var(--line) 1px, transparent 1px),
+            linear-gradient(to bottom, var(--line) 1px, transparent 1px);
+          background-size: var(--s-5) var(--s-5);
+        }
+        .cover__plate-mark { color: var(--primary); }
+        .cover__plate-mark svg { display: block; width: 220px; height: 220px; }
+        .cover__plate-tag {
+          position: absolute; left: var(--s-4); bottom: var(--s-4);
+          font-family: var(--font-mono); font-size: var(--t-mono); color: var(--text-2);
+          text-transform: uppercase; letter-spacing: 0.12em;
+        }
+        .cover__plate-corner {
+          position: absolute; right: var(--s-4); top: var(--s-4);
+          font-family: var(--font-mono); font-size: var(--t-mono); color: var(--primary);
+        }
+
+        /* ─── 2. Marks ───────────────────────────────────────────────────────── */
+        .marks-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-5); }
+        .marks-grid--two { grid-template-columns: repeat(2, 1fr); }
+        .mark-card {
+          border: 1px solid var(--line);
+          background: var(--surface);
+          display: flex; flex-direction: column;
+        }
+        .mark-card__hero {
+          aspect-ratio: 1/1; display: grid; place-items: center;
+          color: var(--primary); border-bottom: 1px solid var(--line);
+          background:
+            radial-gradient(circle at center, transparent 0 60%, color-mix(in srgb, var(--primary) 4%, var(--surface)) 100%),
+            var(--surface);
+        }
+        .mark-card__hero svg { width: 64%; height: 64%; }
+        .mark-card__hero--inverse { background: var(--text); color: var(--surface); }
+        .mark-card__body { padding: var(--s-4) var(--s-5) var(--s-5); }
+        .mark-card__name {
+          font-family: var(--font-mono); font-size: var(--t-mono);
+          text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-3);
+          margin: 0 0 var(--s-2);
+        }
+        .mark-card__title { font-size: var(--t-h3); font-weight: 700; letter-spacing: -0.02em; margin: 0 0 var(--s-3); line-height: 1.1; }
+        .mark-card__note { font-size: var(--t-body-s); color: var(--text-2); margin: 0; line-height: 1.4; }
+        .mark-card__sizes {
+          display: flex; align-items: center; gap: var(--s-4);
+          padding: var(--s-3) var(--s-5); border-top: 1px solid var(--line);
+          color: var(--primary);
+        }
+        .mark-card__sizes > div { display: flex; align-items: center; justify-content: center; }
+        .mark-card__sizes .lbl { margin-left: auto; font-family: var(--font-mono); font-size: var(--t-mono); color: var(--text-3); text-transform: uppercase; letter-spacing: 0.08em; }
+
+        .mark-construction {
+          display: grid; grid-template-columns: 1.4fr 1fr; gap: var(--s-7);
+          margin-top: var(--s-7); padding-top: var(--s-7); border-top: 1px solid var(--line);
+        }
+        .mark-construction__plate {
+          background: var(--surface-2); border: 1px solid var(--line);
+          aspect-ratio: 1/1; padding: var(--s-7);
+          display: grid; place-items: center; color: var(--primary);
+          position: relative;
+        }
+        .mark-construction__plate svg { width: 70%; height: 70%; }
+        .mark-construction__plate::before, .mark-construction__plate::after {
+          content: ""; position: absolute; background: color-mix(in srgb, var(--primary) 12%, transparent);
+        }
+        .mark-construction__plate::before { left: 0; right: 0; top: 50%; height: 1px; }
+        .mark-construction__plate::after  { top: 0; bottom: 0; left: 50%; width: 1px; }
+        .mc-rules { display: flex; flex-direction: column; gap: var(--s-3); font-size: var(--t-body-s); color: var(--text-2); }
+        .mc-rules h4 { font-family: var(--font-mono); font-size: var(--t-mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-3); margin: 0 0 var(--s-2); }
+        .mc-rules ul { margin: 0; padding-left: 1.1em; }
+        .mc-rules li { margin-bottom: var(--s-1); }
+
+        /* ─── 3. Wordmark ────────────────────────────────────────────────────── */
+        .word-grid { display: grid; grid-template-columns: 2fr 1fr; gap: var(--s-5); align-items: stretch; }
+        .word-hero {
+          background: var(--surface-2); border: 1px solid var(--line); padding: var(--s-9) var(--s-7);
+          display: flex; flex-direction: column; gap: var(--s-5); justify-content: space-between;
+          min-height: 360px;
+        }
+        .word-hero__big { font-size: 132px; font-weight: 800; letter-spacing: -0.05em; line-height: 0.9; color: var(--text); }
+        .word-hero__big em { font-style: normal; color: var(--primary); }
+        .word-hero__meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-5); font-family: var(--font-mono); font-size: var(--t-mono); color: var(--text-3); text-transform: uppercase; letter-spacing: 0.1em; }
+        .word-hero__meta b { display: block; color: var(--text); font-family: var(--font-sans); font-size: var(--t-body-s); text-transform: none; letter-spacing: -0.01em; font-weight: 600; }
+
+        .lockups { display: flex; flex-direction: column; gap: var(--s-3); }
+        .lockup {
+          border: 1px solid var(--line); padding: var(--s-5);
+          display: flex; align-items: center; gap: var(--s-4);
+          background: var(--surface); flex: 1;
+        }
+        .lockup--inverse { background: var(--text); color: var(--surface); border-color: var(--text); }
+        .lockup--stack { flex-direction: column; align-items: flex-start; gap: var(--s-2); }
+        .lockup__mark { color: var(--primary); width: 32px; height: 32px; flex-shrink: 0; }
+        .lockup--inverse .lockup__mark { color: var(--surface); }
+        .lockup__word { font-weight: 700; font-size: var(--t-h3); letter-spacing: -0.025em; }
+        .lockup__tag { margin-left: auto; font-family: var(--font-mono); font-size: var(--t-mono); color: var(--text-3); text-transform: uppercase; letter-spacing: 0.08em; }
+        .lockup--inverse .lockup__tag { color: color-mix(in srgb, var(--surface) 55%, transparent); }
+
+        /* ─── 4. Color ───────────────────────────────────────────────────────── */
+        .palette-row { display: grid; grid-template-columns: 240px 1fr; gap: var(--s-7); align-items: start; margin-bottom: var(--s-7); }
+        .palette-row:last-child { margin-bottom: 0; }
+        .palette-row__lbl h3 { font-size: var(--t-h3); font-weight: 700; letter-spacing: -0.02em; margin: 0 0 var(--s-2); }
+        .palette-row__lbl p { color: var(--text-2); font-size: var(--t-body-s); margin: 0; line-height: 1.4; }
+        .palette-row__lbl .badge {
+          display: inline-block; padding: 2px 8px; margin-bottom: var(--s-3);
+          border: 1px solid var(--line-strong); font-family: var(--font-mono);
+          font-size: var(--t-mono); text-transform: uppercase; letter-spacing: 0.1em;
+        }
+
+        .swatch-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; }
+        .swatch { aspect-ratio: 3/4; padding: var(--s-3); display: flex; flex-direction: column; justify-content: space-between; position: relative; }
+        .swatch__role { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.85; line-height: 1.2; }
+        .swatch__hex { font-family: var(--font-mono); font-size: 11px; font-weight: 500; letter-spacing: -0.01em; }
+        .swatch--lg { grid-column: span 2; aspect-ratio: 6/4; }
+
+        .alt-palettes { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--s-3); margin-top: var(--s-5); }
+        .alt-card {
+          border: 1px solid var(--line); background: var(--surface); padding: var(--s-4);
+          display: flex; flex-direction: column; gap: var(--s-3);
+        }
+        .alt-card__name { font-weight: 700; font-size: var(--t-body); letter-spacing: -0.015em; }
+        .alt-card__bars { display: flex; height: 36px; }
+        .alt-card__bar { flex: 1; }
+        .alt-card__bar:nth-child(1) { flex: 1.4; }
+        .alt-card__note { color: var(--text-2); font-size: var(--t-body-s); margin: 0; line-height: 1.4; min-height: 2.8em; }
+        .alt-card__hex { font-family: var(--font-mono); font-size: var(--t-mono); color: var(--text-3); display: flex; gap: var(--s-3); }
+
+        /* Light + dark side by side */
+        .lightdark { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-3); margin-top: var(--s-5); }
+        .lightdark__col { border: 1px solid var(--line); padding: var(--s-5); }
+        .lightdark__col h4 { font-family: var(--font-mono); font-size: var(--t-mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-3); margin: 0 0 var(--s-3); }
+        .lightdark__col--light { background: #FFFBFF; color: #1C1B1F; }
+        .lightdark__col--dark  { background: #141318; color: #E6E1E6; }
+
+        /* ─── 5. Type ────────────────────────────────────────────────────────── */
+        .type-row {
+          display: grid; grid-template-columns: 220px 1fr; gap: var(--s-5);
+          align-items: baseline; padding: var(--s-3) 0; border-bottom: 1px solid var(--line);
+        }
+        .type-row:last-child { border-bottom: 0; }
+        .type-row__meta { font-family: var(--font-mono); font-size: var(--t-mono); color: var(--text-3); text-transform: uppercase; letter-spacing: 0.08em; }
+        .type-row__sample { color: var(--text); }
+        .t-display { font-size: var(--t-display); font-weight: 800; letter-spacing: -0.04em; line-height: 0.92; }
+        .t-h1 { font-size: var(--t-h1); font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+        .t-h2 { font-size: var(--t-h2); font-weight: 700; letter-spacing: -0.025em; line-height: 1.05; }
+        .t-h3 { font-size: var(--t-h3); font-weight: 600; letter-spacing: -0.015em; line-height: 1.15; }
+        .t-lead { font-size: var(--t-lead); font-weight: 400; letter-spacing: -0.01em; line-height: 1.4; color: var(--text-2); }
+        .t-body { font-size: var(--t-body); font-weight: 400; line-height: 1.55; }
+        .t-body-s { font-size: var(--t-body-s); font-weight: 400; line-height: 1.5; color: var(--text-2); }
+        .t-caption { font-size: var(--t-caption); font-weight: 500; letter-spacing: 0.005em; color: var(--text-3); }
+        .t-mono { font-family: var(--font-mono); font-size: var(--t-mono); text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-3); }
+
+        .type-pairing {
+          display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-5);
+          margin-top: var(--s-7); border-top: 2px solid var(--line-strong); padding-top: var(--s-7);
+        }
+        .type-pairing > div h3 { font-family: var(--font-mono); font-size: var(--t-mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-3); margin: 0 0 var(--s-3); }
+        .glyph-set { font-size: 28px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.2; word-spacing: 0.1em; }
+        .glyph-set--mono { font-family: var(--font-mono); font-weight: 500; letter-spacing: 0; }
+
+        /* ─── 6. Tokens (radii, spacing) ─────────────────────────────────────── */
+        .tokens { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-7); }
+        .tokens__group h3 { font-family: var(--font-mono); font-size: var(--t-mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-3); margin: 0 0 var(--s-4); }
+        .radii-grid { display: flex; gap: var(--s-3); align-items: end; }
+        .radii-grid > div { display: flex; flex-direction: column; align-items: center; gap: var(--s-2); }
+        .radii-grid .swatch-r { width: 80px; height: 80px; background: var(--primary-soft); border: 1px solid var(--primary); }
+        .radii-grid .lbl { font-family: var(--font-mono); font-size: var(--t-mono); color: var(--text-3); }
+        .radii-grid b { color: var(--text); font-family: var(--font-sans); font-size: var(--t-body-s); }
+        .spacing-grid { display: grid; grid-template-columns: 90px 1fr; gap: var(--s-3); align-items: center; }
+        .spacing-grid b { font-family: var(--font-mono); font-size: var(--t-body-s); color: var(--text); font-weight: 500; }
+        .spacing-grid .bar { background: var(--primary); height: 8px; }
+
+        /* ─── 7. Components ──────────────────────────────────────────────────── */
+        .components {
+          display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--s-5);
+        }
+        .cmp { border: 1px solid var(--line); padding: var(--s-5); background: var(--surface); }
+        .cmp h3 { font-family: var(--font-mono); font-size: var(--t-mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-3); margin: 0 0 var(--s-4); display: flex; justify-content: space-between; }
+        .cmp h3 .num { color: var(--primary); }
+        .cmp__row { display: flex; gap: var(--s-3); flex-wrap: wrap; align-items: center; margin-bottom: var(--s-3); }
+        .cmp__row:last-child { margin-bottom: 0; }
+
+        /* Buttons */
+        .btn {
+          font: inherit; font-family: var(--font-sans); font-weight: 600; letter-spacing: -0.005em;
+          padding: 10px 18px; border-radius: var(--r-s); border: 1px solid transparent;
+          cursor: pointer; transition: background 0.12s, border-color 0.12s;
+          font-size: var(--t-body-s); line-height: 1; display: inline-flex; align-items: center; gap: 8px;
+        }
+        .btn--primary { background: var(--primary); color: var(--on-primary); }
+        .btn--primary:hover { background: color-mix(in srgb, var(--primary) 88%, black); }
+        .btn--secondary { background: var(--surface); color: var(--text); border-color: var(--line-strong); }
+        .btn--secondary:hover { background: var(--surface-2); }
+        .btn--ghost { background: transparent; color: var(--text); }
+        .btn--ghost:hover { background: var(--surface-2); }
+        .btn--danger { background: var(--danger); color: #fff; }
+        .btn--sm { padding: 6px 12px; font-size: var(--t-caption); }
+        .btn--lg { padding: 14px 22px; font-size: var(--t-body); }
+        .btn-arrow { font-family: var(--font-mono); }
+
+        /* Inputs */
+        .field { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 220px; }
+        .field label { font-family: var(--font-mono); font-size: var(--t-mono); color: var(--text-3); text-transform: uppercase; letter-spacing: 0.1em; }
+        .input {
+          font: inherit; font-family: var(--font-sans); padding: 10px 12px;
+          border: 1px solid var(--line-strong); background: var(--surface); color: var(--text);
+          border-radius: var(--r-s); font-size: var(--t-body-s); outline: 0;
+        }
+        .input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent); }
+        .input--error { border-color: var(--danger); }
+        .field__error { color: var(--danger); font-size: var(--t-caption); }
+
+        /* File row (Drive) */
+        .file-row {
+          display: grid; grid-template-columns: auto 1fr auto auto; align-items: center;
+          gap: var(--s-4); padding: var(--s-3) var(--s-4); border-radius: var(--r-s);
+          border: 1px solid var(--line);
+        }
+        .file-row + .file-row { margin-top: var(--s-2); }
+        .file-row__icon { width: 32px; height: 32px; background: var(--primary-soft); color: var(--primary); display: grid; place-items: center; font-family: var(--font-mono); font-size: 11px; font-weight: 600; letter-spacing: -0.01em; border-radius: var(--r-xs); }
+        .file-row__name { font-weight: 500; font-size: var(--t-body-s); }
+        .file-row__meta { font-family: var(--font-mono); font-size: var(--t-mono); color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; }
+        .file-row__sync { width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
+        .file-row__sync--pending { background: var(--warning); }
+
+        /* Permission grant dialog */
+        .perm {
+          border: 1px solid var(--line-strong); background: var(--surface);
+          max-width: 380px; box-shadow: 0 24px 48px -16px color-mix(in srgb, var(--text) 22%, transparent);
+        }
+        .perm__hd {
+          padding: var(--s-3) var(--s-4); border-bottom: 1px solid var(--line);
+          display: flex; align-items: center; justify-content: space-between;
+          font-family: var(--font-mono); font-size: var(--t-mono); color: var(--text-3); text-transform: uppercase; letter-spacing: 0.1em;
+        }
+        .perm__hd .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); display: inline-block; margin-right: 6px; vertical-align: middle; }
+        .perm__body { padding: var(--s-5); display: flex; gap: var(--s-4); }
+        .perm__icon {
+          width: 44px; height: 44px; flex-shrink: 0;
+          background: var(--accent-soft); color: var(--accent);
+          display: grid; place-items: center; border-radius: var(--r-s);
+          font-weight: 700;
+        }
+        .perm__title { font-size: var(--t-body); font-weight: 600; letter-spacing: -0.01em; margin: 0 0 4px; }
+        .perm__desc { color: var(--text-2); font-size: var(--t-body-s); margin: 0; line-height: 1.45; }
+        .perm__detail { font-family: var(--font-mono); font-size: var(--t-mono); color: var(--text-3); text-transform: uppercase; letter-spacing: 0.08em; margin-top: var(--s-3); }
+        .perm__actions { padding: 0 var(--s-5) var(--s-5); display: flex; gap: var(--s-2); justify-content: flex-end; }
+
+        /* Pill / badge */
+        .pill { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: var(--t-mono); padding: 4px 10px; border-radius: var(--r-pill); text-transform: uppercase; letter-spacing: 0.08em; }
+        .pill--primary { background: var(--primary-soft); color: var(--primary); }
+        .pill--accent  { background: var(--accent-soft); color: var(--accent); }
+        .pill--outline { border: 1px solid var(--line-strong); color: var(--text); }
+        .pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+        /* ─── 8. Hero in context ─────────────────────────────────────────────── */
+        .hero-pair { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-3); }
+        .hero-mock { padding: var(--s-7); border: 1px solid var(--line); min-height: 460px; display: flex; flex-direction: column; gap: var(--s-5); position: relative; overflow: hidden; }
+        .hero-mock--light { background: #FFFBFF; color: #1C1B1F; }
+        .hero-mock--dark  { background: #141318; color: #E6E1E6; border-color: #2F2D38; }
+        .hero-mock--dark .hm__sub { color: #CAC4CF; }
+        .hero-mock--dark .hm__chip { border-color: #2F2D38; color: #CAC4CF; }
+        .hm__nav { display: flex; align-items: center; gap: var(--s-3); font-family: var(--font-mono); font-size: var(--t-mono); text-transform: uppercase; letter-spacing: 0.1em; }
+        .hm__nav .word { font-family: var(--font-sans); text-transform: none; letter-spacing: -0.02em; font-weight: 700; font-size: var(--t-body); }
+        .hm__nav .spacer { flex: 1; }
+        .hm__nav .link { opacity: 0.65; }
+        .hm__chip { padding: 3px 9px; border: 1px solid var(--line); border-radius: var(--r-pill); }
+        .hm__title { font-size: 56px; font-weight: 800; letter-spacing: -0.035em; line-height: 1; margin: var(--s-4) 0 0; max-width: 12ch; text-wrap: balance; }
+        .hm__title em { font-style: normal; color: var(--primary); }
+        .hero-mock--dark .hm__title em { color: var(--primary); }
+        .hm__sub { font-size: var(--t-body); color: var(--text-2); max-width: 38ch; line-height: 1.45; margin: 0; text-wrap: pretty; }
+        .hm__cta { display: flex; gap: var(--s-3); margin-top: var(--s-4); }
+        .hm__device {
+          position: absolute; right: -40px; bottom: -40px; width: 280px; height: 320px;
+          background: color-mix(in srgb, var(--primary) 8%, transparent);
+          border: 1px solid color-mix(in srgb, var(--primary) 40%, transparent);
+          border-radius: 36px;
+          display: grid; place-items: center; transform: rotate(8deg);
+        }
+        .hm__device .mark { color: var(--primary); width: 96px; height: 96px; }
+
+        /* ─── Footer ─────────────────────────────────────────────────────────── */
+        .foot { padding: var(--s-7) 0; display: flex; justify-content: space-between; align-items: center; gap: var(--s-5); }
+        .foot__l { font-family: var(--font-mono); font-size: var(--t-mono); text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-3); }
+        .foot__r { font-family: var(--font-mono); font-size: var(--t-mono); color: var(--text-3); }
+
+        /* Hide alternates when toggled off */
+        html[data-alternates="0"] .alt-palettes { display: none; }
+    </style>
+</head>
+<body>
+
+<header class="topbar shell">
+    <div class="topbar__brand">
+        <span class="mark" data-mark-slot="outline" data-size="28" data-stroke="2.5"></span>
+        <span class="word">Tenshu</span>
+        <span class="pill pill--outline" style="margin-left:8px"><i
+                class="dot"></i>Brand · v0.2</span>
+    </div>
+    <div class="topbar__crumbs">Foundations / Step 0 — Brand System</div>
+    <div class="topbar__meta">2026.05.09 · Geist · OKLCH</div>
+</header>
+
+<main class="shell">
+
+    <!-- ── 1. Cover ────────────────────────────────────────────────────────── -->
+    <section class="cover">
+        <div class="cover__grid">
+            <div>
+                <div class="s-eyebrow"><span class="num">00</span><span>Brand foundations</span>
+                </div>
+                <h1 class="cover__display">Quiet apps.<br><em>Loud control.</em></h1>
+                <p class="cover__sub">The visual system Drive, Control and the apex web all share.
+                    Sharp rules, generous space, monospace metadata, one watchful cat.</p>
+                <div class="cover__meta">
+                    <div>Owner<b>Benedikt</b></div>
+                    <div>Status<b>Draft v0.1</b></div>
+                    <div>Consumers<b>apex · ui-core · drive · control</b></div>
+                    <div>Supersedes<b>M3 codegen · wizard purples</b></div>
+                </div>
+            </div>
+            <div class="cover__plate">
+                <div class="cover__plate-corner">⌐ T·01</div>
+                <div class="cover__plate-mark" data-mark-slot="outline" data-size="220"
+                     data-stroke="2"></div>
+                <div class="cover__plate-tag">Primary mark · centered · 25% padding</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── 2. Marks ────────────────────────────────────────────────────────── -->
+    <section>
+        <div class="s-eyebrow"><span class="num">01</span><span>Mark</span></div>
+        <h2 class="s-title">A watchful cat, drawn two ways.</h2>
+        <p class="s-lede"><b>Tenshu</b> (天守) is the keep of a Japanese castle — the watchtower at
+            the center. The marks lean into that: a sketch cat with round eyes, a soft ω mouth and
+            outward-curving whiskers; and the same cat filled in. Cute first, watchful second. <b>Use
+                the outline whenever possible</b> — the solid is reserved for app icons, favicons,
+            and reversed chrome. (A hanko-seal variant is parked for a later phase.)</p>
+
+        <div class="marks-grid marks-grid--two">
+            <article class="mark-card">
+                <div class="mark-card__hero" data-mark-slot="outline" data-size="220"
+                     data-stroke="2"></div>
+                <div class="mark-card__body">
+                    <p class="mark-card__name">A · Outline — primary</p>
+                    <h3 class="mark-card__title">The watchful house cat.</h3>
+                    <p class="mark-card__note">A cleaned-up version of the original drawing.
+                        Half-dome head, round dot eyes with a tiny catchlight, kaomoji ω mouth,
+                        fanning whiskers. Used everywhere unless there's a reason not to.</p>
+                </div>
+                <div class="mark-card__sizes">
+                    <div data-mark-slot="outline" data-size="48" data-stroke="2"></div>
+                    <div data-mark-slot="outline" data-size="32" data-stroke="2"></div>
+                    <div data-mark-slot="outline" data-size="20" data-stroke="2.4"></div>
+                    <div data-mark-slot="outline" data-size="16" data-stroke="2.6"></div>
+                    <span class="lbl">48 · 32 · 20 · 16</span>
+                </div>
+            </article>
+
+            <article class="mark-card">
+                <div class="mark-card__hero" data-mark-slot="solid" data-size="220"></div>
+                <div class="mark-card__body">
+                    <p class="mark-card__name">B · Solid — secondary</p>
+                    <h3 class="mark-card__title">Same cat, filled.</h3>
+                    <p class="mark-card__note">Filled head, eyes and mouth carved out as negative
+                        space. Whiskers stay outlined — they emerge from the cheek and read like the
+                        outline mark. Reach for it on app icons, favicons, and reversed chrome where
+                        the outline would lose presence at small sizes.</p>
+                </div>
+                <div class="mark-card__sizes">
+                    <div data-mark-slot="solid" data-size="48"></div>
+                    <div data-mark-slot="solid" data-size="32"></div>
+                    <div data-mark-slot="solid" data-size="20"></div>
+                    <div data-mark-slot="solid" data-size="16"></div>
+                    <span class="lbl">48 · 32 · 20 · 16</span>
+                </div>
+            </article>
+        </div>
+
+        <div class="mark-construction">
+            <div class="mark-construction__plate" data-mark-slot="outline" data-size="320"
+                 data-stroke="2"></div>
+            <div class="mc-rules">
+                <h4>Construction</h4>
+                <p>The cat lives on a 64×64 grid with a 4u safe margin. Head: 36×30 squircle, rx=9,
+                    centered on x=32. Ears: equilateral isoceles triangles, peaks at y=6, bases on
+                    the head's top edge.</p>
+                <h4>Clear space</h4>
+                <p>Reserve at least 1× the cap-height of the wordmark on every side. On product
+                    chrome that means a minimum of 12px around a 24px mark.</p>
+                <h4>Color</h4>
+                <p>Always single-color in <code
+                        style="font-family:var(--font-mono);background:var(--surface-2);padding:1px 4px;">currentColor</code>.
+                    The mark inherits the surrounding text. Never tint, gradient, or duotone.</p>
+                <h4>Don't</h4>
+                <ul>
+                    <li>Don't add ears — the dome is the cat now. Earlier triangle-ear drafts are
+                        retired.
+                    </li>
+                    <li>Don't fill the whiskers white on the solid mark. They stay outlined, in
+                        <code style="font-family:var(--font-mono)">currentColor</code>, extending
+                        outward from the cheek.
+                    </li>
+                    <li>Don't reach for Solid when Outline reads cleanly. Primary first.</li>
+                    <li>Don't rotate or skew. The cat is upright by design.</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── 3. Wordmark ─────────────────────────────────────────────────────── -->
+    <section>
+        <div class="s-eyebrow"><span class="num">02</span><span>Wordmark &amp; lockups</span></div>
+        <h2 class="s-title">Set in Geist Sans, weight 800, tracked tight.</h2>
+        <p class="s-lede">The wordmark is the name of the platform — written, not drawn. Geist's
+            geometry is sharp enough to read at 12px and confident enough at 240px.</p>
+
+        <div class="word-grid">
+            <div class="word-hero">
+                <div class="word-hero__big">tenshu</div>
+                <div class="word-hero__meta">
+                    <div>Family<b>Geist Sans</b></div>
+                    <div>Weight<b>800 · ExtraBold</b></div>
+                    <div>Tracking<b>−5%</b></div>
+                </div>
+                <div style="display:flex;gap:var(--s-5);align-items:baseline;border-top:1px solid var(--line);padding-top:var(--s-4);margin-top:var(--s-2)">
+                    <div style="flex:1">
+                        <div class="t-mono" style="margin-bottom:6px">Default</div>
+                        <div style="font-size:42px;font-weight:800;letter-spacing:-0.04em;line-height:1">
+                            tenshu
+                        </div>
+                    </div>
+                    <div style="flex:1">
+                        <div class="t-mono" style="margin-bottom:6px">Ten · <span
+                                style="color:var(--primary)">Shu</span></div>
+                        <div style="font-size:42px;font-weight:800;letter-spacing:-0.04em;line-height:1">
+                            ten<em style="font-style:normal;color:var(--primary)">s</em>hu
+                        </div>
+                    </div>
+                    <div style="flex:1">
+                        <div class="t-mono" style="margin-bottom:6px">Mon split</div>
+                        <div style="font-size:42px;font-weight:800;letter-spacing:-0.04em;line-height:1">
+                            ten<span style="color:var(--text-3)">·</span>shu
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="lockups">
+                <div class="lockup lockup--stack">
+                    <span class="lockup__mark" data-mark-slot="outline" data-size="32"
+                          data-stroke="2.2"></span>
+                    <span class="lockup__word">Tenshu</span>
+                    <span class="lockup__tag">Stacked</span>
+                </div>
+                <div class="lockup">
+                    <span class="lockup__mark" data-mark-slot="solid" data-size="28"></span>
+                    <span class="lockup__word">Tenshu</span>
+                    <span class="lockup__tag">Horizontal</span>
+                </div>
+                <div class="lockup lockup--inverse">
+                    <span class="lockup__mark" data-mark-slot="solid" data-size="28"></span>
+                    <span class="lockup__word">Tenshu</span>
+                    <span class="lockup__tag">Reversed</span>
+                </div>
+                <div class="lockup">
+                    <span class="lockup__mark" data-mark-slot="outline" data-size="28"
+                          data-stroke="2.4"></span>
+                    <span class="lockup__word"
+                          style="font-family:var(--font-mono);font-size:var(--t-body);font-weight:600;letter-spacing:0">tenshu.app</span>
+                    <span class="lockup__tag">Mono</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── 4. Color ────────────────────────────────────────────────────────── -->
+    <section>
+        <div class="s-eyebrow"><span class="num">03</span><span>Color</span></div>
+        <h2 class="s-title">Amethyst is canonical. Slate is the only secondary.</h2>
+        <p class="s-lede">ADR-0001 commits to a muted violet — quiet, mature, faintly spiritual.
+            Slate is kept as a hue-free fallback for data-dense surfaces and co-branded contexts
+            (ADR-0002 retires Indigo and Jade). Both ship full light + dark schemes; <b>dark mode is
+                committed for marketing and product</b>. Flip the toggle in Tweaks to live-preview.
+        </p>
+
+        <div class="palette-row">
+            <div class="palette-row__lbl">
+                <span class="badge">Active</span>
+                <h3>Active palette</h3>
+                <p>Eight roles, single source. Light scheme shown — flip Tweaks to see the dark
+                    equivalent. Hex values render the same regardless of the active palette.</p>
+            </div>
+            <div class="swatch-grid" id="active-swatches">
+                <!-- filled by app.jsx-side script below -->
+            </div>
+        </div>
+
+        <div class="rule rule--strong" style="margin: var(--s-7) 0;"></div>
+
+        <div class="palette-row">
+            <div class="palette-row__lbl">
+                <h3>Light + dark</h3>
+                <p>The same five role tokens render meaningfully across both modes. Type, surfaces
+                    and semantic hues all rebalance — see the side-by-side.</p>
+            </div>
+            <div class="lightdark">
+                <div class="lightdark__col lightdark__col--light">
+                    <h4>Light</h4>
+                    <div class="t-h3" style="margin-bottom:var(--s-2);color:#1C1B1F">Your data,
+                        end-to-end
+                    </div>
+                    <div class="t-body-s" style="color:#49454E">Tenshu apps route every external
+                        call through a proxy you control.
+                    </div>
+                    <div style="display:flex;gap:8px;margin-top:var(--s-4)">
+                        <button class="btn btn--primary" style="background:var(--primary)">Get
+                            started
+                        </button>
+                        <button class="btn btn--secondary"
+                                style="background:#FFFBFF;color:#1C1B1F;border-color:#1C1B1F">Learn
+                            more
+                        </button>
+                    </div>
+                </div>
+                <div class="lightdark__col lightdark__col--dark">
+                    <h4 style="color:#948F99">Dark</h4>
+                    <div class="t-h3" style="margin-bottom:var(--s-2);color:#E6E1E6">Your data,
+                        end-to-end
+                    </div>
+                    <div class="t-body-s" style="color:#CAC4CF">Tenshu apps route every external
+                        call through a proxy you control.
+                    </div>
+                    <div style="display:flex;gap:8px;margin-top:var(--s-4)">
+                        <button class="btn btn--primary" style="background:var(--primary)">Get
+                            started
+                        </button>
+                        <button class="btn btn--secondary"
+                                style="background:transparent;color:#E6E1E6;border-color:#E6E1E6">
+                            Learn more
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="rule rule--strong" style="margin: var(--s-7) 0;"></div>
+
+        <div class="palette-row">
+            <div class="palette-row__lbl">
+                <h3>Amethyst — variations</h3>
+                <p>Same family, different temperaments. Pick one as the canonical Amethyst once we
+                    land on a feel.</p>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-3)">
+                <div style="border:2px solid var(--line-strong);background:var(--surface)">
+                    <div style="height:120px;background:#5A4A96"></div>
+                    <div style="padding:var(--s-3) var(--s-4)">
+                        <div style="font-weight:700;font-size:var(--t-body)">A — Canonical</div>
+                        <div style="font-family:var(--font-mono);font-size:var(--t-mono);color:var(--text-3);text-transform:uppercase;letter-spacing:.08em;margin-top:2px">
+                            #5A4A96 · ADR baseline
+                        </div>
+                        <div style="font-size:var(--t-body-s);color:var(--text-2);margin-top:6px;line-height:1.4">
+                            Muted violet. Neutral lean — neither warm nor cool. The mature reading.
+                        </div>
+                    </div>
+                </div>
+                <div style="border:1px solid var(--line);background:var(--surface)">
+                    <div style="height:120px;background:#4D3F8C"></div>
+                    <div style="padding:var(--s-3) var(--s-4)">
+                        <div style="font-weight:700;font-size:var(--t-body)">B — Deeper</div>
+                        <div style="font-family:var(--font-mono);font-size:var(--t-mono);color:var(--text-3);text-transform:uppercase;letter-spacing:.08em;margin-top:2px">
+                            #4D3F8C · twilight
+                        </div>
+                        <div style="font-size:var(--t-body-s);color:var(--text-2);margin-top:6px;line-height:1.4">
+                            Pulled toward indigo. Stronger contrast on white. Reads more
+                            <i>secure</i>.
+                        </div>
+                    </div>
+                </div>
+                <div style="border:1px solid var(--line);background:var(--surface)">
+                    <div style="height:120px;background:#6E4F95"></div>
+                    <div style="padding:var(--s-3) var(--s-4)">
+                        <div style="font-weight:700;font-size:var(--t-body)">C — Warmer</div>
+                        <div style="font-family:var(--font-mono);font-size:var(--t-mono);color:var(--text-3);text-transform:uppercase;letter-spacing:.08em;margin-top:2px">
+                            #6E4F95 · iris
+                        </div>
+                        <div style="font-size:var(--t-body-s);color:var(--text-2);margin-top:6px;line-height:1.4">
+                            A drop of magenta. Friendlier, slightly retro. Less corporate.
+                        </div>
+                    </div>
+                </div>
+                <div style="border:1px solid var(--line);background:var(--surface)">
+                    <div style="height:120px;background:#3E2F6F"></div>
+                    <div style="padding:var(--s-3) var(--s-4)">
+                        <div style="font-weight:700;font-size:var(--t-body)">D — Vault</div>
+                        <div style="font-family:var(--font-mono);font-size:var(--t-mono);color:var(--text-3);text-transform:uppercase;letter-spacing:.08em;margin-top:2px">
+                            #3E2F6F · vault
+                        </div>
+                        <div style="font-size:var(--t-body-s);color:var(--text-2);margin-top:6px;line-height:1.4">
+                            Near-black violet. Reads as ink at small sizes. Pairs hard with white.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="rule rule--strong" style="margin: var(--s-7) 0;"></div>
+
+        <div class="palette-row">
+            <div class="palette-row__lbl">
+                <h3>Slate — secondary</h3>
+                <p>Hue-free fallback for surfaces where the violet would compete with content. Same
+                    eight-role contract as Amethyst; light + dark.</p>
+            </div>
+            <div class="alt-palettes" id="alt-palettes">
+                <!-- filled below -->
+            </div>
+        </div>
+    </section>
+
+    <!-- ── 5. Typography ───────────────────────────────────────────────────── -->
+    <section>
+        <div class="s-eyebrow"><span class="num">04</span><span>Typography</span></div>
+        <h2 class="s-title">Geist Sans for everything. Geist Mono for what's measured.</h2>
+        <p class="s-lede">A single super-family covers the system. Big jumps between display and
+            body keep the hierarchy decisive. Mono is reserved for metadata, IDs, and anything the
+            user might want to copy.</p>
+
+        <div class="type-row">
+            <div class="type-row__meta">Display · 96/0.92 · w800<br>−4% tracking</div>
+            <div class="type-row__sample t-display">Quiet apps.</div>
+        </div>
+        <div class="type-row">
+            <div class="type-row__meta">H1 · 56/1.0 · w800<br>−3% tracking</div>
+            <div class="type-row__sample t-h1">Your apps. Your data.</div>
+        </div>
+        <div class="type-row">
+            <div class="type-row__meta">H2 · 36/1.05 · w700<br>−2.5% tracking</div>
+            <div class="type-row__sample t-h2">Apps that can only do what you let them.</div>
+        </div>
+        <div class="type-row">
+            <div class="type-row__meta">H3 · 24/1.15 · w600<br>−1.5% tracking</div>
+            <div class="type-row__sample t-h3">Realm devices, your control.</div>
+        </div>
+        <div class="type-row">
+            <div class="type-row__meta">Lead · 20/1.4 · w400<br>−1% tracking · text-2</div>
+            <div class="type-row__sample t-lead">Tenshu is an open-source app platform where you
+                decide what every app can see and do.
+            </div>
+        </div>
+        <div class="type-row">
+            <div class="type-row__meta">Body · 16/1.55 · w400</div>
+            <div class="type-row__sample t-body">Modern apps need to talk to the internet to do
+                their job. But once they're online, you have no real way to know what data they're
+                sending, where, or to whom.
+            </div>
+        </div>
+        <div class="type-row">
+            <div class="type-row__meta">Body S · 14/1.5 · w400 · text-2</div>
+            <div class="type-row__sample t-body-s">Permissions describe what an app actually does —
+                "send your photos to the photo printing service" — not coarse capabilities.
+            </div>
+        </div>
+        <div class="type-row">
+            <div class="type-row__meta">Caption · 12 · w500 · text-3</div>
+            <div class="type-row__sample t-caption">Encrypted at rest, in transit, and on the
+                relay.
+            </div>
+        </div>
+        <div class="type-row">
+            <div class="type-row__meta">Mono · 11 · w500<br>+12% tracking · UPPER</div>
+            <div class="type-row__sample t-mono">M3 · 2026.05 · STATUS: SHIPPED</div>
+        </div>
+
+        <div class="type-pairing">
+            <div>
+                <h3>Geist Sans · 100→900</h3>
+                <div class="glyph-set">ABCDEFGHIJKLMNOPQRSTUVWXYZ<br>abcdefghijklmnopqrstuvwxyz<br>0123456789
+                    — / · ( ) →
+                </div>
+            </div>
+            <div>
+                <h3>Geist Mono · 400→600</h3>
+                <div class="glyph-set glyph-set--mono">ABCDEFGHIJKLMNOPQRSTUVWXYZ<br>abcdefghijklmnopqrstuvwxyz<br>0123456789
+                    — / · ( ) →
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── 6. Tokens ───────────────────────────────────────────────────────── -->
+    <section>
+        <div class="s-eyebrow"><span class="num">05</span><span>Tokens — radii &amp; spacing</span>
+        </div>
+        <h2 class="s-title">Sharp corners. Honest space.</h2>
+        <p class="s-lede">Radii top out at 14px — anything more curls away from "confident." Spacing
+            is a classical 4-baseline scale; density tweak rescales it without leaving the baseline
+            grid.</p>
+
+        <div class="tokens">
+            <div class="tokens__group">
+                <h3>Radii</h3>
+                <div class="radii-grid">
+                    <div>
+                        <div class="swatch-r" style="border-radius:0"></div>
+                        <b>0</b><span class="lbl">edge</span></div>
+                    <div>
+                        <div class="swatch-r" style="border-radius:2px"></div>
+                        <b>2</b><span class="lbl">xs · pills</span></div>
+                    <div>
+                        <div class="swatch-r" style="border-radius:4px"></div>
+                        <b>4</b><span class="lbl">s · inputs</span></div>
+                    <div>
+                        <div class="swatch-r" style="border-radius:8px"></div>
+                        <b>8</b><span class="lbl">m · cards</span></div>
+                    <div>
+                        <div class="swatch-r" style="border-radius:14px"></div>
+                        <b>14</b><span class="lbl">l · sheets</span></div>
+                    <div>
+                        <div class="swatch-r" style="border-radius:999px;width:120px"></div>
+                        <b>∞</b><span class="lbl">pill</span></div>
+                </div>
+            </div>
+            <div class="tokens__group">
+                <h3>Spacing</h3>
+                <div class="spacing-grid">
+                    <b>--s-1 · 4</b>
+                    <div class="bar" style="width:4px"></div>
+                    <b>--s-2 · 8</b>
+                    <div class="bar" style="width:8px"></div>
+                    <b>--s-3 · 12</b>
+                    <div class="bar" style="width:12px"></div>
+                    <b>--s-4 · 16</b>
+                    <div class="bar" style="width:16px"></div>
+                    <b>--s-5 · 24</b>
+                    <div class="bar" style="width:24px"></div>
+                    <b>--s-6 · 32</b>
+                    <div class="bar" style="width:32px"></div>
+                    <b>--s-7 · 48</b>
+                    <div class="bar" style="width:48px"></div>
+                    <b>--s-8 · 64</b>
+                    <div class="bar" style="width:64px"></div>
+                    <b>--s-9 · 96</b>
+                    <div class="bar" style="width:96px"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── 7. Components ───────────────────────────────────────────────────── -->
+    <section>
+        <div class="s-eyebrow"><span class="num">06</span><span>Components</span></div>
+        <h2 class="s-title">A floor, not a ceiling.</h2>
+        <p class="s-lede">Enough to see the system breathe. Drive's file rows, Control's permission
+            grant, the apex landing's CTAs — all built from the same six tokens.</p>
+
+        <div class="components">
+            <div class="cmp">
+                <h3><span>Buttons</span><span class="num">04 variants · 03 sizes</span></h3>
+                <div class="cmp__row">
+                    <button class="btn btn--primary">Get started <span class="btn-arrow">→</span>
+                    </button>
+                    <button class="btn btn--secondary">Learn more</button>
+                    <button class="btn btn--ghost">Cancel</button>
+                    <button class="btn btn--danger">Remove device</button>
+                </div>
+                <div class="cmp__row">
+                    <button class="btn btn--primary btn--sm">Pair</button>
+                    <button class="btn btn--primary">Pair</button>
+                    <button class="btn btn--primary btn--lg">Pair this device</button>
+                </div>
+            </div>
+
+            <div class="cmp">
+                <h3><span>Inputs</span><span class="num">label · focus · error</span></h3>
+                <div class="cmp__row" style="gap:var(--s-3)">
+                    <div class="field">
+                        <label>Folder name</label>
+                        <input class="input" value="2026 archive"/>
+                    </div>
+                    <div class="field">
+                        <label>Recovery word 13</label>
+                        <input class="input" value="lattice"
+                               style="border-color:var(--primary);box-shadow:0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent)"/>
+                    </div>
+                </div>
+                <div class="cmp__row">
+                    <div class="field">
+                        <label>Sync passphrase</label>
+                        <input class="input input--error" value="hunter2"/>
+                        <span class="field__error">Too short — needs 8+ characters.</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="cmp">
+                <h3><span>File row · Drive</span><span class="num">M6</span></h3>
+                <div class="file-row">
+                    <div class="file-row__icon">PDF</div>
+                    <div>
+                        <div class="file-row__name">Threat-model — v2.3.pdf</div>
+                        <div class="file-row__meta">Edited 2h ago · 412 KB · synced 3 devices</div>
+                    </div>
+                    <span class="pill pill--primary"><i class="dot"></i>E2EE</span>
+                    <div class="file-row__sync"></div>
+                </div>
+                <div class="file-row">
+                    <div class="file-row__icon"
+                         style="background:var(--accent-soft);color:var(--accent)">RAW
+                    </div>
+                    <div>
+                        <div class="file-row__name">IMG_8821.dng</div>
+                        <div class="file-row__meta">Yesterday · 24.6 MB · syncing…</div>
+                    </div>
+                    <span class="pill pill--accent"><i class="dot"></i>Sync</span>
+                    <div class="file-row__sync file-row__sync--pending"></div>
+                </div>
+                <div class="file-row">
+                    <div class="file-row__icon">FLD</div>
+                    <div>
+                        <div class="file-row__name">Recovery</div>
+                        <div class="file-row__meta">12 items · realm · pinned</div>
+                    </div>
+                    <span class="pill pill--outline"><i class="dot"></i>Local</span>
+                    <div class="file-row__sync"></div>
+                </div>
+            </div>
+
+            <div class="cmp">
+                <h3><span>Permission grant · Control</span><span class="num">M3</span></h3>
+                <div class="perm">
+                    <div class="perm__hd"><span><i class="dot"></i>Permission requested</span><span>tenshu://control</span>
+                    </div>
+                    <div class="perm__body">
+                        <div class="perm__icon">PP</div>
+                        <div>
+                            <h4 class="perm__title">Photo Printer wants to send your photos.</h4>
+                            <p class="perm__desc">It will send the three photos you select to <code
+                                    style="font-family:var(--font-mono);background:var(--surface-2);padding:1px 4px;">printers.example</code>
+                                for printing. Photos leave your realm only for this request.</p>
+                            <div class="perm__detail">Scope · 3 photos · one-time · expires 02:00
+                            </div>
+                        </div>
+                    </div>
+                    <div class="perm__actions">
+                        <button class="btn btn--ghost">Deny</button>
+                        <button class="btn btn--primary">Approve</button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ── 8. Hero in context ──────────────────────────────────────────────── -->
+    <section>
+        <div class="s-eyebrow"><span class="num">07</span><span>Hero — apex landing</span></div>
+        <h2 class="s-title">Where the system pays off.</h2>
+        <p class="s-lede">A tokenized slice of <code
+                style="font-family:var(--font-mono);font-size:0.9em">web/apex/</code>'s Block 1 —
+            same component on light and dark, both driven by the same tokens. Drop straight into
+            <code style="font-family:var(--font-mono);font-size:0.9em">Block1Hero.tsx</code>.</p>
+
+        <div class="hero-pair">
+            <div class="hero-mock hero-mock--light">
+                <nav class="hm__nav">
+                    <span class="mark" data-mark-slot="outline" data-size="22" data-stroke="2.4"
+                          style="color:var(--primary)"></span>
+                    <span class="word">Tenshu</span>
+                    <span class="spacer"></span>
+                    <span class="link">Drive</span>
+                    <span class="link">Control</span>
+                    <span class="link">Docs</span>
+                    <span class="hm__chip">Get started →</span>
+                </nav>
+                <div>
+                    <span class="pill pill--primary" style="margin-bottom:var(--s-4)"><i
+                            class="dot"></i>Open source · v0.1</span>
+                </div>
+                <h1 class="hm__title">Your apps. Your data. <em>Your control.</em></h1>
+                <p class="hm__sub">Tenshu is an open-source app platform where you decide what every
+                    app can see and do. Your data stays end-to-end encrypted across your
+                    devices.</p>
+                <div class="hm__cta">
+                    <button class="btn btn--primary btn--lg">Get started <span
+                            class="btn-arrow">→</span></button>
+                    <button class="btn btn--ghost btn--lg">Read the threat model</button>
+                </div>
+                <div class="hm__device"><span class="mark" data-mark-slot="solid"
+                                              data-size="96"></span></div>
+            </div>
+
+            <div class="hero-mock hero-mock--dark">
+                <nav class="hm__nav">
+                    <span class="mark" data-mark-slot="outline" data-size="22" data-stroke="2.4"
+                          style="color:var(--primary)"></span>
+                    <span class="word">Tenshu</span>
+                    <span class="spacer"></span>
+                    <span class="link">Drive</span>
+                    <span class="link">Control</span>
+                    <span class="link">Docs</span>
+                    <span class="hm__chip">Get started →</span>
+                </nav>
+                <div>
+                    <span class="pill pill--primary" style="margin-bottom:var(--s-4)"><i
+                            class="dot"></i>Open source · v0.1</span>
+                </div>
+                <h1 class="hm__title">Your apps. Your data. <em>Your control.</em></h1>
+                <p class="hm__sub">Tenshu is an open-source app platform where you decide what every
+                    app can see and do. Your data stays end-to-end encrypted across your
+                    devices.</p>
+                <div class="hm__cta">
+                    <button class="btn btn--primary btn--lg">Get started <span
+                            class="btn-arrow">→</span></button>
+                    <button class="btn btn--ghost btn--lg" style="color:#E6E1E6">Read the threat
+                        model
+                    </button>
+                </div>
+                <div class="hm__device"><span class="mark" data-mark-slot="solid"
+                                              data-size="96"></span></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── 9. Imagery direction ────────────────────────────────────────────── -->
+    <section>
+        <div class="s-eyebrow"><span class="num">08</span><span>Imagery</span></div>
+        <h2 class="s-title">Quiet by tier. Line first, photography sometimes, never both at
+            once.</h2>
+        <p class="s-lede">The brand is naturally restrained, so imagery has to earn its place. Two
+            surfaces, two recipes — the third (in-app personalisation) waits for an
+            M3-Expressive-shaped feature to land.</p>
+
+        <div class="img-tiers">
+            <article class="img-tier">
+                <div class="img-tier__hd">
+                    <span class="t-mono">Tier A · Marketing</span>
+                    <span class="pill pill--primary"><i class="dot"></i>Quiet</span>
+                </div>
+                <h3 class="img-tier__title">Line illustrations, with desaturated editorial
+                    photography where it earns its place.</h3>
+                <div class="img-tier__plate">
+                    <svg viewBox="0 0 320 200" width="100%" height="100%"
+                         preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+                        <g fill="none" stroke="var(--primary)" stroke-width="1.6"
+                           stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="40" y="36" width="240" height="128" rx="6"/>
+                            <path d="M 40 130 L 120 80 L 170 110 L 220 70 L 280 110"/>
+                            <circle cx="220" cy="70" r="6" fill="var(--primary-soft)"/>
+                            <path d="M 64 156 L 256 156"/>
+                            <path d="M 64 144 L 184 144"/>
+                        </g>
+                        <text x="40" y="22" fill="var(--text-3)" font-family="var(--font-mono)"
+                              font-size="9" letter-spacing="1">QUIET LINE · OVER SURFACE-2
+                        </text>
+                    </svg>
+                </div>
+                <ul class="img-tier__rules">
+                    <li><b>Line.</b> Single-weight strokes (1.5–2px) in <code>--primary</code> over
+                        <code>--surface-2</code>. No gradients, no fill flourishes.
+                    </li>
+                    <li><b>Photo.</b> Editorial only, desaturated to fit the Amethyst temperature —
+                        used sparingly, when it carries information line illustration can't (people,
+                        devices in context).
+                    </li>
+                    <li><b>Mix rule.</b> Pick one per surface. Line and photography never share a
+                        hero.
+                    </li>
+                </ul>
+            </article>
+
+            <article class="img-tier">
+                <div class="img-tier__hd">
+                    <span class="t-mono">Tier B · Product</span>
+                    <span class="pill pill--outline"><i class="dot"></i>Almost none</span>
+                </div>
+                <h3 class="img-tier__title">Minimal line illustrations only. Nothing
+                    decorative.</h3>
+                <div class="img-tier__plate img-tier__plate--product">
+                    <svg viewBox="0 0 320 200" width="100%" height="100%"
+                         preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+                        <g fill="none" stroke="var(--text-2)" stroke-width="1.4"
+                           stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="160" cy="100" r="32"/>
+                            <path d="M 160 80 L 160 100 L 174 110"/>
+                            <path d="M 110 100 L 96 100"/>
+                            <path d="M 224 100 L 210 100"/>
+                        </g>
+                        <text x="40" y="184" fill="var(--text-3)" font-family="var(--font-mono)"
+                              font-size="9" letter-spacing="1">EMPTY-STATE GLYPH · 1.4 STROKE
+                        </text>
+                    </svg>
+                </div>
+                <ul class="img-tier__rules">
+                    <li><b>Used for.</b> Empty states, error pages, onboarding step markers. Same
+                        stroke vocabulary as the icon set.
+                    </li>
+                    <li><b>Most surfaces.</b> Most product views are productive — no imagery at all.
+                        Layout, type and the cat carry the brand.
+                    </li>
+                    <li><b>Future.</b> When timeline-shaped views land (M3 Expressive, or user-photo
+                        personalisation), they'll adapt to the user — not via stock illustration.
+                        Tracked separately.
+                    </li>
+                </ul>
+            </article>
+        </div>
+    </section>
+
+    <!-- ── 10. Type fallback ──────────────────────────────────────────────── -->
+    <section>
+        <div class="s-eyebrow"><span class="num">09</span><span>Type — fallback</span></div>
+        <h2 class="s-title">Geist over the network, the platform's own letter-form when not.</h2>
+        <p class="s-lede">Geist is the brand voice and stays that on web. Native apps fall back to
+            the platform's system font — it loads instantly, matches the user's other apps, and
+            keeps Tenshu out of the network for typography. Pair these stacks per platform; don't
+            ship Geist on native.</p>
+
+        <div class="fallback-grid">
+            <div class="fallback-card">
+                <div class="t-mono">Web (Tenshu apex, Drive, Control)</div>
+                <h4 class="fallback-card__title">Geist Sans / Mono</h4>
+                <p class="fallback-card__note">Primary. Loaded via Google Fonts with <code>font-display:
+                    swap</code>. The system stack underneath catches anyone offline.</p>
+                <pre class="fallback-card__stack">font-family: 'Geist', -apple-system, BlinkMacSystemFont,
+             'Segoe UI', Roboto, sans-serif;</pre>
+            </div>
+            <div class="fallback-card">
+                <div class="t-mono">iOS · macOS</div>
+                <h4 class="fallback-card__title">San Francisco</h4>
+                <p class="fallback-card__note">No webfont. Use the platform UI font directly — SF
+                    Pro Text / SF Pro Display via the standard Apple stack. SF Mono for
+                    monospace.</p>
+                <pre class="fallback-card__stack">-apple-system, BlinkMacSystemFont, 'SF Pro Text',
+'Helvetica Neue', sans-serif;</pre>
+            </div>
+            <div class="fallback-card">
+                <div class="t-mono">Android</div>
+                <h4 class="fallback-card__title">Roboto / Roboto Flex</h4>
+                <p class="fallback-card__note">Native default — already on the device. Roboto Flex
+                    where opsz / weight axes are wanted, otherwise the static Roboto stack.</p>
+                <pre class="fallback-card__stack">'Roboto Flex', 'Roboto', system-ui, sans-serif;</pre>
+            </div>
+        </div>
+    </section>
+
+    <style>
+        .img-tiers { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-5); }
+        .img-tier { border: 1px solid var(--line); background: var(--surface); display: flex; flex-direction: column; }
+        .img-tier__hd { padding: var(--s-3) var(--s-5); border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); }
+        .img-tier__title { font-size: var(--t-h3); font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; margin: var(--s-5) var(--s-5) var(--s-3); text-wrap: balance; }
+        .img-tier__plate { background: var(--surface-2); aspect-ratio: 16/9; display: grid; place-items: center; padding: var(--s-3) var(--s-5); margin: 0 var(--s-5); border: 1px solid var(--line); }
+        .img-tier__plate--product { background: var(--surface); }
+        .img-tier__rules { margin: var(--s-4) var(--s-5) var(--s-5); padding-left: 1.1em; color: var(--text-2); font-size: var(--t-body-s); line-height: 1.5; }
+        .img-tier__rules li { margin-bottom: var(--s-2); }
+        .img-tier__rules b { color: var(--text); font-weight: 600; }
+
+        .fallback-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-3); }
+        .fallback-card { border: 1px solid var(--line); background: var(--surface); padding: var(--s-5); display: flex; flex-direction: column; gap: var(--s-2); }
+        .fallback-card__title { font-size: var(--t-h3); font-weight: 700; letter-spacing: -0.02em; margin: var(--s-1) 0 var(--s-2); }
+        .fallback-card__note { color: var(--text-2); font-size: var(--t-body-s); margin: 0 0 var(--s-3); line-height: 1.5; }
+        .fallback-card__stack { font-family: var(--font-mono); font-size: var(--t-mono); color: var(--text); background: var(--surface-2); border: 1px solid var(--line); padding: var(--s-3); margin: 0; white-space: pre-wrap; line-height: 1.5; }
+    </style>
+
+    <footer class="foot">
+        <div class="foot__l">Tenshu · Brand foundations · v0.2</div>
+        <div class="foot__r">Codify into <code>web/apex/src/index.css</code> + <code>:ui-core/Theme.kt</code>
+            next.
+        </div>
+    </footer>
+
+</main>
+
+<div id="tweaks-root"></div>
+
+<!-- ── Active swatches + alternates: rendered from PALETTES ───────────── -->
+<script>
+    function renderActiveSwatches() {
+      const root = document.documentElement;
+      const palette = root.dataset.palette;
+      const dark = root.dataset.theme === 'dark';
+      const scheme = window.PALETTES[palette][dark ? 'dark' : 'light'];
+
+      const order = [
+        ['--primary', 'Primary', 'lg'],
+        ['--accent', 'Accent', null],
+        ['--primary-soft', 'Primary soft', null],
+        ['--accent-soft', 'Accent soft', null],
+        ['--surface', 'Surface', null],
+        ['--surface-2', 'Surface 2', null],
+        ['--surface-3', 'Surface 3', null],
+        ['--line', 'Line', null],
+        ['--text', 'Text', 'lg'],
+        ['--text-2', 'Text 2', null],
+        ['--text-3', 'Text 3', null],
+        ['--success', 'Success', null],
+        ['--warning', 'Warning', null],
+        ['--danger', 'Danger', null],
+      ];
+
+      const isLight = (hex) => {
+        const h = hex.replace('#', '');
+        const x = h.length === 3 ? h.replace(/./g, c => c + c) : h;
+        const r = parseInt(x.slice(0,2),16), g = parseInt(x.slice(2,4),16), b = parseInt(x.slice(4,6),16);
+        return r * 299 + g * 587 + b * 114 > 148000;
+      };
+
+      const grid = document.getElementById('active-swatches');
+      grid.innerHTML = '';
+      for (const [token, name, sz] of order) {
+        const hex = scheme[token] || '#000';
+        const fg = isLight(hex) ? '#0A0A0A' : '#FFFFFF';
+        const el = document.createElement('div');
+        el.className = 'swatch' + (sz === 'lg' ? ' swatch--lg' : '');
+        el.style.background = hex;
+        el.style.color = fg;
+        el.style.boxShadow = 'inset 0 0 0 1px ' + (isLight(hex) ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)');
+        el.innerHTML = '<div class="swatch__role">' + name + '</div><div class="swatch__hex">' + hex.toUpperCase() + '</div>';
+        grid.appendChild(el);
+      }
+    }
+
+    function renderAltPalettes() {
+      const grid = document.getElementById('alt-palettes');
+      grid.innerHTML = '';
+      for (const [key, p] of Object.entries(window.PALETTES)) {
+        const card = document.createElement('div');
+        card.className = 'alt-card';
+        const isActive = key === document.documentElement.dataset.palette;
+        card.style.borderColor = isActive ? 'var(--line-strong)' : '';
+        card.style.borderWidth = isActive ? '2px' : '';
+        card.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:baseline">
+            <div class="alt-card__name">${p.name}${isActive ? ' · active' : ''}</div>
+            <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.08em">${key}</div>
+          </div>
+          <div class="alt-card__bars">
+            <div class="alt-card__bar" style="background:${p.light['--primary']}"></div>
+            <div class="alt-card__bar" style="background:${p.light['--accent']}"></div>
+            <div class="alt-card__bar" style="background:${p.light['--primary-soft']}"></div>
+            <div class="alt-card__bar" style="background:${p.light['--surface-2']}"></div>
+            <div class="alt-card__bar" style="background:${p.light['--text']}"></div>
+          </div>
+          <p class="alt-card__note">${p.note}</p>
+          <div class="alt-card__hex">
+            <span>${p.light['--primary']}</span>
+            <span>${p.light['--accent']}</span>
+            <span>${p.light['--text']}</span>
+          </div>`;
+        grid.appendChild(card);
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      renderActiveSwatches();
+      renderAltPalettes();
+    });
+    // Re-render on tweak change
+    window.addEventListener('tweakchange', () => {
+      renderActiveSwatches();
+      renderAltPalettes();
+    });
+</script>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js"
+        integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L"
+        crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"
+        integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm"
+        crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"
+        integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y"
+        crossorigin="anonymous"></script>
+<script src="palettes.js"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="marks.jsx"></script>
+<script type="text/babel" src="app.jsx"></script>
+
+</body>
+</html>

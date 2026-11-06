@@ -1,0 +1,182 @@
+/* Scan this package's own components so the Tailwind utilities they use
+   (e.g. the Dialog's `left-1/2 -translate-x-1/2 …` centering) are generated in
+   every consuming app. Tailwind v4 auto-detection ignores node_modules, and a
+   class used ONLY in `@tenshu/web-tokens/ui` (not in the app's own src) would
+   otherwise never be emitted — the symptom: the shared Dialog renders
+   uncentered/off-screen while only its overlay shows. Path is relative to this
+   file (web/shared/tokens.css → web/shared/ui). */
+@source './ui';
+
+/* ───────────────────────────────────────────────────────────────────────
+   @tenshu/web-tokens — the shared Tenshu web token layer.
+
+   GENERATED from docs/design/brand/tokens/ (the source of truth):
+     - palettes.ts  → the role custom properties (amethyst, canonical)
+     - radii.ts     → the radius scale
+     - spacing.ts   → the spacing scale
+   Do NOT hand-edit the values below; round-trip through those files per
+   docs/design/brand/brand-agent.md ("How to codify" → Web). Roles map 1:1
+   to the keys in palettes.ts.
+
+   Both web apps (`web/apex`, `web/drive`) @import this file after
+   `@import "tailwindcss"` so the @theme mapping below registers semantic
+   Tailwind v4 utilities (`bg-surface`, `text-text`, `border-line`,
+   `bg-primary text-on-primary`, `rounded-m`, `p-s5`, …). This is the
+   codify contract's "Tailwind reads the same tokens" step, adapted to
+   Tailwind v4 (the @theme mapping replaces the v3 tailwind.config.ts shim).
+
+   Theming mechanism — deliberate deviation from the codify contract's
+   literal `:root[data-theme=…][data-palette=…]` selector: by default the
+   tokens follow the OS via prefers-color-scheme (media query). An app that
+   offers a Light / Dark / Auto switch opts in through `./theme.ts`, whose
+   head script sets `<html data-theme="light|dark">` (absent = Auto); the
+   `[data-theme]` blocks below then win over the media query. apex (SPA and
+   support pages) opts in; web/drive does not, so it never gets the
+   attribute and keeps following the OS. Only the
+   canonical amethyst palette is wired; slate (secondary) is added when a
+   surface demands it (see docs/proposals/web-design-system.md §7).
+   ─────────────────────────────────────────────────────────────────────── */
+
+/* ── Amethyst roles — light (default) ─────────────────────────────────── */
+:root {
+  /* Tell the browser the page supports both schemes so the UA-painted canvas,
+     scrollbars, and form controls follow the OS preference — without this the
+     default canvas is white even in dark mode, which flashes before React
+     paints `bg-surface` (notably in the embedded-Drive iframe against dark
+     apex). Pinned explicitly under [data-theme] below for the theme switch. */
+  color-scheme: light dark;
+  --primary:      #5A4A96;
+  --primary-soft: #E6DEFF;
+  --on-primary:   #FFFFFF;
+  --accent:       #7B5265;
+  --accent-soft:  #FFD8E7;
+  --surface:      #FFFBFF;
+  --surface-2:    #F4F0F7;
+  --surface-3:    #E7E0EC;
+  --text:         #1C1B1F;
+  --text-2:       #49454E;
+  --text-3:       #7A757F;
+  --line:         #D9D2DE;
+  --line-strong:  #1C1B1F;
+  --success:      #1F6B4D;
+  --danger:       #BA1A1A;
+  --warning:      #7A5310;
+}
+
+/* ── Base document canvas ─────────────────────────────────────────────────
+   Paint the root the surface/text tokens from the first frame so there's no
+   white flash before the app's React tree mounts and renders `bg-surface`.
+   The vars flip with the scheme (media query / [data-theme]) below. */
+html {
+  background-color: var(--surface);
+  color: var(--text);
+}
+
+/* ── Amethyst roles — dark (OS-driven) ────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --primary:      #CBC0FF;
+    --primary-soft: #42347D;
+    --on-primary:   #2C1E71;
+    --accent:       #EBB8CB;
+    --accent-soft:  #613B4D;
+    --surface:      #141318;
+    --surface-2:    #1C1B22;
+    --surface-3:    #2A2832;
+    --text:         #E6E1E6;
+    --text-2:       #CAC4CF;
+    --text-3:       #948F99;
+    --line:         #2F2D38;
+    --line-strong:  #E6E1E6;
+    --success:      #7FD0AE;
+    --danger:       #FFB4AB;
+    --warning:      #F5C77A;
+  }
+}
+
+/* ── Explicit theme choice (theme.ts) — wins over the media query ───────── */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --primary:      #CBC0FF;
+  --primary-soft: #42347D;
+  --on-primary:   #2C1E71;
+  --accent:       #EBB8CB;
+  --accent-soft:  #613B4D;
+  --surface:      #141318;
+  --surface-2:    #1C1B22;
+  --surface-3:    #2A2832;
+  --text:         #E6E1E6;
+  --text-2:       #CAC4CF;
+  --text-3:       #948F99;
+  --line:         #2F2D38;
+  --line-strong:  #E6E1E6;
+  --success:      #7FD0AE;
+  --danger:       #FFB4AB;
+  --warning:      #F5C77A;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --primary:      #5A4A96;
+  --primary-soft: #E6DEFF;
+  --on-primary:   #FFFFFF;
+  --accent:       #7B5265;
+  --accent-soft:  #FFD8E7;
+  --surface:      #FFFBFF;
+  --surface-2:    #F4F0F7;
+  --surface-3:    #E7E0EC;
+  --text:         #1C1B1F;
+  --text-2:       #49454E;
+  --text-3:       #7A757F;
+  --line:         #D9D2DE;
+  --line-strong:  #1C1B1F;
+  --success:      #1F6B4D;
+  --danger:       #BA1A1A;
+  --warning:      #7A5310;
+}
+
+/* ── Tailwind v4 mapping ──────────────────────────────────────────────────
+   Colors use `@theme inline` so each utility inlines `var(--surface)` etc.
+   directly — the role var flips with the media query / [data-theme], so the
+   utility flips with no per-class `dark:` pair. Radii + spacing are static
+   literals lifted from radii.ts / spacing.ts.
+   ───────────────────────────────────────────────────────────────────────── */
+@theme inline {
+  --color-primary:      var(--primary);
+  --color-primary-soft: var(--primary-soft);
+  --color-on-primary:   var(--on-primary);
+  --color-accent:       var(--accent);
+  --color-accent-soft:  var(--accent-soft);
+  --color-surface:      var(--surface);
+  --color-surface-2:    var(--surface-2);
+  --color-surface-3:    var(--surface-3);
+  --color-text:         var(--text);
+  --color-text-2:       var(--text-2);
+  --color-text-3:       var(--text-3);
+  --color-line:         var(--line);
+  --color-line-strong:  var(--line-strong);
+  --color-success:      var(--success);
+  --color-danger:       var(--danger);
+  --color-warning:      var(--warning);
+}
+
+@theme {
+  /* Radii — radii.ts (rounded-none / rounded-full are Tailwind built-ins). */
+  --radius-xs:   2px;
+  --radius-s:    4px;
+  --radius-m:    8px;
+  --radius-l:    14px;
+  --radius-pill: 999px;
+
+  /* Spacing — spacing.ts. Additive named steps (p-s5, gap-s6, …); the
+     numeric scale (p-4 …) keeps Tailwind's default --spacing base. */
+  --spacing-s1: 4px;
+  --spacing-s2: 8px;
+  --spacing-s3: 12px;
+  --spacing-s4: 16px;
+  --spacing-s5: 24px;
+  --spacing-s6: 32px;
+  --spacing-s7: 48px;
+  --spacing-s8: 64px;
+  --spacing-s9: 96px;
+}

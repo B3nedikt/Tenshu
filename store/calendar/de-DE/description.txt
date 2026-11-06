@@ -1,0 +1,26 @@
+Tenshu Calendar hält deine Termine und Erinnerungen verschlüsselt und auf all deinen Geräten synchron. Nur deine eigenen Geräte können sie lesen.
+
+TENSHU CALENDAR BRAUCHT TENSHU CONTROL
+Tenshu Control verwahrt deine Schlüssel und verbindet deine Geräte. Installiere Tenshu Control aus dem App Store und richte es zuerst ein, dann öffne Calendar. Calendar findet Control von selbst.
+
+WAS DU TUN KANNST
+- Deinen Monat sehen oder eine Liste dessen, was ansteht.
+- Termine anlegen, ändern und löschen: ganztägig oder mit Uhrzeit, mit Ort, Notizen und Wiederholung. Einen einzelnen Termin einer Serie ändern oder alle.
+- Erinnerungen vor einem Termin bekommen, auch wenn Calendar geschlossen ist. Für einen Kalender deiner Wahl den Titel eines Termins auf dem Sperrbildschirm ausblenden.
+- Mehrere Kalender führen, jeden mit eigener Farbe. Jeden davon auf diesem Gerät ein- oder ausblenden.
+- Einen Kalender über seine Webadresse abonnieren, etwa Feiertage oder einen Teamplan. Er aktualisiert sich von selbst, und du kannst ihn pausieren.
+- Eine .ics-Datei in einen Kalender importieren oder einen Kalender als .ics-Datei exportieren.
+
+WIE CALENDAR DEINE TERMINE PRIVAT HÄLT
+- Deine Termine und Kalender werden auf deinem Gerät verschlüsselt, bevor sie hochgeladen werden. Die Server von Tenshu speichern nur verschlüsselte Daten und haben nicht die Schlüssel, um sie zu lesen.
+- Einige Fakten, die der Server zum Synchronisieren braucht, sieht er trotzdem: wie viel du speicherst, wie viele Geräte du hast und wann sie synchronisieren.
+- Wenn du einen Kalender abonnierst, lädt dein Gerät ihn direkt von seinem Herausgeber, und der Herausgeber sieht deine IP-Adresse. Jedes deiner Geräte lädt ihn selbst.
+- Calendar liest die anderen Kalender auf deinem Gerät nicht.
+- Ohne Speicherplan bleiben deine Termine auf diesem Gerät.
+
+VORAUSSETZUNGEN
+- iOS 16 oder neuer, auf iPhone oder iPad.
+- Tenshu Control, eingerichtet auf demselben Gerät.
+- Zum Synchronisieren zwischen Geräten: ein Speicherplan. Der kostenlose Plan hat 5 GB.
+
+Hilfe und häufige Probleme: tenshu.app/apps/calendar/support/ios/de

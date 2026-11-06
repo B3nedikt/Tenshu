@@ -1,0 +1,45 @@
+# Copy to terraform.tfvars (git-ignored) and fill in. Then:
+#   terraform init && terraform apply
+
+# --- required ---------------------------------------------------------------
+
+# DO API token (write scope). Prefer exporting DIGITALOCEAN_TOKEN instead of
+# putting the secret in this file.
+do_token = "dop_v1_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# SSH key fingerprints/names already on your DO account (Settings > Security,
+# or `doctl compute ssh-key list`). Without one you can't SSH into the droplet.
+ssh_keys = ["aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99"]
+
+# Hostname the apex frontend is served on + Let's Encrypt contact email.
+domain     = "tenshu.app"
+acme_email = "admin@tenshu.app"
+
+# --- DNS --------------------------------------------------------------------
+# ⚠ The relay module (deploy/digitalocean/) usually already manages the tenshu.app
+# zone. Two Terraform states can't both own the same digitalocean_domain, so for
+# the apex set manage_dns = false and add the apex A record wherever the zone is
+# owned (the relay module's DO zone, or your external DNS). Flip to true only if
+# this module is the sole owner of the zone.
+manage_dns = false
+# dns_zone = "tenshu.app"   # only if it can't be derived from `domain`
+
+# --- optional (sensible defaults) -------------------------------------------
+# region            = "fra1"
+# droplet_size      = "s-2vcpu-4gb"   # enough RAM to build the image on-box
+# git_ref           = "master"        # pin to a tag/SHA for reproducible deploys
+# ssh_allowed_cidrs = ["203.0.113.4/32"]  # lock SSH to your IP
+# relay_url         = "https://relay.tenshu.app"  # on-box build only; baked into the SPA
+
+# --- prebuilt-image deploy (skip the on-box build) --------------------------
+# Set apex_image_tag to PULL ghcr.io/b3nedikt/tenshu-apex:<tag> on first boot
+# instead of building on the droplet. Push the image first (CI workflow or
+# deploy/build-and-push-apex.sh). Then the droplet can be tiny:
+# apex_image_tag = "latest"             # or a short commit sha, e.g. "1a2b3c4"
+# droplet_size   = "s-1vcpu-1gb"        # no on-box build => 1GB is plenty
+# ghcr_token     = "ghp_xxx"            # only if the GHCR package is PRIVATE (read:packages)
+# ghcr_user      = "b3nedikt"
+
+# Read-only GitHub token, ONLY while the repo is private. Fine-grained PAT,
+# scoped to this repo, Contents: Read-only. Delete this line once the repo is public.
+# git_token = "github_pat_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"

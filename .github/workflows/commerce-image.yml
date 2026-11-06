@@ -1,0 +1,124 @@
+# Build the commerce-issuer fat-jar image and push it to GitHub Container Registry.
+#
+# The CI half of the prebuilt-image deploy path (docs/how-to/deploy-commerce-digitalocean.md):
+# the heavy multi-module Gradle build runs here on a GitHub-hosted runner (plenty of RAM — no
+# on-box build, no small-droplet OOM), and the host just `docker compose pull`s the result.
+#
+# Mirrors .github/workflows/relay-image.yml. Separate trust boundary from the relay: this only
+# COMPILES the issuer; the private signing seed (A29) is supplied at deploy time, never baked in.
+
+name: Commerce image
+
+on:
+  # Only a push to master that touches the commerce build closure. The fat jar bundles these
+  # modules (commerce-service/build.gradle.kts + transitive project() deps: core-common → core →
+  # core-aidl; identity-service → identity-service-common). UI/app/docs changes don't change the
+  # jar and are skipped. Plus the shared Gradle build files, which affect every module.
+  push:
+    branches: [master]
+    paths:
+      - "commerce-service/**"
+      - "core/**"
+      - "core-aidl/**"
+      - "core-common/**"
+      - "identity-service/**"
+      - "identity-service-common/**"
+      - "build.gradle.kts"
+      - "settings.gradle.kts"
+      - "gradle.properties"
+      - "gradle/libs.versions.toml"
+      - "gradle/wrapper/**"
+      - "gradlew"
+      - ".github/workflows/commerce-image.yml"
+  # Manual build — and the way to cut a named/release image (set `tag`). Tag pushes are
+  # deliberately NOT a trigger (GitHub's paths filter is unreliable on tag pushes).
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Extra image tag to publish (optional, e.g. a release name)"
+        required: false
+        default: ""
+
+concurrency:
+  group: commerce-image-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE: ghcr.io/b3nedikt/tenshu-commerce
+
+jobs:
+  build-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ⚠⚠ Two JDKs, 17 listed LAST so it stays the Gradle daemon's JVM. The same pin android.yml
+      # carries, for the same reason: control-desktop / drive-desktop resolve a JDK-25 launcher
+      # EAGERLY at configuration time and there is no configure-on-demand, so every invocation —
+      # including this one-module build — configures them. Without the pin nothing fails; the
+      # foojay resolver silently DOWNLOADS a 25 mid-configuration instead.
+      - name: Set up JDK 25 (desktop FFM toolchain) + JDK 17 (daemon + shared modules)
+        uses: actions/setup-java@v4
+        with:
+          java-version: |
+            25
+            17
+          distribution: 'temurin'
+          cache: gradle
+
+      # setup-java installs into the hosted tool cache, which Gradle's toolchain detection does not
+      # scan — without this the 25 above is invisible to `launcherFor`.
+      - name: Register both JDKs with Gradle toolchain detection
+        run: |
+          mkdir -p ~/.gradle
+          echo "org.gradle.java.installations.fromEnv=JAVA_HOME_25_X64,JAVA_HOME_25_ARM64,JAVA_HOME_17_X64,JAVA_HOME_17_ARM64" >> ~/.gradle/gradle.properties
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build the fat jar natively (architecture-independent bytecode)
+        run: ./gradlew --console=plain :commerce-service:buildFatJar --stacktrace
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=short
+            type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event.inputs.tag != '' }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          # Build context is the REPO ROOT — the Gradle build is multi-module.
+          context: .
+          file: commerce-service/Dockerfile
+          # ⚠⚠ Both architectures, and the `prebuilt` target is what makes that free. Every current
+          # deploy target is amd64 — the DigitalOcean droplets and Scaleway's DEV1/PRO2 line — so
+          # arm64 here is insurance, not a requirement: it costs nothing because the artefact built
+          # above is architecture-independent and `prebuilt` is COPY + metadata over a multi-arch
+          # base. Building the `full` target for arm64 instead would run Gradle under QEMU (~45 min,
+          # per the Dockerfile's own note).
+          target: prebuilt
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

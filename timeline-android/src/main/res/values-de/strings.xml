@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- German (de). Mirrors ../values/strings.xml key for key; ADR 0016.
+  See the English file for per-string developer notes. -->
+<resources>
+    <string name="app_name">Timeline</string>
+    <string name="capture_channel">Timeline-Aufzeichnung</string>
+    <string name="capture_notification_title">Timeline ist aktiv</string>
+    <string name="capture_notification_text">Zeichnet die Orte auf, die du besuchst · In den Einstellungen verwalten</string>
+    <string name="capture_permission_title">Bevor Timeline mit der Aufzeichnung beginnt</string>
+    <string name="capture_permission_reason_location">Timeline nutzt deinen Standort, um die Orte, die du besuchst, und die Strecken dazwischen aufzuzeichnen, auch wenn die App geschlossen ist oder nicht verwendet wird. Er bleibt Ende-zu-Ende-verschlüsselt auf deinen eigenen Geräten.</string>
+    <string name="capture_permission_reason_activity">Mit „Körperliche Aktivität“ kann Timeline deine Schritte zählen – daran erkennt die App, ob du Rad fährst oder läufst. Ohne diese Berechtigung wird Radfahren meist als Laufen aufgezeichnet.</string>
+    <string name="capture_permission_continue">Weiter</string>
+    <string name="capture_permission_not_now">Nicht jetzt</string>
+    <string name="capture_background_title">Auch nach dem Schließen der App aufzeichnen</string>
+    <string name="capture_background_message">Timeline erfasst deinen Standort, um die Orte, die du besuchst, und deine Strecken aufzuzeichnen, auch wenn die App geschlossen ist oder nicht verwendet wird. Android beendet Timeline im Hintergrund hin und wieder. Damit die Aufzeichnung von selbst wieder startet, muss der Standortzugriff auf „Immer zulassen“ stehen.\n\nOhne diese Einstellung wird die Aufzeichnung erst fortgesetzt, wenn du die App das nächste Mal öffnest. Deine Timeline bleibt Ende-zu-Ende-verschlüsselt auf deinen eigenen Geräten.</string>
+</resources>

@@ -1,0 +1,1 @@
+Trainings aufzeichnen, Daten aus Health Connect holen, verschlüsselt und privat.

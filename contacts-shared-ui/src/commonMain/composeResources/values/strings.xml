@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Contacts' user-facing strings (ADR 0016: every user-facing string is authored via
+  `stringResource(…)` from the first commit). Keys are prefixed `contacts_` so they stay
+  greppable when the catalogue graduates to ICU JSON at n = 2.
+
+  ⚠ Apostrophes are written bare ('), not escaped (\') — the CMP resource formatter does
+  not decode escapes, so a \' renders literally.
+-->
+<resources>
+    <string name="contacts_nav_contacts">Contacts</string>
+    <string name="contacts_nav_you">You</string>
+
+    <!--
+      Reachability (fit-app.md §9.14). Names Control rather than "the network", because that
+      is what is actually missing — and it is the difference between a blank list that looks
+      like data loss and one that explains itself.
+    -->
+    <!-- Realm storage (drive-synced-folders.md §8b.5c). No plan is the silent state — nothing
+         syncs from any app; full blocks new data only. Neither loses anything. -->
+    <string name="contacts_storage_no_plan_text">Not syncing — this device has no storage plan, so your data stays on this device. Set up storage to sync across your devices.</string>
+    <string name="contacts_storage_full_text">Storage full — %1$s of %2$s used. Your data stays on this device and nothing is deleted, but it can't sync until you free up space or get more.</string>
+    <string name="contacts_storage_action">Manage storage</string>
+    <string name="contacts_storage_setup_action">Set up storage</string>
+    <string name="contacts_control_unreachable">Can't reach Tenshu Control. Your contacts will appear once it is running.</string>
+    <string name="contacts_control_open_action">Open Control</string>
+    <string name="contacts_control_not_installed">Tenshu Control isn't installed on this device. Your contacts live in Control, so there's nothing to show until it's installed.</string>
+    <string name="contacts_control_wall_title">Set up Tenshu Control</string>
+    <!-- ADR 0025 §Decision 8: Control installed and answering, no realm on this device. -->
+    <string name="contacts_control_not_set_up">Tenshu Control is installed but isn't set up on this device yet. Your contacts live in Control — open it to start fresh or join your other devices, then come back.</string>
+    <string name="contacts_control_not_installed_unpublished">Tenshu Control isn't installed on this device, and it isn't in the store yet — your contacts stay empty until it is.</string>
+    <string name="contacts_control_not_installed_other_channel">Tenshu Control isn't installed on this device. Install it the same way you installed Contacts.</string>
+    <string name="contacts_control_get_action">Get Control</string>
+    <string name="contacts_update_action">Update</string>
+    <!--
+      SK-1b (core-schema-skew-surface.md): a proxy that is answering and *refusing* on a schema
+      version is not an unreachable one. These name the app that actually fixes it, which on
+      Android and desktop is usually Control rather than the app the banner is in.
+    -->
+    <string name="contacts_skew_update_control">Contacts is newer than Tenshu Control on this device. Update Control to keep your contacts syncing.</string>
+    <string name="contacts_skew_update_this_app">Contacts is older than Tenshu Control on this device. Update Contacts to keep your contacts syncing.</string>
+    <string name="contacts_skew_update_both">Contacts and Tenshu Control are from different versions. Update both to keep your contacts syncing.</string>
+    <!--
+      SK-3: the realm pull fence - this DEVICE is behind the others, not this app behind its
+      proxy. Different words on purpose: nothing is broken or unreachable, the device has simply
+      stopped receiving, and everything already on it still works.
+    -->
+    <string name="contacts_fenced_update_control">Tenshu Control on this device is older than your other devices, so your contacts has stopped updating. Everything already here is safe.</string>
+    <string name="contacts_fenced_update_this_app">Contacts on this device is older than your other devices, so your contacts has stopped updating. Everything already here is safe.</string>
+    <string name="contacts_fenced_update_both">This device is older than your other devices, so your contacts has stopped updating. Everything already here is safe.</string>
+    <!-- No host published a RuntimeIdentity row: say what is true, name nothing. -->
+    <string name="contacts_fenced_update_unknown">This device is older than your other devices, so your contacts has stopped updating. Updating Tenshu on this device fixes it. Everything already here is safe.</string>
+
+    <!--
+      The list has no title bar: it is the search bar's strip, Drive's shape. The nav item
+      already says "Contacts", and spending a whole bar repeating it cost the search field
+      its place.
+    -->
+    <string name="contacts_add_actions_description">Add a contact</string>
+    <string name="contacts_list_empty_title">No contacts yet</string>
+    <string name="contacts_list_empty_body">People you exchange an invitation with appear here, along with anyone you add yourself.</string>
+
+    <string name="contacts_search_placeholder">Search your contacts</string>
+    <string name="contacts_search_clear">Clear search</string>
+    <string name="contacts_search_empty_title">No matches</string>
+
+    <!--
+      The four badge states (D3). `NeedsReverification` is the one that has to earn its
+      words: it names the key change (Q2b), because "not verified" alone would read as
+      though the user had simply never got round to it.
+    -->
+    <string name="contacts_trust_verified">Verified</string>
+    <string name="contacts_trust_verified_detail">You compared this contact's code and confirmed it.</string>
+    <string name="contacts_trust_unverified">Not verified</string>
+    <string name="contacts_trust_unverified_detail">You have not compared this contact's code yet. Their messages still arrive; verifying confirms you are talking to the person you think you are.</string>
+    <string name="contacts_trust_needs_reverification">Key changed</string>
+    <string name="contacts_trust_needs_reverification_detail">This contact is using a key you have not verified. That happens after they reinstall or set up a new device — verify again to be sure it is still them.</string>
+    <string name="contacts_trust_not_connected">Not connected</string>
+    <string name="contacts_trust_not_connected_detail">You added this person yourself, so there is no key to verify.</string>
+
+    <string name="contacts_detail_title">Contact</string>
+    <string name="contacts_detail_keyring_title">Keys</string>
+    <string name="contacts_detail_claimed_name">Introduced themselves as "%1$s"</string>
+    <string name="contacts_detail_no_keys_body">This contact has no Tenshu key. Exchange an invitation to connect with them.</string>
+    <string name="contacts_detail_missing_title">Contact not found</string>
+    <string name="contacts_detail_missing_body">They may have been deleted on another device.</string>
+
+    <string name="contacts_profile_title">You</string>
+    <string name="contacts_profile_name_label">Your name</string>
+    <string name="contacts_profile_name_supporting">This is the name people see when you invite them.</string>
+    <string name="contacts_profile_name_unset">No name set</string>
+    <string name="contacts_profile_edit_name">Edit name</string>
+    <string name="contacts_profile_name_save">Save</string>
+    <string name="contacts_profile_name_cancel">Cancel</string>
+    <string name="contacts_profile_identity_title">Your identity</string>
+    <string name="contacts_profile_identity_pending">Your identity code and invitation link are not available on this device yet.</string>
+
+    <!--
+      Invitations (D6). Bare invites only — Drive owns the share-a-folder ones, so nothing
+      here mentions folders or sharing.
+    -->
+    <string name="contacts_invite_title">Invite someone</string>
+    <string name="contacts_invite_intro">Create a one-time invitation. Whoever accepts it becomes one of your contacts — nothing is shared until you choose to share it.</string>
+    <string name="contacts_invite_create">Invite someone</string>
+    <string name="contacts_invite_creating">Creating…</string>
+    <string name="contacts_invite_qr_description">Invitation QR code</string>
+    <string name="contacts_invite_link_caption">Have them scan this, or send them the link.</string>
+    <string name="contacts_invite_copy_link">Copy link</string>
+    <!--
+      Stated before the sheet closes, not after: the link carries a key that is never stored
+      anywhere, so there is genuinely no way to show it again.
+    -->
+    <string name="contacts_invite_one_session_warning">This link is shown once and works once. If you lose it, revoke the invitation and make a new one.</string>
+    <string name="contacts_invite_outstanding">Waiting for a reply</string>
+    <string name="contacts_invite_revoke">Revoke</string>
+
+    <!--
+      The completion prompt. The header quotes their claimed name because that is what it
+      is — a claim — and the SAS copy has to make clear that ticking the box is an
+      assertion the user is making, not a box to clear.
+    -->
+    <string name="contacts_confirm_banner">"%1$s" accepted your invitation</string>
+    <string name="contacts_confirm_banner_action">Tap to save them as a contact</string>
+    <string name="contacts_confirm_header">"%1$s" accepted your invitation</string>
+    <string name="contacts_confirm_unnamed">Someone</string>
+    <string name="contacts_confirm_claim_note">That is the name they gave. Their key:</string>
+    <string name="contacts_confirm_sas_note">Read these six digits to them — over a call, or in person. They see the same six on their side.</string>
+    <string name="contacts_confirm_sas_check">The codes match</string>
+    <string name="contacts_confirm_petname_label">Save them as</string>
+    <string name="contacts_confirm_own_name_label">Your name</string>
+    <string name="contacts_confirm_own_name_note">This is what they will see you as.</string>
+    <string name="contacts_confirm_link_existing">Link to an existing contact</string>
+    <string name="contacts_confirm_link_existing_none">You have no other contacts yet.</string>
+    <string name="contacts_confirm_save">Save contact</string>
+    <string name="contacts_confirm_decline">Decline</string>
+
+    <!-- Contact CRUD (Ph4). -->
+    <string name="contacts_name_label">Name</string>
+    <string name="contacts_dialog_cancel">Cancel</string>
+    <string name="contacts_add_title">Add a contact</string>
+    <!-- D5: says plainly what a keyless contact is, so the missing badge is not a mystery. -->
+    <string name="contacts_add_supporting">You can add someone without connecting to them. Exchange an invitation later to share with them.</string>
+    <string name="contacts_add_confirm">Add</string>
+    <string name="contacts_rename_title">Rename</string>
+    <string name="contacts_rename_supporting">This name is yours — it is not shared with them.</string>
+    <string name="contacts_rename_confirm">Save</string>
+    <string name="contacts_delete_title">Delete contact</string>
+    <string name="contacts_delete_body">This removes them and their keys from all your devices.</string>
+    <!--
+      ⚠⚠ Q7b. Deleting a contact revokes nothing — memberships are keyed by the member's
+      A26 identity, not by personId — so someone deleting a contact to cut them off would
+      otherwise get the exact opposite, silently. The copy cannot yet name the folders
+      involved (see contacts-app.md §9.2), so it points at where they can be checked.
+    -->
+    <string name="contacts_delete_access_warning">This does not take away anything you have already shared with them. To stop their access to shared folders, remove them in Drive first.</string>
+    <string name="contacts_delete_confirm">Delete</string>
+    <string name="contacts_unlink_title">Remove key</string>
+    <string name="contacts_unlink_body">Remove the key %1$s from this contact? They stay in your contacts, and you can connect again later.</string>
+    <string name="contacts_unlink_confirm">Remove key</string>
+
+    <!--
+      Re-verification (Ph5, Q2a). ⚠ The copy has to make clear that tapping confirm is an
+      assertion the user is making about a comparison they performed — not a box to clear.
+    -->
+    <string name="contacts_verify_action">Verify</string>
+    <string name="contacts_unverify_action">Un-verify</string>
+    <string name="contacts_verify_title">Compare your codes</string>
+    <string name="contacts_verify_body">Read these six digits to them — over a call, or in person. They see the same six on their side. Only confirm if they match.</string>
+    <string name="contacts_verify_loading">Getting the code…</string>
+    <string name="contacts_verify_unavailable">The code is not available right now. Unlock this device and try again.</string>
+    <string name="contacts_verify_confirm">They match</string>
+
+    <!--
+      User-assisted merge (Ph9, D7). ⚠⚠ Every string here has to read as a QUESTION. Nothing
+      merges without an explicit confirmation, because everything a handshake delivers is
+      self-asserted — a system that merged on a name match would let an attacker's key
+      inherit a known person's contact card. The copy must not sound like a finding.
+    -->
+    <string name="contacts_merge_title">Possible duplicates</string>
+    <string name="contacts_merge_banner">%1$d possible duplicates</string>
+    <string name="contacts_merge_banner_action">Review and combine them</string>
+    <string name="contacts_merge_pair">"%1$s" and "%2$s"</string>
+    <string name="contacts_merge_reason_phone">Same phone number</string>
+    <string name="contacts_merge_reason_email">Same email address</string>
+    <string name="contacts_merge_reason_name">Same name</string>
+    <!-- Two people genuinely can share a name, so a name-only match is not evidence. -->
+    <string name="contacts_merge_name_only_note">— which two people can share.</string>
+    <string name="contacts_merge_keep_label">Which one should be kept? The other is combined into it, and its name is the one you will see.</string>
+    <!--
+      ⚠ Said before the merge, not discovered after it: the rows that move carry no memory of
+      where they came from, so there is genuinely nothing to undo with.
+    -->
+    <string name="contacts_merge_no_undo">Their keys, cards and photo all move across. This cannot be undone.</string>
+    <string name="contacts_merge_confirm">Combine</string>
+    <string name="contacts_merge_empty_title">No duplicates found</string>
+    <string name="contacts_merge_empty_body">Nobody in your contacts looks like anyone else. Imported contacts are never combined for you — this is where they would show up if they were.</string>
+
+    <!--
+      Contact photos (Ph8). No confirmation dialog behind this: an imported card keeps its
+      PHOTO, so removing it here is reversible by re-importing — which the copy says, since
+      "remove" otherwise reads as destroying the picture.
+    -->
+    <string name="contacts_photo_remove">Remove photo</string>
+
+    <!-- Contact detail + the Q6 editor (Ph6). -->
+    <string name="contacts_detail_info_title">Contact info</string>
+    <string name="contacts_detail_organisation">Organisation</string>
+    <string name="contacts_detail_note">Note</string>
+    <string name="contacts_edit_details_title">Edit contact info</string>
+    <string name="contacts_edit_details_save">Save</string>
+    <string name="contacts_edit_add_phone">Add a phone number</string>
+    <string name="contacts_edit_add_email">Add an email address</string>
+    <string name="contacts_edit_organisation">Organisation</string>
+    <string name="contacts_edit_note">Note</string>
+    <!--
+      ⚠ Q6. The editor shows only the fields the codec parses, but the save merges rather
+      than regenerates, so the rest of an imported card survives. Said plainly, because a
+      user whose card had more would otherwise assume editing threw it away.
+    -->
+    <string name="contacts_edit_preserves_note">Anything else your imported card holds is kept, even though it is not shown here.</string>
+
+    <!--
+      Platform import (Ph7). The three source rows are ordered by what they cost the user,
+      and each supporting line says that cost plainly — the address-book row is the only one
+      that asks for a permission, and it says so before it is tapped rather than letting the
+      OS dialog be the first news of it.
+    -->
+    <string name="contacts_import_title">Import contacts</string>
+    <string name="contacts_import_intro">Bring people in from this device. Nothing is sent anywhere — imported contacts live in your own Tenshu, like everything else.</string>
+    <!-- The same thing in one line, for the FAB sheet row that opens the import sheet. -->
+    <string name="contacts_import_intro_short">Bring people in from this device.</string>
+    <string name="contacts_import_one_contact">Pick one person</string>
+    <string name="contacts_import_one_contact_supporting">Choose a single contact. Tenshu never sees the rest of your address book.</string>
+    <string name="contacts_import_file">Import a .vcf file</string>
+    <string name="contacts_import_file_supporting">Any address book can export one.</string>
+    <string name="contacts_import_address_book">Import your whole address book</string>
+    <string name="contacts_import_address_book_supporting">Asks for permission to read your contacts.</string>
+    <string name="contacts_import_working">Reading…</string>
+    <!--
+      Two strings rather than a plural resource, following drive-shared-ui: the project has
+      no <plurals> in a composeResources catalogue and ADR 0016 defers the ICU one at n = 1.
+    -->
+    <string name="contacts_import_result_one">Imported 1 contact.</string>
+    <string name="contacts_import_result_many">Imported %1$d contacts.</string>
+    <string name="contacts_import_done">Done</string>
+    <!--
+      ⚠ D7. Import creates a new contact per card, always — recognising a duplicate is
+      user-assisted merge (contacts_merge_*), never automatic. Said before the import, not
+      after it, and it points at where the duplicates surface: the list's banner.
+    -->
+    <string name="contacts_import_no_merge_note">Everyone you import is added as a new contact, even if you already have them. Any possible duplicates then show up above your contact list, where you can review and combine them.</string>
+    <string name="contacts_import_failed_permission">Tenshu could not read your contacts. Try "Import your whole address book", which asks for permission properly.</string>
+    <string name="contacts_import_failed_unreadable">That could not be read.</string>
+    <string name="contacts_import_failed_no_cards">No contacts were found there.</string>
+    <string name="contacts_import_failed_nothing">Those contacts could not be saved.</string>
+
+    <!-- Contacts-owned error copy, chained in front of :ui-core's shared catalogue
+         (core-error-copy-catalogue.md §5.1). These are not TErrors — they are the app's own
+         validation of a file the user picked. -->
+    <string name="error_contacts_none_in_file">No contacts found in that file.</string>
+    <string name="error_contacts_nothing_to_export">This contact has nothing to export.</string>
+    <string name="error_contacts_photo_unavailable">This contact's photo is not on this device yet. Connect to the internet and try again.</string>
+</resources>

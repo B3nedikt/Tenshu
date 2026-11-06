@@ -1,0 +1,26 @@
+{
+  "about": "Every screen name scripts/store-screenshots-android.sh home captures for Tenshu Home — Android only: Home has no App Store listing and no iOS walk, so `captured` (the iOS list) is empty and `android.captured` is the list. The devices come from a desktop Tenshu Hub the run starts with its simulated devices under ordinary names, paired through Control; both automations are made in Home's own editor (docs/how-to/store-screenshots.md §8.2). Adding a capture means adding it here.",
+  "version": 1,
+  "platform": "android",
+  "appearances": [
+    "light"
+  ],
+  "uiTests": [],
+  "captured": {},
+  "android": {
+    "about": "The Android pipeline (scripts/store-screenshots-android.sh home, walk in scripts/lib/android_shots.py) captures these on a 1080x2400 phone AVD, light only, keyed android/phone/<lang>/NN-screen.",
+    "script": "scripts/lib/android_shots.py",
+    "captured": {
+      "01-devices": {
+        "shows": "Devices: the Hub, its storage, the device bridge, the living-room lamp switched on and dimmed, and the bedroom climate sensor"
+      },
+      "02-automations": {
+        "shows": "Automations: Evening lights and Lights out"
+      },
+      "03-automation": {
+        "shows": "The automation editor: Evening lights, 15 minutes before sunset, turn on the living-room lamp"
+      }
+    }
+  },
+  "planned": {}
+}

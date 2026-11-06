@@ -1,0 +1,54 @@
+{
+  "about": "Every screen name scripts/store-screenshots.sh mia captures for Tenshu Mia (`captured`, from the UI test in `uiTests`). Mia keeps no data of its own: the walk first fills the realm through Drive's, Calendar's and (iPhone only) Fit's own seed launches, then asks Mia questions the grammar answers from those rows (docs/how-to/store-screenshots.md §3g). `devices` limits a screen to the devices whose walk captures it. Settings is never captured: every row there is a \"Coming soon\" placeholder. Adding a capture means adding it here. Docs: docs/how-to/store-screenshots.md §5.",
+  "version": 1,
+  "platform": "ios",
+  "appearances": [
+    "light"
+  ],
+  "uiTests": [
+    "mia-ios/Screenshots/MiaScreenshots.swift"
+  ],
+  "captured": {
+    "01-welcome": {
+      "shows": "Chat before the first question: Mia's greeting and the question field"
+    },
+    "02-files": {
+      "shows": "A file search by name — \"Show me my tax files\" — answered with the Taxes folder and the tax return"
+    },
+    "03-photos": {
+      "shows": "Photos by time — \"Photos from July\" — answered with the holiday photos"
+    },
+    "04-calendar": {
+      "shows": "The calendar — \"What's on my calendar next week?\" — answered with the week's events"
+    },
+    "05-workouts": {
+      "shows": "Workouts — \"Show my workouts from last week\" — answered with the week's runs, rides and walks",
+      "devices": ["iphone69"]
+    },
+    "06-history": {
+      "shows": "History: this session's conversation, titled by its first question"
+    }
+  },
+  "android": {
+    "about": "The Android pipeline (scripts/store-screenshots-android.sh mia, walk in scripts/lib/android_shots.py) captures these on a 1080x2400 phone AVD, light only, keyed android/phone/<lang>/NN-screen. The realm is filled first by Drive's and Calendar's own walks (store-screenshots.md §8.2). Same names as iOS for the same screen.",
+    "script": "scripts/lib/android_shots.py",
+    "captured": {
+      "01-welcome": {
+        "shows": "Chat before the first question: Mia's greeting and the question field"
+      },
+      "02-files": {
+        "shows": "\"Show me my tax files\" — answered with the Taxes folder and the tax return"
+      },
+      "03-photos": {
+        "shows": "\"Photos from July\" — answered with the holiday photos"
+      },
+      "04-calendar": {
+        "shows": "\"What's on my calendar next week?\" — answered with the week's events"
+      },
+      "06-history": {
+        "shows": "History: this session's conversation, titled by its first question"
+      }
+    }
+  },
+  "planned": {}
+}

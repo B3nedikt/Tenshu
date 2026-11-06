@@ -1,0 +1,67 @@
+# ⚠⚠ HOSTNAMES: the live zone is flatter than it looks. The real names are `tenshu.app` (the apex
+# itself), `relay.tenshu.app`, `commerce.service.tenshu.app` and `tiles.service.tenshu.app` — there
+# is no `relay.service.` or `apex.service.`. An earlier version of this file invented `.service.`
+# for all of them, which produces a `relay_url` that does not resolve and an apex that cannot reach
+# its relay. Check against `doctl compute domain records list tenshu.app` before inventing a name.
+#
+# Copy to terraform.tfvars (git-ignored) and fill in. Then:
+#   terraform init && terraform apply
+
+# --- credentials ------------------------------------------------------------
+# ⚠ ONE Scaleway API key pair (console > IAM > API keys), not DO's token + Spaces keys.
+access_key = "SCWXXXXXXXXXXXXXXXXXX"
+secret_key = "00000000-0000-0000-0000-000000000000"
+# ⚠ Scaleway scopes every resource to a Project. console > Project settings > Project ID.
+project_id = "00000000-0000-0000-0000-000000000000"
+
+# --- placement --------------------------------------------------------------
+zone   = "fr-par-1"
+region = "fr-par"
+
+# --- the box ----------------------------------------------------------------
+instance_type = "DEV1-M"   # ≈ s-2vcpu-4gb. DEV1-S is smaller/cheaper.
+
+# --- relay ------------------------------------------------------------------
+domain = "commerce.service.tenshu.app"   # ⚠ production. commerce-scw.… was the migration name; a rebuild with it gets no cert for commerce.service.tenshu.app
+acme_email = "you@your-real-domain.example"   # ⚠ NOT example.com — Let's Encrypt refuses it outright
+
+# ⚠ Leave manage_dns false: the zone is served by DigitalOcean, then Cloudflare — never Scaleway.
+manage_dns = false
+
+# Prebuilt image is far kinder than building on the box.
+commerce_image_tag = ""
+ghcr_user          = ""
+ghcr_token         = ""
+
+# --- ⚠⚠ SMTP -----------------------------------------------------------------
+# Scaleway blocks outbound 25/465/587 on every instance. 2587 is NOT on that list and is what the
+# DO deploy already uses (Scaleway TEM's STARTTLS alternative). Verify on the box before debugging
+# the app:   nc -vz smtp.tem.scaleway.com 2587
+smtp_host     = "smtp.tem.scaleway.com"
+smtp_port     = "2587"
+smtp_starttls = "true"
+
+# --- the rest -----------------------------------------------------------------
+# ⚠ Commerce carries ~20 more settings (issuer keys, Stripe, admin, quotas). Copy them from your
+# existing deploy/digitalocean-commerce/terraform.tfvars — they are provider-independent, and
+# retyping secrets is how one gets mistyped.
+
+# ⚠⚠ The repo is PRIVATE, and the box clones it even when pulling a prebuilt image (the compose
+# file lives there). Copy this from the DigitalOcean deploy's terraform.tfvars.
+git_token = ""
+
+# ⚠⚠ VERIFY THE TAG EXISTS before pinning it. The DigitalOcean deploy pinned one that had since been
+# deleted from GHCR and kept working only on its local Docker cache — the pull 404s on any rebuild,
+# and GHCR reports a missing tag and an unreadable one identically ("not found").
+#   curl -sH "Authorization: Bearer $(printf %s "$GHCR_PAT" | base64)" \
+#        https://ghcr.io/v2/b3nedikt/tenshu-commerce/tags/list
+
+# ⚠⚠ ACCOUNT-CLOSURE DELIVERY — with this set AND the relay's account_closure_reclaim = "true", a
+# closed account's stored content is PERMANENTLY DELETED 30 d after its recorded closure time.
+# Production runs it ON since 2026-10-24 (retention-quota-model.md §3.3); leaving this out on a
+# rebuild turns delivery off. Empty, or exactly the relay's closure endpoint:
+# account_closure_relay_url = "https://relay.tenshu.app/sync/account/closure"
+
+# ⚠⚠ BROWSER ACCESS — the web apex (tenshu.app) reaches commerce only if this names its origin.
+# Empty (the default) = every web sign-in, checkout and plan sync dies in CORS preflight.
+# web_app_origin = "https://tenshu.app"

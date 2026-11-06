@@ -1,0 +1,246 @@
+# XcodeGen spec for the first iOS app (Phase 6a app-module half of
+# docs/proposals/ios-proxy-architecture.md). This file is the single source of
+# truth for the Xcode project — `DriveIos.xcodeproj` and `Info.plist` are
+# generated from it and gitignored (mirrors the repo's "build from source, do
+# not commit generated artifacts" convention used for libsodium and the JS SDK
+# bundle).
+#
+# Regenerate after editing:   (cd drive-ios && xcodegen generate)
+# Build/run:                  see drive-ios/README.md
+name: DriveIos
+options:
+  bundleIdPrefix: app.tenshu
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+# Two build configs over one app target (§11.6): the shipping `Debug` config is
+# the forward-to-Control first-party app; `DebugHarness` additionally defines the
+# `DEV_HARNESS` Swift compilation condition, which surfaces the dev/test surfaces
+# §11.6 moves out of the shipping UI — the QR+SAS EPC pairing tab. The two schemes below pin each to its config.
+configs:
+  Debug: debug
+  DebugHarness: debug
+  Release: release
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    # Ad-hoc-signed on the SIMULATOR (CODE_SIGN_IDENTITY = "-") so the app carries
+    # entitlements and can use the Keychain — needed for the cross-app route-1 read
+    # (Drive reads the key material Control publishes into the shared
+    # `app.tenshu.shared` group; see Drive.entitlements). Ad-hoc signing needs NO Apple
+    # ID / Team ID — that's only a real-device requirement. App Attest stays Phase 6c/6d.
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGNING_ALLOWED: "YES"
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    # Real-device (iphoneos) builds sign for the personal team (ios-signing.md §2/§3);
+    # the simulator keeps the ad-hoc config above. The Team ID is resolved from
+    # $TENSHU_TEAM_ID at `xcodegen generate` time (mirror of the macOS -Ptenshu.teamId
+    # flow; the value lives in local.properties as tenshu.teamId).
+    CODE_SIGNING_REQUIRED[sdk=iphoneos*]: "YES"
+    CODE_SIGN_STYLE[sdk=iphoneos*]: Automatic
+    CODE_SIGN_IDENTITY[sdk=iphoneos*]: "Apple Development"
+    DEVELOPMENT_TEAM[sdk=iphoneos*]: ${TENSHU_TEAM_ID}
+    # Apple-silicon simulator only. Phase 6b.5 slice 3 dropped iosX64 from the
+    # SDK (paging-common ships no iosX64 klib), so the framework has no
+    # x86_64 simulator slice — without this the app tries to build x86_64, fails
+    # to load the framework's Swift module for that arch, and SKIE's async Swift
+    # extensions (e.g. EpcRelayPairing.connect()) silently vanish behind the Obj-C
+    # fallback. Matches `:tenshu-sdk-ios-drive`'s arch set.
+    EXCLUDED_ARCHS[sdk=iphonesimulator*]: x86_64
+
+# The shared forward-to-Control screen, applied below as `templates: [ControlOnboardingApp]`.
+# Fit includes the same file (ADR 0022); every route-1 app that gates on provisioning owes it.
+include:
+  - path: ../ios-onboarding/onboarding.yml
+  # The shared adaptive navigation shell (N6), applied below as `templates: [AdaptiveAppShell]`.
+  # Every tab-shaped first-party app includes it; Timeline and Maps deliberately do not.
+  - path: ../ios-shell/shell.yml
+  # The shared realm-storage banner (§8b.5c), applied below as `templates: [RealmStorageBanner]`.
+  # ⚠ Its own fragment, not part of the nav shell: Timeline and Maps exclude that one, and their
+  # realms can run out of space just the same.
+  - path: ../ios-storage/storage.yml
+  # Version numbers, orientations and the release framework (`templates: [ReleaseApp]`).
+  - path: ../ios-release/release.yml
+  # The open-source notices (`docs/oss-licences.md`), applied below as `templates: [OssLicences]`.
+  - path: ../ios-about/about.yml
+
+targets:
+  DriveIos:
+    type: application
+    platform: iOS
+    templates:
+      - ControlOnboardingApp
+      - AdaptiveAppShell
+      - RealmStorageBanner
+      - ReleaseApp
+      - OssLicences
+      # ⚠ Drive links `:tenshu-sdk-ios-drive` (`ios-per-app-frameworks.md` P3), so
+      # it applies no generic purpose strings: its binary has no HealthKit, location, Bluetooth or
+      # motion load command for App Store Connect to ask about, and `scripts/ios-archive.sh` fails
+      # an archive that grows one. It keeps the two strings below for what it really uses.
+      - AppFramework
+    sources:
+      - path: Sources
+      - path: Resources
+    info:
+      path: Info.plist
+      properties:
+        # Cross-app open (`control-cross-app-open.md` CO-D4, §5i). ⚠⚠ On iOS this URL is the
+        # ONLY carrier: under route 1 every first-party app runs its own in-process proxy, so
+        # there is no channel between two apps for a request to be pushed down.
+        # ⚠⚠ The scheme is DERIVED from the appId (`app.tenshu.drive` -> `tenshu-drive`), never
+        # authored — `OpenTargetUrl.schemeFor` is the single source and a test pins the mapping.
+        # ⚠ This file is the source; `Info.plist` is generated and gitignored.
+        CFBundleURLTypes:
+          - CFBundleURLName: app.tenshu.drive.open
+            CFBundleURLSchemes:
+              - tenshu-drive
+        # Lets canOpenURL("tenshu-control://services") answer truthfully so the realm-storage
+        # banner can offer "Manage storage". ⚠⚠ Without this iOS reports Control as absent
+        # even when it is installed, and the action silently disappears — the failure is a
+        # missing button, never a crash, which is why it needs declaring rather than
+        # discovering. ⚠ project.yml is the source; Info.plist is generated and gitignored.
+        LSApplicationQueriesSchemes:
+          - tenshu-control
+        CFBundleDisplayName: Tenshu Drive
+        # Export compliance (`docs/how-to/ios-testflight.md`): libsodium ships standard (IETF)
+        # algorithms beside Apple's own, so App Store Connect's answer is "standard algorithms".
+        ITSAppUsesNonExemptEncryption: true
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        # The camera, through `QrScannerView`: the shipping *redeem an invite* sheet scans the
+        # inviter's QR, and the DEV_HARNESS EPC pairing surface scans Control's (proposal §10.6).
+        # The simulator has no camera (the manual-paste path is what is testable there).
+        NSCameraUsageDescription: Scan the QR code shown by Tenshu Control to connect this app.
+        # The photo backup reads the library (`PHPhotoLibrary.requestAuthorization`, PhotoKit in
+        # `:tenshu-sdk-ios-drive`). The upload picker (`PhotosPicker`) needs no permission.
+        NSPhotoLibraryUsageDescription: Back up your photos and videos to Drive, end-to-end encrypted.
+        # The build's effective shared Keychain access group (bare on the sim, Team-prefixed
+        # on a signed device build) — read by ControlSession.swift + the Kotlin
+        # ControlSessionProvisioner instead of hardcoding the bare group (ios-signing.md §2).
+        TenshuSharedKeychainGroup: $(TENSHU_SHARED_KEYCHAIN_GROUP)
+        # Tenshu Control's App Store product id, for the forward-to-Control screen
+        # (ADR 0022). Empty until Control ships → the screen says so instead of opening
+        # a broken page. Same build-setting → Info.plist path as the Keychain group above.
+        TenshuControlAppStoreId: $(TENSHU_CONTROL_APP_STORE_ID)
+        # This app's own App Store product id, for the skew fence's Update button
+        # (core-schema-skew-surface.md §8.5). Empty until the listing exists → no button.
+        TenshuAppStoreId: $(TENSHU_APP_STORE_ID)
+        # P6a (ios-drive-parity.md): background sync drain. Drive is the route-1 background
+        # syncer (adoption rehydrates from the persisted joiner payload with no user present);
+        # a BGAppRefreshTask wake runs a bounded drain. Identifiers are STATIC by iOS design.
+        UIBackgroundModes: [fetch]
+        BGTaskSchedulerPermittedIdentifiers: [app.tenshu.drive.refresh]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.tenshu.drive.ios.smoke
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: "NO"
+        # Keychain entitlements (per-app + shared app.tenshu.shared group) for the C3
+        # cross-app handshake experiment. See Drive.entitlements + the base signing settings.
+        CODE_SIGN_ENTITLEMENTS: Drive.entitlements
+        TENSHU_SHARED_KEYCHAIN_GROUP: app.tenshu.shared
+        # Device builds: real bundle ID (profiles bind to it — ios-signing.md §1), device
+        # entitlements (Team-prefixed Keychain groups + the App Group), Team-prefixed group.
+        PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]: app.tenshu.drive.ios
+        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: Drive.device.entitlements
+        TENSHU_SHARED_KEYCHAIN_GROUP[sdk=iphoneos*]: $(DEVELOPMENT_TEAM).app.tenshu.shared
+        # Drive's own static `TenshuSdk` framework — linked by search path and name (the
+        # `AppFramework` template), not embedded. Debug links the debug framework, Release the
+        # release one; one spec for both, so there is no `project.archive.yml`.
+        TENSHU_SDK_MODULE: tenshu-sdk-ios-drive
+      configs:
+        # Only the harness config compiles the dev/test surfaces (§11.6).
+        # `$(inherited)` keeps the `DEBUG` the debug-config preset already sets.
+        DebugHarness:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) DEV_HARNESS
+    preBuildScripts:
+      - name: Build TenshuSdk.framework
+        # Keep the linked framework fresh before compile/link: one slice of Drive's framework,
+        # debug or release by configuration (scripts/ios-build-sdk.sh).
+        script: |
+          "$SRCROOT/../scripts/ios-build-sdk.sh" drive
+        basedOnDependencyAnalysis: false
+
+  # XCUITest bundle — drives the sharing-cluster SwiftUI in the simulator (the layer
+  # the Kotlin iosTest can't reach: navigation + render + sheet presentation). Runs
+  # against the DEV_HARNESS app, which the `DriveIos-UITests` scheme provisions into
+  # PairedAppView via the `DRIVE_DEV_PROVISION_CONTROL` launch-env hook (no taps).
+  # Screenshots are `.deleteOnSuccess` XCTAttachments in the .xcresult — never committed.
+  DriveIosUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+    dependencies:
+      - target: DriveIos
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.tenshu.drive.ios.uitests
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_TARGET_NAME: DriveIos
+
+  # The store screenshots (docs/how-to/store-screenshots.md): an XCUITest over the SHIPPING
+  # app — the `Debug` configuration, so `RootView` with no harness tabs — that seeds the realm
+  # in one launch (`-seedFixture`, data only) and captures the next. Run only through
+  # `scripts/store-screenshots.sh`, which runs Control's genesis on the same simulator first.
+  DriveIosScreenshots:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: Screenshots
+      # The walks' labels in the run's language (ShotStrings) and the shell's tab lookup.
+      - path: ../ios-shell/UITestSupport
+    dependencies:
+      - target: DriveIos
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.tenshu.drive.ios.screenshots
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_TARGET_NAME: DriveIos
+
+schemes:
+  # Shipping first-party app: forward-to-Control onboarding, no QR/SAS.
+  DriveIos:
+    build:
+      targets:
+        DriveIos: all
+    run:
+      config: Debug
+  # Dev/test harness: adds the QR+SAS EPC pairing tab (§11.6) and the launch-arg probes.
+  DriveIos-Dev:
+    build:
+      targets:
+        DriveIos: all
+    run:
+      config: DebugHarness
+  # XCUITest scheme: builds the app in DebugHarness (so DEV_HARNESS + the provision
+  # launch-hook are active) and runs the sharing-cluster UI tests against it.
+  DriveIos-UITests:
+    build:
+      targets:
+        DriveIos: all
+        DriveIosUITests: [test]
+    test:
+      config: DebugHarness
+      targets:
+        - DriveIosUITests
+    run:
+      config: DebugHarness
+  # Store screenshots — ⚠ `Debug`, NOT `DebugHarness`: the harness wraps the app in App/Pair
+  # tabs the shipping app does not have, and a listing must not show them.
+  DriveIos-Screenshots:
+    build:
+      targets:
+        DriveIos: all
+        DriveIosScreenshots: [test]
+    test:
+      config: Debug
+      targets:
+        - DriveIosScreenshots
+    run:
+      config: Debug

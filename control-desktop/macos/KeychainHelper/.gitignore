@@ -1,0 +1,5 @@
+# xcodebuild output + per-user Xcode state
+build/
+*.xcuserstate
+KeychainHelper.xcodeproj/xcuserdata/
+KeychainHelper.xcodeproj/project.xcworkspace/xcuserdata/

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Legacy (API <= 30) counterpart of data_extraction_rules.xml: keep the secure-storage blobs out of
+  Auto Backup. See AndroidSecureStorageDelegate for why a restored copy is undecryptable.
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="tenshu_secret_store.xml" />
+</full-backup-content>

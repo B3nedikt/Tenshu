@@ -1,0 +1,1092 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ and %lld other files added" : {
+      "comment" : "Home → Recent Events; %@ = file, folder or app name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ und %lld weitere Dateien hinzugefügt"
+          }
+        }
+      }
+    },
+    "%@ and 1 other file added" : {
+      "comment" : "Home → Recent Events; %@ = file, folder or app name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ und 1 weitere Datei hinzugefügt"
+          }
+        }
+      }
+    },
+    "%@ of %@ used" : {
+      "comment" : "Storage usage; %@ = formatted bytes",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ von %@ belegt"
+          }
+        }
+      }
+    },
+    "%@ was deleted on another device while your change was waiting" : {
+      "comment" : "Home → Recent Events; %@ = file, folder or app name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ wurde auf einem anderen Gerät gelöscht, während deine Änderung noch ausstand"
+          }
+        }
+      }
+    },
+    "About" : {
+      "comment" : "Photo info action / About section",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Info"
+          }
+        }
+      }
+    },
+    "Account" : {
+      "comment" : "Row label / section",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Konto"
+          }
+        }
+      }
+    },
+    "Account recovery" : {
+      "comment" : "Row label",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kontowiederherstellung"
+          }
+        }
+      }
+    },
+    "Add a device" : {
+      "comment" : "Settings row",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gerät hinzufügen"
+          }
+        }
+      }
+    },
+    "Added file: %@" : {
+      "comment" : "Home → Recent Events; %@ = file, folder or app name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datei hinzugefügt: %@"
+          }
+        }
+      }
+    },
+    "Added folder: %@" : {
+      "comment" : "Home → Recent Events; %@ = file, folder or app name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordner hinzugefügt: %@"
+          }
+        }
+      }
+    },
+    "Anyone holding the link to %@ loses access immediately." : {
+      "comment" : "Confirmation message; %@ = file name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle, die den Link zu %@ haben, verlieren sofort den Zugriff."
+          }
+        }
+      }
+    },
+    "App" : {
+      "comment" : "Label: tab in dev harness; 'App' row in Control's About section",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App"
+          }
+        }
+      }
+    },
+    "App Registered" : {
+      "comment" : "Home → Recent Events",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App registriert"
+          }
+        }
+      }
+    },
+    "App Removed" : {
+      "comment" : "Home → Recent Events",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App entfernt"
+          }
+        }
+      }
+    },
+    "Apps" : {
+      "comment" : "Screen title / section",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apps"
+          }
+        }
+      }
+    },
+    "Cancel" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abbrechen"
+          }
+        }
+      }
+    },
+    "Change Lost" : {
+      "comment" : "Home → Recent Events",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Änderung verloren"
+          }
+        }
+      }
+    },
+    "Compare this code with your contact in person or over a trusted channel, then confirm." : {
+      "comment" : "Instructions",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vergleiche diesen Code mit deinem Kontakt – persönlich oder über einen vertrauenswürdigen Kanal – und bestätige dann."
+          }
+        }
+      }
+    },
+    "Connect an app" : {
+      "comment" : "Settings row",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App verbinden"
+          }
+        }
+      }
+    },
+    "Continuing in %lld seconds" : {
+      "comment" : "Auto-continue countdown, spoken as the Continue button's value (control-pairing-ux.md §9)",
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Weiter in %lld Sekunde"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Weiter in %lld Sekunden"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Continuing in %lld second"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Continuing in %lld seconds"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Copyright 2022 The Noto Project Authors" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copyright 2022 The Noto Project Authors"
+          }
+        }
+      }
+    },
+    "Data" : {
+      "comment" : "Screen title / section",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daten"
+          }
+        }
+      }
+    },
+    "Data and fonts" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daten und Schriften"
+          }
+        }
+      }
+    },
+    "Decline" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ablehnen"
+          }
+        }
+      }
+    },
+    "Deleted file: %@" : {
+      "comment" : "Home → Recent Events; %@ = file, folder or app name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datei gelöscht: %@"
+          }
+        }
+      }
+    },
+    "Deleted folder: %@" : {
+      "comment" : "Home → Recent Events; %@ = file, folder or app name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordner gelöscht: %@"
+          }
+        }
+      }
+    },
+    "Device" : {
+      "comment" : "Section header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gerät"
+          }
+        }
+      }
+    },
+    "Devices" : {
+      "comment" : "Row / section / filter",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geräte"
+          }
+        }
+      }
+    },
+    "Dismiss" : {
+      "comment" : "Dismiss a notification",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ausblenden"
+          }
+        }
+      }
+    },
+    "Downloaded separately; each model shows its licence under Settings → Models" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Werden separat geladen; jedes Modell zeigt seine Lizenz unter Einstellungen → Modelle"
+          }
+        }
+      }
+    },
+    "File Added" : {
+      "comment" : "Home → Recent Events",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datei hinzugefügt"
+          }
+        }
+      }
+    },
+    "File Deleted" : {
+      "comment" : "Home → Recent Events",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datei gelöscht"
+          }
+        }
+      }
+    },
+    "Folder Added" : {
+      "comment" : "Home → Recent Events",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordner hinzugefügt"
+          }
+        }
+      }
+    },
+    "Folder Deleted" : {
+      "comment" : "Home → Recent Events",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordner gelöscht"
+          }
+        }
+      }
+    },
+    "Home" : {
+      "comment" : "Tab title (as the other apps' German home tab, e.g. Fit and Drive on Android)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start"
+          }
+        }
+      }
+    },
+    "How we handle your data is explained in our privacy policy." : {
+      "comment" : "Sign-in sheet, under the submit button, above the privacy-policy link. Informs; never asks for agreement",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Informationen zum Datenschutz findest du in unserer Datenschutzerklärung."
+          }
+        }
+      }
+    },
+    "It loses access to your realm. This cannot be undone — the hardware can be set up again, but it joins as a new device.\n\n%@" : {
+      "comment" : "Device removal message; %@ = device id",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Es verliert den Zugriff auf dein Realm. Das kann nicht rückgängig gemacht werden – die Hardware kann erneut eingerichtet werden, tritt dann aber als neues Gerät bei.\n\n%@"
+          }
+        }
+      }
+    },
+    "Libraries" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bibliotheken"
+          }
+        }
+      }
+    },
+    "Links" : {
+      "comment" : "Section header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Links"
+          }
+        }
+      }
+    },
+    "Loading…" : {
+      "comment" : "Progress",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird geladen…"
+          }
+        }
+      }
+    },
+    "Lock" : {
+      "comment" : "Section header ('Lock')",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sperren"
+          }
+        }
+      }
+    },
+    "Manage storage" : {
+      "comment" : "Storage banner button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speicher verwalten"
+          }
+        }
+      }
+    },
+    "Map data © OpenStreetMap contributors" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kartendaten © OpenStreetMap-Mitwirkende"
+          }
+        }
+      }
+    },
+    "Multiple Files Added" : {
+      "comment" : "Home → Recent Events",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mehrere Dateien hinzugefügt"
+          }
+        }
+      }
+    },
+    "Name for this contact" : {
+      "comment" : "Text field placeholder",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name für diesen Kontakt"
+          }
+        }
+      }
+    },
+    "Needs your attention" : {
+      "comment" : "Section header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erfordert deine Aufmerksamkeit"
+          }
+        }
+      }
+    },
+    "No apps installed." : {
+      "comment" : "Empty state",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Apps installiert."
+          }
+        }
+      }
+    },
+    "No realm data yet." : {
+      "comment" : "Empty state",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch keine Realm-Daten."
+          }
+        }
+      }
+    },
+    "No recent events" : {
+      "comment" : "Empty state",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine aktuellen Ereignisse"
+          }
+        }
+      }
+    },
+    "Notifications" : {
+      "comment" : "Screen title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Benachrichtigungen"
+          }
+        }
+      }
+    },
+    "Noto Sans (map labels)" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noto Sans (Kartenbeschriftungen)"
+          }
+        }
+      }
+    },
+    "OK" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        }
+      }
+    },
+    "Offline map tiles built from OpenStreetMap data with the Protomaps basemap schema" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Offline-Kartenkacheln aus OpenStreetMap-Daten, erstellt mit dem Protomaps-Basemap-Schema"
+          }
+        }
+      }
+    },
+    "On-device models" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modelle auf dem Gerät"
+          }
+        }
+      }
+    },
+    "Open online" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Online öffnen"
+          }
+        }
+      }
+    },
+    "Open-source licences" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open-Source-Lizenzen"
+          }
+        }
+      }
+    },
+    "OpenStreetMap" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OpenStreetMap"
+          }
+        }
+      }
+    },
+    "Pending" : {
+      "comment" : "Section header / device status",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ausstehend"
+          }
+        }
+      }
+    },
+    "Photon place lookup (komoot)" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photon-Ortssuche (komoot)"
+          }
+        }
+      }
+    },
+    "Place names, when online lookup is on, come from OpenStreetMap data via Photon, run by komoot" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ortsnamen stammen bei aktivierter Online-Suche aus OpenStreetMap-Daten über Photon, betrieben von komoot"
+          }
+        }
+      }
+    },
+    "Plan" : {
+      "comment" : "Section header / row label (billing plan)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plan"
+          }
+        }
+      }
+    },
+    "Privacy policy" : {
+      "comment" : "Settings row that opens Tenshu's privacy policy in the browser (PrivacyPolicyLink, ios-release/Sources/PrivacyPolicy.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datenschutzerklärung"
+          }
+        }
+      }
+    },
+    "Protomaps basemap" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protomaps-Basiskarte"
+          }
+        }
+      }
+    },
+    "Recent Events" : {
+      "comment" : "Control home title (sync events)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Letzte Ereignisse"
+          }
+        }
+      }
+    },
+    "Recovery" : {
+      "comment" : "Section header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wiederherstellung"
+          }
+        }
+      }
+    },
+    "Refresh" : {
+      "comment" : "Accessibility label",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktualisieren"
+          }
+        }
+      }
+    },
+    "Registered new app: %@" : {
+      "comment" : "Home → Recent Events; %@ = file, folder or app name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neue App registriert: %@"
+          }
+        }
+      }
+    },
+    "Remove" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entfernen"
+          }
+        }
+      }
+    },
+    "Remove %@" : {
+      "comment" : "Accessibility label",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ entfernen"
+          }
+        }
+      }
+    },
+    "Remove this device?" : {
+      "comment" : "Confirmation title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Gerät entfernen?"
+          }
+        }
+      }
+    },
+    "Removed app: %@" : {
+      "comment" : "Home → Recent Events; %@ = file, folder or app name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App entfernt: %@"
+          }
+        }
+      }
+    },
+    "Require unlock" : {
+      "comment" : "Toggle",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entsperren verlangen"
+          }
+        }
+      }
+    },
+    "Restore access for %@" : {
+      "comment" : "Accessibility label",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zugriff für %@ wiederherstellen"
+          }
+        }
+      }
+    },
+    "Revoke" : {
+      "comment" : "Button: revoke a link/share",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Widerrufen"
+          }
+        }
+      }
+    },
+    "Revoke link?" : {
+      "comment" : "Confirmation title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Link widerrufen?"
+          }
+        }
+      }
+    },
+    "Revoke share" : {
+      "comment" : "Destructive button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Freigabe widerrufen"
+          }
+        }
+      }
+    },
+    "Revoked" : {
+      "comment" : "Status badge",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Widerrufen"
+          }
+        }
+      }
+    },
+    "Security" : {
+      "comment" : "Section header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sicherheit"
+          }
+        }
+      }
+    },
+    "Services" : {
+      "comment" : "Section header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dienste"
+          }
+        }
+      }
+    },
+    "Settings" : {
+      "comment" : "Screen title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einstellungen"
+          }
+        }
+      }
+    },
+    "Shared folders" : {
+      "comment" : "Section header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Freigegebene Ordner"
+          }
+        }
+      }
+    },
+    "Shares" : {
+      "comment" : "Settings row / screen title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Freigaben"
+          }
+        }
+      }
+    },
+    "Status" : {
+      "comment" : "Row label",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Status"
+          }
+        }
+      }
+    },
+    "Stay" : {
+      "comment" : "Cancels an auto-continue countdown on a success screen (control-pairing-ux.md §9)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bleiben"
+          }
+        }
+      }
+    },
+    "Storage" : {
+      "comment" : "Section header / screen title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speicher"
+          }
+        }
+      }
+    },
+    "Sync" : {
+      "comment" : "Section header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync"
+          }
+        }
+      }
+    },
+    "Sync activity from your paired devices will show up here." : {
+      "comment" : "Empty state",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync-Aktivitäten deiner gekoppelten Geräte erscheinen hier."
+          }
+        }
+      }
+    },
+    "The codes match" : {
+      "comment" : "Toggle",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Codes stimmen überein"
+          }
+        }
+      }
+    },
+    "The full licence text is available online." : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der vollständige Lizenztext ist online verfügbar."
+          }
+        }
+      }
+    },
+    "This app is built on open-source software and open data. Each component is listed with its licence; select a library to read its licence text." : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese App baut auf Open-Source-Software und offenen Daten auf. Jede Komponente ist mit ihrer Lizenz aufgeführt; wähle eine Bibliothek, um ihren Lizenztext zu lesen."
+          }
+        }
+      }
+    },
+    "This build does not include its licence list." : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Build enthält keine Lizenzliste."
+          }
+        }
+      }
+    },
+    "This device" : {
+      "comment" : "Badge",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Gerät"
+          }
+        }
+      }
+    },
+    "This realm's devices" : {
+      "comment" : "Settings row",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geräte dieses Realms"
+          }
+        }
+      }
+    },
+    "Unlock with Face ID" : {
+      "comment" : "Toggle",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit Face ID entsperren"
+          }
+        }
+      }
+    },
+    "Verification code" : {
+      "comment" : "Label",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verifizierungscode"
+          }
+        }
+      }
+    },
+    "Version" : {
+      "comment" : "Row label",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

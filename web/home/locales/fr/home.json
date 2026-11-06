@@ -1,0 +1,131 @@
+{
+  "app": {
+    "title": "Home",
+    "tagline": "Vos appareils, automatisations et activité — en consultation seule, chiffrés de bout en bout."
+  },
+  "nav": {
+    "devices": "Maison",
+    "automations": "Automatisations",
+    "activity": "Activité"
+  },
+  "devices": {
+    "viewOnly": "Consultation seule : les appareils affichent leur état tel qu’il a été synchronisé pour la dernière fois. Pour commander des appareils ou en ajouter, utilisez Home sur votre téléphone Android ou votre ordinateur.",
+    "emptyTitle": "Aucun appareil pour l’instant",
+    "emptyBody": "Les appareils apparaissent ici dès qu’un Tenshu Hub de votre realm les signale. L’ajout d’appareils n’est pas disponible sur le web.",
+    "unassigned": "Sans pièce",
+    "state": {
+      "noReading": "Pas encore de relevé",
+      "on": "Allumé",
+      "onLevel": "Allumé · {level} %",
+      "off": "Éteint",
+      "connected": "Connecté",
+      "disconnected": "Déconnecté"
+    },
+    "kind": {
+      "light": "Lampe",
+      "plug": "Prise",
+      "sensor": "Capteur",
+      "thermostat": "Thermostat",
+      "speaker": "Enceinte",
+      "camera": "Caméra",
+      "bridge": "Passerelle",
+      "other": "Appareil"
+    }
+  },
+  "hub": {
+    "defaultName": "Tenshu Hub",
+    "free": "{free} libres sur {total}",
+    "usage": "Stockage utilisé",
+    "asOf": "Au {time}",
+    "offlineAsOf": "Hub hors ligne · au {time}"
+  },
+  "automations": {
+    "emptyTitle": "Aucune automatisation pour l’instant",
+    "emptyBody": "Les automatisations créées dans Home sur Android ou sur ordinateur apparaissent ici. La modification n’est pas disponible sur le web.",
+    "on": "Activée",
+    "off": "Désactivée",
+    "unknownDevice": "Appareil inconnu",
+    "trigger": {
+      "at": "À {time}",
+      "sunAt": "Au {event}",
+      "sunBefore": "{minutes} min avant le {event}",
+      "sunAfter": "{minutes} min après le {event}"
+    },
+    "sun": {
+      "sunrise": "lever du soleil",
+      "sunset": "coucher du soleil"
+    },
+    "action": {
+      "turnOn": "Allumer {device}",
+      "turnOff": "Éteindre {device}",
+      "notify": "Notifier : {message}",
+      "run": "Lancer l’automatisation"
+    }
+  },
+  "activity": {
+    "startOver": "Repartir du début",
+    "filter": "Filtre",
+    "filters": {
+      "all": "Tout",
+      "device": "Appareils",
+      "automation": "Automatisations",
+      "voice": "Voix"
+    },
+    "today": "Aujourd’hui",
+    "yesterday": "Hier",
+    "emptyTitle": "Aucune activité",
+    "empty": "Rien pour l’instant — les exécutions d’automatisations apparaîtront ici.",
+    "emptyDevices": "Les événements des appareils ne sont pas encore enregistrés : rien de vos appareils n’apparaît ici.",
+    "emptyVoice": "La voix n’est pas encore disponible : rien de Mia n’apparaît ici.",
+    "deletedRoutine": "Une routine supprimée",
+    "outcome": {
+      "ran": "Exécutée",
+      "failed": "Échec",
+      "skipped": "Conditions non remplies",
+      "missed": "Manquée — l’appareil n’était pas actif",
+      "throttled": "Limitée — déclenchée trop souvent"
+    }
+  },
+  "errors": {
+    "error_generic": "Une erreur est survenue. Veuillez réessayer.",
+    "error_unexpected": "Une erreur est survenue. Veuillez réessayer.",
+    "error_internal": "Une erreur est survenue. Veuillez réessayer.",
+    "error_not_found": "Ce n’est plus disponible.",
+    "error_invalid_caller": "Cette app n’est pas autorisée à faire cela.",
+    "error_unannounced_session": "Tenshu doit se reconnecter. Veuillez réessayer.",
+    "error_unsupported_operation": "Cette version ne le permet pas encore.",
+    "error_home_bad_cursor": "L’activité a perdu sa position. Rechargez-la pour repartir du début.",
+    "error_home_bad_page_size": "L’activité n’a pas pu être lue par pages de cette taille.",
+    "error_home_service_unavailable": "Les données de Home sont inaccessibles dans ce navigateur pour le moment.",
+    "error_home_stream_ended": "La connexion aux données de Home s’est terminée.",
+    "bridge": "Impossible de joindre Tenshu. Vérifiez qu’il est ouvert et déverrouillé, puis réessayez.",
+    "bridge_timeout": "Tenshu a mis trop de temps à répondre. Réessayez.",
+    "bridge_not_permitted": "Home n’est pas autorisé à faire cela."
+  },
+  "read": {
+    "failedTitle": "Impossible de charger ceci"
+  },
+  "common": {
+    "loading": "Chargement…",
+    "retry": "Réessayer"
+  },
+  "stream": {
+    "stopped": "Mises à jour interrompues — ce que vous voyez peut être obsolète.",
+    "reconnect": "Reconnecter"
+  },
+  "runtime": {
+    "connectingTitle": "Connexion à Tenshu en cours…",
+    "connectingBody": "L’onglet Tenshu qui héberge Home est occupé. Home se chargera dès qu’il répondra.",
+    "elsewhereTitle": "Tenshu est ouvert dans un autre onglet",
+    "elsewhereBody": "Tenshu ne s’exécute que dans un onglet à la fois, pour que vos données restent cohérentes. Utilisez-le ici pour le déplacer dans cet onglet.",
+    "moving": "En attente de la fin de l’enregistrement dans l’autre onglet. Cela peut prendre jusqu’à deux minutes.",
+    "movingShort": "Déplacement…",
+    "useHere": "Utiliser ici"
+  },
+  "crash": {
+    "title": "Une erreur est survenue",
+    "body": "Cette partie de Home a rencontré une erreur inattendue. Vos données sont en sécurité — rien n’a été modifié.",
+    "retry": "Réessayer",
+    "reload": "Recharger"
+  }
+}

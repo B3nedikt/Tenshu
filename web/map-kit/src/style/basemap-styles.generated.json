@@ -1,0 +1,3738 @@
+{
+    "generatedBy": "./gradlew :basemap-core:generateWebBasemapStyles — do not edit by hand",
+    "maxZoom": 15.0,
+    "tileUrlToken": "@tenshu/tile-url@",
+    "glyphsToken": "@tenshu/glyphs-url@",
+    "labelLanguageToken": "@tenshu/label-language@",
+    "labelLanguages": [
+        "ca",
+        "cs",
+        "da",
+        "de",
+        "en",
+        "es",
+        "et",
+        "eu",
+        "fi",
+        "fr",
+        "gl",
+        "hr",
+        "hu",
+        "is",
+        "it",
+        "lt",
+        "lv",
+        "nb",
+        "nl",
+        "nn",
+        "no",
+        "pl",
+        "pt",
+        "ro",
+        "sk",
+        "sl",
+        "sq",
+        "sv",
+        "tr"
+    ],
+    "styles": {
+        "light": {
+            "endonym": {
+                "version": 8,
+                "name": "Tenshu Offline",
+                "glyphs": "@tenshu/glyphs-url@",
+                "sources": {
+                    "protomaps": {
+                        "type": "vector",
+                        "url": "@tenshu/tile-url@"
+                    }
+                },
+                "layers": [
+                    {
+                        "id": "background",
+                        "type": "background",
+                        "paint": {
+                            "background-color": "#F0ECE4"
+                        }
+                    },
+                    {
+                        "id": "earth",
+                        "type": "fill",
+                        "source": "protomaps",
+                        "source-layer": "earth",
+                        "paint": {
+                            "fill-color": "#F0ECE4"
+                        }
+                    },
+                    {
+                        "id": "landcover",
+                        "type": "fill",
+                        "source": "protomaps",
+                        "source-layer": "landcover",
+                        "paint": {
+                            "fill-color": "#DBE6D4",
+                            "fill-opacity": 0.55
+                        }
+                    },
+                    {
+                        "id": "landuse",
+                        "type": "fill",
+                        "source": "protomaps",
+                        "source-layer": "landuse",
+                        "paint": {
+                            "fill-color": "#DBE6D4",
+                            "fill-opacity": 0.6
+                        }
+                    },
+                    {
+                        "id": "water",
+                        "type": "fill",
+                        "source": "protomaps",
+                        "source-layer": "water",
+                        "paint": {
+                            "fill-color": "#CFE0E8"
+                        }
+                    },
+                    {
+                        "id": "buildings",
+                        "type": "fill",
+                        "source": "protomaps",
+                        "source-layer": "buildings",
+                        "minzoom": 13,
+                        "paint": {
+                            "fill-color": "#E7E1D6",
+                            "fill-opacity": 0.85
+                        }
+                    },
+                    {
+                        "id": "roads-casing",
+                        "type": "line",
+                        "source": "protomaps",
+                        "source-layer": "roads",
+                        "layout": {
+                            "line-cap": "round",
+                            "line-join": "round"
+                        },
+                        "paint": {
+                            "line-color": "#D8D2C6",
+                            "line-width": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                10.0,
+                                1.4,
+                                14.0,
+                                4.5,
+                                17.0,
+                                11.0
+                            ]
+                        }
+                    },
+                    {
+                        "id": "roads",
+                        "type": "line",
+                        "source": "protomaps",
+                        "source-layer": "roads",
+                        "layout": {
+                            "line-cap": "round",
+                            "line-join": "round"
+                        },
+                        "paint": {
+                            "line-color": "#FFFFFF",
+                            "line-width": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                10.0,
+                                0.5,
+                                14.0,
+                                2.2,
+                                17.0,
+                                7.0
+                            ]
+                        }
+                    },
+                    {
+                        "id": "boundaries",
+                        "type": "line",
+                        "source": "protomaps",
+                        "source-layer": "boundaries",
+                        "paint": {
+                            "line-color": "#D8D2C6",
+                            "line-opacity": 0.5,
+                            "line-dasharray": [
+                                2.0,
+                                2.0
+                            ]
+                        }
+                    },
+                    {
+                        "id": "places-locality",
+                        "type": "symbol",
+                        "source": "protomaps",
+                        "source-layer": "places",
+                        "filter": [
+                            "all",
+                            [
+                                "==",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "kind"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:kind"
+                                    ]
+                                ],
+                                "locality"
+                            ],
+                            [
+                                "<=",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "min_zoom"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:min_zoom"
+                                    ],
+                                    0
+                                ],
+                                [
+                                    "zoom"
+                                ]
+                            ]
+                        ],
+                        "layout": {
+                            "text-field": [
+                                "get",
+                                "name"
+                            ],
+                            "text-font": [
+                                "Noto Sans Medium"
+                            ],
+                            "text-size": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                10.0,
+                                11.0,
+                                14.0,
+                                13.0,
+                                16.0,
+                                15.0
+                            ],
+                            "text-max-width": 7.0,
+                            "text-padding": 4.0,
+                            "symbol-sort-key": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "sort_key"
+                                ],
+                                [
+                                    "get",
+                                    "pmap:sort_key"
+                                ],
+                                0
+                            ]
+                        },
+                        "paint": {
+                            "text-color": "#2A2822",
+                            "text-halo-color": "#F7F4EE",
+                            "text-halo-width": 1.2
+                        }
+                    },
+                    {
+                        "id": "places-neighbourhood",
+                        "type": "symbol",
+                        "source": "protomaps",
+                        "source-layer": "places",
+                        "filter": [
+                            "all",
+                            [
+                                "==",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "kind"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:kind"
+                                    ]
+                                ],
+                                "neighbourhood"
+                            ],
+                            [
+                                "<=",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "min_zoom"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:min_zoom"
+                                    ],
+                                    0
+                                ],
+                                [
+                                    "zoom"
+                                ]
+                            ]
+                        ],
+                        "layout": {
+                            "text-field": [
+                                "get",
+                                "name"
+                            ],
+                            "text-font": [
+                                "Noto Sans Regular"
+                            ],
+                            "text-size": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                13.0,
+                                9.5,
+                                16.0,
+                                11.5
+                            ],
+                            "text-transform": "uppercase",
+                            "text-letter-spacing": 0.08,
+                            "text-max-width": 8.0,
+                            "text-padding": 6.0,
+                            "symbol-sort-key": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "sort_key"
+                                ],
+                                [
+                                    "get",
+                                    "pmap:sort_key"
+                                ],
+                                0
+                            ]
+                        },
+                        "paint": {
+                            "text-color": "#2A2822",
+                            "text-halo-color": "#F7F4EE",
+                            "text-halo-width": 1.0
+                        }
+                    },
+                    {
+                        "id": "pois-landmark",
+                        "type": "symbol",
+                        "source": "protomaps",
+                        "source-layer": "pois",
+                        "filter": [
+                            "all",
+                            [
+                                "<=",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "min_zoom"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:min_zoom"
+                                    ],
+                                    0
+                                ],
+                                [
+                                    "zoom"
+                                ]
+                            ],
+                            [
+                                "any",
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "attraction"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "museum"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "monument"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "memorial"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "artwork"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "castle"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "viewpoint"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "theatre"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "park"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "garden"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "zoo"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "aquarium"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "townhall"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "university"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "station"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "aerodrome"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "place_of_worship"
+                                ]
+                            ]
+                        ],
+                        "layout": {
+                            "text-field": [
+                                "get",
+                                "name"
+                            ],
+                            "text-font": [
+                                "Noto Sans Regular"
+                            ],
+                            "text-size": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                14.0,
+                                9.5,
+                                17.0,
+                                11.0
+                            ],
+                            "text-max-width": 8.0,
+                            "text-padding": 4.0,
+                            "symbol-sort-key": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "min_zoom"
+                                ],
+                                [
+                                    "get",
+                                    "pmap:min_zoom"
+                                ],
+                                0
+                            ]
+                        },
+                        "paint": {
+                            "text-color": "#2A2822",
+                            "text-halo-color": "#F7F4EE",
+                            "text-halo-width": 1.0
+                        }
+                    },
+                    {
+                        "id": "roads-labels-major",
+                        "type": "symbol",
+                        "source": "protomaps",
+                        "source-layer": "roads",
+                        "filter": [
+                            "all",
+                            [
+                                "<=",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "min_zoom"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:min_zoom"
+                                    ],
+                                    0
+                                ],
+                                [
+                                    "zoom"
+                                ]
+                            ],
+                            [
+                                "any",
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "major_road"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "medium_road"
+                                ]
+                            ]
+                        ],
+                        "layout": {
+                            "symbol-placement": "line",
+                            "text-max-angle": 40.0,
+                            "text-field": [
+                                "get",
+                                "name"
+                            ],
+                            "text-font": [
+                                "Noto Sans Regular"
+                            ],
+                            "text-size": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                14.0,
+                                9.5,
+                                17.0,
+                                11.5
+                            ],
+                            "text-padding": 3.0,
+                            "symbol-sort-key": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "sort_rank"
+                                ],
+                                [
+                                    "get",
+                                    "pmap:sort_rank"
+                                ],
+                                0
+                            ]
+                        },
+                        "paint": {
+                            "text-color": "#2A2822",
+                            "text-halo-color": "#F7F4EE",
+                            "text-halo-width": 1.0
+                        }
+                    },
+                    {
+                        "id": "roads-labels-minor",
+                        "type": "symbol",
+                        "source": "protomaps",
+                        "source-layer": "roads",
+                        "minzoom": 14,
+                        "filter": [
+                            "all",
+                            [
+                                "<=",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "min_zoom"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:min_zoom"
+                                    ],
+                                    0
+                                ],
+                                [
+                                    "zoom"
+                                ]
+                            ],
+                            [
+                                "any",
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "minor_road"
+                                ]
+                            ]
+                        ],
+                        "layout": {
+                            "symbol-placement": "line",
+                            "text-max-angle": 40.0,
+                            "text-field": [
+                                "get",
+                                "name"
+                            ],
+                            "text-font": [
+                                "Noto Sans Regular"
+                            ],
+                            "text-size": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                14.0,
+                                9.5,
+                                17.0,
+                                11.5
+                            ],
+                            "text-padding": 3.0,
+                            "symbol-sort-key": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "sort_rank"
+                                ],
+                                [
+                                    "get",
+                                    "pmap:sort_rank"
+                                ],
+                                0
+                            ]
+                        },
+                        "paint": {
+                            "text-color": "#2A2822",
+                            "text-halo-color": "#F7F4EE",
+                            "text-halo-width": 1.0
+                        }
+                    },
+                    {
+                        "id": "roads-labels-path",
+                        "type": "symbol",
+                        "source": "protomaps",
+                        "source-layer": "roads",
+                        "minzoom": 16,
+                        "filter": [
+                            "all",
+                            [
+                                "<=",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "min_zoom"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:min_zoom"
+                                    ],
+                                    0
+                                ],
+                                [
+                                    "zoom"
+                                ]
+                            ],
+                            [
+                                "any",
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "path"
+                                ]
+                            ]
+                        ],
+                        "layout": {
+                            "symbol-placement": "line",
+                            "text-max-angle": 40.0,
+                            "text-field": [
+                                "get",
+                                "name"
+                            ],
+                            "text-font": [
+                                "Noto Sans Regular"
+                            ],
+                            "text-size": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                14.0,
+                                9.5,
+                                17.0,
+                                11.5
+                            ],
+                            "text-padding": 3.0,
+                            "symbol-sort-key": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "sort_rank"
+                                ],
+                                [
+                                    "get",
+                                    "pmap:sort_rank"
+                                ],
+                                0
+                            ]
+                        },
+                        "paint": {
+                            "text-color": "#2A2822",
+                            "text-halo-color": "#F7F4EE",
+                            "text-halo-width": 1.0
+                        }
+                    }
+                ]
+            },
+            "localized": {
+                "version": 8,
+                "name": "Tenshu Offline",
+                "glyphs": "@tenshu/glyphs-url@",
+                "sources": {
+                    "protomaps": {
+                        "type": "vector",
+                        "url": "@tenshu/tile-url@"
+                    }
+                },
+                "layers": [
+                    {
+                        "id": "background",
+                        "type": "background",
+                        "paint": {
+                            "background-color": "#F0ECE4"
+                        }
+                    },
+                    {
+                        "id": "earth",
+                        "type": "fill",
+                        "source": "protomaps",
+                        "source-layer": "earth",
+                        "paint": {
+                            "fill-color": "#F0ECE4"
+                        }
+                    },
+                    {
+                        "id": "landcover",
+                        "type": "fill",
+                        "source": "protomaps",
+                        "source-layer": "landcover",
+                        "paint": {
+                            "fill-color": "#DBE6D4",
+                            "fill-opacity": 0.55
+                        }
+                    },
+                    {
+                        "id": "landuse",
+                        "type": "fill",
+                        "source": "protomaps",
+                        "source-layer": "landuse",
+                        "paint": {
+                            "fill-color": "#DBE6D4",
+                            "fill-opacity": 0.6
+                        }
+                    },
+                    {
+                        "id": "water",
+                        "type": "fill",
+                        "source": "protomaps",
+                        "source-layer": "water",
+                        "paint": {
+                            "fill-color": "#CFE0E8"
+                        }
+                    },
+                    {
+                        "id": "buildings",
+                        "type": "fill",
+                        "source": "protomaps",
+                        "source-layer": "buildings",
+                        "minzoom": 13,
+                        "paint": {
+                            "fill-color": "#E7E1D6",
+                            "fill-opacity": 0.85
+                        }
+                    },
+                    {
+                        "id": "roads-casing",
+                        "type": "line",
+                        "source": "protomaps",
+                        "source-layer": "roads",
+                        "layout": {
+                            "line-cap": "round",
+                            "line-join": "round"
+                        },
+                        "paint": {
+                            "line-color": "#D8D2C6",
+                            "line-width": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                10.0,
+                                1.4,
+                                14.0,
+                                4.5,
+                                17.0,
+                                11.0
+                            ]
+                        }
+                    },
+                    {
+                        "id": "roads",
+                        "type": "line",
+                        "source": "protomaps",
+                        "source-layer": "roads",
+                        "layout": {
+                            "line-cap": "round",
+                            "line-join": "round"
+                        },
+                        "paint": {
+                            "line-color": "#FFFFFF",
+                            "line-width": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                10.0,
+                                0.5,
+                                14.0,
+                                2.2,
+                                17.0,
+                                7.0
+                            ]
+                        }
+                    },
+                    {
+                        "id": "boundaries",
+                        "type": "line",
+                        "source": "protomaps",
+                        "source-layer": "boundaries",
+                        "paint": {
+                            "line-color": "#D8D2C6",
+                            "line-opacity": 0.5,
+                            "line-dasharray": [
+                                2.0,
+                                2.0
+                            ]
+                        }
+                    },
+                    {
+                        "id": "places-locality",
+                        "type": "symbol",
+                        "source": "protomaps",
+                        "source-layer": "places",
+                        "filter": [
+                            "all",
+                            [
+                                "==",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "kind"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:kind"
+                                    ]
+                                ],
+                                "locality"
+                            ],
+                            [
+                                "<=",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "min_zoom"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:min_zoom"
+                                    ],
+                                    0
+                                ],
+                                [
+                                    "zoom"
+                                ]
+                            ]
+                        ],
+                        "layout": {
+                            "text-field": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "name:@tenshu/label-language@"
+                                ],
+                                [
+                                    "get",
+                                    "name"
+                                ]
+                            ],
+                            "text-font": [
+                                "Noto Sans Medium"
+                            ],
+                            "text-size": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                10.0,
+                                11.0,
+                                14.0,
+                                13.0,
+                                16.0,
+                                15.0
+                            ],
+                            "text-max-width": 7.0,
+                            "text-padding": 4.0,
+                            "symbol-sort-key": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "sort_key"
+                                ],
+                                [
+                                    "get",
+                                    "pmap:sort_key"
+                                ],
+                                0
+                            ]
+                        },
+                        "paint": {
+                            "text-color": "#2A2822",
+                            "text-halo-color": "#F7F4EE",
+                            "text-halo-width": 1.2
+                        }
+                    },
+                    {
+                        "id": "places-neighbourhood",
+                        "type": "symbol",
+                        "source": "protomaps",
+                        "source-layer": "places",
+                        "filter": [
+                            "all",
+                            [
+                                "==",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "kind"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:kind"
+                                    ]
+                                ],
+                                "neighbourhood"
+                            ],
+                            [
+                                "<=",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "min_zoom"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:min_zoom"
+                                    ],
+                                    0
+                                ],
+                                [
+                                    "zoom"
+                                ]
+                            ]
+                        ],
+                        "layout": {
+                            "text-field": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "name:@tenshu/label-language@"
+                                ],
+                                [
+                                    "get",
+                                    "name"
+                                ]
+                            ],
+                            "text-font": [
+                                "Noto Sans Regular"
+                            ],
+                            "text-size": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                13.0,
+                                9.5,
+                                16.0,
+                                11.5
+                            ],
+                            "text-transform": "uppercase",
+                            "text-letter-spacing": 0.08,
+                            "text-max-width": 8.0,
+                            "text-padding": 6.0,
+                            "symbol-sort-key": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "sort_key"
+                                ],
+                                [
+                                    "get",
+                                    "pmap:sort_key"
+                                ],
+                                0
+                            ]
+                        },
+                        "paint": {
+                            "text-color": "#2A2822",
+                            "text-halo-color": "#F7F4EE",
+                            "text-halo-width": 1.0
+                        }
+                    },
+                    {
+                        "id": "pois-landmark",
+                        "type": "symbol",
+                        "source": "protomaps",
+                        "source-layer": "pois",
+                        "filter": [
+                            "all",
+                            [
+                                "<=",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "min_zoom"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:min_zoom"
+                                    ],
+                                    0
+                                ],
+                                [
+                                    "zoom"
+                                ]
+                            ],
+                            [
+                                "any",
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "attraction"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "museum"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "monument"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "memorial"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "artwork"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "castle"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "viewpoint"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "theatre"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "park"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "garden"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "zoo"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "aquarium"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "townhall"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "university"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "station"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "aerodrome"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "place_of_worship"
+                                ]
+                            ]
+                        ],
+                        "layout": {
+                            "text-field": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "name:@tenshu/label-language@"
+                                ],
+                                [
+                                    "get",
+                                    "name"
+                                ]
+                            ],
+                            "text-font": [
+                                "Noto Sans Regular"
+                            ],
+                            "text-size": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                14.0,
+                                9.5,
+                                17.0,
+                                11.0
+                            ],
+                            "text-max-width": 8.0,
+                            "text-padding": 4.0,
+                            "symbol-sort-key": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "min_zoom"
+                                ],
+                                [
+                                    "get",
+                                    "pmap:min_zoom"
+                                ],
+                                0
+                            ]
+                        },
+                        "paint": {
+                            "text-color": "#2A2822",
+                            "text-halo-color": "#F7F4EE",
+                            "text-halo-width": 1.0
+                        }
+                    },
+                    {
+                        "id": "roads-labels-major",
+                        "type": "symbol",
+                        "source": "protomaps",
+                        "source-layer": "roads",
+                        "filter": [
+                            "all",
+                            [
+                                "<=",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "min_zoom"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:min_zoom"
+                                    ],
+                                    0
+                                ],
+                                [
+                                    "zoom"
+                                ]
+                            ],
+                            [
+                                "any",
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "major_road"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "medium_road"
+                                ]
+                            ]
+                        ],
+                        "layout": {
+                            "symbol-placement": "line",
+                            "text-max-angle": 40.0,
+                            "text-field": [
+                                "get",
+                                "name"
+                            ],
+                            "text-font": [
+                                "Noto Sans Regular"
+                            ],
+                            "text-size": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                14.0,
+                                9.5,
+                                17.0,
+                                11.5
+                            ],
+                            "text-padding": 3.0,
+                            "symbol-sort-key": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "sort_rank"
+                                ],
+                                [
+                                    "get",
+                                    "pmap:sort_rank"
+                                ],
+                                0
+                            ]
+                        },
+                        "paint": {
+                            "text-color": "#2A2822",
+                            "text-halo-color": "#F7F4EE",
+                            "text-halo-width": 1.0
+                        }
+                    },
+                    {
+                        "id": "roads-labels-minor",
+                        "type": "symbol",
+                        "source": "protomaps",
+                        "source-layer": "roads",
+                        "minzoom": 14,
+                        "filter": [
+                            "all",
+                            [
+                                "<=",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "min_zoom"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:min_zoom"
+                                    ],
+                                    0
+                                ],
+                                [
+                                    "zoom"
+                                ]
+                            ],
+                            [
+                                "any",
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "minor_road"
+                                ]
+                            ]
+                        ],
+                        "layout": {
+                            "symbol-placement": "line",
+                            "text-max-angle": 40.0,
+                            "text-field": [
+                                "get",
+                                "name"
+                            ],
+                            "text-font": [
+                                "Noto Sans Regular"
+                            ],
+                            "text-size": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                14.0,
+                                9.5,
+                                17.0,
+                                11.5
+                            ],
+                            "text-padding": 3.0,
+                            "symbol-sort-key": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "sort_rank"
+                                ],
+                                [
+                                    "get",
+                                    "pmap:sort_rank"
+                                ],
+                                0
+                            ]
+                        },
+                        "paint": {
+                            "text-color": "#2A2822",
+                            "text-halo-color": "#F7F4EE",
+                            "text-halo-width": 1.0
+                        }
+                    },
+                    {
+                        "id": "roads-labels-path",
+                        "type": "symbol",
+                        "source": "protomaps",
+                        "source-layer": "roads",
+                        "minzoom": 16,
+                        "filter": [
+                            "all",
+                            [
+                                "<=",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "min_zoom"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:min_zoom"
+                                    ],
+                                    0
+                                ],
+                                [
+                                    "zoom"
+                                ]
+                            ],
+                            [
+                                "any",
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "path"
+                                ]
+                            ]
+                        ],
+                        "layout": {
+                            "symbol-placement": "line",
+                            "text-max-angle": 40.0,
+                            "text-field": [
+                                "get",
+                                "name"
+                            ],
+                            "text-font": [
+                                "Noto Sans Regular"
+                            ],
+                            "text-size": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                14.0,
+                                9.5,
+                                17.0,
+                                11.5
+                            ],
+                            "text-padding": 3.0,
+                            "symbol-sort-key": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "sort_rank"
+                                ],
+                                [
+                                    "get",
+                                    "pmap:sort_rank"
+                                ],
+                                0
+                            ]
+                        },
+                        "paint": {
+                            "text-color": "#2A2822",
+                            "text-halo-color": "#F7F4EE",
+                            "text-halo-width": 1.0
+                        }
+                    }
+                ]
+            }
+        },
+        "dark": {
+            "endonym": {
+                "version": 8,
+                "name": "Tenshu Offline",
+                "glyphs": "@tenshu/glyphs-url@",
+                "sources": {
+                    "protomaps": {
+                        "type": "vector",
+                        "url": "@tenshu/tile-url@"
+                    }
+                },
+                "layers": [
+                    {
+                        "id": "background",
+                        "type": "background",
+                        "paint": {
+                            "background-color": "#1A1920"
+                        }
+                    },
+                    {
+                        "id": "earth",
+                        "type": "fill",
+                        "source": "protomaps",
+                        "source-layer": "earth",
+                        "paint": {
+                            "fill-color": "#1A1920"
+                        }
+                    },
+                    {
+                        "id": "landcover",
+                        "type": "fill",
+                        "source": "protomaps",
+                        "source-layer": "landcover",
+                        "paint": {
+                            "fill-color": "#1F2A20",
+                            "fill-opacity": 0.55
+                        }
+                    },
+                    {
+                        "id": "landuse",
+                        "type": "fill",
+                        "source": "protomaps",
+                        "source-layer": "landuse",
+                        "paint": {
+                            "fill-color": "#1F2A20",
+                            "fill-opacity": 0.6
+                        }
+                    },
+                    {
+                        "id": "water",
+                        "type": "fill",
+                        "source": "protomaps",
+                        "source-layer": "water",
+                        "paint": {
+                            "fill-color": "#20303E"
+                        }
+                    },
+                    {
+                        "id": "buildings",
+                        "type": "fill",
+                        "source": "protomaps",
+                        "source-layer": "buildings",
+                        "minzoom": 13,
+                        "paint": {
+                            "fill-color": "#232128",
+                            "fill-opacity": 0.85
+                        }
+                    },
+                    {
+                        "id": "roads-casing",
+                        "type": "line",
+                        "source": "protomaps",
+                        "source-layer": "roads",
+                        "layout": {
+                            "line-cap": "round",
+                            "line-join": "round"
+                        },
+                        "paint": {
+                            "line-color": "#14131A",
+                            "line-width": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                10.0,
+                                1.4,
+                                14.0,
+                                4.5,
+                                17.0,
+                                11.0
+                            ]
+                        }
+                    },
+                    {
+                        "id": "roads",
+                        "type": "line",
+                        "source": "protomaps",
+                        "source-layer": "roads",
+                        "layout": {
+                            "line-cap": "round",
+                            "line-join": "round"
+                        },
+                        "paint": {
+                            "line-color": "#3A3742",
+                            "line-width": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                10.0,
+                                0.5,
+                                14.0,
+                                2.2,
+                                17.0,
+                                7.0
+                            ]
+                        }
+                    },
+                    {
+                        "id": "boundaries",
+                        "type": "line",
+                        "source": "protomaps",
+                        "source-layer": "boundaries",
+                        "paint": {
+                            "line-color": "#14131A",
+                            "line-opacity": 0.5,
+                            "line-dasharray": [
+                                2.0,
+                                2.0
+                            ]
+                        }
+                    },
+                    {
+                        "id": "places-locality",
+                        "type": "symbol",
+                        "source": "protomaps",
+                        "source-layer": "places",
+                        "filter": [
+                            "all",
+                            [
+                                "==",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "kind"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:kind"
+                                    ]
+                                ],
+                                "locality"
+                            ],
+                            [
+                                "<=",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "min_zoom"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:min_zoom"
+                                    ],
+                                    0
+                                ],
+                                [
+                                    "zoom"
+                                ]
+                            ]
+                        ],
+                        "layout": {
+                            "text-field": [
+                                "get",
+                                "name"
+                            ],
+                            "text-font": [
+                                "Noto Sans Medium"
+                            ],
+                            "text-size": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                10.0,
+                                11.0,
+                                14.0,
+                                13.0,
+                                16.0,
+                                15.0
+                            ],
+                            "text-max-width": 7.0,
+                            "text-padding": 4.0,
+                            "symbol-sort-key": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "sort_key"
+                                ],
+                                [
+                                    "get",
+                                    "pmap:sort_key"
+                                ],
+                                0
+                            ]
+                        },
+                        "paint": {
+                            "text-color": "#E8E4EC",
+                            "text-halo-color": "#1A1920",
+                            "text-halo-width": 1.2
+                        }
+                    },
+                    {
+                        "id": "places-neighbourhood",
+                        "type": "symbol",
+                        "source": "protomaps",
+                        "source-layer": "places",
+                        "filter": [
+                            "all",
+                            [
+                                "==",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "kind"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:kind"
+                                    ]
+                                ],
+                                "neighbourhood"
+                            ],
+                            [
+                                "<=",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "min_zoom"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:min_zoom"
+                                    ],
+                                    0
+                                ],
+                                [
+                                    "zoom"
+                                ]
+                            ]
+                        ],
+                        "layout": {
+                            "text-field": [
+                                "get",
+                                "name"
+                            ],
+                            "text-font": [
+                                "Noto Sans Regular"
+                            ],
+                            "text-size": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                13.0,
+                                9.5,
+                                16.0,
+                                11.5
+                            ],
+                            "text-transform": "uppercase",
+                            "text-letter-spacing": 0.08,
+                            "text-max-width": 8.0,
+                            "text-padding": 6.0,
+                            "symbol-sort-key": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "sort_key"
+                                ],
+                                [
+                                    "get",
+                                    "pmap:sort_key"
+                                ],
+                                0
+                            ]
+                        },
+                        "paint": {
+                            "text-color": "#E8E4EC",
+                            "text-halo-color": "#1A1920",
+                            "text-halo-width": 1.0
+                        }
+                    },
+                    {
+                        "id": "pois-landmark",
+                        "type": "symbol",
+                        "source": "protomaps",
+                        "source-layer": "pois",
+                        "filter": [
+                            "all",
+                            [
+                                "<=",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "min_zoom"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:min_zoom"
+                                    ],
+                                    0
+                                ],
+                                [
+                                    "zoom"
+                                ]
+                            ],
+                            [
+                                "any",
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "attraction"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "museum"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "monument"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "memorial"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "artwork"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "castle"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "viewpoint"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "theatre"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "park"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "garden"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "zoo"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "aquarium"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "townhall"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "university"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "station"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "aerodrome"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "place_of_worship"
+                                ]
+                            ]
+                        ],
+                        "layout": {
+                            "text-field": [
+                                "get",
+                                "name"
+                            ],
+                            "text-font": [
+                                "Noto Sans Regular"
+                            ],
+                            "text-size": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                14.0,
+                                9.5,
+                                17.0,
+                                11.0
+                            ],
+                            "text-max-width": 8.0,
+                            "text-padding": 4.0,
+                            "symbol-sort-key": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "min_zoom"
+                                ],
+                                [
+                                    "get",
+                                    "pmap:min_zoom"
+                                ],
+                                0
+                            ]
+                        },
+                        "paint": {
+                            "text-color": "#E8E4EC",
+                            "text-halo-color": "#1A1920",
+                            "text-halo-width": 1.0
+                        }
+                    },
+                    {
+                        "id": "roads-labels-major",
+                        "type": "symbol",
+                        "source": "protomaps",
+                        "source-layer": "roads",
+                        "filter": [
+                            "all",
+                            [
+                                "<=",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "min_zoom"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:min_zoom"
+                                    ],
+                                    0
+                                ],
+                                [
+                                    "zoom"
+                                ]
+                            ],
+                            [
+                                "any",
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "major_road"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "medium_road"
+                                ]
+                            ]
+                        ],
+                        "layout": {
+                            "symbol-placement": "line",
+                            "text-max-angle": 40.0,
+                            "text-field": [
+                                "get",
+                                "name"
+                            ],
+                            "text-font": [
+                                "Noto Sans Regular"
+                            ],
+                            "text-size": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                14.0,
+                                9.5,
+                                17.0,
+                                11.5
+                            ],
+                            "text-padding": 3.0,
+                            "symbol-sort-key": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "sort_rank"
+                                ],
+                                [
+                                    "get",
+                                    "pmap:sort_rank"
+                                ],
+                                0
+                            ]
+                        },
+                        "paint": {
+                            "text-color": "#E8E4EC",
+                            "text-halo-color": "#1A1920",
+                            "text-halo-width": 1.0
+                        }
+                    },
+                    {
+                        "id": "roads-labels-minor",
+                        "type": "symbol",
+                        "source": "protomaps",
+                        "source-layer": "roads",
+                        "minzoom": 14,
+                        "filter": [
+                            "all",
+                            [
+                                "<=",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "min_zoom"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:min_zoom"
+                                    ],
+                                    0
+                                ],
+                                [
+                                    "zoom"
+                                ]
+                            ],
+                            [
+                                "any",
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "minor_road"
+                                ]
+                            ]
+                        ],
+                        "layout": {
+                            "symbol-placement": "line",
+                            "text-max-angle": 40.0,
+                            "text-field": [
+                                "get",
+                                "name"
+                            ],
+                            "text-font": [
+                                "Noto Sans Regular"
+                            ],
+                            "text-size": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                14.0,
+                                9.5,
+                                17.0,
+                                11.5
+                            ],
+                            "text-padding": 3.0,
+                            "symbol-sort-key": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "sort_rank"
+                                ],
+                                [
+                                    "get",
+                                    "pmap:sort_rank"
+                                ],
+                                0
+                            ]
+                        },
+                        "paint": {
+                            "text-color": "#E8E4EC",
+                            "text-halo-color": "#1A1920",
+                            "text-halo-width": 1.0
+                        }
+                    },
+                    {
+                        "id": "roads-labels-path",
+                        "type": "symbol",
+                        "source": "protomaps",
+                        "source-layer": "roads",
+                        "minzoom": 16,
+                        "filter": [
+                            "all",
+                            [
+                                "<=",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "min_zoom"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:min_zoom"
+                                    ],
+                                    0
+                                ],
+                                [
+                                    "zoom"
+                                ]
+                            ],
+                            [
+                                "any",
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "path"
+                                ]
+                            ]
+                        ],
+                        "layout": {
+                            "symbol-placement": "line",
+                            "text-max-angle": 40.0,
+                            "text-field": [
+                                "get",
+                                "name"
+                            ],
+                            "text-font": [
+                                "Noto Sans Regular"
+                            ],
+                            "text-size": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                14.0,
+                                9.5,
+                                17.0,
+                                11.5
+                            ],
+                            "text-padding": 3.0,
+                            "symbol-sort-key": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "sort_rank"
+                                ],
+                                [
+                                    "get",
+                                    "pmap:sort_rank"
+                                ],
+                                0
+                            ]
+                        },
+                        "paint": {
+                            "text-color": "#E8E4EC",
+                            "text-halo-color": "#1A1920",
+                            "text-halo-width": 1.0
+                        }
+                    }
+                ]
+            },
+            "localized": {
+                "version": 8,
+                "name": "Tenshu Offline",
+                "glyphs": "@tenshu/glyphs-url@",
+                "sources": {
+                    "protomaps": {
+                        "type": "vector",
+                        "url": "@tenshu/tile-url@"
+                    }
+                },
+                "layers": [
+                    {
+                        "id": "background",
+                        "type": "background",
+                        "paint": {
+                            "background-color": "#1A1920"
+                        }
+                    },
+                    {
+                        "id": "earth",
+                        "type": "fill",
+                        "source": "protomaps",
+                        "source-layer": "earth",
+                        "paint": {
+                            "fill-color": "#1A1920"
+                        }
+                    },
+                    {
+                        "id": "landcover",
+                        "type": "fill",
+                        "source": "protomaps",
+                        "source-layer": "landcover",
+                        "paint": {
+                            "fill-color": "#1F2A20",
+                            "fill-opacity": 0.55
+                        }
+                    },
+                    {
+                        "id": "landuse",
+                        "type": "fill",
+                        "source": "protomaps",
+                        "source-layer": "landuse",
+                        "paint": {
+                            "fill-color": "#1F2A20",
+                            "fill-opacity": 0.6
+                        }
+                    },
+                    {
+                        "id": "water",
+                        "type": "fill",
+                        "source": "protomaps",
+                        "source-layer": "water",
+                        "paint": {
+                            "fill-color": "#20303E"
+                        }
+                    },
+                    {
+                        "id": "buildings",
+                        "type": "fill",
+                        "source": "protomaps",
+                        "source-layer": "buildings",
+                        "minzoom": 13,
+                        "paint": {
+                            "fill-color": "#232128",
+                            "fill-opacity": 0.85
+                        }
+                    },
+                    {
+                        "id": "roads-casing",
+                        "type": "line",
+                        "source": "protomaps",
+                        "source-layer": "roads",
+                        "layout": {
+                            "line-cap": "round",
+                            "line-join": "round"
+                        },
+                        "paint": {
+                            "line-color": "#14131A",
+                            "line-width": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                10.0,
+                                1.4,
+                                14.0,
+                                4.5,
+                                17.0,
+                                11.0
+                            ]
+                        }
+                    },
+                    {
+                        "id": "roads",
+                        "type": "line",
+                        "source": "protomaps",
+                        "source-layer": "roads",
+                        "layout": {
+                            "line-cap": "round",
+                            "line-join": "round"
+                        },
+                        "paint": {
+                            "line-color": "#3A3742",
+                            "line-width": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                10.0,
+                                0.5,
+                                14.0,
+                                2.2,
+                                17.0,
+                                7.0
+                            ]
+                        }
+                    },
+                    {
+                        "id": "boundaries",
+                        "type": "line",
+                        "source": "protomaps",
+                        "source-layer": "boundaries",
+                        "paint": {
+                            "line-color": "#14131A",
+                            "line-opacity": 0.5,
+                            "line-dasharray": [
+                                2.0,
+                                2.0
+                            ]
+                        }
+                    },
+                    {
+                        "id": "places-locality",
+                        "type": "symbol",
+                        "source": "protomaps",
+                        "source-layer": "places",
+                        "filter": [
+                            "all",
+                            [
+                                "==",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "kind"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:kind"
+                                    ]
+                                ],
+                                "locality"
+                            ],
+                            [
+                                "<=",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "min_zoom"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:min_zoom"
+                                    ],
+                                    0
+                                ],
+                                [
+                                    "zoom"
+                                ]
+                            ]
+                        ],
+                        "layout": {
+                            "text-field": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "name:@tenshu/label-language@"
+                                ],
+                                [
+                                    "get",
+                                    "name"
+                                ]
+                            ],
+                            "text-font": [
+                                "Noto Sans Medium"
+                            ],
+                            "text-size": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                10.0,
+                                11.0,
+                                14.0,
+                                13.0,
+                                16.0,
+                                15.0
+                            ],
+                            "text-max-width": 7.0,
+                            "text-padding": 4.0,
+                            "symbol-sort-key": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "sort_key"
+                                ],
+                                [
+                                    "get",
+                                    "pmap:sort_key"
+                                ],
+                                0
+                            ]
+                        },
+                        "paint": {
+                            "text-color": "#E8E4EC",
+                            "text-halo-color": "#1A1920",
+                            "text-halo-width": 1.2
+                        }
+                    },
+                    {
+                        "id": "places-neighbourhood",
+                        "type": "symbol",
+                        "source": "protomaps",
+                        "source-layer": "places",
+                        "filter": [
+                            "all",
+                            [
+                                "==",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "kind"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:kind"
+                                    ]
+                                ],
+                                "neighbourhood"
+                            ],
+                            [
+                                "<=",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "min_zoom"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:min_zoom"
+                                    ],
+                                    0
+                                ],
+                                [
+                                    "zoom"
+                                ]
+                            ]
+                        ],
+                        "layout": {
+                            "text-field": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "name:@tenshu/label-language@"
+                                ],
+                                [
+                                    "get",
+                                    "name"
+                                ]
+                            ],
+                            "text-font": [
+                                "Noto Sans Regular"
+                            ],
+                            "text-size": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                13.0,
+                                9.5,
+                                16.0,
+                                11.5
+                            ],
+                            "text-transform": "uppercase",
+                            "text-letter-spacing": 0.08,
+                            "text-max-width": 8.0,
+                            "text-padding": 6.0,
+                            "symbol-sort-key": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "sort_key"
+                                ],
+                                [
+                                    "get",
+                                    "pmap:sort_key"
+                                ],
+                                0
+                            ]
+                        },
+                        "paint": {
+                            "text-color": "#E8E4EC",
+                            "text-halo-color": "#1A1920",
+                            "text-halo-width": 1.0
+                        }
+                    },
+                    {
+                        "id": "pois-landmark",
+                        "type": "symbol",
+                        "source": "protomaps",
+                        "source-layer": "pois",
+                        "filter": [
+                            "all",
+                            [
+                                "<=",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "min_zoom"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:min_zoom"
+                                    ],
+                                    0
+                                ],
+                                [
+                                    "zoom"
+                                ]
+                            ],
+                            [
+                                "any",
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "attraction"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "museum"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "monument"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "memorial"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "artwork"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "castle"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "viewpoint"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "theatre"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "park"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "garden"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "zoo"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "aquarium"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "townhall"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "university"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "station"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "aerodrome"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "place_of_worship"
+                                ]
+                            ]
+                        ],
+                        "layout": {
+                            "text-field": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "name:@tenshu/label-language@"
+                                ],
+                                [
+                                    "get",
+                                    "name"
+                                ]
+                            ],
+                            "text-font": [
+                                "Noto Sans Regular"
+                            ],
+                            "text-size": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                14.0,
+                                9.5,
+                                17.0,
+                                11.0
+                            ],
+                            "text-max-width": 8.0,
+                            "text-padding": 4.0,
+                            "symbol-sort-key": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "min_zoom"
+                                ],
+                                [
+                                    "get",
+                                    "pmap:min_zoom"
+                                ],
+                                0
+                            ]
+                        },
+                        "paint": {
+                            "text-color": "#E8E4EC",
+                            "text-halo-color": "#1A1920",
+                            "text-halo-width": 1.0
+                        }
+                    },
+                    {
+                        "id": "roads-labels-major",
+                        "type": "symbol",
+                        "source": "protomaps",
+                        "source-layer": "roads",
+                        "filter": [
+                            "all",
+                            [
+                                "<=",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "min_zoom"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:min_zoom"
+                                    ],
+                                    0
+                                ],
+                                [
+                                    "zoom"
+                                ]
+                            ],
+                            [
+                                "any",
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "major_road"
+                                ],
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "medium_road"
+                                ]
+                            ]
+                        ],
+                        "layout": {
+                            "symbol-placement": "line",
+                            "text-max-angle": 40.0,
+                            "text-field": [
+                                "get",
+                                "name"
+                            ],
+                            "text-font": [
+                                "Noto Sans Regular"
+                            ],
+                            "text-size": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                14.0,
+                                9.5,
+                                17.0,
+                                11.5
+                            ],
+                            "text-padding": 3.0,
+                            "symbol-sort-key": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "sort_rank"
+                                ],
+                                [
+                                    "get",
+                                    "pmap:sort_rank"
+                                ],
+                                0
+                            ]
+                        },
+                        "paint": {
+                            "text-color": "#E8E4EC",
+                            "text-halo-color": "#1A1920",
+                            "text-halo-width": 1.0
+                        }
+                    },
+                    {
+                        "id": "roads-labels-minor",
+                        "type": "symbol",
+                        "source": "protomaps",
+                        "source-layer": "roads",
+                        "minzoom": 14,
+                        "filter": [
+                            "all",
+                            [
+                                "<=",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "min_zoom"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:min_zoom"
+                                    ],
+                                    0
+                                ],
+                                [
+                                    "zoom"
+                                ]
+                            ],
+                            [
+                                "any",
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "minor_road"
+                                ]
+                            ]
+                        ],
+                        "layout": {
+                            "symbol-placement": "line",
+                            "text-max-angle": 40.0,
+                            "text-field": [
+                                "get",
+                                "name"
+                            ],
+                            "text-font": [
+                                "Noto Sans Regular"
+                            ],
+                            "text-size": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                14.0,
+                                9.5,
+                                17.0,
+                                11.5
+                            ],
+                            "text-padding": 3.0,
+                            "symbol-sort-key": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "sort_rank"
+                                ],
+                                [
+                                    "get",
+                                    "pmap:sort_rank"
+                                ],
+                                0
+                            ]
+                        },
+                        "paint": {
+                            "text-color": "#E8E4EC",
+                            "text-halo-color": "#1A1920",
+                            "text-halo-width": 1.0
+                        }
+                    },
+                    {
+                        "id": "roads-labels-path",
+                        "type": "symbol",
+                        "source": "protomaps",
+                        "source-layer": "roads",
+                        "minzoom": 16,
+                        "filter": [
+                            "all",
+                            [
+                                "<=",
+                                [
+                                    "coalesce",
+                                    [
+                                        "get",
+                                        "min_zoom"
+                                    ],
+                                    [
+                                        "get",
+                                        "pmap:min_zoom"
+                                    ],
+                                    0
+                                ],
+                                [
+                                    "zoom"
+                                ]
+                            ],
+                            [
+                                "any",
+                                [
+                                    "==",
+                                    [
+                                        "coalesce",
+                                        [
+                                            "get",
+                                            "kind"
+                                        ],
+                                        [
+                                            "get",
+                                            "pmap:kind"
+                                        ]
+                                    ],
+                                    "path"
+                                ]
+                            ]
+                        ],
+                        "layout": {
+                            "symbol-placement": "line",
+                            "text-max-angle": 40.0,
+                            "text-field": [
+                                "get",
+                                "name"
+                            ],
+                            "text-font": [
+                                "Noto Sans Regular"
+                            ],
+                            "text-size": [
+                                "interpolate",
+                                [
+                                    "linear"
+                                ],
+                                [
+                                    "zoom"
+                                ],
+                                14.0,
+                                9.5,
+                                17.0,
+                                11.5
+                            ],
+                            "text-padding": 3.0,
+                            "symbol-sort-key": [
+                                "coalesce",
+                                [
+                                    "get",
+                                    "sort_rank"
+                                ],
+                                [
+                                    "get",
+                                    "pmap:sort_rank"
+                                ],
+                                0
+                            ]
+                        },
+                        "paint": {
+                            "text-color": "#E8E4EC",
+                            "text-halo-color": "#1A1920",
+                            "text-halo-width": 1.0
+                        }
+                    }
+                ]
+            }
+        }
+    }
+}

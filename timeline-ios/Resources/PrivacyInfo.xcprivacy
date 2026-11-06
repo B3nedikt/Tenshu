@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    Timeline's privacy manifest (docs/how-to/ios-testflight.md §4). The accessed-API list is an AUDIT
+    RESULT, not a wish: the required-reason APIs seen in the ARCHIVED executable (`nm -u`, `strings`,
+    first archive 2026-10-17), most of them from the shared Kotlin framework. Re-run the audit in the
+    how-to when that changes. An embedded MapLibre.framework carries its own manifest.
+    The collected-data answers are mirrored in store/timeline/privacy-label.md; the two must agree.
+  -->
+  <key>NSPrivacyTracking</key>
+  <false/>
+  <key>NSPrivacyTrackingDomains</key>
+  <array/>
+  <key>NSPrivacyCollectedDataTypes</key>
+  <!--
+    ⚖️ Declared conservatively (store/timeline/privacy-label.md item 4): with the place-name opt-in on
+    (off by default, PlaceGeocodingEgress.kt), the place-name picker and the transit-stop fallback
+    send a coordinate to komoot's public Photon geocoder through the in-process proxy
+    (PhotonGeocoder.DEFAULT_ENDPOINT), and we cannot see what that third party keeps. No
+    account or device id goes with it, so not linked. The recorded timeline itself leaves the device
+    only end-to-end encrypted and is not declared.
+  -->
+  <array>
+    <dict>
+      <key>NSPrivacyCollectedDataType</key>
+      <string>NSPrivacyCollectedDataTypePreciseLocation</string>
+      <key>NSPrivacyCollectedDataTypeLinked</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypeTracking</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypePurposes</key>
+      <array>
+        <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+      </array>
+    </dict>
+  </array>
+  <key>NSPrivacyAccessedAPITypes</key>
+  <array>
+    <!-- File timestamps (C617.1): `stat` / `fstat` / `lstat` and `NSFileModificationDate` on the local
+         store and the shared replica, in the app's and the App Group's containers (core-common). -->
+    <dict>
+      <key>NSPrivacyAccessedAPIType</key>
+      <string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+      <key>NSPrivacyAccessedAPITypeReasons</key>
+      <array>
+        <string>C617.1</string>
+      </array>
+    </dict>
+    <!-- Disk space (E174.1): the local store checks free space before it writes (`statfs`,
+         `NSFileSystemFreeSize`, `IosFileDatabase`). -->
+    <dict>
+      <key>NSPrivacyAccessedAPIType</key>
+      <string>NSPrivacyAccessedAPICategoryDiskSpace</string>
+      <key>NSPrivacyAccessedAPITypeReasons</key>
+      <array>
+        <string>E174.1</string>
+      </array>
+    </dict>
+    <!-- UserDefaults (CA92.1): the app's own settings — capture, place-name lookup and Wi-Fi opt-ins (`IosTimelineCaptureControl`, `IosPlaceGeocodingControl`, `IosWifiFingerprintControl`) and the renderer election (`MapRendererControl`). -->
+    <dict>
+      <key>NSPrivacyAccessedAPIType</key>
+      <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+      <key>NSPrivacyAccessedAPITypeReasons</key>
+      <array>
+        <string>CA92.1</string>
+      </array>
+    </dict>
+  </array>
+</dict>
+</plist>

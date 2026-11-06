@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- German (de). Mirrors ../values/strings.xml key for key; ADR 0016.
+         See the English file for per-string developer notes. -->
+    <string name="photos_control_wall_title">Tenshu Control einrichten</string>
+    <string name="photos_control_not_set_up">Tenshu Control ist installiert, aber auf diesem Gerät noch nicht eingerichtet. Photos speichert deine Mediathek in Control – öffne es, um neu anzufangen oder dich deinen anderen Geräten anzuschließen, und komm dann zurück.</string>
+    <string name="photos_control_open_action">Control öffnen</string>
+    <string name="photos_control_not_installed">Tenshu Control ist auf diesem Gerät nicht installiert. Photos speichert deine Mediathek über Control, daher gibt es nichts anzuzeigen, bis Control installiert ist.</string>
+    <string name="photos_control_not_installed_unpublished">Tenshu Control ist auf diesem Gerät nicht installiert und noch nicht im Store erhältlich – bis dahin bleibt deine Mediathek leer.</string>
+    <string name="photos_control_not_installed_other_channel">Tenshu Control ist auf diesem Gerät nicht installiert. Installiere es auf demselben Weg wie Photos.</string>
+    <string name="photos_control_get_action">Control holen</string>
+    <string name="photos_update_action">Aktualisieren</string>
+    <string name="photos_control_unreachable">Tenshu Control ist nicht erreichbar – deine Fotos können nicht geladen werden. Stelle sicher, dass Control installiert ist und läuft.</string>
+    <string name="photos_control_skew_update_control">Photos ist auf diesem Gerät neuer als Tenshu Control. Aktualisiere Control, damit deine Fotos weiter synchronisiert werden.</string>
+    <string name="photos_control_skew_update_app">Tenshu Control ist auf diesem Gerät neuer als Photos. Aktualisiere Photos, damit deine Fotos weiter synchronisiert werden.</string>
+    <string name="photos_control_skew_update_both">Photos und Tenshu Control verwenden unterschiedliche Datenversionen. Aktualisiere beide, damit deine Fotos weiter synchronisiert werden.</string>
+    <string name="photos_control_fenced_update_control">Dieses Gerät hinkt dem Rest deines Realms hinterher und empfängt keine Fotos mehr. Aktualisiere Tenshu Control, um aufzuholen.</string>
+    <string name="photos_control_fenced_update_app">Dieses Gerät hinkt dem Rest deines Realms hinterher und empfängt keine Fotos mehr. Aktualisiere Photos, um aufzuholen.</string>
+    <string name="photos_control_fenced_update_both">Dieses Gerät hinkt dem Rest deines Realms hinterher und empfängt keine Fotos mehr. Aktualisiere Photos und Tenshu Control, um aufzuholen.</string>
+    <string name="photos_control_fenced_update_unknown">Dieses Gerät hinkt dem Rest deines Realms hinterher und empfängt keine Fotos mehr. Aktualisiere Tenshu auf diesem Gerät, um aufzuholen.</string>
+</resources>

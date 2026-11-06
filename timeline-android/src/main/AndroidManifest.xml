@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Live timeline capture (I3b, threat-model A35). Opt-in + off by default; a location
+         foreground service keeps the standalone Timeline process alive while capturing.
+
+         ⚠⚠ ACCESS_BACKGROUND_LOCATION is required for capture to RESTART — measured, not assumed
+         (timeline-movement-capture.md §30). Reproduced on Android 16 (API 36):
+
+           I ActivityManager: Background started FGS: Allowed [... code:SYSTEM_ALLOW_LISTED ...]
+           W ActivityManager: Foreground service started from background can not have
+                              location/camera/microphone access: .TimelineCaptureForegroundService
+
+         The background *start* is allowed (the battery-optimisation exemption covers that). What is
+         refused is the FGS holding the **location type** at all, because an FGS started while the app
+         is in the background is denied location unless the app holds background location. The service
+         then stops itself and capture stays dead until the user next opens the app — §11.4's "capture
+         dies on aggressive OEMs and never comes back", exactly.
+
+         ⚠ It looks removable if the states were exhaustive — FGS alive (fine location suffices)
+         or process dead (no permission helps). They are not; the third is process alive,
+         backgrounded, FGS being restarted by the watchdog or a boot receiver. That is the state this
+         permission serves, and it is the one that matters after an OEM kill. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <!-- Reads the CONNECTED access point's BSSID for opt-in Wi-Fi place recognition (§4.5): folds
+         repeat visits onto the place you named, past the ±100 m indoor GPS floor. Off by default.
+         Connected-AP read rides ACCESS_FINE_LOCATION (above) + this normal permission — no runtime
+         prompt, no scanning (NEARBY_WIFI_DEVICES deliberately NOT requested), no INTERNET. -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!--
+      S3 (timeline-movement-capture.md §19): the hardware pedometer, used to tell a bike ride from a
+      run — cycling produces no steps, which speed alone cannot see. Sensor-hub cheap and batched.
+      ⚠⚠ Required from API 29. Undeclared, `TYPE_STEP_COUNTER` can still resolve on some devices and
+      then simply never delivers — a silent degradation with no crash and no log. Declared here so the
+      failure mode is a permission prompt, not a classifier that quietly stops working.
+    -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Restart capture after a reboot / app update (M3b resilience): the FGS is otherwise only
+         started from MainActivity, so a reboot leaves capture dead until the app is next opened. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Ask to be exempt from battery optimisation so background capture survives OEM force-stop
+         (and so the boot receiver / watchdog are allowed to start the FGS from the background). -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!--
+      House Rule #1 / maps-region-delivery.md R1: the MapLibre AAR (via :ui-map) merges in
+      INTERNET, but Timeline's data is entirely in-process, capture is local, and offline basemaps
+      come from Control over Binder (below) — all egress is Control's. Strip INTERNET so "nothing
+      leaves the device" is enforced at the OS boundary. Location stays (Timeline captures visits).
+    -->
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+
+    <!--
+      Timeline reaches Control's proxy over Binder for the offline-region service (D6). This
+      <queries> lets BinderTaskTransport resolve + bind Control on Android 11+ (package visibility).
+    -->
+    <queries>
+        <package android:name="app.tenshu.control.android" />
+    </queries>
+
+    <application
+        android:name=".TimelineApplication"
+        android:allowBackup="false"
+        android:supportsRtl="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".TimelineCaptureForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
+        <!-- Re-arms capture after reboot / app update if the opt-in is on (CaptureBootReceiver). -->
+        <receiver
+            android:name=".CaptureBootReceiver"
+            android:exported="false"
+            android:directBootAware="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!--
+          The reverse (push) channel for the region client: Control binds back to this service to
+          deliver stream/callback frames + OOB bytes. Same contract Drive/Maps declare.
+        -->
+        <service
+            android:name="org.tenshu.core.common.ClientCallbackService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="app.tenshu.control.android.IClientInterface" />
+            </intent-filter>
+        </service>
+
+    </application>
+</manifest>

@@ -1,0 +1,139 @@
+{
+  "app": {
+    "title": "Photos",
+    "tagline": "Vos photos et vidéos, chiffrées de bout en bout."
+  },
+  "nav": {
+    "photos": "Photos",
+    "albums": "Albums",
+    "favourites": "Favoris",
+    "trash": "Corbeille"
+  },
+  "common": {
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "working": "En cours…",
+    "loading": "Chargement…",
+    "retry": "Réessayer"
+  },
+  "stream": {
+    "stopped": "Cette liste ne se met plus à jour. Ce que vous voyez peut être obsolète.",
+    "reconnect": "Reconnecter"
+  },
+  "tile": {
+    "photoLabel": "Photo {name}, {date}",
+    "videoLabel": "Vidéo {name}, {date}"
+  },
+  "feed": {
+    "scrubber": "Aller à une date",
+    "refresh": "Actualiser",
+    "empty": "Aucune photo pour l’instant. Les photos et vidéos ajoutées dans Drive ou sur votre téléphone apparaissent ici."
+  },
+  "select": {
+    "start": "Sélectionner",
+    "count": "{count, plural, =0 {Aucune sélection} one {# sélectionné} other {# sélectionnés}}",
+    "addToAlbum": "Ajouter à un album",
+    "favourite": "Ajouter aux favoris",
+    "removeFromAlbum": "Retirer de l’album",
+    "partial": "{done} sur {total} effectués."
+  },
+  "albums": {
+    "addTo": "Ajouter à un album",
+    "count": "{count, plural, one {# élément} other {# éléments}}",
+    "newName": "Nouvel album",
+    "createAndAdd": "Créer et ajouter",
+    "create": "Nouvel album",
+    "name": "Nom de l’album",
+    "createSubmit": "Créer",
+    "empty": "Aucun album pour l’instant.",
+    "back": "← Albums",
+    "rename": "Renommer",
+    "delete": "Supprimer l’album",
+    "emptyAlbum": "Cet album est vide. Ajoutez des photos depuis la visionneuse ou en les sélectionnant.",
+    "deleteTitle": "Supprimer cet album ?",
+    "deleteBody": "« {name} » sera supprimé. Les photos qu’il contient restent dans votre bibliothèque."
+  },
+  "viewer": {
+    "title": "Visionneuse",
+    "back": "← Retour",
+    "details": "Détails",
+    "previous": "Précédent",
+    "next": "Suivant",
+    "notFileable": "Ce fichier est trop ancien pour être ajouté à des albums ou aux favoris.",
+    "favourite": "Favori",
+    "unfavourite": "Retirer des favoris",
+    "addToAlbum": "Ajouter à un album",
+    "removeFromAlbum": "Retirer de l’album",
+    "trash": "Mettre à la corbeille",
+    "noPreview": "Aucun aperçu de cette photo n’est encore arrivé sur cet appareil.",
+    "originalNotShown": "Aucune version plus nette n’est disponible ici, et l’original ne peut pas s’afficher dans le navigateur.",
+    "downloadOriginal": "Télécharger l’original",
+    "downloaded": "Enregistré.",
+    "play": "Lire",
+    "cannotPlay": "Cette vidéo ne peut pas encore être lue ici. Réessayez une fois synchronisée."
+  },
+  "details": {
+    "name": "Nom",
+    "taken": "Prise le",
+    "dimensions": "Dimensions",
+    "size": "Taille",
+    "camera": "Appareil",
+    "duration": "Durée",
+    "location": "Lieu",
+    "gone": "Ce fichier n’existe plus.",
+    "albums": "Dans les albums"
+  },
+  "favourites": {
+    "empty": "Aucun favori pour l’instant. Marquez une photo comme favorite dans la visionneuse."
+  },
+  "trash": {
+    "explain": "Les éléments de la corbeille peuvent être restaurés à leur emplacement d’origine.",
+    "empty": "La corbeille est vide.",
+    "deleteTitle": "Supprimer définitivement ?",
+    "deleteBody": "« {name} » sera supprimé de tous vos appareils. Cette action est irréversible.",
+    "deleteForever": "Supprimer définitivement",
+    "trashedOn": "Mis à la corbeille le {date} · depuis {path}",
+    "restore": "Restaurer"
+  },
+  "errors": {
+    "error_generic": "Une erreur s’est produite. Veuillez réessayer.",
+    "error_unexpected": "Une erreur s’est produite. Veuillez réessayer.",
+    "error_internal": "Une erreur s’est produite. Veuillez réessayer.",
+    "error_invalid_caller": "Cette application n’est pas autorisée à faire cela.",
+    "error_unannounced_session": "Tenshu doit se reconnecter. Veuillez réessayer.",
+    "error_unsupported_operation": "Cette version ne le permet pas encore.",
+    "bridge": "Impossible de joindre Tenshu. Vérifiez qu’il est ouvert et déverrouillé, puis réessayez.",
+    "bridge_timeout": "Tenshu a mis trop de temps à répondre. Réessayez.",
+    "error_photos_bad_cursor": "La bibliothèque a changé pendant le chargement. Actualisez pour recommencer.",
+    "error_photos_bad_page_size": "Une erreur s’est produite lors du chargement de votre bibliothèque. Veuillez réessayer.",
+    "error_photos_unknown_album": "Cet album n’existe plus.",
+    "error_photos_not_found": "Cette photo n’existe plus.",
+    "error_photos_no_content_id": "Ce fichier est trop ancien pour être ajouté à des albums ou aux favoris.",
+    "error_photos_not_in_trash": "Cet élément n’est plus dans la corbeille.",
+    "error_photos_not_a_photo": "Ce fichier n’est ni une photo ni une vidéo, ou il est déjà dans la corbeille.",
+    "error_photos_file_op_failed": "Le fichier n’a pas pu être déplacé. Veuillez réessayer.",
+    "error_not_found": "Ce n’est plus disponible.",
+    "bridge_not_permitted": "Photos n’est pas autorisé à faire cela."
+  },
+  "sync": {
+    "offline": "Vous êtes hors ligne. Les modifications restent sur cet appareil et seront synchronisées à la reconnexion.",
+    "needsAttention": "Tenshu ne peut pas synchroniser pour le moment — votre stockage demande votre attention. Les modifications restent sur cet appareil.",
+    "locked": "Tenshu est verrouillé sur cet appareil : rien ne peut être synchronisé. Déverrouillez-le pour continuer.",
+    "deviceUnrecognized": "Ce navigateur n’est plus reconnu comme l’un de vos appareils et ne peut donc pas synchroniser."
+  },
+  "runtime": {
+    "connectingTitle": "Connexion à Tenshu en cours…",
+    "connectingBody": "L’onglet Tenshu qui héberge Photos est occupé. Photos se chargera dès qu’il répondra.",
+    "elsewhereTitle": "Tenshu est ouvert dans un autre onglet",
+    "elsewhereBody": "Tenshu ne s’exécute que dans un onglet à la fois, pour que vos données restent cohérentes. Utilisez-le ici pour le déplacer dans cet onglet.",
+    "moving": "En attente de la fin de l’enregistrement dans l’autre onglet. Cela peut prendre jusqu’à deux minutes.",
+    "movingShort": "Déplacement…",
+    "useHere": "Utiliser ici"
+  },
+  "crash": {
+    "title": "Une erreur est survenue",
+    "body": "Cette partie de Photos a rencontré une erreur inattendue. Vos données sont en sécurité — rien n’a été modifié.",
+    "retry": "Réessayer",
+    "reload": "Recharger"
+  }
+}

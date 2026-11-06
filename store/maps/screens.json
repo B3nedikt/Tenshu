@@ -1,0 +1,23 @@
+{
+  "about": "Every screen name scripts/store-screenshots-android.sh maps captures for Tenshu Maps — Android only so far (no iOS walk), so `captured` (the iOS list) is empty and `android.captured` is the list. Maps cannot make a place itself: it shows the places Timeline's Takeout import made, so the run walks Timeline first (docs/how-to/store-screenshots.md §8.2). Adding a capture means adding it here.",
+  "version": 1,
+  "platform": "android",
+  "appearances": [
+    "light"
+  ],
+  "uiTests": [],
+  "captured": {},
+  "android": {
+    "about": "The Android pipeline (scripts/store-screenshots-android.sh maps, walk in scripts/lib/android_shots.py) captures these on a 1080x2400 phone AVD, light only, keyed android/phone/<lang>/NN-screen.",
+    "script": "scripts/lib/android_shots.py",
+    "captured": {
+      "01-places": {
+        "shows": "Your places: the places from Timeline, each with its visit count"
+      },
+      "02-place": {
+        "shows": "One place: its spot on the offline basemap and its visits"
+      }
+    }
+  },
+  "planned": {}
+}

@@ -1,0 +1,75 @@
+# The shared XcodeGen fragment every **map-bearing iOS app** includes (P3,
+# `docs/proposals/ios-fit-timeline-maps-parity.md` §3.1.2). Consumed as:
+#
+#     include:
+#       - path: ../ios-basemap/basemap.yml
+#     targets:
+#       <App>:
+#         templates: [MapBearingApp]
+#
+# It carries all three things a map-bearing app owes beyond its Kotlin framework (D9), so a second and
+# third consumer inherit them instead of re-deriving them:
+#
+#   1. the shared Swift sources in `Sources/`,
+#   2. the MapLibre SPM package + product dependency,
+#   3. the tile archive + glyph atlas as bundle resources (and MapLibre's licence notice).
+#
+# ⚠ Paths here are relative to THIS file's directory — XcodeGen's `include` default
+# (`relativePaths: true`) rewrites them for whichever spec includes it. That is why `../ui-map/...`
+# reads one level up from `ios-basemap/`, not from the app.
+
+packages:
+  # MapLibre's native iOS SDK — the map engine `TenshuMapView` wraps. It is added by the APP rather
+  # than arriving through the Kotlin framework: `:basemap-core` is Compose-free *and* MapLibre-free —
+  # it only emits the style JSON — so nothing in the `TenshuSdk` framework references a MapLibre symbol,
+  # and the `-framework <KotlinFramework> -framework MapLibre` link-order rule `ui-map-agent.md`
+  # records for the maplibre-compose cinterop does not apply on this path. There is no cinterop; there
+  # are two independent frameworks.
+  #
+  # ⚠ SPM, not CocoaPods — `pod` is not installed in the build environment, and the binary
+  # distribution repo is a plain `.binaryTarget` (a notarised dynamic xcframework), so it needs no
+  # toolchain beyond Xcode's own package resolution.
+  MapLibre:
+    url: https://github.com/maplibre/maplibre-gl-native-distribution
+    from: "6.28.0"
+
+targetTemplates:
+  MapBearingApp:
+    sources:
+      # The shared SwiftUI map layer: `TenshuMapView` (the `MLNMapView` representable), `BasemapStyle`
+      # (the Kotlin-default-argument wrapper), `BasemapAssets` (bundle lookups) and the two heroes.
+      #
+      # ⚠ Compiled INTO each app target rather than vended as a local Swift package: these files
+      # import `TenshuSdk`, which is an XCFramework Gradle writes into a *build output* directory. A
+      # SwiftPM `.binaryTarget` is resolved before any build phase runs, so on the fresh
+      # `-derivedDataPath` this repo's build instructions require, package resolution would fail
+      # before the pre-build script that produces the framework ever executes. Both shells are
+      # XcodeGen-generated and XcodeGen takes sources from any path, so this costs one line each.
+      - path: Sources
+      # ── The offline basemap payload ──────────────────────────────────────────────────
+      # MIRRORED from the Android asset tree, never duplicated in git: `:ui-map`'s archive tests
+      # (`MvtRealArchiveTest` et al.) open `ui-map/src/androidMain/assets/…` by relative path, so that
+      # tree stays the single source of truth and the bundled copy cannot drift from the one under
+      # test. This is the SwiftUI-path replacement for `:ui-map`'s `stageIosBasemapResources` Sync
+      # task, which only fed `:ui-map`'s own Compose resources — a path that no longer exists once iOS
+      # stops consuming `:ui-map` (D7).
+      #
+      # Both land at the bundle ROOT (`tenshu_basemap.pmtiles`, `glyphs/<fontstack>/<range>.pbf`),
+      # which is what `BasemapAssets.swift` resolves against. ⚠ `type: folder` on the atlas is
+      # load-bearing: a *group* would flatten the fontstack directories into the bundle root and the
+      # `{fontstack}` segment of the glyph URL template would resolve to nothing.
+      - path: ../ui-map/src/androidMain/assets/tenshu_basemap.pmtiles
+        buildPhase: resources
+      - path: ../ui-map/src/androidMain/assets/glyphs
+        type: folder
+        buildPhase: resources
+      # MapLibre Native's open-source notice (`docs/oss-licences.md`), beside the package it credits:
+      # `OpenSourceLicencesView` (ios-about) reads every `*-licences.json` in the bundle. ⚠ The glyph
+      # folder above already carries the Noto fonts' `OFL.txt`.
+      - path: Resources/maplibre-licences.json
+        buildPhase: resources
+    dependencies:
+      # MapLibre ships as a *dynamic* xcframework, so unlike the static TenshuSdk framework it must be
+      # embedded and signed into the app bundle (XcodeGen does that for a package product).
+      - package: MapLibre
+        product: MapLibre

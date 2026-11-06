@@ -1,0 +1,1 @@
+Geräte schalten, die dein Tenshu Hub meldet, und eigene Automationen ausführen.

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="background_sync_channel">Synchronisierung im Hintergrund</string>
+    <string name="background_sync_syncing">Wird synchronisiert…</string>
+</resources>

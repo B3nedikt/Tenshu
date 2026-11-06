@@ -1,0 +1,369 @@
+name: Web CI
+
+on:
+  push:
+    branches: ["master"]
+    paths:
+      - "web/**"
+      - "tenshu-sdk-js/**"
+      - ".github/workflows/web.yml"
+      # The support pages resolve their screenshots through these (support-pages/generate.ts).
+      - "store/*/screenshots.manifest.json"
+      # ⚠⚠ EVERY module `:tenshu-sdk-js` api-depends on, one entry each. A change
+      # in any of them invalidates the bundle and therefore the apex build, so a
+      # missing entry is not "one fewer CI run" — it is a Kotlin-side regression
+      # reaching the web with nothing between it and the deploy.
+      #
+      # ⚠ This list is DERIVED, not curated: `webCiPaths.test.ts` reads the
+      # `api(project(":…"))` declarations out of `tenshu-sdk-js/build.gradle.kts`
+      # and fails if either list here does not cover them (and if the two lists
+      # differ). Adding a dependency always edits that build file, which always
+      # matches `tenshu-sdk-js/**` above, so the guard cannot be outrun by the
+      # very change it exists to catch.
+      #
+      # ⚠ Spelled out rather than globbed (`core*/**` etc.) on purpose. A glob
+      # would silently rope in Android-only siblings — core-aidl, core-proxy,
+      # the *-test-utils modules — and pay a full Kotlin/JS build for changes
+      # that cannot affect the bundle. Precision is affordable because the test
+      # keeps it honest; curation without the test is what produced the gap.
+      - "app-error-handling/**"
+      - "contact-service/**"
+      - "contact-service-client/**"
+      - "contact-service-common/**"
+      - "contact-service-proxy/**"
+      - "core/**"
+      - "core-client/**"
+      - "core-common/**"
+      - "diagnostics/**"
+      - "file-service/**"
+      - "file-service-client/**"
+      - "file-service-common/**"
+      - "file-service-proxy/**"
+      - "preference-service/**"
+      - "preference-service-client/**"
+      - "preference-service-common/**"
+      - "preference-service-proxy/**"
+      - "identity-service/**"
+      - "identity-service-client/**"
+      - "identity-service-common/**"
+      - "identity-service-proxy/**"
+      - "ingest-service/**"
+      - "ingest-service-client/**"
+      - "ingest-service-common/**"
+      - "notification-service/**"
+      - "notification-service-client/**"
+      - "notification-service-common/**"
+      - "notification-service-proxy/**"
+      - "storage-service/**"
+      - "storage-service-client/**"
+      - "storage-service-common/**"
+      - "storage-service-proxy/**"
+      - "sync-service/**"
+      - "sync-service-client/**"
+      - "sync-service-common/**"
+      - "sync-service-proxy/**"
+      - "timeline-service/**"
+      - "timeline-service-client/**"
+      - "timeline-service-common/**"
+      - "timeline-service-proxy/**"
+      - "timeline-projection/**"
+      - "fit-projection/**"
+      - "fit-shared-file/**"
+      - "calendar-service/**"
+      - "calendar-service-common/**"
+      - "calendar-service-client/**"
+      - "calendar-service-proxy/**"
+      - "health-service/**"
+      - "health-service-common/**"
+      - "health-service-client/**"
+      - "health-service-proxy/**"
+      - "place-service/**"
+      - "place-service-common/**"
+      - "place-service-client/**"
+      - "place-service-proxy/**"
+      - "map-region-service/**"
+      - "map-region-service-common/**"
+      - "map-region-service-client/**"
+      - "map-region-service-proxy/**"
+      - "map-region-app/**"
+      - "vector-tile/**"
+      - "basemap-core/**"
+      - "photo-service/**"
+      - "photo-service-common/**"
+      - "photo-service-client/**"
+      - "photo-service-proxy/**"
+      - "inference-service/**"
+      - "inference-service-common/**"
+      - "inference-service-client/**"
+      - "mia-service/**"
+      - "mia-service-common/**"
+      - "mia-service-client/**"
+      - "mia-service-proxy/**"
+      - "home-device-service-proxy/**"
+      - "inference-service-proxy/**"
+      - "routine-service/**"
+      - "routine-service-common/**"
+      - "routine-service-client/**"
+      - "home-device-service/**"
+      - "home-device-service-common/**"
+      - "home-device-service-client/**"
+      - "hub-management-service/**"
+      - "hub-management-service-common/**"
+      - "hub-management-service-client/**"
+      - "logging-service/**"
+      - "logging-service-common/**"
+      - "logging-service-client/**"
+  pull_request:
+    branches: ["master"]
+    # ⚠ Must stay identical to the push list above — GitHub Actions does not
+    # support YAML anchors in workflow files, so the duplication is forced.
+    # `webCiPaths.test.ts` asserts the two are the same set; a PR-only gap would
+    # be the worse half to lose, since that is where a regression is still cheap.
+    paths:
+      - "web/**"
+      - "tenshu-sdk-js/**"
+      - ".github/workflows/web.yml"
+      # The support pages resolve their screenshots through these (support-pages/generate.ts).
+      - "store/*/screenshots.manifest.json"
+      - "app-error-handling/**"
+      - "contact-service/**"
+      - "contact-service-client/**"
+      - "contact-service-common/**"
+      - "contact-service-proxy/**"
+      - "core/**"
+      - "core-client/**"
+      - "core-common/**"
+      - "diagnostics/**"
+      - "file-service/**"
+      - "file-service-client/**"
+      - "file-service-common/**"
+      - "file-service-proxy/**"
+      - "preference-service/**"
+      - "preference-service-client/**"
+      - "preference-service-common/**"
+      - "preference-service-proxy/**"
+      - "identity-service/**"
+      - "identity-service-client/**"
+      - "identity-service-common/**"
+      - "identity-service-proxy/**"
+      - "ingest-service/**"
+      - "ingest-service-client/**"
+      - "ingest-service-common/**"
+      - "notification-service/**"
+      - "notification-service-client/**"
+      - "notification-service-common/**"
+      - "notification-service-proxy/**"
+      - "storage-service/**"
+      - "storage-service-client/**"
+      - "storage-service-common/**"
+      - "storage-service-proxy/**"
+      - "sync-service/**"
+      - "sync-service-client/**"
+      - "sync-service-common/**"
+      - "sync-service-proxy/**"
+      - "timeline-service/**"
+      - "timeline-service-client/**"
+      - "timeline-service-common/**"
+      - "timeline-service-proxy/**"
+      - "timeline-projection/**"
+      - "fit-projection/**"
+      - "fit-shared-file/**"
+      - "calendar-service/**"
+      - "calendar-service-common/**"
+      - "calendar-service-client/**"
+      - "calendar-service-proxy/**"
+      - "health-service/**"
+      - "health-service-common/**"
+      - "health-service-client/**"
+      - "health-service-proxy/**"
+      - "place-service/**"
+      - "place-service-common/**"
+      - "place-service-client/**"
+      - "place-service-proxy/**"
+      - "map-region-service/**"
+      - "map-region-service-common/**"
+      - "map-region-service-client/**"
+      - "map-region-service-proxy/**"
+      - "map-region-app/**"
+      - "vector-tile/**"
+      - "basemap-core/**"
+      - "photo-service/**"
+      - "photo-service-common/**"
+      - "photo-service-client/**"
+      - "photo-service-proxy/**"
+      - "inference-service/**"
+      - "inference-service-common/**"
+      - "inference-service-client/**"
+      - "mia-service/**"
+      - "mia-service-common/**"
+      - "mia-service-client/**"
+      - "mia-service-proxy/**"
+      - "home-device-service-proxy/**"
+      - "inference-service-proxy/**"
+      - "routine-service/**"
+      - "routine-service-common/**"
+      - "routine-service-client/**"
+      - "home-device-service/**"
+      - "home-device-service-common/**"
+      - "home-device-service-client/**"
+      - "hub-management-service/**"
+      - "hub-management-service-common/**"
+      - "hub-management-service-client/**"
+      - "logging-service/**"
+      - "logging-service-common/**"
+      - "logging-service-client/**"
+
+# Only the latest commit on a PR / branch needs to be tested. Older
+# in-flight runs are cancelled.
+concurrency:
+  group: web-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: typecheck + lint + test + build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # ⚠⚠ A PIN, not a fix. control-desktop / drive-desktop resolve an `FFM_JDK = 25` launcher
+      # eagerly at CONFIGURATION time and there is no configure-on-demand, so every invocation
+      # configures them. Without the pin this does not fail — the foojay resolver in
+      # settings.gradle.kts auto-provisions 25 by DOWNLOADING it mid-configuration, which is why
+      # JDK 17 alone was green. Pinning removes that per-run download and the network dependency.
+      # 17 is listed LAST so it stays the daemon JVM. Full reasoning in android.yml.
+      - name: Set up JDK 25 (desktop FFM toolchain) + JDK 17 (daemon + shared modules)
+        uses: actions/setup-java@v4
+        with:
+          java-version: |
+            25
+            17
+          distribution: "temurin"
+          cache: gradle
+
+      # ⚠ setup-java installs into the hosted tool cache, which is NOT a location Gradle's
+      # toolchain auto-detection scans — so the 25 above is invisible to `launcherFor` without
+      # this. `fromEnv` takes env var NAMES; setup-java exports JAVA_HOME_<version>_<arch> and
+      # the arch differs per runner (ubuntu = X64, macos-latest = ARM64), so both spellings are
+      # listed. Unset names are skipped silently (verified), so the unused half costs nothing.
+      - name: Register both JDKs with Gradle toolchain detection
+        run: |
+          mkdir -p ~/.gradle
+          echo "org.gradle.java.installations.fromEnv=JAVA_HOME_25_X64,JAVA_HOME_25_ARM64,JAVA_HOME_17_X64,JAVA_HOME_17_ARM64" >> ~/.gradle/gradle.properties
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+
+      # ⚠ 22, not 20 — this is a floor the test toolchain imposes, not a preference.
+      # jsdom 30 declares `node: ^22.22.2 || ^24.15.0 || >=26.0.0` and does not merely
+      # warn below it: on Node 20 it throws at import time (`webidl.util.markAsUncloneable
+      # is not a function`, from undici inside jsdom/lib/api.js), so BOTH vitest steps
+      # below collect zero tests and report N errors rather than N failures. Verified on
+      # node:20-slim against jsdom 29 (26/26 green) and 30 (0 tests, 26 errors).
+      # `pnpm install --frozen-lockfile` does NOT enforce `engines`, so nothing upstream
+      # of this line catches an engine-floor bump — see web/package.json's `engines`.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      # The web/apex package imports the Kotlin/JS bundle from
+      # tenshu-sdk-js/build/dist/... — see web/sdk/src/_bundle.ts and the
+      # `feedback_web_dev_per_worktree_bundle` note. Every CI run rebuilds
+      # the bundle so a Kotlin-side regression is caught here, not at
+      # `pnpm test`/`pnpm build` time.
+      - name: Build :tenshu-sdk-js bundle
+        run: ./gradlew :tenshu-sdk-js:jsBrowserDistribution --stacktrace
+
+      - name: Install web deps
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint apex
+        working-directory: web
+        run: pnpm -F apex lint
+
+      - name: Typecheck + build apex
+        working-directory: web
+        run: pnpm -F apex build
+
+      - name: Test apex
+        working-directory: web
+        run: pnpm -F apex test
+
+      # The shared app-kit every app builds on (web-app-suite.md F3): lint, typecheck, and its own
+      # tests — among them the guard that it value-imports nothing from `@tenshu/sdk` but `/bridge`.
+      - name: Lint + typecheck + test app-kit
+        working-directory: web
+        run: |
+          pnpm -F @tenshu/app-kit lint
+          pnpm -F @tenshu/app-kit typecheck
+          pnpm -F @tenshu/app-kit test
+
+      # The shared map renderer (web-app-suite.md W-MAP): Maps, Timeline and Fit render through it. Not
+      # an app (no vite.config.ts at its root), so the discovery loop below does not reach it.
+      - name: Lint + typecheck + test map-kit
+        working-directory: web
+        run: |
+          pnpm -F @tenshu/map-kit lint
+          pnpm -F @tenshu/map-kit typecheck
+          pnpm -F @tenshu/map-kit test
+
+      # Every app package (ADR 0020 — own origin, own Vite / Tailwind / Router / Query stack) gets
+      # the exact `pnpm -F apex` trio above. ⚠ DISCOVERED, not listed (web-app-suite.md F4): a
+      # `web/<id>` with a vite.config.ts is an app — the rule scripts/run-web-gate.sh and
+      # deploy/lib/web-apps.sh use — so a new app is linted, built and tested by existing. A
+      # hard-coded list is how `web/drive` went unlinted and untested in CI until its third phase.
+      # (A loop rather than a matrix: each matrix job would rebuild the Gradle SDK bundle above.)
+      - name: Lint + typecheck/build + test every app
+        working-directory: web
+        run: |
+          source ../deploy/lib/web-apps.sh
+          apps="$(web_app_ids)"
+          [ -n "$apps" ] || { echo "no web apps found"; exit 1; }
+          for app in $apps; do
+            echo "::group::$app"
+            pnpm -F "$app" lint
+            pnpm -F "$app" build
+            pnpm -F "$app" test
+            echo "::endgroup::"
+          done
+
+      # The store frame renderer (store-presence-and-support-pages.md §3.2). Its end-to-end test frames
+      # a synthetic bezel in real Chromium, so the runner needs the headless shell playwright-core
+      # pins — it downloads no browser on install.
+      - name: Lint + typecheck store-frame
+        working-directory: web
+        run: pnpm -F @tenshu/store-frame lint && pnpm -F @tenshu/store-frame typecheck
+
+      - name: Test store-frame
+        working-directory: web
+        run: |
+          pnpm -F @tenshu/store-frame exec playwright-core install --with-deps --only-shell chromium
+          pnpm -F @tenshu/store-frame test
+
+      # The listing copy and its tooling (scripts/store-listing.py) — also the pre-commit hook's check.
+      - name: Store listings — limits, copy rules, claims
+        run: |
+          python3 scripts/store-listing.py check
+          python3 scripts/test_store_listing.py
+          python3 scripts/test_store_webp.py
+          python3 scripts/lib/data_safety.py check
+          python3 scripts/test_data_safety.py
+          python3 scripts/test_public_export.py
+
+      - name: Upload apex dist
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apex-dist
+          path: web/apex/dist
+          if-no-files-found: ignore

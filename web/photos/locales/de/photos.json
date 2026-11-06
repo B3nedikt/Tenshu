@@ -1,0 +1,139 @@
+{
+  "app": {
+    "title": "Fotos",
+    "tagline": "Deine Fotos und Videos, Ende-zu-Ende-verschlüsselt."
+  },
+  "nav": {
+    "photos": "Fotos",
+    "albums": "Alben",
+    "favourites": "Favoriten",
+    "trash": "Papierkorb"
+  },
+  "common": {
+    "cancel": "Abbrechen",
+    "save": "Speichern",
+    "working": "Wird ausgeführt…",
+    "loading": "Wird geladen…",
+    "retry": "Erneut versuchen"
+  },
+  "stream": {
+    "stopped": "Diese Liste wird nicht mehr aktualisiert. Was du siehst, ist eventuell veraltet.",
+    "reconnect": "Neu verbinden"
+  },
+  "tile": {
+    "photoLabel": "Foto {name}, {date}",
+    "videoLabel": "Video {name}, {date}"
+  },
+  "feed": {
+    "scrubber": "Zu einem Datum springen",
+    "refresh": "Aktualisieren",
+    "empty": "Noch keine Fotos. Fotos und Videos, die du in Drive oder auf deinem Handy hinzufügst, erscheinen hier."
+  },
+  "select": {
+    "start": "Auswählen",
+    "count": "{count, plural, =0 {Nichts ausgewählt} one {# ausgewählt} other {# ausgewählt}}",
+    "addToAlbum": "Zu Album hinzufügen",
+    "favourite": "Zu Favoriten hinzufügen",
+    "removeFromAlbum": "Aus Album entfernen",
+    "partial": "{done} von {total} erledigt."
+  },
+  "albums": {
+    "addTo": "Zu Album hinzufügen",
+    "count": "{count, plural, one {# Element} other {# Elemente}}",
+    "newName": "Neues Album",
+    "createAndAdd": "Erstellen und hinzufügen",
+    "create": "Neues Album",
+    "name": "Albumname",
+    "createSubmit": "Erstellen",
+    "empty": "Noch keine Alben.",
+    "back": "← Alben",
+    "rename": "Umbenennen",
+    "delete": "Album löschen",
+    "emptyAlbum": "Dieses Album ist leer. Füge Fotos in der Ansicht oder per Auswahl hinzu.",
+    "deleteTitle": "Dieses Album löschen?",
+    "deleteBody": "„{name}“ wird gelöscht. Die Fotos darin bleiben in deiner Mediathek."
+  },
+  "viewer": {
+    "title": "Ansicht",
+    "back": "← Zurück",
+    "details": "Details",
+    "previous": "Vorheriges",
+    "next": "Nächstes",
+    "notFileable": "Diese Datei ist zu alt, um sie Alben oder Favoriten hinzuzufügen.",
+    "favourite": "Favorit",
+    "unfavourite": "Kein Favorit",
+    "addToAlbum": "Zu Album hinzufügen",
+    "removeFromAlbum": "Aus Album entfernen",
+    "trash": "In den Papierkorb",
+    "noPreview": "Auf diesem Gerät ist noch keine Vorschau dieses Fotos angekommen.",
+    "originalNotShown": "Eine schärfere Version ist hier nicht verfügbar, und das Original kann im Browser nicht angezeigt werden.",
+    "downloadOriginal": "Original herunterladen",
+    "downloaded": "Gespeichert.",
+    "play": "Abspielen",
+    "cannotPlay": "Dieses Video kann hier noch nicht abgespielt werden. Versuche es erneut, sobald es synchronisiert ist."
+  },
+  "details": {
+    "name": "Name",
+    "taken": "Aufgenommen",
+    "dimensions": "Abmessungen",
+    "size": "Größe",
+    "camera": "Kamera",
+    "duration": "Länge",
+    "location": "Ort",
+    "gone": "Diese Datei ist nicht mehr vorhanden.",
+    "albums": "In Alben"
+  },
+  "favourites": {
+    "empty": "Noch keine Favoriten. Markiere ein Foto in der Ansicht als Favorit."
+  },
+  "trash": {
+    "explain": "Elemente im Papierkorb können an ihren ursprünglichen Ort wiederhergestellt werden.",
+    "empty": "Der Papierkorb ist leer.",
+    "deleteTitle": "Endgültig löschen?",
+    "deleteBody": "„{name}“ wird auf allen deinen Geräten gelöscht. Das kann nicht rückgängig gemacht werden.",
+    "deleteForever": "Endgültig löschen",
+    "trashedOn": "Gelöscht am {date} · aus {path}",
+    "restore": "Wiederherstellen"
+  },
+  "errors": {
+    "error_generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+    "error_unexpected": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+    "error_internal": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+    "error_invalid_caller": "Diese App darf das nicht.",
+    "error_unannounced_session": "Tenshu muss sich neu verbinden. Bitte versuche es erneut.",
+    "error_unsupported_operation": "Diese Version unterstützt das noch nicht.",
+    "bridge": "Tenshu ist nicht erreichbar. Stelle sicher, dass es geöffnet und entsperrt ist, und versuche es erneut.",
+    "bridge_timeout": "Tenshu hat zu lange nicht geantwortet. Versuche es erneut.",
+    "error_photos_bad_cursor": "Die Mediathek hat sich beim Laden geändert. Aktualisiere, um neu zu beginnen.",
+    "error_photos_bad_page_size": "Beim Laden deiner Mediathek ist etwas schiefgelaufen. Bitte versuche es erneut.",
+    "error_photos_unknown_album": "Dieses Album gibt es nicht mehr.",
+    "error_photos_not_found": "Dieses Foto ist nicht mehr vorhanden.",
+    "error_photos_no_content_id": "Diese Datei ist zu alt, um sie Alben oder Favoriten hinzuzufügen.",
+    "error_photos_not_in_trash": "Dieses Element ist nicht mehr im Papierkorb.",
+    "error_photos_not_a_photo": "Diese Datei ist kein Foto oder Video, oder sie ist bereits im Papierkorb.",
+    "error_photos_file_op_failed": "Die Datei konnte nicht verschoben werden. Bitte versuche es erneut.",
+    "error_not_found": "Das ist nicht mehr verfügbar.",
+    "bridge_not_permitted": "Fotos darf das nicht."
+  },
+  "sync": {
+    "offline": "Du bist offline. Änderungen bleiben auf diesem Gerät und werden synchronisiert, sobald du wieder verbunden bist.",
+    "needsAttention": "Tenshu kann gerade nicht synchronisieren – dein Speicher braucht Aufmerksamkeit. Änderungen bleiben auf diesem Gerät.",
+    "locked": "Tenshu ist auf diesem Gerät gesperrt, daher wird nichts synchronisiert. Entsperre es, um fortzufahren.",
+    "deviceUnrecognized": "Dieser Browser wird nicht mehr als eines deiner Geräte erkannt und kann daher nicht synchronisieren."
+  },
+  "runtime": {
+    "connectingTitle": "Verbindung zu Tenshu wird noch hergestellt…",
+    "connectingBody": "Der Tenshu-Tab, in dem Fotos läuft, ist beschäftigt. Fotos lädt, sobald er antwortet.",
+    "elsewhereTitle": "Tenshu ist in einem anderen Tab geöffnet",
+    "elsewhereBody": "Tenshu läuft immer nur in einem Tab, damit deine Daten nicht auseinanderlaufen. Nutze es hier, um es in diesen Tab zu holen.",
+    "moving": "Warte, bis der andere Tab fertig gespeichert hat. Das kann bis zu zwei Minuten dauern.",
+    "movingShort": "Wird verschoben…",
+    "useHere": "Hier nutzen"
+  },
+  "crash": {
+    "title": "Etwas ist schiefgelaufen",
+    "body": "In diesem Teil von Fotos ist ein unerwarteter Fehler aufgetreten. Deine Daten sind sicher – nichts wurde geändert.",
+    "retry": "Erneut versuchen",
+    "reload": "Neu laden"
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "name": "@tenshu/map-kit",
+  "private": true,
+  "version": "0.0.1-dev",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./vite": "./src/vite.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc -b",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "harness": "vite --config harness/vite.config.ts",
+    "harness:build": "vite build --config harness/vite.config.ts"
+  },
+  "dependencies": {
+    "@tenshu/sdk": "workspace:*",
+    "maplibre-gl": "5.24.0",
+    "pmtiles": "4.3.0"
+  },
+  "peerDependencies": {
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@tenshu/app-kit": "workspace:*",
+    "@types/node": "^26.5.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "eslint": "^10.10.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.7",
+    "globals": "^17.12.0",
+    "jsdom": "^30.0.1",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.70.0",
+    "vite": "^8.3.0",
+    "vitest": "^4.1.11"
+  }
+}

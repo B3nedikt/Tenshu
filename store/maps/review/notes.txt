@@ -1,0 +1,12 @@
+Tenshu Maps needs Tenshu Control installed and set up on the same device first. Control holds the encryption keys; Maps cannot open without it.
+
+To review:
+1. Install Tenshu Control and open it. Tap "Start fresh on this device", then "Continue", then "I've saved it".
+2. Open Tenshu Maps. It lists your places under "Yours", "Saved", "For you" and "Contribute". Places come from Tenshu Timeline, which records the places you visit; on a new device the lists are empty, which is expected.
+3. The gear button opens "Offline maps": the map regions, and the "Use Apple Maps" option for the map renderer (off by default).
+
+About location: Maps does not use your location and never asks for it. The Info.plist contains location purpose strings only because the map engine it embeds (MapLibre) contains location code; the strings say that Maps does not use it. No location permission prompt appears in Maps.
+
+Everything works on one device without an account. "Turn on sync" in Control is optional: it asks for an email address and then a 6-digit code. To try it without a mailbox, use the sign-in details in App Review Information: enter the user name as the email address and the password as the code (no email is sent to that address). Any address you can receive mail at also works, and a new account is free.
+
+All places are end-to-end encrypted on the device before they reach our servers; the servers cannot read them.

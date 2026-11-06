@@ -1,0 +1,178 @@
+# Production-shaped run of the Tenshu sync relay: the Ktor fat-jar behind Caddy
+# (automatic HTTPS). This is the single-node deployment the production Scaleway instance
+# boots (deploy/scaleway-relay/), and it also runs as-is on any other Docker host
+# (Hetzner, a local box, ...). House Rule #1 unchanged: the relay stores
+# ciphertext + public keys only; nothing here decrypts user data.
+#
+#   docker compose --env-file deploy.env up -d --build
+#
+# Build context is the REPO ROOT (the Gradle build is multi-module) - note the
+# `context: ..` below. Run this file from the sync-relay-server/ directory, or
+# point `-f` at it from the repo root.
+#
+# Persistence (docs/proposals/sync-relay-persistence.md): SQLite DB + blob dir on
+# the mounted volume => survive restart/redeploy. DO NOT add a second relay
+# replica - SQLite is a single writer.
+
+# ⚠⚠ Log rotation is NOT a default. Docker's json-file driver grows without bound,
+# and the relay logs one INFO line per request. Unrotated, relay + Caddy logs fill
+# the ROOT disk (distinct from the data volume), and a `docker load` then fails with
+# "no space left on device" while the relay itself still serves fine. The interlock is
+# the nasty part - a filling data volume produces a 500-error storm, and the storm
+# inflates the logs. One capacity failure feeds the other.
+#
+# 50m x 5 = 250 MB ceiling per container. Under normal load that is days of
+# history; under a storm it is hours, which is the trade we want - a truncated
+# tail beats a full disk. See docs/how-to/deploy-relay-digitalocean.md
+# ("Disk: two of them, and only one is monitored").
+#
+# ⚠ This applies at container CREATION. An already-running container keeps its old
+# unbounded config until `up -d --force-recreate`, and truncating its log file by
+# hand does not change the policy.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "5"
+
+services:
+  relay:
+    logging: *default-logging
+    # Two ways to get this image, both from one file:
+    #   - prebuilt path: `docker compose pull relay` fetches it from GHCR (built
+    #     by .github/workflows/relay-image.yml or deploy/build-and-push.sh). This
+    #     is the path that lets the droplet skip the RAM-hungry on-box build.
+    #   - on-box path:   `docker compose up -d --build` builds locally and tags it
+    #     with this same name. The original zero-infra default.
+    # RELAY_IMAGE_TAG lets a deploy pin an exact tag (e.g. a git sha); unset =>
+    # latest.
+    image: ghcr.io/b3nedikt/tenshu-relay:${RELAY_IMAGE_TAG:-latest}
+    build:
+      context: ..
+      dockerfile: sync-relay-server/Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: "8080"
+      BIND_HOST: "0.0.0.0"
+      # logback.xml's level for the relay's own lines (default INFO; libraries stay at WARN). Raise to
+      # DEBUG for a debugging session only, then put it back (docs/how-to/server-logging.md).
+      LOG_LEVEL: "${RELAY_LOG_LEVEL:-INFO}"
+      # DEV_MODE=false is REQUIRED on any public bind: it turns OFF the
+      # X-Dev-Owner auth bypass (RelayConfig.isDevModePubliclyExposed). Hardcoded
+      # here (not env-driven) so the deployment footgun can't be left on.
+      DEV_MODE: "false"
+      # Durable backend on the mounted volume (bind below). Unset would mean
+      # in-memory => registrations wiped on restart, and every paired device gets a 401.
+      DATABASE_URL: "jdbc:sqlite:/data/relay.db"
+      BLOB_DIR: "/data/relay-blobs"
+      # Object storage for content blobs (hosting-provider-economics.md D10). Empty => BLOB_DIR
+      # above, which is the default.
+      # ⚠⚠ Putting S3_* in deploy.env is NOT enough on its own — --env-file feeds compose-file
+      # SUBSTITUTION, and a container only ever receives what this block declares. Without these
+      # five lines the relay starts happily on the VOLUME with the operator believing it moved.
+      # ⚠ All four or none: a partial set makes the relay refuse to start (Application.kt) rather
+      # than fall back to the volume.
+      S3_ENDPOINT: "${S3_ENDPOINT:-}"
+      S3_BUCKET: "${S3_BUCKET:-}"
+      S3_REGION: "${S3_REGION:-}"
+      S3_ACCESS_KEY: "${S3_ACCESS_KEY:-}"
+      S3_SECRET_KEY: "${S3_SECRET_KEY:-}"
+      S3_KEY_PREFIX: "${S3_KEY_PREFIX:-}"
+      # Empty => relay's built-in apex CORS default. Override via deploy.env.
+      CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:-}"
+      # Commerce entitlement enforcement (commerce-billing-plane.md §8; see
+      # docs/how-to/deploy-commerce-digitalocean.md). All three default to off/empty so an existing
+      # relay is unaffected. To enforce, set the pubkey (the commerce issuer's public half, logged on
+      # commerce boot) + ENTITLEMENT_ENFORCE=true in deploy.env. KEY_ID only if commerce sets SIGNING_KEY_ID.
+      ENTITLEMENT_ENFORCE: "${ENTITLEMENT_ENFORCE:-false}"
+      ENTITLEMENT_ISSUER_PUBKEY: "${ENTITLEMENT_ISSUER_PUBKEY:-}"
+      ENTITLEMENT_ISSUER_KEY_ID: "${ENTITLEMENT_ISSUER_KEY_ID:-}"
+      # Per-IP hourly cap on the unauthenticated POST /sync/realm bootstrap (the one write the
+      # entitlement gate can't cover — a brand-new user has no token yet). Default 20 is on by
+      # default. Caddy sets X-Forwarded-For (reverse_proxy default) so the cap keys on the real
+      # client IP, not Caddy's. Raise behind a shared NAT; "0" disables. See deploy how-to §"DDoS & abuse".
+      GENESIS_RATE_LIMIT_PER_HOUR: "${GENESIS_RATE_LIMIT_PER_HOUR:-20}"
+      # The same per-IP cap for the other credential-less write, POST /sync/pairing/request (an
+      # unpaired joiner has nothing to authenticate with). A joiner posts once per attempt. "0" disables.
+      PAIRING_REQUEST_RATE_LIMIT_PER_HOUR: "${PAIRING_REQUEST_RATE_LIMIT_PER_HOUR:-120}"
+      # Relay-wide stored-bytes ceiling in GiB (cost brake): past it new uploads/shares get 507.
+      # Unset = none. docs/how-to/relay-storage-ceiling.md.
+      STORAGE_CEILING_GIB: "${STORAGE_CEILING_GIB:-}"
+      # Per-IP (IPv6: per /64) per-MINUTE cap on the unauthenticated GET /sync/recovery-challenge
+      # (threat model T-RC-08 (a)). Empty => the relay's own default (6); "0" disables.
+      RECOVERY_CHALLENGE_RATE_LIMIT_PER_MINUTE: "${RECOVERY_CHALLENGE_RATE_LIMIT_PER_MINUTE:-}"
+      # Per-IP budget for FAILED authentications; empty => the relay's own default (600).
+      AUTH_FAILURE_LIMIT_PER_HOUR: "${AUTH_FAILURE_LIMIT_PER_HOUR:-}"
+      # ⚠⚠ Accepts commerce closure records and PERMANENTLY DELETES that owner's content.
+      # ⚖️ Legal-gated (retention-quota-model.md; RelayConfig.accountClosureReclaim) — default OFF,
+      # and it stays OFF unless an operator sets it in deploy.env deliberately.
+      ACCOUNT_CLOSURE_RECLAIM: "${ACCOUNT_CLOSURE_RECLAIM:-false}"
+      # D4 requires the grace window stay CONFIGURABLE. Empty => the relay's default (30 d).
+      ACCOUNT_CLOSURE_GRACE_MS: "${ACCOUNT_CLOSURE_GRACE_MS:-}"
+      # ⚠⚠ Enables the loopback-only operator routes (/ops/content-reclaim/*, /ops/share/takedown),
+      # which can DELETE ciphertext. Empty => the routes do not exist. Set PERMANENTLY on production
+      # (takedown must not need a restart); brakes: loopback peer, constant-time token, Caddy's
+      # edge 404 on /ops/*.
+      RELAY_OPERATOR_TOKEN: "${RELAY_OPERATOR_TOKEN:-}"
+      # ⚠⚠ content-plane-cr2-b5-spec.md D2, content-plane-cr2-b6-spec.md D1: off | dry_run |
+      # armed. The DEPLOY defaults to ARMED: no client frees content, so this sweep is the only
+      # freeing path. `armed` FREES content unreferenced for CONTENT_GRACE_MS and stops charging held
+      # bytes. `off`/`dry_run` stay as overrides in deploy.env, and free NOTHING: deleted content stays
+      # stored and charged (a leak, never a loss). RelayConfig's own default stays `off`, so a relay
+      # started without this variable leaks rather than frees. Unknown => no start.
+      CONTENT_SWEEP_MODE: "${CONTENT_SWEEP_MODE:-armed}"
+      # T and the sweep cadence. Empty => the relay's defaults (15 min, 5 min).
+      CONTENT_GRACE_MS: "${CONTENT_GRACE_MS:-}"
+      CONTENT_SWEEP_INTERVAL_MS: "${CONTENT_SWEEP_INTERVAL_MS:-}"
+    volumes:
+      - relay_data:/data
+    # Not published to the host: only Caddy reaches the relay, over the internal
+    # compose network. The relay is never directly internet-exposed.
+    expose:
+      - "8080"
+    networks:
+      - relaynet
+
+  caddy:
+    # ⚠ Pinned to 2.11, not `caddy:2`: the Caddyfile's access/error logs use `roll_interval`, which
+    # caddy 2.10 refuses at startup, and a box with an old cached `caddy:2` never re-pulls it
+    # (redeploy*.sh pull only the app image). docs/how-to/server-logging.md.
+    image: caddy:2.11
+    logging: *default-logging
+    restart: unless-stopped
+    depends_on:
+      - relay
+    environment:
+      RELAY_DOMAIN: "${RELAY_DOMAIN}"
+      ACME_EMAIL: "${ACME_EMAIL}"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data # ACME certs + account key (persist across restarts!)
+      - caddy_config:/config
+      # Caddy's access log (the `access_log` snippet in the Caddyfile): a file, rolled daily and
+      # deleted after 7 days, because docker's json-file driver can only bound by size.
+      - caddy_logs:/var/log/caddy
+    networks:
+      - relaynet
+
+networks:
+  relaynet:
+    driver: bridge
+
+volumes:
+  # On the production box these are bind-backed by /mnt/relay_data via the
+  # driver_opts below so the data lands on the attached block-storage volume.
+  # On a plain Docker host, drop the driver_opts to use a named local volume.
+  relay_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: /mnt/relay_data
+      o: bind
+  caddy_data:
+  caddy_config:
+  caddy_logs:

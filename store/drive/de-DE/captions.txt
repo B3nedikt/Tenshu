@@ -1,0 +1,9 @@
+# Eine Bildunterschrift pro Screen für die gerahmten Store-Screenshots (scripts/store-frame, design §3.2).
+# `NN-screen: text` — der Screen-Name aus ../screens.json. Schlicht, kurz, keine Superlative (D6).
+01-files: Deine Dateien, verschlüsselt
+02-photos: Deine Fotos auf jedem Gerät
+03-preview: Fotos, PDFs und Videos öffnen
+04-file-actions: Teilen, umbenennen, verschieben
+05-add: Datei, Foto oder Ordner hinzufügen
+06-share-link: Eine Datei per Link teilen
+07-empty: Starte mit einem leeren Drive

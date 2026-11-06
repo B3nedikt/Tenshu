@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug-only additions. ⚠⚠ This manifest is merged into DEBUG builds only, so the receiver below
+  cannot appear in a release APK — see MaintenancePassReceiver's KDoc for why that is the chosen
+  guard rather than a BuildConfig.DEBUG branch.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!--
+          ⚠ `exported="true"` is required for `adb shell am broadcast` to reach it, and is the
+          reason this is debug-only: on a debug build the device is already fully open to adb.
+          It takes no parameters and can start exactly one maintenance pass.
+        -->
+        <receiver
+            android:name="app.tenshu.control.android.debug.MaintenancePassReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="app.tenshu.control.debug.RUN_CONTENT_MAINTENANCE" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

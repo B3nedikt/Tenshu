@@ -1,0 +1,167 @@
+# Build the apex web frontend image and push it to GitHub Container Registry.
+#
+# This is the CI half of the "prebuilt-image" deploy path
+# (docs/how-to/deploy-apex-digitalocean.md): the heavy build (Kotlin→JS SDK bundle
+# via Gradle, then the apex Vite build) runs here on a GitHub-hosted runner — no
+# on-box build, no big droplet — and the droplet just `docker compose pull`s the
+# result.
+#
+# Cost: free + unlimited on public repos. You can produce the same image locally
+# with deploy/build-and-push-apex.sh — the droplet doesn't care which built it.
+#
+# The relay URL is baked into the SPA at build time (Vite inlines it), so it's a
+# build-arg here. Defaults to the production relay; override via the
+# workflow_dispatch input when cutting an image for a different relay host.
+
+name: Apex image
+
+on:
+  # A push/merge to master that touches apex's BUILD CLOSURE: the web sources and
+  # the Kotlin→JS SDK bundle it bundles (tenshu-sdk-js + its transitive project()
+  # deps — the same client-facing modules the SDK re-exports), plus the shared
+  # Gradle build files that affect every module's compilation. Changes to the
+  # relay, the Android/iOS apps, or docs do NOT change the apex image.
+  push:
+    branches: [master]
+    paths:
+      - "web/**"
+      - "tenshu-sdk-js/**"
+      # The support pages' screenshot manifests (web/apex/Dockerfile copies store/).
+      - "store/*/screenshots.manifest.json"
+      - "core/**"
+      - "core-aidl/**"
+      - "core-common/**"
+      - "sync-service/**"
+      - "sync-service-common/**"
+      - "identity-service/**"
+      - "identity-service-common/**"
+      - "file-service/**"
+      - "file-service-common/**"
+      - "notification-service/**"
+      - "notification-service-common/**"
+      - "build.gradle.kts"
+      - "settings.gradle.kts"
+      - "gradle.properties"
+      - "gradle/libs.versions.toml"
+      - "gradle/wrapper/**"
+      - "gradlew"
+      - "web/apex/Dockerfile"
+      - "web/apex/Caddyfile"
+      # The workflow builds through these two; a change to either changes the image.
+      - "deploy/build-apex-image.sh"
+      - "deploy/lib/web-apps.sh"
+      - ".github/workflows/apex-image.yml"
+  # Manual build — and the way to cut a named/release image, or an image pointed at
+  # a non-default relay (set `relay_url`). Tag pushes are deliberately NOT a
+  # trigger (GitHub's paths filter is unreliable on tag pushes).
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Extra image tag to publish (optional, e.g. a release name)"
+        required: false
+        default: ""
+      relay_url:
+        description: "Relay origin to compile into the SPA (default https://relay.tenshu.app)"
+        required: false
+        default: ""
+      construction_code:
+        description: "Pre-launch gate code baked into the SPA (empty = no curtain; web/apex ConstructionGate)"
+        required: false
+        default: ""
+
+concurrency:
+  group: apex-image-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE: ghcr.io/b3nedikt/tenshu-apex
+
+jobs:
+  build-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ⚠⚠ Two JDKs, 17 LAST so it stays the daemon JVM — the pin android.yml explains at length.
+      - name: Set up JDK 25 (desktop FFM toolchain) + JDK 17 (daemon + shared modules)
+        uses: actions/setup-java@v4
+        with:
+          java-version: |
+            25
+            17
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Register both JDKs with Gradle toolchain detection
+        run: |
+          mkdir -p ~/.gradle
+          echo "org.gradle.java.installations.fromEnv=JAVA_HOME_25_X64,JAVA_HOME_25_ARM64,JAVA_HOME_17_X64,JAVA_HOME_17_ARM64" >> ~/.gradle/gradle.properties
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+
+      # ⚠ 22, not 20 — tracked with web.yml and web/apex/Dockerfile's `web` stage so the image and
+      # CI are never built on two different runtimes.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      # ⚠⚠ Build + stage the apex AND every app through the deploy script, never in YAML: the
+      # `prebuilt` target copies `web/.apps-dist`, and a YAML copy of the build (apex only) is
+      # what left this workflow broken from F2 until web-app-suite F3/F4.
+      - name: Build the SDK bundle, the apex and every app, and stage them
+        env:
+          RELAY_URL: ${{ github.event.inputs.relay_url != '' && github.event.inputs.relay_url || 'https://relay.tenshu.app' }}
+          CONSTRUCTION_CODE: ${{ github.event.inputs.construction_code }}
+        run: ./deploy/build-apex-image.sh --dist-only
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=short
+            type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event.inputs.tag != '' }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          # Build context is the REPO ROOT — the SDK bundle build is multi-module
+          # and the @tenshu/sdk package lives above web/.
+          context: .
+          file: web/apex/Dockerfile
+          # ⚠⚠ Both architectures, and `prebuilt` is what makes that free. Every current deploy target
+          # is amd64 — the DigitalOcean droplet and Scaleway's DEV1/PRO2 line — so arm64 here is
+          # insurance, not a requirement. A built SPA is static text with no architecture, and
+          # `prebuilt` is COPY + metadata over a multi-arch Caddy base — no RUN — so the arm64 leg
+          # emulates NOTHING. The `full` target would run BOTH toolchains under QEMU instead.
+          target: prebuilt
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

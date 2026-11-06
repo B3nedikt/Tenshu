@@ -1,0 +1,32 @@
+Tenshu Fit zeichnet deine Trainings auf und holt deine Aktivität aus Health Connect, verschlüsselt und auf all deinen Geräten synchron. Nur deine eigenen Geräte können sie lesen.
+
+TENSHU FIT BRAUCHT TENSHU CONTROL
+Tenshu Control verwahrt deine Schlüssel und verbindet deine Geräte. Installiere Tenshu Control über Google Play und richte es zuerst ein, dann öffne Fit. Fit findet Control von selbst.
+
+WAS DU TUN KANNST
+- Einen Lauf, einen Spaziergang, eine Radfahrt oder ein Krafttraining aufzeichnen. Unterwegs siehst du Zeit, Distanz, Pace und Schritte, dazu die Route per GPS. Die Aufzeichnung läuft bei ausgeschaltetem Bildschirm weiter, und du kannst sie über die Benachrichtigung pausieren, fortsetzen oder beenden.
+- Einen Bluetooth-Herzfrequenz-Brustgurt verbinden, um während der Aufzeichnung deine Herzfrequenz zu sehen.
+- Aus Health Connect importieren, wenn du es erlaubst: Trainings mit ihren Routen, Schritte, Distanz, verbrannte Kalorien, Schlaf, Gewicht und Größe, Herzfrequenz und Ruheherzfrequenz, Blutsauerstoff, Atemfrequenz, Nahrungsenergie, Wasser und Zyklusdaten. Fit importiert die letzten 30 Tage oder deinen gesamten Verlauf, wenn du auch das erlaubst, und importiert erneut, wenn du Fit öffnest.
+- Trainings aus einer .zip-Datei von Google Takeout oder aus .gpx- und .tcx-Dateien importieren.
+- Auf deine Trainings zurückblicken, jedes mit Route, Runden und Herzfrequenz, und einfache Trends über die Zeit sehen.
+- Tagesziele für aktive Minuten und Schritte festlegen.
+
+Fit hilft dir, deine Aktivität im Blick zu behalten. Es ist kein Medizinprodukt und gibt keine medizinischen Ratschläge.
+
+WIE FIT DEINE DATEN PRIVAT HÄLT
+- Deine Trainings und Gesundheitsdaten werden auf deinem Gerät verschlüsselt, bevor sie hochgeladen werden. Die Server von Tenshu speichern nur verschlüsselte Daten und haben nicht die Schlüssel, um sie zu lesen.
+- Einige Fakten, die der Server zum Synchronisieren braucht, sieht er trotzdem: wie viel du speicherst, wie viele Geräte du hast und wann sie synchronisieren.
+- Fit hat keine Werbung und keine Analyse-Tools, und es gibt deine Gesundheitsdaten an niemanden weiter.
+- Fit liest aus Health Connect nur die Datenarten, die du erlaubst, und schreibt nichts in Health Connect.
+- Fit nutzt deinen Standort nur, während du ein Training aufzeichnest.
+- Ohne Speicherplan bleiben deine Daten auf diesem Gerät.
+
+VORAUSSETZUNGEN
+- Android 8.0 oder neuer.
+- Health Connect, um deine Gesundheitsdaten zu übernehmen.
+- Tenshu Control, eingerichtet auf demselben Handy.
+- Zum Synchronisieren zwischen Geräten: ein Speicherplan. Der kostenlose Plan hat 5 GB.
+
+Tenshu ist Open Source und noch in der Testphase: Rechne mit Ecken und Kanten und sag uns, was nicht funktioniert.
+
+Hilfe und häufige Probleme: tenshu.app/apps/fit/support/android/de

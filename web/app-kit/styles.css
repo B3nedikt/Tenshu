@@ -1,0 +1,7 @@
+/* Tailwind must see the class names the app-kit's components use, or an app's CSS silently lacks
+   them (v4 detects sources from the app's own directory, and this package is outside it). An app's
+   index.css imports this after `tailwindcss` and the token layer. ⚠ Only the components: Tailwind
+   reads every word of a source as a candidate, so pointing it at the whole package (comments,
+   tests) adds classes like `relative` and `table` to every app's CSS. */
+@source './src/ui';
+@source not './src/ui/*.test.tsx';

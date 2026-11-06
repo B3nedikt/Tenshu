@@ -1,0 +1,185 @@
+# XcodeGen spec for the Control iOS app shell (Control-on-iOS C2b,
+# docs/proposals/ios-control-handover.md). Mirrors drive-ios/project.yml. The
+# generated `ControlIos.xcodeproj` + `Info.plist` are gitignored (build from
+# source, like the Kotlin framework + libsodium).
+#
+# Regenerate after editing:   (cd control-ios && xcodegen generate)
+# Build (simulator):          xcodebuild -project ControlIos.xcodeproj -scheme ControlIos \
+#                               -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' build
+#
+# C2b is the app *shell over fakes*: it binds the real `:control-shared-logic`
+# view models to SwiftUI through the `ControlSurface` umbrella seam, with the
+# `Mock*` repositories standing in for a proxy — exactly as drive-ios first stood
+# up over `FakeFilesRepository`. Genesis onboarding (NewUser/Recovery) is C2c; the
+# provisioning bridge is C3 (its `epc-session` presence token is retired; route 1
+# publishes the shared-Keychain key material instead).
+name: ControlIos
+options:
+  bundleIdPrefix: app.tenshu
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+configs:
+  Debug: debug
+  Release: release
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    # Ad-hoc-signed on the SIMULATOR (CODE_SIGN_IDENTITY = "-") so the app carries an
+    # `application-identifier` entitlement and gets a working per-app Keychain — needed by
+    # genesis's setUpUnlock + the RT-5 durable realm-device probe, which the old fully-unsigned
+    # build couldn't do (errSecMissingEntitlement -34018). Ad-hoc signing needs NO Apple ID /
+    # Team ID — that's only a real-device requirement (free-tier device signing + the shared
+    # `app.tenshu.shared` group remains ios-signing.md §2). On-device + App Attest are C5.
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGNING_ALLOWED: "YES"
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    # Real-device (iphoneos) builds sign for the personal team (ios-signing.md §2/§3);
+    # the simulator keeps the ad-hoc config above. The Team ID is resolved from
+    # $TENSHU_TEAM_ID at `xcodegen generate` time (mirror of the macOS -Ptenshu.teamId
+    # flow; the value lives in local.properties as tenshu.teamId).
+    CODE_SIGNING_REQUIRED[sdk=iphoneos*]: "YES"
+    CODE_SIGN_STYLE[sdk=iphoneos*]: Automatic
+    CODE_SIGN_IDENTITY[sdk=iphoneos*]: "Apple Development"
+    DEVELOPMENT_TEAM[sdk=iphoneos*]: ${TENSHU_TEAM_ID}
+    # Apple-silicon simulator only — matches the Kotlin framework's arch set (no iosX64
+    # because paging-common ships no iosX64 klib). Without this the app builds
+    # x86_64 and can't load the framework's Swift module for that arch.
+    EXCLUDED_ARCHS[sdk=iphonesimulator*]: x86_64
+
+include:
+  # The shared adaptive navigation shell (N6), applied as `templates: [AdaptiveAppShell]`.
+  - path: ../ios-shell/shell.yml
+  # For the sync-activity capsule (`ios-sync-activity-indicator.md` §6a.2), which lives in this
+  # fragment beside the realm-storage banner.
+  # ⚠ Control compiles `RealmStorageBanner` and does NOT mount it: its Services screen states the
+  # plan, and what the bar's action should do inside Control itself is undecided.
+  - path: ../ios-storage/storage.yml
+  # Version numbers and orientations (`ReleaseApp`), and how Control links its OWN Kotlin
+  # framework (`AppFramework`).
+  - path: ../ios-release/release.yml
+  # The open-source notices (`docs/oss-licences.md`), applied below as `templates: [OssLicences]`.
+  - path: ../ios-about/about.yml
+
+targets:
+  ControlIos:
+    type: application
+    platform: iOS
+    templates:
+      - AdaptiveAppShell
+      - RealmStorageBanner
+      - ReleaseApp
+      - OssLicences
+      # ⚠ Control links `:tenshu-sdk-ios-control` (`ios-per-app-frameworks.md` P2),
+      # so it carries no generic purpose strings: its binary has no HealthKit, location, Bluetooth,
+      # motion or Photos load command for App Store Connect to ask about, and
+      # `scripts/ios-archive.sh` fails an archive that grows one.
+      - AppFramework
+    sources:
+      - path: Sources
+      - path: Resources
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: Tenshu Control
+        # Export compliance (`docs/how-to/ios-testflight.md`): libsodium ships standard (IETF)
+        # algorithms beside Apple's own, so App Store Connect's answer is "standard algorithms".
+        ITSAppUsesNonExemptEncryption: true
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        # C6 / B-4: the "Add a device" joiner scans a pairing QR with the camera.
+        NSCameraUsageDescription: Scan a pairing code shown on another device to add this one to your realm.
+        # AppLockGate's soft app-lock (LAContext .deviceOwnerAuthentication). Without this key
+        # iOS silently SKIPS Face ID and falls straight to the device passcode — Face ID (unlike
+        # Touch ID) is usage-description-gated.
+        NSFaceIDUsageDescription: Unlock Control with Face ID.
+        # §11.6 / "Open Tenshu Control": Drive opens `tenshu-control://setup` from its
+        # "Connect to Control" screen to forward the user here for genesis/pairing.
+        # Registering this scheme is what makes drive-ios's openURL `accepted` callback
+        # fire (and thus what launches Control); without it Drive treats Control as not
+        # installed. The handler is a no-op landing (any launch lands on ControlRootView).
+        # NT-2b (`ios-notification-elevation.md` v0.2, D1-rev): Control is woken to notice
+        # inbound actionable requests (membership grants, redeemed contact invites) that arrived
+        # while it was closed, and post a notification. Identifiers are STATIC by iOS design.
+        # ⚠ This file is the source — `Info.plist` is generated and gitignored, so editing the
+        # plist directly is silently undone by the next `xcodegen generate`.
+        UIBackgroundModes: [fetch]
+        BGTaskSchedulerPermittedIdentifiers: [app.tenshu.control.refresh]
+        CFBundleURLTypes:
+          - CFBundleURLName: app.tenshu.control.setup
+            CFBundleURLSchemes:
+              - tenshu-control
+        # The build's effective shared Keychain access group (bare on the sim, Team-prefixed
+        # on a signed device build) — read by the Kotlin ControlSessionProvisioner /
+        # RealmKeyMaterialBridge instead of hardcoding the bare group (ios-signing.md §2).
+        TenshuSharedKeychainGroup: $(TENSHU_SHARED_KEYCHAIN_GROUP)
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.tenshu.control.ios.smoke
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: "NO"
+        # Per-app Keychain entitlement (application-identifier) so the ad-hoc-signed sim build
+        # can use the Keychain. See Control.entitlements + the base signing settings above.
+        CODE_SIGN_ENTITLEMENTS: Control.entitlements
+        TENSHU_SHARED_KEYCHAIN_GROUP: app.tenshu.shared
+        # Device builds: real bundle ID (profiles bind to it — ios-signing.md §1), device
+        # entitlements (Team-prefixed Keychain groups + the App Group), Team-prefixed group.
+        PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]: app.tenshu.control.ios
+        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: Control.device.entitlements
+        TENSHU_SHARED_KEYCHAIN_GROUP[sdk=iphoneos*]: $(DEVELOPMENT_TEAM).app.tenshu.shared
+        # Control's own static `TenshuSdk` framework — linked by search path and name (the
+        # `AppFramework` template), not embedded. Debug links the debug framework, Release the
+        # release one; one spec for both, so there is no `project.archive.yml`.
+        TENSHU_SDK_MODULE: tenshu-sdk-ios-control
+    preBuildScripts:
+      - name: Build TenshuSdk.framework
+        # Keep the linked framework fresh before compile/link: one slice of Control's framework,
+        # debug or release by configuration (scripts/ios-build-sdk.sh).
+        script: |
+          "$SRCROOT/../scripts/ios-build-sdk.sh" control
+        basedOnDependencyAnalysis: false
+
+  # The store screenshots (docs/how-to/store-screenshots.md): an XCUITest that walks the
+  # SHIPPING app — real genesis by taps, then the main tabs — and attaches one screenshot per
+  # screen. Run only through `scripts/store-screenshots.sh`, which owns the simulators, the
+  # status bar and the export. ⚠ Its scheme tests in `Debug`, the configuration the shipping
+  # screens compile in; it must never point at a fakes route (`-settingsHome`, `-shares`, …),
+  # because a store listing has to show what the release app renders.
+  ControlIosScreenshots:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: Screenshots
+      # AdaptiveAppShell's tab lookup, shared by every walk (bottom tabs, iPad top tabs, sidebar).
+      - path: ../ios-shell/UITestSupport
+    dependencies:
+      - target: ControlIos
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.tenshu.control.ios.screenshots
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_TARGET_NAME: ControlIos
+
+schemes:
+  ControlIos:
+    build:
+      targets:
+        ControlIos: all
+    run:
+      config: Debug
+  # Store screenshots — see the ControlIosScreenshots target.
+  ControlIos-Screenshots:
+    build:
+      targets:
+        ControlIos: all
+        ControlIosScreenshots: [test]
+    test:
+      config: Debug
+      targets:
+        - ControlIosScreenshots
+    run:
+      config: Debug

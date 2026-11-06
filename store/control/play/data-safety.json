@@ -1,0 +1,56 @@
+{
+  "about": "Reviewed in docs/how-to/play-console-answers.md \u00a711.1. Realm data is end-to-end encrypted and not declared (Google's E2EE exemption). No SDK telemetry: MediaPipe and Play Billing log through datatransport, whose upload backend Control's manifest strips (\u00a711.0). Device ID = Tenshu's own per-device id on the relay, only with sync. The deletion URL is the public account-deletion page (web/apex /account/delete, \u00a713 D2).",
+  "collects": true,
+  "encrypted_in_transit": true,
+  "account_creation": [
+    "PSL_ACM_USER_ID_OTHER_AUTH"
+  ],
+  "account_deletion_url": "https://tenshu.app/account/delete",
+  "data_deletion": "DATA_DELETION_YES",
+  "data_deletion_url": "https://tenshu.app/account/delete",
+  "data_types": {
+    "PSL_EMAIL": {
+      "collected": true,
+      "shared": false,
+      "ephemeral": false,
+      "optional": true,
+      "collection_purposes": [
+        "PSL_APP_FUNCTIONALITY",
+        "PSL_ACCOUNT_MANAGEMENT"
+      ],
+      "sharing_purposes": []
+    },
+    "PSL_USER_ACCOUNT": {
+      "collected": true,
+      "shared": false,
+      "ephemeral": false,
+      "optional": true,
+      "collection_purposes": [
+        "PSL_APP_FUNCTIONALITY",
+        "PSL_ACCOUNT_MANAGEMENT"
+      ],
+      "sharing_purposes": []
+    },
+    "PSL_PURCHASE_HISTORY": {
+      "collected": true,
+      "shared": false,
+      "ephemeral": false,
+      "optional": true,
+      "collection_purposes": [
+        "PSL_APP_FUNCTIONALITY",
+        "PSL_ACCOUNT_MANAGEMENT"
+      ],
+      "sharing_purposes": []
+    },
+    "PSL_DEVICE_ID": {
+      "collected": true,
+      "shared": false,
+      "ephemeral": false,
+      "optional": true,
+      "collection_purposes": [
+        "PSL_APP_FUNCTIONALITY"
+      ],
+      "sharing_purposes": []
+    }
+  }
+}

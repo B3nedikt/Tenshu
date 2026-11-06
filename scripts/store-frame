@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+#
+# Framed, captioned store screenshots (store-presence-and-support-pages.md §3.2, phase S7).
+# A thin wrapper over web/store-frame (TypeScript, Chromium through playwright-core), plus `fetch`,
+# which brings the pinned bezels from the PRIVATE bucket into build/store/frames/.
+#
+#   scripts/store-frame render <app> [--device iphone69] [--lang en] [--screen NN-name …] [--no-caption]
+#   scripts/store-frame inspect <bezel.png>     sha256 + transparent screen area for store/frames/manifest.json
+#   scripts/store-frame check                   which frames are pinned and measured
+#   scripts/store-frame fetch                   every pinned bezel with a `fetch` URL → build/store/frames/<sha256>.png
+#
+# Needs `pnpm -C web install` once, and Chromium for playwright-core (docs/how-to/store-listings.md §6).
+# fetch needs the R2 key pair and FIXTURES_ENDPOINT, exactly as store/fixtures/generate.py does.
+set -euo pipefail
+
+ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+
+if [ "${1:-}" = fetch ]; then
+  # Reuses the fixture fetcher: the same private bucket, the same key pair, the same verify-or-fail.
+  exec python3 -B - "$ROOT" <<'PY'
+import hashlib, importlib.util, json, os, sys
+root = sys.argv[1]
+spec = importlib.util.spec_from_file_location("fixtures", os.path.join(root, "store", "fixtures", "generate.py"))
+fixtures = importlib.util.module_from_spec(spec); spec.loader.exec_module(fixtures)
+out = os.environ.get("STORE_FRAMES_DIR") or os.path.join(root, "build", "store", "frames")
+os.makedirs(out, exist_ok=True)
+frames = json.load(open(os.path.join(root, "store", "frames", "manifest.json")))["frames"]
+pending = 0
+for fid, f in sorted(frames.items()):
+    if f.get("kind") == "css":
+        print(f"store-frame: {fid} — drawn in CSS, nothing to fetch"); continue
+    if not f["sha256"] or not f["fetch"]:
+        print(f"store-frame: {fid} — not pinned yet (sha256/fetch null), skipped"); pending += 1; continue
+    dest = os.path.join(out, f["sha256"] + ".png")
+    if os.path.exists(dest) and fixtures.sha256_of(dest) == f["sha256"]:
+        print(f"store-frame: {fid} — have {dest}"); continue
+    fixtures.download(f["fetch"], dest + ".part")
+    if fixtures.sha256_of(dest + ".part") != f["sha256"]:
+        os.remove(dest + ".part"); sys.exit(f"store-frame: {fid} — {f['fetch']} does NOT match its pinned sha256")
+    os.replace(dest + ".part", dest); print(f"store-frame: {fid} — fetched {dest}")
+sys.exit(0)
+PY
+fi
+
+STORE_FRAME_CWD="$PWD" exec pnpm --silent -C "$ROOT/web" --filter @tenshu/store-frame exec node src/cli.ts "$@"

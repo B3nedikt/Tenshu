@@ -1,0 +1,55 @@
+{
+  "about": "Tenshu Timeline's store-screenshot fixture (docs/how-to/store-screenshots.md §3f): two weeks of one invented person's ordinary days at home in Milan, then three days in Florence that end today — generated at run time by store/fixtures/timeline/generate_timeline.py as a Google Timeline export (the legacy Semantic Location History shape, with place names) and imported through the shared Google Timeline importer by Timeline's -seedFixture launch. Nothing here is a recording of anyone: the Milan places are generic names on arbitrary coordinates, and the Florence ones are public squares, galleries and gardens. Every date is relative to the day of the run. ⚠ Florence is the trip because it is the bundled basemap (the only map an iOS install draws without a downloaded region), and Milan is home because Timeline suggests a trip only more than 100 km from home; Florence walks are routed along that archive's own streets (store/fixtures/fit/streets.py). Each step is [place, until HH:MM, mode of the leg that arrives there]; a step naming the place already occupied only sets when the stay ends.",
+  "seed": 20261030,
+  "notBefore": "14:00",
+  "places": {
+    "home": {"name": "Home", "at": [9.1712, 45.4627]},
+    "office": {"name": "Office", "at": [9.1893, 45.4838]},
+    "lunch": {"name": "Lunch bar", "at": [9.1878, 45.4822]},
+    "gym": {"name": "Climbing gym", "at": [9.1590, 45.4790]},
+    "park": {"name": "Parco Sempione", "at": [9.1760, 45.4727]},
+    "darsena": {"name": "Darsena", "at": [9.1792, 45.4527]},
+    "market": {"name": "Saturday market", "at": [9.1680, 45.4600]},
+    "milanoCentrale": {"name": "Milano Centrale", "at": [9.2040, 45.4860]},
+    "smn": {"name": "Firenze Santa Maria Novella", "at": [11.2486, 43.7758], "florence": true},
+    "flat": {"name": "Florence", "at": [11.2516, 43.7652], "florence": true},
+    "mercato": {"name": "Mercato Centrale", "at": [11.2534, 43.7763], "florence": true},
+    "duomo": {"name": "Duomo", "at": [11.2560, 43.7731], "florence": true},
+    "santaCroce": {"name": "Santa Croce", "at": [11.2622, 43.7686], "florence": true},
+    "michelangelo": {"name": "Piazzale Michelangelo", "at": [11.2651, 43.7629], "florence": true},
+    "trattoria": {"name": "Trattoria in San Niccolò", "at": [11.2628, 43.7647], "florence": true},
+    "santoSpirito": {"name": "Piazza Santo Spirito", "at": [11.2470, 43.7670], "florence": true},
+    "boboli": {"name": "Boboli Gardens", "at": [11.2500, 43.7625], "florence": true},
+    "uffizi": {"name": "Uffizi Gallery", "at": [11.2553, 43.7679], "florence": true},
+    "signoria": {"name": "Piazza della Signoria", "at": [11.2556, 43.7697], "florence": true},
+    "accademia": {"name": "Galleria dell'Accademia", "at": [11.2588, 43.7768], "florence": true}
+  },
+  "homeDays": {
+    "from": 16,
+    "to": 3,
+    "weekday": {
+      "MON": [["home", "08:20"], ["office", "12:30", "CYCLING"], ["lunch", "13:15", "WALKING"], ["office", "18:15", "WALKING"], ["gym", "20:15", "CYCLING"], ["home", null, "CYCLING"]],
+      "TUE": [["home", "08:25"], ["office", "12:35", "CYCLING"], ["lunch", "13:20", "WALKING"], ["office", "18:30", "WALKING"], ["home", null, "CYCLING"]],
+      "WED": [["home", "08:15"], ["office", "12:30", "CYCLING"], ["lunch", "13:10", "WALKING"], ["office", "18:05", "WALKING"], ["gym", "20:10", "CYCLING"], ["home", null, "CYCLING"]],
+      "THU": [["home", "08:30"], ["office", "12:40", "CYCLING"], ["lunch", "13:25", "WALKING"], ["office", "18:20", "WALKING"], ["park", "19:30", "RUNNING"], ["home", null, "RUNNING"]],
+      "FRI": [["home", "08:20"], ["office", "12:30", "CYCLING"], ["lunch", "13:15", "WALKING"], ["office", "17:45", "WALKING"], ["darsena", "22:10", "CYCLING"], ["home", null, "WALKING"]],
+      "SAT": [["home", "09:40"], ["market", "11:10", "WALKING"], ["home", "16:30", "WALKING"], ["park", "18:15", "WALKING"], ["home", null, "WALKING"]],
+      "SUN": [["home", "10:30"], ["darsena", "12:40", "CYCLING"], ["park", "15:30", "CYCLING"], ["home", null, "CYCLING"]]
+    }
+  },
+  "trip": [
+    {"daysAgo": 2, "steps": [
+      ["home", "07:35"], ["milanoCentrale", "08:20", "IN_SUBWAY"], ["smn", "10:25", "IN_TRAIN"],
+      ["flat", "11:20", "WALKING"], ["mercato", "12:45", "WALKING"], ["duomo", "14:20", "WALKING"],
+      ["santaCroce", "15:50", "WALKING"], ["michelangelo", "17:40", "WALKING"], ["trattoria", "19:50", "WALKING"],
+      ["flat", null, "WALKING"]]},
+    {"daysAgo": 1, "steps": [
+      ["flat", "08:40"], ["santoSpirito", "09:15", "WALKING"], ["boboli", "11:25", "WALKING"],
+      ["uffizi", "14:50", "WALKING"], ["signoria", "15:30", "WALKING"], ["flat", "18:10", "WALKING"],
+      ["santoSpirito", "20:40", "WALKING"], ["flat", null, "WALKING"]]},
+    {"daysAgo": 0, "steps": [
+      ["flat", "08:50"], ["santoSpirito", "09:25", "WALKING"], ["accademia", "11:20", "WALKING"],
+      ["mercato", "12:35", "WALKING"], ["signoria", "13:05", "WALKING"], ["flat", null, "WALKING"]]}
+  ],
+  "train": {"via": [[9.2040, 45.4860], [10.3280, 44.8100], [11.3426, 44.5058], [11.2486, 43.7758]], "minutes": 115}
+}

@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "models": [
+    {
+      "id": "siglip-base-patch16-256-multilingual",
+      "name": "SigLIP base (multilingual)",
+      "version": 1,
+      "capabilities": ["semanticImageSearch"],
+      "labelSetVersion": 1,
+      "runtime": "onnx",
+      "artifactVersion": 1,
+      "licence": "Apache-2.0",
+      "artifacts": [
+        { "role": "vision",     "path": "siglip-base-patch16-256-multilingual/1/vision_model_uint8.onnx" },
+        { "role": "text",       "path": "siglip-base-patch16-256-multilingual/1/text_model_int8.onnx" },
+        { "role": "vocabulary", "path": "siglip-base-patch16-256-multilingual/1/tokenizer.bin" }
+      ]
+    },
+    {
+      "id": "auraface-v1-int8",
+      "name": "People (AuraFace + MediaPipe Face Landmarker)",
+      "version": 1,
+      "capabilities": ["faceClustering"],
+      "runtime": "onnx+mediapipe",
+      "artifactVersion": 1,
+      "licence": "Apache-2.0",
+      "artifacts": [
+        { "role": "faceDetector", "path": "auraface-v1-int8/1/face_landmarker.task" },
+        { "role": "faceEmbedder", "path": "auraface-v1-int8/1/auraface_int8.onnx" }
+      ]
+    },
+    {
+      "id": "siglip-base-patch16-256-multilingual",
+      "name": "SigLIP base (multilingual)",
+      "version": 1,
+      "capabilities": ["semanticImageSearch"],
+      "labelSetVersion": 1,
+      "runtime": "coreml",
+      "artifactVersion": 1,
+      "licence": "Apache-2.0",
+      "source": {
+        "repo": "google/siglip-base-patch16-256-multilingual",
+        "revision": "8952a4eafcde3cb7ab46b1dd629b33f8784ca9c6",
+        "files": {
+          "config.json": "af92473ce89269ba92b2fb33466179aef6ceeb62d3c2f4db55da9a3380e67320",
+          "model.safetensors": "00df88d823790b34a4d2d0047803ffabd47497ae724fd6659b1533dd793255be",
+          "preprocessor_config.json": "e12b577bd0da1f9bf6a0b8d3d78c8f9b55b9d99dec25556954e19cfc7b8ecf28",
+          "tokenizer.json": "babbf9fed5f505ac6b28fd820b5108ca6882332ce6b921c8d33f8ff69bf841d9",
+          "tokenizer_config.json": "d6423dae508cc3a129d22ea443841c111832a1a73125b8f25ea8736951698bcb"
+        },
+        "toolchain": {
+          "coremltools": "9.0",
+          "numpy": "2.2.6",
+          "pinned": true,
+          "python": "3.13.7",
+          "torch": "2.7.0",
+          "transformers": "4.53.3"
+        },
+        "exportManifestSha256": "3fd1918106d46c76cbebbd5ef0d566c6b941458d00015370be6677e33026b6f0"
+      },
+      "artifacts": [
+        { "role": "vision",     "path": "siglip-base-patch16-256-multilingual/1/coreml/vision_fp16.mlpackage.tar",
+          "sha256": "a30d4ddeaa9d9cc6fc9a894c2c01617d0ed0ae6abbdac832337037a5e410d8de", "byteSize": 184842240 },
+        { "role": "text",       "path": "siglip-base-patch16-256-multilingual/1/coreml/text_fp16.mlpackage.tar",
+          "sha256": "628f7f32ac0c43e7d7e25b396b5c12b7da8ad3208ca696d1a4a7d0bcfb41907d", "byteSize": 555540480 },
+        { "role": "vocabulary", "path": "siglip-base-patch16-256-multilingual/1/tokenizer.bin",
+          "sha256": "0077b8d2b79f30ff96015e1b76ff4c7d3d036667083e8a4da3bf1ee3df3d34aa", "byteSize": 3066150 }
+      ]
+    }
+  ]
+}

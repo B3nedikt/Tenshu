@@ -1,0 +1,28 @@
+Tenshu Home zeigt die Smart-Home-Geräte, die ein Tenshu Hub in deinem Realm meldet, und führt deine Automationen auf deinem Handy aus. Die Daten deines Zuhauses sind verschlüsselt und auf all deinen Geräten synchron.
+
+TENSHU HOME BRAUCHT TENSHU CONTROL UND EINEN TENSHU HUB
+Tenshu Control verwahrt deine Schlüssel und verbindet deine Geräte. Installiere Tenshu Control über Google Play und richte es zuerst ein, dann öffne Home. Home findet Control von selbst.
+Um Geräte zu sehen und zu schalten, braucht Home einen Tenshu Hub: einen Heimserver, den du selbst betreibst – derzeit ein früher Eigenbau für Zigbee-Geräte. Ohne Hub bleibt die Geräteliste leer.
+
+WAS DU TUN KANNST
+- Deine Geräte nach Raum sehen, sie ein- und ausschalten und Lampen dimmen, die das unterstützen.
+- Ein neues Zigbee-Gerät über deinen Hub koppeln.
+- Automationen erstellen, die zu einer Uhrzeit oder bei Sonnenaufgang oder Sonnenuntergang laufen, mit Bedingungen wie einem Zeitfenster, dem Zustand eines Geräts oder ob jemand zu Hause ist. Geräte ein- oder ausschalten oder eine andere Automation ausführen.
+- Automationen ein- und ausschalten und unter „Aktivität“ sehen, wann jede gelaufen ist.
+
+Home steht noch am Anfang. Einige Optionen im Automationseditor sind noch nicht verfügbar, und die App sagt dir das. Einstellungen für Räume, Benachrichtigungen und den Hub kommen später.
+
+WIE HOME DEIN ZUHAUSE PRIVAT HÄLT
+- Home hat keinen eigenen Internetzugang: Es erreicht deinen Hub und deine anderen Geräte nur über Tenshu Control.
+- Deine Geräte, Automationen und ihre Aktivität werden auf deinem Gerät verschlüsselt, bevor sie hochgeladen werden. Die Server von Tenshu speichern nur verschlüsselte Daten und haben nicht die Schlüssel, um sie zu lesen.
+- Einige Fakten, die der Server zum Synchronisieren braucht, sieht er trotzdem: wie viel du speicherst, wie viele Geräte du hast und wann sie synchronisieren.
+
+VORAUSSETZUNGEN
+- Android 7.0 oder neuer.
+- Tenshu Control, eingerichtet auf demselben Handy.
+- Ein Tenshu Hub, um Geräte zu sehen und zu schalten.
+- Zum Synchronisieren zwischen Geräten: ein Speicherplan. Der kostenlose Plan hat 5 GB.
+
+Tenshu ist Open Source und noch in der Testphase: Rechne mit Ecken und Kanten und sag uns, was nicht funktioniert.
+
+Hilfe und häufige Probleme: tenshu.app/apps/support/de

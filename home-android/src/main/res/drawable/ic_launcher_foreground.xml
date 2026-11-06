@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Ported from docs/design/tenshu-icons/icons/android/foreground/home.svg.
+  Source wraps a 64-unit-grid pictogram in <g transform="translate(84 84) scale(4.125)">.
+  Rather than bake the transform into every coordinate, the pictogram lives inside a
+  <group> with the same translate/scale so the path data is copied verbatim from the SVG
+  (the group scale also scales the 3.5 nominal stroke-width to the 14.4375 rendered width).
+
+  The door is a fill, not an outline: an outlined door closes up into a smudge at launcher
+  size, which is what the placeholder this replaces did. Interior accents in this set are
+  always solid for that reason.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="432"
+    android:viewportHeight="432">
+    <group
+        android:translateX="84"
+        android:translateY="84"
+        android:scaleX="4.125"
+        android:scaleY="4.125">
+        <!-- Roof, eaves proud of the walls -->
+        <path
+            android:pathData="M 9 31 L 32 12 L 55 31"
+            android:strokeColor="#FAFAFA"
+            android:strokeWidth="3.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <!-- Walls -->
+        <path
+            android:pathData="M 15 27.5 L 15 52 L 49 52 L 49 27.5"
+            android:strokeColor="#FAFAFA"
+            android:strokeWidth="3.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <!-- Door -->
+        <path
+            android:pathData="M 27 42 a 2 2 0 0 1 2 -2 L 35 40 a 2 2 0 0 1 2 2 L 37 52 L 27 52 Z"
+            android:fillColor="#FAFAFA" />
+    </group>
+</vector>

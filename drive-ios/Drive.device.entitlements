@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    Drive-on-iOS REAL-DEVICE entitlements (ios-signing.md §2). Used only for
+    sdk=iphoneos builds; the simulator keeps Drive.entitlements.
+
+    Differences from the simulator file:
+    - no `application-identifier` — the signing machinery injects it from the profile;
+    - Keychain groups are Team-prefixed via $(AppIdentifierPrefix) (expands to
+      "<TeamID>." at signing time) — a bare group is rejected on device;
+    - the App Group id is the SAME bare string as on the simulator (below). Until
+      2026-10-02 this file had none (a free personal team cannot provision one), so
+      every device build ran on an app-local replica; it needs the paid company team
+      and the group registered there (ios-signing.md §6).
+
+    ControlSession.swift / the Kotlin ControlSessionProvisioner learn the effective
+    shared group from the Info.plist `TenshuSharedKeychainGroup` key.
+  -->
+  <key>keychain-access-groups</key>
+  <array>
+    <string>$(AppIdentifierPrefix)app.tenshu.drive.ios</string>
+    <string>$(AppIdentifierPrefix)app.tenshu.shared</string>
+  </array>
+  <!--
+    The App Group: the ONE replica every first-party app reads and writes on a real device
+    (ios-background-scheduling.md S0). Bare id, no team prefix: iOS App Group ids are global, and
+    this string must equal the simulator file's and the Kotlin `TENSHU_APP_GROUP`.
+  -->
+  <key>com.apple.security.application-groups</key>
+  <array>
+    <string>group.app.tenshu.shared</string>
+  </array>
+</dict>
+</plist>

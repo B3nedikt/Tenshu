@@ -1,0 +1,10 @@
+Tenshu Drive needs Tenshu Control (app.tenshu.control.ios) installed and set up on the same device first. Control holds the encryption keys; Drive cannot open without it.
+
+To review:
+1. Install Tenshu Control and open it. Tap "Start fresh on this device", then "Continue", then "I've saved it".
+2. Open Tenshu Drive. It finds Control on its own and shows an empty file list.
+3. Tap "+" to upload a file or a photo, or to create a folder. Tap a file to open it; a file's actions include Rename, Move and Share Link.
+
+Without "Turn on sync" in Control, files stay on the device and Drive shows that it is not syncing; that is expected. To try sync, use "Turn on sync" in Control: it asks for an email address and then a 6-digit code. Use the sign-in details in App Review Information: enter the user name as the email address and the password as the code (no email is sent to that address).
+
+All files are end-to-end encrypted on the device before they reach our servers; the servers cannot read them.

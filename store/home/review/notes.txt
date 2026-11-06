@@ -1,0 +1,13 @@
+Tenshu Home needs Tenshu Control installed and set up on the same device first. Control holds the encryption keys; Home cannot open without it.
+
+To review:
+1. Install Tenshu Control and open it. Tap "Start fresh on this device", then "Continue", then "I've saved it".
+2. Open Tenshu Home. It shows "Home", "Automations", "Activity" and "Settings".
+
+What works today: Home on iPhone shows the devices, automations and activity that a Tenshu Hub in the user's realm reports. It is read-only: adding devices and editing automations are not available on iPhone yet, and the app says so. Without a Hub, the screens are empty.
+
+Permissions: none. Home does not use HomeKit.
+
+"Turn on sync" in Control is optional: it asks for an email address and then a 6-digit code. To try it without a mailbox, use the sign-in details in App Review Information: enter the user name as the email address and the password as the code (no email is sent to that address). Any address you can receive mail at also works, and a new account is free.
+
+All data is end-to-end encrypted on the device before it reaches our servers; the servers cannot read it.

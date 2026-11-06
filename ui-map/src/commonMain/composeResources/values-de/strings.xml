@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- German (de). Mirrors ../values/strings.xml key for key; ADR 0016.
+     See the English file for per-string developer notes. -->
+<resources>
+    <string name="basemap_offline_attribution">Offline · MapLibre</string>
+    <string name="basemap_osm_attribution">Offline · © OpenStreetMap-Mitwirkende</string>
+    <string name="basemap_apple_attribution">© Apple Karten · Rechtliches</string>
+    <string name="basemap_scale_200m">200 m</string>
+</resources>

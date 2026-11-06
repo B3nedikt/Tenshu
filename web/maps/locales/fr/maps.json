@@ -1,0 +1,119 @@
+{
+  "app": {
+    "title": "Maps",
+    "tagline": "Vos lieux, chiffrés de bout en bout."
+  },
+  "runtime": {
+    "connectingTitle": "Connexion à Tenshu en cours…",
+    "connectingBody": "L’onglet Tenshu qui héberge Maps est occupé. Maps se chargera dès qu’il répondra.",
+    "elsewhereTitle": "Tenshu est ouvert dans un autre onglet",
+    "elsewhereBody": "Tenshu ne s’exécute que dans un onglet à la fois, pour que vos données restent cohérentes. Utilisez-le ici pour le déplacer dans cet onglet.",
+    "moving": "En attente de la fin de l’enregistrement dans l’autre onglet. Cela peut prendre jusqu’à deux minutes.",
+    "movingShort": "Déplacement…",
+    "useHere": "Utiliser ici"
+  },
+  "crash": {
+    "title": "Une erreur est survenue",
+    "body": "Cette partie de Maps a rencontré une erreur inattendue. Vos données sont en sécurité — rien n’a été modifié.",
+    "retry": "Réessayer",
+    "reload": "Recharger"
+  },
+  "common": {
+    "back": "Retour",
+    "cancel": "Annuler",
+    "loading": "Chargement…",
+    "retry": "Réessayer",
+    "working": "En cours…"
+  },
+  "read": {
+    "failedTitle": "Impossible de charger",
+    "silentTitle": "Toujours en chargement — ou impossible de charger"
+  },
+  "stream": {
+    "stopped": "Les mises à jour se sont arrêtées — ce que vous voyez n’est peut-être plus à jour.",
+    "reconnect": "Se reconnecter"
+  },
+  "places": {
+    "emptyTitle": "Aucun lieu pour l’instant",
+    "emptyBody": "Vos lieux apparaissent ici une fois enregistrés et synchronisés par votre téléphone.",
+    "listLabel": "Vos lieux"
+  },
+  "search": {
+    "label": "Rechercher dans vos lieux",
+    "placeholder": "Rechercher dans vos lieux",
+    "worldComing": "La recherche de lieux où vous n’êtes jamais allé arrive bientôt. Pour l’instant, la recherche porte sur vos propres lieux.",
+    "noMatches": "Aucun de vos lieux ne correspond à « {query} »."
+  },
+  "role": {
+    "home": "Domicile",
+    "work": "Travail"
+  },
+  "place": {
+    "unnamed": "Lieu sans nom",
+    "unnamedHint": "Renommez-le pour lui donner un nom.",
+    "nameIsUsers": "Nommé par vous",
+    "nameIsStored": "Nom trouvé par votre appareil",
+    "redirected": "Le lieu ouvert a été fusionné avec celui-ci.",
+    "merged": "{count, plural, one {Comprend # lieu fusionné} other {Comprend # lieux fusionnés}}",
+    "rename": "Renommer",
+    "notFoundTitle": "Lieu introuvable",
+    "notFoundBody": "Ce lieu n’existe plus. Il a peut-être été supprimé sur un autre appareil.",
+    "coordinateTitle": "Coordonnées",
+    "visitsTitle": "Visites"
+  },
+  "visits": {
+    "none": "Aucune visite enregistrée pour l’instant.",
+    "count": "{count, plural, one {# visite} other {# visites}}",
+    "last": "dernière visite : {when}"
+  },
+  "lastVisit": {
+    "today": "aujourd’hui",
+    "yesterday": "hier",
+    "daysAgo": "{count, plural, one {il y a # jour} other {il y a # jours}}",
+    "weeksAgo": "{count, plural, one {il y a # semaine} other {il y a # semaines}}",
+    "monthsAgo": "{count, plural, one {il y a # mois} other {il y a # mois}}",
+    "yearsAgo": "{count, plural, one {il y a # an} other {il y a # ans}}"
+  },
+  "copy": {
+    "action": "Copier les coordonnées",
+    "done": "Copié",
+    "failed": "Impossible de copier. Sélectionnez les coordonnées pour les copier à la main."
+  },
+  "rename": {
+    "title": "Renommer le lieu",
+    "label": "Nom du lieu",
+    "next": "Suivant",
+    "confirmTitle": "Renommer ce lieu ?",
+    "confirmBody": "« {from} » s’appellera « {to} » sur tous vos appareils.",
+    "confirm": "Renommer"
+  },
+  "map": {
+    "label": "Carte",
+    "loading": "Chargement de la carte…",
+    "unavailable": "Carte indisponible",
+    "noWebGL": "Ce navigateur ne peut pas afficher de cartes (WebGL est désactivé ou non pris en charge).",
+    "noRegion": "Aucune donnée cartographique pour cette zone."
+  },
+  "offline": {
+    "note": "Les cartes hors ligne se gèrent dans Tenshu Control sur votre téléphone ou votre ordinateur."
+  },
+  "errors": {
+    "error_generic": "Une erreur s’est produite. Veuillez réessayer.",
+    "error_unexpected": "Une erreur s’est produite. Veuillez réessayer.",
+    "error_internal": "Une erreur s’est produite. Veuillez réessayer.",
+    "error_not_found": "Cet élément n’est plus disponible.",
+    "error_invalid_caller": "Cette application n’est pas autorisée à faire cela.",
+    "error_unannounced_session": "Tenshu doit se reconnecter. Veuillez réessayer.",
+    "error_unsupported_operation": "Cette version ne le prend pas encore en charge.",
+    "error_timeline_place_not_found": "Ce lieu n’est plus disponible.",
+    "error_timeline_blank_name": "Saisissez un nom.",
+    "error_timeline_source_silent": "Vos lieux n’ont pas encore répondu. Ils peuvent encore arriver — réessayez dans un instant.",
+    "error_map_transport_unconfigured": "Aucune tuile de carte n’est configurée pour ce serveur Tenshu : aucune carte n’est affichée.",
+    "error_map_transport_failed": "Les tuiles de la carte n’ont pas pu être chargées.",
+    "error_map_catalog_unverified": "Le catalogue des cartes n’a pas pu être vérifié, aucune carte n’est donc affichée.",
+    "error_map_unknown_region": "Il n’y a pas de carte pour cette zone.",
+    "bridge": "Impossible de joindre Tenshu. Vérifiez qu’il est ouvert et déverrouillé, puis réessayez.",
+    "bridge_timeout": "Tenshu a mis trop de temps à répondre. Réessayez.",
+    "bridge_not_permitted": "Maps n’est pas autorisé à faire cela."
+  }
+}

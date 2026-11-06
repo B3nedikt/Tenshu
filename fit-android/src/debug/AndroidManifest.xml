@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  DEBUG BUILDS ONLY — the store-screenshot fixture seed (docs/how-to/store-screenshots.md §8, the
+  twin of fit-ios's `-seedFixture`). A release build merges none of this.
+
+  Health Connect has no way in from adb (its shell only inserts a canned test step record), and Fit
+  itself never writes to it, so a Health Connect full of one invented person's figures needs a
+  writer. The seed is that writer: it puts the fixture's daily figures into Health Connect and
+  renders one line of text, never captured. Fit then reads them back through the SHIPPING path,
+  the Health Connect read-consent sheet it shows on launch — answered by taps.
+
+  ⚠ The WRITE permissions exist only so the seed can write, and the seed asks for them through
+  Health Connect's own consent sheet (the walk answers it) — ⚠⚠ never `pm grant`, which leaves the
+  writer off Health Connect's data-source priority list, so its steps and distance aggregate to 0.
+  Fit's own code asks for none of them.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.health.WRITE_STEPS" />
+    <uses-permission android:name="android.permission.health.WRITE_DISTANCE" />
+    <uses-permission android:name="android.permission.health.WRITE_TOTAL_CALORIES_BURNED" />
+    <uses-permission android:name="android.permission.health.WRITE_NUTRITION" />
+    <uses-permission android:name="android.permission.health.WRITE_HYDRATION" />
+    <uses-permission android:name="android.permission.health.WRITE_SLEEP" />
+    <uses-permission android:name="android.permission.health.WRITE_WEIGHT" />
+    <uses-permission android:name="android.permission.health.WRITE_HEIGHT" />
+    <uses-permission android:name="android.permission.health.WRITE_RESTING_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.WRITE_OXYGEN_SATURATION" />
+    <uses-permission android:name="android.permission.health.WRITE_RESPIRATORY_RATE" />
+
+    <application>
+        <!-- Started only by scripts/lib/android_shots.py (`am start -n …`). -->
+        <activity
+            android:name=".StoreFixtureSeedActivity"
+            android:exported="true" />
+    </application>
+</manifest>

@@ -1,0 +1,71 @@
+<!doctype html>
+<!--
+  The App Store "Header and Search Results" universal creative asset (16:9, 5244 × 2950), one per app.
+  Rendered by scripts/store-creative-assets.sh, which fills the {{…}} slots from store/creative/apps.json,
+  the app's icon and its published iPhone screenshots. docs/how-to/store-listings.md §6a.
+
+  Geometry (canvas pixels), from Apple's own template (creative_assets-templates.sketch, "16x9 Universal"):
+    art safe area  x 1921–3323, y 660–1622 (1402 × 962): centred horizontally, ABOVE the vertical centre.
+  The App Store lays the app's name and icon over the lower part of every crop, so the lower half stays
+  calm: only the phones' lower screens run through it. No text — the overlay carries the name.
+
+  ⚠ The frames are plain CSS rounded rectangles. Apple's device bezels are never used here (or committed).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  :root {
+    --base: {{base}};        /* the app icon's tile colour (sampled from icon_1024.png) */
+    --deep: {{deep}};        /* base darkened — the edges */
+    --glow: {{glow}};        /* Tenshu primary-soft, the light behind the phones */
+    --accent: {{accent}};    /* Tenshu accent — the warm corner */
+    --device: #0b0b0d;       /* web/apex appCarousel.css --device-body */
+    --rim: #2a2833;
+  }
+  html, body { margin: 0; padding: 0; }
+  body {
+    width: 5244px; height: 2950px; overflow: hidden; position: relative;
+    background:
+      radial-gradient(1500px 1100px at 2622px 1180px, color-mix(in srgb, var(--glow) 40%, transparent), transparent 70%),
+      radial-gradient(2300px 1500px at 4700px 2900px, color-mix(in srgb, var(--accent) 70%, transparent), transparent 72%),
+      radial-gradient(2200px 1500px at 500px 0px, color-mix(in srgb, var(--base) 85%, white 6%), transparent 70%),
+      linear-gradient(165deg, var(--base) 0%, color-mix(in srgb, var(--base) 55%, var(--deep)) 52%, var(--deep) 100%);
+  }
+  /* Concentric rings about the art safe area's centre — the apex hero's motif, static and faint. */
+  .rings { position: absolute; inset: 0; }
+  .rings circle { fill: none; stroke: #ffffff; }
+
+  .phone {
+    position: absolute;
+    width: {{phone_w}}px; height: {{phone_h}}px;
+    box-sizing: border-box;
+    padding: {{bezel}}px;
+    border-radius: {{phone_r}}px;
+    background: var(--device);
+    box-shadow:
+      0 0 0 5px var(--rim),
+      0 0 0 6px rgba(255,255,255,0.10),
+      0 60px 120px rgba(8, 4, 24, 0.45),
+      0 18px 40px rgba(8, 4, 24, 0.35);
+  }
+  .phone img {
+    display: block; width: 100%; height: 100%;
+    border-radius: {{screen_r}}px;
+    object-fit: cover; object-position: top center;
+  }
+  .phone.left  { left: {{left_x}}px;  top: {{left_y}}px; }
+  .phone.right { left: {{right_x}}px; top: {{right_y}}px; }
+</style>
+</head>
+<body>
+  <svg class="rings" width="5244" height="2950" viewBox="0 0 5244 2950" aria-hidden="true">
+    <circle cx="2622" cy="1141" r="1150" stroke-opacity="0.10" stroke-width="5"/>
+    <circle cx="2622" cy="1141" r="1650" stroke-opacity="0.07" stroke-width="5"/>
+    <circle cx="2622" cy="1141" r="2200" stroke-opacity="0.05" stroke-width="5"/>
+    <circle cx="2622" cy="1141" r="2800" stroke-opacity="0.035" stroke-width="5"/>
+  </svg>
+  <div class="phone left"><img src="{{left_src}}" alt=""></div>
+  <div class="phone right"><img src="{{right_src}}" alt=""></div>
+</body>
+</html>

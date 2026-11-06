@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Maps (Places, slim) shared strings (docs/proposals/maps-app.md §6). The logic layer
+     (:maps-shared-logic) stays string-free (ADR 0016); every user-facing string is authored
+     here and rendered via stringResource. Plurals ride as two keys (n=1 shape) until the
+     ADR 0016 n=2 ICU catalogue lands. Apostrophes are bare ' (CMP 1.7.3 doesn't decode \'). -->
+<resources>
+    <string name="app_name">Maps</string>
+
+    <!-- Relative "last visit" — rendered from MapsFormat.RelativeForm + a magnitude. -->
+    <string name="maps_visit_today">Today</string>
+    <string name="maps_visit_yesterday">Yesterday</string>
+    <string name="maps_visit_days_ago">%1$d days ago</string>
+    <string name="maps_visit_weeks_ago_one">%1$d week ago</string>
+    <string name="maps_visit_weeks_ago_other">%1$d weeks ago</string>
+    <string name="maps_visit_months_ago_one">%1$d month ago</string>
+    <string name="maps_visit_months_ago_other">%1$d months ago</string>
+    <string name="maps_visit_years_ago_one">%1$d year ago</string>
+    <string name="maps_visit_years_ago_other">%1$d years ago</string>
+    <string name="maps_visit_never">Not visited yet</string>
+
+    <!-- Visit counts. -->
+    <string name="maps_visits_none">No visits yet</string>
+    <string name="maps_visits_one">%1$d visit</string>
+    <string name="maps_visits_other">%1$d visits</string>
+
+    <!-- VisitHistory card sub-labels. -->
+    <string name="maps_visits_label">visits</string>
+    <string name="maps_last_visit_label">last visit</string>
+    <string name="maps_saved_not_visited_label">saved, not visited</string>
+
+    <!-- Map snippet caption (the attribution chip + scale label moved to :ui-map). -->
+    <string name="maps_offline_never_leaves">This location never leaves your device</string>
+
+    <!-- Trust cue. -->
+    <string name="maps_trust_cue">On your device · end-to-end encrypted</string>
+
+    <!-- Saved-toggle content descriptions. -->
+    <string name="maps_save_cd">Save place</string>
+    <string name="maps_unsave_cd">Remove from saved</string>
+
+    <!-- Top bar. -->
+    <string name="maps_title">Maps</string>
+    <string name="maps_search_cd">Search</string>
+    <string name="maps_settings_cd">Settings</string>
+
+    <!-- Offline region picker (maps-region-delivery.md D5 — Maps owns the picker). -->
+    <string name="maps_regions_title">Offline regions</string>
+    <string name="maps_regions_blurb">Download a region to use its map fully offline. Once downloaded, a region never talks to the network.</string>
+    <string name="maps_region_get">Get</string>
+    <string name="maps_region_downloaded">Downloaded</string>
+    <string name="maps_region_delete_cd">Delete region</string>
+    <string name="maps_region_size_mb">%1$d MB</string>
+    <string name="maps_region_download_soon">Region downloads are coming soon</string>
+    <string name="maps_back_cd">Back</string>
+
+    <!-- Secondary tabs (the Places surface). -->
+    <string name="maps_tab_yours">Your places</string>
+    <string name="maps_tab_saved">Saved</string>
+    <string name="maps_tab_for_you">For you</string>
+    <string name="maps_tab_contribute">Contribute</string>
+
+    <!-- Your places tab. -->
+    <string name="maps_yours_blurb">The places that anchor your week. Labels here name visits across Timeline and Photos.</string>
+    <string name="maps_add_a_place">Add a place</string>
+
+    <!-- Saved tab. -->
+    <string name="maps_places_count_one">%1$d place</string>
+    <string name="maps_places_count_other">%1$d places</string>
+    <string name="maps_new_list">New list</string>
+
+    <!-- For you tab. -->
+    <string name="maps_for_you_blurb">Proposed from your own history, your contacts, and curated lists — computed on your device. Every suggestion shows where it came from.</string>
+    <string name="maps_action_save">Save</string>
+    <string name="maps_action_saved">Saved</string>
+    <string name="maps_action_dismiss">Dismiss</string>
+
+    <!-- Contribute tab (D3 — queued stub). -->
+    <string name="maps_contribute_blurb">Help the map get better for everyone. Contributions are yours until you send them.</string>
+    <string name="maps_contribute_add_title">Add a place</string>
+    <string name="maps_contribute_add_body">Submit a shop, café or point of interest that is missing.</string>
+    <string name="maps_contribute_report_title">Report a map mistake</string>
+    <string name="maps_contribute_report_body">A wrong name, a closed place, a road that is not there.</string>
+    <string name="maps_contribute_queue_note">Submissions are saved to your realm and queued. Community review is coming with Tenshu Rei — until then, nothing you send is published automatically.</string>
+    <string name="maps_contribute_your_contributions">Your contributions</string>
+    <string name="maps_contribute_pending">Pending</string>
+
+    <!-- Place detail. -->
+    <string name="maps_detail_offline_line">Offline basemap · this location never leaves your device</string>
+    <string name="maps_action_edit">Edit</string>
+    <string name="maps_action_directions">Directions</string>
+    <string name="maps_action_share">Share</string>
+    <string name="maps_detail_history">History</string>
+    <string name="maps_detail_first_seen">First seen %1$s</string>
+    <!-- Contextual offline trigger on the place detail (maps-region-delivery.md track 3d). The map
+         already works by streaming, so these must offer availability, not repair. -->
+    <string name="maps_offline_keep">Keep %1$s offline</string>
+    <string name="maps_offline_keep_hint">%1$s · then the map works with no network at all</string>
+    <string name="maps_offline_downloading">Downloading %1$s… %2$d%</string>
+    <string name="maps_offline_failed">Couldn't download %1$s — tap to try again</string>
+    <string name="maps_offline_failed_hint">The map keeps working; it just still needs the network</string>
+    <string name="maps_offline_kept">%1$s is available offline</string>
+    <string name="maps_detail_directions_note">Directions hands off to your system navigation app. Turn-by-turn Navigate is a later Maps milestone.</string>
+    <string name="maps_detail_photos">Photos · from this place</string>
+    <string name="maps_detail_trips_title">Trips through here</string>
+    <string name="maps_detail_trips_sub">routes live in Timeline</string>
+    <string name="maps_detail_trips_sub_arrivals">%1$d arrivals · routes live in Timeline</string>
+    <string name="maps_detail_embed_note">This is the canonical place detail. Timeline (visit moments) and Photos (place linking) embed this same screen — one place, one record.</string>
+
+    <!-- Medium date ("September 1, 2023") — month name + day + year (order is en; ICU at n=2). -->
+    <string name="maps_date_medium">%1$s %2$d, %3$d</string>
+    <string name="maps_month_1">January</string>
+    <string name="maps_month_2">February</string>
+    <string name="maps_month_3">March</string>
+    <string name="maps_month_4">April</string>
+    <string name="maps_month_5">May</string>
+    <string name="maps_month_6">June</string>
+    <string name="maps_month_7">July</string>
+    <string name="maps_month_8">August</string>
+    <string name="maps_month_9">September</string>
+    <string name="maps_month_10">October</string>
+    <string name="maps_month_11">November</string>
+    <string name="maps_month_12">December</string>
+    <!-- Realm storage (drive-synced-folders.md §8b.5c). No plan is the silent state — nothing
+         syncs from any app; full blocks new data only. Neither loses anything. -->
+    <string name="maps_storage_no_plan_text">Not syncing — this device has no storage plan, so your data stays on this device. Set up storage to sync across your devices.</string>
+    <string name="maps_storage_full_text">Storage full — %1$s of %2$s used. Your data stays on this device and nothing is deleted, but it can't sync until you free up space or get more.</string>
+    <string name="maps_storage_action">Manage storage</string>
+    <string name="maps_storage_setup_action">Set up storage</string>
+    <string name="maps_control_unreachable_text">Can't reach Tenshu Control — your places can't load. Make sure Control is installed and running.</string>
+    <string name="maps_control_open_action">Open Control</string>
+    <string name="maps_control_not_installed">Tenshu Control isn't installed on this device. Maps reads your places through Control, so there's nothing to show until it's installed.</string>
+    <string name="maps_control_wall_title">Set up Tenshu Control</string>
+    <!-- ADR 0025 §Decision 8: Control installed and answering, no realm on this device. -->
+    <string name="maps_control_not_set_up">Tenshu Control is installed but isn't set up on this device yet. Maps reads your places from Control — open it to start fresh or join your other devices, then come back.</string>
+    <string name="maps_control_not_installed_unpublished">Tenshu Control isn't installed on this device, and it isn't in the store yet — your places stay empty until it is.</string>
+    <string name="maps_control_not_installed_other_channel">Tenshu Control isn't installed on this device. Install it the same way you installed Maps.</string>
+    <string name="maps_control_get_action">Get Control</string>
+    <string name="maps_update_action">Update</string>
+    <!--
+      SK-1b (core-schema-skew-surface.md): a proxy that is answering and *refusing* on a schema
+      version is not an unreachable one. These name the app that actually fixes it, which on
+      Android and desktop is usually Control rather than the app the banner is in.
+    -->
+    <string name="maps_skew_update_control">Maps is newer than Tenshu Control on this device. Update Control to keep your places syncing.</string>
+    <string name="maps_skew_update_this_app">Maps is older than Tenshu Control on this device. Update Maps to keep your places syncing.</string>
+    <string name="maps_skew_update_both">Maps and Tenshu Control are from different versions. Update both to keep your places syncing.</string>
+    <!--
+      SK-3: the realm pull fence - this DEVICE is behind the others, not this app behind its
+      proxy. Different words on purpose: nothing is broken or unreachable, the device has simply
+      stopped receiving, and everything already on it still works.
+    -->
+    <string name="maps_fenced_update_control">Tenshu Control on this device is older than your other devices, so your places has stopped updating. Everything already here is safe.</string>
+    <string name="maps_fenced_update_this_app">Maps on this device is older than your other devices, so your places has stopped updating. Everything already here is safe.</string>
+    <string name="maps_fenced_update_both">This device is older than your other devices, so your places has stopped updating. Everything already here is safe.</string>
+    <!-- No host published a RuntimeIdentity row: say what is true, name nothing. -->
+    <string name="maps_fenced_update_unknown">This device is older than your other devices, so your places has stopped updating. Updating Tenshu on this device fixes it. Everything already here is safe.</string>
+</resources>

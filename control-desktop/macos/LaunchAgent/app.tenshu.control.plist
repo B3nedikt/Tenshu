@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Reference LaunchAgent for the Control daemon
+  (docs/proposals/desktop-macos-integration.md §4 task 2, slice 1D).
+
+  This is the shape `LaunchAgentManager` generates at install time, substituting
+  @EXECUTABLE_PATH@ with the running Control.app's executable. The manager writes
+  it to ~/Library/LaunchAgents/app.tenshu.control.plist and `launchctl load`s it.
+
+  RunAtLoad autostarts the daemon at login; TENSHU_CONTROL_START_HIDDEN brings it
+  up straight to the menu-bar tray (Phase 1A) with no window.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>app.tenshu.control</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>@EXECUTABLE_PATH@</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>TENSHU_CONTROL_START_HIDDEN</key>
+        <string>true</string>
+    </dict>
+    <key>KeepAlive</key>
+    <false/>
+</dict>
+</plist>

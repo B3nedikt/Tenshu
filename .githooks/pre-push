@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Refuses a push to the public repository's URL from a clone of this (private) one: one push of
+# any branch from here publishes this repository's whole history. public-export.md §1 and §5.
+#
+# The name `B3nedikt/Tenshu` belongs to the public repository; this one is
+# `B3nedikt/TenshuInternal`. A clone that still names the public URL is caught here.
+ACTIVE=1
+
+[ "$ACTIVE" = 1 ] || exit 0
+url="$2"
+if printf '%s' "$url" | grep -Eiq 'github\.com[:/]+B3nedikt/Tenshu(\.git)?/?$'; then
+    echo "pre-push: refusing to push to $url — that is the PUBLIC repository." >&2
+    echo "Publish only through scripts/public-export.py --publish (docs/proposals/public-export.md)." >&2
+    exit 1
+fi
+exit 0

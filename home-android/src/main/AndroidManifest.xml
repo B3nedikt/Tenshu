@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      HD-3: Home is a Tenshu client now — it reads hub-authored device/status rows and
+      issues commands through Control's proxy over Binder. The rest of M1 still holds: no
+      permissions of its own, and no network. The client libraries merge in INTERNET, so
+      strip it — all egress is Control's (House Rule #1 enforced at the OS boundary, and
+      "a smart-home app that cannot reach the internet" is a claim worth being able to
+      make).
+    -->
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+
+    <!--
+      Lets BinderTaskTransport resolve + bind Control on Android 11+ (package visibility).
+      Without it the bind silently fails and Home falls back to the mock household.
+    -->
+    <queries>
+        <package android:name="app.tenshu.control.android" />
+    </queries>
+
+    <application
+        android:name=".HomeApplication"
+        android:allowBackup="false"
+        android:supportsRtl="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- The reverse (push) channel: Control binds back to this service to deliver
+             stream / callback frames — how the Devices tab gets live state without
+             polling. Same contract Drive / Maps / Timeline / Fit declare. -->
+        <service
+            android:name="org.tenshu.core.common.ClientCallbackService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="app.tenshu.control.android.IClientInterface" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>

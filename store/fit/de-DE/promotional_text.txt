@@ -1,0 +1,1 @@
+Zeichne Trainings auf und hol deinen Verlauf aus Apple Health, verschlüsselt auf deinen Geräten. Nur deine eigenen Geräte können ihn lesen. Braucht Tenshu Control.

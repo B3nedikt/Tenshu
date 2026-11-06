@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 13+ themed icons honour ONLY the alpha channel, so every opaque pixel collapses
+  to one tint. The sun is an additive fill on otherwise empty ground rather than a
+  contrasting colour over the frame, so it still reads after tinting and needs no
+  evenodd cutout. Same 84/4.125 group as the foreground; coordinates copied verbatim.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="432"
+    android:viewportHeight="432">
+    <group
+        android:translateX="84"
+        android:translateY="84"
+        android:scaleX="4.125"
+        android:scaleY="4.125">
+        <!-- Back frame, open where the front frame overlaps it -->
+        <path
+            android:pathData="M 20 22 L 20 16 A 4 4 0 0 1 24 12 L 48 12 A 4 4 0 0 1 52 16 L 52 38 A 4 4 0 0 1 48 42 L 44 42"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="3.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <!-- Front frame (rect 12,22 32x30 rx=4) -->
+        <path
+            android:pathData="M 16 22 L 40 22 A 4 4 0 0 1 44 26 L 44 48 A 4 4 0 0 1 40 52 L 16 52 A 4 4 0 0 1 12 48 L 12 26 A 4 4 0 0 1 16 22 Z"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="3.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <!-- Sun (r=3.4) -->
+        <path
+            android:pathData="M 17.6 32 a 3.4 3.4 0 1 0 6.8 0 a 3.4 3.4 0 1 0 -6.8 0 Z"
+            android:fillColor="#FFFFFF" />
+    </group>
+</vector>

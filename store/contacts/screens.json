@@ -1,0 +1,67 @@
+{
+  "about": "Every screen name scripts/store-screenshots.sh contacts captures for Tenshu Contacts (`captured`, from the UI test in `uiTests`). The fixture is an invented address book (store/fixtures/contacts/manifest.json → generate_contacts.py), imported through the shared repository's importVcards on a seed launch; every capture comes from the next launch, by taps (docs/how-to/store-screenshots.md §3c). Adding a capture means adding it here. Docs: docs/how-to/store-screenshots.md §5.",
+  "version": 1,
+  "platform": "ios",
+  "appearances": [
+    "light"
+  ],
+  "uiTests": [
+    "contacts-ios/Screenshots/ContactsScreenshots.swift"
+  ],
+  "captured": {
+    "01-contacts": {
+      "shows": "The contact list, with the possible-duplicates row above it"
+    },
+    "02-contact": {
+      "shows": "A contact: phone numbers, email addresses, address, organisation, note and keys"
+    },
+    "03-search": {
+      "shows": "Search by organisation: three colleagues found"
+    },
+    "04-duplicates": {
+      "shows": "Possible duplicates, each with the reason it was suggested"
+    },
+    "05-merge": {
+      "shows": "Merging a pair: which one should be kept"
+    },
+    "06-you": {
+      "shows": "You: the name people see when you invite them"
+    }
+  },
+  "android": {
+    "about": "The Android pipeline (scripts/store-screenshots-android.sh, walk in scripts/lib/android_shots.py) captures these on a 1080x2400 phone AVD, light only, keyed android/phone/<lang>/NN-screen. Same names as iOS for the same screen; a name new to Android must also be listed in captured or planned above, so a number never means two screens.",
+    "script": "scripts/lib/android_shots.py",
+    "captured": {
+      "01-contacts": {
+        "shows": "The contact list, with the possible-duplicates row above it"
+      },
+      "02-contact": {
+        "shows": "A contact: phone numbers, email addresses, address, organisation, note and keys"
+      },
+      "03-search": {
+        "shows": "Search by organisation: three colleagues found"
+      },
+      "04-duplicates": {
+        "shows": "Possible duplicates, each with the reason it was suggested"
+      },
+      "05-merge": {
+        "shows": "Combining a pair: which one should be kept"
+      },
+      "06-you": {
+        "shows": "You: the name people see when you invite them"
+      },
+      "07-invite": {
+        "shows": "You → Invite someone: a one-time invitation as a QR code, waiting for a reply (revoked after the capture)",
+        "devLabOnly": true
+      }
+    }
+  },
+  "planned": {
+    "07-invite": {
+      "shows": "Invite someone: a one-time invitation as a QR code",
+      "platforms": [
+        "android"
+      ]
+    }
+  }
+}

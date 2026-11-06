@@ -1,0 +1,17 @@
+<resources>
+    <!-- Central notifications Phase 3: OS elevation for inbound actionable requests
+         (control-central-notifications.md §4.3.4). Copy is generic / PII-free — kind
+         only, no names/fingerprints (§6 proxy isolation, same as the FGS). -->
+    <string name="actionable_requests_channel">Requests</string>
+    <string name="actionable_request_grant_title">Someone wants to share a folder with you</string>
+    <string name="actionable_request_invite_title">A contact accepted your invite</string>
+    <string name="actionable_request_body">Open Control to review.</string>
+    <!-- Index now (control-background-work-off-fgs.md §5.6.1). -->
+    <string name="manual_index_channel">Photo indexing</string>
+    <string name="manual_index_starting">Indexing photos…</string>
+    <string name="manual_index_progress">Indexing photos — %1$s of %2$s</string>
+    <string name="manual_index_stop">Stop</string>
+    <string name="schema_fence_channel">Sync problems</string>
+    <string name="schema_fence_title">Update Control to keep syncing</string>
+    <string name="schema_fence_body">Tenshu Control on this device is older than your other devices, so new changes aren\'t arriving for any app. Your files here are safe.</string>
+</resources>

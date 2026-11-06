@@ -1,0 +1,36 @@
+# Tenshu Hub — headless always-on Tenshu proxy (hub proposal §13 H1).
+# Install: docs/how-to/hub-pi-deploy.md
+#
+# Assumes a dedicated `tenshu` user and the distribution unpacked at
+# /opt/tenshu-hub (so the launcher is /opt/tenshu-hub/bin/tenshu-hub).
+# First-run pairing is interactive — run `tenshu-hub pair` in a terminal
+# BEFORE enabling this unit (the QR prints to the terminal, not the journal).
+
+[Unit]
+Description=Tenshu Hub (headless Tenshu proxy)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=tenshu
+Group=tenshu
+Environment=TENSHU_HUB_DATA_DIR=/var/lib/tenshu-hub
+# Point at a non-production relay if needed:
+#Environment=TENSHU_RELAY_URL=https://relay.example.org
+ExecStart=/opt/tenshu-hub/bin/tenshu-hub run
+# `always` (not `on-failure`): a management-initiated restart — the H4
+# `RestartHub(mode="proxy")` command from a realm device — exits deliberately
+# with code 10 (EXIT_RESTART in Main.kt) and relies on the supervisor to
+# re-spawn the proxy. `systemctl stop` still stops it (signal, not exit).
+Restart=always
+RestartSec=5
+# The data dir holds the realm key material (see FileWrappingKeyStore's KDoc);
+# keep the service's filesystem view minimal.
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/tenshu-hub
+
+[Install]
+WantedBy=multi-user.target

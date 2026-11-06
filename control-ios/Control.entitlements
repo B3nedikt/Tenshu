@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    Control-on-iOS simulator Keychain entitlement (handover §C4-RT / ios-signing.md).
+
+    The unsigned simulator build had *no* entitlements at all, so every Keychain op
+    failed with errSecMissingEntitlement (-34018) — which blocked genesis's setUpUnlock
+    (it can't write the UNLOCK_WRAPPER) and the RT-5 durable realm-device probe's read.
+    See the RT-5 finding in the handover doc.
+
+    The simulator honours these entitlements when the app is ad-hoc code-signed
+    (CODE_SIGN_IDENTITY = "-"), needing NO Apple ID / Team ID — that's purely a
+    real-device requirement. This grants the app's own (per-app) default Keychain access
+    group, which is all genesis + the probe need (the SecurityFrameworkKeychain backing
+    IosSecureStorageDelegate sets no kSecAttrAccessGroup, so it uses the default group =
+    the application-identifier below).
+
+    Also declares the SHARED `app.tenshu.shared` group (cross-app: Control publishes the
+    route-1 key material the first-party apps read, RealmKeyMaterialBridge). On the simulator this uses the BARE group string
+    (no `$(AppIdentifierPrefix)` team prefix — ad-hoc signing has no team), matching the
+    literal string ControlSessionProvisioner passes as kSecAttrAccessGroup. drive-ios
+    declares the identical bare string; the experiment is whether two ad-hoc-signed sim
+    apps share it (on a real device the shared group needs a Team-prefixed value + matching
+    team — ios-signing.md §2/§4).
+  -->
+  <key>application-identifier</key>
+  <string>app.tenshu.control.ios.smoke</string>
+  <key>keychain-access-groups</key>
+  <array>
+    <string>app.tenshu.control.ios.smoke</string>
+    <string>app.tenshu.shared</string>
+  </array>
+  <!--
+    App Group (C4d route-1 substrate probe). The shared *container* Control + Drive use to read one
+    on-device replica (the in-process-collapse data plane). Bare group id (no team prefix — ad-hoc
+    simulator signing has no team), mirroring the keychain-access-groups experiment above: the
+    question this probe answers is whether the C3 ad-hoc-sim trick extends from Keychain Sharing to
+    App Groups, so route-1's shared container is sim-testable with no paid Apple membership. On a real
+    device this needs a Team-prefixed value + both apps under one team (ios-signing.md §2/§4).
+  -->
+  <key>com.apple.security.application-groups</key>
+  <array>
+    <string>group.app.tenshu.shared</string>
+  </array>
+</dict>
+</plist>

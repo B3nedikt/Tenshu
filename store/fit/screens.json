@@ -1,0 +1,56 @@
+{
+  "about": "Every screen name scripts/store-screenshots.sh fit captures for Tenshu Fit (`captured`, from the UI test in `uiTests`). The fixture is generated for the run's day (store/fixtures/fit/generate_fit.py) and goes in through Fit's file import and, by taps, Profile → Import from Apple Health (docs/how-to/store-screenshots.md §3a). Adding a capture means adding it here. Docs: docs/how-to/store-screenshots.md §5.",
+  "version": 1,
+  "platform": "ios",
+  "appearances": [
+    "light"
+  ],
+  "uiTests": [
+    "fit-ios/Screenshots/FitScreenshots.swift"
+  ],
+  "captured": {
+    "01-home": {
+      "shows": "Home: today's activity, sleep and the morning's run"
+    },
+    "02-history": {
+      "shows": "History: six weeks of runs, rides and walks"
+    },
+    "03-workout": {
+      "shows": "A run's detail: the route on the map, its stats and the heart-rate chart"
+    },
+    "05-browse": {
+      "shows": "Browse: every health category Fit keeps"
+    },
+    "06-sleep": {
+      "shows": "Sleep over the past weeks"
+    },
+    "07-profile": {
+      "shows": "Profile and data sources"
+    }
+  },
+  "android": {
+    "about": "The Android pipeline (scripts/store-screenshots-android.sh, walk in scripts/lib/android_shots.py) captures these on a 1080x2400 phone AVD, light only, keyed android/phone/<lang>/NN-screen. Same names as iOS for the same screen; a name new to Android must also be listed in captured or planned above, so a number never means two screens.",
+    "script": "scripts/lib/android_shots.py",
+    "captured": {
+      "01-home": {
+        "shows": "Home at its top: today's active-minutes ring, steps, distance and energy, and the week's energy bars"
+      },
+      "02-history": {
+        "shows": "History: six weeks of runs, rides and walks"
+      },
+      "03-workout": {
+        "shows": "A run's detail: its stats, the route on the map and the heart-rate chart"
+      },
+      "05-browse": {
+        "shows": "Browse: every health category Fit keeps"
+      },
+      "06-sleep": {
+        "shows": "Sleep over the past weeks"
+      },
+      "07-profile": {
+        "shows": "Profile, with Health Connect under Data sources and Google Takeout under Batch import"
+      }
+    }
+  },
+  "planned": {}
+}

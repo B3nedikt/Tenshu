@@ -1,0 +1,152 @@
+# Caddy reverse proxy for the Tenshu sync relay. Caddy obtains + renews a
+# Let's Encrypt cert for $RELAY_DOMAIN automatically (HTTP-01 over :80, which
+# the DO firewall leaves open), terminates TLS, and proxies to the relay
+# container on the internal compose network. Replaces Fly's `force_https`.
+#
+# Note on the zero-trust posture: Caddy terminates TLS, so it sees the
+# request bytes - but those are exactly what the relay sees (client-side
+# ciphertext + public keys + device JWTs), and Caddy runs on the same host
+# under your control. No third party enters the TLS path here. (Putting a
+# CDN/WAF like Cloudflare in front is a separate, explicit decision - see
+# docs/how-to/deploy-relay-digitalocean.md "DDoS & abuse".)
+
+{
+	email {$ACME_EMAIL}
+	# ⚠⚠ Caddy's ERROR log (`http.log.error`, one entry per failed proxied request — every 502/504)
+	# carries the same request object as the access log: full client IP, full URI with its query
+	# (?pairingSecret=) and every header (X-Entitlement). It goes to the DEFAULT logger, which the
+	# access snippet's filter never sees, so it is routed out of stdout into its own filtered file.
+	# Same filter and same roll as the `access_log` snippet below (docs/how-to/server-logging.md).
+	log default {
+		exclude http.log.error
+	}
+	log errors {
+		include http.log.error
+		output file /var/log/caddy/errors.log {
+			roll_size 50MiB
+			roll_keep 5
+			roll_keep_for 168h
+			roll_interval 24h
+		}
+		format filter {
+			wrap json
+			request>remote_ip ip_mask 24 48
+			request>client_ip ip_mask 24 48
+			request>remote_port delete
+			# Same uri filter as the access_log snippet below; the comment there explains it.
+			request>uri multi_regexp {
+				regexp "[?].*" "?…"
+				regexp "^/share/[^/?]+" "/share/{shareId}"
+				regexp "^/sync/grant/[^/?]+" "/sync/grant/{address}"
+				regexp "^/sync/epc/[^/?]+" "/sync/epc/{sessionId}"
+				regexp "^/sync/(content|invite)/(declare|inventory|reap|response|responses|ack|done)([/?]|$)" "/sync/$1/ $2$3"
+				regexp "^/sync/content/[^ /?][^/?]*" "/sync/content/{ref}"
+				regexp "^/sync/invite/[^ /?][^/?]*" "/sync/invite/{inviteId}"
+				regexp "^/sync/(content|invite)/ " "/sync/$1/"
+				regexp "/[A-Za-z0-9_%-]{20,}([/?]|$)" "/{id}$1"
+				regexp "/[A-Za-z0-9_%-]{20,}([/?]|$)" "/{id}$1"
+			}
+			request>headers delete
+		}
+	}
+	# Uncomment to test against the Let's Encrypt staging CA (avoids rate limits
+	# while iterating on DNS/firewall):
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+# Access log: one line per request, written to a FILE that is bounded by TIME as well as size, with
+# the personal data filtered out first. Policy and reasons: docs/how-to/server-logging.md.
+#   - client IPs truncated to their /24 (IPv4) or /48 (IPv6) network, source port dropped;
+#   - the query string dropped (`?pairingSecret=`, `?token=`, `?email=` travel there);
+#   - capability path segments replaced by the relay's route template (F4 of
+#     relay-metadata-minimisation): `/share/<id>` is logged as `/share/{shareId}`, and likewise the
+#     grant-mailbox address, EPC session id, invite id and content ref. Ktor's call log does the same
+#     on the relay side; either alone would still log the id;
+#   - every request and response header dropped (custom bearer headers such as X-Entitlement are
+#     not on Caddy's own redaction list, and User-Agent is a fingerprint);
+#   - rolled daily, at most 5 rolled files (gzipped), each also expired after 7 days, and the live
+#     file capped at 50 MiB: about a week at most, normally 5-6 days, on a site that keeps receiving
+#     traffic (rolling and cleanup happen only on a write). Docker's json-file driver can only bound
+#     by size, which is why this log no longer goes to stdout.
+# Read it with: docker exec <caddy container> tail -f /var/log/caddy/<site>.log   (JSON lines; pipe to jq)
+# ⚠ roll_interval needs caddy >= 2.11 — hence the pinned `caddy:2.11` image.
+# ⚠ Abuse handling: a /24 is what an operator blocks anyway. For a live incident that needs exact
+#   addresses, change the ip_mask lines below temporarily — and revert them afterwards.
+(access_log) {
+	log {
+		output file /var/log/caddy/{args[0]}.log {
+			roll_size 50MiB
+			roll_keep 5
+			roll_keep_for 168h
+			roll_interval 24h
+		}
+		format filter {
+			# JSON, not console: the console encoder writes ANSI colour codes into the file.
+			wrap json
+			request>remote_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>client_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>remote_port delete
+			# Applied in order (multi_regexp, caddy >= 2.10). First the query string, then each
+			# relay route family whose path carries a capability, rewritten to the template Ktor logs.
+			# The list is derived from sync-relay-server/.../routing/*.kt: every `{param}` route.
+			# A route that gains a capability path parameter should get a line here too (nicer log); the
+			# backstop below already hides its id, and CaddyLogFilterTest fails if neither does.
+			# ⚠ content/ and invite/ have constant siblings (`/sync/content/declare`,
+			#   `/sync/invite/ack`, …) and RE2 has no lookahead, so those are parked behind a space
+			#   (which an HTTP/1 request line cannot contain), the generic rule skips segments starting
+			#   with one, and the last line removes it. Verified against caddy:2.11 with real requests.
+			# ⚠ /share/{shareId}/chunk/{chunkIndex} and /sync/epc/{sessionId}/{direction} keep their
+			#   second segment: a chunk index and `up`/`down` are not capabilities.
+			# ⚠ The last two lines are the backstop: any path segment of 20+ id characters becomes `{id}`.
+			#   It catches what the anchored rules above cannot see — Ktor still routes `//share/<id>` and
+			#   `/%73hare/<id>` — and a capability route nobody added a line for. Every capability id is
+			#   >= 20 characters (share id 22, content ref 69, the 32-hex ones) and no constant segment is.
+			#   Twice, because a match consumes the `/` after it, so an id right after an id needs a pass.
+			#   sync-relay-server's CaddyLogFilterTest applies these rules to every real route and fails
+			#   if an id survives or a constant route is rewritten.
+			request>uri multi_regexp {
+				regexp "[?].*" "?…"
+				regexp "^/share/[^/?]+" "/share/{shareId}"
+				regexp "^/sync/grant/[^/?]+" "/sync/grant/{address}"
+				regexp "^/sync/epc/[^/?]+" "/sync/epc/{sessionId}"
+				regexp "^/sync/(content|invite)/(declare|inventory|reap|response|responses|ack|done)([/?]|$)" "/sync/$1/ $2$3"
+				regexp "^/sync/content/[^ /?][^/?]*" "/sync/content/{ref}"
+				regexp "^/sync/invite/[^ /?][^/?]*" "/sync/invite/{inviteId}"
+				regexp "^/sync/(content|invite)/ " "/sync/$1/"
+				regexp "/[A-Za-z0-9_%-]{20,}([/?]|$)" "/{id}$1"
+				regexp "/[A-Za-z0-9_%-]{20,}([/?]|$)" "/{id}$1"
+			}
+			request>headers delete
+			resp_headers delete
+		}
+	}
+}
+
+{$RELAY_DOMAIN} {
+	encode zstd gzip
+	# Operator routes (`/ops/*`: content reclaim, sweep status, share takedown) answer only a loopback
+	# socket peer with RELAY_OPERATOR_TOKEN inside the relay (OperatorRouting.kt). Refuse them at the
+	# edge too, so a regression in those brakes is still not an internet-facing route.
+	respond /ops/* 404
+	reverse_proxy relay:8080
+
+	# A coarse first line of L7 defence: cap concurrent in-flight requests per
+	# client IP so a single source can't monopolise the relay. This is NOT a
+	# substitute for real rate limiting / upstream scrubbing (see the how-to),
+	# but it's free and on by default.
+	# (Caddy's built-in rate_limit is in a plugin; this request_body block is the
+	# no-plugin baseline.) max_size must comfortably exceed the largest content
+	# chunk the relay accepts (content-plane blobs are multi-MB ciphertext, e.g.
+	# the ~12MB JPEG case) - 256MB leaves headroom. Lower it if you cap uploads.
+	request_body {
+		max_size 256MB
+	}
+
+	import access_log relay
+}

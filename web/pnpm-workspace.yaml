@@ -1,0 +1,5 @@
+# Every package directly under web/ — the apex, each app, the app-kit, the SDK and the shared
+# layers. ⚠ A glob, not a list (web-app-suite.md F4): a new `web/<app>` joins the workspace by
+# existing, so parallel app sessions do not all edit this file.
+packages:
+  - "*"

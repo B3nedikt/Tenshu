@@ -1,0 +1,59 @@
+# Copy to terraform.tfvars (git-ignored) and fill in. Then:
+#   terraform init && terraform apply
+
+# --- required ---------------------------------------------------------------
+
+# DO API token (write scope). Prefer exporting DIGITALOCEAN_TOKEN instead of
+# putting the secret in this file.
+do_token = "dop_v1_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# SSH key fingerprints/names already on your DO account (Settings > Security,
+# or `doctl compute ssh-key list`). Without one you can't SSH into the droplet.
+ssh_keys = ["aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99"]
+
+# Hostname the relay is served on + Let's Encrypt contact email.
+domain     = "relay.tenshu.app"
+acme_email = "admin@tenshu.app"
+
+# --- DNS --------------------------------------------------------------------
+# If your DNS is managed by DigitalOcean, leave manage_dns = true and TF creates
+# the A record. If it lives elsewhere (Cloudflare, registrar), set it false and
+# create an A record for `domain` -> the `relay_ip` output yourself.
+manage_dns = true
+# dns_zone = "tenshu.app"   # only if it can't be derived from `domain`
+
+# --- optional (sensible defaults) -------------------------------------------
+# region              = "fra1"
+# droplet_size        = "s-2vcpu-4gb"   # enough RAM to build the fat jar on-box
+# data_volume_size_gb = 10
+# git_ref             = "master"        # pin to a tag/SHA for reproducible deploys
+# ssh_allowed_cidrs   = ["203.0.113.4/32"]  # lock SSH to your IP
+# cors_allowed_origins = ""
+
+# --- prebuilt-image deploy (skip the on-box build) --------------------------
+# Set relay_image_tag to PULL ghcr.io/b3nedikt/tenshu-relay:<tag> on first boot
+# instead of building on the droplet. Push the image first (CI workflow or
+# deploy/build-and-push.sh). Then the droplet can be tiny:
+#
+# ⚠⚠ KEEP relay_image_tag IN STEP WITH EVERY DEPLOY. `deploy/build-relay-image.sh
+# --ship` cuts over by editing /opt/tenshu/deploy.env ON THE DROPLET and never
+# touches your tfvars, so the two drift by default and a stale pin here is a
+# SILENT ROLLBACK waiting for the next `terraform apply`. Found two deploys behind
+# on 2026-08-21 — an apply would have un-shipped the relay's key-scoped revocation
+# and its durable removal ledger, with /health green the whole way. Nothing warns
+# you: the rolled-back relay is healthy, just older.
+# relay_image_tag = "latest"            # or a short commit sha, e.g. "1a2b3c4"
+# droplet_size    = "s-1vcpu-1gb"       # no on-box build => 1GB is plenty
+# ghcr_token      = "ghp_xxx"           # only if the GHCR package is PRIVATE (read:packages)
+# ghcr_user       = "b3nedikt"
+
+# Read-only GitHub token, ONLY while the repo is private. Fine-grained PAT,
+# scoped to this repo, Contents: Read-only. Delete this line once the repo is public.
+# git_token = "github_pat_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# --- commerce entitlement enforcement (deploy the issuer first) -------------
+# Stand up the commerce issuer (docs/how-to/deploy-commerce-digitalocean.md), copy the public key
+# it logs on boot, then flip these on. Off by default → existing relays unaffected.
+# entitlement_issuer_pubkey = "BASE64_FROM_COMMERCE_BOOT_LOG"
+# entitlement_enforce       = "true"   # ⚠ writes from clients not presenting a token get 402
+# entitlement_issuer_key_id = ""       # only if the issuer sets SIGNING_KEY_ID

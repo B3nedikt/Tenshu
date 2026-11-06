@@ -1,0 +1,14 @@
+Tenshu Contacts needs Tenshu Control installed and set up on the same device first. Control holds the encryption keys; Contacts cannot open without it.
+
+To review:
+1. Install Tenshu Control and open it. Tap "Start fresh on this device", then "Continue", then "I've saved it".
+2. Open Tenshu Contacts. It shows "Contacts" and "You". On a new device the contact list is empty.
+3. On "You", tap "Edit" to set your name, then "Save".
+
+Contacts are people you have exchanged an invitation with on another device; on iPhone the list, search and contact details are available, and adding contacts and invitations are not available on iPhone yet (the app says so).
+
+Permissions: none. Contacts does not read the system address book.
+
+Everything works on one device without an account. "Turn on sync" in Control is optional: it asks for an email address and then a 6-digit code. To try it without a mailbox, use the sign-in details in App Review Information: enter the user name as the email address and the password as the code (no email is sent to that address). Any address you can receive mail at also works, and a new account is free.
+
+All contacts are end-to-end encrypted on the device before they reach our servers; the servers cannot read them.

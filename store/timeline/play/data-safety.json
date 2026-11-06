@@ -1,0 +1,24 @@
+{
+  "about": "Reviewed in docs/how-to/play-console-answers.md \u00a711.4. The recorded timeline is end-to-end encrypted and not declared; the opt-in place-name lookup sends coordinates to komoot's Photon or Android's geocoder.",
+  "collects": true,
+  "encrypted_in_transit": true,
+  "account_creation": [
+    "PSL_ACM_NONE"
+  ],
+  "data_deletion": "DATA_DELETION_NO",
+  "outside_app_accounts": false,
+  "data_types": {
+    "PSL_PRECISE_LOCATION": {
+      "collected": true,
+      "shared": true,
+      "ephemeral": false,
+      "optional": true,
+      "collection_purposes": [
+        "PSL_APP_FUNCTIONALITY"
+      ],
+      "sharing_purposes": [
+        "PSL_APP_FUNCTIONALITY"
+      ]
+    }
+  }
+}

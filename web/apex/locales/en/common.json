@@ -1,0 +1,32 @@
+{
+  "action": {
+    "cancel": "Cancel",
+    "continue": "Continue",
+    "back": "Back",
+    "close": "Close"
+  },
+  "runtime": {
+    "elsewhere": {
+      "title": "Tenshu is open in another tab",
+      "body": "Tenshu runs in one tab at a time, so your data can't get out of step. Use it here to move it to this tab.",
+      "useHere": "Use here",
+      "moving": "Moving…",
+      "waiting": "Waiting for the other tab to finish saving. This can take up to two minutes."
+    }
+  },
+  "share": {
+    "viewer": {
+      "title": "Tenshu share",
+      "loading": "Decrypting…",
+      "download": "Download {fileName}",
+      "textLoading": "{fileName} (loading…)",
+      "error": {
+        "gone": "This link has been revoked or has expired.",
+        "decrypt": "This share couldn't be decrypted. The link may be incomplete, mistyped or corrupted.",
+        "meta": "This share is missing its file details, so it can't be opened. Ask the sender for a new link.",
+        "noKey": "This link is missing its decryption key. Make sure you copied the full URL.",
+        "network": "Couldn't reach the share. Check your connection and try again."
+      }
+    }
+  }
+}

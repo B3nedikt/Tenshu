@@ -1,0 +1,332 @@
+{
+  "footer": {
+    "copyright": "© {year} Benedikt Löbbecke",
+    "link": {
+      "whitepaper": "Whitepaper",
+      "threatModel": "Threat model",
+      "github": "GitHub",
+      "licenses": "Licences",
+      "contact": "Contact",
+      "imprint": "Imprint",
+      "privacy": "Privacy",
+      "terms": "Terms",
+      "deleteAccount": "Delete account"
+    },
+    "theme": {
+      "label": "Theme",
+      "light": "Light",
+      "dark": "Dark",
+      "auto": "Auto"
+    },
+    "language": {
+      "label": "Language"
+    }
+  },
+  "banner": {
+    "thisDevice": "this device",
+    "signedInAs": "You're signed in as <strong>{deviceName}</strong>. <controlPlane>Open your control plane →</controlPlane>",
+    "lock": "Lock",
+    "lockAriaLabel": "Lock this device. You'll need to unlock it again to continue",
+    "dismiss": "Dismiss"
+  },
+  "header": {
+    "menuAriaLabel": "Menu",
+    "vision": "Vision",
+    "pricing": "Pricing",
+    "roadmap": "Roadmap",
+    "docs": "Docs",
+    "support": "Support",
+    "navAriaLabel": "Main"
+  },
+  "section": {
+    "nextSectionAriaLabel": "Scroll to next section"
+  },
+  "cta": {
+    "getStarted": "Get started",
+    "openTenshu": "Open Tenshu",
+    "welcomeBackUnlock": "Unlock to continue",
+    "iAlreadyHaveTenshu": "I already have Tenshu",
+    "comingSoon": "Coming soon"
+  },
+  "block1": {
+    "heading": "Your apps. Your data. Your control.",
+    "lede": "Tenshu is an open-source app ecosystem where you are in control.",
+    "ledeLine2": "Privacy as the default.",
+    "learnMore": "Learn more"
+  },
+  "block2": {
+    "heading": "How big tech works today.",
+    "body1": "Every app on your phone talks to a server. The server keeps a copy of everything. Your photos, your messages, your location. They might sell it, train their AI on your data, or use it in other ways you might not want and you may never even find out about it.",
+    "body2": "Big tech designed apps and services to be invasive on your privacy by default.",
+    "bridge": "How it should be"
+  },
+  "block3": {
+    "heading": "How it should be.",
+    "body": "With Tenshu, your apps talk to you, not to a server. A proxy app on your device sets the rules for every app. Your data stays encrypted across your devices, and the relay server in between only ever sees encrypted data.",
+    "bridgeAriaLabel": "Continue to your realm"
+  },
+  "block4": {
+    "heading": "Your realm.",
+    "subhead": "Everything you own, encrypted across every device.",
+    "body1": "Your files, your photos, your devices, even what you own, like your storage, all of it lives in one private space Tenshu calls your <em>realm</em>. It's the whole picture of your digital life, and it belongs only to you.",
+    "body2": "Your realm syncs across your devices through Tenshu's relay, but only your devices hold the keys. The relay only ever moves encrypted data. If Tenshu's servers were breached, there'd be nothing on them to read.",
+    "body3": "Devices can be added and removed from your realm anytime."
+  },
+  "block5": {
+    "heading": "Honest about the limits.",
+    "body1": "No system is perfectly private, and we won't pretend otherwise. Tenshu's relay never sees your data, however it does see <em>metadata</em>: how often your devices sync, roughly how big each encrypted block is, and which of your devices are talking to each other.",
+    "body2": "Tenshu is built so that this is all it ever could see. Anywhere Tenshu has to run a server, it's designed under one assumption: breaking it changes nothing. A compromised Tenshu service gives up only encrypted data and timing. Never your content, never your keys. It's a convenience layer, not something you have to trust.",
+    "body3": "We tell you exactly what leaks, and design every part of Tenshu to leak as little as possible. <threatModel>Read our threat model.</threatModel>"
+  },
+  "block6": {
+    "heading": "Runs everywhere.",
+    "lede": "One end-to-end-encrypted core, built once and shipped to every device you own. Your realm looks and works the same whether you're on your phone, your laptop, or the web.",
+    "platforms": {
+      "android": {
+        "name": "Android",
+        "detail": "Phones & tablets",
+        "blurb": "Tenshu on your Android phone and tablet.",
+        "store": "Get it on Google Play"
+      },
+      "desktop": {
+        "name": "Desktop",
+        "detail": "Windows · macOS · Linux",
+        "blurb": "A native desktop app for the full Tenshu experience on your computer."
+      },
+      "web": {
+        "name": "Web",
+        "detail": "tenshu.app",
+        "blurb": "Tenshu in your browser. Nothing to install, though you can add it to your home screen if you like."
+      },
+      "ios": {
+        "name": "iOS",
+        "detail": "iPhone & iPad",
+        "blurb": "Tenshu on your iPhone and iPad, from the first release."
+      }
+    }
+  },
+  "block7": {
+    "heading": "Apps you actually control.",
+    "lede": "Every app is end-to-end encrypted. Only your devices can read what's in them.",
+    "listLabel": "Tenshu apps",
+    "comingLater": "Coming later",
+    "screenshotAlt": "Tenshu {name}",
+    "screenshotLabel": "Screenshot {index} of {count}: {name}",
+    "pauseShots": "Pause screenshots",
+    "playShots": "Play screenshots",
+    "showApp": "Show {name}",
+    "device": "Device",
+    "iphone": "iPhone",
+    "android": "Android",
+    "onlyAndroid": "No iPhone screenshots yet",
+    "onlyIos": "No Android screenshots yet",
+    "frameNote": "Device frames are illustrations. iPhone is a trademark of Apple Inc., Android is a trademark of Google LLC. Tenshu is not affiliated with or endorsed by Apple or Google.",
+    "apps": {
+      "control": {
+        "name": "Control",
+        "tagline": "The app that holds your keys and connects your devices."
+      },
+      "drive": {
+        "name": "Drive",
+        "tagline": "Your files and photos, encrypted and in sync across your devices. Share a file with a link whenever you like."
+      },
+      "photos": {
+        "name": "Photos",
+        "tagline": "Your photos and videos in one library, on every device. They are encrypted before they leave your phone, so no cloud can sort, scan or train on them."
+      },
+      "maps": {
+        "name": "Maps",
+        "tagline": "Maps you download once and keep on your device, so nobody watches where you look."
+      },
+      "timeline": {
+        "name": "Timeline",
+        "tagline": "Where you went and how you got there, recorded on your phone. Replaces Google Maps Timeline without sending your movements anywhere."
+      },
+      "calendar": {
+        "name": "Calendar",
+        "tagline": "Events, reminders and subscribed calendars. Imports and exports ordinary .ics files, so you are never locked in."
+      },
+      "contacts": {
+        "name": "Contacts",
+        "tagline": "The people you know, synced between your devices. You connect with someone only when both of you agree."
+      },
+      "fit": {
+        "name": "Fit",
+        "tagline": "Workouts and health history, imported from what you already have. Your training data stops being a fitness company's asset."
+      },
+      "home": {
+        "name": "Home",
+        "tagline": "Smart-home control that runs in your realm instead of a manufacturer's cloud, so your house does not phone home."
+      },
+      "mia": {
+        "name": "Mia",
+        "tagline": "A voice assistant that runs on your own device, from understanding what you say to acting on it. It pairs with the Mia speaker (see Hardware)."
+      }
+    }
+  },
+  "developers": {
+    "heading": "Build private apps in months, not years.",
+    "body1": "End-to-end encryption, multi-device sync, sharing and recovery are years of work to get right, which is why so few apps have them. Tenshu's SDKs will give you all of it out of the box, for Android, iOS, desktop and the web, simple enough that an AI coding agent can use them as easily as you can.",
+    "body2": "It rests on one idea: describe everything once. Your data, your services, the permissions your app asks for and the wire format all come from one language, the Tenshu IDL, instead of protobuf here, REST there and a permission manifest that only loosely matches the code. So what a user grants is exactly what your app can do, and Control can enforce it."
+  },
+  "publishing": {
+    "heading": "Publish anywhere, trusted everywhere.",
+    "body1": "Today an app reaches people through one of two stores, on their terms and after their review. Tenshu will give you more than one way out. From the Tenshu App Console you'll publish once and reach many channels, from the Tenshu Store to the app stores you already use.",
+    "body2": "Trust travels with your app. Tenshu Rei records who signed it and what independent reviewers confirmed about it, in open records no one controls alone. So users can trust your app wherever they find it, and what they buy in one store can work in another."
+  },
+  "block8": {
+    "heading": "Dedicated Hardware.",
+    "lede": "Tenshu isn't only software. We're designing hardware that brings your realm into your home. Ambient compute you own, with no one else listening in.",
+    "items": {
+      "hub": {
+        "name": "Tenshu Hub",
+        "blurb": "A smart-home device that runs a Tenshu proxy: ambient compute in your home without handing a big-tech company a microphone in every room. It pairs with your phone and hosts your realm where you live."
+      },
+      "miaSpeaker": {
+        "name": "Mia speaker",
+        "blurb": "A Bluetooth speaker that gives Mia, the on-device voice assistant, a voice in the room. Speech recognition runs locally, so your voice never leaves your realm unless you grant the permission."
+      }
+    }
+  },
+  "founder": {
+    "heading": "Who's building this.",
+    "body1": "Hi, I'm Benedikt. For nine years I've built apps for banks, insurers and carmakers, the kind of software people have to trust with things that matter. Over those years I've watched how much of our lives ends up on servers we never chose and can't look inside. Tenshu is what I think the alternative should look like: your devices sync, share and back up without anyone in the middle being able to read a thing.",
+    "body2": "A <em>tenshu</em> is the keep, the tower at the centre of a Japanese castle. In Tenshu, your realm is everything that's yours: your files, your photos, your devices. The keep is where you rule it from, and nobody gets in without your say-so.",
+    "body3": "I've been building it since 2022, so far on my own: the whitepaper, the encrypted sync, the apps. Next, I'm opening it all up. You shouldn't have to take a privacy promise on trust, so the source code is going on GitHub for you to check, and the threat model spells out what we can and can't see.",
+    "body4": "Taking it further will take more than one person. Whether you'd like to try it early, build an app on it, partner with Tenshu or invest in it, write to me. I read everything.",
+    "company": "Tenshu is run by my company, Cajetan UG (haftungsbeschränkt), in Mühldorf am Inn, Bavaria.",
+    "link": {
+      "github": "GitHub",
+      "linkedin": "LinkedIn",
+      "contact": "Write to me"
+    }
+  },
+  "block9": {
+    "heading": "Ready to try?",
+    "lede": "Set up Tenshu in under a minute. Your data stays on your devices.",
+    "faqHeading": "Frequently asked questions",
+    "faq": {
+      "free": {
+        "question": "Is Tenshu free?",
+        "answer": "Yes, with a generous free tier: currently 5 GB of encrypted storage. Paid tiers for more storage (and, in the future, premium third-party apps you can pay for once). <pricing>See plans and prices.</pricing>"
+      },
+      "shutdown": {
+        "question": "What if Tenshu shuts down?",
+        "answer": "Your data is on your devices. The sync relay is open-source, so you can run your own. Your recovery code works regardless of who's running Tenshu. The platform is designed so that <em>the worst case</em> is operationally inconvenient, not catastrophic."
+      },
+      "openSource": {
+        "question": "Why open source?",
+        "answer": "Because privacy claims you can't verify aren't privacy. Every line of Tenshu is auditable, and the architecture is designed so that a compromised Tenshu (or a Tenshu under legal compulsion) cannot undo your privacy. <threatModel>See our threat model.</threatModel>"
+      },
+      "compare": {
+        "question": "How does this compare to Signal, iCloud, etc.?",
+        "answer": "Tenshu is broader. Signal protects your messages; iCloud syncs your data with Apple holding the keys for some things; Tenshu is a whole platform where apps live and your data is yours throughout. We use ideas from many of these: end-to-end encryption (like Signal), seamless multi-device sync (like iCloud), open-source with reproducible builds (like F-Droid)."
+      },
+      "migration": {
+        "question": "What about the data I create today on other apps?",
+        "answer": "Tenshu doesn't import directly: most other apps don't expose their data in usable formats. As Tenshu's ecosystem grows, individual apps add import paths (Drive imports from Google Takeout, Timeline imports from Google Location History, etc.). Migration is a real concern; we treat it seriously."
+      },
+      "learnMore": {
+        "question": "Where can I learn more?",
+        "answer": "<whitepaper>Whitepaper</whitepaper> · <architecture>Architecture</architecture> · <threatModel>Threat model</threatModel> · <github>GitHub</github> · <roadmap>Roadmap</roadmap>."
+      }
+    }
+  },
+  "vision": {
+    "heading": "Tenshu aims to put you in full control of your digital life.",
+    "intro": "Apps have come a long way since the first mobile phones. The ecosystems around them haven't kept up. In four areas I think they still fall short.",
+    "problems": {
+      "privacy": {
+        "name": "Privacy",
+        "body": "For most of the software we use every day, whether for files, photos, health or your smart home, someone else controls your data. That's often by design, because many business models depend on it. So your data can be used in ways you never agreed to, and you might never find out."
+      },
+      "security": {
+        "name": "Security",
+        "body": "App stores protect you mostly through one central review before an app goes live. Honest developers often wait days for that review, yet malicious apps still get through on a regular basis. With the market effectively split between two companies, there's little competitive pressure to do better."
+      },
+      "interoperability": {
+        "name": "Interoperability",
+        "body": "Moving your data, apps and purchases from one ecosystem to another is hard, and that's no accident: a closed system is easier to stay in than to leave. That slows down innovation and costs consumers money. Even something as simple as one charger for every phone took years and an EU law to happen."
+      },
+      "sovereignty": {
+        "name": "Sovereignty",
+        "body": "Almost all mobile software is distributed through two companies, both based in the same country. That's a lot of power in very few hands, and power that concentrated can be pressured, by politics, by sanctions, or by laws you never had a say in. No matter where you live, your digital life shouldn't depend on a single company or a single country staying on your side."
+      }
+    },
+    "tech": {
+      "heading": "What Tenshu does differently.",
+      "lede": "No software can be perfectly private. But it can share as little as possible, only with those who need it, and put you in control of what you share. To get there, I'm building a tech stack around three new technologies:",
+      "control": {
+        "name": "The Control App",
+        "tagline": "Your data, synced end-to-end encrypted",
+        "body": "Your data belongs on your devices, not on someone else's server. Control keeps it there, synced end-to-end encrypted, and lets you decide what each app may see."
+      },
+      "idl": {
+        "name": "The Tenshu IDL",
+        "tagline": "Semantic interfaces at its core",
+        "body": "Every interaction in Tenshu is described in one interface definition language, the Tenshu IDL, from wire formats all the way up to the permissions a user grants. I believe this semantic approach makes software more secure, lets apps work together far beyond what conventional REST or protobuf APIs allow, and makes it easier to build for humans and AI agents alike."
+      },
+      "rei": {
+        "name": "Tenshu Rei",
+        "tagline": "The open trust layer",
+        "body": "Trust shouldn't depend on a single gatekeeper. Rei spreads it across many independent parties, in open records no one controls alone."
+      }
+    },
+    "closing": {
+      "heading": "Privacy by design.",
+      "body": "Everyone gets only the information they need, and nothing more. And instead of asking you to trust a single authority, Tenshu provides the technology that makes one unnecessary in the first place."
+    }
+  },
+  "placeholders": {
+    "screenshotAriaLabel": "{label} (coming soon)",
+    "screenshotDefaultLabel": "Screenshot",
+    "status": {
+      "available": "Available",
+      "progress": "In progress",
+      "planning": "In planning"
+    }
+  },
+  "accountDeletion": {
+    "heading": "Delete your Tenshu account",
+    "intro": "You can delete your Tenshu account here, without the app. To confirm the account is yours, we send a code to its email address.",
+    "what": {
+      "heading": "What deleting your account does",
+      "deleted": "Deleted straight away: your Tenshu account, its email address and its sign-in sessions. Every device signed in with the account is signed out of Tenshu's storage service.",
+      "subscriptions": "Subscriptions bought on the web or in the Google Play store are cancelled immediately, so you are not charged again. The rest of the current billing period is forfeited, not refunded.",
+      "apple": "A subscription bought through Apple's App Store can only be cancelled by you, in your Apple ID settings. Deleting your account does not cancel it.",
+      "data": "Your synced data on Tenshu's servers is end-to-end encrypted, so Tenshu cannot read it. When you delete your account, it is scheduled for permanent deletion after a 30-day grace period; once deleted, it cannot be recovered, not even by Tenshu. If you sign in again with the same device within those 30 days, your files are kept.",
+      "kept": "Kept: your invoices and the record that you accepted the terms. The law requires us to keep them for a fixed period (about 10 years), so they are not deleted. They no longer contain your email address.",
+      "devices": "Not touched: anything on your own devices, such as files you downloaded or kept offline. Removing the apps removes that.",
+      "permanent": "Deleting your account is permanent and cannot be undone."
+    },
+    "email": {
+      "label": "Email address of your Tenshu account",
+      "send": "Send code",
+      "sending": "Sending…"
+    },
+    "code": {
+      "sent": "If a Tenshu account uses {email}, we've sent it a code to confirm the deletion. Check your inbox.",
+      "resent": "We've sent a new code, if a Tenshu account uses this address.",
+      "label": "6-digit code",
+      "acknowledge": "I understand that deleting my account is permanent and cannot be undone.",
+      "delete": "Delete my account",
+      "deleting": "Deleting…",
+      "resend": "Send a new code",
+      "changeEmail": "Use a different email"
+    },
+    "done": {
+      "heading": "Your account has been deleted.",
+      "body": "Your account and email address have been erased. Synced data on our servers is scheduled for deletion after a 30-day grace period.",
+      "apple": "If you had a subscription through Apple's App Store, remember to cancel it in your Apple ID settings."
+    },
+    "error": {
+      "invalidEmail": "Enter a valid email address.",
+      "rateLimited": "Too many attempts. Please try again later.",
+      "sendFailed": "We couldn't send the email just now. Please try again in a few minutes.",
+      "invalidCode": "That code didn't work. Check it and try again, or send a new code.",
+      "unreachable": "Couldn't reach the account service. Check your connection and try again.",
+      "generic": "Something went wrong. Please try again."
+    },
+    "help": "Questions, or no code arriving? Write to <mail>support@tenshu.app</mail>."
+  }
+}

@@ -1,0 +1,201 @@
+# Production-shaped run of the Tenshu commerce issuer: the Ktor fat-jar behind Caddy (automatic
+# HTTPS). Mirrors sync-relay-server/docker-compose.yml, but this is a SEPARATE trust boundary
+# (commerce-billing-plane.md D1) — deploy it on its OWN host, independent of the relay. The two
+# planes share no state and neither has a credential or read path into the other; co-locating them
+# on one box only for a quick test still keeps them in separate containers/networks.
+#
+#   docker compose --env-file deploy.env up -d            # pull the prebuilt GHCR image
+#   docker compose --env-file deploy.env up -d --build    # or build on-box (RAM-hungry)
+#
+# Build context is the REPO ROOT (the Gradle build is multi-module) — note `context: ..` below.
+# Run this file from the commerce-service/ directory, or point `-f` at it from the repo root.
+#
+# The issuer seed (A29) comes from env. The durable account store (A28 — accounts, sessions,
+# entitlement ledger, statutory invoices) now lives in Postgres behind DATABASE_URL
+# (commerce-accounts-and-sessions.md §4); unset it only for a throwaway in-memory test. Requests
+# carry the user's email (PII), so this MUST be served over TLS — hence Caddy, never a bare host
+# port. Point DATABASE_URL at a Postgres you run yourself (a `postgres:16` service or a managed DB) —
+# it is not declared here so the DB host stays an explicit deploy choice on this trust boundary.
+
+# ⚠⚠ Docker's json-file driver grows without bound and nothing rotates it. On
+# 2026-08-15 that filled the relay droplet's root disk (9.1 G of container logs);
+# this deployment has the same shape, so it gets the same ceiling. 50m x 5 =
+# 250 MB per container. Applies at container CREATION - an already-running
+# container keeps its old config until `up -d --force-recreate`.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "5"
+
+services:
+  commerce:
+    logging: *default-logging
+    image: ghcr.io/b3nedikt/tenshu-commerce:${COMMERCE_IMAGE_TAG:-latest}
+    build:
+      context: ..
+      dockerfile: commerce-service/Dockerfile
+    restart: unless-stopped
+    # ⚠⚠ The container receives ONLY what this block lists. `--env-file deploy.env` feeds compose
+    # substitution, nothing more, so a key CommerceConfig reads but this block omits is inert however
+    # deploy.env spells it. ComposeEnvPassthroughTest fails when a `getenv(...)` has no line here.
+    # An empty default is free: every read falls back to its in-code default on a blank value.
+    environment:
+      PORT: "8081"
+      BIND_HOST: "0.0.0.0"
+      # logback.xml's level for commerce's own lines (default INFO; libraries stay at WARN). Raise to
+      # DEBUG for a debugging session only, then put it back (docs/how-to/server-logging.md).
+      LOG_LEVEL: "${COMMERCE_LOG_LEVEL:-INFO}"
+      # The commerce `publisherId` stamped onto issued entitlements/tokens.
+      ISSUER_ID: "${ISSUER_ID:-tenshu.commerce}"
+      # DEV_MODE=false (the default here) forces a REAL issuer seed: CommerceConfig.validate()
+      # refuses to start in non-dev mode with the committed dev seed. Set COMMERCE_DEV_MODE=true in
+      # deploy.env ONLY for a throwaway closed test — it falls back to the public dev seed whose
+      # pubkey is the pinned EntitlementSignature.COMMERCE_PUBLIC_KEY (insecure by design).
+      DEV_MODE: "${COMMERCE_DEV_MODE:-false}"
+      # 32-byte Ed25519 issuer seed, base64. REQUIRED when DEV_MODE=false. Generate with:
+      #   head -c 32 /dev/urandom | base64
+      # Keep it secret — it is the key that mints "paid". The matching PUBLIC half is logged on
+      # boot; copy that into the relay's ENTITLEMENT_ISSUER_PUBKEY.
+      ISSUER_SEED: "${ISSUER_SEED:-}"
+      # Durable account store (A28). Unset => in-memory (test only, lost on restart). For real use
+      # point it at a Postgres, e.g. jdbc:postgresql://db:5432/commerce?user=commerce&password=…
+      DATABASE_URL: "${DATABASE_URL:-}"
+      # Founder/privacy redemption-code seeds (the old whitelist's successor, §4.3):
+      # `code:productId:maxUses[:expiresAtMs]`, comma-separated. Empty => none.
+      REDEMPTION_CODES: "${REDEMPTION_CODES:-}"
+      # Cost brake: verified new accounts per 24 h / in total; past it new addresses are mailed
+      # "sign-ups are paused". Unset or <= 0 = no cap. docs/how-to/relay-storage-ceiling.md.
+      SIGNUP_LIMIT_PER_DAY: "${SIGNUP_LIMIT_PER_DAY:-}"
+      SIGNUP_LIMIT_TOTAL: "${SIGNUP_LIMIT_TOTAL:-}"
+      # Optional tuning (sensible defaults in CommerceConfig).
+      TOKEN_TTL_HOURS: "${TOKEN_TTL_HOURS:-72}"
+      TOP_TIER_QUOTA_BYTES: "${TOP_TIER_QUOTA_BYTES:-2199023255552}" # 2 TiB (Premium)
+      TOP_TIER_PRODUCT_ID: "${TOP_TIER_PRODUCT_ID:-}"
+      ENTITLEMENT_TTL_HOURS: "${ENTITLEMENT_TTL_HOURS:-}"
+      SESSION_TTL_HOURS: "${SESSION_TTL_HOURS:-}"
+      OTP_TTL_MINUTES: "${OTP_TTL_MINUTES:-}"
+      OTP_MAX_ATTEMPTS: "${OTP_MAX_ATTEMPTS:-}"
+      # Sweep cadences (minutes; CommerceConfig carries the defaults).
+      ACCOUNT_CLOSURE_SWEEP_MINUTES: "${ACCOUNT_CLOSURE_SWEEP_MINUTES:-}"
+      UNVERIFIED_ACCOUNT_EXPIRE_SWEEP_MINUTES: "${UNVERIFIED_ACCOUNT_EXPIRE_SWEEP_MINUTES:-}"
+      # Optional A29 rotation key id (token `kid`). Unset => issuer default key; if you set it, set
+      # the relay's ENTITLEMENT_ISSUER_KEY_ID to the same value.
+      SIGNING_KEY_ID: "${SIGNING_KEY_ID:-}"
+      # Internal admin console (§4.5). Unset ADMIN_TOKEN => console off. Keep it OFF public DNS +
+      # behind an allowlist; ADMIN_PORT (8082) is separate from the API so it can be firewalled apart.
+      ADMIN_TOKEN: "${ADMIN_TOKEN:-}"
+      # The console's second factor (base32). With DEV_MODE=false the service refuses to start when
+      # ADMIN_TOKEN is set without it, and also when it is set but is not valid base32.
+      ADMIN_TOTP_SECRET: "${ADMIN_TOTP_SECRET:-}"
+      # Loopback by default, and ADMIN_PORT is not published, so the console is reachable only from
+      # inside the container (`docker exec`). Never publish it on a public port.
+      ADMIN_BIND_HOST: "${ADMIN_BIND_HOST:-}"
+      ADMIN_PORT: "${ADMIN_PORT:-}"
+      # Stripe rail (§6). Set BOTH the secret key and the webhook signing secret to enable paid
+      # storage — the service refuses to start with one but not the other (an unverified webhook is a
+      # mint-forgery vector, T-CB-07). STRIPE_PRICE_IDS maps our tiers to Stripe prices. Unset => the
+      # /checkout, /portal, /webhook routes answer 503; the free/redeem paths are unaffected.
+      STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY:-}"
+      STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-}"
+      STRIPE_PRICE_IDS: "${STRIPE_PRICE_IDS:-}" # e.g. tenshu.drive.basic=price_x,tenshu.drive.premium=price_y
+      # Native (deep-link) return targets; the web's are derived from WEB_APP_ORIGIN instead.
+      CHECKOUT_SUCCESS_URL: "${CHECKOUT_SUCCESS_URL:-}"
+      CHECKOUT_CANCEL_URL: "${CHECKOUT_CANCEL_URL:-}"
+      PORTAL_RETURN_URL: "${PORTAL_RETURN_URL:-}"
+      SUBSCRIPTION_CANCEL_SWEEP_MINUTES: "${SUBSCRIPTION_CANCEL_SWEEP_MINUTES:-}"
+      SUBSCRIPTION_CANCEL_WINDOW_MS: "${SUBSCRIPTION_CANCEL_WINDOW_MS:-}"
+      # Test/dev knobs. STRIPE_MODE=fake is the dev rail and is refused at startup when DEV_MODE=false;
+      # PUBLIC_BASE_URL is read only by that rail; STRIPE_API_BASE points at a stub.
+      STRIPE_MODE: "${STRIPE_MODE:-}"
+      PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:-}"
+      STRIPE_API_BASE: "${STRIPE_API_BASE:-}"
+      # ⚠⚠ The ONE browser origin allowed to call this service (CORS, T-CB-09), and the origin web
+      # checkouts return to (T-CB-10). Empty => no browser can reach commerce at all, so the apex's
+      # sign-in, checkout and plan sync all die in CORS preflight. Production: https://tenshu.app.
+      # A wildcard or anything but a bare origin is refused at startup.
+      WEB_APP_ORIGIN: "${WEB_APP_ORIGIN:-}"
+      # Google Play rail (commerce-store-link-out.md P2). The service-account key (base64 of the JSON)
+      # turns it on, and then GOOGLE_PLAY_RTDN_TOKEN is required: it authenticates Play's
+      # notifications. Unset => /commerce/iap/google/* answer 503.
+      GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: "${GOOGLE_PLAY_SERVICE_ACCOUNT_JSON:-}"
+      GOOGLE_PLAY_RTDN_TOKEN: "${GOOGLE_PLAY_RTDN_TOKEN:-}"
+      GOOGLE_PLAY_PACKAGE: "${GOOGLE_PLAY_PACKAGE:-}"
+      GOOGLE_PLAY_PRODUCTS: "${GOOGLE_PLAY_PRODUCTS:-}"
+      # ⚠⚠ The relay's POST /sync/account/closure URL. Set => commerce delivers signed closure
+      # records, and a relay with ACCOUNT_CLOSURE_RECLAIM=true deletes a closed account's content
+      # after the grace window. Empty => never delivered (docs/proposals/retention-quota-model.md §3.3).
+      ACCOUNT_CLOSURE_RELAY_URL: "${ACCOUNT_CLOSURE_RELAY_URL:-}"
+      # Outbound OTP email (commerce-end-to-end-dry-run.md CE-2). SMTP_HOST + SMTP_FROM are
+      # REQUIRED whenever DEV_MODE=false: the fallback sender prints the verification code to this
+      # container's log, and the code is the only factor in the account model — so the service
+      # refuses to start in non-dev mode without a real transport. SMTP rather than a vendor HTTP
+      # API so switching provider (Resend / Postmark / SES / …) is a change to deploy.env only.
+      # ⚠ SMTP_FROM's domain needs SPF + DKIM + DMARC or the OTP lands in spam, which is
+      # indistinguishable from "OTP broken" from the user's side.
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_PORT: "${SMTP_PORT:-587}"
+      SMTP_FROM: "${SMTP_FROM:-}"
+      SMTP_FROM_NAME: "${SMTP_FROM_NAME:-Tenshu}"
+      SMTP_USERNAME: "${SMTP_USERNAME:-}"
+      SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
+      SMTP_STARTTLS: "${SMTP_STARTTLS:-true}"
+      # Abuse budgets on the unauthenticated mail-sending route (`/register`) and on
+      # `/verify`. `/register` is unauth BY DESIGN — the verified email is the sybil gate — so
+      # these are what stop it becoming unmetered outbound mail. `<= 0` disables a budget.
+      OTP_SEND_PER_IP_PER_HOUR: "${OTP_SEND_PER_IP_PER_HOUR:-20}"
+      OTP_SEND_PER_EMAIL_PER_HOUR: "${OTP_SEND_PER_EMAIL_PER_HOUR:-5}"
+      OTP_VERIFY_PER_EMAIL_PER_HOUR: "${OTP_VERIFY_PER_EMAIL_PER_HOUR:-20}"
+      # Per-address cap on FAILED one-time-code checks per rolling 24 h, across /verify and
+      # /delete/confirm and every code issued (D15, T-CB-13). Persisted, so a restart does not reset
+      # it. `<= 0` disables.
+      OTP_FAILED_PER_EMAIL_PER_DAY: "${OTP_FAILED_PER_EMAIL_PER_DAY:-20}"
+      # Store-review sign-in (commerce-accounts-and-sessions.md D13, threat model T-CB-12): one
+      # unpublished review address per store, each accepting its own fixed 6-digit code instead of a
+      # mailed one. `<address>=<hex HMAC-SHA256 of its code under REVIEW_SIGNIN_HMAC_KEY>`, comma-
+      # separated. Set BOTH or NEITHER — the service refuses to start otherwise. ⚠⚠ The addresses and
+      # the key are secrets: they live only in deploy.env (and the addresses in the stores' review
+      # forms); the codes never reach this box. Runbook: docs/how-to/play-console-answers.md §14.
+      # Unset => off.
+      REVIEW_SIGNIN_ACCOUNTS: "${REVIEW_SIGNIN_ACCOUNTS:-}"
+      REVIEW_SIGNIN_HMAC_KEY: "${REVIEW_SIGNIN_HMAC_KEY:-}"
+    # Not published to the host: only Caddy reaches commerce over the internal compose network.
+    expose:
+      - "8081"
+    networks:
+      - commercenet
+
+  caddy:
+    # ⚠ Pinned to 2.11, not `caddy:2`: the Caddyfile's access/error logs use `roll_interval`, which
+    # caddy 2.10 refuses at startup, and a box with an old cached `caddy:2` never re-pulls it
+    # (redeploy*.sh pull only the app image). docs/how-to/server-logging.md.
+    image: caddy:2.11
+    logging: *default-logging
+    restart: unless-stopped
+    depends_on:
+      - commerce
+    environment:
+      COMMERCE_DOMAIN: "${COMMERCE_DOMAIN}"
+      ACME_EMAIL: "${ACME_EMAIL}"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data # ACME certs + account key (persist across restarts!)
+      - caddy_config:/config
+      # Caddy's access log (the `access_log` snippet in the Caddyfile): a file, rolled daily and
+      # deleted after 7 days, because docker's json-file driver can only bound by size.
+      - caddy_logs:/var/log/caddy
+    networks:
+      - commercenet
+
+networks:
+  commercenet:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
+  caddy_logs:

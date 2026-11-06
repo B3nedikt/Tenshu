@@ -1,0 +1,49 @@
+# zigbee2mqtt data/configuration.yaml for a Tenshu Hub node
+# (home-device-service.md HD-2). Copy to /opt/zigbee2mqtt/data/configuration.yaml
+# and edit `serial.port`. See docs/how-to/hub-pi-deploy.md §7.
+
+# The broker is on loopback (see mosquitto-tenshu.conf): both processes live
+# on this node, and nothing about the household should be on the wire.
+mqtt:
+  base_topic: zigbee2mqtt
+  server: mqtt://127.0.0.1:1883
+  # Retain the bridge topics: this is what lets `tenshu-hub` derive the whole
+  # inventory the moment it subscribes, whichever process started first.
+  force_disable_retain: false
+
+serial:
+  # Sonoff ZBDongle-E / SkyConnect and friends usually land here; check with
+  # `ls -l /dev/serial/by-id/`. Prefer the by-id path — it survives replugging.
+  port: /dev/ttyUSB0
+  # adapter: ezsp   # uncomment for Silicon Labs EFR32 dongles if autodetect fails
+
+# ⚠ Permit-join is OFF, permanently, in this file. Joining is an explicit,
+# time-bounded act driven from Home (`permitJoin` command → the hub →
+# `bridge/request/permit_join`), which is the HD-D7 admission gate. A `true`
+# here would leave the household's radio open to the neighbourhood forever.
+permit_join: false
+
+advanced:
+  # The Zigbee NETWORK KEY. `GENERATE` mints a random one on first start and
+  # writes it back into this file — which is why the data dir belongs on the
+  # LUKS volume (hub-pi-deploy.md §6). Never commit a real key.
+  network_key: GENERATE
+  # Publish per-device availability so a dead battery shows as "offline"
+  # rather than as a stale reading.
+  log_level: warn
+
+availability:
+  active:
+    timeout: 10
+  passive:
+    timeout: 1500
+
+frontend:
+  # The z2m web UI is genuinely useful for pairing troubleshooting, but it is
+  # an unauthenticated LAN listener. Off by default; if you turn it on, bind
+  # it to loopback and reach it over an SSH tunnel.
+  enabled: false
+  host: 127.0.0.1
+  port: 8080
+
+homeassistant: false

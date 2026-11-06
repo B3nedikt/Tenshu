@@ -1,0 +1,46 @@
+{
+  "title": "Dateien",
+  "subtitle": "Eine Übersicht über die Dateien in deinem Realm. Durchsuchen kannst du sie in Drive.",
+  "openDrive": "Drive öffnen",
+  "loading": "Dateiübersicht wird geladen…",
+  "summary": {
+    "files": "Dateien",
+    "folders": "Ordner",
+    "totalSize": "Größe deiner Dateien",
+    "newest": "Letzte Änderung",
+    "none": "—"
+  },
+  "byKind": {
+    "title": "Nach Art",
+    "count": "{count, plural, one {# Datei} other {# Dateien}}"
+  },
+  "kinds": {
+    "image": "Bilder",
+    "video": "Videos",
+    "audio": "Audio",
+    "document": "Dokumente",
+    "archive": "Archive",
+    "other": "Sonstiges"
+  },
+  "empty": {
+    "title": "Noch keine Dateien",
+    "body": "Dateien, die du auf einem deiner Geräte in Drive hinzufügst, erscheinen hier, sobald dieser Browser sie synchronisiert hat."
+  },
+  "errors": {
+    "read": {
+      "title": "Deine Dateien konnten nicht gelesen werden",
+      "body": "Die Dateiübersicht in diesem Browser wurde nicht geladen. Es wurde nichts verändert – versuche es erneut."
+    },
+    "runtime": {
+      "title": "Tenshu läuft in diesem Tab nicht",
+      "body": "Die Dateiübersicht braucht die Tenshu-Laufzeit. Lade die Seite neu oder schließe andere Tenshu-Tabs und versuche es erneut."
+    },
+    "other": {
+      "title": "Etwas ist schiefgelaufen",
+      "body": "Die Dateiübersicht konnte nicht gelesen werden. Es wurde nichts verändert – versuche es erneut."
+    }
+  },
+  "retry": "Erneut versuchen",
+  "replicaNote": "Gezählt aus dem, was dieser Browser synchronisiert hat: Eine Kopie einer Datei zählt extra, und mit dir geteilte Dateien sind nicht enthalten. Den Speicherverbrauch deines Plans findest du unter",
+  "servicesLink": "Dienste"
+}

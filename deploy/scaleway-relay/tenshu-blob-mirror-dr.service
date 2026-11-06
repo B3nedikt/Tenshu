@@ -1,0 +1,24 @@
+[Unit]
+Description=Mirror the Tenshu relay content bucket into the second region (nl-ams), streamed through this box
+After=network-online.target
+
+[Service]
+Type=oneshot
+# ⚠ The env file carries S3_* (the source), BLOB_MIRROR_DR_BUCKET / BLOB_MIRROR_DR_REGION (the target)
+# and MIRROR_S3_* (the mirror job's own key). Unlike tenshu-blob-mirror.service this one moves BYTES:
+# CopyObject cannot cross regions, so each object is a GET from fr-par piped into an upload to nl-ams.
+# The first run carries the whole bucket (~5.35 GB); later runs only what the target lacks.
+# ⚠⚠ Pruning here is MIRROR_DR_PRUNE (default off), separate from MIRROR_PRUNE: the box's mirror key
+# cannot delete in nl-ams, so leave it off on the box. Never add --override-breaker here.
+# Own lock (/run/lock/tenshu-blob-mirror-dr.lock) and own ledger: it never blocks the fr-par mirror.
+# Any non-zero exit prunes nothing (codes: mirror-blobs.py docstring).
+EnvironmentFile=/opt/tenshu/deploy.env
+ExecStart=/usr/bin/python3 /opt/tenshu/mirror-blobs.py --target dr
+# The script streams with ~32 MiB resident (mirror-blobs.py, STREAM_*). This is the backstop: a
+# regression that reads objects whole is killed here rather than squeezing the relay on the same box.
+MemoryMax=512M
+# Second in line for the box's CPU and disk; the relay is first.
+Nice=10
+IOSchedulingClass=idle
+StandardOutput=append:/var/log/tenshu-blob-mirror-dr.log
+StandardError=append:/var/log/tenshu-blob-mirror-dr.log

@@ -1,0 +1,169 @@
+@import "tailwindcss";
+
+/* Brand tokens (amethyst roles, light + dark) + the Tailwind v4 @theme
+   mapping live in the shared layer so apex and drive stay in lockstep with
+   the brand source of truth. See docs/proposals/web-design-system.md. */
+@import "@tenshu/web-tokens/tokens.css";
+
+/* The app carousel and the screenshot slots: the landing page's Apps section and the support hub
+   share them, and the support-page build compiles this file too, so both get them from here. */
+@import "./landing/carousel/appCarousel.css";
+
+/* ⚠ No `color-scheme` here: tokens.css sets it on :root (`light dark`, or the one scheme an
+   explicit data-theme pins) and it inherits. Re-declaring `light dark` on body/#root would make
+   form controls and scrollbars follow the OS against the theme switch. */
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100svh;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+section[id] {
+  scroll-margin-top: 4rem;
+}
+
+/* ───────────────────────────────────────────────────────────────────────
+   RealmArt (Block 4 — the "your realm" ring). Per
+   docs/proposals/web-about-tenshu-public.md §6 the message is just
+   device-to-device sync (the relay beat lives in Block 3): the ring is
+   implied by motion — the dot group orbits its own centre while each
+   dot twinkles out of phase — and the cat gives a small idle tic. The
+   base rules below are the STATIC frame (a faint dotted ring + devices
+   + cat, a complete legible composition on its own); the animation is
+   opt-in under prefers-reduced-motion: no-preference, the same gating
+   convention as the scroll-behavior rule above, so reduced motion
+   degrades to the static frame with no JS. fill-box + origin:center
+   means the orbit rotates about the dot group's bbox centre, which is
+   the ring centre because the dots are evenly spaced — no coordinates
+   duplicated into CSS.
+   ─────────────────────────────────────────────────────────────────────── */
+.realm-pulse-dot {
+  opacity: 0.16;
+}
+.realm-orbit,
+.realm-cat {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .realm-orbit {
+    animation: realm-orbit 18s linear infinite;
+  }
+  .realm-pulse-dot {
+    animation: realm-twinkle 2.6s ease-in-out infinite;
+  }
+  .realm-cat {
+    animation: realm-breathe 6s ease-in-out infinite;
+  }
+}
+
+@keyframes realm-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes realm-twinkle {
+  0%,
+  100% {
+    opacity: 0.16;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes realm-breathe {
+  0%,
+  78%,
+  100% {
+    transform: scale(1);
+  }
+  86% {
+    transform: scale(1.03);
+  }
+}
+
+/* AnswerArt's real app icons: both theme copies are in the SVG; show the
+   one for the active theme (same rule as appCarousel.css .hub-icon). */
+.art-app-icon--dark {
+  display: none;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .art-app-icon--light {
+    display: none;
+  }
+  :root:not([data-theme="light"]) .art-app-icon--dark {
+    display: inline;
+  }
+}
+:root[data-theme="dark"] .art-app-icon--light {
+  display: none;
+}
+:root[data-theme="dark"] .art-app-icon--dark {
+  display: inline;
+}
+
+/* ───────────────────────────────────────────────────────────────────────
+   M1Hero (Block 1 — the hero constellation). Same gating convention as
+   RealmArt above: the STATIC frame (faint concentric rings + solid
+   relay↔device connectors) is the complete, legible composition on its
+   own, and the animation is opt-in under prefers-reduced-motion:
+   no-preference. The two rings "breathe" very slowly (a small opacity +
+   scale pulse) out of phase with each other, and a faint bright pulse
+   travels each connector — a short dash on a long gap, so at most one
+   pulse rides a line at a time — for a "live sync" read without the
+   lines ever redrawing. fill-box + origin:center scales each ring about
+   its own bbox centre (both centres are the relay centre, so they stay
+   concentric). Connector pulses are staggered via a per-line
+   `animation-delay` set inline in M1Hero. Reverse the flow direction by
+   flipping the sign of the hero-flow keyframe's stroke-dashoffset.
+   ─────────────────────────────────────────────────────────────────────── */
+.hero-ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0.12;
+}
+.hero-flow {
+  opacity: 0;
+  stroke-dasharray: 4 320;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hero-ring {
+    animation: hero-ring-pulse 9s ease-in-out infinite;
+  }
+  /* The outer ring runs longer and offset so the pair never pulses in
+     lockstep. Longhands here override only the timing the shorthand set. */
+  .hero-ring--delayed {
+    animation-duration: 7s;
+    animation-delay: -4s;
+  }
+  .hero-flow {
+    opacity: 0.6;
+    animation: hero-flow 6.5s linear infinite;
+  }
+}
+
+@keyframes hero-ring-pulse {
+  0%,
+  100% {
+    opacity: 0.08;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.2;
+    transform: scale(1.025);
+  }
+}
+@keyframes hero-flow {
+  to {
+    stroke-dashoffset: -324;
+  }
+}

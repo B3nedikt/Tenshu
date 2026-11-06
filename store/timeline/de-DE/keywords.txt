@@ -1,0 +1,1 @@
+standortverlauf,orte,reisen,strecken,aufenthalte,tagebuch,reisetagebuch,verschlüsselt,privat,e2ee

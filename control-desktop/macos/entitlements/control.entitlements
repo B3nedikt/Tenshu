@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+      App Group entitlement for the Control daemon
+      (docs/proposals/desktop-macos-integration.md §2.1).
+
+      Grants access to the shared group container
+      ~/Library/Group Containers/<TEAMID>.app.tenshu.shared/ where the daemon
+      binds its IPC + native-bridge sockets, so the sandboxed Drive File
+      Provider extension can reach them. @TEAM_ID@ is substituted by the
+      :control-desktop:signControlAppForAppGroup Gradle task.
+
+      Note: we deliberately do NOT enable com.apple.security.app-sandbox here —
+      the JVM daemon needs broad host access; the app-groups entitlement still
+      grants the shared container. The File Provider .appex (Phase 2) is the
+      sandboxed peer and carries its own entitlements.
+    -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>@TEAM_ID@.app.tenshu.shared</string>
+    </array>
+
+    <!--
+      ⚠⚠ Load-bearing for LAUNCH, not for permissions.
+
+      signControlAppForAppGroup signs with `--options runtime` (hardened runtime),
+      which turns on **Library Validation** — and that refuses to load a dylib whose
+      Team ID differs from the main executable's. This is a jpackage app: the bundled
+      JDK's `libjli.dylib` keeps its own (Adoptium) team, so a hardened-runtime signing
+      without this key produces an app that fails at launch with
+      `dlopen ... different Team IDs`.
+
+      Harmless here because this bundle is deliberately NOT sandboxed (see above) — it
+      is a JVM host that already has broad host access.
+
+      The ordinary local install path (`signDesktopApp`,
+      gradle/desktop-app-signing.gradle.kts) sidesteps the whole problem by not using
+      hardened runtime at all; this key is what keeps the entitlement-carrying,
+      notarisation-oriented path launchable.
+    -->
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+</dict>
+</plist>

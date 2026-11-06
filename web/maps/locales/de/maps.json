@@ -1,0 +1,119 @@
+{
+  "app": {
+    "title": "Maps",
+    "tagline": "Deine Orte, Ende-zu-Ende-verschlüsselt."
+  },
+  "runtime": {
+    "connectingTitle": "Verbindung zu Tenshu wird noch hergestellt…",
+    "connectingBody": "Der Tenshu-Tab, in dem Maps läuft, ist beschäftigt. Maps lädt, sobald er antwortet.",
+    "elsewhereTitle": "Tenshu ist in einem anderen Tab geöffnet",
+    "elsewhereBody": "Tenshu läuft immer nur in einem Tab, damit deine Daten nicht auseinanderlaufen. Nutze es hier, um es in diesen Tab zu holen.",
+    "moving": "Warte, bis der andere Tab fertig gespeichert hat. Das kann bis zu zwei Minuten dauern.",
+    "movingShort": "Wird verschoben…",
+    "useHere": "Hier nutzen"
+  },
+  "crash": {
+    "title": "Etwas ist schiefgelaufen",
+    "body": "In diesem Teil von Maps ist ein unerwarteter Fehler aufgetreten. Deine Daten sind sicher – nichts wurde geändert.",
+    "retry": "Erneut versuchen",
+    "reload": "Neu laden"
+  },
+  "common": {
+    "back": "Zurück",
+    "cancel": "Abbrechen",
+    "loading": "Wird geladen…",
+    "retry": "Erneut versuchen",
+    "working": "Wird ausgeführt…"
+  },
+  "read": {
+    "failedTitle": "Konnte nicht geladen werden",
+    "silentTitle": "Lädt noch – oder konnte nicht geladen werden"
+  },
+  "stream": {
+    "stopped": "Aktualisierungen gestoppt – was du siehst, ist eventuell veraltet.",
+    "reconnect": "Neu verbinden"
+  },
+  "places": {
+    "emptyTitle": "Noch keine Orte",
+    "emptyBody": "Orte erscheinen hier, sobald dein Telefon sie aufgezeichnet und synchronisiert hat.",
+    "listLabel": "Deine Orte"
+  },
+  "search": {
+    "label": "Deine Orte durchsuchen",
+    "placeholder": "Deine Orte durchsuchen",
+    "worldComing": "Die Suche nach Orten, an denen du noch nicht warst, kommt noch. Bis dahin findet die Suche deine eigenen Orte.",
+    "noMatches": "Keiner deiner Orte passt zu „{query}“."
+  },
+  "role": {
+    "home": "Zuhause",
+    "work": "Arbeit"
+  },
+  "place": {
+    "unnamed": "Unbenannter Ort",
+    "unnamedHint": "Benenne ihn um, um ihm einen Namen zu geben.",
+    "nameIsUsers": "Von dir benannt",
+    "nameIsStored": "Von deinem Gerät gefundener Name",
+    "redirected": "Der geöffnete Ort wurde mit diesem zusammengeführt.",
+    "merged": "{count, plural, one {Enthält # zusammengeführten Ort} other {Enthält # zusammengeführte Orte}}",
+    "rename": "Umbenennen",
+    "notFoundTitle": "Ort nicht gefunden",
+    "notFoundBody": "Diesen Ort gibt es nicht mehr. Vielleicht wurde er auf einem anderen Gerät entfernt.",
+    "coordinateTitle": "Koordinaten",
+    "visitsTitle": "Besuche"
+  },
+  "visits": {
+    "none": "Noch keine Besuche erfasst.",
+    "count": "{count, plural, one {# Besuch} other {# Besuche}}",
+    "last": "zuletzt {when}"
+  },
+  "lastVisit": {
+    "today": "heute",
+    "yesterday": "gestern",
+    "daysAgo": "{count, plural, one {vor # Tag} other {vor # Tagen}}",
+    "weeksAgo": "{count, plural, one {vor # Woche} other {vor # Wochen}}",
+    "monthsAgo": "{count, plural, one {vor # Monat} other {vor # Monaten}}",
+    "yearsAgo": "{count, plural, one {vor # Jahr} other {vor # Jahren}}"
+  },
+  "copy": {
+    "action": "Koordinaten kopieren",
+    "done": "Kopiert",
+    "failed": "Kopieren fehlgeschlagen. Markiere die Koordinaten, um sie von Hand zu kopieren."
+  },
+  "rename": {
+    "title": "Ort umbenennen",
+    "label": "Name des Orts",
+    "next": "Weiter",
+    "confirmTitle": "Diesen Ort umbenennen?",
+    "confirmBody": "„{from}“ heißt auf all deinen Geräten „{to}“.",
+    "confirm": "Umbenennen"
+  },
+  "map": {
+    "label": "Karte",
+    "loading": "Karte wird geladen…",
+    "unavailable": "Karte nicht verfügbar",
+    "noWebGL": "Dieser Browser kann keine Karten zeichnen (WebGL ist aus oder wird nicht unterstützt).",
+    "noRegion": "Keine Kartendaten für dieses Gebiet."
+  },
+  "offline": {
+    "note": "Offline-Karten verwaltest du in Tenshu Control auf deinem Telefon oder Computer."
+  },
+  "errors": {
+    "error_generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+    "error_unexpected": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+    "error_internal": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+    "error_not_found": "Das ist nicht mehr verfügbar.",
+    "error_invalid_caller": "Diese App darf das nicht.",
+    "error_unannounced_session": "Tenshu muss sich neu verbinden. Bitte versuche es erneut.",
+    "error_unsupported_operation": "Diese Version unterstützt das noch nicht.",
+    "error_timeline_place_not_found": "Dieser Ort ist nicht mehr verfügbar.",
+    "error_timeline_blank_name": "Gib einen Namen ein.",
+    "error_timeline_source_silent": "Deine Orte haben noch nicht geantwortet. Sie können noch kommen – versuche es gleich erneut.",
+    "error_map_transport_unconfigured": "Für diesen Tenshu-Server sind keine Kartenkacheln eingerichtet, daher wird keine Karte angezeigt.",
+    "error_map_transport_failed": "Kartenkacheln konnten nicht geladen werden.",
+    "error_map_catalog_unverified": "Der Kartenkatalog konnte nicht überprüft werden, daher wird keine Karte angezeigt.",
+    "error_map_unknown_region": "Für dieses Gebiet gibt es keine Karte.",
+    "bridge": "Tenshu ist nicht erreichbar. Stelle sicher, dass es geöffnet und entsperrt ist, und versuche es erneut.",
+    "bridge_timeout": "Tenshu hat zu lange gebraucht. Versuche es erneut.",
+    "bridge_not_permitted": "Maps darf das nicht."
+  }
+}

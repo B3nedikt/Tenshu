@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Ported from docs/design/tenshu-icons/icons/android/foreground/timeline.svg.
+  Source wraps a 64-unit-grid pictogram in <g transform="translate(84 84) scale(4.125)">.
+  Rather than bake the transform into every coordinate, the pictogram lives inside a
+  <group> with the same translate/scale so the path data is copied verbatim from the SVG
+  (the group scale also scales the 3.5 nominal stroke-width to the 14.4375 rendered width).
+  Circles have no VectorDrawable primitive, so the ring is expressed as an arc-pair.
+
+  The needle is drawn as a stroked rhombus with only its NE half filled. That asymmetry is
+  load-bearing twice over: it is what makes the mark read as a compass rather than a
+  diamond, and it is what stops a ring-plus-centred-bar reading as a prohibition sign at
+  tab size. Because the SW half is a genuine alpha hole rather than a lighter colour, it
+  survives the Android 13+ themed layer, which honours alpha only.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="432"
+    android:viewportHeight="432">
+    <group
+        android:translateX="84"
+        android:translateY="84"
+        android:scaleX="4.125"
+        android:scaleY="4.125">
+        <!-- Bezel (r=21) -->
+        <path
+            android:pathData="M 11 32 a 21 21 0 1 0 42 0 a 21 21 0 1 0 -42 0 Z"
+            android:strokeColor="#FAFAFA"
+            android:strokeWidth="3.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <!-- Needle outline -->
+        <path
+            android:pathData="M 43.5 20.5 L 37 37 L 20.5 43.5 L 27 27 Z"
+            android:strokeColor="#FAFAFA"
+            android:strokeWidth="3"
+            android:strokeLineJoin="round" />
+        <!-- Needle, north half -->
+        <path
+            android:pathData="M 43.5 20.5 L 37 37 L 27 27 Z"
+            android:fillColor="#FAFAFA" />
+    </group>
+</vector>

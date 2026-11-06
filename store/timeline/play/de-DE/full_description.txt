@@ -1,0 +1,29 @@
+Tenshu Timeline zeichnet auf deinem Handy die Orte auf, die du besuchst, und die Strecken dazwischen. Deine Timeline wird verschlüsselt, bevor sie dein Handy verlässt, und nur deine eigenen Geräte können sie lesen.
+
+TENSHU TIMELINE BRAUCHT TENSHU CONTROL
+Tenshu Control verwahrt deine Schlüssel und verbindet deine Geräte. Installiere Tenshu Control über Google Play und richte es zuerst ein, dann öffne Timeline. Timeline findet Control von selbst.
+
+WAS DU TUN KANNST
+- „Meine Timeline aufzeichnen“ in den Einstellungen einschalten. Timeline fragt nach Zugriff auf den Standort und auf „Körperliche Aktivität“, dann nach „Immer zulassen“, damit die Aufzeichnung weiterläuft, wenn du die App schließt. Während der Aufzeichnung zeigt Android eine Benachrichtigung.
+- Deine Tage als Feed lesen: die Orte, an denen du warst, und die Strecken dazwischen, jeweils mit Route, Entfernung, Dauer und Fortbewegungsart.
+- Wenn mehrere Tage nach einer Reise aussehen, schlägt Timeline vor, sie zusammenzufassen. Nimm den Vorschlag an oder sag, dass es keine Reise war.
+- Alle deine Orte und ihre Aufenthalte sehen. Einen Ort benennen, Timeline sagen, welcher dein Zuhause ist, zwei Orte zusammenführen, die derselbe sind, oder für einen Aufenthalt den richtigen Ort wählen.
+- Deinen Standortverlauf aus einem Google-Takeout-Export importieren.
+- Die Kartenbereiche einer Reise offline behalten.
+
+WIE TIMELINE DEINEN STANDORT PRIVAT HÄLT
+- Timeline zeichnet deinen Standort erst auf, wenn du „Meine Timeline aufzeichnen“ einschaltest.
+- Deine Orte und Strecken werden auf deinem Gerät verschlüsselt, bevor sie hochgeladen werden. Die Server von Tenshu speichern nur verschlüsselte Daten und haben nicht die Schlüssel, um sie zu lesen.
+- Einige Fakten, die der Server zum Synchronisieren braucht, sieht er trotzdem: wie viel du speicherst, wie viele Geräte du hast und wann sie synchronisieren.
+- „Ortsnamen nachschlagen“ ist aus, bis du es einschaltest. Wenn es an ist, gehen die Koordinaten eines Orts an einen Dienst für Ortsnamen: Photon, betrieben von komoot, oder die Ortsnamen-Suche von Android selbst, die Server von Google nutzen kann.
+- „Orte per WLAN erkennen“ ist aus, bis du es einschaltest. Es synchronisiert eine verschleierte ID, niemals den Netzwerknamen.
+- Ohne Speicherplan bleibt deine Timeline auf diesem Gerät.
+
+VORAUSSETZUNGEN
+- Android 7.0 oder neuer.
+- Tenshu Control, eingerichtet auf demselben Handy.
+- Zum Synchronisieren zwischen Geräten: ein Speicherplan. Der kostenlose Plan hat 5 GB.
+
+Tenshu ist Open Source und noch in der Testphase: Rechne mit Ecken und Kanten und sag uns, was nicht funktioniert.
+
+Hilfe und häufige Probleme: tenshu.app/apps/support/de

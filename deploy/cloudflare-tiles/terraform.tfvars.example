@@ -1,0 +1,32 @@
+# Copy to terraform.tfvars (git-ignored) and fill in. Then:
+#   export CLOUDFLARE_API_TOKEN=...   # rather than putting it in this file
+#   terraform init && terraform apply
+#
+# ⚠⚠ Order matters, and the runbook owns it: docs/how-to/move-tiles-to-cloudflare.md.
+# The first apply is the bucket alone. Custom domains wait for the zone to be ACTIVE.
+
+# --- required ---------------------------------------------------------------
+
+# Cloudflare account ID — not a secret. Dashboard → any zone → Overview (right column), or the
+# R2 overview page.
+account_id = "0123456789abcdef0123456789abcdef"
+
+# --- the move, one stage at a time -----------------------------------------------
+
+# Stage 1 — the pre-DNS range test. On for the test, OFF again once it passes.
+# enable_dev_url = true
+
+# Stage 2 — once tenshu.app is ACTIVE on Cloudflare (deploy/cloudflare-dns). The zone ID is on the
+# zone's Overview page.
+# zone_id     = "0123456789abcdef0123456789abcdef"
+# test_domain = "tiles-r2.service.tenshu.app"
+
+# Stage 3 — THE cutover. ⚠⚠ Only after the DigitalOcean CNAME for tiles.service is gone, and only
+# after the sibling test above said how long the certificate takes.
+# enable_custom_domain = true
+
+# --- optional (sensible defaults) -------------------------------------------
+# bucket_name = "tenshu-tiles"
+# location    = "weur"
+# domain      = "tiles.service.tenshu.app"
+# min_tls     = "1.2"

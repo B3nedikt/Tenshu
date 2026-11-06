@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Ported from docs/design/tenshu-icons/icons/android/foreground/contacts.svg.
+  Source wraps a 64-unit-grid pictogram in <g transform="translate(84 84) scale(4.125)">.
+  Rather than bake the transform into every coordinate, the pictogram lives inside a
+  <group> with the same translate/scale so the path data is copied verbatim from the SVG
+  (the group scale also scales the 3.5 nominal stroke-width to the 14.4375 rendered width).
+  Circles have no VectorDrawable primitive, so the head is expressed as an arc-pair.
+  The figure is open — no enclosing card — which is what separates it from Calendar
+  and Photos in silhouette.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="432"
+    android:viewportHeight="432">
+    <group
+        android:translateX="84"
+        android:translateY="84"
+        android:scaleX="4.125"
+        android:scaleY="4.125">
+        <!-- Head (r=9.5) -->
+        <path
+            android:pathData="M 22.5 23 a 9.5 9.5 0 1 0 19 0 a 9.5 9.5 0 1 0 -19 0 Z"
+            android:strokeColor="#FFFBFF"
+            android:strokeWidth="3.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <!-- Shoulders -->
+        <path
+            android:pathData="M 13 51 c 0 -11 8.5 -16 19 -16 s 19 5 19 16"
+            android:strokeColor="#FFFBFF"
+            android:strokeWidth="3.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
+</vector>

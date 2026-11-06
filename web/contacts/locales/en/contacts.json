@@ -1,0 +1,235 @@
+{
+  "app": {
+    "title": "Contacts",
+    "tagline": "The people you know, end-to-end encrypted."
+  },
+  "nav": {
+    "contacts": "Contacts",
+    "invites": "Invitations",
+    "duplicates": "Duplicates",
+    "profile": "You"
+  },
+  "common": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "working": "Working…",
+    "loading": "Loading…",
+    "name": "Name",
+    "unnamed": "Unnamed"
+  },
+  "list": {
+    "aria": "Your contacts",
+    "searchLabel": "Search",
+    "searchPlaceholder": "Search your contacts",
+    "add": "Add contact",
+    "emptyTitle": "No contacts yet",
+    "emptyBody": "People you exchange an invitation with appear here, along with anyone you add yourself.",
+    "noMatches": "No matches."
+  },
+  "add": {
+    "title": "Add a contact",
+    "supporting": "You can add someone without connecting to them. Exchange an invitation later to share with them.",
+    "confirm": "Add"
+  },
+  "import": {
+    "action": "Import .vcf",
+    "fileLabel": "Choose a .vcf file to import",
+    "working": "Reading…",
+    "done": "{count, plural, one {Imported 1 contact.} other {Imported # contacts.}}",
+    "partial": "Imported {imported} of {cards} contacts. The others could not be saved."
+  },
+  "trust": {
+    "verified": "Verified",
+    "verifiedDetail": "You compared this contact's code and confirmed it.",
+    "unverified": "Not verified",
+    "unverifiedDetail": "You have not compared this contact's code yet. Verifying confirms you are talking to the person you think you are.",
+    "needsReverification": "Key changed",
+    "needsReverificationDetail": "This contact is using a key you have not verified. That happens after they reinstall or set up a new device — verify again to be sure it is still them.",
+    "notConnected": "Not connected",
+    "notConnectedDetail": "You added this person yourself, so there is no key to verify."
+  },
+  "detail": {
+    "back": "All contacts",
+    "rename": "Rename",
+    "editInfo": "Edit info",
+    "export": "Export .vcf",
+    "mergeWith": "Merge with…",
+    "removePhoto": "Remove photo",
+    "delete": "Delete",
+    "keysTitle": "Keys",
+    "noKeys": "This contact has no Tenshu key. Exchange an invitation to connect with them.",
+    "infoTitle": "Contact info",
+    "noInfo": "No contact info yet.",
+    "missingTitle": "Contact not found",
+    "missingBody": "They may have been deleted on another device.",
+    "photoTooLarge": "Their photo is too large to show here.",
+    "photoUnknownFormat": "Their photo is in a format this browser cannot show."
+  },
+  "key": {
+    "verified": "Verified",
+    "attested": "Attested",
+    "unverified": "Not verified",
+    "claimedName": "Introduced themselves as “{name}”",
+    "verify": "Verify",
+    "unverify": "Un-verify",
+    "attestedNote": "Attested keys cannot be changed here.",
+    "relink": "Move to another contact",
+    "unlink": "Remove key"
+  },
+  "info": {
+    "phone": "Phone",
+    "email": "Email",
+    "address": "Address",
+    "organisation": "Organisation",
+    "note": "Note"
+  },
+  "rename": {
+    "title": "Rename",
+    "supporting": "This name is yours — it is not shared with them."
+  },
+  "delete": {
+    "title": "Delete contact",
+    "body": "This removes them and their keys from all your devices.",
+    "accessWarning": "This does not take away anything you have already shared with them. To stop their access to shared folders, remove them in Drive first.",
+    "confirm": "Delete"
+  },
+  "unlink": {
+    "title": "Remove key",
+    "body": "Remove the key {key} from this contact? They stay in your contacts, and you can connect again later.",
+    "confirm": "Remove key"
+  },
+  "relink": {
+    "title": "Move key",
+    "body": "Move the key {key} to another contact. Its verification stays with the key.",
+    "target": "Move to",
+    "choose": "Choose a contact",
+    "confirm": "Move"
+  },
+  "edit": {
+    "title": "Edit contact info",
+    "labelFor": "Label for {field}",
+    "remove": "Remove",
+    "addPhone": "Add a phone number",
+    "addEmail": "Add an email address",
+    "addAddress": "Add an address",
+    "preservesNote": "Anything else their card holds is kept, even though it is not shown here."
+  },
+  "verify": {
+    "title": "Compare your codes",
+    "body": "Read these six digits to {name} — over a call, or in person. They see the same six on their side. Only confirm if they match.",
+    "loading": "Getting the code…",
+    "unavailable": "The code is not available right now. Unlock Tenshu and try again.",
+    "confirm": "They match",
+    "noMatch": "They don’t match",
+    "unchanged": "Nothing changed — this key was already at that level."
+  },
+  "merge": {
+    "dialogTitle": "Combine contacts",
+    "with": "Combine with",
+    "keepLabel": "Which one should be kept? The other is combined into it, and its name is the one you will see.",
+    "summary": "“{fold}” will be combined into “{keep}”.",
+    "noUndo": "Their keys, cards and photo all move across. This cannot be undone.",
+    "confirm": "Combine",
+    "emptyTitle": "No duplicates found",
+    "emptyBody": "Nobody in your contacts looks like anyone else. Imported contacts are never combined for you — this is where they would show up if they were.",
+    "count": "{count, plural, one {1 possible duplicate} other {# possible duplicates}}",
+    "pair": "“{first}” and “{second}”",
+    "reason": {
+      "phone": "Same phone number",
+      "email": "Same email address",
+      "name": "Same name"
+    },
+    "nameOnlyNote": "— which two people can share.",
+    "review": "Review"
+  },
+  "invite": {
+    "title": "Invite someone",
+    "intro": "Create a one-time invitation. Whoever accepts it becomes one of your contacts — nothing is shared until you choose to share it.",
+    "create": "Create invitation",
+    "creating": "Creating…",
+    "qrDescription": "Invitation QR code",
+    "qrFailed": "Couldn’t draw the QR code. The link below still works.",
+    "linkCaption": "Have them scan this, or send them the link.",
+    "linkLabel": "Invitation link",
+    "copy": "Copy link",
+    "copied": "Copied",
+    "oneSessionWarning": "This link is shown once and works once. If you lose it, revoke the invitation and make a new one.",
+    "acceptedTitle": "Accepted",
+    "noneAccepted": "Nobody is waiting to be saved.",
+    "outstandingTitle": "Waiting for a reply",
+    "noneOutstanding": "No open invitations.",
+    "createdAt": "Created {date, date, medium}",
+    "expiresAt": "expires {date, date, medium}",
+    "revoke": "Revoke"
+  },
+  "confirm": {
+    "banner": "“{name}” accepted your invitation",
+    "open": "Review",
+    "header": "“{name}” accepted your invitation",
+    "unnamed": "Someone",
+    "claimNote": "That is the name they gave. Their key:",
+    "sasNote": "Read these six digits to them — over a call, or in person. They see the same six on their side.",
+    "sasCheck": "The codes match",
+    "petnameLabel": "Save them as",
+    "linkExisting": "Or add this key to an existing contact",
+    "newContact": "A new contact",
+    "ownNameLabel": "Your name",
+    "ownNameNote": "This is what they will see you as.",
+    "save": "Save contact",
+    "decline": "Decline",
+    "failedAccept": "Couldn’t complete the connection. Try again.",
+    "failedDecline": "Couldn’t decline. Try again."
+  },
+  "profile": {
+    "nameLabel": "Your name",
+    "nameSupporting": "This is the name people see when you invite them.",
+    "nameUnset": "No name set",
+    "editName": "Edit name",
+    "identityTitle": "Your identity",
+    "identityPending": "Your identity code is not available on the web yet."
+  },
+  "stream": {
+    "stopped": "Live updates stopped. What you see may be out of date.",
+    "reconnect": "Reconnect"
+  },
+  "sync": {
+    "offline": "You’re offline. Changes stay on this device and sync when you reconnect.",
+    "needsAttention": "Tenshu can’t sync right now — your storage needs attention. Changes stay on this device.",
+    "locked": "Tenshu is locked on this device, so nothing can sync. Unlock it to continue.",
+    "deviceUnrecognized": "This browser is no longer recognised as one of your devices, so it can’t sync."
+  },
+  "runtime": {
+    "connectingTitle": "Still connecting to Tenshu…",
+    "connectingBody": "The Tenshu tab hosting Contacts is busy. Contacts will load as soon as it answers.",
+    "elsewhereTitle": "Tenshu is open in another tab",
+    "elsewhereBody": "Tenshu runs in one tab at a time, so your contacts can’t get out of step. Use it here to move it to this tab.",
+    "moving": "Waiting for the other tab to finish saving. This can take up to two minutes.",
+    "movingShort": "Moving…",
+    "useHere": "Use here"
+  },
+  "crash": {
+    "title": "Something went wrong",
+    "body": "This part of Contacts hit an unexpected error. Your contacts are safe — nothing was changed.",
+    "retry": "Try again",
+    "reload": "Reload"
+  },
+  "errors": {
+    "error_generic": "Something went wrong. Please try again.",
+    "error_unexpected": "Something went wrong. Please try again.",
+    "error_internal": "Something went wrong. Please try again.",
+    "error_not_found": "That contact is no longer available.",
+    "error_invalid_caller": "This app is not allowed to do that.",
+    "error_unannounced_session": "Tenshu needs to reconnect. Please try again.",
+    "error_unsupported_operation": "This version does not support that yet.",
+    "error_contacts_none_in_file": "No contacts found in that file.",
+    "error_contacts_nothing_to_export": "This contact has nothing to export.",
+    "error_contacts_photo_unavailable": "This contact’s photo is not on this device yet. Connect to the internet and try again.",
+    "error_contacts_invalid_details": "That contact info could not be saved.",
+    "error_contacts_unknown_key": "That key is no longer known on this device.",
+    "error_invite_response_changed": "The reply to this invite changed after it was shown, so nothing was saved. Decline this invite and send a new one.",
+    "error_invite_code_not_shown": "There is no code to confirm for this invite yet. Try again in a moment.",
+    "bridge": "Couldn’t reach Tenshu. Make sure it is open and unlocked, then try again.",
+    "bridge_timeout": "Tenshu took too long to answer. Try again.",
+    "bridge_not_permitted": "Contacts is not allowed to do that."
+  }
+}

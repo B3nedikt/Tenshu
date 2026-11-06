@@ -1,0 +1,13 @@
+{
+  "about": "What scripts/store-push.sh needs beside the copy (store-presence-and-support-pages.md §2, docs/how-to/store-listings.md). `ios.screenshots`: the screens the App Store listing shows, in order, taken from screenshots.manifest.json by sha256 — never the support pages' whole set. `languages`: store locale → the manifest's language segment. `framed`: false takes the plain captures (<device>), true the framed renders (<device>framed, scripts/store-frame).",
+  "version": 1,
+  "ios": {
+    "bundleId": "app.tenshu.calendar.ios",
+    "languages": {"en-US": "en", "de-DE": "en"},
+    "screenshots": {
+      "devices": ["iphone69", "ipad13"],
+      "framed": false,
+      "screens": ["01-month", "02-agenda", "03-event", "04-new-event", "05-calendars", "06-edit-calendar"]
+    }
+  }
+}

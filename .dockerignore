@@ -1,0 +1,46 @@
+# Build context pruning for the relay Docker build (sync-relay-server/Dockerfile).
+# Keep the context small + reproducible: drop build outputs, IDE/VCS, JS deps, secrets.
+.git
+.github
+.gradle
+.kotlin
+.idea
+.vscode
+.claude
+.DS_Store
+**/build
+# ⚠ …except the relay fat jar, which the `prebuilt` target COPYs from the context
+# (sync-relay-server/Dockerfile). `**/build` above exists to keep the context small; this is the one
+# artefact that has to come back, and only when it has been built first.
+!sync-relay-server/build/libs/sync-relay-server-all.jar
+# ⚠ …and the commerce fat jar, for the same reason (commerce-service/Dockerfile's
+# `prebuilt` target). Same rule: only present once you have built it.
+!commerce-service/build/libs/commerce-service-all.jar
+**/bin
+**/.cxx
+**/.externalNativeBuild
+captures
+
+# Web / JS — the relay build never needs these.
+**/node_modules
+web/**/dist
+# ⚠ …except the built apex SPA, which web/apex/Dockerfile's `prebuilt` target COPYs from
+# the context. Both lines are needed: the first re-admits the directory, the second its
+# contents (a negation cannot resurrect children of an excluded directory on its own).
+!web/apex/dist
+!web/apex/dist/**
+# The web apps the apex image serves on their own origins need no exception: build-apex-image.sh
+# stages them as web/.apps-dist/<id>, which `web/**/dist` does not match (web-app-suite.md F4).
+kotlin-js-store
+# Generated store screenshots (gitignored; published to R2). The apex image copies store/ for the
+# manifests only.
+store/*/screenshots
+
+# Local secrets / machine config (never bake into an image).
+local.properties
+# Deploy env files (ISSUER_SEED, ACME email, …) — keep them out of the build context entirely.
+deploy.env
+**/deploy.env
+**/*.iml
+xcuserdata
+iosApp

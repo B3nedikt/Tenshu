@@ -1,0 +1,32 @@
+Tenshu Photos zeigt deine Fotos und Videos in einer Mediathek, auf jedem deiner Geräte gleich. Sie werden verschlüsselt, bevor sie das Gerät verlassen, das sie sichert, und nur deine eigenen Geräte können sie lesen.
+
+TENSHU PHOTOS BRAUCHT TENSHU CONTROL
+Tenshu Control verwahrt deine Schlüssel und verbindet deine Geräte. Installiere Tenshu Control über Google Play und richte es zuerst ein, dann öffne Photos. Photos findet Control von selbst.
+Tenshu Drive sichert deine Fotos, und Photos zeigt, was Drive gesichert hat, von diesem Handy und von deinen anderen Geräten. Um von diesem Handy zu sichern, installiere auch Tenshu Drive.
+
+WAS DU TUN KANNST
+- Deine Mediathek als Mosaik oder nach Tag, Monat oder Jahr durchstöbern und mit dem Scrubber durch die Jahre springen.
+- Ein Foto im Vollbild öffnen, hineinzoomen und zum nächsten wischen. Sein Datum, seine Details und seine Alben sehen.
+- Favoriten markieren und Alben anlegen: Alben erstellen, umbenennen und löschen und Fotos hinzufügen.
+- Exakte Duplikate finden, die Kopie wählen, die bleiben soll, und den Rest in den Papierkorb legen.
+- Fotos in den Papierkorb legen, wiederherstellen oder endgültig löschen.
+- Deine Fotos nach Dateinamen durchsuchen.
+- Sehen, was von diesem Handy gesichert wird, und eine Quelle pausieren.
+- Videos stumm im Raster abspielen lassen.
+
+WIE PHOTOS DEINE FOTOS PRIVAT HÄLT
+- Deine Fotos werden auf deinem Gerät verschlüsselt, bevor sie hochgeladen werden. Die Server von Tenshu speichern nur verschlüsselte Daten und haben nicht die Schlüssel, um sie zu lesen.
+- Auch deine Alben und Favoriten sind verschlüsselt. Einige Fakten, die der Server zum Synchronisieren braucht, sieht er trotzdem: wie viel du speicherst, wie viele Geräte du hast und wann sie synchronisieren.
+- Ohne Speicherplan verlässt nichts dein Gerät. Erst wenn du in Tenshu Control die Synchronisierung einschaltest, gehen deine Fotos verschlüsselt an die Server von Tenshu.
+
+Die App ist derzeit nur auf Englisch verfügbar.
+
+VORAUSSETZUNGEN
+- Android 7.0 oder neuer.
+- Tenshu Control, eingerichtet auf demselben Handy.
+- Tenshu Drive, um Fotos von diesem Handy zu sichern.
+- Zum Synchronisieren zwischen Geräten: ein Speicherplan. Der kostenlose Plan hat 5 GB.
+
+Tenshu ist Open Source und noch in der Testphase: Rechne mit Ecken und Kanten und sag uns, was nicht funktioniert.
+
+Hilfe und häufige Probleme: tenshu.app/apps/photos/support/android/de

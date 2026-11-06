@@ -1,0 +1,255 @@
+{
+  "app": {
+    "title": "Fit",
+    "tagline": "Your activity, end-to-end encrypted."
+  },
+  "runtime": {
+    "connectingTitle": "Still connecting to Tenshu…",
+    "connectingBody": "The Tenshu tab hosting Fit is busy. Fit will load as soon as it answers.",
+    "elsewhereTitle": "Tenshu is open in another tab",
+    "elsewhereBody": "Tenshu runs in one tab at a time, so your data can't get out of step. Use it here to move it to this tab.",
+    "moving": "Waiting for the other tab to finish saving. This can take up to two minutes.",
+    "movingShort": "Moving…",
+    "useHere": "Use here"
+  },
+  "crash": {
+    "title": "Something went wrong",
+    "body": "This part of Fit hit an unexpected error. Your data is safe — nothing was changed.",
+    "retry": "Try again",
+    "reload": "Reload"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "history": "History",
+    "profile": "Profile"
+  },
+  "common": {
+    "back": "Back",
+    "cancel": "Cancel",
+    "loading": "Loading…",
+    "retry": "Try again",
+    "working": "Working…",
+    "save": "Save",
+    "edit": "Edit",
+    "editField": "Edit {field}"
+  },
+  "read": {
+    "failedTitle": "Couldn’t load this"
+  },
+  "stream": {
+    "stopped": "Updates stopped — what you see may be out of date.",
+    "reconnect": "Reconnect"
+  },
+  "errors": {
+    "error_generic": "Something went wrong. Please try again.",
+    "error_unexpected": "Something went wrong. Please try again.",
+    "error_internal": "Something went wrong. Please try again.",
+    "error_not_found": "That is no longer available.",
+    "error_invalid_caller": "This app is not allowed to do that.",
+    "error_unannounced_session": "Tenshu needs to reconnect. Please try again.",
+    "error_unsupported_operation": "This version does not support that yet.",
+    "error_fit_bad_cursor": "History lost its place. Reload it to start from the top.",
+    "error_fit_bad_page_size": "History couldn’t be read in pages of that size.",
+    "error_fit_bad_window": "That date range can’t be shown.",
+    "error_fit_invalid_zone": "Your browser’s time zone isn’t recognised, so days can’t be grouped.",
+    "error_fit_workout_not_found": "This workout no longer exists.",
+    "error_fit_invalid_goal": "That goal is outside the allowed range.",
+    "error_fit_invalid_profile_value": "That value is outside the allowed range.",
+    "error_fit_unsupported_format": "Only GPX and TCX files can be imported.",
+    "error_fit_binary_unsupported": "Binary .FIT files can’t be imported on the web yet. Export the activity as GPX or TCX instead.",
+    "error_fit_malformed_file": "This file is damaged or isn’t a valid GPX or TCX file.",
+    "error_fit_no_workouts": "This file contains no workouts.",
+    "error_fit_streams_unreadable": "This workout’s route and heart rate can’t be read.",
+    "error_fit_file_too_large": "This file is too large to import (at most 32 MB).",
+    "bridge": "Couldn’t reach Tenshu. Make sure it is open and unlocked, then try again.",
+    "bridge_timeout": "Tenshu took too long to answer. Try again.",
+    "bridge_not_permitted": "Fit is not allowed to do that."
+  },
+  "distance": {
+    "m": "{value} m",
+    "km": "{whole}.{tenths} km",
+    "ft": "{value} ft",
+    "mi": "{whole}.{tenths} mi"
+  },
+  "duration": {
+    "minutes": "{minutes} min",
+    "hours": "{hours} h",
+    "hoursMinutes": "{hours} h {minutes} min"
+  },
+  "pace": {
+    "perKm": "{minutes}:{seconds} /km",
+    "perMi": "{minutes}:{seconds} /mi"
+  },
+  "energy": {
+    "kcal": "{value} kcal"
+  },
+  "weight": {
+    "kg": "{value} kg",
+    "lb": "{value} lb"
+  },
+  "height": {
+    "cm": "{value} cm",
+    "ftIn": "{feet}′ {inches}″"
+  },
+  "metric": {
+    "steps": "Steps",
+    "activeMinutes": "Active minutes",
+    "distanceM": "Distance",
+    "activeEnergyKj": "Energy"
+  },
+  "dashboard": {
+    "today": "Today",
+    "range": "Range",
+    "ranges": {
+      "week": "7 days",
+      "month": "30 days",
+      "year": "12 months"
+    },
+    "rangeTitle": {
+      "week": "The last 7 days",
+      "month": "The last 30 days",
+      "year": "The last 12 months"
+    },
+    "activeMinutesGoal": "Active minutes goal",
+    "stepsGoal": "Steps goal",
+    "ofGoal": "{value} of {goal}",
+    "metric": "Metric",
+    "total": "Total",
+    "average": "Daily average",
+    "change": "Change vs. the period before",
+    "delta": "{value}%",
+    "goalDays": "Goal reached",
+    "goalDaysValue": "{met} of {days} days"
+  },
+  "history": {
+    "startOver": "Start from the top",
+    "title": "Workouts",
+    "empty": "No workouts yet. Import a GPX or TCX file, or record one on your phone."
+  },
+  "activity": {
+    "Running": "Run",
+    "Walking": "Walk",
+    "Cycling": "Ride",
+    "Strength": "Strength",
+    "Other": "Workout"
+  },
+  "source": {
+    "Recorded": "Recorded",
+    "HealthConnect": "Health Connect",
+    "AppleHealth": "Apple Health",
+    "File": "File import",
+    "Manual": "Manual",
+    "Detected": "Detected"
+  },
+  "import": {
+    "title": "Import a workout",
+    "hint": "GPX or TCX, up to 32 MB. The file never leaves your devices unencrypted.",
+    "choose": "Choose file…",
+    "saved": "{count, plural, one {Saved # workout from {name}.} other {Saved # workouts from {name}.}}",
+    "pending": "Saved; route and heart rate will upload when online",
+    "maybeSaved": "Some workouts from this file may already be saved — check History. Importing it again is safe."
+  },
+  "detail": {
+    "gone": "This workout no longer exists. It may have been deleted on another device.",
+    "duration": "Duration",
+    "pace": "Pace",
+    "avgHr": "Avg heart rate",
+    "maxHr": "Max heart rate",
+    "bpm": "{value} bpm",
+    "heartRate": "Heart rate",
+    "route": "Route",
+    "hrChart": "Heart rate, {min} to {max} bpm",
+    "hrMin": "Min {value}",
+    "hrAvg": "Avg {value}",
+    "hrMax": "Max {value}",
+    "start": "Start",
+    "end": "Finish",
+    "delete": "Delete workout",
+    "deleteTitle": "Delete this workout?",
+    "deleteBody": "It is removed from all your devices. This can’t be undone.",
+    "deleteConfirm": "Delete"
+  },
+  "map": {
+    "map": "Map",
+    "loading": "Loading map…",
+    "unavailable": "Map unavailable",
+    "noWebGL": "This browser can’t draw maps (WebGL is off or unsupported).",
+    "notConfigured": "Maps are not set up for this site.",
+    "tilesFailed": "Map tiles couldn’t be loaded.",
+    "noRegion": "No map data for this area."
+  },
+  "goals": {
+    "title": "Goals",
+    "activeMinutes": "Active minutes per day",
+    "steps": "Steps per day",
+    "edit": "Edit goals"
+  },
+  "profile": {
+    "title": "Personal data",
+    "notSet": "Not set",
+    "name": "Name",
+    "birthDate": "Birth date",
+    "sex": "Sex",
+    "sexes": {
+      "female": "Female",
+      "male": "Male",
+      "other": "Other"
+    },
+    "height": "Height",
+    "weight": "Weight",
+    "units": "Units",
+    "unitNames": {
+      "metric": "Metric",
+      "imperial": "Imperial"
+    },
+    "feet": "Feet",
+    "inches": "Inches",
+    "centimetres": "Centimetres",
+    "pounds": "Pounds",
+    "kilograms": "Kilograms"
+  },
+  "bounds": {
+    "activeMinutes": "Active minutes must be a whole number from {min} to {max}.",
+    "steps": "Steps must be a whole number from {min} to {max}.",
+    "birthDate": "Enter a date from {min} to {max}.",
+    "sex": "Choose one.",
+    "heightMetric": "Enter a whole number of centimetres, at most {max}.",
+    "heightImperial": "Enter feet and inches (0–11), at most {max}.",
+    "weightMetric": "Enter a weight above 0 and at most {max} kg.",
+    "weightImperial": "Enter a weight above 0 and at most {max} lb."
+  },
+  "sources": {
+    "title": "Data sources",
+    "none": "No data sources yet.",
+    "managedOnDevices": "Sources are managed on your devices.",
+    "thisBrowser": "This browser",
+    "unknownDevice": "Another device",
+    "needsAttention": "Needs attention on that device",
+    "items": "{count, plural, one {# item} other {{formatted} items}}",
+    "autoOn": "Imports automatically",
+    "autoOff": "Automatic import off",
+    "batchImport": "Last full import {when}: {status} ({runs} runs)",
+    "batchStatus": {
+      "Succeeded": "succeeded",
+      "NoData": "no data",
+      "PermissionsMissing": "permissions missing",
+      "Failed": "failed"
+    },
+    "kind": {
+      "TenshuHealth": "Tenshu Health",
+      "HealthConnect": "Health Connect",
+      "AppleHealth": "Apple Health"
+    },
+    "state": {
+      "NeverRun": "Never imported",
+      "Imported": "Imported",
+      "NoData": "No data found",
+      "Failed": "Last import failed",
+      "Running": "Importing…",
+      "Recording": "Recording",
+      "PermissionNeeded": "Permission needed",
+      "Unavailable": "Unavailable on that device",
+      "Sample": "Sample data"
+    }
+  }
+}

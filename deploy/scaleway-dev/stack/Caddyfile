@@ -1,0 +1,239 @@
+# One Caddy, four hostnames (five with the mail endpoint), automatic Let's Encrypt for each.
+#
+# ⚠ Certificates are issued over HTTP-01 on :80, so all three A records must already point here
+# before this can succeed. Until they do, Caddy retries in a loop and logs ACME failures — that is
+# the expected state between `terraform apply` and your registrar's records propagating.
+#
+# ⚠ While you are still sorting out DNS, uncomment the staging CA below: Let's Encrypt's
+# production rate limit is 5 failed authorisations per hostname per hour, and burning it means
+# waiting rather than debugging.
+
+{
+	email {$ACME_EMAIL}
+	# ⚠⚠ Caddy's ERROR log (`http.log.error`, one entry per failed proxied request — every 502/504)
+	# carries the same request object as the access log: full client IP, full URI with its query
+	# (?pairingSecret=) and every header (X-Entitlement). It goes to the DEFAULT logger, which the
+	# access snippet's filter never sees, so it is routed out of stdout into its own filtered file.
+	# Same filter and same roll as the `access_log` snippet below (docs/how-to/server-logging.md).
+	log default {
+		exclude http.log.error
+	}
+	log errors {
+		include http.log.error
+		output file /var/log/caddy/errors.log {
+			roll_size 50MiB
+			roll_keep 5
+			roll_keep_for 168h
+			roll_interval 24h
+		}
+		format filter {
+			wrap json
+			request>remote_ip ip_mask 24 48
+			request>client_ip ip_mask 24 48
+			request>remote_port delete
+			# Same uri filter as the access_log snippet below; the comment there explains it.
+			request>uri multi_regexp {
+				regexp "[?].*" "?…"
+				regexp "^/share/[^/?]+" "/share/{shareId}"
+				regexp "^/sync/grant/[^/?]+" "/sync/grant/{address}"
+				regexp "^/sync/epc/[^/?]+" "/sync/epc/{sessionId}"
+				regexp "^/sync/(content|invite)/(declare|inventory|reap|response|responses|ack|done)([/?]|$)" "/sync/$1/ $2$3"
+				regexp "^/sync/content/[^ /?][^/?]*" "/sync/content/{ref}"
+				regexp "^/sync/invite/[^ /?][^/?]*" "/sync/invite/{inviteId}"
+				regexp "^/sync/(content|invite)/ " "/sync/$1/"
+				regexp "^/s/[^/?]+" "/s/{shareId}"
+				regexp "^/control/data/devices/[^/?]+" "/control/data/devices/{deviceId}"
+				regexp "/[A-Za-z0-9_%-]{20,}([/?]|$)" "/{id}$1"
+				regexp "/[A-Za-z0-9_%-]{20,}([/?]|$)" "/{id}$1"
+			}
+			request>headers delete
+		}
+	}
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+# Access log: one line per request, written to a FILE that is bounded by TIME as well as size, with
+# the personal data filtered out first. Policy and reasons: docs/how-to/server-logging.md.
+#   - client IPs truncated to their /24 (IPv4) or /48 (IPv6) network, source port dropped;
+#   - the query string dropped (`?pairingSecret=`, `?token=`, `?email=` travel there);
+#   - identifier-bearing path segments replaced by their route template: the relay's capability
+#     routes (share, grant, EPC session, invite, content ref) and the apex's /s/<shareId> and
+#     /control/data/devices/<id>. One snippet serves every site here, so it carries both sets; the
+#     rules are anchored to distinct prefixes. Production: sync-relay-server/Caddyfile and
+#     web/apex/Caddyfile, which explain each rule;
+#   - every request and response header dropped (custom bearer headers such as X-Entitlement are
+#     not on Caddy's own redaction list, and User-Agent is a fingerprint);
+#   - rolled daily, at most 5 rolled files (gzipped), each also expired after 7 days, and the live
+#     file capped at 50 MiB: about a week at most, normally 5-6 days, on a site that keeps receiving
+#     traffic (rolling and cleanup happen only on a write). Docker's json-file driver can only bound
+#     by size, which is why this log no longer goes to stdout.
+# Read it with: docker exec <caddy container> tail -f /var/log/caddy/<site>.log   (JSON lines; pipe to jq)
+# ⚠ roll_interval needs caddy >= 2.11 — hence the pinned `caddy:2.11` image.
+# ⚠ Abuse handling: a /24 is what an operator blocks anyway. For a live incident that needs exact
+#   addresses, change the ip_mask lines below temporarily — and revert them afterwards.
+(access_log) {
+	log {
+		output file /var/log/caddy/{args[0]}.log {
+			roll_size 50MiB
+			roll_keep 5
+			roll_keep_for 168h
+			roll_interval 24h
+		}
+		format filter {
+			# JSON, not console: the console encoder writes ANSI colour codes into the file.
+			wrap json
+			request>remote_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>client_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>remote_port delete
+			# ⚠ Keep in step with sync-relay-server/Caddyfile and web/apex/Caddyfile.
+			# ⚠ The last two lines are the backstop: any path segment of 20+ id characters becomes `{id}`.
+			#   It catches what the anchored rules above cannot see — Ktor still routes `//share/<id>` and
+			#   `/%73hare/<id>` — and a capability route nobody added a line for. Every capability id is
+			#   >= 20 characters (share id 22, content ref 69, the 32-hex ones) and no constant segment is.
+			#   Twice, because a match consumes the `/` after it, so an id right after an id needs a pass.
+			#   sync-relay-server's CaddyLogFilterTest applies these rules to every real route and fails
+			#   if an id survives or a constant route is rewritten.
+			request>uri multi_regexp {
+				regexp "[?].*" "?…"
+				regexp "^/share/[^/?]+" "/share/{shareId}"
+				regexp "^/sync/grant/[^/?]+" "/sync/grant/{address}"
+				regexp "^/sync/epc/[^/?]+" "/sync/epc/{sessionId}"
+				regexp "^/sync/(content|invite)/(declare|inventory|reap|response|responses|ack|done)([/?]|$)" "/sync/$1/ $2$3"
+				regexp "^/sync/content/[^ /?][^/?]*" "/sync/content/{ref}"
+				regexp "^/sync/invite/[^ /?][^/?]*" "/sync/invite/{inviteId}"
+				regexp "^/sync/(content|invite)/ " "/sync/$1/"
+				regexp "^/s/[^/?]+" "/s/{shareId}"
+				regexp "^/control/data/devices/[^/?]+" "/control/data/devices/{deviceId}"
+				regexp "/[A-Za-z0-9_%-]{20,}([/?]|$)" "/{id}$1"
+				regexp "/[A-Za-z0-9_%-]{20,}([/?]|$)" "/{id}$1"
+			}
+			request>headers delete
+			resp_headers delete
+		}
+	}
+}
+
+# ---- relay ------------------------------------------------------------------
+{$RELAY_DOMAIN} {
+	encode zstd gzip
+	# Matches the production Caddyfile: operator routes are loopback-only in the relay; refuse them here too.
+	respond /ops/* 404
+	reverse_proxy relay:8080
+
+	# Matches the production Caddyfile: content-plane chunks are multi-MB ciphertext.
+	request_body {
+		max_size 256MB
+	}
+
+	import access_log relay
+}
+
+# ---- commerce ---------------------------------------------------------------
+{$COMMERCE_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy commerce:8081
+
+	import access_log commerce
+}
+
+# ---- apex SPA ---------------------------------------------------------------
+# The apex container is itself Caddy serving the baked SPA on plain :80 (see the compose file);
+# this block only terminates TLS in front of it.
+{$APEX_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy apex:80
+
+	import access_log apex
+}
+
+# ---- The hosted apps, each on its own origin (web-app-suite.md F2/F4) --------------------------
+# Served by the same apex container (its inner Caddy picks the app by Host, which reverse_proxy
+# passes through unchanged). ⚠ Each needs its own A record (<id>.<domain>), like the three above,
+# before the certificate can be issued — and its `<ID>_DOMAIN` in dev-overlay.yml.
+#
+# Usage: import hosted_app_proxy <id>
+(hosted_app_proxy) {
+	encode zstd gzip
+	reverse_proxy apex:80
+
+	import access_log {args[0]}
+}
+
+{$DRIVE_DOMAIN} {
+	import hosted_app_proxy drive
+}
+
+{$CONTACTS_DOMAIN} {
+	import hosted_app_proxy contacts
+}
+
+{$CALENDAR_DOMAIN} {
+	import hosted_app_proxy calendar
+}
+
+{$PHOTOS_DOMAIN} {
+	import hosted_app_proxy photos
+}
+
+{$TIMELINE_DOMAIN} {
+	import hosted_app_proxy timeline
+}
+
+{$MAPS_DOMAIN} {
+	import hosted_app_proxy maps
+}
+
+{$FIT_DOMAIN} {
+	import hosted_app_proxy fit
+}
+
+{$HOME_DOMAIN} {
+	import hosted_app_proxy home
+}
+
+{$MIA_DOMAIN} {
+	import hosted_app_proxy mia
+}
+
+# ---- mailpit, read-only, for sessions with no SSH ---------------------------------
+# A cloud session's sandbox lets out HTTPS only, so the loopback inbox is out of its reach and it
+# cannot read a sign-up code. This serves three GET routes of mailpit's API behind a bearer token:
+# the listing, search, and ONE message by id.
+#
+# ⚠⚠ Everything else is a 404, and that is the point: mailpit's API also DELETES messages and
+# SENDS mail (`/api/v1/send`), and its UI needs neither a token nor a method to do both.
+# ⚠⚠ The message route is a regexp over a single path segment, not `/api/v1/message/*`. The
+# wildcard also admitted `/api/v1/message/<id>/link-check`, which makes mailpit fetch every URL in
+# a mail FROM THIS BOX, and `/raw`, `/headers`, `/part/…`. None of them is needed to read a code.
+# ⚠ "Read-only" is about the store, not the flags: fetching a message marks it read in mailpit.
+# ⚠⚠ The empty-token test is not redundant. With MAILPIT_TOKEN unset the comparison below would
+# be against the bare string "Bearer ", which is a value a client can send.
+# ⚠ MAIL_SITE is a plain-HTTP placeholder when the endpoint is off (main.tf), so no certificate is
+# requested for a hostname that may have no record.
+{$MAIL_SITE} {
+	@list {
+		method GET
+		path /api/v1/messages /api/v1/search
+		expression `{env.MAILPIT_TOKEN} != "" && {http.request.header.Authorization} == "Bearer " + {env.MAILPIT_TOKEN}`
+	}
+	@one {
+		method GET
+		path_regexp ^/api/v1/message/[A-Za-z0-9_-]+$
+		expression `{env.MAILPIT_TOKEN} != "" && {http.request.header.Authorization} == "Bearer " + {env.MAILPIT_TOKEN}`
+	}
+	handle @list {
+		reverse_proxy mailpit:8025
+	}
+	handle @one {
+		reverse_proxy mailpit:8025
+	}
+	handle {
+		respond 404
+	}
+}

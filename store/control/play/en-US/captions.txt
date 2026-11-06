@@ -1,0 +1,11 @@
+# One caption per screen for the framed Google Play screenshots (scripts/store-frame render control --device phone).
+# `NN-screen: text` — the screen name from ../../screens.json (android.captured). Only the screens listed
+# here are framed, in this order of names. Plain, short, no superlatives (D6); words a non-technical user
+# knows (no "keys", no "realm"). Lines reused from the website's copy say so.
+01-welcome: Synchronization for your Tenshu apps
+02-protected: Protected by your phone's screen lock
+# The website's Control tagline (web/apex/locales/en/landing.json tech.control.tagline).
+06-settings: Your data, synced end-to-end encrypted
+# The website's realm section (landing.json block4.body3).
+09-add-device: Add and remove devices anytime
+10-services: Start free with 5 GB. Upgrade when you need more.

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Status-bar notification icon for the live-capture foreground service.
+  Same timeline pictogram as ic_launcher_monochrome (curve + three node dots), but sized
+  to fill a 24dp notification canvas instead of the 108dp adaptive-icon safe zone — the
+  glyph sits in a 64-unit viewport with ~11% padding so it reads at status-bar scale.
+  White-on-transparent silhouette; the system tints it.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <path
+        android:pathData="M 10 16 C 22 16 22 32 32 32 S 46 32 54 50"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M 7 16 a 3 3 0 1 0 6 0 a 3 3 0 1 0 -6 0 Z"
+        android:fillColor="#FFFFFF" />
+    <path
+        android:pathData="M 29 32 a 3 3 0 1 0 6 0 a 3 3 0 1 0 -6 0 Z"
+        android:fillColor="#FFFFFF" />
+    <path
+        android:pathData="M 51 50 a 3 3 0 1 0 6 0 a 3 3 0 1 0 -6 0 Z"
+        android:fillColor="#FFFFFF" />
+</vector>

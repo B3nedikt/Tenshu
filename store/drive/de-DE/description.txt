@@ -1,0 +1,25 @@
+Tenshu Drive hält deine Dateien und Fotos verschlüsselt und auf all deinen Geräten synchron. Deine Dateien werden auf deinem Gerät verschlüsselt, bevor sie hochgeladen werden, und nur deine eigenen Geräte können sie lesen.
+
+TENSHU DRIVE BRAUCHT TENSHU CONTROL
+Tenshu Control verwahrt deine Schlüssel und verbindet deine Geräte. Installiere Tenshu Control aus dem App Store und richte es zuerst ein, dann öffne Drive. Drive findet Control von selbst. Ist Control einmal eingerichtet, muss es nicht geöffnet bleiben.
+
+WAS DU TUN KANNST
+- Dateien und Fotos hochladen und in Ordnern ablegen.
+- Fotos, PDFs und Videos in der App öffnen.
+- Deine Dateien umbenennen und verschieben.
+- Deine Fotomediathek sichern oder nur die Alben, die du auswählst. iOS lässt Drive nur ab und zu im Hintergrund sichern, öffne Drive also, damit es aufholt.
+- Eine Datei per Link teilen. Jede Person mit dem Link kann die Datei ansehen, bis du ihn widerrufst.
+- Drive auf deinen anderen Geräten öffnen und deine Dateien dort wiederfinden.
+
+WIE DRIVE DEINE DATEIEN PRIVAT HÄLT
+- Deine Dateien werden auf deinem Gerät verschlüsselt, bevor sie hochgeladen werden. Die Server von Tenshu speichern nur verschlüsselte Daten und haben nicht die Schlüssel, um sie zu lesen.
+- Auch Datei- und Ordnernamen werden verschlüsselt, außer dem Namen einer Datei, die du per Link teilst (siehe unten). Einige Fakten, die der Server zum Synchronisieren braucht, sieht er trotzdem: wie viel du speicherst, wie viele Geräte du hast und wann sie synchronisieren.
+- Ein Freigabelink trägt seinen eigenen Schlüssel, im Teil des Links nach #k=. Dein Browser sendet diesen Teil nie an unseren Server, deshalb kann der Server die Datei ausliefern, sie aber nicht öffnen. Wenn du eine Datei per Link teilst, speichert der Server Name, Typ und Größe dieser Datei mit ihr.
+- Ohne Speicherplan verlässt nichts dein Gerät. Erst wenn du in Tenshu Control die Synchronisierung einschaltest, gehen deine Dateien verschlüsselt an die Server von Tenshu.
+
+VORAUSSETZUNGEN
+- iOS 16 oder neuer, auf iPhone oder iPad.
+- Tenshu Control, eingerichtet auf demselben Gerät.
+- Zum Synchronisieren zwischen Geräten: ein Speicherplan. Der kostenlose Plan hat 5 GB.
+
+Hilfe und häufige Probleme: tenshu.app/apps/drive/support/ios/de

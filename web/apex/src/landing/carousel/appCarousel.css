@@ -1,0 +1,1301 @@
+/* The app carousel (AppCarousel.tsx) and the screenshot slots it shares with the support pages.
+   Compiled into both surfaces: src/index.css imports this file for the SPA, and the support-page
+   build compiles src/index.css too (support-pages/generate.ts buildCss), so the landing page's Apps
+   section and the support hub (/apps/support/<lang>) style one carousel from one file.
+
+   ⚠ Everything sits in `@layer components`, where support.css has always been: under the
+   utilities, so a Tailwind class on the same element (the button's bg-primary …) still wins.
+
+   ⚠ The hub's no-JS state is styled here too (`.hub:not(.is-enhanced)`): the hub ships its static
+   markup first and its own script enhances it. The landing page renders `.is-enhanced` directly. */
+@layer components {
+
+/* ── screenshot slots ─────────────────────────────────────────────────────
+   Phone captures (1320 × 2868) shown at a fixed column width — --shot-w — so the height follows
+   the aspect ratio (the <img> width/height attributes reserve the box before it loads). On wide
+   screens 15rem makes them 521px tall, so a step and its screenshot fit one viewport. Rounded
+   like the device's screen corners (~12% of the width) with a hairline border that reads on both
+   surfaces. A placeholder takes the same box. */
+
+:root {
+  --shot-w: min(100%, 17.5rem);
+  --shot-radius: 2rem;
+}
+@media (min-width: 52rem) {
+  :root {
+    --shot-w: 15rem;
+    --shot-radius: 1.75rem;
+  }
+}
+
+.shot {
+  display: block;
+  width: var(--shot-w);
+  margin: 12px 0 4px;
+  border-radius: var(--shot-radius);
+}
+img.shot {
+  height: auto;
+  border: 1px solid var(--line);
+  border-color: color-mix(in srgb, var(--text) 16%, transparent);
+  background: var(--surface-2);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 8px 24px rgb(0 0 0 / 0.08);
+}
+.shot--pending {
+  aspect-ratio: 1320 / 2868;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 20px 16px;
+  border: 1px dashed var(--line);
+  border-color: color-mix(in srgb, var(--text) 24%, transparent);
+  background: var(--surface-2);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  text-align: center;
+}
+.shot__label {
+  display: block;
+  font-weight: 600;
+  color: var(--text-3);
+}
+.shot__alt {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-2);
+}
+
+/* Light and dark captures of one screen: both are in the markup, the effective theme shows one.
+   The same three-way rule as tokens.css — an explicit data-theme wins, else the OS decides — so it
+   follows the switch AND works with JavaScript off. A slot with only one capture has neither
+   class and shows in both themes.
+   ⚠ Fetching: the hidden one is `loading="lazy"`; a lazy image with no layout box never
+   intersects the viewport, so Chromium, Firefox and Safari (≥ 15.4) do not fetch it while
+   scripting is on — measured for Chromium in the PR that added this. With scripting OFF the HTML
+   spec turns lazy loading off (a no-JS page could otherwise use it to track scrolling), so a no-JS
+   visitor downloads both captures: correct page, twice the screenshot bytes. */
+.shot--dark {
+  display: none;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .shot--light {
+    display: none;
+  }
+  :root:not([data-theme="light"]) .shot--dark {
+    display: block;
+  }
+}
+:root[data-theme="dark"] .shot--light {
+  display: none;
+}
+:root[data-theme="dark"] .shot--dark {
+  display: block;
+}
+
+/* ── the carousel ─────────────────────────────────────────────────────────
+   Static first: two lists of cards, each entry its name, its screenshots and a real link (the hub
+   without JavaScript). Enhanced (`.is-enhanced`): every panel in one `.hub-stage`; on wide screens
+   the names flank the stage left and right, on phones they wrap as chips above it. Panels stay
+   laid out in one grid cell, so the images load before a hover shows them and the stage never
+   changes size; only the selected one is visible. The stage is ONE phone frame whatever is
+   selected — never sized to the entry's screenshot count, which made the names move under the
+   pointer — and the selected entry's screenshots cross-fade inside it (AppCarousel.tsx). */
+.hub {
+  margin-top: 32px;
+}
+.hub-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.hub-list + .hub-list {
+  margin-top: 16px;
+}
+.hub-entry {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l, 14px);
+}
+.hub-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+}
+a.hub-name:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.hub-entry--soon .hub-name {
+  color: var(--text-3);
+}
+/* The label stays in the markup for screen readers; sighted readers get the greyed-out name and
+   the one shared note under the lists (.hub-note), not "Coming soon" eight times. */
+.hub-soon {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.hub-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  margin-top: 12px;
+}
+.hub-shots {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+.hub-shot__link {
+  display: block;
+  text-decoration: none;
+}
+/* The phone and its controls (one viewer per platform, stacked in .hub-views), and the platform
+   switch under them (.hub-device). ⚠ Full width even without the script: the panel is a column
+   that does not stretch its children, and a frame is a size container with no width of its own,
+   so a shrink-to-fit wrapper would collapse every screenshot to nothing. */
+.hub-device,
+.hub-views,
+.hub-viewer {
+  width: 100%;
+}
+/* Without the script: the first viewer only (Android, else the one platform there is). */
+.hub:not(.is-enhanced) .hub-views > .hub-viewer:not(:first-child) {
+  display: none;
+}
+
+/* ── the device frames ────────────────────────────────────────────────────
+   Every capture, and the placeholder in its place, sits in a phone DRAWN HERE, in CSS — never a
+   vendor's device art: Apple's bezel files may not be redistributed, and nothing here is traced
+   from or derived from them (store-presence-and-support-pages.md §3.2.1). Two frames, following
+   the platform the captures come from (the carousel's "iPhone | Android" switch):
+     - Android (.hub-shot--android, the placeholder's default, and a support page's .shot-frame): a
+       generic contemporary Android phone — thin UNIFORM black bezels, a flat body with corners
+       squarer than the iPhone-style frame's, a fine brushed-neutral rail around the glass, a small
+       centred punch-hole camera, and a volume rocker and power key on the right edge. ⚖️ The feel of
+       a current flagship (the maintainer's "familiar to most Android users", 2026-10-18), and
+       deliberately nobody's device: no logo or wordmark, no vendor's camera-ring treatment, no
+       curved edge, nothing traced from a product image (§3.2.1, web-about-tenshu-public.md §9);
+     - iPhone (.hub-shot--ios): an iPhone-STYLE illustration — the rounded body with a metal rim, the
+       Dynamic Island, subtle side buttons, NO Apple logo. ⚖️ Imitating the device is a risk the
+       maintainer accepted on 2026-10-17 (§3.2.1, web-about-tenshu-public.md §9), which revises the
+       earlier "the neutral frame must not imitate an Apple device" for this frame only; the vendor
+       guard for PRE-FRAMED images (carouselModel.ts oneFrameVendor) is unchanged. The trademark
+       line under the carousel (AppCarousel `footnote`) goes with it.
+   The frame is a size container, so the bezel, the radii and the camera scale with the phone
+   (cqi). ⚠ The frame's BOX is the capture plus a 2.6cqi inset on every side and nothing else: the
+   rail is drawn inside that inset and the buttons outside the box, so the phone is as big as it
+   always was and nothing around it moves (--phone-h below is computed from it).
+   ⚠ The screen's corner radius is the CAPTURE's clipping. Android captures from the older profile
+   (square display corners) put the clock's "9" ~1% from the edge and clip above ~50 px of 1080;
+   the Pixel-profile captures (rounded display, r = 104 px) inset their own status bar and would
+   take far more. 4.4cqi of the frame is ~47 px of a 1080 capture: under the older captures' limit,
+   so "9:41" is never cut by either, and concentric with the 7cqi body inside the 2.6cqi bezel.
+   iPhone captures are laid out for a rounded screen, so theirs can be an iPhone's. */
+:root {
+  --device-body: #0b0b0d;
+  --device-rail-hi: color-mix(in srgb, var(--text) 12%, var(--surface));
+  --device-rail-lo: color-mix(in srgb, var(--text) 44%, var(--surface));
+  --device-edge: transparent;
+  --device-shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 10px 28px rgb(0 0 0 / 0.16);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --device-body: #050506;
+    --device-rail-hi: color-mix(in srgb, var(--text) 48%, var(--surface));
+    --device-rail-lo: color-mix(in srgb, var(--text) 18%, var(--surface));
+    --device-edge: color-mix(in srgb, var(--text) 14%, transparent);
+    --device-shadow: 0 10px 32px rgb(0 0 0 / 0.55);
+  }
+}
+:root[data-theme="dark"] {
+  --device-body: #050506;
+  --device-rail-hi: color-mix(in srgb, var(--text) 48%, var(--surface));
+  --device-rail-lo: color-mix(in srgb, var(--text) 18%, var(--surface));
+  --device-edge: color-mix(in srgb, var(--text) 14%, transparent);
+  --device-shadow: 0 10px 32px rgb(0 0 0 / 0.55);
+}
+/* Without the script every screenshot of an entry sits side by side, three across a card's width;
+   one capture, or a placeholder, takes one third. */
+.hub-shot,
+.hub-placeholder,
+.shot-frame {
+  position: relative;
+  container-type: inline-size;
+  /* ⚠ Percentages, not cqi: a container's OWN properties resolve cqi against its ancestors. 7% of
+     the width across, the same length down a ≈ 1 : 2.159 frame — 7cqi, the screen's 4.4cqi plus
+     the 2.6cqi bezel, so the bezel stays the same width round the corners. */
+  border-radius: 7% / 3.24%;
+  background: var(--device-body);
+  box-shadow: var(--device-shadow);
+}
+.hub-shots > .hub-shot,
+.hub-shots > .hub-shot__link {
+  flex: 0 1 calc((100% - 16px) / 3);
+  min-width: 0;
+}
+.hub .hub-shot .shot,
+.shot-frame > .shot {
+  width: calc(100% - 5.2cqi);
+  margin: 2.6cqi;
+  border: 0;
+  border-radius: 4.4cqi;
+  box-shadow: none;
+  background: #000;
+}
+/* The Android rail: the outer 0.7cqi of the bezel as a brushed neutral band, lighter where the
+   light catches the top-left and bottom-right corners. A ring — the pseudo-element's padding box is
+   masked out — inside the frame's box, so it costs no layout. */
+.hub-shot--android::before,
+.shot-frame::before,
+.hub:not([data-shot-platform="ios"]) .hub-placeholder::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 0.7cqi;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    var(--device-rail-hi),
+    var(--device-rail-lo) 28%,
+    var(--device-rail-hi) 50%,
+    var(--device-rail-lo) 74%,
+    var(--device-rail-hi)
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+/* Android's punch-hole: a small lens, centred in the status bar. */
+.hub-shot--android::after,
+.hub-placeholder::after {
+  content: "";
+  position: absolute;
+  top: 3.7cqi;
+  left: 50%;
+  width: 3cqi;
+  height: 3cqi;
+  translate: -50% 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 42% 40%, #24262e 0 18%, #0a0a0c 46%, #030304 100%);
+  box-shadow: 0 0 0 0.25cqi rgb(255 255 255 / 0.05);
+}
+/* Android's keys, on the right edge just outside the box: the volume rocker, then the power key. */
+.hub-shot--android > .hub-shot__link::before,
+.shot-frame::after,
+.hub:not([data-shot-platform="ios"]) .hub-shot__link > .hub-placeholder > .hub-placeholder__screen::before {
+  content: "";
+  position: absolute;
+  top: 46cqi;
+  right: -0.7cqi;
+  width: 0.7cqi;
+  height: 44cqi;
+  border-radius: 0 0.35cqi 0.35cqi 0;
+  background: linear-gradient(
+    to bottom,
+    var(--device-rail-lo) 0 23cqi,
+    transparent 23cqi 30cqi,
+    var(--device-rail-lo) 30cqi 44cqi
+  );
+}
+/* The iPhone-style frame: black bezel inside a metal rim, an iPhone's screen radius, the Dynamic
+   Island, and the buttons — action and volume on the left, side button on the right. Drawn from
+   the device's proportions, not from any artwork. */
+:root {
+  --device-rim: #b4b4ba;
+  --device-bezel: #0d0d0f;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --device-rim: #64646b;
+  }
+}
+:root[data-theme="dark"] {
+  --device-rim: #64646b;
+}
+.hub-shot--ios,
+.hub[data-shot-platform="ios"] .hub-placeholder {
+  /* 15.5% across, the same length down a ≈ 1 : 2.11 frame; the rim scales with the phone. */
+  border-radius: 15.5% / 7.4%;
+  background: var(--device-bezel);
+  box-shadow:
+    0 0 0 calc(var(--phone-w, 15rem) * 0.008) var(--device-rim),
+    0 0 0 calc(var(--phone-w, 15rem) * 0.008 + 1px) var(--device-edge),
+    var(--device-shadow);
+}
+.hub .hub-shot--ios .shot {
+  width: calc(100% - 6cqi);
+  margin: 3cqi;
+  border-radius: 12.5cqi;
+}
+.hub-shot--ios::after,
+.hub[data-shot-platform="ios"] .hub-placeholder::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  translate: -50% 0;
+  top: 5.4cqi;
+  width: 26.5cqi;
+  height: 7.8cqi;
+  border-radius: 4cqi;
+  background: #000;
+  box-shadow: none;
+}
+.hub-shot--ios::before,
+.hub[data-shot-platform="ios"] .hub-placeholder::before {
+  content: "";
+  position: absolute;
+  top: 40cqi;
+  left: -1.5cqi;
+  width: 0.8cqi;
+  height: 43cqi;
+  border-radius: 0.4cqi;
+  background: linear-gradient(
+    to bottom,
+    var(--device-rim) 0 8cqi,
+    transparent 8cqi 14cqi,
+    var(--device-rim) 14cqi 27cqi,
+    transparent 27cqi 30cqi,
+    var(--device-rim) 30cqi 43cqi
+  );
+}
+.hub-shot--ios > .hub-shot__link::before,
+.hub[data-shot-platform="ios"] .hub-shot__link > .hub-placeholder > .hub-placeholder__screen::before {
+  content: "";
+  position: absolute;
+  top: 58cqi;
+  right: -1.5cqi;
+  width: 0.8cqi;
+  height: 21cqi;
+  border-radius: 0.4cqi;
+  background: var(--device-rim);
+}
+/* A support page's step screenshot (generate.ts shotHtml): the same frame at the step column's
+   width (--shot-w), not real size — it sits beside its text. */
+.shot-frame {
+  display: block;
+  width: var(--shot-w);
+  margin: 12px 0 4px;
+}
+.shot-frame > .shot--pending {
+  border-style: none;
+  background: var(--surface-2);
+}
+/* "Pre-framed" (CarouselShot.framed): the image carries its own device bezel, so no CSS frame,
+   no inset, no screen radius — the image as is, at the same width as a framed phone. */
+.hub-shot--framed {
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.hub .hub-shot--framed .shot {
+  width: 100%;
+  margin: 0;
+  border-radius: 0;
+  background: none;
+}
+.hub-placeholder {
+  display: block;
+}
+/* The reserved line under the carousel (AppCarousel `footnote`): the trademark note for framed
+   device images or store badges, once either is shown. */
+.hub-footnote {
+  margin-top: 12px;
+  font-size: 0.75rem;
+  color: var(--text-3);
+  text-align: center;
+}
+.hub-placeholder__screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 2.6cqi;
+  padding: 8px;
+  aspect-ratio: 1080 / 2400;
+  border-radius: 4.4cqi;
+  background: var(--surface-2);
+  text-align: center;
+}
+.hub[data-shot-platform="ios"] .hub-placeholder__screen {
+  margin: 3cqi;
+  aspect-ratio: 1320 / 2868;
+  border-radius: 12.5cqi;
+}
+.hub-placeholder__name {
+  font-weight: 600;
+  color: var(--text-2);
+}
+.hub-placeholder__note {
+  font-size: 0.8125rem;
+  color: var(--text-3);
+}
+
+/* Without the script a coming-soon entry is its name and its mark: no link, no screenshots, so
+   no placeholder taking a card's height. */
+.hub:not(.is-enhanced) .hub-entry--soon .hub-panel {
+  display: none;
+}
+.hub:not(.is-enhanced) .hub-entry--soon {
+  padding-block: 12px;
+}
+
+/* Enhanced: the stage. */
+.hub.is-enhanced {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.is-enhanced .hub-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+}
+.is-enhanced .hub-entry {
+  padding: 0;
+  border: 0;
+}
+.is-enhanced .hub-name {
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill, 999px);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--text-2);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.is-enhanced a.hub-name:hover {
+  text-decoration: none;
+  color: var(--text);
+}
+.is-enhanced .hub-entry--soon .hub-name {
+  color: var(--text-3);
+  border-style: dashed;
+}
+.hub-entry--soon .hub-name__icon {
+  opacity: 0.5;
+}
+.is-enhanced .hub-name[aria-current] {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--text);
+}
+/* A chip with an icon: the icon at the chip's leading end, bigger than in the no-JS list — a
+   bigger tap target too — and bigger again where a tablet has the room. */
+.is-enhanced .hub-name:has(.hub-name__icon) {
+  padding: 4px 14px 4px 4px;
+}
+.is-enhanced .hub-name__icon {
+  width: 28px;
+  height: 28px;
+}
+@media (min-width: 40rem) {
+  .is-enhanced .hub-name__icon {
+    width: 36px;
+    height: 36px;
+  }
+}
+.hub-stage {
+  order: 3;
+  display: grid;
+  margin-top: 16px;
+}
+.hub-stage > .hub-panel {
+  grid-area: 1 / 1;
+  align-items: center;
+  margin: 0;
+  visibility: hidden;
+  opacity: 0;
+}
+.hub-stage > .hub-panel.is-selected {
+  visibility: visible;
+  opacity: 1;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hub-stage > .hub-panel {
+    transition: opacity 0.2s ease, visibility 0s linear 0.2s;
+  }
+  .hub-stage > .hub-panel.is-selected {
+    transition: opacity 0.2s ease, visibility 0s;
+  }
+}
+
+/* ── the one frame: slides and controls ───────────────────────────────────
+   On the stage an entry's screenshots are slides stacked in one grid cell of one phone's width;
+   only `.is-current` shows. The incoming slide fades in ON TOP of the outgoing one, which stays
+   opaque until it is covered, so the frame never dips through the background mid-fade. Reduced
+   motion: an instant swap. Under the phone: ONE row as wide as the phone — the pause/play button
+   and one dot per screenshot at its start, the "iPhone | Android" switch at its end (.hub-device,
+   below) — of fixed height that an entry with one screenshot reserves too, so nothing under the
+   phone moves between selections. */
+.hub {
+  --controls-h: 2rem;
+}
+.hub-controls[hidden],
+.hub-rotate[hidden] {
+  display: none;
+}
+.hub-stage .hub-viewer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.hub-stage .hub-viewer:not(:has(.hub-controls)) {
+  padding-bottom: calc(var(--controls-h) + 12px);
+}
+/* The platforms' viewers share one cell, so switching never resizes the stage; the shots box is
+   the TALLER frame's height (--phone-h, Android's), and a shorter frame (the iPhone's) is centred
+   in it — the dots and the switch under it stay where they are. */
+.hub-stage .hub-views {
+  display: grid;
+}
+.hub-stage .hub-views > .hub-viewer {
+  grid-area: 1 / 1;
+}
+/* ⚠ A slide sets `visibility: visible` itself, which would show through a hidden ancestor, so the
+   hidden viewer hides its current slide explicitly. And nothing the visitor cannot see may take the
+   pointer: an unselected panel (fading out, opacity only) and a hidden viewer let it through to
+   the selected one — else the phone's link under the pointer could be another app's. */
+.hub-stage .hub-views > .hub-viewer:not(.is-shown),
+.hub-stage .hub-views > .hub-viewer:not(.is-shown) .hub-shot.is-current {
+  visibility: hidden;
+}
+.hub-stage > .hub-panel:not(.is-selected),
+.hub-stage .hub-views > .hub-viewer:not(.is-shown) {
+  pointer-events: none;
+}
+.hub-stage .hub-shots {
+  display: grid;
+  align-items: center;
+  width: var(--phone-w);
+  height: var(--phone-h);
+  max-width: 100%;
+  margin-inline: auto;
+}
+.hub-stage .hub-shots > * {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+.hub-stage .hub-shots > .hub-shot {
+  visibility: hidden;
+  opacity: 0;
+}
+.hub-stage .hub-shots > .hub-shot.is-current {
+  z-index: 1;
+  visibility: visible;
+  opacity: 1;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hub-stage .hub-shots > .hub-shot {
+    transition: opacity 0s linear 0.5s, visibility 0s linear 0.5s;
+  }
+  .hub-stage .hub-shots > .hub-shot.is-current {
+    transition: opacity 0.5s ease, visibility 0s;
+  }
+}
+.hub-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: var(--controls-h);
+}
+/* On the stage the controls sit at the row's start; the switch takes its end. */
+.hub-stage .hub-controls {
+  align-self: stretch;
+  justify-content: flex-start;
+}
+.hub-dots {
+  display: flex;
+  align-items: center;
+}
+/* A 24px target (WCAG 2.5.8) around an 8px dot. */
+.hub-dot {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+.hub-dot::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--text) 28%, transparent);
+}
+.hub-dot:hover::before {
+  background: color-mix(in srgb, var(--text) 50%, transparent);
+}
+.hub-dot[aria-current]::before {
+  background: var(--primary);
+}
+.hub-rotate {
+  display: grid;
+  place-items: center;
+  width: var(--controls-h);
+  height: var(--controls-h);
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text-2);
+  cursor: pointer;
+}
+.hub-rotate:hover {
+  color: var(--text);
+}
+.hub-dot:focus-visible,
+.hub-rotate:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+/* Pause: two bars; play: a triangle. Drawn in CSS, in the text colour. */
+.hub-rotate__icon {
+  width: 10px;
+  height: 12px;
+  border-inline: 3px solid currentColor;
+}
+.hub-rotate[data-state="stopped"] .hub-rotate__icon {
+  width: 0;
+  height: 0;
+  margin-left: 3px;
+  border-block: 6px solid transparent;
+  border-inline: 10px solid currentColor;
+  border-inline-end: 0;
+}
+/* The "iPhone | Android" switch, at the end of the dots' row on the stage (below): a two-segment
+   toggle, and one reserved line for the note a disabled one carries ("No iPhone screenshots yet"),
+   so nothing moves with it. An
+   entry with no captures keeps the switch's room but shows none of it. */
+.hub-platform[hidden] {
+  display: none;
+}
+.hub-platform {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-top: 10px;
+}
+.hub-platform--idle {
+  visibility: hidden;
+}
+.hub-platform__switch {
+  display: inline-flex;
+  box-sizing: border-box;
+  height: 30px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+}
+.hub-platform__option {
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.hub-platform__option:hover:not(:disabled) {
+  color: var(--text);
+}
+.hub-platform__option[aria-pressed="true"] {
+  background: var(--primary-soft);
+  color: var(--text);
+}
+.hub-platform__option:disabled {
+  cursor: default;
+  color: var(--text-3);
+}
+.hub-platform__option[aria-pressed="true"]:disabled {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--text-2);
+}
+.hub-platform__option:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+.hub-platform__note {
+  min-height: 1rem;
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--text-3);
+  text-align: center;
+}
+/* ── one control row under the phone ──────────────────────────────────────
+   The controls are each viewer's (one per platform, stacked in .hub-views) and the switch is the
+   panel's, so they cannot share a flex row in the markup. The stage's .hub-device is a grid as
+   wide as the phone instead: .hub-views (the phone AND its controls' row, the viewer's last row)
+   fills row 1, and the switch is placed into that same row's bottom-end corner, at the controls'
+   height — pause and dots at the start, the switch at the end. The switch's box is laid out with
+   `display: contents` so its two parts can be placed apart: the switch on the row, its note (the
+   reserved "No iPhone screenshots yet" line) on row 2 under it, end-aligned.
+   Narrow (the phone too slim for both — a container query on the row's own width, so it is the
+   phone's width that decides, never the selection): the switch wraps onto row 2 under the dots,
+   start-aligned, the note on row 3. Never an overflow.
+   ⚠ 14.875rem (238px) is what the row needs: pause 32 + 4 + three dots' 24px targets + a gap +
+   the switch (≈ 123px, its labels are "iPhone"/"Android" in every language). Widen the switch or
+   add a dot and this moves, and so does the landing's short-window budget (.hub--cards below). */
+.hub-stage .hub-device {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  width: var(--phone-w);
+  max-width: 100%;
+  margin-inline: auto;
+  container-type: inline-size;
+}
+.hub-stage .hub-views {
+  grid-area: 1 / 1 / 2 / -1;
+}
+.hub-stage .hub-platform:not([hidden]) {
+  display: contents;
+}
+.hub-stage .hub-platform__switch {
+  grid-area: 1 / 2;
+  align-self: end;
+  /* Vertically centred on the controls' row (--controls-h tall, the viewer's last). */
+  margin-bottom: calc((var(--controls-h) - 30px) / 2);
+  /* Above the views: the hidden viewer's row is in this cell too. */
+  position: relative;
+  z-index: 1;
+}
+.hub-stage .hub-platform__note {
+  grid-area: 2 / 1 / 3 / -1;
+  margin-top: 4px;
+  text-align: end;
+}
+@container (width < 14.875rem) {
+  .hub-stage .hub-platform__switch {
+    grid-area: 2 / 1 / 3 / -1;
+    justify-self: start;
+    margin: 8px 0 0;
+  }
+  .hub-stage .hub-platform__note {
+    grid-area: 3 / 1 / 4 / -1;
+    text-align: start;
+  }
+}
+/* Reduced motion: nothing rotates, so nothing to pause; the dots still pick. */
+@media (prefers-reduced-motion: reduce) {
+  .hub-rotate {
+    display: none;
+  }
+}
+/* ── phone size on the stage ──────────────────────────────────────────────
+   A phone at real size — 75mm wide, a typical 6.1–6.7" phone at CSS's nominal 96 dpi (no DPI
+   detection) — and smaller only where the screen cannot fit it: by height, the viewport minus what
+   sits above the stage (--stage-offset: the header and the page head, or the card's head on the
+   landing page), at the frame's ≈ 0.463 width-to-height; by width, the flex items shrink to the
+   stage. 9rem is the floor on very short windows (--phone-min); on the hub, which has no
+   fit-one-screen budget (its "Open X support" button sits under the stage and the page scrolls
+   anyway), the floor is the control row's one-line width (14.875rem, below), so the hub's row never
+   wraps. The offsets include the one control row (pause,
+   dots and the platform switch: 0.75 + 2rem) and the switch's note line (4px + 1rem) under the
+   phone.
+   --phone-h is the taller frame's height (Android: a 1080 × 2400 capture inset 2.6cqi, 2.159 × its
+   width; the iPhone frame is ≈ 2.11 × and sits centred in that box) and
+   --phone-top where the phone's top edge sits below the stage's — what the lists of names centre
+   on (below). */
+.hub {
+  --stage-offset: 21.25rem;
+  --phone-min: 9rem;
+  --phone-w: min(75mm, max(var(--phone-min), calc((100svh - var(--stage-offset)) * 0.463)));
+  --phone-h: calc(var(--phone-w) * 2.159);
+  --phone-top: 0px;
+}
+.hub:not(.hub--cards) {
+  --phone-min: 14.875rem;
+}
+/* From 64rem the names flank the stage. Below it (phones, and tablets where a long French name
+   and its mark would not fit beside a stage) the whole stage layout is display:none and the row of
+   cards shows instead (.hub-m, at the end of this file); the chip styles above are what the stage
+   layout falls back to if that row is ever taken away. */
+@media (min-width: 64rem) {
+  /* The stage is one phone wide (plus a card's padding on the landing page) whatever is
+     selected, so the names beside it never move. The carousel may break out of a narrow page
+     column, up to the viewport less the gutters; the side columns take the rest and the names hug
+     the stage from both sides. */
+  .hub.is-enhanced {
+    /* The lists' icons, and the landing card's (same size, so the card's reads as the selected one). */
+    --list-icon: 46px;
+    --stage-w: max(var(--stage-min, 0px), calc(var(--phone-w) + var(--stage-pad, 0px)));
+    --hub-w: min(100vw - 3rem, 72rem);
+    display: grid;
+    grid-template-columns: minmax(max-content, 1fr) minmax(0, var(--stage-w)) minmax(max-content, 1fr);
+    align-items: center;
+    gap: 32px;
+    width: var(--hub-w);
+    margin-inline: calc((100% - var(--hub-w)) / 2);
+    /* The row is the stage's height even where min-height (below) makes the grid taller, so the
+       lists' offset from the row's top (--phone-top) is the offset from the phone's. */
+    align-content: center;
+  }
+  /* The hub page: the carousel fills the window under the page head, so the footer is not left
+     floating mid-screen on a tall one. */
+  .hub.is-enhanced:not(.hub--cards) {
+    min-height: calc(100svh - var(--stage-offset));
+  }
+  /* The two lists MIRROR each other around the stage: the left one right-aligned with each icon
+     AFTER its name ("Control ▣"), the right one left-aligned with each icon BEFORE it ("▣ Maps").
+     Every icon is the same size and sits at the stage-side end of its name, so each side's icons
+     form one straight column next to the stage — never the ragged edge a right-aligned list with
+     leading icons makes. Each list is a box 75% of the phone's height, centred on the phone, its
+     entries spread evenly over it (space-between): the names scale with the phone, and the stage
+     can never shift them, because the box depends on nothing a selection changes. */
+  .is-enhanced .hub-list {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    gap: 4px;
+    align-self: start;
+    min-height: calc(var(--phone-h) * 0.75);
+    margin-top: calc(var(--phone-top) + var(--phone-h) * 0.125);
+  }
+  .is-enhanced .hub-list:first-child {
+    align-items: flex-end;
+  }
+  .is-enhanced .hub-list:first-child .hub-name {
+    flex-direction: row-reverse;
+    padding: 4px 4px 4px 18px;
+  }
+  .is-enhanced .hub-list:last-child {
+    align-items: flex-start;
+  }
+  .is-enhanced .hub-name,
+  .is-enhanced .hub-name:has(.hub-name__icon) {
+    gap: 14px;
+    padding: 4px 18px 4px 4px;
+    border-color: transparent;
+    border-radius: 16px;
+    font-size: 1.25rem;
+  }
+  .is-enhanced .hub-list:first-child .hub-name:has(.hub-name__icon) {
+    padding: 4px 4px 4px 18px;
+  }
+  .is-enhanced .hub-name__icon {
+    width: var(--list-icon);
+    height: var(--list-icon);
+  }
+  .is-enhanced .hub-name[aria-current] {
+    border-color: var(--primary);
+  }
+  .is-enhanced .hub-entry--soon .hub-name {
+    border-color: transparent;
+  }
+  .hub-stage {
+    order: 0;
+    margin: 0;
+  }
+}
+
+/* ── the landing page's cards (AppCarousel `cards`, Block7Apps) ───────────
+   Each panel is a "card" in the stage — icon, name, tagline and the phone — but a card is a
+   LAYOUT, not a box: no background, no border, no radius. The phone already has its own frame, and
+   a box around it read as a box in a box; the text and the phone sit on the section's background,
+   and the highlighted name in the lists is what says which app is shown. Narrow: the card's head
+   (icon, name, its note) and line above the phone, centred. From 64rem the card turns HORIZONTAL:
+   the text on the left, the phone with its control row on the right, so nothing of the card sits
+   above the phone and the whole section — heading, lede, stage, footnote — fits one screen under
+   the sticky header (--stage-offset). A card has no button: its name and its phone are the links
+   (landingApps.ts landingAppHref). */
+.hub--cards .hub-panel--card {
+  align-items: stretch;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.hub--cards .hub-stage > .hub-panel--card {
+  align-items: stretch;
+}
+/* The phone sits at the card's foot: every card is the stage's one cell tall, so the phone is in
+   the same place whatever the card's head and line take above it. */
+.hub--cards .hub-stage > .hub-panel--card > .hub-device {
+  margin-top: auto;
+}
+.hub-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 12px;
+}
+.hub-card__name {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.hub-card__link {
+  color: inherit;
+  text-decoration: none;
+}
+.hub-card__link:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+/* "Coming later": quiet, beside (wide: under) the card's name — never a badge in the list of names. */
+.hub-card__note {
+  font-size: 0.8125rem;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.hub-card__tagline {
+  margin: 12px 0 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text-2);
+  text-align: center;
+}
+.hub--cards {
+  /* Narrow: the card's head (icon, name, tagline) sits above the phone too. */
+  --stage-offset: 19.125rem;
+  --stage-pad: 0px;
+  /* The stage's width: wider than the phone so the head and line have room. */
+  --stage-min: 30rem;
+}
+@media (min-width: 64rem) {
+  /* ⚠ The fit-one-screen budget. Everything in the section that is not the phone, top to bottom,
+     with the section's heading scrolled to just under the header: the sticky header (3.5rem), the
+     heading (2.25rem), its gap and one line of lede (1.5 + 1.75rem), the gap to the carousel
+     (Block7Apps lg:mt-6, 1.5rem; the carousel's own margin is zeroed here), the ONE control row
+     under the phone — pause, dots and the platform switch side by side (0.75 + 2rem) — the switch's
+     note line (4px + 1rem), the trademark footnote (12px + one 18px line), and 1rem for the scroll
+     position and air under it: 17.5rem. There is no card box any more, so no border or padding.
+     Change Block7Apps' heading block and this together. The phone is real size (75mm) wherever
+     that budget leaves room for it. */
+  .hub--cards {
+    --stage-offset: 17.5rem;
+    --phone-top: 0px;
+    /* The text column beside the phone; it gives way first when the stage is squeezed. */
+    --card-text-w: 16rem;
+    --stage-pad: calc(2rem + var(--card-text-w));
+    --stage-min: 0px;
+    /* ⚠ Where the text block's TOP sits, down the phone's height from its top edge. Top-anchored,
+       not centred: a centred block moved the app name with every tagline length when hovering
+       between apps (maintainer, 2026-10-17). 32% puts a typical block's centre near the optical
+       centre (~40%) beside the phone. The one knob for it (web-about-tenshu-public.md §9). */
+    --stage-text-anchor: 32%;
+  }
+  .hub.hub--cards {
+    margin-top: 0;
+  }
+  .hub--cards .hub-stage > .hub-panel--card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--phone-w);
+    align-items: start;
+    gap: 2rem;
+  }
+  /* The text column is the phone's height, its top the phone's top; the body's TOP sits at
+     --stage-text-anchor of that height. Absolute and top-anchored, so the app name stays put for
+     every app and a longer tagline only grows downwards. */
+  .hub--cards .hub-card__text {
+    position: relative;
+    height: var(--phone-h);
+  }
+  .hub--cards .hub-card__body {
+    position: absolute;
+    inset-inline: 0;
+    top: var(--stage-text-anchor);
+  }
+  .hub--cards .hub-stage > .hub-panel--card > .hub-device {
+    width: var(--phone-w);
+    margin-top: 0;
+  }
+  .hub-card__head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+  .hub-card__name {
+    font-size: 2rem;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+  }
+  .hub-card__note {
+    margin-top: -8px;
+  }
+  .hub-card__tagline {
+    margin-top: 14px;
+    font-size: 1.0625rem;
+    text-align: start;
+  }
+}
+@media (min-width: 80rem) {
+  .hub--cards {
+    --card-text-w: 18rem;
+  }
+}
+/* A short desktop window (under ≈ 796px): the 17.5rem budget makes the phone narrower than the
+   control row needs (14.875rem, above), so the switch wraps under the dots — budget that row
+   (8px + 30px) too, so the section still fits. At 49.75rem and up the phone is ≥ 238px, the row is
+   one line, and the plain budget holds. */
+@media (min-width: 64rem) and (max-height: 49.75rem) {
+  .hub--cards {
+    --stage-offset: 19.875rem;
+  }
+}
+.hub-placeholder__icon {
+  width: 18cqi;
+  height: 18cqi;
+  opacity: 0.6;
+}
+
+/* App icons: the iOS tile, rounded like one (~22% of the side), light and dark (the effective
+   theme shows one, by the same three-way rule as .shot--light/--dark). A missing icon is a neutral
+   tile with the initial. */
+.hub-icon {
+  display: inline-block;
+  border-radius: 22.5%;
+  object-fit: cover;
+}
+.hub-icon--dark {
+  display: none;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .hub-icon--light {
+    display: none;
+  }
+  :root:not([data-theme="light"]) .hub-icon--dark {
+    display: inline-block;
+  }
+}
+:root[data-theme="dark"] .hub-icon--light {
+  display: none;
+}
+:root[data-theme="dark"] .hub-icon--dark {
+  display: inline-block;
+}
+.hub-icon--fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-3);
+  font-weight: 600;
+}
+.hub-name__icon {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+
+/* ── the narrow layout: a row of cards (AppCarousel CardRow) ──────────────
+   Under 64rem — phones, and tablets, where the names do not fit beside a stage — the stage layout
+   above is display:none and `.hub-m` shows instead; from 64rem it is the other way round, so the
+   desktop layout is untouched by any of this. `.hub-m` is the stage's SIBLING (never its child:
+   the stage keys on `.hub-list:first-child`), and carries `.hub` itself, so the frames' `.hub …`
+   rules and `.hub[data-shot-platform="ios"]` apply to its phones too.
+   The row is a "peek" carousel: native horizontal scroll with mandatory snap, each card snapping to
+   the centre and 80% of the row wide (at most 22rem), so the next card shows at the edge. It bleeds
+   into the page column's gutter (both pages' columns are px-6, 1.5rem), so a card's peek reaches
+   the screen edge; the row is exactly the viewport wide there, and it is the only thing that
+   scrolls sideways. `cqi` is the column's width (`.hub-m` is the size container), so the side
+   padding centres the first and last cards. Without JavaScript it swipes and snaps the same. */
+.hub-m {
+  --row-bleed: 1.5rem;
+  --row-w: calc(100cqi + 2 * var(--row-bleed));
+  --card-w: min(calc(var(--row-w) * 0.8), 22rem);
+  /* The iPhone frame's rim scales with this (.hub-shot--ios): about a card's phone. */
+  --phone-w: 11rem;
+  container-type: inline-size;
+}
+@media (min-width: 64rem) {
+  .hub-m {
+    display: none;
+  }
+}
+@media (max-width: 63.999rem) {
+  .hub[data-hub] {
+    display: none;
+  }
+}
+.hub-m__switch {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+.hub-row {
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: var(--card-w);
+  /* Each card its own height, tops aligned: stretched to the tallest, a card with a short line had a
+     hole between its text and its phone. */
+  align-items: start;
+  gap: 10px;
+  margin-inline: calc(-1 * var(--row-bleed));
+  padding: 4px calc((var(--row-w) - var(--card-w)) / 2) 8px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.hub-row::-webkit-scrollbar {
+  display: none;
+}
+.hub-mcard {
+  display: flex;
+  min-width: 0;
+  scroll-snap-align: center;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+}
+/* The landing section is tinted (surface-2), so its cards sit on the plain surface; the hub's page
+   IS the plain surface, so its cards take the tint. */
+.hub-m:not(.hub-m--cards) .hub-mcard {
+  background: var(--surface-2);
+}
+.hub-mcard:focus-visible,
+.hub-mcard__link:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+.hub-mcard__link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  padding: 18px 16px 16px;
+  border-radius: inherit;
+  color: inherit;
+  text-align: center;
+  text-decoration: none;
+}
+.hub-mcard__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.hub-mcard__icon {
+  width: 40px;
+  height: 40px;
+  flex: none;
+}
+.hub-mcard__name {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.hub-mcard__line {
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+.hub-mcard__note,
+.hub-mcard__soon,
+.hub-mcard__fallback {
+  font-size: 0.8125rem;
+  color: var(--text-3);
+}
+.hub-mcard--soon .hub-mcard__name {
+  color: var(--text-3);
+}
+.hub-mcard--soon .hub-mcard__icon {
+  opacity: 0.5;
+}
+/* The phone right under the card's text: 64% of the card, less where a short screen cannot fit it (the viewport less the header, the switch, the card's
+   head and the indicator, at the frame's ≈ 0.463 width-to-height), never under 8.5rem. */
+.hub-mcard__phone {
+  display: block;
+  width: min(64%, max(8.5rem, calc((100svh - 24rem) * 0.463)));
+  padding-top: 8px;
+}
+.hub-mcard .hub-shot {
+  display: block;
+}
+/* One view per platform; the first (Android, else the only one) without JavaScript, the chosen
+   platform's once the row has a `data-shot-platform` and the card has both. */
+.hub-mcard__view {
+  display: none;
+}
+.hub-mcard__view:first-child,
+.hub-m[data-shot-platform="ios"] .hub-mcard[data-platforms="android ios"] .hub-mcard__view[data-hub-platform="ios"] {
+  display: block;
+}
+.hub-m[data-shot-platform="ios"] .hub-mcard[data-platforms="android ios"] .hub-mcard__view:first-child {
+  display: none;
+}
+/* The other platform's capture stands in: say so. */
+.hub-mcard__fallback {
+  display: none;
+}
+.hub-m[data-shot-platform="ios"] .hub-mcard[data-platforms="android"] .hub-mcard__fallback,
+.hub-m[data-shot-platform="android"] .hub-mcard[data-platforms="ios"] .hub-mcard__fallback {
+  display: block;
+}
+.hub-mcard__cta {
+  margin-top: 8px;
+}
+/* The position indicator: one app icon per card, the one in view at full strength and ringed. It
+   bleeds into the gutters like the row, so eleven 28px targets fit one line on a 375px phone. */
+.hub-m__nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  margin: 8px calc(-1 * var(--row-bleed)) 0;
+}
+.hub-m__nav[hidden] {
+  display: none;
+}
+.hub-m__dot {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  opacity: 0.45;
+  cursor: pointer;
+}
+.hub-m__dot[aria-current] {
+  opacity: 1;
+  box-shadow: 0 0 0 2px var(--primary);
+}
+.hub-m__dot:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.hub-m__dot-icon {
+  width: 22px;
+  height: 22px;
+  font-size: 0.6875rem;
+}
+
+}

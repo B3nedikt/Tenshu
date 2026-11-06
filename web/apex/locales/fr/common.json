@@ -1,0 +1,32 @@
+{
+  "action": {
+    "cancel": "Annuler",
+    "continue": "Continuer",
+    "back": "Retour",
+    "close": "Fermer"
+  },
+  "runtime": {
+    "elsewhere": {
+      "title": "Tenshu est ouvert dans un autre onglet",
+      "body": "Tenshu ne fonctionne que dans un onglet à la fois, pour que vos données restent cohérentes. Utilisez-le ici pour le déplacer dans cet onglet.",
+      "useHere": "Utiliser ici",
+      "moving": "Déplacement…",
+      "waiting": "En attente de la fin de l’enregistrement dans l’autre onglet. Cela peut prendre jusqu’à deux minutes."
+    }
+  },
+  "share": {
+    "viewer": {
+      "title": "Partage Tenshu",
+      "loading": "Déchiffrement…",
+      "download": "Télécharger {fileName}",
+      "textLoading": "{fileName} (chargement…)",
+      "error": {
+        "gone": "Ce lien a été révoqué ou a expiré.",
+        "decrypt": "Ce partage n’a pas pu être déchiffré. Le lien est peut-être incomplet, mal saisi ou endommagé.",
+        "meta": "Il manque les informations du fichier à ce partage, il ne peut donc pas être ouvert. Demandez un nouveau lien à l’expéditeur.",
+        "noKey": "Il manque la clé de déchiffrement à ce lien. Vérifiez que vous avez copié l’adresse complète.",
+        "network": "Impossible d’accéder au partage. Vérifiez votre connexion et réessayez."
+      }
+    }
+  }
+}

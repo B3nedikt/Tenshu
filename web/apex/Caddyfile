@@ -1,0 +1,343 @@
+# Caddy config for the apex web frontend (tenshu.app). Caddy obtains + renews a
+# Let's Encrypt cert for $APEX_DOMAIN automatically (HTTP-01 over :80, which the
+# DO firewall leaves open), terminates TLS, and serves the static SPA baked into
+# the image at /srv.
+#
+# This serves only PUBLIC static assets (the open-source apex build) — no user
+# data passes through it; the encrypted sync traffic goes to the relay's own
+# origin (relay.tenshu.app), configured into the SPA at build time. So unlike the
+# relay there's no zero-trust consideration here: there's nothing to keep private.
+
+{
+	email {$ACME_EMAIL}
+	# ⚠⚠ Caddy's ERROR log (`http.log.error`, one entry per failed proxied request — every 502/504)
+	# carries the same request object as the access log: full client IP, full URI with its query
+	# (?pairingSecret=) and every header (X-Entitlement). It goes to the DEFAULT logger, which the
+	# access snippet's filter never sees, so it is routed out of stdout into its own filtered file.
+	# Same filter and same roll as the `access_log` snippet below (docs/how-to/server-logging.md).
+	log default {
+		exclude http.log.error
+	}
+	log errors {
+		include http.log.error
+		output file /var/log/caddy/errors.log {
+			roll_size 50MiB
+			roll_keep 5
+			roll_keep_for 168h
+			roll_interval 24h
+		}
+		format filter {
+			wrap json
+			request>remote_ip ip_mask 24 48
+			request>client_ip ip_mask 24 48
+			request>remote_port delete
+			# Same uri filter as the access_log snippet below; the comment there explains it.
+			request>uri multi_regexp {
+				regexp "[?].*" "?…"
+				regexp "^/s/[^/?]+" "/s/{shareId}"
+				regexp "^/control/data/devices/[^/?]+" "/control/data/devices/{deviceId}"
+				regexp "/[A-Za-z0-9_%-]{20,}([/?]|$)" "/{id}$1"
+				regexp "/[A-Za-z0-9_%-]{20,}([/?]|$)" "/{id}$1"
+			}
+			request>headers delete
+		}
+	}
+	# Uncomment to rehearse against the Let's Encrypt staging CA (looser rate
+	# limits) while sorting out DNS/firewall:
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+# Access log: one line per request, written to a FILE that is bounded by TIME as well as size, with
+# the personal data filtered out first. Policy and reasons: docs/how-to/server-logging.md.
+#   - client IPs truncated to their /24 (IPv4) or /48 (IPv6) network, source port dropped;
+#   - the query string dropped (`?pairingSecret=`, `?token=`, `?email=` travel there);
+#   - the share id of the Mode-A viewer (`/s/<id>`, a capability: it fetches the share from the
+#     relay) and the device id of `/control/data/devices/<id>` replaced by their route templates.
+#     Both are client-side routes and reach Caddy only on a deep link or reload, which is exactly
+#     how a share link is opened. The relay's own capability routes are filtered in its Caddyfile;
+#   - every request and response header dropped (custom bearer headers such as X-Entitlement are
+#     not on Caddy's own redaction list, and User-Agent is a fingerprint);
+#   - rolled daily, at most 5 rolled files (gzipped), each also expired after 7 days, and the live
+#     file capped at 50 MiB: about a week at most, normally 5-6 days, on a site that keeps receiving
+#     traffic (rolling and cleanup happen only on a write). Docker's json-file driver can only bound
+#     by size, which is why this log goes to a file rather than stdout.
+# Read it with: docker exec <caddy container> tail -f /var/log/caddy/<site>.log   (JSON lines; pipe to jq)
+# ⚠ roll_interval needs caddy >= 2.11 — hence the pinned `caddy:2.11` image.
+# ⚠ Abuse handling: a /24 is what an operator blocks anyway. For a live incident that needs exact
+#   addresses, change the ip_mask lines below temporarily — and revert them afterwards.
+(access_log) {
+	log {
+		output file /var/log/caddy/{args[0]}.log {
+			roll_size 50MiB
+			roll_keep 5
+			roll_keep_for 168h
+			roll_interval 24h
+		}
+		format filter {
+			# JSON, not console: the console encoder writes ANSI colour codes into the file.
+			wrap json
+			request>remote_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>client_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>remote_port delete
+			# Applied in order (multi_regexp, caddy >= 2.10): the query string, then the SPA routes whose
+			# path carries an identifier (RuntimeApp.tsx). Add a line when a route gains one.
+			# ⚠ The last two lines are the backstop: any path segment of 20+ id characters becomes `{id}`.
+			#   It catches what the anchored rules above cannot see — Ktor still routes `//share/<id>` and
+			#   `/%73hare/<id>` — and a capability route nobody added a line for. Every capability id is
+			#   >= 20 characters (share id 22, content ref 69, the 32-hex ones) and no constant segment is.
+			#   Twice, because a match consumes the `/` after it, so an id right after an id needs a pass.
+			#   sync-relay-server's CaddyLogFilterTest applies these rules to every real route and fails
+			#   if an id survives or a constant route is rewritten.
+			request>uri multi_regexp {
+				regexp "[?].*" "?…"
+				regexp "^/s/[^/?]+" "/s/{shareId}"
+				regexp "^/control/data/devices/[^/?]+" "/control/data/devices/{deviceId}"
+				regexp "/[A-Za-z0-9_%-]{20,}([/?]|$)" "/{id}$1"
+				regexp "/[A-Za-z0-9_%-]{20,}([/?]|$)" "/{id}$1"
+			}
+			request>headers delete
+			resp_headers delete
+		}
+	}
+}
+
+{$APEX_DOMAIN} {
+	encode zstd gzip
+	root * /srv
+
+	# Routing, in order:
+	#   1. {path}             — a real file (assets, icons, screenshots).
+	#   2. {path}/index.html  — a static page the build generated as a directory index: the
+	#                           support pages, /apps/<app>/support/<platform>/<lang>
+	#                           (docs/proposals/store-presence-and-support-pages.md §4,
+	#                           web/apex/support-pages/), and the legal pages,
+	#                           /legal/{imprint,privacy,terms}/<lang>, the roadmap,
+	#                           /roadmap/<lang>, and the pricing page, /pricing/<lang>. Served at
+	#                           the slash-less URL with no redirect. The language-neutral
+	#                           /legal/privacy, /legal/imprint, /legal/terms, /roadmap and
+	#                           /pricing are redirected first (below).
+	#                           ⚠ Must come before the SPA fallback: the SPA's catch-all
+	#                           route sends every path it does not know to `/`.
+	#   3. /index.html        — the SPA, so client-side routes (/start, /control/home, /s/:id, …)
+	#                           resolve.
+	try_files {path} {path}/index.html /index.html
+	file_server
+
+	# Content-Security-Policy, the header half (docs/web/architecture.md §5.3). Every page the
+	# build emits also carries a <meta> policy with the rest — script-src with its inline-script
+	# hashes, connect-src, frame-src, … (web/apex/csp/csp.ts) — because the origins those name are
+	# inlined into the bundle at BUILD time and this file never sees them. Both are enforced.
+	# What only a header can say lives here:
+	#   - frame-ancestors: who may frame the apex. Each hosted app on its own origin mounts the apex
+	#     in a hidden iframe when opened directly (web/sdk/src/bridge.ts), so every app's site is
+	#     listed. ⚠ `<ID>_SITE` is a Caddy site ADDRESS reused as a CSP source: `http://drive.<domain>`
+	#     behind the dev box's front Caddy (CSP lets http match an https ancestor), the placeholder
+	#     `http://<id>.disabled.invalid` for an app that is off, a bare host in production. It must
+	#     stay ONE address — a comma would end the policy here. An unset one expands to nothing.
+	#   - object-src / base-uri / form-action repeat the <meta>'s, so a document the build did not
+	#     generate (the SVGs under /icons, /og.svg) is covered too.
+	# ⚠ Adding an app: add its `{$<ID>_SITE}` below, as with its site block at the end of this file.
+	header Content-Security-Policy "frame-ancestors 'self' {$DRIVE_SITE} {$CONTACTS_SITE} {$CALENDAR_SITE} {$PHOTOS_SITE} {$TIMELINE_SITE} {$MAPS_SITE} {$FIT_SITE} {$HOME_SITE} {$MIA_SITE}; object-src 'none'; base-uri 'none'; form-action 'self'"
+
+	# The language-neutral legal URLs, /legal/privacy, /legal/imprint and /legal/terms (with or without a trailing
+	# slash): a 302 to /legal/<page>/<lang>, the language taken from Accept-Language — de* → de,
+	# fr* → fr, anything else (and no header at all) → en. ⚠ /legal/privacy is the stores'
+	# privacy-policy URL (store/shared/en-US/privacy_url.txt, Play and App Store Connect alike), so
+	# this block is what a store reviewer lands on; the per-language URLs stay stable beside it.
+	# ⚠ The FIRST listed language decides; q-values are not weighed (`fr;q=0.1, de` → fr). Browsers
+	#   send their list in preference order, so this matches what a reader asked for in practice.
+	# ⚠ 302, not 301: the answer depends on a request header, and a cached permanent redirect would
+	#   pin one reader's language for everyone behind a shared cache. Hence `Vary` and `no-store` too.
+	# Runs before try_files by Caddy's directive order (redir sorts ahead of try_files), which would
+	# otherwise serve the build's static fallback page, legal/<page>/index.html — the language list
+	# a host without this rule (vite preview, a plain file server) shows instead.
+	map {header.Accept-Language} {legal_lang} {
+		~(?i)^\s*de(?:[-_;,\s]|$) de
+		~(?i)^\s*fr(?:[-_;,\s]|$) fr
+		default en
+	}
+	@legalNeutral path_regexp legal ^/legal/(privacy|imprint|terms)/?$
+	header @legalNeutral {
+		Vary Accept-Language
+		Cache-Control no-store
+	}
+	redir @legalNeutral /legal/{re.legal.1}/{legal_lang} 302
+
+	# The public roadmap (support-pages/roadmap.ts) the same way: /roadmap → /roadmap/<lang> by
+	# Accept-Language, through the same map. It is the header's "Roadmap" link on every page.
+	@roadmapNeutral path_regexp roadmap ^/roadmap/?$
+	header @roadmapNeutral {
+		Vary Accept-Language
+		Cache-Control no-store
+	}
+	redir @roadmapNeutral /roadmap/{legal_lang} 302
+
+	# The public pricing page (support-pages/pricing.ts) the same way: /pricing → /pricing/<lang>.
+	# It is the header's "Pricing" link on every page, and the one page that names a price.
+	@pricingNeutral path_regexp pricing ^/pricing/?$
+	header @pricingNeutral {
+		Vary Accept-Language
+		Cache-Control no-store
+	}
+	redir @pricingNeutral /pricing/{legal_lang} 302
+
+	# The app marketing pages (support-pages/appPages.ts APP_PAGES) the same way:
+	# /apps/<app> → /apps/<app>/<lang>. The landing carousel links these. ⚠ List an app here when
+	# it gets a page (caddyfile.test.ts holds the list to APP_PAGES).
+	@appPageNeutral path_regexp apppage ^/apps/(control|drive|photos|calendar|contacts|fit)/?$
+	header @appPageNeutral {
+		Vary Accept-Language
+		Cache-Control no-store
+	}
+	redir @appPageNeutral /apps/{re.apppage.1}/{legal_lang} 302
+
+	# The Android download pages (support-pages/androidDownload.ts ANDROID_APPS) the same way:
+	# /apps/<app>/download/android → /apps/<app>/download/android/<lang>.
+	# ⚠⚠ /apps/control/download/android is compiled into every Android app
+	#   (CONTROL_ANDROID_DOWNLOAD_URL, the "Get Control" link of a copy not from Play): it must keep
+	#   resolving for as long as such a build is installed. Without this rule it serves the build's
+	#   static language list instead.
+	# ⚠ List an app here when it joins ANDROID_APPS (caddyfile.test.ts holds the two together).
+	@androidDownloadNeutral path_regexp androiddl ^/apps/(control|drive|photos|maps|timeline|calendar|contacts|fit|home|mia)/download/android/?$
+	header @androidDownloadNeutral {
+		Vary Accept-Language
+		Cache-Control no-store
+	}
+	redir @androidDownloadNeutral /apps/{re.androiddl.1}/download/android/{legal_lang} 302
+
+	# The macOS download pages (support-pages/macosDownload.ts MACOS_APPS) the same way:
+	# /apps/<app>/download/macos → /apps/<app>/download/macos/<lang>. ⚠ Never matches
+	# /apps/<app>/download/macos.json, the Homebrew casks' livecheck source, served as a file.
+	# ⚠ List an app here when it joins MACOS_APPS (caddyfile.test.ts holds the two together).
+	@macosDownloadNeutral path_regexp macosdl ^/apps/(control|drive|maps|home|calendar|timeline|mia|photos|fit|contacts)/download/macos/?$
+	header @macosDownloadNeutral {
+		Vary Accept-Language
+		Cache-Control no-store
+	}
+	redir @macosDownloadNeutral /apps/{re.macosdl.1}/download/macos/{legal_lang} 302
+
+	# Vite emits content-hashed asset filenames, so they're safe to cache forever.
+	# index.html itself is served uncached (default) so a redeploy is picked up.
+	@assets path /assets/*
+	header @assets Cache-Control "public, immutable, max-age=31536000"
+
+	import access_log apex
+}
+
+# ---- The hosted apps, each on its own origin (ADR 0020; web-app-suite.md F2/F4) ----------------
+# Every web app is its own pnpm package on its own origin, and the apex hosts it in an iframe.
+# They are all static, so one image carries them all (/srv-apps/<id>, staged by
+# deploy/build-apex-image.sh) and Caddy picks the app by hostname. One snippet serves them all;
+# each app is a two-line site block below.
+#
+# ⚠⚠ `<ID>_SITE` is a full site address, and its default is load-bearing. A compose file that does
+# not set `<ID>_DOMAIN` passes `http://<id>.disabled.invalid` (docker-compose.yml): an empty site
+# address would be a Caddyfile parse error and take the apex down with it (the same trap as
+# MAIL_SITE on the dev box). Production sets `<id>.tenshu.app` (Caddy issues its own certificate).
+# Behind the dev box's front Caddy it is `http://<id>.<domain>` on plain :80, and the more specific
+# hostname wins over the apex's `:80` catch-all.
+#
+# ⚠ frame-ancestors: an app is meant to run inside the apex (HostedAppEmbed), and a page that
+# deletes files — or merges, deletes and VERIFIES people — must not be frameable by anyone else.
+# `<ID>_FRAME_ANCESTORS` is the apex origin(s), passed as the snippet's second argument.
+#
+# Usage: import hosted_app <id> "{$<ID>_FRAME_ANCESTORS}"
+# ⚠ The quotes are load-bearing: unquoted, a value of several origins splits into several
+# arguments and `{args[1]}` keeps only the first. (Verified with `caddy adapt`: the snippet form
+# adapts to byte-identical JSON as the per-app blocks it replaced, one and two origins alike.)
+#
+# ⚠⚠ ONE site body for every hosted app, `hosted_app_site`, which takes the whole CSP as its second
+# argument: `hosted_app` and `hosted_map_app` differ ONLY in that policy, so a change to anything else
+# (compression, root, caching, logging) cannot land on one kind of app and not the other.
+# `csp/caddyfile.test.ts` pins both policies exactly.
+# Usage (only from the two snippets below): import hosted_app_site <id> "<CSP>"
+(hosted_app_site) {
+	encode zstd gzip
+	# ⚠ Outside /srv on purpose: the apex serves /srv/apps/<app>/support/… pages, so an app tree
+	# under /srv/apps/<id> would also answer at <apex>/apps/<id>.
+	root * /srv-apps/{args[0]}
+	header Content-Security-Policy "{args[1]}"
+	try_files {path} /index.html
+	file_server
+
+	@assets path /assets/*
+	header @assets Cache-Control "public, immutable, max-age=31536000"
+
+	import access_log {args[0]}
+}
+
+# Only the apex may frame an app (the ⚠ above). object-src / base-uri / form-action: the cheap,
+# origin-independent half of the apex's own policy; an app's full policy is its own follow-up.
+(hosted_app) {
+	import hosted_app_site {args[0]} "frame-ancestors {args[1]}; object-src 'none'; base-uri 'none'; form-action 'self'"
+}
+
+# A hosted app that draws maps (`@tenshu/map-kit`, how-to new-web-app.md §2b): `hosted_app` with the
+# app's FULL policy, the how-to's map set. Same two arguments.
+#   - worker-src / child-src blob: — MapLibre starts its tile workers from a `blob:` URL (child-src is
+#     the fallback older Safari reads for workers); img-src data: blob: — it decodes images there.
+#   - connect-src 'self' and nothing wider: glyphs come from the app's own origin, and tile bytes
+#     arrive over the bridge (postMessage); the app frame never fetches them.
+#   - frame-src: the hidden apex iframe the app dials when opened directly — the same origin(s) as
+#     its frame-ancestors, so the one argument serves both.
+# ⚠ Checked in headless Chromium: this exact header on Fit's build, with the shared Dialog OPEN
+#   and a MapLibre canvas drawn (blob: workers), gives 0 violations; without 'unsafe-inline' on
+#   style-src-elem the scroll lock's <style> is refused. Not yet behind Caddy in the dev lab.
+# Usage: import hosted_map_app <id> "{$<ID>_FRAME_ANCESTORS}"
+(hosted_map_app) {
+	import hosted_app_site {args[0]} "default-src 'self'; script-src 'self'; style-src 'self'; style-src-elem 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:; worker-src blob:; child-src blob:; frame-src {args[1]}; frame-ancestors {args[1]}; object-src 'none'; base-uri 'none'; form-action 'self'"
+}
+
+# Drive (web-app-suite.md F2).
+{$DRIVE_SITE} {
+	import hosted_app drive "{$DRIVE_FRAME_ANCESTORS}"
+}
+
+# Contacts (web-app-suite.md Wave 1).
+{$CONTACTS_SITE} {
+	import hosted_app contacts "{$CONTACTS_FRAME_ANCESTORS}"
+}
+
+# Calendar (web-app-suite.md Wave 2).
+{$CALENDAR_SITE} {
+	import hosted_app calendar "{$CALENDAR_FRAME_ANCESTORS}"
+}
+
+# Photos (web-app-suite.md Wave 2).
+{$PHOTOS_SITE} {
+	import hosted_app photos "{$PHOTOS_FRAME_ANCESTORS}"
+}
+
+# Timeline (web-app-suite.md Wave 2; its maps, Wave 3).
+{$TIMELINE_SITE} {
+	import hosted_map_app timeline "{$TIMELINE_FRAME_ANCESTORS}"
+}
+
+# Maps (web-app-suite.md Wave 3). A map app: the full map policy (hosted_map_app).
+{$MAPS_SITE} {
+	import hosted_map_app maps "{$MAPS_FRAME_ANCESTORS}"
+}
+
+# Fit (web-app-suite.md Wave 3). A map app: the route map needs the map policy.
+{$FIT_SITE} {
+	import hosted_map_app fit "{$FIT_FRAME_ANCESTORS}"
+}
+
+# Home (web-app-suite.md Wave 4). Read-only, no map and no shared Dialog, so the plain
+# frame-ancestors policy (hosted_app). ⚠ `HOME_SITE` is its own variable, never the shell's `$HOME`.
+{$HOME_SITE} {
+	import hosted_app home "{$HOME_FRAME_ANCESTORS}"
+}
+
+# Mia (web-app-suite.md Wave 4). NOT a map app, and it opens no shared Dialog, so it keeps
+# `hosted_app` — no inline <style> to allow (csp/caddyfile.test.ts pins this). ⚠ Through `mia.ask` this
+# origin reads every source Mia's grants allow (threat model A39, web amendment).
+{$MIA_SITE} {
+	import hosted_app mia "{$MIA_FRAME_ANCESTORS}"
+}

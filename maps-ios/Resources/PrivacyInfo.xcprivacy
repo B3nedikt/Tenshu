@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    Maps's privacy manifest (docs/how-to/ios-testflight.md §4). The accessed-API list is an AUDIT
+    RESULT, not a wish: the required-reason APIs seen in the ARCHIVED executable (`nm -u`, `strings`,
+    first archive 2026-10-17), most of them from the shared Kotlin framework. Re-run the audit in the
+    how-to when that changes. An embedded MapLibre.framework carries its own manifest.
+    The collected-data answers are mirrored in store/maps/privacy-label.md; the two must agree.
+  -->
+  <key>NSPrivacyTracking</key>
+  <false/>
+  <key>NSPrivacyTrackingDomains</key>
+  <array/>
+  <key>NSPrivacyCollectedDataTypes</key>
+  <!-- None: what Maps sends leaves the device end-to-end encrypted, and the relay cannot read it.
+       ⚖️ The reading behind that, and the open items, are in store/maps/privacy-label.md. -->
+  <array/>
+  <key>NSPrivacyAccessedAPITypes</key>
+  <array>
+    <!-- File timestamps (C617.1): `stat` / `fstat` / `lstat` and `NSFileModificationDate` on the local
+         store and the shared replica, in the app's and the App Group's containers (core-common). -->
+    <dict>
+      <key>NSPrivacyAccessedAPIType</key>
+      <string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+      <key>NSPrivacyAccessedAPITypeReasons</key>
+      <array>
+        <string>C617.1</string>
+      </array>
+    </dict>
+    <!-- Disk space (E174.1): the local store checks free space before it writes (`statfs`,
+         `NSFileSystemFreeSize`, `IosFileDatabase`). -->
+    <dict>
+      <key>NSPrivacyAccessedAPIType</key>
+      <string>NSPrivacyAccessedAPICategoryDiskSpace</string>
+      <key>NSPrivacyAccessedAPITypeReasons</key>
+      <array>
+        <string>E174.1</string>
+      </array>
+    </dict>
+    <!-- UserDefaults (CA92.1): the app's own renderer election (`MapRendererControl`, ios-basemap), `UserDefaults.standard`. -->
+    <dict>
+      <key>NSPrivacyAccessedAPIType</key>
+      <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+      <key>NSPrivacyAccessedAPITypeReasons</key>
+      <array>
+        <string>CA92.1</string>
+      </array>
+    </dict>
+  </array>
+</dict>
+</plist>

@@ -1,0 +1,28 @@
+# The shared XcodeGen fragment every **tab-shaped first-party iOS app** includes
+# (docs/proposals/ios-adaptive-navigation.md, N6). Consumed as:
+#
+#     include:
+#       - path: ../ios-shell/shell.yml
+#     targets:
+#       <App>:
+#         templates: [AdaptiveAppShell]
+#
+# It carries `AdaptiveAppShell` — the one component that decides tab bar vs sidebar from the
+# window width — so the seven tab-shaped apps share one answer instead of seven.
+#
+# ⚠ Timeline and Maps deliberately do NOT include this: neither has top-level destinations
+# (both root a single `NavigationStack`), and a sidebar with one row is worse than no sidebar.
+#
+# ⚠ Paths here are relative to THIS file's directory — XcodeGen's `include` default
+# (`relativePaths: true`) rewrites them for whichever spec includes it. Same convention as
+# `ios-onboarding/onboarding.yml` and `ios-basemap/basemap.yml`.
+
+targetTemplates:
+  AdaptiveAppShell:
+    sources:
+      # ⚠ Compiled INTO each app target rather than vended as a local Swift package — the same
+      # constraint `ios-onboarding` documents: a SwiftPM `.binaryTarget` is resolved before any
+      # build phase runs, so a package that sits alongside the Gradle-built
+      # `TenshuSdk` framework fails on the fresh `-derivedDataPath` this repo's build
+      # instructions require. XcodeGen takes sources from any path, so this costs one line per app.
+      - path: Sources

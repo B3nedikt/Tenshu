@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Ported from docs/design/tenshu-icons/icons/android/foreground/mia.svg by the
+  recipe in docs/adr/0026-app-icon-system.md §5. The pictogram sits in a <group>
+  carrying the source's own translate/scale so path data is copied verbatim; rects
+  and circles have no VectorDrawable primitive and are expressed as paths.
+
+  ⚠ The inner <group> is the radius-30 fit: the mark is scaled about the grid centre so
+  every rendered pixel stays inside radius 30 and no launcher mask clips it. Stroke
+  widths are authored pre-scale, so they render at the set's 3.5 baseline.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="432"
+    android:viewportHeight="432">
+    <group
+        android:translateX="84"
+        android:translateY="84"
+        android:scaleX="4.125"
+        android:scaleY="4.125">
+        <group
+            android:translateX="3.84"
+            android:translateY="3.84"
+            android:scaleX="0.88"
+            android:scaleY="0.88">
+            <path
+                android:pathData="M 8 14 a 4 4 0 0 1 4 -4 L 52 10 a 4 4 0 0 1 4 4 L 56 38 a 4 4 0 0 1 -4 4 L 24 42 L 14 52 L 14 42 L 12 42 a 4 4 0 0 1 -4 -4 z"
+                android:strokeColor="#FFFFFF"
+                android:strokeWidth="3.9773"
+                android:strokeLineCap="round"
+                android:strokeLineJoin="round"
+                />
+            <path
+                android:pathData="M 26 30 Q 28 33 30 31 Q 31 30 32 31 Q 34 33 36 30"
+                android:strokeColor="#FFFFFF"
+                android:strokeWidth="3.9773"
+                android:strokeLineCap="round"
+                android:strokeLineJoin="round"
+                />
+            <path
+                android:pathData="M 22.6 24.0 a 2.4 2.4 0 1 0 4.8 0 a 2.4 2.4 0 1 0 -4.8 0 Z"
+                android:fillColor="#FFFFFF"
+                />
+            <path
+                android:pathData="M 34.6 24.0 a 2.4 2.4 0 1 0 4.8 0 a 2.4 2.4 0 1 0 -4.8 0 Z"
+                android:fillColor="#FFFFFF"
+                />
+        </group>
+    </group>
+</vector>

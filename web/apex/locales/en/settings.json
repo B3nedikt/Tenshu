@@ -1,0 +1,21 @@
+{
+  "title": "Settings",
+  "subtitle": "How this realm and this browser behave.",
+  "entries": {
+    "devices": {
+      "headline": "Devices",
+      "support": "The devices in your realm, and pairing a new one"
+    },
+    "backgroundIngest": {
+      "headline": "Background ingest",
+      "support": "Apps backing up device data, and their kill switches"
+    },
+    "recovery": {
+      "headline": "Account recovery",
+      "support": "Your recovery phrase — the way back if you lose every device"
+    }
+  },
+  "legal": "Legal",
+  "privacyPolicy": "Privacy policy",
+  "termsOfUse": "Terms of use"
+}

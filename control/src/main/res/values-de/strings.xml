@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- German (de). Mirrors ../values/strings.xml key for key; ADR 0016.
+     See the English file for per-string developer notes. -->
+<resources>
+    <string name="app_name">Control</string>
+
+    <string name="foreground_task_liveness_channel">Hintergrundaufgaben</string>
+    <string name="foreground_uploading">Upload %1$d von %2$d</string>
+    <string name="foreground_indexing">Fotos werden indexiert, %1$d von %2$d</string>
+    <plurals name="foreground_task_liveness">
+        <item quantity="one">%d Hintergrundaufgabe läuft</item>
+        <item quantity="other">%d Hintergrundaufgaben laufen</item>
+    </plurals>
+
+    <string name="host_pairing_channel">Gerätekopplung</string>
+    <string name="host_pairing_title">Gerät wird gekoppelt</string>
+    <string name="host_pairing_waiting">Warte auf ein Gerät – noch %1$s</string>
+    <string name="host_pairing_waiting_no_countdown">Warte, bis ein Gerät beitritt</string>
+    <string name="host_pairing_request">Ein Gerät möchte beitreten – zum Prüfen tippen</string>
+</resources>

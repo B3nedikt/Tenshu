@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Production logging for the commerce issuer. Policy and its reasons: docs/how-to/server-logging.md.
+
+  Without this file logback falls back to its BasicConfigurator, which logs EVERYTHING at DEBUG
+  (HikariCP's pool housekeeping, Ktor and Netty internals).
+
+  * LOG_LEVEL (env, default INFO) sets the level of commerce's own lines and of Ktor's
+    `io.ktor.server.Application` logger, which carries the [admin] audit lines, the
+    one-line-per-request call log and StatusPages errors. (The boot lines - "issuer public key",
+    "Commerce email: …" - are println and always appear.) Raise it for a debugging session only:
+    `COMMERCE_LOG_LEVEL=DEBUG` in deploy.env + recreate.
+  * ⚠ logback reads an EMPTY LOG_LEVEL as an invalid level and falls back to DEBUG.
+    The compose files therefore pass `${COMMERCE_LOG_LEVEL:-INFO}`: compose's `:-` substitutes INFO
+    for an unset AND an empty variable, so the container never sees an empty value.
+  * Third-party libraries are pinned at WARN and do NOT follow LOG_LEVEL.
+  * ⚠ LOG_LEVEL also sets the ROOT, so DEBUG raises every library NOT pinned below as well.
+  * ⚠ A misspelt LOG_LEVEL (e.g. "DEGUB", "verbose") is read by logback as DEBUG, not INFO
+    (Level.toLevel's default). LogbackConfigTest pins that, so the trap stays visible.
+  * Not here, on purpose: the Postgres driver and Jakarta/Angus Mail log through java.util.logging,
+    not SLF4J, so a logback <logger> for them is a no-op. JUL's own default (INFO) keeps them quiet;
+    the SMTP dialogue appears only with mail.debug=true, which nothing sets.
+  * Console only: docker's json-file driver is the store (50m x 5, commerce-service/docker-compose.yml).
+  * Backstop: any e-mail address in a message or a stack trace is masked to `***@domain`. Our own
+    lines already log the domain only (LogRedaction.kt); this catches a library's exception
+    message (kotlinx.serialization quotes the JSON it choked on, e.g. a Stripe payload).
+    ⚠ The regex deliberately avoids `\`, `{`, `}`, `,` and `%`: logback's option parser treats them
+    specially. LogbackConfigTest pins that it still matches.
+-->
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [%thread] %logger{36} - %replace(%msg){'[A-Za-z0-9._+-]+@([A-Za-z0-9-]+[.][A-Za-z0-9.-]+)', '***@$1'}%n%replace(%ex){'[A-Za-z0-9._+-]+@([A-Za-z0-9-]+[.][A-Za-z0-9.-]+)', '***@$1'}%nopex</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Our own lines, and Ktor's application logger (boot lines + CallLogging + StatusPages). -->
+    <logger name="org.tenshu" level="${LOG_LEVEL:-INFO}"/>
+    <logger name="io.ktor.server.Application" level="${LOG_LEVEL:-INFO}"/>
+
+    <!-- Third-party: WARN regardless of LOG_LEVEL. -->
+    <logger name="io.ktor" level="WARN"/>
+    <logger name="io.netty" level="WARN"/>
+    <logger name="com.zaxxer.hikari" level="WARN"/>
+
+    <root level="${LOG_LEVEL:-INFO}">
+        <appender-ref ref="STDOUT"/>
+    </root>
+</configuration>

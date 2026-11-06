@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    Fit-on-iOS SIMULATOR Keychain entitlements (the route-1 read side of Control's shared-Keychain
+    key material, RealmKeyMaterialBridge). Mirrors drive-ios/Drive.entitlements: an ad-hoc-signed
+    sim build needs an `application-identifier` to have a Keychain at all, plus the SHARED
+    `app.tenshu.shared` group (bare string — ad-hoc signing has no team) that Control's
+    `publishRealmKeysToSharedKeychain` writes into. A real device uses the
+    Team-prefixed variant in Fit.device.entitlements (ios-signing.md §2). The App Group is
+    declared separately below (route-1 shared replica).
+  -->
+  <key>application-identifier</key>
+  <string>app.tenshu.fit.ios</string>
+  <key>keychain-access-groups</key>
+  <array>
+    <string>app.tenshu.fit.ios</string>
+    <string>app.tenshu.shared</string>
+  </array>
+  <!--
+    App Group (route-1 shared replica; ios-first-party-route-1-migration.md P2) — mirrors
+    drive-ios/Drive.entitlements. The identical bare `group.app.tenshu.shared` all Tenshu apps
+    declare gives the ad-hoc-signed sim apps ONE shared container, so FitLocalRuntime reads the
+    SAME `objects` replica Control writes (route 1, in-process). Without it `sharedReplicaDirectory`
+    falls back app-local (route-1 runs but over an isolated replica). App Groups are paid-tier on a
+    real device (absent from Fit.device.entitlements) — the on-device shared-replica gate.
+  -->
+  <key>com.apple.security.application-groups</key>
+  <array>
+    <string>group.app.tenshu.shared</string>
+  </array>
+  <!-- HealthKit read access for the P-iOS-2 importer (HealthKitImporter). Free-tier capability
+       (unlike App Groups); the read grant itself is the per-type iOS consent sheet (A34). -->
+  <key>com.apple.developer.healthkit</key>
+  <true/>
+</dict>
+</plist>

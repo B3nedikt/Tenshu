@@ -1,0 +1,1 @@
+karte,offline,offlinekarte,orte,regionen,herunterladen,verschlüsselt,ende-zu-ende,privat,e2ee

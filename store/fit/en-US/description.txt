@@ -1,0 +1,31 @@
+Tenshu Fit records your workouts and brings in your activity from Apple Health, encrypted and in sync across your devices. Only your own devices can read it.
+
+TENSHU FIT NEEDS TENSHU CONTROL
+Tenshu Control holds your keys and connects your devices. Install Tenshu Control from the App Store and set it up first, then open Fit. Fit finds Control on its own.
+
+WHAT YOU CAN DO
+- Record a run, walk, ride or strength workout. See time, distance, pace and steps as you go, with the route from GPS.
+- Connect a Bluetooth heart rate strap to see your heart rate while you record.
+- Add the workouts you record to Apple Health.
+- Import the last 30 days from Apple Health, if you allow it: workouts, steps, distance, active energy, sleep, weight and height, resting heart rate, blood oxygen, respiratory rate, food energy, water and cycle data. Fit imports again when you open it.
+- Import workouts from a Google Takeout .zip, or from .gpx and .tcx files.
+- Look back over your workouts, each with its route, laps and heart rate, and see simple trends over time.
+- Set a daily goal for active minutes.
+- Use Apple Maps for workout maps, if you prefer. It is off until you turn it on.
+
+Fit is for keeping track of your activity. It is not a medical device and gives no medical advice.
+
+HOW FIT KEEPS YOUR DATA PRIVATE
+- Your workouts and health data are encrypted on your device before they are uploaded. Tenshu's servers store only encrypted data, and they don't have the keys to read it.
+- The server can still see some facts it needs to sync: how much you store, how many devices you have, and when they sync.
+- Fit has no ads and no analytics, and it does not share your health data with anyone.
+- Fit uses your location only while you record a workout.
+- If you turn on Use Apple Maps, Apple serves the map, and sees which workout you open and when.
+- Without a storage plan, your data stays on this device.
+
+REQUIREMENTS
+- iOS 16 or later, on iPhone. On iPad, Apple Health needs iPadOS 17 or later.
+- Tenshu Control, set up on the same device.
+- To sync between devices: a storage plan. The free plan has 5 GB.
+
+Help and common problems: tenshu.app/apps/fit/support/ios/en

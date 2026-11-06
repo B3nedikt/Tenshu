@@ -1,0 +1,21 @@
+# The toolchain `retrieval-gate.py` runs in, and refuses to run outside of. Python 3.13.
+#
+# The export's own set first: the gate loads the fp32 reference and the Core ML towers with the
+# versions that converted them.
+-r requirements-coreml-export.txt
+
+# What the gate needs beyond the export:
+#
+# ⚠ onnxruntime is the version the apps ship (`onnxRuntime` in gradle/libs.versions.toml). The ONNX
+# pair is the gate's yardstick, and quantised kernels are where runtime versions differ. Bump it
+# with that line, never on its own.
+onnxruntime==1.20.0
+# ⚠ Decodes and resizes the corpus. The corpus manifest pins the digest of the resized pixels, and
+# a different Pillow (or the libjpeg it bundles) may move them: bump it, re-run, and if the gate
+# reports other pixels, update the manifest's `pixels=` line in the same change.
+pillow==12.3.0
+# The checkpoint's own tokenizer (`SiglipTokenizer`) is a SentencePiece one.
+sentencepiece==0.2.1
+# transformers' fast-tokenizer backend. A transitive dependency, pinned because it decides the token
+# rows; `retrieval-gate.py` also checks the rows themselves (`CANONICAL_TOKEN_ROWS_SHA256`).
+tokenizers==0.21.4

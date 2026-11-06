@@ -1,0 +1,39 @@
+{
+  "breadcrumb": {
+    "home": "Start"
+  },
+  "folder": {
+    "titleRoot": "Dateien",
+    "namePlaceholder": "Ordnername",
+    "actions": {
+      "newFolder": "Neuer Ordner",
+      "upload": "Hochladen",
+      "create": "Erstellen",
+      "cancel": "Abbrechen"
+    },
+    "list": {
+      "loading": "Wird geladen…",
+      "error": "Ordner konnte nicht geladen werden.",
+      "empty": "Dieser Ordner ist leer. Erstelle einen neuen Ordner oder lade eine Datei hoch, um loszulegen."
+    },
+    "entry": {
+      "folderTag": "Ordner"
+    }
+  },
+  "preview": {
+    "close": "Vorschau schließen",
+    "size": "Größe",
+    "modified": "Geändert",
+    "loading": "Vorschau wird geladen…",
+    "download": "Herunterladen",
+    "notAnImage": "kein Bild – keine Vorschau verfügbar"
+  },
+  "status": {
+    "uploading": "{name} wird hochgeladen…",
+    "uploadFailed": "Upload fehlgeschlagen (Pfad existiert vermutlich bereits)",
+    "uploaded": "{name} hochgeladen ({size})",
+    "creatingFolder": "Ordner {name} wird erstellt…",
+    "folderCreationFailed": "Ordner konnte nicht erstellt werden (Name existiert vermutlich bereits)",
+    "createdFolder": "Ordner {name} erstellt"
+  }
+}

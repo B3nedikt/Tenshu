@@ -1,0 +1,41 @@
+# XcodeGen spec for the Tenshu Drive File Provider extension
+# (docs/proposals/desktop-macos-integration.md §5). `TenshuFileProvider.xcodeproj` is
+# generated from this file and gitignored, like the iOS apps' projects.
+#
+# Built by `:drive-desktop:buildFileProviderExtension`; do not build it by hand for a
+# packaged app — the task also embeds it, and Gradle signs it.
+#
+# ⚠ CODE_SIGNING_ALLOWED is NO on purpose. The host is a jpackage bundle Xcode knows nothing
+# about, so the one place that signs every desktop bundle (`signDesktopApp`) signs this too,
+# with macos/entitlements/drive-fileprovider.entitlements. Letting Xcode sign it as well
+# would have that signature replaced anyway, and would add an Xcode-account dependency to
+# every desktop package build.
+name: TenshuFileProvider
+options:
+  deploymentTarget:
+    macOS: "13.0"
+  createIntermediateGroups: true
+
+targets:
+  TenshuFileProvider:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: .
+        includes:
+          - "*.swift"
+        excludes:
+          # A separate executable (Contents/Helpers/tenshu-domain), compiled by swiftc.
+          - DomainRegistrar.swift
+    settings:
+      base:
+        PRODUCT_NAME: TenshuFileProvider
+        PRODUCT_BUNDLE_IDENTIFIER: app.tenshu.drive.ios.fileprovider
+        MARKETING_VERSION: ${TENSHU_MARKETING_VERSION}
+        CURRENT_PROJECT_VERSION: ${TENSHU_BUILD_NUMBER}
+        INFOPLIST_FILE: Info.plist
+        GENERATE_INFOPLIST_FILE: "NO"
+        SWIFT_VERSION: "5.0"
+        CODE_SIGNING_ALLOWED: "NO"
+        # Resolved at generate time; fills NSExtensionFileProviderDocumentGroup.
+        DEVELOPMENT_TEAM: ${TENSHU_TEAM_ID}

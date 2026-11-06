@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- German (de). Mirrors ../values/strings.xml key for key; ADR 0016.
+     See the English file for per-string developer notes. -->
+<resources>
+    <string name="actionable_requests_channel">Anfragen</string>
+    <string name="actionable_request_grant_title">Jemand möchte einen Ordner für dich freigeben</string>
+    <string name="actionable_request_invite_title">Ein Kontakt hat deine Einladung angenommen</string>
+    <string name="actionable_request_body">Öffne Control, um die Anfrage zu prüfen.</string>
+    <string name="manual_index_channel">Fotoindexierung</string>
+    <string name="manual_index_starting">Fotos werden indexiert…</string>
+    <string name="manual_index_progress">Fotos werden indexiert — %1$s von %2$s</string>
+    <string name="manual_index_stop">Stoppen</string>
+    <string name="schema_fence_channel">Synchronisierungsprobleme</string>
+    <string name="schema_fence_title">Aktualisiere Control, um weiter zu synchronisieren</string>
+    <string name="schema_fence_body">Tenshu Control auf diesem Gerät ist älter als auf deinen anderen Geräten, deshalb kommen in keiner App neue Änderungen an. Deine Dateien hier sind sicher.</string>
+</resources>

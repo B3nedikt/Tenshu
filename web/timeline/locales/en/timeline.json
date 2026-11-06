@@ -1,0 +1,203 @@
+{
+  "app": {
+    "title": "Timeline",
+    "tagline": "Where you’ve been, end-to-end encrypted."
+  },
+  "runtime": {
+    "connectingTitle": "Still connecting to Tenshu…",
+    "connectingBody": "The Tenshu tab hosting Timeline is busy. Timeline will load as soon as it answers.",
+    "elsewhereTitle": "Tenshu is open in another tab",
+    "elsewhereBody": "Tenshu runs in one tab at a time, so your data can't get out of step. Use it here to move it to this tab.",
+    "moving": "Waiting for the other tab to finish saving. This can take up to two minutes.",
+    "movingShort": "Moving…",
+    "useHere": "Use here"
+  },
+  "crash": {
+    "title": "Something went wrong",
+    "body": "This part of Timeline hit an unexpected error. Your data is safe — nothing was changed.",
+    "retry": "Try again",
+    "reload": "Reload"
+  },
+  "nav": {
+    "timeline": "Timeline",
+    "places": "Places"
+  },
+  "common": {
+    "back": "Back",
+    "cancel": "Cancel",
+    "loading": "Loading…",
+    "retry": "Try again",
+    "working": "Working…"
+  },
+  "read": {
+    "failedTitle": "Couldn’t load this",
+    "silentTitle": "Still loading — or couldn’t load"
+  },
+  "stream": {
+    "stopped": "Updates stopped — what you see may be out of date.",
+    "reconnect": "Reconnect"
+  },
+  "home": {
+    "trips": "Trips",
+    "emptyTitle": "Nothing on your timeline yet",
+    "emptyBody": "Your timeline is recorded on your phone and appears here once it has synced."
+  },
+  "kind": {
+    "Visit": "Visit",
+    "Movement": "Movement",
+    "Activity": "Activity",
+    "Event": "Event",
+    "Quiet": "Quiet time",
+    "other": "Moment"
+  },
+  "movement": {
+    "walk": "Walk",
+    "run": "Run",
+    "cycle": "Ride",
+    "drive": "Drive",
+    "transit": "Transit",
+    "flight": "Flight",
+    "unknown": "Movement"
+  },
+  "activity": {
+    "running": "Running",
+    "walking": "Walking",
+    "cycling": "Cycling",
+    "strength": "Strength training",
+    "other": "Workout"
+  },
+  "distance": {
+    "m": "{value} m",
+    "km": "{whole}.{tenths} km",
+    "ft": "{value} ft",
+    "mi": "{whole}.{tenths} mi"
+  },
+  "duration": {
+    "minutes": "{minutes} min",
+    "hours": "{hours} h",
+    "hoursMinutes": "{hours} h {minutes} min"
+  },
+  "suggestion": {
+    "label": "Read as a trip?",
+    "untitled": "A trip",
+    "days": "{count, plural, one {# day} other {# days}}",
+    "places": "{count, plural, one {# place} other {# places}}",
+    "accept": "Make it a trip",
+    "dismiss": "Not a trip"
+  },
+  "moment": {
+    "when": "When",
+    "duration": "Duration",
+    "mode": "Mode",
+    "distance": "Distance",
+    "activity": "Activity",
+    "notFound": "Moment not found",
+    "openPlace": "Open this place",
+    "placePending": "A place not on this device yet",
+    "subjectPending": "The details of this moment haven’t reached this device yet. They appear once they sync."
+  },
+  "trip": {
+    "untitled": "Untitled trip",
+    "notFound": "Trip not found",
+    "legs": "Legs",
+    "days": "Days",
+    "noDays": "None of this trip’s moments are on this device yet.",
+    "missing": "{count, plural, one {# moment of this trip hasn’t reached this device yet.} other {# moments of this trip haven’t reached this device yet.}}"
+  },
+  "places": {
+    "empty": "Places appear as your timeline fills in.",
+    "visits": "{count, plural, one {# visit} other {# visits}}"
+  },
+  "place": {
+    "unnamed": "Unnamed place",
+    "notFound": "Place not found",
+    "lastVisit": "last {when}",
+    "redirected": "The place you opened was merged into this one.",
+    "rename": "Rename",
+    "setRole": "Label as…",
+    "merge": "Merge with another place",
+    "folded": "{count, plural, one {# place merged into this one} other {# places merged into this one}}",
+    "unmerge": "Separate",
+    "visitsTitle": "Visits",
+    "noVisits": "No visits on this device yet."
+  },
+  "role": {
+    "home": "Home",
+    "work": "Work",
+    "none": "No label",
+    "yes": "Yes",
+    "prompt": {
+      "home": "Is this your home?",
+      "work": "Is this where you work?"
+    },
+    "refuse": {
+      "home": "Not my home",
+      "work": "Not my work"
+    }
+  },
+  "roleDialog": {
+    "title": "Label this place",
+    "body": "Your answer is saved as yours and syncs to your devices. Tenshu never overwrites it.",
+    "confirm": "Save"
+  },
+  "rename": {
+    "title": "Rename place",
+    "label": "Place name",
+    "confirm": "Rename"
+  },
+  "merge": {
+    "title": "Same place?",
+    "body": "Pick the place this one is really part of.",
+    "with": "Merge with",
+    "choose": "Choose a place…",
+    "noOthers": "There is no other place to merge with.",
+    "next": "Continue",
+    "confirmTitle": "Merge these places?",
+    "confirmBody": "“{a}” and “{b}” become one place with all their visits. You can separate them again later from the place’s page.",
+    "confirm": "Merge"
+  },
+  "unmerge": {
+    "title": "Separate this place?",
+    "body": "“{name}” becomes its own place again, with its own visits.",
+    "confirm": "Separate"
+  },
+  "map": {
+    "route": "Route",
+    "place": "Map of this place",
+    "loading": "Loading map…",
+    "routeLoading": "Loading the route…",
+    "unavailable": "Map unavailable",
+    "noWebGL": "This browser can’t draw maps (WebGL is off or unsupported).",
+    "noRegion": "No map data for this area.",
+    "origin": "Start",
+    "destination": "End"
+  },
+  "errors": {
+    "error_generic": "Something went wrong. Please try again.",
+    "error_unexpected": "Something went wrong. Please try again.",
+    "error_internal": "Something went wrong. Please try again.",
+    "error_not_found": "That is no longer available.",
+    "error_invalid_caller": "This app is not allowed to do that.",
+    "error_unannounced_session": "Tenshu needs to reconnect. Please try again.",
+    "error_unsupported_operation": "This version does not support that yet.",
+    "error_timeline_invalid_zone": "Your browser’s time zone isn’t recognised, so days can’t be grouped.",
+    "error_timeline_place_not_found": "That place is no longer available.",
+    "error_timeline_blank_name": "Enter a name.",
+    "error_timeline_invalid_role": "That label can’t be saved.",
+    "error_timeline_invalid_merge": "These places can’t be merged.",
+    "error_timeline_not_merged": "That place isn’t merged into another, so there is nothing to separate.",
+    "error_timeline_suggestion_gone": "This suggestion changed in the meantime. Here is the current one.",
+    "error_timeline_corrupt_route": "This route can’t be read.",
+    "error_timeline_already_merged": "These are already the same place.",
+    "error_timeline_source_silent": "Part of your timeline hasn’t answered yet. It may still arrive — try again in a moment.",
+    "bridge": "Couldn’t reach Tenshu. Make sure it is open and unlocked, then try again.",
+    "bridge_timeout": "Tenshu took too long to answer. Try again.",
+    "bridge_not_permitted": "Timeline is not allowed to do that.",
+    "error_map_transport_unconfigured": "Maps aren’t available on the web yet.",
+    "error_map_transport_failed": "Map tiles couldn’t be loaded. Try again.",
+    "error_map_catalog_unverified": "The map catalogue couldn’t be verified, so no map is shown.",
+    "error_map_unknown_region": "This map area is no longer available.",
+    "error_map_bad_request": "This map couldn’t be loaded.",
+    "error_map_unavailable": "Maps are unavailable right now. Try again later."
+  }
+}

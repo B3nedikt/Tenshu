@@ -1,0 +1,37 @@
+# The shared XcodeGen fragment every first-party iOS app includes to render the **realm-storage
+# banner** (`drive-synced-folders.md` §8b.5c). Consumed as:
+#
+#     include:
+#       - path: ../ios-storage/storage.yml
+#     targets:
+#       <App>:
+#         templates: [RealmStorageBanner]
+#
+# It carries one SwiftUI view over `RealmStorageSurface`, so the eight apps share one answer to
+# "why is nothing syncing" instead of eight — and, more importantly, one *rule*: the
+# `NoPlan` / `Full` / `Ok` decision stays in Kotlin (`evaluateRealmStorage`), which is what stops
+# iOS and Android drifting about when a realm counts as full.
+#
+# ⚠ Its own fragment rather than a rider on `ios-shell/shell.yml`: that one is about adaptive
+# NAVIGATION, and Timeline and Maps deliberately exclude it (neither has top-level destinations).
+# Both of them still have realms that can run out of space, so the banner cannot be tied to the
+# nav shape.
+#
+# ⚠⚠ Including this is not enough on its own — an app must ALSO declare
+# `LSApplicationQueriesSchemes: [tenshu-control]` in its own `info.properties`, or `canOpenURL`
+# reports Control as absent even when it is installed and the "Manage storage" action silently
+# disappears. That entry cannot live here: XcodeGen merges `targetTemplates`, not `info`.
+#
+# ⚠ Paths here are relative to THIS file's directory — XcodeGen's `include` default
+# (`relativePaths: true`) rewrites them for whichever spec includes it. Same convention as
+# `ios-shell/shell.yml`.
+
+targetTemplates:
+  RealmStorageBanner:
+    sources:
+      # ⚠ Compiled INTO each app target rather than vended as a local Swift package — the same
+      # constraint `ios-shell` and `ios-onboarding` document: a SwiftPM `.binaryTarget` is resolved
+      # before any build phase runs, so a package sitting alongside the Gradle-built
+      # `TenshuSdk` framework fails on the fresh `-derivedDataPath` this repo's build
+      # instructions require. XcodeGen takes sources from any path, so this costs one line per app.
+      - path: Sources

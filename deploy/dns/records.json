@@ -1,0 +1,122 @@
+{
+  "zone": "tenshu.app",
+  "records": [
+    {
+      "name": "@",
+      "type": "A",
+      "content": "212.47.241.176",
+      "ttl": 300
+    },
+    {
+      "name": "calendar",
+      "type": "A",
+      "content": "212.47.241.176",
+      "ttl": 300
+    },
+    {
+      "name": "contacts",
+      "type": "A",
+      "content": "212.47.241.176",
+      "ttl": 300
+    },
+    {
+      "name": "drive",
+      "type": "A",
+      "content": "212.47.241.176",
+      "ttl": 300
+    },
+    {
+      "name": "fit",
+      "type": "A",
+      "content": "212.47.241.176",
+      "ttl": 300
+    },
+    {
+      "name": "home",
+      "type": "A",
+      "content": "212.47.241.176",
+      "ttl": 300
+    },
+    {
+      "name": "maps",
+      "type": "A",
+      "content": "212.47.241.176",
+      "ttl": 300
+    },
+    {
+      "name": "mia",
+      "type": "A",
+      "content": "212.47.241.176",
+      "ttl": 300
+    },
+    {
+      "name": "photos",
+      "type": "A",
+      "content": "212.47.241.176",
+      "ttl": 300
+    },
+    {
+      "name": "timeline",
+      "type": "A",
+      "content": "212.47.241.176",
+      "ttl": 300
+    },
+    {
+      "name": "@",
+      "type": "MX",
+      "content": "route2.mx.cloudflare.net",
+      "ttl": 300,
+      "priority": 12
+    },
+    {
+      "name": "@",
+      "type": "MX",
+      "content": "route1.mx.cloudflare.net",
+      "ttl": 300,
+      "priority": 56
+    },
+    {
+      "name": "@",
+      "type": "MX",
+      "content": "route3.mx.cloudflare.net",
+      "ttl": 300,
+      "priority": 77
+    },
+    {
+      "name": "@",
+      "type": "TXT",
+      "content": "v=spf1 include:_spf.tem.scaleway.com include:_spf.mx.cloudflare.net -all",
+      "ttl": 3600
+    },
+    {
+      "name": "cf2024-1._domainkey",
+      "type": "TXT",
+      "content": "v=DKIM1; h=sha256; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAiweykoi+o48IOGuP7GR3X0MOExCUDY/BCRHoWBnh3rChl7WhdyCxW3jgq1daEjPPqoi7sJvdg5hEQVsgVRQP4DcnQDVjGMbASQtrY4WmB1VebF+RPJB2ECPsEDTpeiI5ZyUAwJaVX7r6bznU67g7LvFq35yIo4sdlmtZGV+i0H4cpYH9+3JJ78km4KXwaf9xUJCWF6nxeD+qG6Fyruw1Qlbds2r85U9dkNDVAS3gioCvELryh1TxKGiVTkg4wqHTyHfWsp7KD3WQHYJn0RyfJJu6YEmL77zonn7p2SRMvTMP3ZEXibnC9gz3nnhR6wcYL8Q7zXypKTMD58bTixDSJwIDAQAB",
+      "ttl": 300
+    },
+    {
+      "name": "1c8f3acc-1a1b-46e1-98a9-52cd84d915c7._domainkey",
+      "type": "TXT",
+      "content": "v=DKIM1; h=sha256; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA6kym3HYDkND2P9o22M12RytsZ6rPQIJYpsy2i3xyWGp7gXHwY+xJBVPVlfo5a1Mh3tkvC8DUZYKfxyUFk4SBcmWejfgVwld9nT977aPU3baQYQnuJQ+pqqwiDeJGu12GwxnmiMh5YobbpZbJz/8oh0zgJLQP1Qkre7t4zTCIAGBG+aDfrhxT6gck1/eRhE4EUgLGSWeg+y+hWdXih7KQXB7IVUnF3sk88GZeR7GqanonG/EpLrPNBGWJVutCut5+GiG8APrAtpplCiY5LX8FNl7eZE9NXc1m4fTjkDMptoX+vMUtVawianQi908u3WnVqE+qBIHE9RZoNjSEM797wQIDAQAB",
+      "ttl": 3600
+    },
+    {
+      "name": "_dmarc",
+      "type": "TXT",
+      "content": "v=DMARC1; p=none",
+      "ttl": 3600
+    },
+    {
+      "name": "commerce.service",
+      "type": "A",
+      "content": "51.15.229.94",
+      "ttl": 300
+    },
+    {
+      "name": "relay",
+      "type": "A",
+      "content": "51.15.143.24",
+      "ttl": 300
+    }
+  ]
+}

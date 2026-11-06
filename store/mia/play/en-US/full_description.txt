@@ -1,0 +1,28 @@
+Mia answers questions about your own Tenshu data: your photos, files, places and visits, workouts, calendar and smart-home devices. Your questions are worked out on your phone, by Tenshu Control.
+
+TENSHU MIA NEEDS TENSHU CONTROL
+Tenshu Control holds your keys and connects your devices. Install Tenshu Control from Google Play and set it up first, then open Mia. Mia finds Control on its own.
+Mia answers from the data your other Tenshu apps keep, so install the apps you want to ask about.
+
+WHAT YOU CAN DO
+- Type a question about your photos, files, places, workouts or calendar, and tap an answer to open it in its app.
+- Ask Mia to add a calendar event, switch a device or run an automation. Mia does it only after you tap Confirm, and adding events is off until you allow it.
+- Speak instead of typing, on Android 13 or later, when your phone can recognize speech on the device.
+- Choose which of your Tenshu data Mia can read.
+- Set Mia as your phone's assistant, or add the Ask Mia widget to your home screen.
+
+Mia is an early preview. It understands simple questions in English, and there is no AI model behind it yet. Chats are not kept after you close the app. Answers about smart-home devices need a Tenshu Hub.
+
+HOW MIA KEEPS YOUR QUESTIONS PRIVATE
+- Your questions are answered on your phone, by Tenshu Control, and are not sent to a server or an AI service.
+- Voice input uses your phone's on-device speech recognition, and no audio is sent anywhere.
+- Your chats are not saved: they are gone when you close Mia.
+- You choose which of your Tenshu data Mia can read, in Settings.
+
+REQUIREMENTS
+- Android 7.0 or later.
+- Tenshu Control, set up on the same phone.
+
+Tenshu is open source and still in testing: expect rough edges, and tell us what breaks.
+
+Help and common problems: tenshu.app/apps/support/en

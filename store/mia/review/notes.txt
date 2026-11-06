@@ -1,0 +1,14 @@
+Tenshu Mia needs Tenshu Control installed and set up on the same device first. Control holds the encryption keys; Mia cannot open without it.
+
+To review:
+1. Install Tenshu Control and open it. Tap "Start fresh on this device", then "Continue", then "I've saved it".
+2. Open Tenshu Mia, go through the welcome pages ("Next", "Get started"). It shows "Chat", "History" and "Settings".
+3. In "Chat", type a question into "Ask Mia…", for example about your photos, files, places, workouts or calendar.
+
+What works today: Mia answers questions about what the other Tenshu apps hold on this device, and shows what it found. It only reads; it never changes anything. Questions are answered on the device: no question is sent to a server or an AI service. On a new device there is little data, so most answers say that nothing matched. The settings are marked "Coming soon".
+
+Permissions: none. Mia has no microphone or dictation.
+
+"Turn on sync" in Control is optional: it asks for an email address and then a 6-digit code. To try it without a mailbox, use the sign-in details in App Review Information: enter the user name as the email address and the password as the code (no email is sent to that address). Any address you can receive mail at also works, and a new account is free.
+
+All data is end-to-end encrypted on the device before it reaches our servers; the servers cannot read it.

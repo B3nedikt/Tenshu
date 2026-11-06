@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Ported from docs/design/tenshu-icons/icons/android/foreground/calendar.svg.
+  Source wraps a 64-unit-grid pictogram in <g transform="translate(84 84) scale(4.125)">.
+  Rather than bake the transform into every coordinate, the pictogram lives inside a
+  <group> with the same translate/scale so the path data is copied verbatim from the SVG
+  (the group scale also scales the 3.5 nominal stroke-width to the 14.4375 rendered width).
+  Rects and circles have no VectorDrawable primitive, so each is expressed as a path.
+  The day dots are filled, never stroked, so they survive at launcher size.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="432"
+    android:viewportHeight="432">
+    <group
+        android:translateX="84"
+        android:translateY="84"
+        android:scaleX="4.125"
+        android:scaleY="4.125">
+        <!-- Binding stems -->
+        <path
+            android:pathData="M 22 11 L 22 19 M 42 11 L 42 19"
+            android:strokeColor="#FFFBFF"
+            android:strokeWidth="3.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <!-- Body (rect 11,18 42x34 rx=4) -->
+        <path
+            android:pathData="M 15 18 L 49 18 A 4 4 0 0 1 53 22 L 53 48 A 4 4 0 0 1 49 52 L 15 52 A 4 4 0 0 1 11 48 L 11 22 A 4 4 0 0 1 15 18 Z"
+            android:strokeColor="#FFFBFF"
+            android:strokeWidth="3.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <!-- Header band -->
+        <path
+            android:pathData="M 11 22 A 4 4 0 0 1 15 18 L 49 18 A 4 4 0 0 1 53 22 L 53 28 L 11 28 Z"
+            android:fillColor="#FFFBFF" />
+        <!-- Day dots (r=2.6) -->
+        <path
+            android:pathData="M 18.4 36 a 2.6 2.6 0 1 0 5.2 0 a 2.6 2.6 0 1 0 -5.2 0 Z M 29.4 36 a 2.6 2.6 0 1 0 5.2 0 a 2.6 2.6 0 1 0 -5.2 0 Z M 40.4 36 a 2.6 2.6 0 1 0 5.2 0 a 2.6 2.6 0 1 0 -5.2 0 Z M 18.4 44 a 2.6 2.6 0 1 0 5.2 0 a 2.6 2.6 0 1 0 -5.2 0 Z M 29.4 44 a 2.6 2.6 0 1 0 5.2 0 a 2.6 2.6 0 1 0 -5.2 0 Z"
+            android:fillColor="#FFFBFF" />
+    </group>
+</vector>

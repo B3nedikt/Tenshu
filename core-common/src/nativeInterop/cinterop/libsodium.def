@@ -1,0 +1,25 @@
+package = org.tenshu.core.common.security.libsodium
+headers = sodium.h
+staticLibraries = libsodium.a
+
+# `compilerOpts` (header search path) and `libraryPaths` are supplied
+# per-target from core-common/build.gradle.kts, since the built artifacts
+# live in a per-target build directory rather than a fixed location.
+
+---
+
+// libsodium's high-level Argon2id (`crypto_pwhash`) is locked to a 16-byte
+// salt, but our recovery-flow KDF uses a 22-byte domain-tagged salt
+// ("tenshu/recovery-kdf/v1", see DefaultSyncCryptoManager) and the
+// KdfBackend contract accepts arbitrary salt + parallelism. libsodium
+// vendors the reference phc-argon2 `argon2id_hash_raw`, which takes both —
+// and is byte-identical to BouncyCastle (JVM) and @noble/hashes (JS), all
+// implementing RFC 9106 v0x13. It is compiled into the static lib (it is
+// what `crypto_pwhash` calls underneath) but is *not* declared in the
+// public sodium.h, so we declare its prototype here; the symbol resolves
+// from libsodium.a at link time. Pinned to libsodium 1.0.20.
+extern int argon2id_hash_raw(const uint32_t t_cost, const uint32_t m_cost,
+                             const uint32_t parallelism,
+                             const void *pwd, const size_t pwdlen,
+                             const void *salt, const size_t saltlen,
+                             void *hash, const size_t hashlen);

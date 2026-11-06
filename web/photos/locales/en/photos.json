@@ -1,0 +1,139 @@
+{
+  "app": {
+    "title": "Photos",
+    "tagline": "Your photos and videos, end-to-end encrypted."
+  },
+  "nav": {
+    "photos": "Photos",
+    "albums": "Albums",
+    "favourites": "Favourites",
+    "trash": "Trash"
+  },
+  "common": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "working": "Working…",
+    "loading": "Loading…",
+    "retry": "Try again"
+  },
+  "stream": {
+    "stopped": "This list stopped updating. What you see may be out of date.",
+    "reconnect": "Reconnect"
+  },
+  "tile": {
+    "photoLabel": "Photo {name}, {date}",
+    "videoLabel": "Video {name}, {date}"
+  },
+  "feed": {
+    "scrubber": "Jump to a date",
+    "refresh": "Refresh",
+    "empty": "No photos yet. Photos and videos you add in Drive or on your phone appear here."
+  },
+  "select": {
+    "start": "Select",
+    "count": "{count, plural, =0 {Nothing selected} one {# selected} other {# selected}}",
+    "addToAlbum": "Add to album",
+    "favourite": "Add to favourites",
+    "removeFromAlbum": "Remove from album",
+    "partial": "{done} of {total} done."
+  },
+  "albums": {
+    "addTo": "Add to album",
+    "count": "{count, plural, one {# item} other {# items}}",
+    "newName": "New album",
+    "createAndAdd": "Create and add",
+    "create": "New album",
+    "name": "Album name",
+    "createSubmit": "Create",
+    "empty": "No albums yet.",
+    "back": "← Albums",
+    "rename": "Rename",
+    "delete": "Delete album",
+    "emptyAlbum": "This album is empty. Add photos from the viewer or by selecting them.",
+    "deleteTitle": "Delete this album?",
+    "deleteBody": "“{name}” will be deleted. The photos in it stay in your library."
+  },
+  "viewer": {
+    "title": "Viewer",
+    "back": "← Back",
+    "details": "Details",
+    "previous": "Previous",
+    "next": "Next",
+    "notFileable": "This file is too old to be added to albums or favourites.",
+    "favourite": "Favourite",
+    "unfavourite": "Unfavourite",
+    "addToAlbum": "Add to album",
+    "removeFromAlbum": "Remove from album",
+    "trash": "Move to trash",
+    "noPreview": "No preview of this photo has reached this device yet.",
+    "originalNotShown": "A sharper version isn’t available here, and the original can’t be shown in the browser.",
+    "downloadOriginal": "Download original",
+    "downloaded": "Saved.",
+    "play": "Play",
+    "cannotPlay": "This video can’t be played here yet. Try again once it has synced."
+  },
+  "details": {
+    "name": "Name",
+    "taken": "Taken",
+    "dimensions": "Dimensions",
+    "size": "Size",
+    "camera": "Camera",
+    "duration": "Length",
+    "location": "Location",
+    "gone": "This file is no longer there.",
+    "albums": "In albums"
+  },
+  "favourites": {
+    "empty": "No favourites yet. Mark a photo as a favourite in the viewer."
+  },
+  "trash": {
+    "explain": "Items in the trash can be restored to where they were.",
+    "empty": "The trash is empty.",
+    "deleteTitle": "Delete forever?",
+    "deleteBody": "“{name}” will be deleted from all your devices. This can’t be undone.",
+    "deleteForever": "Delete forever",
+    "trashedOn": "Trashed {date} · from {path}",
+    "restore": "Restore"
+  },
+  "errors": {
+    "error_generic": "Something went wrong. Please try again.",
+    "error_unexpected": "Something went wrong. Please try again.",
+    "error_internal": "Something went wrong. Please try again.",
+    "error_invalid_caller": "This app is not allowed to do that.",
+    "error_unannounced_session": "Tenshu needs to reconnect. Please try again.",
+    "error_unsupported_operation": "This version does not support that yet.",
+    "bridge": "Couldn’t reach Tenshu. Make sure it is open and unlocked, then try again.",
+    "bridge_timeout": "Tenshu took too long to answer. Try again.",
+    "error_photos_bad_cursor": "The library changed while loading. Refresh to start again.",
+    "error_photos_bad_page_size": "Something went wrong loading your library. Please try again.",
+    "error_photos_unknown_album": "That album no longer exists.",
+    "error_photos_not_found": "That photo is no longer there.",
+    "error_photos_no_content_id": "This file is too old to be added to albums or favourites.",
+    "error_photos_not_in_trash": "That item is no longer in the trash.",
+    "error_photos_not_a_photo": "That file isn’t a photo or video, or it is already in the trash.",
+    "error_photos_file_op_failed": "The file could not be moved. Please try again.",
+    "error_not_found": "That is no longer available.",
+    "bridge_not_permitted": "Photos is not allowed to do that."
+  },
+  "sync": {
+    "offline": "You’re offline. Changes stay on this device and sync when you reconnect.",
+    "needsAttention": "Tenshu can’t sync right now — your storage needs attention. Changes stay on this device.",
+    "locked": "Tenshu is locked on this device, so nothing can sync. Unlock it to continue.",
+    "deviceUnrecognized": "This browser is no longer recognised as one of your devices, so it can’t sync."
+  },
+  "runtime": {
+    "connectingTitle": "Still connecting to Tenshu…",
+    "connectingBody": "The Tenshu tab hosting Photos is busy. Photos will load as soon as it answers.",
+    "elsewhereTitle": "Tenshu is open in another tab",
+    "elsewhereBody": "Tenshu runs in one tab at a time, so your data can't get out of step. Use it here to move it to this tab.",
+    "moving": "Waiting for the other tab to finish saving. This can take up to two minutes.",
+    "movingShort": "Moving…",
+    "useHere": "Use here"
+  },
+  "crash": {
+    "title": "Something went wrong",
+    "body": "This part of Photos hit an unexpected error. Your data is safe — nothing was changed.",
+    "retry": "Try again",
+    "reload": "Reload"
+  }
+}

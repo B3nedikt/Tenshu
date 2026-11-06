@@ -1,0 +1,31 @@
+Tenshu Fit zeichnet deine Trainings auf und holt deine Aktivität aus Apple Health, verschlüsselt und auf all deinen Geräten synchron. Nur deine eigenen Geräte können sie lesen.
+
+TENSHU FIT BRAUCHT TENSHU CONTROL
+Tenshu Control verwahrt deine Schlüssel und verbindet deine Geräte. Installiere Tenshu Control aus dem App Store und richte es zuerst ein, dann öffne Fit. Fit findet Control von selbst.
+
+WAS DU TUN KANNST
+- Einen Lauf, einen Spaziergang, eine Radfahrt oder ein Krafttraining aufzeichnen. Unterwegs siehst du Zeit, Distanz, Pace und Schritte, dazu die Route per GPS.
+- Einen Bluetooth-Herzfrequenz-Brustgurt verbinden, um während der Aufzeichnung deine Herzfrequenz zu sehen.
+- Die Trainings, die du aufzeichnest, zu Apple Health hinzufügen.
+- Die letzten 30 Tage aus Apple Health importieren, wenn du es erlaubst: Trainings, Schritte, Distanz, aktive Energie, Schlaf, Gewicht und Größe, Ruheherzfrequenz, Blutsauerstoff, Atemfrequenz, Nahrungsenergie, Wasser und Zyklusdaten. Fit importiert erneut, wenn du es öffnest.
+- Trainings aus einer .zip-Datei von Google Takeout oder aus .gpx- und .tcx-Dateien importieren.
+- Auf deine Trainings zurückblicken, jedes mit Route, Runden und Herzfrequenz, und einfache Trends über die Zeit sehen.
+- Ein Tagesziel für aktive Minuten festlegen.
+- Für Trainingskarten Apple Maps verwenden, wenn du möchtest. Es ist aus, bis du es einschaltest.
+
+Fit hilft dir, deine Aktivität im Blick zu behalten. Es ist kein Medizinprodukt und gibt keine medizinischen Ratschläge.
+
+WIE FIT DEINE DATEN PRIVAT HÄLT
+- Deine Trainings und Gesundheitsdaten werden auf deinem Gerät verschlüsselt, bevor sie hochgeladen werden. Die Server von Tenshu speichern nur verschlüsselte Daten und haben nicht die Schlüssel, um sie zu lesen.
+- Einige Fakten, die der Server zum Synchronisieren braucht, sieht er trotzdem: wie viel du speicherst, wie viele Geräte du hast und wann sie synchronisieren.
+- Fit hat keine Werbung und keine Analyse-Tools, und es gibt deine Gesundheitsdaten an niemanden weiter.
+- Fit nutzt deinen Standort nur, während du ein Training aufzeichnest.
+- Wenn du „Apple Maps verwenden“ einschaltest, liefert Apple die Karte und sieht, welches Training du öffnest und wann.
+- Ohne Speicherplan bleiben deine Daten auf diesem Gerät.
+
+VORAUSSETZUNGEN
+- iOS 16 oder neuer, auf iPhone. Auf dem iPad braucht Apple Health iPadOS 17 oder neuer.
+- Tenshu Control, eingerichtet auf demselben Gerät.
+- Zum Synchronisieren zwischen Geräten: ein Speicherplan. Der kostenlose Plan hat 5 GB.
+
+Hilfe und häufige Probleme: tenshu.app/apps/fit/support/ios/de

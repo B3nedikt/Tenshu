@@ -1,0 +1,11 @@
+# Eine Bildunterschrift pro Screen für die gerahmten Store-Screenshots (scripts/store-frame, design §3.2).
+# `NN-screen: text` — der Screen-Name aus ../screens.json. Schlicht, kurz, keine Superlative (D6).
+01-welcome: Hier beginnt Tenshu
+02-protected: Deine Schlüssel bleiben auf deinem Gerät
+03-recovery-phrase: 24 Wörter stellen alles wieder her
+04-home: Sieh, was deine Apps getan haben
+05-devices: Alle deine Geräte an einem Ort
+06-settings: Speicher, Geräte und App-Sperre
+07-storage: Starte kostenlos mit 5 GB
+08-sign-in: Sync einschalten, wenn du willst
+09-add-device: Ein Gerät per Code hinzufügen

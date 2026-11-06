@@ -1,0 +1,30 @@
+Tenshu Control is the app the other Tenshu apps need. Install it first. It creates your realm, the private space your Tenshu apps share. It holds your keys, connects your devices and syncs your data. Tenshu Drive, Photos, Calendar and the other Tenshu apps work only when Control is set up on the same phone.
+
+SET UP TENSHU
+- Tap Start fresh on this device, then Continue. Tenshu protects your keys with this phone's secure storage, so there is no password to remember.
+- Turn on sync when you want your data on more than one device. Enter your email address, and a new account starts on the free plan with 5 GB. Until you do, everything stays on this phone.
+- In Settings, set up account recovery and write down your recovery phrase: 24 words that restore your realm if you lose every device. Keep them somewhere safe, offline.
+
+ADD YOUR OTHER DEVICES
+Install Tenshu Control on your other device and choose I have Tenshu on another device. On this phone, open Settings, then Synchronization & Devices, and tap +. One device shows a code and the other scans it. Check that both show the same confirmation code, then confirm.
+
+HOW CONTROL KEEPS YOUR DATA PRIVATE
+- Your keys are made on your devices and never leave them unencrypted. When you add a device, your existing device encrypts the keys for the new one before they pass through our server.
+- Tenshu's servers cannot read your data. They pass on and store only encrypted data. They do see some facts they need to work: how much you store, how many devices you have, and when they sync.
+- Your recovery phrase is yours alone. Nobody else holds a copy, so nobody, including us, can restore your realm without it. Anyone who has it can open everything, so keep it offline.
+- You can use Tenshu without an account. On one device, Tenshu works with no account and sends nothing to our servers.
+
+ALSO IN CONTROL
+- Require unlock: Control asks for your fingerprint, face or screen lock before it opens.
+- See your devices under Synchronization & Devices, and your plan and how much you use under Services.
+- See and revoke the links you shared from Tenshu Drive.
+- Choose whether background sync and photo backups wait for Wi-Fi.
+
+REQUIREMENTS
+- Android 7.0 or later.
+- To sync between devices: a storage plan. The free plan has 5 GB.
+
+Tenshu is open source and still in testing: expect rough edges, and tell us what breaks.
+
+Help and common problems: tenshu.app/apps/control/support/android/en
+Support will never ask for your recovery phrase.

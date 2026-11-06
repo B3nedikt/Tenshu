@@ -1,0 +1,255 @@
+{
+  "app": {
+    "title": "Fit",
+    "tagline": "Deine Aktivität, Ende-zu-Ende-verschlüsselt."
+  },
+  "runtime": {
+    "connectingTitle": "Verbindung zu Tenshu wird noch hergestellt…",
+    "connectingBody": "Der Tenshu-Tab, in dem Fit läuft, ist beschäftigt. Fit lädt, sobald er antwortet.",
+    "elsewhereTitle": "Tenshu ist in einem anderen Tab geöffnet",
+    "elsewhereBody": "Tenshu läuft immer nur in einem Tab, damit deine Daten nicht auseinanderlaufen. Nutze es hier, um es in diesen Tab zu holen.",
+    "moving": "Warte, bis der andere Tab fertig gespeichert hat. Das kann bis zu zwei Minuten dauern.",
+    "movingShort": "Wird verschoben…",
+    "useHere": "Hier nutzen"
+  },
+  "crash": {
+    "title": "Etwas ist schiefgelaufen",
+    "body": "In diesem Teil von Fit ist ein unerwarteter Fehler aufgetreten. Deine Daten sind sicher – nichts wurde geändert.",
+    "retry": "Erneut versuchen",
+    "reload": "Neu laden"
+  },
+  "nav": {
+    "dashboard": "Übersicht",
+    "history": "Verlauf",
+    "profile": "Profil"
+  },
+  "common": {
+    "back": "Zurück",
+    "cancel": "Abbrechen",
+    "loading": "Wird geladen…",
+    "retry": "Erneut versuchen",
+    "working": "Wird ausgeführt…",
+    "save": "Speichern",
+    "edit": "Bearbeiten",
+    "editField": "{field} bearbeiten"
+  },
+  "read": {
+    "failedTitle": "Konnte nicht geladen werden"
+  },
+  "stream": {
+    "stopped": "Aktualisierungen gestoppt – die Anzeige ist eventuell veraltet.",
+    "reconnect": "Neu verbinden"
+  },
+  "errors": {
+    "error_generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+    "error_unexpected": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+    "error_internal": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+    "error_not_found": "Das ist nicht mehr verfügbar.",
+    "error_invalid_caller": "Diese App darf das nicht.",
+    "error_unannounced_session": "Tenshu muss sich neu verbinden. Bitte versuche es erneut.",
+    "error_unsupported_operation": "Diese Version unterstützt das noch nicht.",
+    "error_fit_bad_cursor": "Der Verlauf hat seine Position verloren. Lade ihn neu, um oben zu beginnen.",
+    "error_fit_bad_page_size": "Der Verlauf konnte nicht in Seiten dieser Größe gelesen werden.",
+    "error_fit_bad_window": "Dieser Zeitraum kann nicht angezeigt werden.",
+    "error_fit_invalid_zone": "Die Zeitzone deines Browsers wird nicht erkannt, daher können Tage nicht gruppiert werden.",
+    "error_fit_workout_not_found": "Dieses Training gibt es nicht mehr.",
+    "error_fit_invalid_goal": "Dieses Ziel liegt außerhalb des erlaubten Bereichs.",
+    "error_fit_invalid_profile_value": "Dieser Wert liegt außerhalb des erlaubten Bereichs.",
+    "error_fit_unsupported_format": "Nur GPX- und TCX-Dateien können importiert werden.",
+    "error_fit_binary_unsupported": "Binäre .FIT-Dateien können im Web noch nicht importiert werden. Exportiere die Aktivität stattdessen als GPX oder TCX.",
+    "error_fit_malformed_file": "Diese Datei ist beschädigt oder keine gültige GPX- oder TCX-Datei.",
+    "error_fit_no_workouts": "Diese Datei enthält keine Trainings.",
+    "error_fit_streams_unreadable": "Route und Herzfrequenz dieses Trainings können nicht gelesen werden.",
+    "error_fit_file_too_large": "Diese Datei ist zu groß für den Import (höchstens 32 MB).",
+    "bridge": "Tenshu ist nicht erreichbar. Stelle sicher, dass es geöffnet und entsperrt ist, und versuche es erneut.",
+    "bridge_timeout": "Tenshu hat zu lange gebraucht. Versuche es erneut.",
+    "bridge_not_permitted": "Fit darf das nicht."
+  },
+  "distance": {
+    "m": "{value} m",
+    "km": "{whole},{tenths} km",
+    "ft": "{value} ft",
+    "mi": "{whole},{tenths} mi"
+  },
+  "duration": {
+    "minutes": "{minutes} Min.",
+    "hours": "{hours} Std.",
+    "hoursMinutes": "{hours} Std. {minutes} Min."
+  },
+  "pace": {
+    "perKm": "{minutes}:{seconds} /km",
+    "perMi": "{minutes}:{seconds} /mi"
+  },
+  "energy": {
+    "kcal": "{value} kcal"
+  },
+  "weight": {
+    "kg": "{value} kg",
+    "lb": "{value} lb"
+  },
+  "height": {
+    "cm": "{value} cm",
+    "ftIn": "{feet}′ {inches}″"
+  },
+  "metric": {
+    "steps": "Schritte",
+    "activeMinutes": "Aktive Minuten",
+    "distanceM": "Strecke",
+    "activeEnergyKj": "Energie"
+  },
+  "dashboard": {
+    "today": "Heute",
+    "range": "Zeitraum",
+    "ranges": {
+      "week": "7 Tage",
+      "month": "30 Tage",
+      "year": "12 Monate"
+    },
+    "rangeTitle": {
+      "week": "Die letzten 7 Tage",
+      "month": "Die letzten 30 Tage",
+      "year": "Die letzten 12 Monate"
+    },
+    "activeMinutesGoal": "Ziel aktive Minuten",
+    "stepsGoal": "Schrittziel",
+    "ofGoal": "{value} von {goal}",
+    "metric": "Messwert",
+    "total": "Gesamt",
+    "average": "Tagesdurchschnitt",
+    "change": "Veränderung zum Zeitraum davor",
+    "delta": "{value} %",
+    "goalDays": "Ziel erreicht",
+    "goalDaysValue": "an {met} von {days} Tagen"
+  },
+  "history": {
+    "startOver": "Von oben beginnen",
+    "title": "Trainings",
+    "empty": "Noch keine Trainings. Importiere eine GPX- oder TCX-Datei oder zeichne eines auf deinem Telefon auf."
+  },
+  "activity": {
+    "Running": "Lauf",
+    "Walking": "Spaziergang",
+    "Cycling": "Radfahrt",
+    "Strength": "Krafttraining",
+    "Other": "Training"
+  },
+  "source": {
+    "Recorded": "Aufgezeichnet",
+    "HealthConnect": "Health Connect",
+    "AppleHealth": "Apple Health",
+    "File": "Dateiimport",
+    "Manual": "Manuell",
+    "Detected": "Erkannt"
+  },
+  "import": {
+    "title": "Training importieren",
+    "hint": "GPX oder TCX, bis 32 MB. Die Datei verlässt deine Geräte nie unverschlüsselt.",
+    "choose": "Datei wählen…",
+    "saved": "{count, plural, one {# Training aus {name} gespeichert.} other {# Trainings aus {name} gespeichert.}}",
+    "pending": "Gespeichert; Route und Herzfrequenz werden hochgeladen, sobald du online bist",
+    "maybeSaved": "Einige Trainings aus dieser Datei sind eventuell schon gespeichert – sieh im Verlauf nach. Ein erneuter Import ist unbedenklich."
+  },
+  "detail": {
+    "gone": "Dieses Training gibt es nicht mehr. Es wurde vielleicht auf einem anderen Gerät gelöscht.",
+    "duration": "Dauer",
+    "pace": "Tempo",
+    "avgHr": "Ø Herzfrequenz",
+    "maxHr": "Max. Herzfrequenz",
+    "bpm": "{value} bpm",
+    "heartRate": "Herzfrequenz",
+    "route": "Route",
+    "hrChart": "Herzfrequenz, {min} bis {max} bpm",
+    "hrMin": "Min. {value}",
+    "hrAvg": "Ø {value}",
+    "hrMax": "Max. {value}",
+    "start": "Start",
+    "end": "Ziel",
+    "delete": "Training löschen",
+    "deleteTitle": "Dieses Training löschen?",
+    "deleteBody": "Es wird von allen deinen Geräten entfernt. Das lässt sich nicht rückgängig machen.",
+    "deleteConfirm": "Löschen"
+  },
+  "map": {
+    "map": "Karte",
+    "loading": "Karte wird geladen…",
+    "unavailable": "Karte nicht verfügbar",
+    "noWebGL": "Dieser Browser kann keine Karten zeichnen (WebGL ist aus oder nicht unterstützt).",
+    "notConfigured": "Karten sind für diese Seite nicht eingerichtet.",
+    "tilesFailed": "Kartenkacheln konnten nicht geladen werden.",
+    "noRegion": "Für dieses Gebiet gibt es keine Kartendaten."
+  },
+  "goals": {
+    "title": "Ziele",
+    "activeMinutes": "Aktive Minuten pro Tag",
+    "steps": "Schritte pro Tag",
+    "edit": "Ziele bearbeiten"
+  },
+  "profile": {
+    "title": "Persönliche Daten",
+    "notSet": "Nicht festgelegt",
+    "name": "Name",
+    "birthDate": "Geburtsdatum",
+    "sex": "Geschlecht",
+    "sexes": {
+      "female": "Weiblich",
+      "male": "Männlich",
+      "other": "Divers"
+    },
+    "height": "Größe",
+    "weight": "Gewicht",
+    "units": "Einheiten",
+    "unitNames": {
+      "metric": "Metrisch",
+      "imperial": "Imperial"
+    },
+    "feet": "Fuß",
+    "inches": "Zoll",
+    "centimetres": "Zentimeter",
+    "pounds": "Pfund (lb)",
+    "kilograms": "Kilogramm"
+  },
+  "bounds": {
+    "activeMinutes": "Aktive Minuten müssen eine ganze Zahl von {min} bis {max} sein.",
+    "steps": "Schritte müssen eine ganze Zahl von {min} bis {max} sein.",
+    "birthDate": "Gib ein Datum von {min} bis {max} ein.",
+    "sex": "Wähle eine Option.",
+    "heightMetric": "Gib eine ganze Zahl Zentimeter ein, höchstens {max}.",
+    "heightImperial": "Gib Fuß und Zoll (0–11) ein, höchstens {max}.",
+    "weightMetric": "Gib ein Gewicht über 0 und höchstens {max} kg ein.",
+    "weightImperial": "Gib ein Gewicht über 0 und höchstens {max} lb ein."
+  },
+  "sources": {
+    "title": "Datenquellen",
+    "none": "Noch keine Datenquellen.",
+    "managedOnDevices": "Quellen werden auf deinen Geräten verwaltet.",
+    "thisBrowser": "Dieser Browser",
+    "unknownDevice": "Ein anderes Gerät",
+    "needsAttention": "Braucht Aufmerksamkeit auf diesem Gerät",
+    "items": "{count, plural, one {# Eintrag} other {{formatted} Einträge}}",
+    "autoOn": "Importiert automatisch",
+    "autoOff": "Automatischer Import aus",
+    "batchImport": "Letzter Komplettimport {when}: {status} ({runs} Läufe)",
+    "batchStatus": {
+      "Succeeded": "erfolgreich",
+      "NoData": "keine Daten",
+      "PermissionsMissing": "Berechtigungen fehlen",
+      "Failed": "fehlgeschlagen"
+    },
+    "kind": {
+      "TenshuHealth": "Tenshu Health",
+      "HealthConnect": "Health Connect",
+      "AppleHealth": "Apple Health"
+    },
+    "state": {
+      "NeverRun": "Nie importiert",
+      "Imported": "Importiert",
+      "NoData": "Keine Daten gefunden",
+      "Failed": "Letzter Import fehlgeschlagen",
+      "Running": "Wird importiert…",
+      "Recording": "Zeichnet auf",
+      "PermissionNeeded": "Berechtigung nötig",
+      "Unavailable": "Auf diesem Gerät nicht verfügbar",
+      "Sample": "Beispieldaten"
+    }
+  }
+}

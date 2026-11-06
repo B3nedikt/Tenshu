@@ -1,0 +1,633 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ uses Tenshu Control to %@. Get Control from the App Store, then come back to %@." : {
+      "comment" : "Set-up screen body when Control is not installed; %1$@ = app name, %2$@ = what the app uses Control for (an infinitive clause), %3$@ = app name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ nutzt Tenshu Control, um %2$@. Hol dir Control im App Store und kehre dann zu %3$@ zurück."
+          }
+        }
+      }
+    },
+    "%@ uses Tenshu Control to %@. Set it up on this iPhone to continue." : {
+      "comment" : "Set-up screen body; %1$@ = app name, %2$@ = what the app uses Control for (an infinitive clause)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ nutzt Tenshu Control, um %2$@. Richte es auf diesem iPhone ein, um fortzufahren."
+          }
+        }
+      }
+    },
+    "About" : {
+      "comment" : "Photo info action / About section",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Info"
+          }
+        }
+      }
+    },
+    "Add to Album" : {
+      "comment" : "Action / title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zum Album hinzufügen"
+          }
+        }
+      }
+    },
+    "Album options" : {
+      "comment" : "Accessibility label",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Albumoptionen"
+          }
+        }
+      }
+    },
+    "Can't reach Tenshu Control — %@ is showing what it already has." : {
+      "comment" : "Not-connected banner; %@ = app name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenshu Control ist nicht erreichbar – %@ zeigt, was bereits vorhanden ist."
+          }
+        }
+      }
+    },
+    "Cancel" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abbrechen"
+          }
+        }
+      }
+    },
+    "Collections" : {
+      "comment" : "Screen title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sammlungen"
+          }
+        }
+      }
+    },
+    "Copyright 2022 The Noto Project Authors" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copyright 2022 The Noto Project Authors"
+          }
+        }
+      }
+    },
+    "Couldn’t Create the Album" : {
+      "comment" : "Alert title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Album konnte nicht erstellt werden"
+          }
+        }
+      }
+    },
+    "Couldn’t load this photo." : {
+      "comment" : "Viewer error",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Foto konnte nicht geladen werden."
+          }
+        }
+      }
+    },
+    "Create" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erstellen"
+          }
+        }
+      }
+    },
+    "Data and fonts" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daten und Schriften"
+          }
+        }
+      }
+    },
+    "Delete Album" : {
+      "comment" : "Action / button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Album löschen"
+          }
+        }
+      }
+    },
+    "Delete “%@”?" : {
+      "comment" : "Confirmation title; %@ = album name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„%@“ löschen?"
+          }
+        }
+      }
+    },
+    "Downloaded separately; each model shows its licence under Settings → Models" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Werden separat geladen; jedes Modell zeigt seine Lizenz unter Einstellungen → Modelle"
+          }
+        }
+      }
+    },
+    "Get Tenshu Control" : {
+      "comment" : "Button: opens Control's App Store page",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenshu Control laden"
+          }
+        }
+      }
+    },
+    "Libraries" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bibliotheken"
+          }
+        }
+      }
+    },
+    "Library" : {
+      "comment" : "Header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mediathek"
+          }
+        }
+      }
+    },
+    "Manage storage" : {
+      "comment" : "Storage banner button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speicher verwalten"
+          }
+        }
+      }
+    },
+    "Map data © OpenStreetMap contributors" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kartendaten © OpenStreetMap-Mitwirkende"
+          }
+        }
+      }
+    },
+    "More" : {
+      "comment" : "Accessibility label",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mehr"
+          }
+        }
+      }
+    },
+    "Move to Trash" : {
+      "comment" : "Action",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In den Papierkorb legen"
+          }
+        }
+      }
+    },
+    "Name" : {
+      "comment" : "Sort key / name text field",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name"
+          }
+        }
+      }
+    },
+    "New Album" : {
+      "comment" : "Alert title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neues Album"
+          }
+        }
+      }
+    },
+    "Noto Sans (map labels)" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noto Sans (Kartenbeschriftungen)"
+          }
+        }
+      }
+    },
+    "OK" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        }
+      }
+    },
+    "Offline map tiles built from OpenStreetMap data with the Protomaps basemap schema" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Offline-Kartenkacheln aus OpenStreetMap-Daten, erstellt mit dem Protomaps-Basemap-Schema"
+          }
+        }
+      }
+    },
+    "On-device models" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modelle auf dem Gerät"
+          }
+        }
+      }
+    },
+    "Open Tenshu Control" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenshu Control öffnen"
+          }
+        }
+      }
+    },
+    "Open online" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Online öffnen"
+          }
+        }
+      }
+    },
+    "Open-source licences" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open-Source-Lizenzen"
+          }
+        }
+      }
+    },
+    "OpenStreetMap" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OpenStreetMap"
+          }
+        }
+      }
+    },
+    "Photon place lookup (komoot)" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photon-Ortssuche (komoot)"
+          }
+        }
+      }
+    },
+    "Place names, when online lookup is on, come from OpenStreetMap data via Photon, run by komoot" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ortsnamen stammen bei aktivierter Online-Suche aus OpenStreetMap-Daten über Photon, betrieben von komoot"
+          }
+        }
+      }
+    },
+    "Privacy policy" : {
+      "comment" : "Settings row that opens Tenshu's privacy policy in the browser (PrivacyPolicyLink, ios-release/Sources/PrivacyPolicy.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datenschutzerklärung"
+          }
+        }
+      }
+    },
+    "Protomaps basemap" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protomaps-Basiskarte"
+          }
+        }
+      }
+    },
+    "Remove from Album" : {
+      "comment" : "Action",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aus Album entfernen"
+          }
+        }
+      }
+    },
+    "Rename Album" : {
+      "comment" : "Action / alert title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Album umbenennen"
+          }
+        }
+      }
+    },
+    "Save" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speichern"
+          }
+        }
+      }
+    },
+    "Scroll through the library" : {
+      "comment" : "Accessibility label of the scrubber",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Durch die Mediathek scrollen"
+          }
+        }
+      }
+    },
+    "Search" : {
+      "comment" : "Screen title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suche"
+          }
+        }
+      }
+    },
+    "Set Up Tenshu Control" : {
+      "comment" : "Onboarding title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenshu Control einrichten"
+          }
+        }
+      }
+    },
+    "Set up" : {
+      "comment" : "Banner button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einrichten"
+          }
+        }
+      }
+    },
+    "Set up Tenshu Control" : {
+      "comment" : "Accessibility label",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenshu Control einrichten"
+          }
+        }
+      }
+    },
+    "Something went wrong loading this album." : {
+      "comment" : "Error",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beim Laden dieses Albums ist etwas schiefgelaufen."
+          }
+        }
+      }
+    },
+    "Tenshu Control isn’t installed on this iPhone yet." : {
+      "comment" : "Onboarding notice",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenshu Control ist auf diesem iPhone noch nicht installiert."
+          }
+        }
+      }
+    },
+    "Tenshu Control isn’t on the App Store yet. Install it from TestFlight or Xcode to continue." : {
+      "comment" : "Onboarding notice",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenshu Control ist noch nicht im App Store. Installiere es über TestFlight oder Xcode, um fortzufahren."
+          }
+        }
+      }
+    },
+    "Tenshu couldn’t save the album right now. Try again in a moment." : {
+      "comment" : "Alert message",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenshu konnte das Album gerade nicht speichern. Versuche es gleich noch einmal."
+          }
+        }
+      }
+    },
+    "The full licence text is available online." : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der vollständige Lizenztext ist online verfügbar."
+          }
+        }
+      }
+    },
+    "This app is built on open-source software and open data. Each component is listed with its licence; select a library to read its licence text." : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese App baut auf Open-Source-Software und offenen Daten auf. Jede Komponente ist mit ihrer Lizenz aufgeführt; wähle eine Bibliothek, um ihren Lizenztext zu lesen."
+          }
+        }
+      }
+    },
+    "This build does not include its licence list." : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Build enthält keine Lizenzliste."
+          }
+        }
+      }
+    },
+    "This photo hasn't been downloaded to this device yet." : {
+      "comment" : "Viewer notice",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Foto wurde noch nicht auf dieses Gerät heruntergeladen."
+          }
+        }
+      }
+    },
+    "This photo is no longer in your library." : {
+      "comment" : "Viewer error",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Foto ist nicht mehr in deiner Mediathek."
+          }
+        }
+      }
+    },
+    "Try Again" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erneut versuchen"
+          }
+        }
+      }
+    },
+    "View all" : {
+      "comment" : "Link",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle anzeigen"
+          }
+        }
+      }
+    },
+    "keep your photos end-to-end encrypted and backed up across your devices" : {
+      "comment" : "Set-up screen: completes “%@ uses Tenshu Control to …”. German: an infinitive clause ending in “zu …”, completing “…, um”",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "deine Fotos Ende-zu-Ende-verschlüsselt auf all deinen Geräten zu sichern"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

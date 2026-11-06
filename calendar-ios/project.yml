@@ -1,0 +1,204 @@
+# XcodeGen spec for the Calendar iOS app (docs/proposals/calendar-app.md §9 — CA-8a).
+# Mirrors contacts-ios/project.yml. The generated `CalendarIos.xcodeproj` + `Info.plist` are
+# gitignored (build from source, like the Kotlin framework + libsodium).
+#
+# Regenerate after editing:   ./gradlew generateCalendarIosProject   (or: cd calendar-ios && xcodegen generate)
+# Build (simulator):          xcodebuild -project CalendarIos.xcodeproj -scheme CalendarIos \
+#                               -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' build
+#
+# ⚠ Calendar is **born on route 1** (ios-first-party-route-1-migration.md — the phase map is
+# complete, so this app never had an EPC tier to migrate off).
+#
+# ⚠ No `MapBearingApp` template: Calendar draws no map, so it takes neither MapLibre nor the tile
+# payload. That include is what would pull ~40 MB of archive into an app that has nothing to plot.
+name: CalendarIos
+options:
+  bundleIdPrefix: app.tenshu
+  deploymentTarget:
+    # ⚠ 16.0 is what makes Q7 (`UICalendarView` for the CA-8b month view) free rather than a
+    # deployment-target argument — every sibling shell already pins the same floor.
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+configs:
+  Debug: debug
+  Release: release
+
+# The shared forward-to-Control surface (ADR 0022), applied below as
+# `templates: [ControlOnboardingApp]`. Calendar takes the *banner* half of it, not the full-screen
+# gate: the agenda's dates exist without any data, so the screen stays legible and a wall would
+# replace something specific with something generic (ADR §Decision 4 + §Decision 5; the reasoning
+# is recorded on `CalendarRootView`).
+include:
+  # The shared adaptive navigation shell (N6), applied as `templates: [AdaptiveAppShell]`.
+  - path: ../ios-shell/shell.yml
+  - path: ../ios-onboarding/onboarding.yml
+  # The shared realm-storage banner (§8b.5c), applied below as `templates: [RealmStorageBanner]`.
+  - path: ../ios-storage/storage.yml
+  # Version numbers and orientations (`ReleaseApp`), and how Calendar links its OWN Kotlin framework
+  # (`AppFramework`, `ios-per-app-frameworks.md` P4). Archived by `scripts/ios-archive.sh calendar`.
+  - path: ../ios-release/release.yml
+  # The open-source notices (`docs/oss-licences.md`), applied below as `templates: [OssLicences]`.
+  - path: ../ios-about/about.yml
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    # Ad-hoc-signed on the SIMULATOR (CODE_SIGN_IDENTITY = "-"), matching the sibling iOS apps.
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGNING_ALLOWED: "YES"
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    # Real-device (iphoneos) builds sign for the personal team (ios-signing.md §2/§3).
+    CODE_SIGNING_REQUIRED[sdk=iphoneos*]: "YES"
+    CODE_SIGN_STYLE[sdk=iphoneos*]: Automatic
+    CODE_SIGN_IDENTITY[sdk=iphoneos*]: "Apple Development"
+    DEVELOPMENT_TEAM[sdk=iphoneos*]: ${TENSHU_TEAM_ID}
+    # Apple-silicon simulator only — matches `:tenshu-sdk-ios-calendar`'s arch set.
+    EXCLUDED_ARCHS[sdk=iphonesimulator*]: x86_64
+
+targets:
+  CalendarIos:
+    type: application
+    platform: iOS
+    # The shared forward-to-Control surface (see the `include` above).
+    templates:
+      - AdaptiveAppShell
+      - ControlOnboardingApp
+      - RealmStorageBanner
+      # Version numbers and orientations for an archived build (`ios-release/release.yml`).
+      - ReleaseApp
+      - OssLicences
+      # ⚠ Calendar links `:tenshu-sdk-ios-calendar` (`ios-per-app-frameworks.md`
+      # P4): a `TenshuSdk` built from Calendar's code and the shared core only.
+      - AppFramework
+    sources:
+      - path: Sources
+      - path: Resources
+    info:
+      path: Info.plist
+      properties:
+        # Cross-app open (`control-cross-app-open.md` CO-D4, §5i). ⚠⚠ On iOS this URL is the
+        # ONLY carrier: under route 1 every first-party app runs its own in-process proxy, so
+        # there is no channel between two apps for a request to be pushed down.
+        # ⚠⚠ The scheme is DERIVED from the appId (`app.tenshu.calendar` -> `tenshu-calendar`), never
+        # authored — `OpenTargetUrl.schemeFor` is the single source and a test pins the mapping.
+        # ⚠ This file is the source; `Info.plist` is generated and gitignored.
+        CFBundleURLTypes:
+          - CFBundleURLName: app.tenshu.calendar.open
+            CFBundleURLSchemes:
+              - tenshu-calendar
+        # Lets canOpenURL("tenshu-control://services") answer truthfully so the storage banner
+        # can offer "Manage storage". ⚠⚠ Without it iOS reports Control absent even when
+        # installed and the action silently disappears.
+        LSApplicationQueriesSchemes:
+          - tenshu-control
+        CFBundleDisplayName: Tenshu Calendar
+        # *Copy from this iPhone* (`calendar-external-sources.md` CX-2). ⚠⚠ iOS 17+ reads the
+        # FullAccess key and terminates the app on `requestFullAccessToEvents` without it; iOS 16
+        # reads the plain one. Both, because the deployment target is 16.0.
+        NSCalendarsFullAccessUsageDescription: Calendar reads the calendars on this device so you can copy one into Tenshu. Nothing is read until you pick a calendar.
+        NSCalendarsUsageDescription: Calendar reads the calendars on this device so you can copy one into Tenshu. Nothing is read until you pick a calendar.
+        # Export compliance (`docs/how-to/ios-testflight.md`): libsodium ships standard (IETF)
+        # algorithms beside Apple's own, so App Store Connect's answer is "standard algorithms".
+        ITSAppUsesNonExemptEncryption: true
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        # Route-1: the effective shared Keychain group RealmKeyMaterialBridge reads Control's
+        # route-1 key material from (bare on the sim, Team-prefixed on device).
+        TenshuSharedKeychainGroup: $(TENSHU_SHARED_KEYCHAIN_GROUP)
+        # Tenshu Control's App Store product id, for the forward-to-Control surface
+        # (ADR 0022). Empty until Control ships → the screen says so instead of opening
+        # a broken page. Same build-setting → Info.plist path as the Keychain group above.
+        TenshuControlAppStoreId: $(TENSHU_CONTROL_APP_STORE_ID)
+        # This app's own App Store product id, for the skew fence's Update button
+        # (core-schema-skew-surface.md §8.5). Empty until the listing exists → no button.
+        TenshuAppStoreId: $(TENSHU_APP_STORE_ID)
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.tenshu.calendar.ios
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_ENTITLEMENTS: Calendar.entitlements
+        TENSHU_SHARED_KEYCHAIN_GROUP: app.tenshu.shared
+        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: Calendar.device.entitlements
+        TENSHU_SHARED_KEYCHAIN_GROUP[sdk=iphoneos*]: $(DEVELOPMENT_TEAM).app.tenshu.shared
+        GENERATE_INFOPLIST_FILE: "NO"
+        # Calendar's own static `TenshuSdk` framework — linked by search path and name (the
+        # `AppFramework` template), not embedded.
+        TENSHU_SDK_MODULE: tenshu-sdk-ios-calendar
+    preBuildScripts:
+      - name: Build TenshuSdk.framework
+        # Keep the linked framework fresh before compile/link: one slice of Calendar's framework
+        # (scripts/ios-build-sdk.sh).
+        script: |
+          "$SRCROOT/../scripts/ios-build-sdk.sh" calendar
+        basedOnDependencyAnalysis: false
+
+  # XCUITest bundle for the month grid's layout (`MonthGridUITests`): the six-week/five-week height
+  # and the paged month surviving a rebuilt row. Over the shipping app (`Debug`) — there is no
+  # Calendar mock to run it on — so it needs a PROVISIONED simulator: see the class's doc.
+  CalendarIosUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+      - path: ../ios-shell/UITestSupport
+    dependencies:
+      - target: CalendarIos
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.tenshu.calendar.ios.uitests
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_TARGET_NAME: CalendarIos
+
+  # The store screenshots (docs/how-to/store-screenshots.md §3b): an XCUITest over the SHIPPING
+  # app — the `Debug` configuration — that seeds the calendars and their `.ics` files in one launch
+  # (`-seedFixture`, data only) and captures the next. Run only through
+  # `scripts/store-screenshots.sh calendar`, which runs Control's genesis on the same simulator first.
+  CalendarIosScreenshots:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: Screenshots
+      # AdaptiveAppShell's tab lookup, shared by every walk (bottom tabs, iPad top tabs, sidebar).
+      - path: ../ios-shell/UITestSupport
+    dependencies:
+      - target: CalendarIos
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.tenshu.calendar.ios.screenshots
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_TARGET_NAME: CalendarIos
+
+schemes:
+  CalendarIos:
+    build:
+      targets:
+        CalendarIos: all
+    run:
+      config: Debug
+  # The month grid's UI tests — `Debug`, on a provisioned simulator (MonthGridUITests' doc).
+  CalendarIos-UITests:
+    build:
+      targets:
+        CalendarIos: all
+        CalendarIosUITests: [test]
+    test:
+      config: Debug
+      targets:
+        - CalendarIosUITests
+    run:
+      config: Debug
+  # Store screenshots — `Debug`, the configuration the shipping scheme runs.
+  CalendarIos-Screenshots:
+    build:
+      targets:
+        CalendarIos: all
+        CalendarIosScreenshots: [test]
+    test:
+      config: Debug
+      targets:
+        - CalendarIosScreenshots
+    run:
+      config: Debug

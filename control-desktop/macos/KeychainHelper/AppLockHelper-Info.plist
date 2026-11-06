@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Linked into `applock-helper`'s __TEXT,__info_plist (control-desktop/build.gradle.kts).
+     macOS titles the Touch ID / password sheet with this name; without it the sheet read
+     "applock-helper is trying to …". -->
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>app.tenshu.control.applock-helper</string>
+    <key>CFBundleName</key>
+    <string>Tenshu Control</string>
+    <key>CFBundleDisplayName</key>
+    <string>Tenshu Control</string>
+</dict>
+</plist>

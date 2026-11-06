@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The machine-wide gate lock every local gate script queues on (scripts/lib/gate-lock.sh),
+      # incl. the self-deadlock when a caller wraps a script in lockf/flock by hand.
+      - name: Gate lock
+        run: bash scripts/test_gate_lock.sh
+
+      # ⚠⚠ TWO JDKs. The second is a PIN, not a fix — read why before removing it.
+      #
+      # 17 is what the shared modules' `jvmToolchain(17)` compiles against, and it stays the
+      # Gradle DAEMON's JVM — setup-java makes the LAST listed version JAVA_HOME, so listing 25
+      # first deliberately does NOT move the daemon to 25.
+      #
+      # 25 is `FFM_JDK` in control-desktop / drive-desktop / macos-helpers, and the two desktop
+      # modules resolve a launcher for it EAGERLY at configuration time
+      # (`javaToolchains.launcherFor { … }.get()` — control-desktop/build.gradle.kts:176) so
+      # jpackage embeds a 25 runtime rather than the daemon's. This build sets no
+      # configure-on-demand, so EVERY invocation configures those projects — `check` included.
+      #
+      # ⚠⚠ Without this pin the build does NOT fail: `settings.gradle.kts` applies
+      # `org.gradle.toolchains.foojay-resolver-convention`, so Gradle AUTO-PROVISIONS the missing
+      # 25 — it downloads a JDK, at configuration time, before any task runs. That is why this
+      # lane was green on JDK 17 alone. The pin buys three things: no ~200 MB download per cold
+      # runner, no dependency on foojay/Adoptium being reachable for the build to CONFIGURE, and
+      # an explicit record of which JDKs this build actually needs.
+      #
+      # ⭐ Verified 2026-08-25 with the resolver unreachable and no local 25: `check`,
+      # `iosSimulatorArm64Test` and `:tenshu-sdk-js:jsBrowserDistribution` each die at
+      # `--dry-run` with "Cannot find a Java installation … {languageVersion=25 …}", and each
+      # configures cleanly once a 25 is present. So the pin is exactly what stands between a
+      # foojay outage and every Gradle lane failing before a single task runs.
+      - name: Set up JDK 25 (desktop FFM toolchain) + JDK 17 (daemon + shared modules)
+        uses: actions/setup-java@v4
+        with:
+          java-version: |
+            25
+            17
+          distribution: 'temurin'
+          cache: gradle
+
+      # ⚠ setup-java installs into the hosted tool cache, which is NOT a location Gradle's
+      # toolchain auto-detection scans — so the 25 above is invisible to `launcherFor` without
+      # this. `fromEnv` takes env var NAMES; setup-java exports JAVA_HOME_<version>_<arch> and
+      # the arch differs per runner (ubuntu = X64, macos-latest = ARM64), so both spellings are
+      # listed. Unset names are skipped silently (verified), so the unused half costs nothing.
+      - name: Register both JDKs with Gradle toolchain detection
+        run: |
+          mkdir -p ~/.gradle
+          echo "org.gradle.java.installations.fromEnv=JAVA_HOME_25_X64,JAVA_HOME_25_ARM64,JAVA_HOME_17_X64,JAVA_HOME_17_ARM64" >> ~/.gradle/gradle.properties
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Run all checks
+        # 'check' runs unit tests and lint for both Android and multiplatform targets.
+        # It's faster than 'build' because it skips assembly (building APKs/AARs).
+        run: ./gradlew check --stacktrace
+
+      - name: Upload Test Report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-report
+          path: "**/build/reports/tests/**"
+
+  # iOS K/N build + test now lives in its own lane (`.github/workflows/ios.yml`)
+  # on a macOS runner — it compiles the shared surface, runs the simulator
+  # tests, and links every app's own iOS framework.

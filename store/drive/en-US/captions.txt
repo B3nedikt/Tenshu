@@ -1,0 +1,9 @@
+# One caption per screen for the framed store screenshots (scripts/store-frame, design §3.2).
+# `NN-screen: text` — the screen name from ../screens.json. Plain, short, no superlatives (D6).
+01-files: Your files, encrypted
+02-photos: Your photos, on every device
+03-preview: Open photos, PDFs and videos
+04-file-actions: Share, rename and move
+05-add: Add a file, a photo or a folder
+06-share-link: Share a file with a link
+07-empty: Start with an empty drive

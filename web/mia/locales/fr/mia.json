@@ -1,0 +1,105 @@
+{
+  "app": {
+    "title": "Mia",
+    "tagline": "Interrogez vos propres données — réponse sur cet appareil, chiffrée de bout en bout."
+  },
+  "runtime": {
+    "connectingTitle": "Connexion à Tenshu en cours…",
+    "connectingBody": "L’onglet Tenshu qui héberge Mia est occupé. Mia se chargera dès qu’il répondra.",
+    "elsewhereTitle": "Tenshu est ouvert dans un autre onglet",
+    "elsewhereBody": "Tenshu ne s’exécute que dans un onglet à la fois, pour que vos données restent cohérentes. Utilisez-le ici pour le déplacer dans cet onglet.",
+    "moving": "En attente de la fin de l’enregistrement dans l’autre onglet. Cela peut prendre jusqu’à deux minutes.",
+    "movingShort": "Déplacement…",
+    "useHere": "Utiliser ici"
+  },
+  "crash": {
+    "title": "Une erreur est survenue",
+    "body": "Cette partie de Mia a rencontré une erreur inattendue. Vos données sont en sécurité — rien n’a été modifié.",
+    "retry": "Réessayer",
+    "reload": "Recharger"
+  },
+  "tabs": {
+    "label": "Mia",
+    "chat": "Discussion",
+    "history": "Historique",
+    "grants": "Ce que Mia peut lire"
+  },
+  "chat": {
+    "greetingTitle": "Bonjour, je suis Mia",
+    "greetingBody": "Posez-moi des questions sur votre agenda, vos entraînements, vos lieux, vos fichiers ou vos appareils — par exemple « qu’ai-je dans mon agenda demain » ou « entraînements de la semaine dernière ».",
+    "inputLabel": "Votre question",
+    "inputHint": "Demandez à Mia…",
+    "send": "Envoyer",
+    "thinking": "Mia réfléchit…",
+    "remaining": "{count, plural, one {# caractère restant} other {# caractères restants}}",
+    "lookOnly": "Dans le navigateur, Mia ne fait que chercher : elle ne peut ni commander des appareils, ni lancer des routines, ni ajouter des événements.",
+    "nothingMatched": "{explanation} — aucun résultat.",
+    "results": "Résultats",
+    "turns": "Conversation",
+    "earlier": "Afficher les précédents"
+  },
+  "hitKind": {
+    "place": "Lieu",
+    "moment": "Moment de la chronologie",
+    "workout": "Entraînement",
+    "device": "Appareil",
+    "event": "Événement d’agenda",
+    "file": "Fichier"
+  },
+  "history": {
+    "memoryNote": "Votre conversation n’est conservée que dans la mémoire de ce navigateur tant que Tenshu est ouvert. Elle n’est jamais enregistrée, et elle est effacée lorsque vous vous déconnectez ou que Tenshu se verrouille — comme dans l’app Mia.",
+    "empty": "Aucune conversation pour l’instant.",
+    "meta": "{date} · {count, plural, one {# question} other {# questions}}"
+  },
+  "grants": {
+    "title": "Ce que Mia peut lire",
+    "body": "Mia ne lit que ce que vous autorisez, une app à la fois. Si vous désactivez quelque chose ici, Mia ne l’utilise plus : elle ne peut plus y chercher de réponse, et elle vous le dit au lieu de prétendre qu’il n’y a rien.",
+    "everywhere": "Ces réglages s’appliquent à Mia sur tous vos appareils.",
+    "write": "Autoriser Mia à ajouter des événements",
+    "source": {
+      "FILES": "Fichiers",
+      "TIMELINE": "Chronologie",
+      "FITNESS": "Entraînements",
+      "PLACES": "Lieux",
+      "DEVICES": "Appareils connectés",
+      "ROUTINES": "Routines",
+      "LABELS": "Contenu des photos",
+      "VISUAL_SEARCH": "Recherche de photos par apparence",
+      "CALENDAR": "Agenda"
+    }
+  },
+  "errors": {
+    "error_generic": "Une erreur s’est produite. Veuillez réessayer.",
+    "error_unexpected": "Une erreur s’est produite. Veuillez réessayer.",
+    "error_internal": "Une erreur s’est produite. Veuillez réessayer.",
+    "error_not_found": "Cet élément n’est plus disponible.",
+    "error_invalid_caller": "Cette application n’est pas autorisée à faire cela.",
+    "error_unannounced_session": "Tenshu doit se reconnecter. Veuillez réessayer.",
+    "error_unsupported_operation": "Cette version ne le prend pas encore en charge.",
+    "error_mia_empty_utterance": "Saisissez d’abord une question.",
+    "error_mia_utterance_too_long": "Cette question est trop longue. Restez sous 500 caractères.",
+    "error_mia_invalid_zone": "Mia n’a pas pu déterminer votre fuseau horaire et n’a donc rien demandé. Vérifiez le fuseau horaire de votre navigateur et réessayez.",
+    "error_mia_bad_cursor": "Impossible de charger les messages précédents. Réessayez.",
+    "error_mia_bad_page_size": "Impossible de charger les messages précédents. Réessayez.",
+    "error_mia_conversation_not_found": "Cette conversation n’existe plus — elle a été effacée lors de votre déconnexion ou du verrouillage de Tenshu.",
+    "error_mia_session_cleared": "Vous avez été déconnecté ou Tenshu s’est verrouillé pendant que Mia répondait : la question n’a donc pas été conservée. Posez-la à nouveau.",
+    "error_mia_unexpected_action": "Mia voulait modifier quelque chose, ce qu’elle ne peut pas faire dans le navigateur. Rien n’a été modifié.",
+    "error_mia_unknown_source": "Mia ne connaît pas cette source. Rien n’a été modifié.",
+    "error_mia_no_write_grant": "Mia ne peut pas écrire dans cette source. Rien n’a été modifié.",
+    "bridge": "Impossible de joindre Tenshu. Vérifiez qu’il est ouvert et déverrouillé, puis réessayez.",
+    "bridge_timeout": "Tenshu a mis trop de temps à répondre. Réessayez.",
+    "bridge_not_permitted": "Mia n’est pas autorisée à faire cela."
+  },
+  "common": {
+    "back": "Retour",
+    "loading": "Chargement…",
+    "retry": "Réessayer"
+  },
+  "read": {
+    "failedTitle": "Impossible de charger"
+  },
+  "stream": {
+    "stopped": "Les mises à jour se sont arrêtées — ce que vous voyez n’est peut-être plus à jour.",
+    "reconnect": "Se reconnecter"
+  }
+}

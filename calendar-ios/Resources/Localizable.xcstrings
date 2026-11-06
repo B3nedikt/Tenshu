@@ -1,0 +1,963 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ uses Tenshu Control to %@. Get Control from the App Store, then come back to %@." : {
+      "comment" : "Set-up screen body when Control is not installed; %1$@ = app name, %2$@ = what the app uses Control for (an infinitive clause), %3$@ = app name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ nutzt Tenshu Control, um %2$@. Hol dir Control im App Store und kehre dann zu %3$@ zurück."
+          }
+        }
+      }
+    },
+    "%@ uses Tenshu Control to %@. Set it up on this iPhone to continue." : {
+      "comment" : "Set-up screen body; %1$@ = app name, %2$@ = what the app uses Control for (an infinitive clause)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ nutzt Tenshu Control, um %2$@. Richte es auf diesem iPhone ein, um fortzufahren."
+          }
+        }
+      }
+    },
+    "Agenda" : {
+      "comment" : "Tab title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agenda"
+          }
+        }
+      }
+    },
+    "All-day" : {
+      "comment" : "Toggle",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ganztägig"
+          }
+        }
+      }
+    },
+    "Calendar" : {
+      "comment" : "Agenda title / calendar picker",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kalender"
+          }
+        }
+      }
+    },
+    "Calendars" : {
+      "comment" : "Screen title (plural)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kalender"
+          }
+        }
+      }
+    },
+    "Can't reach Tenshu Control — %@ is showing what it already has." : {
+      "comment" : "Not-connected banner; %@ = app name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenshu Control ist nicht erreichbar – %@ zeigt, was bereits vorhanden ist."
+          }
+        }
+      }
+    },
+    "Cancel" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abbrechen"
+          }
+        }
+      }
+    },
+    "Colour" : {
+      "comment" : "Section header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Farbe"
+          }
+        }
+      }
+    },
+    "Copyright 2022 The Noto Project Authors" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copyright 2022 The Noto Project Authors"
+          }
+        }
+      }
+    },
+    "Data and fonts" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daten und Schriften"
+          }
+        }
+      }
+    },
+    "Default for new events" : {
+      "comment" : "Calendar row note",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Standard für neue Termine"
+          }
+        }
+      }
+    },
+    "Delete" : {
+      "comment" : "Action / button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Löschen"
+          }
+        }
+      }
+    },
+    "Delete \"%@\"?" : {
+      "comment" : "Alert title; %@ = calendar name (as Compose DeleteCalendarDialog)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„%@“ löschen?"
+          }
+        }
+      }
+    },
+    "Delete all occurrences" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle Termine löschen"
+          }
+        }
+      }
+    },
+    "Delete event" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Termin löschen"
+          }
+        }
+      }
+    },
+    "Delete this occurrence" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur diesen Termin löschen"
+          }
+        }
+      }
+    },
+    "Delete which occurrences?" : {
+      "comment" : "Confirmation title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Welche Termine löschen?"
+          }
+        }
+      }
+    },
+    "Do something else" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Etwas anderes tun"
+          }
+        }
+      }
+    },
+    "Done" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fertig"
+          }
+        }
+      }
+    },
+    "Downloaded separately; each model shows its licence under Settings → Models" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Werden separat geladen; jedes Modell zeigt seine Lizenz unter Einstellungen → Modelle"
+          }
+        }
+      }
+    },
+    "Edit" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bearbeiten"
+          }
+        }
+      }
+    },
+    "Event" : {
+      "comment" : "Screen title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Termin"
+          }
+        }
+      }
+    },
+    "Events from the next few weeks appear here." : {
+      "comment" : "Empty state",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Termine der nächsten Wochen erscheinen hier."
+          }
+        }
+      }
+    },
+    "Every event in this calendar will be deleted on all your devices. This cannot be undone." : {
+      "comment" : "Alert message",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle Termine in diesem Kalender werden auf all deinen Geräten gelöscht. Das kann nicht rückgängig gemacht werden."
+          }
+        }
+      }
+    },
+    "Export to a file" : {
+      "comment" : "Action",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In Datei exportieren"
+          }
+        }
+      }
+    },
+    "Get Tenshu Control" : {
+      "comment" : "Button: opens Control's App Store page",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenshu Control laden"
+          }
+        }
+      }
+    },
+    "Hide details on the lock screen" : {
+      "comment" : "Toggle",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Details auf dem Sperrbildschirm ausblenden"
+          }
+        }
+      }
+    },
+    "Hiding a calendar affects this device only." : {
+      "comment" : "Footer",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Ausblenden eines Kalenders betrifft nur dieses Gerät."
+          }
+        }
+      }
+    },
+    "Import from a file" : {
+      "comment" : "Action",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aus Datei importieren"
+          }
+        }
+      }
+    },
+    "Import or export…" : {
+      "comment" : "Menu action",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importieren oder exportieren…"
+          }
+        }
+      }
+    },
+    "Libraries" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bibliotheken"
+          }
+        }
+      }
+    },
+    "Location" : {
+      "comment" : "Text field",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ort"
+          }
+        }
+      }
+    },
+    "Make default" : {
+      "comment" : "Menu action",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Als Standard festlegen"
+          }
+        }
+      }
+    },
+    "Manage storage" : {
+      "comment" : "Storage banner button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speicher verwalten"
+          }
+        }
+      }
+    },
+    "Map data © OpenStreetMap contributors" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kartendaten © OpenStreetMap-Mitwirkende"
+          }
+        }
+      }
+    },
+    "Month" : {
+      "comment" : "Tab title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Monat"
+          }
+        }
+      }
+    },
+    "Name" : {
+      "comment" : "Sort key / name text field",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name"
+          }
+        }
+      }
+    },
+    "New calendar" : {
+      "comment" : "Action",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neuer Kalender"
+          }
+        }
+      }
+    },
+    "New event" : {
+      "comment" : "Accessibility label",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neuer Termin"
+          }
+        }
+      }
+    },
+    "Notes" : {
+      "comment" : "Section / text field",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notizen"
+          }
+        }
+      }
+    },
+    "Nothing coming up" : {
+      "comment" : "Empty state",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine anstehenden Termine"
+          }
+        }
+      }
+    },
+    "Nothing on this day" : {
+      "comment" : "Empty state",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nichts an diesem Tag"
+          }
+        }
+      }
+    },
+    "Noto Sans (map labels)" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noto Sans (Kartenbeschriftungen)"
+          }
+        }
+      }
+    },
+    "OK" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        }
+      }
+    },
+    "Offline map tiles built from OpenStreetMap data with the Protomaps basemap schema" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Offline-Kartenkacheln aus OpenStreetMap-Daten, erstellt mit dem Protomaps-Basemap-Schema"
+          }
+        }
+      }
+    },
+    "On-device models" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modelle auf dem Gerät"
+          }
+        }
+      }
+    },
+    "Open Settings to allow notifications" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öffne die Einstellungen, um Benachrichtigungen zu erlauben"
+          }
+        }
+      }
+    },
+    "Open Tenshu Control" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenshu Control öffnen"
+          }
+        }
+      }
+    },
+    "Open online" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Online öffnen"
+          }
+        }
+      }
+    },
+    "Open-source licences" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open-Source-Lizenzen"
+          }
+        }
+      }
+    },
+    "OpenStreetMap" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OpenStreetMap"
+          }
+        }
+      }
+    },
+    "Options for %@" : {
+      "comment" : "Accessibility label",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Optionen für %@"
+          }
+        }
+      }
+    },
+    "Photon place lookup (komoot)" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photon-Ortssuche (komoot)"
+          }
+        }
+      }
+    },
+    "Place names, when online lookup is on, come from OpenStreetMap data via Photon, run by komoot" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ortsnamen stammen bei aktivierter Online-Suche aus OpenStreetMap-Daten über Photon, betrieben von komoot"
+          }
+        }
+      }
+    },
+    "Privacy policy" : {
+      "comment" : "Settings row that opens Tenshu's privacy policy in the browser (PrivacyPolicyLink, ios-release/Sources/PrivacyPolicy.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datenschutzerklärung"
+          }
+        }
+      }
+    },
+    "Protomaps basemap" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protomaps-Basiskarte"
+          }
+        }
+      }
+    },
+    "Refresh now" : {
+      "comment" : "Menu action",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jetzt aktualisieren"
+          }
+        }
+      }
+    },
+    "Reminders" : {
+      "comment" : "Section header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erinnerungen"
+          }
+        }
+      }
+    },
+    "Reminders for this calendar show only \"Reminder\" — no title, no location." : {
+      "comment" : "Footer. \"Reminder\" is quoted verbatim: the notification title (ReminderPlanner.REDACTED_TITLE) is not localized",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erinnerungen für diesen Kalender zeigen nur „Reminder“ – ohne Titel und Ort."
+          }
+        }
+      }
+    },
+    "Repeats" : {
+      "comment" : "Repeat indicator / picker label",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wiederholung"
+          }
+        }
+      }
+    },
+    "Save" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speichern"
+          }
+        }
+      }
+    },
+    "Save all occurrences" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle Termine speichern"
+          }
+        }
+      }
+    },
+    "Save this occurrence" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur diesen Termin speichern"
+          }
+        }
+      }
+    },
+    "Set Up Tenshu Control" : {
+      "comment" : "Onboarding title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenshu Control einrichten"
+          }
+        }
+      }
+    },
+    "Set up" : {
+      "comment" : "Banner button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einrichten"
+          }
+        }
+      }
+    },
+    "Set up Tenshu Control" : {
+      "comment" : "Accessibility label",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenshu Control einrichten"
+          }
+        }
+      }
+    },
+    "Something went wrong" : {
+      "comment" : "Alert title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Etwas ist schiefgelaufen"
+          }
+        }
+      }
+    },
+    "Subscribe" : {
+      "comment" : "Title / button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abonnieren"
+          }
+        }
+      }
+    },
+    "Subscribe to a calendar" : {
+      "comment" : "Action",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kalender abonnieren"
+          }
+        }
+      }
+    },
+    "Subscribed" : {
+      "comment" : "Calendar row note",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abonniert"
+          }
+        }
+      }
+    },
+    "Subscription paused" : {
+      "comment" : "Calendar row note",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abo pausiert"
+          }
+        }
+      }
+    },
+    "Tenshu Control isn’t installed on this iPhone yet." : {
+      "comment" : "Onboarding notice",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenshu Control ist auf diesem iPhone noch nicht installiert."
+          }
+        }
+      }
+    },
+    "Tenshu Control isn’t on the App Store yet. Install it from TestFlight or Xcode to continue." : {
+      "comment" : "Onboarding notice",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenshu Control ist noch nicht im App Store. Installiere es über TestFlight oder Xcode, um fortzufahren."
+          }
+        }
+      }
+    },
+    "The end is before the start." : {
+      "comment" : "Validation error",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Ende liegt vor dem Beginn."
+          }
+        }
+      }
+    },
+    "The full licence text is available online." : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der vollständige Lizenztext ist online verfügbar."
+          }
+        }
+      }
+    },
+    "This app is built on open-source software and open data. Each component is listed with its licence; select a library to read its licence text." : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese App baut auf Open-Source-Software und offenen Daten auf. Jede Komponente ist mit ihrer Lizenz aufgeführt; wähle eine Bibliothek, um ihren Lizenztext zu lesen."
+          }
+        }
+      }
+    },
+    "This build does not include its licence list." : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Build enthält keine Lizenzliste."
+          }
+        }
+      }
+    },
+    "This event repeats on a schedule Tenshu can show but not change here." : {
+      "comment" : "Notice",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Termin wiederholt sich nach einem Zeitplan, den Tenshu anzeigen, aber hier nicht ändern kann."
+          }
+        }
+      }
+    },
+    "This is a repeating event" : {
+      "comment" : "Confirmation title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dies ist ein wiederkehrender Termin"
+          }
+        }
+      }
+    },
+    "Title" : {
+      "comment" : "Text field",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Titel"
+          }
+        }
+      }
+    },
+    "Today" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Heute"
+          }
+        }
+      }
+    },
+    "Turn on reminders" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erinnerungen einschalten"
+          }
+        }
+      }
+    },
+    "Unsubscribe" : {
+      "comment" : "Menu action: unsubscribe calendar",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abo beenden"
+          }
+        }
+      }
+    },
+    "When" : {
+      "comment" : "Label",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wann"
+          }
+        }
+      }
+    },
+    "Your device will download this calendar directly from its publisher, about every 6 hours. The publisher will see your IP address. Only https:// and webcal:// addresses are accepted." : {
+      "comment" : "Subscribe sheet footer",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Gerät lädt diesen Kalender direkt von seinem Herausgeber, etwa alle 6 Stunden. Der Herausgeber sieht deine IP-Adresse. Nur https://- und webcal://-Adressen werden akzeptiert."
+          }
+        }
+      }
+    },
+    "keep your calendar end-to-end encrypted and synced across your devices" : {
+      "comment" : "Set-up screen: completes “%@ uses Tenshu Control to …”. German: an infinitive clause ending in “zu …”, completing “…, um”",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "deinen Kalender Ende-zu-Ende-verschlüsselt und auf all deinen Geräten synchron zu halten"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

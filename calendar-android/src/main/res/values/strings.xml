@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Calendar</string>
+    <string name="calendar_widget_label">Calendar</string>
+    <string name="calendar_widget_description">What is coming up next</string>
+</resources>

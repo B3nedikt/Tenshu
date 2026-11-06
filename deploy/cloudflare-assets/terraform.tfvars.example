@@ -1,0 +1,21 @@
+# Copy to terraform.tfvars (git-ignored) and fill in. Then:
+#   ./tf.sh init && ./tf.sh plan && ./tf.sh apply     # token from the Keychain, never this file
+#
+# Like deploy/cloudflare-models there is no staged cutover: the hostname is new, so one apply creates
+# the bucket and attaches the custom domain together.
+
+# --- required ---------------------------------------------------------------
+
+# Cloudflare account ID — not a secret. The same value deploy/cloudflare-tiles uses.
+account_id = "0123456789abcdef0123456789abcdef"
+
+# Zone ID of tenshu.app — `terraform -chdir=deploy/cloudflare-dns output -raw zone_id`.
+zone_id = "0123456789abcdef0123456789abcdef"
+
+# --- optional (sensible defaults) -------------------------------------------
+# bucket_name            = "tenshu-assets"
+# domain                 = "assets.tenshu.app"
+# location               = "weur"
+# min_tls                = "1.2"
+# enable_fixtures_bucket = false    # true once the first licensed fixture photo exists
+# fixtures_bucket_name   = "tenshu-store-fixtures"

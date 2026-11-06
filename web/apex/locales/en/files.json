@@ -1,0 +1,39 @@
+{
+  "breadcrumb": {
+    "home": "Home"
+  },
+  "folder": {
+    "titleRoot": "Files",
+    "namePlaceholder": "Folder name",
+    "actions": {
+      "newFolder": "New folder",
+      "upload": "Upload",
+      "create": "Create",
+      "cancel": "Cancel"
+    },
+    "list": {
+      "loading": "Loading…",
+      "error": "Failed to load folder.",
+      "empty": "This folder is empty. Create a new folder or upload a file to get started."
+    },
+    "entry": {
+      "folderTag": "folder"
+    }
+  },
+  "preview": {
+    "close": "Close preview",
+    "size": "size",
+    "modified": "modified",
+    "loading": "Loading preview…",
+    "download": "Download",
+    "notAnImage": "not an image — preview unavailable"
+  },
+  "status": {
+    "uploading": "uploading {name}…",
+    "uploadFailed": "upload failed (path likely already exists)",
+    "uploaded": "uploaded {name} ({size})",
+    "creatingFolder": "creating folder {name}…",
+    "folderCreationFailed": "folder creation failed (name likely already exists)",
+    "createdFolder": "created folder {name}"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "action": {
+    "cancel": "Abbrechen",
+    "continue": "Weiter",
+    "back": "Zurück",
+    "close": "Schließen"
+  },
+  "runtime": {
+    "elsewhere": {
+      "title": "Tenshu ist in einem anderen Tab geöffnet",
+      "body": "Tenshu läuft immer nur in einem Tab, damit deine Daten nicht auseinanderlaufen. Mit „Hier verwenden“ holst du es in diesen Tab.",
+      "useHere": "Hier verwenden",
+      "moving": "Wird verschoben…",
+      "waiting": "Warte, bis der andere Tab fertig gespeichert hat. Das kann bis zu zwei Minuten dauern."
+    }
+  },
+  "share": {
+    "viewer": {
+      "title": "Mit Tenshu geteilt",
+      "loading": "Wird entschlüsselt…",
+      "download": "{fileName} herunterladen",
+      "textLoading": "{fileName} (wird geladen…)",
+      "error": {
+        "gone": "Dieser Link wurde widerrufen oder ist abgelaufen.",
+        "decrypt": "Diese Freigabe konnte nicht entschlüsselt werden. Der Link ist vielleicht unvollständig, falsch abgetippt oder beschädigt.",
+        "meta": "Bei dieser Freigabe fehlen die Dateiangaben, deshalb lässt sie sich nicht öffnen. Bitte die Person, die sie geteilt hat, um einen neuen Link.",
+        "noKey": "Diesem Link fehlt der Schlüssel zum Entschlüsseln. Achte darauf, die vollständige Adresse zu kopieren.",
+        "network": "Die Freigabe ist nicht erreichbar. Prüfe deine Verbindung und versuche es noch einmal."
+      }
+    }
+  }
+}

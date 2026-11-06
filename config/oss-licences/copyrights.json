@@ -1,0 +1,23 @@
+{
+  "_comment": "Copyright lines for libraries whose licence text is an SPDX template (MIT, BSD-2/3, ISC) and whose artifact carries no LICENSE file to read one from. Key: uniqueId, or group:prefix* . Each value is copied from the project's own LICENSE file (source noted in _sources). See README.md and docs/oss-licences.md §1.1.",
+  "_sources": {
+    "io.github.alexzhirkevich:qrose*": "github.com/alexzhirkevich/qrose LICENSE",
+    "org.maplibre.compose:*": "github.com/maplibre/maplibre-compose LICENSE",
+    "org.maplibre.nativeffi:*": "github.com/maplibre/maplibre-native-ffi LICENSE",
+    "org.maplibre.spatialk:*": "github.com/maplibre/spatial-k LICENSE",
+    "com.microsoft.onnxruntime:*": "github.com/microsoft/onnxruntime LICENSE",
+    "protobuf (javalite and the androidx external-protobuf repackagings)": "github.com/protocolbuffers/protobuf LICENSE",
+    "androidx.camera:camera-core": "its POM declares Apache-2.0 AND BSD-3-Clause, but the AAR's only LICENSE.txt is Apache-2.0. The BSD-3 half is libyuv, statically linked into jni/*/libimage_processing_util_jni.so: its JNI entry points mirror libyuv's APIs (nativeConvertAndroid420ToABGR = Android420ToABGR, nativeRotateYUV = I420Rotate) and it imports getauxval, libyuv's ARM CPU-feature probe (checked 1.6.2, 2026-10-24). Line from chromium.googlesource.com/libyuv/libyuv LICENSE",
+    "org.checkerframework:checker-compat-qual": "github.com/typetools/checker-framework LICENSE.txt (checker-qual's jar carries the same line)"
+  },
+  "io.github.alexzhirkevich:qrose*": "Copyright (c) 2023 Alexander Zhirkevich",
+  "org.maplibre.compose:*": "Copyright (c) 2024, MapLibre Compose contributors",
+  "org.maplibre.nativeffi:*": "Copyright (c) 2026, MapLibre contributors",
+  "org.maplibre.spatialk:*": ["Copyright (c) 2025 MapLibre Contributors", "Copyright (c) 2020 Derek Ellis"],
+  "com.microsoft.onnxruntime:*": "Copyright (c) Microsoft Corporation",
+  "com.google.protobuf:protobuf-javalite": "Copyright 2008 Google Inc.  All rights reserved.",
+  "androidx.glance:glance-appwidget-external-protobuf": "Copyright 2008 Google Inc.  All rights reserved.",
+  "androidx.health.connect:connect-client-external-protobuf": "Copyright 2008 Google Inc.  All rights reserved.",
+  "androidx.camera:camera-core": "Copyright 2011 The LibYuv Project Authors. All rights reserved.",
+  "org.checkerframework:checker-compat-qual": "Copyright 2004-present by the Checker Framework developers"
+}

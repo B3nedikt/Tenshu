@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Ported from docs/design/tenshu-icons/icons/android/foreground/control.svg by the
+  recipe in docs/adr/0026-app-icon-system.md §5. The pictogram sits in a <group>
+  carrying the source's own translate/scale so path data is copied verbatim; rects
+  and circles have no VectorDrawable primitive and are expressed as paths.
+
+  ⚠ The inner <group> is the radius-30 fit: the mark is scaled about the grid centre so
+  every rendered pixel stays inside radius 30 and no launcher mask clips it. Stroke
+  widths are authored pre-scale, so they render at the set's 3.5 baseline.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="432"
+    android:viewportHeight="432">
+    <group
+        android:translateX="84"
+        android:translateY="84"
+        android:scaleX="4.125"
+        android:scaleY="4.125">
+        <group
+            android:translateX="3.904"
+            android:translateY="3.904"
+            android:scaleX="0.878"
+            android:scaleY="0.878">
+            <path
+                android:pathData="M 14.609 49.965 a 18 22 0 0 1 36 0 z"
+                android:fillColor="#FFFBFF"
+                />
+            <path
+                android:pathData="M 29.367 24.200 L 18.609 14.082 L 15.726 31.715 c -0.005 2.162 3.279 -5.888 13.640 -7.515 z"
+                android:fillColor="#FFFBFF"
+                />
+            <path
+                android:pathData="M 35.687 23.847 c 3.859 -3.614 7.518 -6.788 10.758 -10.117 L 49.327 31.362 c 0.005 2.162 -3.279 -5.888 -13.640 -7.515 z"
+                android:fillColor="#FFFBFF"
+                />
+            <path
+                android:pathData="M 20.842 38.516 Q 14.030 36.410 5.270 34.304"
+                android:strokeColor="#FFFBFF"
+                android:strokeWidth="1.4"
+                android:strokeLineCap="round"
+                android:strokeLineJoin="round"
+                />
+            <path
+                android:pathData="M 20.842 40.622 Q 13.057 40.622 4.297 40.622"
+                android:strokeColor="#FFFBFF"
+                android:strokeWidth="1.4"
+                android:strokeLineCap="round"
+                android:strokeLineJoin="round"
+                />
+            <path
+                android:pathData="M 20.842 42.728 Q 14.030 44.833 5.270 47.992"
+                android:strokeColor="#FFFBFF"
+                android:strokeWidth="1.4"
+                android:strokeLineCap="round"
+                android:strokeLineJoin="round"
+                />
+            <path
+                android:pathData="M 44.206 38.516 Q 51.020 36.410 59.780 34.304"
+                android:strokeColor="#FFFBFF"
+                android:strokeWidth="1.4"
+                android:strokeLineCap="round"
+                android:strokeLineJoin="round"
+                />
+            <path
+                android:pathData="M 44.206 40.622 Q 51.993 40.622 60.754 40.622"
+                android:strokeColor="#FFFBFF"
+                android:strokeWidth="1.4"
+                android:strokeLineCap="round"
+                android:strokeLineJoin="round"
+                />
+            <path
+                android:pathData="M 44.206 42.728 Q 51.020 44.833 59.780 47.992"
+                android:strokeColor="#FFFBFF"
+                android:strokeWidth="1.4"
+                android:strokeLineCap="round"
+                android:strokeLineJoin="round"
+                />
+            <path
+                android:pathData="M 27.659 42.815 Q 29.606 45.974 31.553 43.868 Q 32.526 42.815 33.500 43.868 Q 35.447 45.974 37.394 42.815"
+                android:strokeColor="#5A4A96"
+                android:strokeWidth="1.6"
+                android:strokeLineCap="round"
+                android:strokeLineJoin="round"
+                />
+            <path
+                android:pathData="M 24.86 36.736 a 2.1 2.1 0 1 0 4.2 0 a 2.1 2.1 0 1 0 -4.2 0 Z"
+                android:fillColor="#5A4A96"
+                />
+            <path
+                android:pathData="M 35.86 36.736 a 2.1 2.1 0 1 0 4.2 0 a 2.1 2.1 0 1 0 -4.2 0 Z"
+                android:fillColor="#5A4A96"
+                />
+        </group>
+    </group>
+</vector>

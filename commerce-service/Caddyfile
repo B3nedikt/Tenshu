@@ -1,0 +1,92 @@
+# Caddy reverse proxy for the Tenshu commerce issuer. Caddy obtains + renews a Let's Encrypt cert
+# for $COMMERCE_DOMAIN automatically (HTTP-01 over :80), terminates TLS, and proxies to the commerce
+# container on the internal compose network. Mirrors sync-relay-server/Caddyfile.
+#
+# TLS is load-bearing here, not just hygiene: the token request body carries the user's email
+# (A28 PII). It must never traverse the network in clear text.
+
+{
+	email {$ACME_EMAIL}
+	# ⚠⚠ Caddy's ERROR log (`http.log.error`, one entry per failed proxied request — every 502/504)
+	# carries the same request object as the access log: full client IP, full URI with its query
+	# (?pairingSecret=) and every header (X-Entitlement). It goes to the DEFAULT logger, which the
+	# access snippet's filter never sees, so it is routed out of stdout into its own filtered file.
+	# Same filter and same roll as the `access_log` snippet below (docs/how-to/server-logging.md).
+	log default {
+		exclude http.log.error
+	}
+	log errors {
+		include http.log.error
+		output file /var/log/caddy/errors.log {
+			roll_size 50MiB
+			roll_keep 5
+			roll_keep_for 168h
+			roll_interval 24h
+		}
+		format filter {
+			wrap json
+			request>remote_ip ip_mask 24 48
+			request>client_ip ip_mask 24 48
+			request>remote_port delete
+			request>uri regexp [?].* ?…
+			request>headers delete
+		}
+	}
+	# Uncomment to test against the Let's Encrypt staging CA (avoids rate limits while iterating
+	# on DNS/firewall):
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+# Access log: one line per request, written to a FILE that is bounded by TIME as well as size, with
+# the personal data filtered out first. Policy and reasons: docs/how-to/server-logging.md.
+#   - client IPs truncated to their /24 (IPv4) or /48 (IPv6) network, source port dropped;
+#   - the query string dropped (`?pairingSecret=`, `?token=`, `?email=` travel there);
+#   - every request and response header dropped (custom bearer headers such as X-Entitlement are
+#     not on Caddy's own redaction list, and User-Agent is a fingerprint);
+#   - rolled daily, at most 5 rolled files (gzipped), each also expired after 7 days, and the live
+#     file capped at 50 MiB: about a week at most, normally 5-6 days, on a site that keeps receiving
+#     traffic (rolling and cleanup happen only on a write). Docker's json-file driver can only bound
+#     by size, which is why this log no longer goes to stdout.
+# Read it with: docker exec <caddy container> tail -f /var/log/caddy/<site>.log   (JSON lines; pipe to jq)
+# ⚠ roll_interval needs caddy >= 2.11 — hence the pinned `caddy:2.11` image.
+# ⚠ Abuse handling: a /24 is what an operator blocks anyway. For a live incident that needs exact
+#   addresses, change the ip_mask lines below temporarily — and revert them afterwards.
+(access_log) {
+	log {
+		output file /var/log/caddy/{args[0]}.log {
+			roll_size 50MiB
+			roll_keep 5
+			roll_keep_for 168h
+			roll_interval 24h
+		}
+		format filter {
+			# JSON, not console: the console encoder writes ANSI colour codes into the file.
+			wrap json
+			request>remote_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>client_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>remote_port delete
+			request>uri regexp [?].* ?…
+			request>headers delete
+			resp_headers delete
+		}
+	}
+}
+
+{$COMMERCE_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy commerce:8081
+
+	# Coarse L7 backstop: cap per-IP in-flight request body size. Commerce bodies are tiny JSON
+	# (email + ownerId), so a small cap is plenty and rejects obvious abuse early.
+	request_body {
+		max_size 64KB
+	}
+
+	import access_log commerce
+}

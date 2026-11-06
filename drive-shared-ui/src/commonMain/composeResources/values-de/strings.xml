@@ -1,0 +1,411 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- German (de). Mirrors ../values/strings.xml key for key; ADR 0016.
+     See the English file for per-string developer notes. -->
+<resources>
+    <string name="create_folder_dialog_title">Neuen Ordner erstellen</string>
+    <string name="create_folder_dialog_title_name_taken">Name bereits vergeben</string>
+    <string name="create_folder_dialog_icon_description">Symbol „Neuer Ordner“</string>
+    <string name="create_folder_dialog_name_placeholder">Ordnername</string>
+    <string name="create_folder_dialog_confirm">Bestätigen</string>
+    <string name="create_folder_dialog_dismiss">Abbrechen</string>
+    <string name="create_folder_dialog_keep_both">Beide behalten</string>
+    <string name="create_folder_dialog_ok">OK</string>
+    <string name="create_folder_dialog_error_name_taken">Dieser Name ist bereits vergeben. Behalte beide oder wähle einen anderen Namen.</string>
+    <string name="create_folder_dialog_error_name_separator">Ein Name darf keinen Schrägstrich (/) enthalten. Erstelle den Ordner und öffne ihn dann, um darin Ordner hinzuzufügen.</string>
+    <string name="create_folder_dialog_error_storage">Nicht genug Speicher, um diesen Ordner zu erstellen.</string>
+    <string name="create_folder_dialog_error_failed">Der Ordner konnte nicht erstellt werden. Bitte versuche es erneut.</string>
+
+    <string name="multi_select_share">Freigeben</string>
+    <string name="multi_select_share_link">Link teilen</string>
+    <string name="multi_select_delete">Löschen</string>
+    <string name="multi_select_make_offline">Offline verfügbar machen</string>
+    <string name="multi_select_move">Verschieben</string>
+
+    <string name="file_item_toggle_selection">Auswahl umschalten</string>
+    <string name="file_item_preview_description">Dateivorschau</string>
+    <string name="file_item_icon_description">Dateisymbol</string>
+    <string name="file_item_more_actions">Weitere Aktionen für %1$s</string>
+    <string name="file_item_online_only_description">Nur online</string>
+    <string name="file_item_offline_pending_description">Offline behalten, wird heruntergeladen</string>
+
+    <string name="selection_top_app_bar_title">%1$d ausgewählt</string>
+    <string name="selection_top_app_bar_clear">Auswahl aufheben</string>
+
+    <string name="file_search_close">Schließen</string>
+    <string name="file_search_settings">Einstellungen</string>
+
+    <string name="rename_file_dialog_title">Datei umbenennen</string>
+    <string name="rename_file_dialog_icon_description">Umbenennen</string>
+    <string name="rename_file_dialog_confirm">Bestätigen</string>
+    <string name="rename_file_dialog_dismiss">Abbrechen</string>
+    <string name="rename_file_dialog_placeholder">Neuer Name</string>
+    <string name="rename_file_dialog_error_name_taken">Hier gibt es bereits ein Element mit diesem Namen.</string>
+    <string name="rename_file_dialog_error_name_separator">Ein Name darf keinen Schrägstrich (/) enthalten. Verwende „Verschieben“, um das Element in einen anderen Ordner zu legen.</string>
+    <string name="rename_file_dialog_error_failed">Das Element konnte nicht umbenannt werden. Bitte versuche es erneut.</string>
+    <string name="rename_file_dialog_error_still_syncing">Dieses Element wird noch mit diesem Gerät synchronisiert. Versuche es gleich noch einmal.</string>
+    <string name="rename_file_dialog_error_move_needs_local_bytes">Du bist offline und dieses Element ist nicht heruntergeladen. Lade es zuerst herunter oder benenne es um, sobald du wieder online bist.</string>
+
+    <string name="file_actions_make_available_offline">Offline verfügbar machen</string>
+    <string name="file_actions_remove_download">Download entfernen</string>
+    <string name="file_actions_make_folder_offline">Ordner offline verfügbar machen</string>
+    <string name="file_actions_make_folder_online_only">Ordner nur online speichern</string>
+    <string name="file_actions_share">Freigeben</string>
+    <string name="file_actions_manage_access">Zugriff verwalten</string>
+    <string name="file_actions_link">Link</string>
+    <string name="file_actions_move">Verschieben</string>
+    <string name="file_actions_rename">Umbenennen</string>
+    <string name="file_actions_delete">Löschen</string>
+    <string name="file_actions_details_activity">Details &amp; Aktivität</string>
+
+    <string name="move_picker_title">„%1$s“ verschieben</string>
+    <string name="move_picker_title_multi">%1$d Elemente verschieben</string>
+    <string name="move_picker_root_label">Meine Dateien</string>
+    <string name="move_picker_confirm">Hierher verschieben</string>
+    <string name="move_picker_cancel">Abbrechen</string>
+    <string name="move_picker_new_folder">Neuer Ordner</string>
+    <string name="move_picker_already_exists">Hier gibt es bereits ein Element mit diesem Namen.</string>
+    <string name="move_picker_failed">Das Element konnte nicht verschoben werden. Bitte versuche es erneut.</string>
+    <string name="move_picker_still_syncing">Dieses Element wird noch mit diesem Gerät synchronisiert. Versuche es gleich noch einmal.</string>
+    <string name="move_picker_move_needs_local_bytes">Du bist offline und dieses Element ist nicht heruntergeladen. Lade es zuerst herunter oder verschiebe es, sobald du wieder online bist.</string>
+
+    <string name="add_file_create_header">Erstellen</string>
+    <string name="add_file_create_folder">Ordner</string>
+    <string name="add_file_create_file">Datei</string>
+    <string name="add_file_upload_header">Hochladen</string>
+    <string name="add_file_upload_file">Datei</string>
+    <string name="add_file_upload_folder">Ordner hochladen</string>
+    <string name="add_file_upload_images">Bilder</string>
+
+    <string name="add_file_fab_description">Hinzufügen</string>
+
+    <string name="upload_conflict_title">Datei existiert bereits</string>
+    <string name="upload_conflict_icon_description">Warnung</string>
+    <string name="upload_conflict_keep_both">Beide behalten</string>
+    <string name="upload_conflict_ok">OK</string>
+    <string name="upload_conflict_body">Eine Datei namens „%1$s“ existiert bereits. Behalte beide oder brich ab.</string>
+    <string name="upload_error_title">Upload fehlgeschlagen</string>
+    <string name="upload_error_ok">OK</string>
+    <string name="upload_error_upload_failed">Diese Datei konnte nicht hochgeladen werden. Bitte versuche es erneut.</string>
+    <string name="upload_error_too_many_copies">Hier gibt es bereits zu viele Kopien dieser Datei. Benenne sie um oder wähle einen anderen Ordner.</string>
+
+    <string name="image_preview_more_actions">Weitere Aktionen</string>
+
+    <string name="error_drive_preview_undecodable">Dieses Bild kann nicht angezeigt werden. Möglicherweise ist es beschädigt oder hat ein Format, das dieses Gerät nicht lesen kann.</string>
+    <string name="error_drive_preview_pdf_unreadable">Dieses PDF kann nicht geöffnet werden. Möglicherweise ist es beschädigt.</string>
+    <string name="error_drive_preview_video_unplayable">Dieses Video kann auf diesem Gerät nicht abgespielt werden.</string>
+    <string name="preview_unavailable">Für diesen Dateityp gibt es noch keine Vorschau</string>
+    <string name="preview_open_externally">In anderer App öffnen</string>
+    <string name="preview_open_externally_failed">Diese Datei konnte nicht geöffnet werden</string>
+
+    <string name="pdf_preview_page_indicator">%1$d / %2$d</string>
+
+    <string name="video_preview_unsupported">Die Videowiedergabe ist auf diesem Gerät noch nicht verfügbar</string>
+
+    <string name="folder_upload_preparing">Upload wird vorbereitet…</string>
+    <string name="folder_upload_uploading">Wird hochgeladen… %1$s</string>
+    <string name="folder_upload_downloading_cloud">Wird aus der Cloud heruntergeladen… %1$s</string>
+    <string name="folder_upload_scanning">Ordner wird durchsucht…</string>
+    <string name="folder_upload_progress">%1$d von %2$d</string>
+    <string name="folder_upload_cancel">Abbrechen</string>
+    <string name="folder_upload_dismiss">Schließen</string>
+    <string name="folder_upload_summary_nothing">Nichts hochzuladen</string>
+    <string name="folder_upload_summary_uploaded">%1$d hochgeladen</string>
+    <string name="folder_upload_summary_skipped">%1$d übersprungen</string>
+    <string name="folder_upload_summary_failed">%1$d fehlgeschlagen</string>
+    <string name="folder_upload_summary_cloud_unavailable">%1$d konnten nicht aus der Cloud heruntergeladen werden</string>
+    <string name="folder_upload_summary_cancelled">Upload abgebrochen</string>
+    <string name="folder_upload_summary_cancelled_partial">Upload abgebrochen – %1$d von %2$d erledigt</string>
+    <string name="folder_upload_summary_failed_read">Dieser Ordner konnte nicht gelesen werden</string>
+    <string name="folder_upload_summary_insufficient_storage">Nicht genug Speicher, um diesen Ordner hochzuladen</string>
+    <string name="folder_upload_conflict_title">Element existiert bereits</string>
+    <string name="folder_upload_conflict_icon_description">Konflikt</string>
+    <string name="folder_upload_conflict_skip">Überspringen</string>
+    <string name="folder_upload_conflict_keep_both">Beide behalten</string>
+    <string name="folder_upload_conflict_overwrite">Überschreiben</string>
+    <string name="folder_upload_conflict_body">„%1$s“ existiert bereits in %2$s. „Beide behalten“ fügt es als „%3$s (1)“ hinzu.</string>
+    <string name="folder_upload_conflict_apply_all">Auf alle übrigen Konflikte anwenden</string>
+
+    <string name="folder_upload_cloud_preflight_title">Einige Dateien liegen in der Cloud</string>
+    <string name="folder_upload_cloud_preflight_body">%1$d Datei(en) (%2$s) sind nur in der Cloud gespeichert (OneDrive, iCloud, Dropbox…). Sie werden zuerst auf dieses Gerät heruntergeladen und dann hochgeladen.</string>
+    <string name="folder_upload_cloud_preflight_skip">Diese überspringen – nur Dateien hochladen, die schon auf diesem Gerät sind</string>
+    <string name="folder_upload_cloud_preflight_continue">Weiter</string>
+    <string name="folder_upload_cloud_preflight_cancel">Abbrechen</string>
+
+    <string name="file_sort_button_description">Dateien sortieren</string>
+    <string name="file_sort_key_name">Name</string>
+    <string name="file_sort_key_modified">Änderungsdatum</string>
+    <string name="file_sort_key_created">Erstellungsdatum</string>
+    <string name="file_sort_key_size">Größe</string>
+    <string name="file_sort_ascending">Aufsteigend</string>
+    <string name="file_sort_descending">Absteigend</string>
+    <string name="file_sort_selected_description">Ausgewählt</string>
+
+    <string name="file_view_switch_to_grid">Zur Rasteransicht wechseln</string>
+    <string name="file_view_switch_to_list">Zur Listenansicht wechseln</string>
+
+    <string name="files_list_error_title">Dieser Ordner konnte nicht geladen werden</string>
+    <string name="files_list_error_body">Deine Dateien sind sicher – Drive konnte sie nur gerade nicht lesen.</string>
+    <string name="files_list_error_action">Erneut versuchen</string>
+    <string name="files_list_error_retrying_body">Deine Dateien sind sicher – Drive konnte sie gerade nicht lesen und versucht es erneut.</string>
+    <string name="search_results_error_title">Suche gerade nicht möglich</string>
+    <string name="search_results_error_body">Das ist kein Suchergebnis – Drive konnte deine Dateien für die Suche nicht erreichen.</string>
+    <string name="my_shares_error_title">Deine Freigaben konnten nicht geladen werden</string>
+    <string name="my_shares_error_body">Alle Links, die du erstellt hast, sind weiterhin aktiv – Drive konnte sie nur gerade nicht lesen.</string>
+    <string name="files_list_empty_title">Noch keine Dateien hier</string>
+    <string name="files_list_empty_body">Dateien und Ordner, die du hinzufügst, erscheinen in dieser Liste.</string>
+
+    <string name="create_share_link_title">„%1$s“ teilen</string>
+    <string name="create_share_link_disclosure">Jede Person mit diesem Link kann diese Datei ansehen. Du kannst ihn jederzeit unter „Meine Freigaben“ widerrufen.</string>
+    <string name="create_share_link_copy">Link kopieren</string>
+    <string name="create_share_link_copied">Kopiert</string>
+    <string name="create_share_link_share_subject">Eine Datei wurde mit dir geteilt: %1$s</string>
+    <string name="create_share_link_done">Fertig</string>
+    <string name="create_share_link_generating">Link wird erstellt…</string>
+    <string name="create_share_link_generate">Link erstellen</string>
+    <string name="create_share_link_cancel">Abbrechen</string>
+    <string name="create_share_link_error">Link konnte nicht erstellt werden: %1$s</string>
+
+    <string name="storage_gate_no_storage_title">Speicher erforderlich</string>
+    <string name="storage_gate_no_storage_body">Zum Freigeben von Dateien und Ordnern brauchst du Tenshu-Speicher. Richte in Control Speicher ein, um mit dem Freigeben zu beginnen.</string>
+    <string name="storage_gate_no_storage_cta">Speicher einrichten</string>
+    <string name="storage_gate_full_title">Kein Speicher mehr</string>
+    <string name="storage_gate_full_body">Du hast deinen gesamten Tenshu-Speicher belegt. Schaffe Platz oder erweitere deinen Speicher, um weiterhin Dateien freigeben zu können.</string>
+    <string name="storage_gate_full_cta">Mehr Speicher</string>
+    <string name="storage_gate_dismiss">Nicht jetzt</string>
+
+    <string name="backup_delete_bucket_title">„%1$s“ löschen?</string>
+    <string name="backup_delete_bucket_body">Diese Dateien wurden von %1$s gesichert.\n\nDie Fotos auf %1$s sind nicht betroffen – nur die hier gespeicherten Kopien werden entfernt, und sie können nicht wiederhergestellt werden. %1$s sichert diesen Ordner weiterhin, neue Fotos kommen also weiter hier an.</string>
+    <string name="backup_delete_device_title">Sicherung von „%1$s“ löschen?</string>
+    <string name="backup_delete_device_body">Dadurch werden alle Ordner entfernt, die von %1$s gesichert wurden, nicht nur einer.\n\nDie Fotos auf %1$s sind nicht betroffen – nur die hier gespeicherten Kopien werden entfernt, und sie können nicht wiederhergestellt werden. %1$s sichert weiterhin, neue Fotos kommen also weiter hier an.</string>
+    <string name="backup_delete_confirm">Löschen</string>
+    <string name="backup_delete_cancel">Abbrechen</string>
+    <string name="backup_delete_manage">Synchronisierte Ordner</string>
+
+    <string name="change_lost_text">%1$s wurde auf einem anderen Gerät gelöscht, während deine Änderung noch ausstand</string>
+    <string name="change_lost_dismiss">Schließen</string>
+    <string name="sync_banner_locked_text">Tenshu ist gesperrt – entsperre Control, um deine Dateien zu synchronisieren und die auf deinen anderen Geräten gespeicherten zu sehen.</string>
+    <string name="sync_banner_locked_action">Entsperren</string>
+    <string name="sync_banner_local_only_text">Keine Synchronisierung – dieses Gerät hat keinen Speicherplan, deine Daten bleiben also auf diesem Gerät. Richte Speicher ein, um zwischen deinen Geräten zu synchronisieren.</string>
+    <string name="drive_control_wall_title">Tenshu Control einrichten</string>
+    <string name="drive_control_not_set_up">Tenshu Control ist installiert, aber auf diesem Gerät noch nicht eingerichtet. Drive bewahrt deine Dateien in Control auf – öffne es, um neu anzufangen oder dich deinen anderen Geräten anzuschließen, und komm dann zurück.</string>
+    <string name="drive_control_open_action">Control öffnen</string>
+    <string name="drive_control_not_installed">Tenshu Control ist auf diesem Gerät nicht installiert. Drive hält deine Dateien über Control Ende-zu-Ende-verschlüsselt und synchronisiert, daher gibt es nichts anzuzeigen, bis es installiert ist.</string>
+    <string name="drive_control_not_installed_unpublished">Tenshu Control ist auf diesem Gerät nicht installiert und noch nicht im Store erhältlich – bis dahin bleibt Drive leer.</string>
+    <string name="drive_control_not_installed_other_channel">Tenshu Control ist auf diesem Gerät nicht installiert. Installiere es auf dieselbe Weise wie Drive.</string>
+    <string name="drive_control_get_action">Control holen</string>
+    <string name="sync_banner_local_only_action">Speicher einrichten</string>
+    <string name="sync_banner_storage_full_text">Speicher voll – %1$s von %2$s belegt. Deine Daten bleiben auf diesem Gerät und nichts wird gelöscht, aber sie können erst synchronisiert werden, wenn du Platz schaffst oder deinen Speicher erweiterst.</string>
+    <string name="sync_banner_storage_full_action">Speicher verwalten</string>
+    <string name="sync_banner_needs_attention_text">Der Speicher auf diesem Gerät braucht deine Aufmerksamkeit – deine Änderungen sind hier gespeichert, können aber noch nicht synchronisiert werden. Melde dich an, um auf diesem Gerät zu synchronisieren.</string>
+    <string name="sync_banner_device_unrecognized_text">Dieses Gerät wird von deinem Konto nicht akzeptiert, daher wird hier nichts synchronisiert – deine Dateien darauf sind sicher. Öffne Control und füge dieses Gerät erneut hinzu: Es zeigt einen Code an, den eines deiner anderen Geräte bestätigen muss. Verwende nicht zuerst „Dieses Gerät vergessen“ – alles, was noch auf den Upload wartet, ginge sonst verloren.</string>
+    <string name="sync_banner_device_unrecognized_action">Control öffnen</string>
+    <string name="sync_banner_needs_update_text">Update erforderlich – deine anderen Geräte nutzen eine neuere Version von Tenshu, daher werden ihre neuesten Änderungen hier nicht heruntergeladen. Deine Dateien auf diesem Gerät sind sicher und werden weiterhin hochgeladen.</string>
+    <string name="sync_banner_needs_app_update_control">Drive ist auf diesem Gerät neuer als Tenshu Control. Aktualisiere Control, um deine Dateien wieder zu sehen.</string>
+    <string name="sync_banner_needs_app_update_this_app">Tenshu Control ist auf diesem Gerät neuer als Drive. Aktualisiere Drive, um deine Dateien wieder zu sehen.</string>
+    <string name="sync_banner_needs_app_update_both">Drive und Tenshu Control verwenden unterschiedliche Datenversionen. Aktualisiere beide, um deine Dateien wieder zu sehen.</string>
+    <string name="sync_banner_needs_app_update_action">Aktualisieren</string>
+    <string name="sync_banner_disconnected_text">Control ist nicht erreichbar – deine Dateien sind auf diesem Gerät sicher. Verbindung wird wiederhergestellt…</string>
+    <string name="sync_banner_offline_text">Offline – deine Änderungen sind auf diesem Gerät gespeichert und werden synchronisiert, sobald du wieder verbunden bist.</string>
+    <string name="sync_banner_uploading_text">Hochladen: %1$d von %2$d · noch %3$s</string>
+    <string name="sync_banner_uploading_retrying_text">Hochladen: %1$d von %2$d · Serverfehler, neuer Versuch folgt</string>
+    <string name="sync_banner_deferred_text_one">Warten auf WLAN. 1 Datei (%1$s) muss noch hochgeladen werden. Alles andere ist auf dem neuesten Stand.</string>
+    <string name="sync_banner_deferred_text">Warten auf WLAN. %1$d Dateien (%2$s) müssen noch hochgeladen werden. Alles andere ist auf dem neuesten Stand.</string>
+    <string name="sync_banner_deferred_action">Über Mobilfunk hochladen</string>
+    <string name="sync_banner_backup_waiting_wifi_one">Die Sicherung wartet auf WLAN. 1 neue Datei muss noch gesichert werden.</string>
+    <string name="sync_banner_backup_waiting_wifi">Die Sicherung wartet auf WLAN. %1$d neue Dateien müssen noch gesichert werden.</string>
+    <string name="sync_banner_backup_waiting_charging_one">Die Sicherung wartet auf ein Ladegerät. 1 neue Datei muss noch gesichert werden.</string>
+    <string name="sync_banner_backup_waiting_charging">Die Sicherung wartet auf ein Ladegerät. %1$d neue Dateien müssen noch gesichert werden.</string>
+
+    <string name="home_recent_files">Zuletzt verwendete Dateien</string>
+
+    <string name="file_details_section_details">Details</string>
+    <string name="file_details_section_activity">Aktivität</string>
+    <string name="file_details_size">Größe</string>
+    <string name="file_details_created">Erstellt</string>
+    <string name="file_details_last_modified">Zuletzt geändert</string>
+    <string name="file_details_no_activity">Noch keine Aktivität</string>
+    <string name="file_details_activity_on_device">auf %1$s</string>
+    <string name="file_details_activity_kind_created">Erstellt</string>
+    <string name="file_details_activity_kind_modified">Geändert</string>
+    <string name="file_details_activity_kind_renamed">Umbenannt</string>
+    <string name="file_details_activity_kind_moved">Verschoben</string>
+
+    <string name="shared_title">Freigegeben</string>
+    <string name="shared_tab_shared_with_me">Für mich freigegeben</string>
+    <string name="shared_tab_my_shares">Meine Freigaben</string>
+    <string name="shared_with_me_empty_title">Noch nichts für dich freigegeben</string>
+    <string name="shared_with_me_empty_body">Ordner, die andere für dich freigeben, erscheinen hier. Tippe auf einen, um ihn zu öffnen.</string>
+    <string name="shared_with_me_unnamed">Freigegebener Ordner</string>
+    <string name="shared_with_me_accept_action">Freigegebenen Ordner annehmen</string>
+    <string name="shared_with_me_accept_picker_title">Wessen freigegebener Ordner?</string>
+    <string name="shared_with_me_accept_picker_empty">Noch keine verbundenen Kontakte.</string>
+    <string name="shared_with_me_accept_none">%1$s hat noch nichts freigegeben.</string>
+    <string name="shared_with_me_accept_error">Annehmen fehlgeschlagen: %1$s</string>
+    <string name="shared_with_me_pending_grant_title">%1$s hat einen Ordner für dich freigegeben</string>
+    <string name="shared_with_me_pending_grant_body">Nimm ihn an, um ihn zu deinen freigegebenen Ordnern hinzuzufügen.</string>
+    <string name="shared_with_me_pending_accept">Annehmen</string>
+    <string name="shared_with_me_pending_decline">Ablehnen</string>
+    <string name="my_shares_empty_title">Noch keine aktiven Links</string>
+    <string name="my_shares_empty_body">Tippe bei einer Datei auf „Link“, um einen Freigabelink zu erstellen.</string>
+    <string name="my_shares_copy_id">ID kopieren</string>
+    <string name="my_shares_revoke">Widerrufen</string>
+    <string name="shared_folders_section">Freigegebene Ordner</string>
+    <string name="shared_folders_links_section">Links</string>
+
+    <string name="shared_browse_empty">Dieser Ordner ist leer</string>
+    <string name="shared_browse_error">Dieser freigegebene Ordner konnte nicht geladen werden</string>
+    <string name="shared_browse_opened_bytes">%1$d Byte</string>
+    <string name="shared_browse_close">Schließen</string>
+
+    <string name="sync_preferences_title">Sync-Einstellungen</string>
+    <string name="sync_preferences_keep_offline_title">Dateien auf diesem Gerät behalten</string>
+    <string name="sync_preferences_keep_offline_body">Standardmäßig jede Datei herunterladen, damit sie offline verfügbar ist. Schalte die Option aus, um Dateien in der Cloud zu lassen und sie erst beim Öffnen herunterzuladen.</string>
+    <string name="sync_preferences_cache_limit_title">Cache-Größenlimit</string>
+    <string name="sync_preferences_cache_limit_body">Dateien, die du offline behältst, zählen nicht dazu – nur Dateien, die beim Öffnen automatisch heruntergeladen wurden.</string>
+    <string name="sync_preferences_cache_limit_none">Kein Limit</string>
+    <string name="sync_preferences_cache_limit_dialog_title">Cache-Größenlimit</string>
+    <string name="sync_preferences_cache_limit_dialog_body">Wenn der Cache dieses Limit überschreitet, entfernt Tenshu die Dateien, die du am längsten nicht geöffnet hast. Sie bleiben in deinem Konto und werden beim nächsten Öffnen wieder heruntergeladen.</string>
+    <string name="sync_preferences_cache_limit_dismiss">Fertig</string>
+    <string name="sync_preferences_offline_files_title">Offline behaltene Dateien</string>
+    <string name="sync_preferences_offline_files_none">Auf diesem Gerät werden keine Dateien offline behalten</string>
+    <string name="sync_preferences_offline_files_count">%1$d Datei(en) auf diesem Gerät offline behalten</string>
+    <string name="sync_preferences_offline_files_remove">Aus Offline-Dateien entfernen</string>
+
+    <string name="sync_preferences_synced_folders_title">Synchronisierte Ordner</string>
+    <string name="sync_preferences_synced_folders_body">Fotos und Ordner von diesem Gerät automatisch sichern</string>
+    <string name="synced_folders_title">Synchronisierte Ordner</string>
+    <string name="synced_folders_master_title">Ordner automatisch sichern</string>
+    <string name="synced_folders_master_body">Neue Fotos in den ausgewählten Ordnern werden automatisch in dein Drive hochgeladen.</string>
+    <string name="synced_folders_storage_title">Sicherung braucht Speicher</string>
+    <string name="synced_folders_storage_body">Füge deinem Konto Speicher hinzu, um die automatische Sicherung einzuschalten.</string>
+    <string name="synced_folders_storage_cta">Speicher holen</string>
+    <string name="synced_folders_wifi_title">Hintergrunddaten nur über WLAN</string>
+    <string name="synced_folders_wifi_body">Sicherung und Synchronisierung über mobile Daten pausieren, um Zusatzkosten zu vermeiden. Gilt für alle deine Realm-Geräte.</string>
+    <string name="synced_folders_charging_title">Nur beim Laden</string>
+    <string name="synced_folders_charging_body">Sicherung pausieren, bis das Gerät geladen wird</string>
+    <string name="synced_folders_videos_title">Videos sichern</string>
+    <string name="synced_folders_videos_body">Videos können groß sein und mehr Speicher und Daten verbrauchen</string>
+    <string name="synced_folders_new_folders_title">Bei neuen Ordnern fragen</string>
+    <string name="synced_folders_new_folders_body">Erhalte eine Benachrichtigung, wenn ein neuer Ordner mit Fotos erscheint. Zu jedem Ordner wird nur ein einziges Mal gefragt.</string>
+    <string name="synced_folders_media_partial_title">Drive sieht nur ausgewählte Fotos</string>
+    <string name="synced_folders_media_partial_body">Du hast nur Zugriff auf bestimmte Fotos gewährt, daher kann Drive deine Ordner nicht sehen und keine neuen bemerken. Nur die ausgewählten Fotos werden gesichert.</string>
+    <string name="synced_folders_media_denied_title">Drive kann deine Fotos nicht sehen</string>
+    <string name="synced_folders_media_denied_body">Die Ordnersicherung braucht Zugriff auf deine Fotos und Videos. Ohne ihn werden keine Ordner gefunden und nichts wird gesichert.</string>
+    <string name="synced_folders_media_cta">Zugriff auf alle Fotos erlauben</string>
+    <string name="synced_folders_photo_location_title">Fotostandorte sind aus</string>
+    <string name="synced_folders_photo_location_body">Deine Fotos werden normal gesichert, aber Android verbirgt, wo sie aufgenommen wurden. Erlaube es, und Timeline kann ein Foto dem Ort zuordnen, an dem du es aufgenommen hast, statt ihn anhand der Uhrzeit zu schätzen.</string>
+    <string name="synced_folders_photo_location_cta">Fotostandorte erlauben</string>
+    <string name="synced_folders_folders_header">Ordner auf diesem Gerät</string>
+    <string name="synced_folders_no_folders">Auf diesem Gerät wurden keine Ordner mit Fotos gefunden</string>
+    <string name="synced_folders_item_count">%1$d Elemente</string>
+    <string name="synced_folders_document_folders_header">Andere Ordner</string>
+    <string name="synced_folders_add_folder">Ordner hinzufügen</string>
+    <string name="synced_folders_remove_folder">Ordner entfernen</string>
+    <string name="synced_folders_status_up_to_date">Auf dem neuesten Stand</string>
+    <string name="synced_folders_status_backing_up">Wird gesichert: %1$d von %2$d…</string>
+    <string name="synced_folders_status_finished">%1$d Dateien gesichert</string>
+    <string name="synced_folders_status_finished_with_failures">%1$d Dateien gesichert · %2$d konnten nicht hochgeladen werden</string>
+    <string name="synced_folders_status_finished_with_reason">%1$d Dateien gesichert · %2$d konnten nicht hochgeladen werden – %3$s</string>
+    <string name="synced_folders_status_finished_could_not_check">%1$d Dateien gesichert · %2$d warten – ob sie bereits gesichert sind, ließ sich nicht prüfen; neuer Versuch folgt</string>
+    <string name="synced_folders_status_paused_storage">Pausiert – kein Speicher</string>
+    <string name="synced_folders_status_paused_space">Pausiert – kein Platz mehr</string>
+    <string name="synced_folders_status_paused_metered">Pausiert – mobile Daten</string>
+    <string name="synced_folders_status_paused_charging">Pausiert – lädt nicht</string>
+    <string name="synced_folders_status_paused_network">Pausiert – keine Verbindung</string>
+    <string name="synced_folders_status_paused_waiting_one">%1$s · 1 Datei wartet</string>
+    <string name="synced_folders_status_paused_waiting">%1$s · %2$d Dateien warten</string>
+    <string name="synced_folders_status_paused_by_user">Pausiert – du hast die Sicherung gestoppt</string>
+    <string name="synced_folders_back_up_now">Jetzt sichern</string>
+    <string name="synced_folders_override_metered_title">Dieses Mal mobile Daten verwenden?</string>
+    <string name="synced_folders_override_metered_body">„Nur über WLAN“ bleibt aktiviert. Diese Sicherung verwendet jetzt mobile Daten; spätere warten wieder auf WLAN.</string>
+    <string name="synced_folders_override_charging_title">Ohne Laden sichern?</string>
+    <string name="synced_folders_override_charging_body">„Nur beim Laden“ bleibt aktiviert. Diese Sicherung läuft jetzt; spätere warten wieder auf das Ladegerät.</string>
+    <string name="synced_folders_override_both_title">Jetzt über mobile Daten und ohne Laden sichern?</string>
+    <string name="synced_folders_override_both_body">„Nur über WLAN“ und „Nur beim Laden“ bleiben aktiviert. Diese Sicherung läuft jetzt; spätere warten wieder auf beides.</string>
+    <string name="synced_folders_override_confirm">Jetzt sichern</string>
+    <string name="synced_folders_override_dismiss">Nicht jetzt</string>
+    <string name="synced_folders_stop">Stoppen</string>
+    <string name="sync_banner_stop_backup_action">Stoppen</string>
+    <string name="synced_folders_resume">Fortsetzen</string>
+
+    <string name="manage_access_title">Zugriff auf %1$s verwalten</string>
+    <string name="manage_access_role_owner">Eigentümer</string>
+    <string name="manage_access_member_you">Du</string>
+    <string name="manage_access_invite_link_row">Einladungslink</string>
+    <string name="manage_access_status_invited">Eingeladen</string>
+    <string name="manage_access_status_accepted_confirm">Angenommen – zum Bestätigen tippen</string>
+    <string name="manage_access_status_compromised">Link kompromittiert – sende eine neue Einladung</string>
+    <string name="manage_access_revoke">Widerrufen</string>
+    <string name="manage_access_invite_someone">Jemanden einladen</string>
+    <string name="manage_access_empty_title">Noch hat niemand sonst Zugriff</string>
+    <string name="manage_access_empty_body">Lade über die Schaltfläche + jemanden ein, sich mit dir zu verbinden.</string>
+    <string name="manage_access_role_member">Mitglied</string>
+    <string name="manage_access_grant_action">Einem Kontakt Zugriff gewähren</string>
+    <string name="manage_access_grant_picker_title">Wer soll Zugriff erhalten?</string>
+    <string name="manage_access_grant_picker_empty">Noch keine verbundenen Kontakte. Lade zuerst über die Schaltfläche + jemanden ein.</string>
+    <string name="manage_access_grant_error">Zugriff konnte nicht gewährt werden: %1$s</string>
+    <string name="manage_access_remove">Entfernen</string>
+    <string name="manage_access_removing">Wird entfernt…</string>
+    <string name="manage_access_remove_error">Mitglied konnte nicht entfernt werden: %1$s</string>
+
+    <string name="invite_link_title">Jemanden einladen</string>
+    <string name="invite_link_generating">Einladungslink wird erstellt…</string>
+    <string name="invite_link_generate">Einladungslink erstellen</string>
+    <string name="invite_link_cancel">Abbrechen</string>
+    <string name="invite_link_share_subject">Einladung zum Verbinden auf Tenshu</string>
+
+    <string name="share_action_share">Teilen</string>
+    <string name="share_action_email">Per E-Mail senden</string>
+    <string name="invite_link_copy">Kopieren</string>
+    <string name="invite_link_done">Fertig</string>
+    <string name="invite_link_disclosure">Jede Person mit diesem Link kann eine Verbindung mit dir anfragen. Er kann nur einmal verwendet werden und läuft nach 3 Tagen ab.</string>
+    <string name="invite_link_grant_parked">Diesen Ordner für die Person freizugeben, sobald ihr verbunden seid, wird mit einem kommenden Update möglich.</string>
+    <string name="invite_link_one_session">Dieser Link wird nur einmal angezeigt. Um ihn später erneut weiterzugeben, widerrufe ihn und erstelle einen neuen.</string>
+    <string name="invite_link_error">Der Einladungslink konnte nicht erstellt werden: %1$s</string>
+
+    <string name="contact_prompt_banner">Eine Einladung wurde angenommen – bestätige deinen neuen Kontakt</string>
+    <string name="contact_prompt_header">„%1$s“ hat deine Einladung angenommen</string>
+    <string name="contact_prompt_claim_note">Diesen Namen hat die Person selbst gewählt.</string>
+    <string name="contact_prompt_unnamed">Neuer Kontakt</string>
+    <string name="contact_prompt_petname_label">Speichern als</string>
+    <string name="contact_prompt_link_existing">Mit bestehendem Kontakt verknüpfen</string>
+    <string name="contact_prompt_link_existing_none">Noch keine Kontakte</string>
+    <string name="contact_prompt_save">Kontakt speichern</string>
+    <string name="contact_prompt_decline">Ablehnen</string>
+    <string name="contact_prompt_own_name_label">Dein Name, wie die Person ihn sieht</string>
+    <string name="contact_prompt_own_name_note">Wird beim Verbinden mit der anderen Person geteilt.</string>
+    <string name="contact_prompt_error">Der Verbindungsaufbau konnte nicht abgeschlossen werden: %1$s</string>
+    <string name="contact_prompt_grant_title">%1$s zu „%2$s“ hinzufügen?</string>
+    <string name="contact_prompt_grant_body">Die Person kann dann alles in diesem freigegebenen Ordner öffnen. Du kannst ihren Zugriff später entfernen.</string>
+    <string name="contact_prompt_grant_confirm">Zugriff gewähren</string>
+    <string name="contact_prompt_grant_skip">Nicht jetzt</string>
+
+    <string name="redeem_invite_title">Einladung einlösen</string>
+    <string name="redeem_invite_paste_label">Einladungslink einfügen</string>
+    <string name="redeem_invite_paste_malformed">Das ist kein Tenshu-Einladungslink.</string>
+    <string name="redeem_invite_paste_unsupported">Diese Einladung erfordert eine neuere Version von Tenshu.</string>
+    <string name="redeem_invite_inviter_fingerprint">Schlüssel der einladenden Person: %1$s</string>
+    <string name="redeem_invite_name_label">Dein Name, wie die Person ihn sieht</string>
+    <string name="redeem_invite_name_note">Wird mit der einladenden Person geteilt, damit sie weiß, wer sich verbindet.</string>
+    <string name="redeem_invite_confirm">Verbinden</string>
+    <string name="redeem_invite_waiting">Warten auf Bestätigung – du kannst das hier schließen, wir prüfen weiter.</string>
+    <string name="redeem_invite_waiting_row">Warten auf Bestätigung…</string>
+    <string name="redeem_invite_accepted_title">Ihr seid verbunden</string>
+    <string name="redeem_invite_accepted_body">„%1$s“ ist jetzt ein Kontakt. Schlüssel der Person: %2$s</string>
+    <string name="redeem_invite_accepted_intent">„%1$s“ möchte „%2$s“ für dich freigeben – die Ordnerfreigabe kommt mit einem späteren Update.</string>
+    <string name="redeem_invite_rejected">Die Anfrage wurde abgelehnt.</string>
+    <string name="redeem_invite_gone">Diese Einladung ist abgelaufen oder wurde bereits verwendet. Wenn du diesen Link nicht verwendet hast, bitte die absendende Person um einen neuen.</string>
+    <string name="redeem_invite_invalid">Beim Überprüfen dieser Einladung ist etwas schiefgelaufen. Bitte die absendende Person um einen neuen Link.</string>
+    <string name="redeem_invite_error">Die Einladung konnte nicht eingelöst werden: %1$s</string>
+    <string name="redeem_invite_close">Schließen</string>
+
+    <string name="shared_redeem_invite_action">Einladung einlösen</string>
+
+    <string name="contact_sas_title">Vergleiche diesen Code mit dem anderen Gerät</string>
+    <string name="contact_sas_match">Die Codes stimmen überein</string>
+    <string name="invite_link_show_qr">QR-Code anzeigen</string>
+    <string name="invite_link_show_link">Link anzeigen</string>
+    <string name="invite_link_qr_description">QR-Code der Einladung</string>
+    <string name="redeem_invite_scan_qr">QR-Code scannen</string>
+    <string name="redeem_invite_scan_stop">Scannen beenden</string>
+</resources>

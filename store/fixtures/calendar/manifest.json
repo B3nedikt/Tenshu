@@ -1,0 +1,46 @@
+{
+  "about": "Tenshu Calendar's store-screenshot fixture (docs/how-to/store-screenshots.md §3b): one invented person's calendars — work, family, fitness, a trip — generated at run time by store/fixtures/calendar/generate_calendar.py as one .ics file per calendar, which Calendar's -seedFixture launch imports through the same importIcs call the calendar row's Import or export… sheet makes. Nobody here is real. Every date is relative to the day of the run: `day` counts calendar days from today, `workday` counts weekdays (0 = today, or the next Monday at a weekend), `weekday` + `week` is that weekday in the week `week` weeks from this one (weeks start on Sunday, as the US region the run uses does). A `repeat` starts five weeks back, so the month grid is full on both sides of today. Times are floating (no TZID), so they read the same in any simulator time zone. `default: true` is the calendar the app seeds itself on first launch (Personal); the seed imports into it rather than creating it.",
+  "historyWeeks": 5,
+  "calendars": [
+    {"name": "Personal", "color": "4285F4", "default": true},
+    {"name": "Work", "color": "9C27B0"},
+    {"name": "Family", "color": "0F9D58"},
+    {"name": "Fitness", "color": "FF7043"},
+    {"name": "Travel", "color": "F4B400"}
+  ],
+  "events": [
+    {"calendar": "Work", "title": "Team stand-up", "on": {"workday": 0}, "at": "09:30", "until": "09:45", "repeat": "weekly:MO,WE,FR", "location": "Video call"},
+    {"calendar": "Work", "title": "1:1 with Maya", "on": {"weekday": "TU", "week": 0}, "at": "14:00", "until": "14:30", "repeat": "weekly:TU", "location": "Maya's office", "notes": "Roadmap for Q1, the hiring plan, and feedback on the onboarding redesign."},
+    {"calendar": "Work", "title": "Lunch with Priya", "on": {"workday": 0}, "at": "12:30", "until": "13:30", "location": "Café Linde, Harbour Street"},
+    {"calendar": "Work", "title": "Design critique", "on": {"workday": 0}, "at": "15:00", "until": "16:00", "location": "Studio, 2nd floor"},
+    {"calendar": "Work", "title": "Product review", "on": {"workday": 1}, "at": "11:00", "until": "12:00", "location": "Room 4B"},
+    {"calendar": "Work", "title": "Interview: senior iOS engineer", "on": {"workday": 2}, "at": "16:00", "until": "17:00", "location": "Video call"},
+    {"calendar": "Work", "title": "Quarterly planning", "on": {"workday": 3}, "at": "10:00", "until": "16:00", "location": "Harbour Office, 3rd floor", "notes": "Bring the Q4 numbers. Lunch is provided."},
+    {"calendar": "Work", "title": "Release retrospective", "on": {"workday": -3}, "at": "16:00", "until": "17:00", "location": "Room 4B"},
+    {"calendar": "Work", "title": "All-hands", "on": {"workday": 6}, "at": "17:00", "until": "18:00", "location": "Main hall"},
+    {"calendar": "Work", "title": "Workshop with the design team", "on": {"workday": -8}, "at": "13:00", "until": "17:00", "location": "Studio, 2nd floor"},
+
+    {"calendar": "Personal", "title": "Dentist — Dr. Okafor", "on": {"workday": 1}, "at": "08:15", "until": "09:00", "location": "Riverside Dental, 12 Mill Lane", "notes": "Check-up and cleaning. Bring the insurance card.", "reminders": [60]},
+    {"calendar": "Personal", "title": "Dinner with Sam & Jordan", "on": {"day": 4}, "at": "19:30", "until": "22:00", "location": "Osteria Fiume", "reminders": [120]},
+    {"calendar": "Personal", "title": "Haircut", "on": {"day": 5}, "at": "10:30", "until": "11:15", "location": "Barber & Co."},
+    {"calendar": "Personal", "title": "Car service", "on": {"workday": 7}, "at": "08:00", "until": "09:00", "location": "Westside Garage"},
+    {"calendar": "Personal", "title": "Book club", "on": {"day": -6}, "at": "19:00", "until": "21:00", "location": "Elena's place", "repeat": "monthly"},
+    {"calendar": "Personal", "title": "Concert at the Philharmonie", "on": {"day": -2}, "at": "20:00", "until": "22:30", "location": "Philharmonie, Hall A"},
+    {"calendar": "Personal", "title": "Renew passport", "on": {"day": 8}, "allDay": true},
+    {"calendar": "Personal", "title": "Call Mum", "on": {"weekday": "SU", "week": 0}, "at": "18:00", "until": "18:30", "repeat": "weekly:SU"},
+
+    {"calendar": "Family", "title": "Mia's football practice", "on": {"weekday": "TH", "week": 0}, "at": "17:00", "until": "18:15", "repeat": "weekly:TH", "location": "Northfield Park"},
+    {"calendar": "Family", "title": "Grandma Rose's birthday", "on": {"day": 6}, "allDay": true, "repeat": "yearly"},
+    {"calendar": "Family", "title": "Parents' evening", "on": {"workday": 9}, "at": "18:00", "until": "19:30", "location": "Northfield Primary School"},
+    {"calendar": "Family", "title": "Family brunch", "on": {"weekday": "SU", "week": -2}, "at": "11:00", "until": "13:00", "location": "Grandma Rose's"},
+    {"calendar": "Family", "title": "Swimming lessons", "on": {"weekday": "SA", "week": 0}, "at": "10:00", "until": "10:45", "repeat": "weekly:SA", "location": "Leisure centre"},
+
+    {"calendar": "Fitness", "title": "Run club", "on": {"weekday": "WE", "week": 0}, "at": "07:00", "until": "08:00", "repeat": "weekly:WE", "location": "Riverside path"},
+    {"calendar": "Fitness", "title": "Yoga", "on": {"weekday": "SA", "week": 0}, "at": "08:30", "until": "09:30", "repeat": "weekly:SA", "location": "Studio Prana"},
+    {"calendar": "Fitness", "title": "Climbing with Theo", "on": {"day": 2}, "at": "19:00", "until": "21:00", "location": "The Boulder Hall"},
+
+    {"calendar": "Travel", "title": "Lisbon weekend", "on": {"day": 11}, "allDay": true, "days": 4, "notes": "Hotel Alfama, booking 4471-KQ. Check-in from 15:00."},
+    {"calendar": "Travel", "title": "Flight to Lisbon", "on": {"day": 11}, "at": "07:40", "until": "10:10", "location": "Terminal 1", "notes": "Seats 14A and 14B. Bags: one checked.", "reminders": [180]},
+    {"calendar": "Travel", "title": "Flight home", "on": {"day": 14}, "at": "18:20", "until": "20:50", "location": "Lisbon Airport, Terminal 1"}
+  ]
+}

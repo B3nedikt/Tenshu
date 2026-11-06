@@ -1,0 +1,32 @@
+Tenshu Fit records your workouts and brings in your activity from Health Connect, encrypted and in sync across your devices. Only your own devices can read it.
+
+TENSHU FIT NEEDS TENSHU CONTROL
+Tenshu Control holds your keys and connects your devices. Install Tenshu Control from Google Play and set it up first, then open Fit. Fit finds Control on its own.
+
+WHAT YOU CAN DO
+- Record a run, walk, ride or strength workout. See time, distance, pace and steps as you go, with the route from GPS. Recording continues with the screen off, and you can pause, resume or stop it from the notification.
+- Connect a Bluetooth heart rate strap to see your heart rate while you record.
+- Import from Health Connect, if you allow it: workouts with their routes, steps, distance, calories burned, sleep, weight and height, heart rate and resting heart rate, blood oxygen, respiratory rate, food energy, water and cycle data. Fit imports the last 30 days, or your full history if you allow that too, and imports again when you open it.
+- Import workouts from a Google Takeout .zip, or from .gpx and .tcx files.
+- Look back over your workouts, each with its route, laps and heart rate, and see simple trends over time.
+- Set daily goals for active minutes and steps.
+
+Fit is for keeping track of your activity. It is not a medical device and gives no medical advice.
+
+HOW FIT KEEPS YOUR DATA PRIVATE
+- Your workouts and health data are encrypted on your device before they are uploaded. Tenshu's servers store only encrypted data, and they don't have the keys to read it.
+- The server can still see some facts it needs to sync: how much you store, how many devices you have, and when they sync.
+- Fit has no ads and no analytics, and it does not share your health data with anyone.
+- Fit reads from Health Connect only the kinds of data you allow, and it writes nothing to Health Connect.
+- Fit uses your location only while you record a workout.
+- Without a storage plan, your data stays on this device.
+
+REQUIREMENTS
+- Android 8.0 or later.
+- Health Connect, to bring in your health data.
+- Tenshu Control, set up on the same phone.
+- To sync between devices: a storage plan. The free plan has 5 GB.
+
+Tenshu is open source and still in testing: expect rough edges, and tell us what breaks.
+
+Help and common problems: tenshu.app/apps/fit/support/android/en

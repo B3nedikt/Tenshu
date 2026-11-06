@@ -1,0 +1,118 @@
+name: iOS
+
+# iOS K/N build + test gate (docs/proposals/ios-proxy-architecture.md).
+# The iOS targets are declared in every shared module; without a lane that compiles
+# and tests them, breakage surfaces only when someone opens Xcode ("declared-but-unbuilt
+# platform rots invisibly"). This lane compiles + tests the shared K/N surface and links every app's
+# own `TenshuSdk` framework (`:tenshu-sdk-ios-<app>`,
+# docs/proposals/ios-per-app-frameworks.md) on every PR.
+#
+# Runs on a macOS runner (Kotlin/Native iOS compilation needs Xcode).
+#
+# ⚠⚠ This lane compiles Kotlin. It does NOT compile Swift: an app shell that never compiles,
+# or a Kotlin change that breaks every app's Swift, merges with a green Kotlin gate. Hence the
+# `ios-smoke.sh --build-only` step below: it is the only check in the repo that puts the
+# SwiftUI shells in front of a compiler, and the SKIE-generated Swift surface — the thing
+# most likely to break on a Kotlin or SKIE bump — exists nowhere else.
+#
+# ⚠ This cannot be a *required* status check: branch protection needs GitHub Pro or a
+# public repo, and the API returns 403 on this plan. Two separate blockers, so check both
+# before assuming this gate is enforced:
+#   1. GitHub Actions billing (runners fail fast — see the "CI blocked by GitHub Actions
+#      billing" note; a green tick carries no information while it holds),
+#   2. branch protection availability, as above.
+# While they hold, this file documents the gate and `scripts/ios-smoke.sh --build-only` is run
+# locally on iOS-touching PRs.
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # ⚠⚠ A PIN, not a fix. control-desktop / drive-desktop resolve an `FFM_JDK = 25` launcher
+      # eagerly at CONFIGURATION time and there is no configure-on-demand, so every invocation
+      # configures them. Without the pin this does not fail — the foojay resolver in
+      # settings.gradle.kts auto-provisions 25 by DOWNLOADING it mid-configuration, which is why
+      # JDK 17 alone was green. Pinning removes that per-run download and the network dependency.
+      # 17 is listed LAST so it stays the daemon JVM. Full reasoning in android.yml.
+      - name: Set up JDK 25 (desktop FFM toolchain) + JDK 17 (daemon + shared modules)
+        uses: actions/setup-java@v4
+        with:
+          java-version: |
+            25
+            17
+          distribution: 'temurin'
+          cache: gradle
+
+      # ⚠ setup-java installs into the hosted tool cache, which is NOT a location Gradle's
+      # toolchain auto-detection scans — so the 25 above is invisible to `launcherFor` without
+      # this. `fromEnv` takes env var NAMES; setup-java exports JAVA_HOME_<version>_<arch> and
+      # the arch differs per runner (ubuntu = X64, macos-latest = ARM64), so both spellings are
+      # listed. Unset names are skipped silently (verified), so the unused half costs nothing.
+      - name: Register both JDKs with Gradle toolchain detection
+        run: |
+          mkdir -p ~/.gradle
+          echo "org.gradle.java.installations.fromEnv=JAVA_HOME_25_X64,JAVA_HOME_25_ARM64,JAVA_HOME_17_X64,JAVA_HOME_17_ARM64" >> ~/.gradle/gradle.properties
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      # Runs commonTest + iosTest for the client-facing shared modules on the
+      # iOS simulator. The `-proxy` / `-test-utils` modules are gated out at the
+      # root build (proxy code runs on Control-on-iOS — not in the iOS
+      # app under proxy-mediated EPC); see build.gradle.kts.
+      - name: Run iOS simulator tests
+        run: ./gradlew iosSimulatorArm64Test --stacktrace
+
+      # Proves each app's Kotlin links into its framework: one debug simulator
+      # slice per app, which is what the Swift step below links against
+      # (ios-per-app-frameworks.md §8.2). Release device links are ~5 min each
+      # and are proved per app by `scripts/ios-archive.sh`, not here.
+      - name: Link every app's TenshuSdk framework (simulator, debug)
+        run: >-
+          ./gradlew --stacktrace
+          :tenshu-sdk-ios-control:linkDebugFrameworkIosSimulatorArm64
+          :tenshu-sdk-ios-drive:linkDebugFrameworkIosSimulatorArm64
+          :tenshu-sdk-ios-fit:linkDebugFrameworkIosSimulatorArm64
+          :tenshu-sdk-ios-timeline:linkDebugFrameworkIosSimulatorArm64
+          :tenshu-sdk-ios-maps:linkDebugFrameworkIosSimulatorArm64
+          :tenshu-sdk-ios-photos:linkDebugFrameworkIosSimulatorArm64
+          :tenshu-sdk-ios-home:linkDebugFrameworkIosSimulatorArm64
+          :tenshu-sdk-ios-mia:linkDebugFrameworkIosSimulatorArm64
+          :tenshu-sdk-ios-calendar:linkDebugFrameworkIosSimulatorArm64
+          :tenshu-sdk-ios-contacts:linkDebugFrameworkIosSimulatorArm64
+
+      # `ios-smoke.sh` regenerates each .xcodeproj from its project.yml before
+      # building; xcodegen is not preinstalled on the runner image.
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      # The Swift half. Compiles every app shell against its framework just
+      # linked, on the SIMULATOR sdk — so no signing identity, no device, and no
+      # Apple team is needed (see the script's own note on why `generic/platform=iOS`
+      # would put this gate out of CI's reach).
+      #
+      # ⚠ Each app's Xcode prebuild relinks its framework itself rather than
+      # trusting the step above (`scripts/ios-build-sdk.sh <app>`; a stale framework
+      # tests yesterday's API), and Gradle serves it from the work already done.
+      #
+      # ⚠ Not redundant with that step either: linking proves the *Kotlin* side
+      # links, while this proves the Swift that consumes it still typechecks. A
+      # Kotlin change that breaks linking is caught above; an app shell whose Swift
+      # never compiles is caught only here.
+      - name: Compile the iOS app shells (Swift)
+        run: scripts/ios-smoke.sh --build-only
+
+      - name: Upload Test Report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-test-report
+          path: "**/build/reports/tests/**"

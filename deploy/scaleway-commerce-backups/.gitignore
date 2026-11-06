@@ -1,0 +1,32 @@
+# Never commit secrets, local Terraform state, or pipeline outputs.
+# NOTE: git ignore-rules do NOT support trailing inline comments - a '#' only
+# starts a comment at the start of a line. Keep every pattern on its own line.
+
+# your real values (DO token, Spaces keys, domain)
+terraform.tfvars
+*.auto.tfvars
+# downloaded provider binaries
+.terraform/
+# !! contains every resource attribute in plaintext, incl. the Spaces keys
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# --- pipeline outputs (inference-service.md IN-D10) ---
+# ⚠⚠ A checkpoint tower is ~380 MB. Model artifacts are built out-of-band and published to
+# Spaces; they never belong in the tree. The MANIFEST (models.json) is tracked — it is the
+# thing a human writes — and everything the signer derives from it is not.
+build/
+*.onnx
+*.bin
+catalog.json
+catalog.json.sig
+
+# NOTE: .terraform.lock.hcl is intentionally NOT ignored - commit it after the first
+# `terraform init` so every apply resolves the same provider plugins/hashes (HashiCorp's
+# recommended practice).

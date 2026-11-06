@@ -1,0 +1,47 @@
+# Fly.io deployment for the Tenshu sync relay (`:sync-relay-server`).
+# Deploy from the REPO ROOT (the Gradle build is multi-module, so the Docker build
+# context must be the root):
+#
+#   fly deploy --config sync-relay-server/fly.toml --dockerfile sync-relay-server/Dockerfile
+#
+# Full walkthrough (volume + secrets + first deploy): docs/how-to/deploy-relay-fly.md.
+# House Rule #1 unchanged: the relay stores ciphertext only — nothing here decrypts data.
+
+app = "tenshu-relay"        # rename to your Fly app on first `fly launch`
+primary_region = "fra"      # pick a region near your users
+
+[build]
+  dockerfile = "sync-relay-server/Dockerfile"
+
+# Non-secret defaults. DEV_MODE=false is REQUIRED for any public bind: it turns OFF the
+# X-Dev-Owner debug auth bypass (RelayConfig.isDevModePubliclyExposed). DATABASE_URL +
+# BLOB_DIR point at the mounted volume so registrations survive a restart.
+[env]
+  PORT = "8080"
+  BIND_HOST = "0.0.0.0"
+  DEV_MODE = "false"
+  DATABASE_URL = "jdbc:sqlite:/data/relay.db"
+  BLOB_DIR = "/data/relay-blobs"
+  # CORS for the web share viewer defaults to the apex (tenshu.app + drive/control
+  # subdomains). If the web app is served from another origin, set the full list (this
+  # REPLACES the default — include the apex too if still used):
+  #   CORS_ALLOWED_ORIGINS = "https://app.example.com,https://tenshu.app"
+
+# Persistent disk for the SQLite db + content/share blobs. Create once:
+#   fly volumes create relay_data --size 3 --region fra
+[[mounts]]
+  source = "relay_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # SQLite is a single writer, so DO NOT scale beyond one machine until the relay grows a
+  # Postgres backend (deferred). Keep exactly one always-on instance.
+  auto_stop_machines = false
+  auto_start_machines = false
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Tenshu mark — canonical SVG. Source for favicons, OG cards, anywhere outside
+  React/Compose. Mirrors marks/Outline.tsx exactly: dome head with triangle
+  "pagoda-eave" ears (reinstated in v7, see ADR 0004 which supersedes ADR
+  0003), six outward whiskers, kaomoji ω mouth, dot eyes with catchlights.
+  Uses currentColor so it inherits text color from the surrounding context.
+
+  When Outline.tsx changes, regenerate this file from it — do NOT hand-edit
+  paths separately.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img"
+    aria-label="Tenshu mark — sketch cat">
+
+    <g fill="#ffffff" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+        stroke-linejoin="round">
+        <path d="M 14 50 A 18 22 0 0 1 50 50 Z"></path>
+        <path d="M 28.8 24.2 L 18 14.1 L 15.1 31.7 C 15.1 33.9 18.4 25.9 28.8 24.2 Z"></path>
+        <path d="M 35.1 23.9 C 38.9 20.3 42.6 17.1 45.8 13.8 L 48.7 31.4 C 48.7 33.6 45.4 25.5 35.1 23.9 Z"></path>
+    </g>
+
+    <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M 20 39 Q 13 37 4 35" stroke-width="1.375"></path>
+        <path d="M 20 41 Q 12 41 3 41" stroke-width="1.375"></path>
+        <path d="M 20 43 Q 13 45 4 48" stroke-width="1.375"></path>
+        <path d="M 44 39 Q 51 37 60 35" stroke-width="1.375"></path>
+        <path d="M 44 41 Q 52 41 61 41" stroke-width="1.375"></path>
+        <path d="M 44 43 Q 51 45 60 48" stroke-width="1.375"></path>
+        <path d="M 27 43 Q 29 46 31 44 Q 32 43 33 44 Q 35 46 37 43" stroke-width="2.125"></path>
+    </g>
+
+    <g fill="currentColor">
+        <circle cx="26.5" cy="36" r="2.1"></circle>
+        <circle cx="37.5" cy="36" r="2.1"></circle>
+    </g>
+    <g fill="#ffffff">
+        <circle cx="27.2" cy="35.3" r="0.55"></circle>
+        <circle cx="38.2" cy="35.3" r="0.55"></circle>
+    </g>
+</svg>

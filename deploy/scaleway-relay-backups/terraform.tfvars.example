@@ -1,0 +1,31 @@
+# Copy to terraform.tfvars (git-ignored) and fill in.
+# ⚠ The same API key pair as deploy/scaleway-relay — on Scaleway one pair serves the API and S3.
+
+access_key = "SCWXXXXXXXXXXXXXXXXX"
+secret_key = "00000000-0000-0000-0000-000000000000"
+project_id = "00000000-0000-0000-0000-000000000000"
+
+# ⚠ Globally unique across Scaleway, and not re-creatable under the same name for a while after
+# deletion.
+bucket_name = "tenshu-relay-db-backups"
+
+# ⚠ Keep this in the same region as the box it backs up — fr-par, alongside deploy/scaleway-relay and
+# deploy/scaleway-commerce. The deliberate cross-region copy is dr_region below, not this.
+region = "fr-par"
+
+blob_mirror_bucket_name = "tenshu-relay-blobs-mirror"
+
+# The mirror's prune window (days a key must be missing from the content bucket before it leaves the
+# mirror) and its switch. ⚠ Off by default — see docs/how-to/back-up-the-relay-database.md before
+# turning it on. These only render `terraform output blob_mirror_settings_for_deploy_env`; the box
+# reads them from /opt/tenshu/deploy.env.
+# blob_mirror_retention_days = 30
+# blob_mirror_prune          = false
+
+# ---- The second region (nl-ams). ⚠⚠ Both names are globally unique; settle dr_snapshot_lock_days
+# BEFORE the first apply — Object Lock can only be switched on when a bucket is created.
+dr_region                  = "nl-ams"
+dr_bucket_name             = "tenshu-relay-db-backups-ams"
+dr_blob_mirror_bucket_name = "tenshu-relay-blobs-mirror-ams"
+# dr_snapshot_lock_days = 30            # 0 = no Object Lock, no versioning
+# dr_snapshot_lock_mode = "GOVERNANCE"  # or "COMPLIANCE" — see the how-to's open decisions

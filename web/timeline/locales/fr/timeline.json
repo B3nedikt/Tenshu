@@ -1,0 +1,203 @@
+{
+  "app": {
+    "title": "Timeline",
+    "tagline": "Là où vous êtes allé, chiffré de bout en bout."
+  },
+  "runtime": {
+    "connectingTitle": "Connexion à Tenshu en cours…",
+    "connectingBody": "L’onglet Tenshu qui héberge Timeline est occupé. Timeline se chargera dès qu’il répondra.",
+    "elsewhereTitle": "Tenshu est ouvert dans un autre onglet",
+    "elsewhereBody": "Tenshu ne s’exécute que dans un onglet à la fois, pour que vos données restent cohérentes. Utilisez-le ici pour le déplacer dans cet onglet.",
+    "moving": "En attente de la fin de l’enregistrement dans l’autre onglet. Cela peut prendre jusqu’à deux minutes.",
+    "movingShort": "Déplacement…",
+    "useHere": "Utiliser ici"
+  },
+  "crash": {
+    "title": "Une erreur est survenue",
+    "body": "Cette partie de Timeline a rencontré une erreur inattendue. Vos données sont en sécurité — rien n’a été modifié.",
+    "retry": "Réessayer",
+    "reload": "Recharger"
+  },
+  "nav": {
+    "timeline": "Chronologie",
+    "places": "Lieux"
+  },
+  "common": {
+    "back": "Retour",
+    "cancel": "Annuler",
+    "loading": "Chargement…",
+    "retry": "Réessayer",
+    "working": "En cours…"
+  },
+  "read": {
+    "failedTitle": "Impossible de charger",
+    "silentTitle": "Toujours en chargement — ou impossible de charger"
+  },
+  "stream": {
+    "stopped": "Les mises à jour se sont arrêtées — l’affichage peut ne plus être à jour.",
+    "reconnect": "Reconnecter"
+  },
+  "home": {
+    "trips": "Voyages",
+    "emptyTitle": "Rien dans votre chronologie pour l’instant",
+    "emptyBody": "Votre chronologie est enregistrée sur votre téléphone et apparaît ici une fois synchronisée."
+  },
+  "kind": {
+    "Visit": "Visite",
+    "Movement": "Déplacement",
+    "Activity": "Activité",
+    "Event": "Événement",
+    "Quiet": "Moment calme",
+    "other": "Moment"
+  },
+  "movement": {
+    "walk": "Marche",
+    "run": "Course",
+    "cycle": "Vélo",
+    "drive": "Voiture",
+    "transit": "Transports",
+    "flight": "Vol",
+    "unknown": "Déplacement"
+  },
+  "activity": {
+    "running": "Course à pied",
+    "walking": "Marche",
+    "cycling": "Vélo",
+    "strength": "Renforcement musculaire",
+    "other": "Entraînement"
+  },
+  "distance": {
+    "m": "{value} m",
+    "km": "{whole},{tenths} km",
+    "ft": "{value} ft",
+    "mi": "{whole},{tenths} mi"
+  },
+  "duration": {
+    "minutes": "{minutes} min",
+    "hours": "{hours} h",
+    "hoursMinutes": "{hours} h {minutes} min"
+  },
+  "suggestion": {
+    "label": "En faire un voyage ?",
+    "untitled": "Un voyage",
+    "days": "{count, plural, one {# jour} other {# jours}}",
+    "places": "{count, plural, one {# lieu} other {# lieux}}",
+    "accept": "En faire un voyage",
+    "dismiss": "Pas un voyage"
+  },
+  "moment": {
+    "when": "Quand",
+    "duration": "Durée",
+    "mode": "Mode",
+    "distance": "Distance",
+    "activity": "Activité",
+    "notFound": "Moment introuvable",
+    "openPlace": "Ouvrir ce lieu",
+    "placePending": "Un lieu pas encore sur cet appareil",
+    "subjectPending": "Les détails de ce moment ne sont pas encore arrivés sur cet appareil. Ils apparaîtront après la synchronisation."
+  },
+  "trip": {
+    "untitled": "Voyage sans titre",
+    "notFound": "Voyage introuvable",
+    "legs": "Étapes",
+    "days": "Jours",
+    "noDays": "Aucun moment de ce voyage n’est encore sur cet appareil.",
+    "missing": "{count, plural, one {# moment de ce voyage n’est pas encore arrivé sur cet appareil.} other {# moments de ce voyage ne sont pas encore arrivés sur cet appareil.}}"
+  },
+  "places": {
+    "empty": "Les lieux apparaissent à mesure que votre chronologie se remplit.",
+    "visits": "{count, plural, one {# visite} other {# visites}}"
+  },
+  "place": {
+    "unnamed": "Lieu sans nom",
+    "notFound": "Lieu introuvable",
+    "lastVisit": "dernière fois {when}",
+    "redirected": "Le lieu ouvert a été fusionné avec celui-ci.",
+    "rename": "Renommer",
+    "setRole": "Étiqueter comme…",
+    "merge": "Fusionner avec un autre lieu",
+    "folded": "{count, plural, one {# lieu fusionné ici} other {# lieux fusionnés ici}}",
+    "unmerge": "Séparer",
+    "visitsTitle": "Visites",
+    "noVisits": "Aucune visite sur cet appareil pour l’instant."
+  },
+  "role": {
+    "home": "Domicile",
+    "work": "Travail",
+    "none": "Aucune étiquette",
+    "yes": "Oui",
+    "prompt": {
+      "home": "Est-ce votre domicile ?",
+      "work": "Est-ce votre lieu de travail ?"
+    },
+    "refuse": {
+      "home": "Pas mon domicile",
+      "work": "Pas mon travail"
+    }
+  },
+  "roleDialog": {
+    "title": "Étiqueter ce lieu",
+    "body": "Votre réponse est enregistrée comme la vôtre et synchronisée sur vos appareils. Tenshu ne l’écrase jamais.",
+    "confirm": "Enregistrer"
+  },
+  "rename": {
+    "title": "Renommer le lieu",
+    "label": "Nom du lieu",
+    "confirm": "Renommer"
+  },
+  "merge": {
+    "title": "Même lieu ?",
+    "body": "Choisissez le lieu dont celui-ci fait vraiment partie.",
+    "with": "Fusionner avec",
+    "choose": "Choisir un lieu…",
+    "noOthers": "Il n’y a aucun autre lieu avec lequel fusionner.",
+    "next": "Continuer",
+    "confirmTitle": "Fusionner ces lieux ?",
+    "confirmBody": "« {a} » et « {b} » deviennent un seul lieu avec toutes leurs visites. Vous pourrez les séparer plus tard depuis la page du lieu.",
+    "confirm": "Fusionner"
+  },
+  "unmerge": {
+    "title": "Séparer ce lieu ?",
+    "body": "« {name} » redevient un lieu à part, avec ses propres visites.",
+    "confirm": "Séparer"
+  },
+  "map": {
+    "route": "Itinéraire",
+    "place": "Carte de ce lieu",
+    "loading": "Chargement de la carte…",
+    "routeLoading": "Chargement de l’itinéraire…",
+    "unavailable": "Carte indisponible",
+    "noWebGL": "Ce navigateur ne peut pas afficher de cartes (WebGL est désactivé ou non pris en charge).",
+    "noRegion": "Aucune donnée cartographique pour cette zone.",
+    "origin": "Départ",
+    "destination": "Arrivée"
+  },
+  "errors": {
+    "error_generic": "Une erreur s’est produite. Veuillez réessayer.",
+    "error_unexpected": "Une erreur s’est produite. Veuillez réessayer.",
+    "error_internal": "Une erreur s’est produite. Veuillez réessayer.",
+    "error_not_found": "Ce n’est plus disponible.",
+    "error_invalid_caller": "Cette application n’est pas autorisée à faire cela.",
+    "error_unannounced_session": "Tenshu doit se reconnecter. Veuillez réessayer.",
+    "error_unsupported_operation": "Cette version ne le permet pas encore.",
+    "error_timeline_invalid_zone": "Le fuseau horaire de votre navigateur n’est pas reconnu : les jours ne peuvent pas être regroupés.",
+    "error_timeline_place_not_found": "Ce lieu n’est plus disponible.",
+    "error_timeline_blank_name": "Saisissez un nom.",
+    "error_timeline_invalid_role": "Cette étiquette ne peut pas être enregistrée.",
+    "error_timeline_invalid_merge": "Ces lieux ne peuvent pas être fusionnés.",
+    "error_timeline_not_merged": "Ce lieu n’est fusionné avec aucun autre : il n’y a rien à séparer.",
+    "error_timeline_suggestion_gone": "Cette suggestion a changé entre-temps. Voici la suggestion actuelle.",
+    "error_timeline_corrupt_route": "Cet itinéraire est illisible.",
+    "error_timeline_already_merged": "C’est déjà le même lieu.",
+    "error_timeline_source_silent": "Une partie de votre chronologie n’a pas encore répondu. Elle peut encore arriver — réessayez dans un instant.",
+    "bridge": "Impossible de joindre Tenshu. Vérifiez qu’il est ouvert et déverrouillé, puis réessayez.",
+    "bridge_timeout": "Tenshu a mis trop de temps à répondre. Réessayez.",
+    "bridge_not_permitted": "Timeline n’est pas autorisé à faire cela.",
+    "error_map_transport_unconfigured": "Les cartes ne sont pas encore disponibles sur le web.",
+    "error_map_transport_failed": "Les tuiles de la carte n’ont pas pu être chargées. Réessayez.",
+    "error_map_catalog_unverified": "Le catalogue des cartes n’a pas pu être vérifié : aucune carte n’est affichée.",
+    "error_map_unknown_region": "Cette zone de carte n’est plus disponible.",
+    "error_map_bad_request": "Cette carte n’a pas pu être chargée.",
+    "error_map_unavailable": "Les cartes sont indisponibles pour le moment. Réessayez plus tard."
+  }
+}

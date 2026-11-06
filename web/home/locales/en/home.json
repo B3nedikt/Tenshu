@@ -1,0 +1,131 @@
+{
+  "app": {
+    "title": "Home",
+    "tagline": "Your devices, automations and activity — view only, end-to-end encrypted."
+  },
+  "nav": {
+    "devices": "Home",
+    "automations": "Automations",
+    "activity": "Activity"
+  },
+  "devices": {
+    "viewOnly": "Viewing only: devices show their state as it last synced. To control devices or add new ones, use Home on your Android phone or your computer.",
+    "emptyTitle": "No devices yet",
+    "emptyBody": "Devices appear here once a Tenshu Hub in your realm reports them. Adding devices on the web isn’t available.",
+    "unassigned": "Unassigned",
+    "state": {
+      "noReading": "No reading yet",
+      "on": "On",
+      "onLevel": "On · {level}%",
+      "off": "Off",
+      "connected": "Connected",
+      "disconnected": "Disconnected"
+    },
+    "kind": {
+      "light": "Light",
+      "plug": "Plug",
+      "sensor": "Sensor",
+      "thermostat": "Thermostat",
+      "speaker": "Speaker",
+      "camera": "Camera",
+      "bridge": "Bridge",
+      "other": "Device"
+    }
+  },
+  "hub": {
+    "defaultName": "Tenshu Hub",
+    "free": "{free} free of {total}",
+    "usage": "Storage used",
+    "asOf": "As of {time}",
+    "offlineAsOf": "Hub offline · as of {time}"
+  },
+  "automations": {
+    "emptyTitle": "No automations yet",
+    "emptyBody": "Automations you create in Home on Android or desktop appear here. Editing on the web isn’t available.",
+    "on": "On",
+    "off": "Off",
+    "unknownDevice": "Unknown device",
+    "trigger": {
+      "at": "At {time}",
+      "sunAt": "At {event}",
+      "sunBefore": "{minutes} min before {event}",
+      "sunAfter": "{minutes} min after {event}"
+    },
+    "sun": {
+      "sunrise": "sunrise",
+      "sunset": "sunset"
+    },
+    "action": {
+      "turnOn": "Turn on {device}",
+      "turnOff": "Turn off {device}",
+      "notify": "Notify: {message}",
+      "run": "Run automation"
+    }
+  },
+  "activity": {
+    "startOver": "Start from the top",
+    "filter": "Filter",
+    "filters": {
+      "all": "All",
+      "device": "Devices",
+      "automation": "Automations",
+      "voice": "Voice"
+    },
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "emptyTitle": "No activity",
+    "empty": "Nothing here yet — automation runs will show up in this feed.",
+    "emptyDevices": "Device events aren’t recorded yet, so nothing from your devices appears here.",
+    "emptyVoice": "Voice isn’t available yet, so nothing from Mia appears here.",
+    "deletedRoutine": "A deleted routine",
+    "outcome": {
+      "ran": "Ran",
+      "failed": "Failed",
+      "skipped": "Conditions not met",
+      "missed": "Missed — the device was not awake",
+      "throttled": "Throttled — it fired too often"
+    }
+  },
+  "errors": {
+    "error_generic": "Something went wrong. Please try again.",
+    "error_unexpected": "Something went wrong. Please try again.",
+    "error_internal": "Something went wrong. Please try again.",
+    "error_not_found": "That is no longer available.",
+    "error_invalid_caller": "This app is not allowed to do that.",
+    "error_unannounced_session": "Tenshu needs to reconnect. Please try again.",
+    "error_unsupported_operation": "This version does not support that yet.",
+    "error_home_bad_cursor": "Activity lost its place. Reload it to start from the top.",
+    "error_home_bad_page_size": "Activity couldn’t be read in pages of that size.",
+    "error_home_service_unavailable": "Home’s data can’t be reached in this browser right now.",
+    "error_home_stream_ended": "The connection to Home’s data ended.",
+    "bridge": "Couldn’t reach Tenshu. Make sure it is open and unlocked, then try again.",
+    "bridge_timeout": "Tenshu took too long to answer. Try again.",
+    "bridge_not_permitted": "Home is not allowed to do that."
+  },
+  "read": {
+    "failedTitle": "Couldn’t load this"
+  },
+  "common": {
+    "loading": "Loading…",
+    "retry": "Try again"
+  },
+  "stream": {
+    "stopped": "Updates stopped — what you see may be out of date.",
+    "reconnect": "Reconnect"
+  },
+  "runtime": {
+    "connectingTitle": "Still connecting to Tenshu…",
+    "connectingBody": "The Tenshu tab hosting Home is busy. Home will load as soon as it answers.",
+    "elsewhereTitle": "Tenshu is open in another tab",
+    "elsewhereBody": "Tenshu runs in one tab at a time, so your data can't get out of step. Use it here to move it to this tab.",
+    "moving": "Waiting for the other tab to finish saving. This can take up to two minutes.",
+    "movingShort": "Moving…",
+    "useHere": "Use here"
+  },
+  "crash": {
+    "title": "Something went wrong",
+    "body": "This part of Home hit an unexpected error. Your data is safe — nothing was changed.",
+    "retry": "Try again",
+    "reload": "Reload"
+  }
+}

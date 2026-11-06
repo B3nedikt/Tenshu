@@ -1,0 +1,34 @@
+package = org.tenshu.core.common.proxy.db.sqlite.c
+headers = sqlite3.h
+headerFilter = sqlite3.h
+staticLibraries = libtenshusqlite3.a
+# Hide what the build omits (scripts/build-sqlite-apple.sh), so a reference is a compile error in
+# Kotlin rather than a link error in whichever app is built next.
+compilerOpts = -DSQLITE_OMIT_DEPRECATED -DSQLITE_OMIT_LOAD_EXTENSION
+
+# The header search path and `libraryPaths` are supplied per target from
+# core-common/build.gradle.kts: the header is the vendored one in ../sqlite/, the library is built
+# into the module's build directory. docs/proposals/ios-shared-store-sqlite.md §2.1.1, §2.1.2 (D12).
+
+---
+
+// Three calls Kotlin/Native cannot make directly, kept in C so the compiler handles them.
+
+// sqlite3_db_config is variadic, and on Apple arm64 a variadic call does not use the ordinary
+// argument registers. Called through here, the call site is compiled by clang.
+// `on` is 1 or 0 to set, or negative to query; `*out` receives the resulting state.
+static inline int tenshu_sqlite3_no_ckpt_on_close(sqlite3 *db, int on, int *out) {
+    return sqlite3_db_config(db, SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, on, out);
+}
+
+// SQLITE_TRANSIENT is a cast macro ((sqlite3_destructor_type)-1) that cinterop does not expose.
+// SQLite copies the bytes before returning, so the caller's buffer may be unpinned at once.
+static inline int tenshu_sqlite3_bind_blob_transient(sqlite3_stmt *stmt, int index, const void *bytes, int n) {
+    return sqlite3_bind_blob(stmt, index, bytes, n, SQLITE_TRANSIENT);
+}
+
+// `bytes` is `const void *` so Kotlin passes a pinned buffer rather than a converted String, and
+// may be NULL with n == 0: a NULL pointer would bind SQL NULL, so the empty string is substituted.
+static inline int tenshu_sqlite3_bind_text_transient(sqlite3_stmt *stmt, int index, const void *bytes, int n) {
+    return sqlite3_bind_text(stmt, index, n == 0 ? "" : (const char *)bytes, n, SQLITE_TRANSIENT);
+}

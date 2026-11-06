@@ -1,0 +1,63 @@
+{
+  "about": "Every screen name scripts/store-screenshots.sh photos captures for Tenshu Photos (`captured`, from the UI test in `uiTests`), on iPhone 6.9\" and iPad 13\", light. The library is the landing set's stock photos re-dated six to a day (store/fixtures/photos/), uploaded through Drive's own seed launch on the same realm; the albums and the favourite are made in Photos by taps (docs/how-to/store-screenshots.md §3d). Adding a capture means adding it here. `landing` is the landing page's own set (§9). Docs: docs/how-to/store-screenshots.md §5.",
+  "version": 1,
+  "platform": "ios",
+  "appearances": [
+    "light"
+  ],
+  "uiTests": [
+    "photos-ios/Screenshots/PhotosScreenshots.swift"
+  ],
+  "captured": {
+    "01-library": {
+      "shows": "The library: the default mosaic, grouped by day"
+    },
+    "02-collections": {
+      "shows": "Collections: Favourites and Duplicates, three albums with their covers, the years and the Trash"
+    },
+    "03-album": {
+      "shows": "The Outdoors album (31 photos), made through New album and filled from a library selection"
+    },
+    "04-viewer": {
+      "shows": "One photo full screen in the viewer, made a favourite with its heart"
+    },
+    "05-months": {
+      "shows": "The library grouped by month, through its grouping button"
+    }
+  },
+  "landing": {
+    "about": "Keyed android/phonelanding/<lang>/[dark/]NN-screen (landing_shot calls in the walk).",
+    "script": "scripts/lib/android_shots.py",
+    "device": "phonelanding",
+    "captured": {
+      "01-library": {
+        "shows": "The library: the default mosaic of the landing set's stock photos, grouped by day"
+      },
+      "02-album": {
+        "shows": "The Autumn walks album, made through Collections → New album and filled from the viewer"
+      },
+      "03-viewer": {
+        "shows": "One photo full screen in the viewer, with its date and actions"
+      }
+    },
+    "ios": {
+      "about": "The iOS twin (scripts/store-screenshots.sh --set landing): the same names and the same content, captured by landingShot calls in the UI test below over the shipping Debug app, keyed ios/iphone69landing/<lang>/[dark/]NN-screen.",
+      "uiTests": [
+        "photos-ios/Screenshots/PhotosLandingScreenshots.swift"
+      ],
+      "device": "iphone69landing",
+      "captured": {
+        "01-library": {
+          "shows": "The library: the default mosaic of the landing set's stock photos, grouped by day"
+        },
+        "02-album": {
+          "shows": "The Autumn walks album, made through Collections → New album and filled from a library selection"
+        },
+        "03-viewer": {
+          "shows": "One photo full screen in the viewer, with its date and actions"
+        }
+      }
+    }
+  },
+  "planned": {}
+}

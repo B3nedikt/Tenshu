@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The "what's next" widget (CA-7c).
+
+  ⚠⚠ `updatePeriodMillis` is 30 minutes, which is the platform *minimum* — anything
+  smaller is silently clamped. It also does not wake the device, so a widget left on
+  a sleeping phone is redrawn when the phone wakes, not on the half hour. That is the
+  honest ceiling of what Calendar can do alone: the app owns no background scheduler
+  (Control does), and Control cannot wake a widget living in Calendar's process. The
+  other refresh trigger is leaving the app.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="180dp"
+    android:minHeight="110dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="3"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen"
+    android:initialLayout="@layout/glance_default_loading_layout"
+    android:description="@string/calendar_widget_description" />

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      Contacts reaches Control's proxy over Binder for the contact graph (Ph2); all network
+      is Control's. The client libraries merge in INTERNET, so strip it — House Rule #1
+      enforced at the OS boundary rather than by convention.
+
+      READ_CONTACTS arrived with Ph7's importer, and only for the *whole address book* row —
+      it is requested at the point of use and nowhere else, so a user who never taps that row
+      is never asked. Picking a single contact and importing a `.vcf` both work without it,
+      which is why they are listed first.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+
+    <!--
+      Lets BinderTaskTransport resolve + bind Control on Android 11+ (package visibility).
+      Without it the bind silently fails.
+    -->
+    <queries>
+        <package android:name="app.tenshu.control.android" />
+    </queries>
+
+    <application
+        android:name=".ContactsApplication"
+        android:allowBackup="false"
+        android:supportsRtl="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- The reverse (push) channel: Control binds back to this service to deliver
+             stream / callback frames — how the contact list stays live without polling.
+             Same contract Drive / Maps / Timeline / Fit / Home declare. -->
+        <service
+            android:name="org.tenshu.core.common.ClientCallbackService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="app.tenshu.control.android.IClientInterface" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>

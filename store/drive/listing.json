@@ -1,0 +1,13 @@
+{
+  "about": "What scripts/store-push.sh needs beside the copy (store-presence-and-support-pages.md §2, docs/how-to/store-listings.md). `ios.screenshots`: the screens the App Store listing shows, in order, taken from screenshots.manifest.json by sha256 — never the support pages' whole set. `languages`: store locale → the manifest's language segment. `framed`: false takes the plain captures (<device>), true the framed renders (<device>framed, scripts/store-frame).",
+  "version": 1,
+  "ios": {
+    "bundleId": "app.tenshu.drive.ios",
+    "languages": {"en-US": "en", "de-DE": "de"},
+    "screenshots": {
+      "devices": ["iphone69", "ipad13"],
+      "framed": false,
+      "screens": ["01-files", "02-photos", "03-preview", "06-share-link", "04-file-actions", "05-add"]
+    }
+  }
+}

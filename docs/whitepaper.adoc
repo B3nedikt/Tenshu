@@ -1,0 +1,771 @@
+= Tenshu: A Technology Stack And App Ecosystem To Maximize Data Privacy & Security
+Benedikt Löbbecke <mail@b3nedikt.dev>
+:bibtex-file: resources/references.bib
+:bibtex-style: ieee
+:icons: font
+:sectnums:
+
+[.author]
+Benedikt Löbbecke +
+\mail@b3nedikt.dev +
+tenshu.org
+
+[abstract]
+== Abstract
+
+Most apps we use today make it hard for users to understand when and how their data is transferred
+from their devices to parties they may not want to share their data with. We propose a multiplatform
+technology stack and app ecosystem called Tenshu to solve this problem. Apps using Tenshu can only
+communicate with external services through a proxy app. This proxy app allows the user to control
+what data such apps can access.
+
+Tenshu's core technology is a novel interface definition language (IDL) for defining data and
+service interfaces called the Tenshu IDL. In this work we want to show how Tenshu tries to enable
+the creation of software which maximizes data privacy and security.
+
+== Status of Implementation
+
+This paper is a vision document. The breadth of ecosystem it describes — proxy-mediated apps,
+the Tenshu IDL, the six-layer Tenshu Rei protocol family, semantic permissions, the Mia
+intelligent personal assistant, the Tenshu Hub, an app store with cross-store interoperability —
+is far larger than what is built in any given Tenshu repository today.
+
+What exists in the open-source `Drive` repository at the time of writing is the multiplatform
+technology stack, four feature services (file, notification, identity, sync), a Ktor-based sync
+relay with a defined protocol and partial implementation, and two reference apps: `:drive` (the
+file-management client) and `:control` (the proxy / control plane that hosts pairing, the
+recovery manifest, and the user's permission grants).
+
+The two protocols described in detail later in this paper — *realm device pairing* and *recovery*
+— are fully specified and partially implemented. Tenshu Rei, the App Platform Connection Patterns
+for iOS and the browser, the Mia voice platform, the Tenshu Hub, the App Console, and the Tenshu
+Store are forward-looking designs: they are present in this paper for the picture they paint of
+the eventual ecosystem, not as current capabilities. For the structured view of what is in
+development today and what is on the roadmap, see `docs/milestones.md` in the repository.
+
+== Motivation
+
+Currently the Apple App Store and the Google Play Store control nearly the complete mobile software
+market cite:[app_store_data]. These two distribution channels are part of what we call an app
+ecosystem. We define such an ecosystem as the combination of an app store, software services for the
+apps distributed by it, as well as first-party apps which cover many common use cases of the app
+platforms the ecosystem targets. The services offered by these ecosystems are essential for creating
+apps as they provide standardized building blocks for implementing tasks like data synchronization,
+handling push notifications and offering in-app-purchases.
+
+The Tenshu app ecosystem proposed in this work wants to improve upon existing ecosystems mainly by
+trying to maximize data privacy and security. It is built upon an open source multiplatform core
+technology stack based on an IDL which allows to define interfaces of software components in a
+platform independent way. The initial ecosystem built on this technology stack is focused on android
+apps. The main reason for this is that android is a relatively open operating system making a deep
+integration of Tenshu possible.
+
+In this work we want to first compare the Tenshu app ecosystem with the Google Play ecosystem. Then
+we want to introduce two of Tenshu's core technologies and show how they make its app ecosystem
+compatible with different app platforms. Finally we want to demonstrate how Tenshu tries to maximize
+data privacy and security using three different software categories as examples.
+
+<<<
+
+image::resources/images/example_gp.svg[float="right", scale=50%]
+
+The Google Play services app has over 10 billion downloads according to the Google Play Store
+cite:[google_play_services_app]. It provides system services which are needed to provide the Google
+Play services, the software services of the Google Play ecosystem. Apps don't consume these system
+services directly but through the Google Play services client libraries. For some functionalities
+both these client libraries and the Google Play services app use web services provided by the Google
+Cloud computing platform.
+
+The Google Play services essentially act as a centralized data storage and service provider for the
+user's apps. Next to obvious reusability advantages this centralized nature itself has benefits. As
+an example the Google Play services can bundle the operations necessary for common tasks like
+retrieving push notifications, thereby improving battery efficiency.
+
+Google's app ecosystem also has a few shortcomings though:
+
+- Firstly it only provides limited interoperability with other ecosystems: If the user wants to
+switch from Google's to Apple's ecosystem or vice versa transferring their data and digital products
+can be difficult.
+
+- Secondly it has inherent limitations concerning data privacy and security: While Google does
+review apps released on the Google Play Store, it still contains a huge amount of malware
+cite:[play_store_malware]. We assume the root cause behind this is that android apps are inherently
+hard to analyze, be it in an automated fashion or using manual reviews. Even Google's first-party
+apps only offer limited privacy due to a lack of end-to-end encryption in most of their products.
+This means that user data may be shared with government agencies cite:[google_privacy].
+
+- Thirdly Google can be seen as a gatekeeper for its mobile app ecosystem. This leads to high costs
+for app developers and may hinder innovation benefitting the overall ecosystem
+cite:[dma_policy_brief]. As an example apps and in-app products sold through Google's app ecosystem
+are subject to a service fee we consider unreasonably high — up to 30% of their developers'
+earnings cite:[google_play_store_service_fees].
+
+Before we can look at how Tenshu's app ecosystem tries to alleviate these issues, we want to
+introduce three of its software components:
+
+- The Tenshu App: This open-source android app serves provides two main features. Firstly the user
+can control which data and services an app which wants to access Tenshu services can access.
+Secondly it serves as a central data storage and service provider similar to the Google Play
+Services. For some of its features it will use external Tenshu services, which are services provided
+outside of the user's device for example by a web server.
+
+- Tenshu Essential Apps: These open-source apps cover many use cases also covered by Google's
+first-party apps. They are deeply integrated into the Tenshu ecosystem and should serve as a trusted
+first choice if the user doesn't want to use a third-party app.
+
+- The Tenshu App Console: This closed-source web portal allows distributing apps through the Google
+Play Store as well as Tenshu's own app store. Additionally it provides various app developer
+features including app telemetry and analytics while also serving as the default service provider
+for many external Tenshu services.
+
+<<<
+
+image::resources/images/example_tenshu.svg[float="right", scale=50%]
+
+Software which can interact with the Tenshu ecosystem is called Tenshu enabled. A Tenshu enabled
+android app is technically unable to access the internet directly. This means it needs to use
+services provided by the Tenshu app for all of its external communication, be it with its own app
+backend or any external Tenshu service. The Tenshu App tries to provide its services as far as
+possible based on data managed by itself, using external Tenshu services only when necessary.
+
+Tenshu tries to preserve the advantages of an ecosystem based around a centralized data storage and
+service provider, while offering the following improvements:
+
+Firstly it tries to offer a high level of interoperability with other app ecosystems. While the
+Google Play services can only be fully used on android phones running its app, Tenshu services
+support various app platforms. This is achieved through the use of its open-source multiplatform
+core technology stack which allows to define interfaces for data and services in a platform
+independent way.
+
+Secondly it is built with the aim to overcome data privacy and security limitations of
+contemporary app ecosystems. One of Tenshu's main concepts created to achieve this aim is called
+semantic permissions. These are highly descriptive app permissions which are defined using the
+Tenshu IDL. Such permissions consist of a service call and successive manipulations of its result.
+As an example, a typical app permission like "read the user's file system" would become the semantic
+permission "read the user's file system and then return the file matching a given name". A Tenshu
+enabled app describes its interface as a set of semantic permissions. The user can control what data
+and services an app can access based on its requested semantic permissions in the Tenshu App. Thanks
+to their inherently semantic nature the Tenshu App can group and present these permissions in a way
+which makes it easy for the user to decide which permission they should grant or not. Semantic
+permissions also simplify analyzing apps regarding security and privacy, making both manual and
+automated app reviews more reliable.
+ 
+Thirdly Tenshu tries to limit the way the provider of a mobile app ecosystem can act as a
+gatekeeper. This is mainly supported by the fact that the Tenshu App is open-source and all Tenshu
+external services can in theory be implemented by anyone who wishes to do so. The user can select an
+alternative service provider to be used instead of the default one in the Tenshu App. The Tenshu Rei
+protocol family, which will be introduced later in this work, also enables interoperability by
+serving as a trusted source of security relevant data created by app distributors and developers.
+
+== Terminology
+
+Before introducing Tenshu's core technologies we need to provide some terminology. Tenshu consists
+of client apps which use services and data provided by a Tenshu proxy. A proxy can be any kind of
+software, including another app. Tenshu client apps, proxies and external services are called
+components, and the definition of a component's interface in the Tenshu IDL is called its component
+manifest. The Tenshu App introduced above is an example of a Tenshu proxy.
+
+All software, data, and digital goods directly controlled by a specific user are called this user's
+*realm*. The proxies inside the realm — the devices and other agents that hold the user's master
+identity and the keys needed to decrypt the user's data — are called the user's *realm devices*.
+Realm devices synchronize the user's data end-to-end encrypted between them and perform services
+for each other. The Tenshu App, once installed and registered to a user, is a realm device. The
+realm is broader than its devices: it also covers, for example, apps and digital items the user
+purchased through the Tenshu app ecosystem, which are tracked through Tenshu Rei rather than held
+on a specific device.
+
+== Technology Stack
+
+Next we want to introduce two technologies from Tenshu's technology stack which are necessary for
+Tenshu's compatibility with different app platforms while enabling its aim of maximizing data
+privacy and security.
+
+=== Tenshu IDL
+
+The Tenshu IDL lies at the core of Tenshu's technology stack. It combines concepts from different
+existing technologies including data query languages and ontologies. Similar to serialization
+technologies like Google's Protocol Buffers it can be used for the generation of application
+programming interfaces and client side domain specific languages. Its main differentiating feature
+is that it provides a set of core abstractions intended for the definition of schemes of
+interrelated data types as well as services which operate with these data types. These data types
+essentially form an ontology. A group of related data types and services is called a specification.
+The Tenshu IDL comes with a wide range of such specifications for use cases from those expected by a
+classic data query language like data manipulation to high level use cases like app analytics. These
+use cases include most of what is offered by the Google Play services as well as use cases specific
+to Tenshu.
+
+In this work we will introduce multiple Tenshu services which are essential for its aim of
+maximizing data privacy and security. How the Tenshu IDL and its services work in detail are outside
+of this works scope though.
+
+=== Tenshu Rei
+
+The second technology from Tenshu's technology stack we want to introduce is Tenshu Rei, a
+distributed ledger protocol family divided into six smart contracts called layers. These protocols
+follow a layered architecture, meaning any lower layer knows nothing about the abstractions of the
+higher layer, and higher layers only reference abstractions from lower layers. A user of the
+protocol can however interact with all six layers at the same time. In this work we want to
+introduce the basic principles behind Tenshu Rei as far as needed to understand its benefits
+regarding data security and privacy.
+
+==== Protocol Layers
+
+We now want to introduce the three lowest layers of Tenshu Rei on a high level in ascending order:
+
+- Rei Publication Layer (RPL): This layer enables developers to create publications, data records
+which provide meta data on Tenshu enabled software created by them.
+
+- Rei Issue Layer (RIL): This layer enables the creation of issues. Issues provide various
+unverified information concerning software and their developers.
+
+- Rei Evaluation Layer (REL): This layer allows developers to create so called evaluations. An
+evaluation is a kind of certificate by one developer about the validity of an issue created by
+another developer.
+
+The first layer is responsible for providing data which can be used by a Tenshu component to
+automatically evaluate if another component can be trusted as far as possible using only information
+which does not need to be evaluated by a human. An example for such information is code signing
+data.
+
+The second layer provides information which can only be reliably evaluated by a human. These include
+certain data privacy and security relevant information like if an app fulfills specific privacy
+guidelines or government regulations. Confirmations of this information by a human are provided by
+the third layer.
+
+The higher layers, which are outside of the scope of this work, provide interoperability between app
+stores. They make it possible for app developers to allow users to use apps and products they bought
+in one app store like the Google Play Store in another app store like the Tenshu Store. Additionally
+they offer various privacy benefits like the fact that they allow an app to verify the possession
+of a digital item by the user without the knowledge of the items creator or the provider of the
+app ecosystem.
+
+App developers should never need to interact with Tenshu Rei directly, instead all interactions are
+performed by the Tenshu App Console. Proxies like the Tenshu App only read data from Tenshu Rei's
+layers, using it as a kind of central source of information. They normally access it either through
+an external Tenshu service or a shard of the blockchain managed by the proxy itself.
+
+The component manifest in a publication carries the app's declared semantic permissions, which
+proxies surface to the user as the permission set granted on install. Evaluators on the REL
+independently re-derive this permission set via static analysis of the *published* artifact —
+they do not require source-code disclosure from the developer — and additionally read the
+platform's own native manifest (the Android `AndroidManifest.xml`, iOS `Info.plist`, web app
+manifest, or desktop sandbox manifest where applicable) as an unobfuscatable backstop. A Tenshu
+app is expected to reach the user's data only through the proxy; any platform-level capability
+that would let it bypass the proxy is surfaced as a red flag the developer must justify before
+the evaluation completes. The static-analysis tooling is delivered as separately-installable
+subcommands under a single Tenshu CLI dispatcher, so developers and evaluators run only the
+half they need.
+
+==== Rei Publication Layer
+
+Next we want to take a closer look at the RPL. Every layer of Tenshu Rei contains exactly one type
+of data record which always includes a hash value identifying a specific artifact and a digital
+signature which enables a verifier to verify that the artifact has been created by a specific
+developer identity.
+
+A developer identity is an asymmetric signing key pair generated specifically for use with Tenshu
+Rei by an app developer. The data record of the RPL is called a publication and its artifact is a
+software's component manifest.
+
+Let's assume an app developer wants to publish a new app. To do this they would need to create:
+
+- a publication for their new app on the RPL
+- an issue on the RIL which asks for confirmation of their trustworthiness by another developer
+- an issue on the RIL which provides app store specific meta data including information on its
+adherence to applicable privacy guidelines and regulations
+
+A trusted developer identity can then create on the REL:
+
+- an issue which confirms that the developer identity of the app developer can be trusted
+- an issue which confirms that the app store specific meta data is correct
+
+Now the Tenshu App only needs a way to receive these five data records based on their hash values,
+and it can verify that the app is safe to install using only the public key of this trusted
+developer identity. This principle is often called a chain of trust, with the trusted developer
+identity being called its root or trust anchor. Aside from the obvious security benefits of this
+principle it also enables interoperability of the Tenshu ecosystem with other ecosystems. This is
+due to the fact that a Tenshu proxy can receive Tenshu Rei's data records in whatever way it wants
+without any specific hardware or software requirements.
+
+<<<
+== Realm Device Pairing
+
+A user's realm starts with a single Tenshu proxy when they first install the Tenshu App. Adding
+more proxies — for example a second phone, a desktop, or a Tenshu Hub — requires pairing them as
+new realm devices. Realm device pairing is a synchronous, two-way handshake performed via a sync
+relay server. It uses only ephemeral keys; the relay never sees the user's master identity or
+volume keys, only ciphertext that it cannot decrypt and short-lived public values.
+
+The handshake works as follows. An existing realm device displays a QR code containing a
+short-lived public key and a high-entropy secret. The new device scans the QR code, generates its
+own short-lived key pair, and posts a pairing request to the relay. Both devices then derive a
+shared secret via Diffie-Hellman key exchange. To rule out an active attacker who could relay
+messages between two unwitting devices, both devices display a short authentication string — a
+six-digit code derived from the shared secret — and the user confirms that the same code appears
+on both screens before approving the pairing. The existing device then encrypts the user's master
+identity and volume keys under the shared secret and posts the ciphertext to the relay; the new
+device retrieves and decrypts it, completing pairing. Either device closing the pairing dialog
+invalidates the session.
+
+This handshake is distinct from the app-to-proxy pairing described in the External Proxy Connection
+section below. App-to-proxy pairing establishes a private channel between one client app and one
+proxy that the app then trusts as a single endpoint. Realm device pairing extends the user's
+cryptographic membership set so that a new proxy can decrypt the user's data and act on the user's
+behalf throughout the realm.
+
+<<<
+== Recovery
+
+Realm device pairing assumes the user has at least one existing realm device to pair from. If the
+user loses every device — phone stolen, laptop destroyed, all in-home backups gone — they need a
+way to re-establish their realm from nothing. Tenshu provides this through a 24-word recovery code
+shown once at signup.
+
+A key derived from the recovery code wraps an encrypted backup blob stored server-side by a
+Tenshu-operated backup service. When the user enters the recovery code on a fresh install, the
+proxy fetches the blob, decrypts it locally, and seeds itself with the user's master identity. The
+recovery code itself never leaves the user's possession, and the backup service only ever sees the
+encrypted blob. This keeps the recovery path consistent with the Zero-Trust Backend principle: even
+if the backup service is fully compromised, the attacker is left with ciphertext encrypted under
+a key derived from a 256-bit mnemonic.
+
+The contents of the backup blob are not fixed. Each user maintains a recovery manifest in the
+Tenshu App that lists which of their volumes participate in server-side recovery. The master
+identity key is always included — without it, no new realm device can be paired in — but each
+volume is opt-in. A user who wants their notes recoverable but not their photos can express that
+directly. Editing the manifest re-encrypts and re-uploads the blob. Volumes that are not in the
+manifest remain recoverable only through a surviving realm device; if the user loses every device
+and a volume is not in the manifest, that volume's data is lost by design.
+
+The trade-off the manifest exposes — convenience versus the size of the surface that depends on
+the recovery code — is intentional. The recovery code is the load-bearing secret for everything in
+the manifest, so users who want a smaller surface can shrink it; users who prioritise getting
+back to their data quickly after total loss can expand it. The Tenshu App makes the consequences
+of each choice explicit when the user edits the manifest.
+
+<<<
+== App Platform Connection Patterns
+
+The Tenshu app ecosystem is compatible with many existing app platforms. Depending on the
+capabilities of an app platform it either employs the direct proxy connection or the external proxy
+connection pattern to enable communication between its components. We now want to present both
+patterns.
+
+=== Direct Proxy Connection
+
+With this connection pattern an app cannot technically access the internet or any service available
+on the device by itself. Instead the app directly connects itself with the Tenshu proxy to realize
+all its external data needs. This is the preferred connection pattern and is used for android apps,
+web apps and on desktop platforms.
+
+For this connection pattern to be useable an app platform needs to support two things:
+
+- Firstly the client app needs to be able to connect itself with the proxy directly on device
+
+- And secondly the proxy needs to be able to verify that the client app cannot access any external
+data without going through the proxy
+
+The android operating system offers powerful inter-process communication capabilities that make
+fast, secure and efficient data exchange between the client app and the Tenshu App possible.
+Evaluation of the permissions of the client app by the Tenshu App is done using androids
+PackageManager API, which allows an app to check another apps manifest file
+cite:[android_package_manager]. This file contains essential information about the app including its
+permissions. A lack of the internet permission as well as other permissions which could potentially
+leak user data ensures that no external data can be accessed without going through the Tenshu proxy.
+To make sure these permissions match the expected permissions they are also compared with the
+permissions specified in its publication on the RPL. Depending on the android version and
+distribution method the app's code signing data is also evaluated.
+
+On desktop platforms the proxy runs as a user-session background service — present in the system
+tray or menu bar and started at login — and apps connect to it through a per-user Unix domain
+socket on macOS and Linux or a named pipe on Windows. The channel between client and proxy is
+therefore local and authenticated, and the proxy verifies the connecting process's identity
+through OS peer-credential APIs before completing the pairing handshake. Whether the operating
+system additionally enforces that an app cannot reach data outside the proxy depends on how
+the app is distributed: Flatpak on Linux, MSIX on Windows, and sandboxed App Store or sandboxed
+Developer ID distribution on macOS all enforce a manifest-declared capability set at runtime,
+and the proxy treats these channels as the preferred path for both first-party and third-party
+apps. Where an app is classically distributed — a raw `.dmg`, an AppImage, a non-MSIX
+installer — the operating system does not enforce its manifest; the proxy still mediates
+everything the app does through it, but the user is shown that OS-level sandboxing is absent
+and the Rei evaluation chain is the only assurance the app stays inside its declared
+permissions.
+
+For using Tenshu in the browser users need to install a cross-browser extension. This extension acts
+as a Tenshu proxy, which the user can connect with their other proxies. There are two options for
+integrating Tenshu into web apps: web app integration and browser app integration.
+
+Web app integration is the simpler integration option intended for use cases where a web app needs
+to use only specific Tenshu functionalities, like cryptocurrency payments or filling out a form. The
+main limitation of this integration is that every interaction with the Tenshu proxy needs an
+explicit user confirmation. Also only a limited subset of Tenshu services are available when using
+this integration option.
+
+If the limitations of a web app integration are to restrictive for a specific use case, browser apps
+need to be used. Tenshu browser apps are web apps which require a publication on the RPL. This
+publication includes the app's component manifest which itself includes among other information the
+app's version and code signing data. The Tenshu proxy browser extension will use this information to
+verify that the app corresponds to the one published on the RPL. The code signing scheme used by
+browser apps is specific for them, as currently no web standard for code signing exists. The Tenshu
+proxy browser extension will also isolate the web app by blocking all web requests which exceed the
+app's semantic permissions as defined by its component manifest.
+
+<<<
+=== External Proxy Connection
+
+Where the direct proxy connection pattern cannot be used we need to rely on the external proxy
+connection pattern. With this connection pattern apps don't communicate with a proxy app installed
+on the user's device directly, but instead through an external communication channel like the public
+internet.
+
+The external proxy connection pattern should be used when implementing a Tenshu proxy on device
+would not make sense due to usability or technical limitations. A good example for such a platform
+is Apple's iOS, which doesn't allow apps to communicate directly with each other on-device to the
+extent required by Tenshu.
+
+Note that the pairing described below is distinct from realm device pairing: it links one client
+app to one proxy as a trusted endpoint, but does not make the app a realm device. The app gains
+access only to whatever the proxy chooses to expose to it, mediated by the user's semantic
+permission grants.
+
+For securing apps using the external proxy connection pattern we use the following three security
+measures:
+
+First we establish a trusted end-to-end encrypted communication channel between the app and the
+proxy. This is done by exchanging short-lived public keys to perform an authenticated key exchange;
+the resulting shared secret is then used for symmetric authenticated encryption of all subsequent
+communication between the two components. Tenshu calls this pairing the app with the proxy. Key
+exchange must always happen in a way that no third-party needs to be trusted, preferably in a way
+only possible when the two devices are physically close. For mobile devices this can be achieved
+using QR codes or NFC, and as with realm device pairing, the user confirms a short authentication
+string on both screens to rule out an active attacker. This pairing is made transparent to the user
+by the proxy, and the user may terminate it anytime.
+
+Secondly the proxy verifies that the app it is communicating with is the app it claims to be and it
+has not been modified. The proxy uses a client platform specific protocol based on platform specific
+mechanisms for app attestation like the app attest service on iOS cite:[apple_app_attest] to
+achieve this.
+
+Thirdly the proxy verifies the permissions of the app using Tenshu Rei. To make this possible apps
+that would like to access the user's realm using an external proxy need to create a publication for
+their app on the RPL, and make its archive file available to an issue on the RIL. Evaluators on the
+REL can then use static code analysis to confirm that the permissions of the app match the
+permissions declared in its publication. In case of an iOS app this can be done by extracting its
+Info.plist file from its archive file and evaluating the app permissions listed in it. A Info.plist
+file is a kind of iOS specific manifest file which details important app meta data.
+
+Combined these security measures should enable a high level of security for the user's data assuming
+the user trusts platform specific security mechanisms like app attestation. In case of a security
+breach the proxy app informs the user about the issue as soon as it is detected. However it cannot
+prevent it to the extent possible with a direct proxy connection. Also apps using an external proxy
+obviously need to consider the challenges associated with unreliable communication channels like
+network partitioning and unreliable connection speeds in their architecture.
+
+=== Web Tenshu
+
+The web is unique among Tenshu's target platforms in that it supports *both* connection
+patterns described above, with the user choosing which one applies based on whether they install
+the Tenshu browser extension.
+
+Without the extension, web Tenshu uses the *External Proxy Connection* pattern. The user
+visits `tenshu.app`, logs in via WebAuthn, and gets the full Control experience — first-party
+Tenshu apps load on per-app subdomains (`drive.tenshu.app`, `mia.tenshu.app`, …) and
+communicate with the apex via postMessage. The "remote proxy" lives in the apex's own browser
+tab or installed PWA, with a server-side ciphertext relay for realm-to-realm sync. This is the
+path users get without any install — fast access from any device.
+
+With the extension installed, web Tenshu adds the *Direct Proxy Connection* pattern. The
+extension intercepts requests from any browser origin and routes them through the apex,
+enabling third-party Tenshu integrations on websites outside `*.tenshu.app`. The third-party
+tier requires a Tenshu Rei publication for the integrating site and is delivered as a follow-on
+milestone once Rei's RPL / RIL / REL are operational. The extension does not hold the master
+key — the master key always lives in the apex origin's IndexedDB, scoped to `tenshu.app`, and
+the extension delegates crypto operations to the apex.
+
+Progressive Web App install is orthogonal to both connection patterns and is purely a UX
+upgrade: app-icon launching, standalone window, durable local storage, push notifications. PWA
+install does not change the connection pattern, the security model, or where the master key
+lives. For the apex specifically, the installed PWA also serves as the always-available proxy
+endpoint that the browser extension routes through.
+
+The detailed architecture — per-app subdomain isolation, the extended manifest format with
+semantic-permission declarations, the onboarding flow, and the implementation stack
+(TypeScript + React + a KMP-shared protocol layer published as `@tenshu/sdk`) — is specified
+in `docs/web/architecture.md`.
+
+It is noteworthy that Tenshu cannot be used with some app platforms. This includes platforms which
+perform all data processing in the cloud like Amazon Alexa. For use cases normally performed with
+such platforms Tenshu provides alternative app platforms which support its technologies natively. We
+will look into the Tenshu Mia app platform later as an example.
+
+<<<
+== Data Privacy & Security Design Principles
+
+We assume data privacy and security to be inherently connected: Data privacy always implicitly
+assumes that a system is also secure, otherwise it cannot guarantee to keep the user's data private.
+As complex systems like software are always susceptible to security issues, there can never be
+complete privacy. We assume that the closest one can get to complete privacy, is a software without
+any known vulnerabilities, where the user is always in full control of their data. Tenshu calls this
+true privacy.
+
+However true privacy is obviously not always possible, as most software needs to process data
+outside of the user's control to fulfill its purpose. In such cases Tenshu enabled software should
+try to maximize data privacy and security as far as possible. To achieve this Tenshu employs the
+following four software design principles:
+
+Minimal Information: Software should always share as little user data as possible with its developer
+and third-parties. This can be achieved by using technologies like end-to-end encryption and
+anonymization whenever possible.
+
+Decentralization: Centralized computing is always inherently more vulnerable to security and privacy
+issues than decentralized on-device computing. While big companies like Meta Platforms or Google
+claim they protect their user's data with many security mechanisms and compliance processes, massive
+privacy breaches still happen occasionally. We believe the best solution to this problem is to store
+and process data as much as possible on devices controlled by the user instead of on centralized
+cloud services.
+
+Zero-Trust Backend: Where centralized infrastructure cannot be avoided — for example a sync relay
+that buffers ciphertext between offline devices, or an encrypted backup blob the user can fall back
+on if every device is lost — that infrastructure must be designed under the assumption that
+compromising it does not reduce the security of the system. A breached Tenshu service should yield
+only ciphertext and timing metadata, never plaintext or long-term keys. This is the corollary of
+decentralization: the small amount of centralized computing Tenshu does perform has to remain a
+non-trust-bearing convenience layer, not a single point of failure.
+
+Data Transparency: Software should be designed so that users can understand what actually happens with
+their data. The biggest privacy concern of users concerning mobile apps is that an app requests too
+many permissions cite:[app_privacy_at_scale]. We assume the main reason for this is that it is hard
+for users to actually control and understand:
+
+- When and how apps transfer data from their device over the internet to the developer or
+third-parties
+
+- And what data is exactly transferred
+
+Privacy concerns regarding an app may lead to a potential user choosing a different app of
+comparable quality, even if they don't actually know if their concerns are justified
+cite:[app_privacy_at_scale]. We will see later how semantic permissions can help providing the user
+transparency into how an app handles their data.
+
+These software design principles should enable the creation of software which is secure and private
+by design. The Tenshu App Store does try to convince app developers to adhere to these principles as
+close as possible. It does so by making the user aware when an app converges in an unjustifiable way
+from these principles, while presenting apps which follow these principles closely favorably. To
+easily follow these principles app developers should use the intended Tenshu services for the task
+they are trying to implement over a more generic service.
+
+<<<
+
+== Example Integrations
+
+We now want to look at three concrete software categories to show how Tenshu enabled software
+benefits from the design principles introduced before. We will see that these principles also
+provide various other advantages besides their main intent to improve data privacy and security.
+
+=== Personal Timeline Software
+
+We define a personal timeline software as a software solution which enables the user to keep a
+record of events from their life. We now want to first introduce the Google Maps Timeline which
+combined with other software products from Google forms such a software solution. Then we want to
+show the advantages a solution implemented using Tenshu would offer compared to it.
+
+Google will automatically keep a so called Location History of the user when using Google Maps and
+other Google products. The Location History is essentially just a list of physical locations likely
+visited by the user, while the Google Maps Timeline visualizes these locations. Basic analytics
+features of the Google Maps Timeline enable the user to get some insights into trips they made in
+the past, their commute routes and similar information cite:[google_maps_timeline]. If needed the
+user can export their data from all Google products they use using the Google Takeout product
+cite:[google_takeout].
+
+This software solution suffers from the following shortcomings:
+
+- Firstly the size of the data exported with Google Takeout can be gigabytes in size. This means
+that downloading all of the user's data can take a while depending on their internet connection.
+If the user then wants to use the data in another service, uploading all the data again, takes a lot
+of time as well. While it is possible to download only the actual location data, this is not really
+useful if the user is also interested in related data like the pictures they made during their
+trips.
+
+- Secondly, while you can quickly export the Location History using Google Takeout, the exported
+data is essentially just a collection of JSON files and does not follow any specific standard. Any
+app importing this data must implement support for this structure specifically to use it.
+
+To implement a product like Google Timeline using Tenshu one should use its User History Service.
+This service provides a timeline of events concerning the user. These events contain among other
+data the places the user visited and when they created binary data like photos. The user's proxy
+will continuously synchronize this data between all devices forming the user's realm end-to-end
+encrypted.
+
+A solution implemented using Tenshu has the following advantages:
+
+- Improved usability: As the data is saved in the user's realm, the user can always access their
+data, making batch export software like Google Takeout unnecessary. This also makes migration to a
+different app with similar features far easier.
+ 
+- Improved data privacy and security: The user's data is end-to-end encrypted across their realm
+devices. Unlike with Google's Location History, even a fully compromised Tenshu sync relay only
+yields ciphertext and high-level timing metadata to the attacker — never the contents of the user's
+timeline or the keys needed to decrypt it.
+
+- Improved interoperability: With Tenshu the user's data can be accessed by any Tenshu client app
+right from the user's device using services based on a data model defined by a Tenshu specification.
+
+We see that Tenshu allows for the development of a personal timeline software with improved data
+privacy, data security, usability and interoperability when compared to Google's current software
+solution.
+
+=== Smartphone Utility Apps
+
+We define smartphone utility apps as apps which fulfill a simple singular function like a flashlight
+or metronome app. For most of these apps the only legitimately relevant user data for the app
+developer would be data for personalized advertising as well as analytics data for product
+improvement. The main fear of the user when using such an app is that the app might try to spy on
+them in some way by sending their personal information to the app developer
+cite:[app_privacy_at_scale].
+
+Let's assume a simple photo enhancement app needs permissions for read and write access to the file
+system, access to the user's location, and access to the internet. It uses the file system
+permissions to load the data for photo enhancement and the user's location and internet permission to
+display localized ads to the user for monetization. The user however cannot know if the app does not
+just permanently track their location to spy on them or abuses their data in some other way.
+
+If this utility app would be Tenshu enabled the user could manage its external communication using
+semantic permissions. This would make it transparent to the user what data the app shares with its
+developer. If personalized advertising is acceptable to the user, an app could use the Tenshu
+Monetization Service. This service, which can be implemented by any service provider who wishes to
+do so, allows the user to control exactly how their data is handled with regard to anonymization and
+personalization.
+
+This is also beneficial to the developer, as they can now target user groups that would otherwise
+not use their app due to privacy concerns. Tenshu allows app developers in a standardized way to:
+
+- never display advertisements in their app if the user prefers to pay money to the app developer in
+the form of a subscription or one-time payment over advertising
+
+- display only a few advertisements when the user finds personalized advertising acceptable
+
+- display more advertisements when the user is only ok with non-personalized advertising
+
+This can be controlled by the user directly in the Tenshu proxy, both per app as well as for all
+apps installed on their phone. Tenshu also offers similar standardized mechanisms for other privacy
+sensitive tasks like app analytics. This standardization should make it easier for users to
+understand how these services work, compared to every app implementing these in their own way. In
+summary Tenshu gives the user more control and transparency over how their data is used.
+
+=== Intelligent Personal Assistants
+
+We define an intelligent personal assistant (IPA) as a software which performs tasks for its user
+based on natural language input. Typical examples are the Google Assistant, Apple Siri and Amazon
+Alexa. These IPAs are also app platforms, as they can run apps developed by third-party developers
+which extend the functionality these IPAs provide by themselves. Users share potentially highly
+sensitive information with IPAs. Contemporary IPAs however provide only limited transparency on how
+they handle this data. We now want to first discuss two reasons why an IPA needs to collect user
+data, and how Tenshu could make this data collection more transparent. Then we want to propose
+Tenshu Mia, an IPA app platform based on Tenshu.
+
+<<<
+The first reason is that IPAs highly depend on machine learning (ML) algorithms for many of their
+features, which means they need to collect data to improve their ML models. An example for an
+ML-related feature every IPA needs is speech recognition. Some companies which offer an IPA claim that
+this feature is realized in part on the user's device cite:[google_federated_learning],
+cite:[apple_privacy]. However there is no way for the user to verify if privacy preserving ML
+techniques like on-device ML are used by an IPA or not.
+
+This lack of transparency leads to the user thinking that "Google listens" to them, even when the
+device in discussion may actually not be transferring the data the user suspects it to. Let's look
+at an example. If a user is logged into their Google account when browsing for a specific term they
+discussed with their family before, they may later see advertisements for a related product. If the
+user had a smart device running the Google Assistant near them during the discussion, it clearly
+looks like Google just listened into their family conversation. This is due to it not being
+transparent to the user that Google could have also received the same information from their Google
+search.
+
+This issue can be resolved by making it transparent to the user which of their devices shared what
+data with the company that produces their IPA. The Tenshu App makes this possible by visualizing all
+user events, where an app running on any of the user's devices accessed the internet. The data used
+for this visualization comes from the User History Service already mentioned before.
+
+Tenshu also defines its ML services so that privacy preserving techniques like federated learning
+and on-device ML are the default path, in line with Tenshu's minimal information principle. While
+Tenshu cannot itself guarantee the implementation choices of a third-party service provider, the
+service contract specifies what data may leave the user's realm, and the Tenshu App makes the
+provider's adherence visible to the user. As with any external Tenshu service the user can select for each of
+these services its service provider in the Tenshu App. The Tenshu App also assists the user with
+their decision by displaying relevant information like government regulations on privacy the service
+provider is subject to.
+
+The second reason why an IPA needs data on the user is to better understand their intention. For
+example even a simple command like "Please create an alarm tomorrow at 9:30" already needs user
+information. Knowledge about the user like if they usually say times using the 24-hour clock, their
+working hours, or their calendar events make it far easier for the IPA to guess their intent
+correctly. In case it guessed correctly it can just inform the user about what action it wants to
+perform and the user can confirm it. If the IPA guessed incorrectly the user needs to tell the
+IPA in more detail what they want. In case this happens often the user may get annoyed. However
+users often don't provide their IPA enough information to understand their intention.
+
+We assume the reason for this is that many users don't trust IPAs like Alexa to handle their data
+sensitively. Alexa stores nearly the entire user data on Amazon's servers unencrypted and only
+protects it using compliance processes cite:[amazon_alexa_privacy]. The user has no guarantee that
+Amazon does not misuse this data in any way.
+
+However this design decision has two advantages for the user. First it allows for the creation of
+smart speakers with low hardware costs. As Alexa stores and processes all data in the cloud, the
+smart speaker itself needs to be only able to exchange voice recordings with the cloud and play
+audio data received from it. Secondly all of the user's data is always synchronized.
+
+For Tenshu this design decision means it cannot support the Amazon Alexa app platform. Implementing
+a Tenshu proxy on it would make no sense, as many benefits of Tenshu stem from the fact that the
+Tenshu proxy stores and processes data on a device controlled by the user. To solve this problem we
+propose the alternative IPA app platform Tenshu Mia.
+
+image::resources/images/tenshu_mia.svg[float="right", scale=75%]
+
+Tenshu Mia is an IPA built around the Voice App Service, a Tenshu service which can run so called
+voice apps. Voice apps are Tenshu enabled apps which perform actions on natural language input. Like
+with other Tenshu enabled apps the user can control what data and services voice apps can access
+using semantic permissions. Users can interact with Tenshu Mia through a Tenshu Essential App of the
+same name. This app simply records audio, sends it to the Voice App Service and presents whatever
+data it receives from it to the user.
+
+The user can also interact with Mia using a smart speaker connected to the Tenshu Hub device, a
+smart home device which runs a Tenshu proxy. This proxy provides the Hub Management Service, which
+allows the user to manage the Tenshu Hub from any device of their realm. To enable this the user
+needs to pair the Tenshu Hub with their smartphone using Bluetooth. The Tenshu Hub offers many features
+expected of a smart home bridge including the ability to connect itself to supported IoT devices
+like smart light bulbs.
+
+Tenshu Mia also benefits from many Tenshu concepts:
+
+- Realm Synchronization: Like any Tenshu service, the services used by Tenshu Mia handle all their
+data in the user's realm. Therefor this data is synchronized between all of the user's devices while
+preserving their privacy. This also means that data generated by Mia is available to other apps of
+the user, while Mia can benefit from the data already available in the realm.
+
+- Tenshu Services: Other then the privacy related benefits of Tenshu's ML related services discussed
+before, the fact that Mia has access to Tenshu services also has usability advantages. Normally when
+setting up a new IPA like Alexa the user needs to connect every external service like their music
+streaming platform with Alexa before they can use it. Mia however can just use any external service
+already connected to the user's proxies.
+
+- Decentralization: If an Alexa smart speaker loses its connection to the internet, it will no
+longer work. A smart speaker using Mia however can connect itself with any device running a Tenshu
+proxy on the local network, be it the Tenshu Hub or the user's smartphone.
+
+To summarize Tenshu Mia achieves improved data privacy and security compared to other IPAs by
+following the design principles of minimal information, decentralization and transparency. Aside
+from these main benefits Tenshu Mia also offers advantages regarding availability, interoperability
+and usability.
+
+== Conclusion
+
+We first introduced Tenshu as a technology stack and app ecosystem. Then we showed how it can be
+integrated into different app platforms and introduced its design principles to maximize data
+privacy and security. We then analyzed how these principles provide various benefits for three
+different software categories. These included next to the mainly intended data privacy and security
+benefits, also other advantages like improved interoperability and usability.
+
+<<<
+[bibliography]
+== Bibliography
+
+bibliography::references.bib[ieee]

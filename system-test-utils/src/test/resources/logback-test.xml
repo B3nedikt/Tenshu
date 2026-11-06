@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Test logging. logback prefers logback-test.xml over logback.xml, so this replaces the production
+  config (src/main/resources/logback.xml, pinned by LogbackConfigTest) on the test classpath:
+  our own lines at DEBUG for useful failure output, libraries at WARN.
+  In :system-test-utils it also settles which config wins: the relay's and commerce's production
+  logback.xml can both be on that classpath, and logback would otherwise pick one with a warning.
+-->
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="org.tenshu" level="DEBUG"/>
+    <logger name="io.ktor.server.Application" level="INFO"/>
+    <logger name="io.ktor" level="WARN"/>
+    <logger name="io.netty" level="WARN"/>
+    <logger name="software.amazon.awssdk" level="WARN"/>
+    <logger name="com.adobe.testing" level="WARN"/>
+    <logger name="org.springframework" level="WARN"/>
+    <logger name="com.zaxxer.hikari" level="WARN"/>
+    <logger name="org.postgresql" level="WARN"/>
+
+    <root level="INFO">
+        <appender-ref ref="STDOUT"/>
+    </root>
+</configuration>

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Drive</string>
+
+    <string name="navigation_home">Home</string>
+    <string name="navigation_files">Files</string>
+    <string name="navigation_shared">Shared</string>
+
+    <!-- Folder-upload foreground-service notification channel
+         (docs/proposals/drive-folder-upload.md §5d): low-importance, silent,
+         no vibration; ongoing while an upload is in flight. -->
+    <string name="folder_upload_channel">Uploads</string>
+
+    <!-- Synced Folders auto-backup foreground-service notification channel
+         (docs/proposals/drive-synced-folders.md §5 step 6): low-importance,
+         silent; ongoing while a backup drain is in flight. -->
+    <string name="synced_folders_channel">Backup</string>
+    <!-- The backup summary's body when the "already backed up?" check could not read the realm, so
+         the photos were held back rather than uploaded twice (photos-app.md §40). -->
+    <string name="synced_folders_failure_could_not_check">Could not check whether these are already backed up. Will retry.</string>
+
+    <!-- New-folder prompt (drive-synced-folders-new-folder-prompt.md). Its own
+         DEFAULT-importance channel, separate from the low-importance backup
+         progress channel above, so the two are independently silenceable. -->
+    <string name="new_folder_channel">New folders</string>
+    <string name="new_folder_channel_description">Asks whether to back up a folder that appears in your gallery. Each folder is only ever asked about once.</string>
+    <string name="new_folder_title">Back up “%1$s”?</string>
+    <plurals name="new_folder_body">
+        <item quantity="one">This folder has %1$d photo that isn\'t backed up.</item>
+        <item quantity="other">This folder has %1$d photos that aren\'t backed up.</item>
+    </plurals>
+    <string name="new_folder_accept">Back up</string>
+    <string name="new_folder_dismiss">No thanks</string>
+</resources>

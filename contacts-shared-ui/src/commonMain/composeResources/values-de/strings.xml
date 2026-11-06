@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- German (de). Mirrors ../values/strings.xml key for key; ADR 0016.
+         See the English file for per-string developer notes. -->
+    <string name="contacts_nav_contacts">Kontakte</string>
+    <string name="contacts_nav_you">Ich</string>
+
+    <string name="contacts_storage_no_plan_text">Keine Synchronisierung – dieses Gerät hat keinen Speicherplan, deine Daten bleiben also auf diesem Gerät. Richte Speicher ein, um zwischen deinen Geräten zu synchronisieren.</string>
+    <string name="contacts_storage_full_text">Speicher voll – %1$s von %2$s belegt. Deine Daten bleiben auf diesem Gerät und nichts wird gelöscht, aber sie können erst wieder synchronisiert werden, wenn du Platz freigibst oder mehr Speicher holst.</string>
+    <string name="contacts_storage_action">Speicher verwalten</string>
+    <string name="contacts_storage_setup_action">Speicher einrichten</string>
+    <string name="contacts_control_unreachable">Tenshu Control ist nicht erreichbar. Deine Kontakte erscheinen, sobald Control läuft.</string>
+    <string name="contacts_control_open_action">Control öffnen</string>
+    <string name="contacts_control_not_installed">Tenshu Control ist auf diesem Gerät nicht installiert. Deine Kontakte liegen in Control, daher gibt es nichts anzuzeigen, bis Control installiert ist.</string>
+    <string name="contacts_control_wall_title">Tenshu Control einrichten</string>
+    <string name="contacts_control_not_set_up">Tenshu Control ist installiert, aber auf diesem Gerät noch nicht eingerichtet. Deine Kontakte liegen in Control – öffne es, um neu anzufangen oder dich deinen anderen Geräten anzuschließen, und komm dann zurück.</string>
+    <string name="contacts_control_not_installed_unpublished">Tenshu Control ist auf diesem Gerät nicht installiert und noch nicht im Store erhältlich – bis dahin bleiben deine Kontakte leer.</string>
+    <string name="contacts_control_not_installed_other_channel">Tenshu Control ist auf diesem Gerät nicht installiert. Installiere es auf demselben Weg wie Contacts.</string>
+    <string name="contacts_control_get_action">Control holen</string>
+    <string name="contacts_update_action">Aktualisieren</string>
+    <string name="contacts_skew_update_control">Contacts ist auf diesem Gerät neuer als Tenshu Control. Aktualisiere Control, damit deine Kontakte weiter synchronisiert werden.</string>
+    <string name="contacts_skew_update_this_app">Contacts ist auf diesem Gerät älter als Tenshu Control. Aktualisiere Contacts, damit deine Kontakte weiter synchronisiert werden.</string>
+    <string name="contacts_skew_update_both">Contacts und Tenshu Control haben unterschiedliche Versionen. Aktualisiere beide, damit deine Kontakte weiter synchronisiert werden.</string>
+    <string name="contacts_fenced_update_control">Tenshu Control ist auf diesem Gerät älter als auf deinen anderen Geräten, deshalb werden deine Kontakte nicht mehr aktualisiert. Alles, was bereits hier ist, bleibt erhalten.</string>
+    <string name="contacts_fenced_update_this_app">Contacts ist auf diesem Gerät älter als auf deinen anderen Geräten, deshalb werden deine Kontakte nicht mehr aktualisiert. Alles, was bereits hier ist, bleibt erhalten.</string>
+    <string name="contacts_fenced_update_both">Dieses Gerät ist älter als deine anderen Geräte, deshalb werden deine Kontakte nicht mehr aktualisiert. Alles, was bereits hier ist, bleibt erhalten.</string>
+    <string name="contacts_fenced_update_unknown">Dieses Gerät ist älter als deine anderen Geräte, deshalb werden deine Kontakte nicht mehr aktualisiert. Ein Update von Tenshu auf diesem Gerät behebt das. Alles, was bereits hier ist, bleibt erhalten.</string>
+
+    <string name="contacts_add_actions_description">Kontakt hinzufügen</string>
+    <string name="contacts_list_empty_title">Noch keine Kontakte</string>
+    <string name="contacts_list_empty_body">Personen, mit denen du eine Einladung austauschst, erscheinen hier – ebenso alle, die du selbst hinzufügst.</string>
+
+    <string name="contacts_search_placeholder">Kontakte durchsuchen</string>
+    <string name="contacts_search_clear">Suche leeren</string>
+    <string name="contacts_search_empty_title">Keine Treffer</string>
+
+    <string name="contacts_trust_verified">Verifiziert</string>
+    <string name="contacts_trust_verified_detail">Du hast den Code dieses Kontakts verglichen und bestätigt.</string>
+    <string name="contacts_trust_unverified">Nicht verifiziert</string>
+    <string name="contacts_trust_unverified_detail">Du hast den Code dieses Kontakts noch nicht verglichen. Nachrichten der Person kommen trotzdem an; die Verifizierung bestätigt, dass du mit der Person sprichst, für die du sie hältst.</string>
+    <string name="contacts_trust_needs_reverification">Schlüssel geändert</string>
+    <string name="contacts_trust_needs_reverification_detail">Dieser Kontakt verwendet einen Schlüssel, den du nicht verifiziert hast. Das passiert, wenn die Person die App neu installiert oder ein neues Gerät einrichtet – verifiziere erneut, um sicherzugehen, dass es noch dieselbe Person ist.</string>
+    <string name="contacts_trust_not_connected">Nicht verbunden</string>
+    <string name="contacts_trust_not_connected_detail">Du hast diese Person selbst hinzugefügt, daher gibt es keinen Schlüssel zum Verifizieren.</string>
+
+    <string name="contacts_detail_title">Kontakt</string>
+    <string name="contacts_detail_keyring_title">Schlüssel</string>
+    <string name="contacts_detail_claimed_name">Hat sich als „%1$s“ vorgestellt</string>
+    <string name="contacts_detail_no_keys_body">Dieser Kontakt hat keinen Tenshu-Schlüssel. Tausche eine Einladung aus, um dich mit der Person zu verbinden.</string>
+    <string name="contacts_detail_missing_title">Kontakt nicht gefunden</string>
+    <string name="contacts_detail_missing_body">Er wurde möglicherweise auf einem anderen Gerät gelöscht.</string>
+
+    <string name="contacts_profile_title">Ich</string>
+    <string name="contacts_profile_name_label">Dein Name</string>
+    <string name="contacts_profile_name_supporting">Diesen Namen sehen Personen, die du einlädst.</string>
+    <string name="contacts_profile_name_unset">Kein Name festgelegt</string>
+    <string name="contacts_profile_edit_name">Name bearbeiten</string>
+    <string name="contacts_profile_name_save">Speichern</string>
+    <string name="contacts_profile_name_cancel">Abbrechen</string>
+    <string name="contacts_profile_identity_title">Deine Identität</string>
+    <string name="contacts_profile_identity_pending">Dein Identitätscode und dein Einladungslink sind auf diesem Gerät noch nicht verfügbar.</string>
+
+    <string name="contacts_invite_title">Jemanden einladen</string>
+    <string name="contacts_invite_intro">Erstelle eine einmalige Einladung. Wer sie annimmt, wird einer deiner Kontakte – freigegeben wird erst etwas, wenn du dich dafür entscheidest.</string>
+    <string name="contacts_invite_create">Jemanden einladen</string>
+    <string name="contacts_invite_creating">Wird erstellt…</string>
+    <string name="contacts_invite_qr_description">QR-Code der Einladung</string>
+    <string name="contacts_invite_link_caption">Lass die Person diesen Code scannen oder schick ihr den Link.</string>
+    <string name="contacts_invite_copy_link">Link kopieren</string>
+    <string name="contacts_invite_one_session_warning">Dieser Link wird nur einmal angezeigt und funktioniert nur einmal. Wenn du ihn verlierst, widerrufe die Einladung und erstelle eine neue.</string>
+    <string name="contacts_invite_outstanding">Warten auf Antwort</string>
+    <string name="contacts_invite_revoke">Widerrufen</string>
+
+    <string name="contacts_confirm_banner">„%1$s“ hat deine Einladung angenommen</string>
+    <string name="contacts_confirm_banner_action">Tippe, um die Person als Kontakt zu speichern</string>
+    <string name="contacts_confirm_header">„%1$s“ hat deine Einladung angenommen</string>
+    <string name="contacts_confirm_unnamed">Jemand</string>
+    <string name="contacts_confirm_claim_note">Das ist der Name, den die Person angegeben hat. Ihr Schlüssel:</string>
+    <string name="contacts_confirm_sas_note">Lies der Person diese sechs Ziffern vor – bei einem Anruf oder persönlich. Sie sieht auf ihrer Seite dieselben sechs.</string>
+    <string name="contacts_confirm_sas_check">Die Codes stimmen überein</string>
+    <string name="contacts_confirm_petname_label">Speichern als</string>
+    <string name="contacts_confirm_own_name_label">Dein Name</string>
+    <string name="contacts_confirm_own_name_note">Unter diesem Namen sieht dich die Person.</string>
+    <string name="contacts_confirm_link_existing">Mit bestehendem Kontakt verknüpfen</string>
+    <string name="contacts_confirm_link_existing_none">Du hast noch keine anderen Kontakte.</string>
+    <string name="contacts_confirm_save">Kontakt speichern</string>
+    <string name="contacts_confirm_decline">Ablehnen</string>
+
+    <string name="contacts_name_label">Name</string>
+    <string name="contacts_dialog_cancel">Abbrechen</string>
+    <string name="contacts_add_title">Kontakt hinzufügen</string>
+    <string name="contacts_add_supporting">Du kannst jemanden hinzufügen, ohne dich mit der Person zu verbinden. Tausche später eine Einladung mit ihr aus, um etwas für sie freizugeben.</string>
+    <string name="contacts_add_confirm">Hinzufügen</string>
+    <string name="contacts_rename_title">Umbenennen</string>
+    <string name="contacts_rename_supporting">Dieser Name gehört nur dir – er wird nicht mit der Person geteilt.</string>
+    <string name="contacts_rename_confirm">Speichern</string>
+    <string name="contacts_delete_title">Kontakt löschen</string>
+    <string name="contacts_delete_body">Dadurch werden die Person und ihre Schlüssel von all deinen Geräten entfernt.</string>
+    <string name="contacts_delete_access_warning">Was du bereits für die Person freigegeben hast, bleibt dadurch freigegeben. Um ihren Zugriff auf freigegebene Ordner zu beenden, entferne sie zuerst in Drive.</string>
+    <string name="contacts_delete_confirm">Löschen</string>
+    <string name="contacts_unlink_title">Schlüssel entfernen</string>
+    <string name="contacts_unlink_body">Den Schlüssel %1$s von diesem Kontakt entfernen? Die Person bleibt in deinen Kontakten, und ihr könnt euch später erneut verbinden.</string>
+    <string name="contacts_unlink_confirm">Schlüssel entfernen</string>
+
+    <string name="contacts_verify_action">Verifizieren</string>
+    <string name="contacts_unverify_action">Verifizierung aufheben</string>
+    <string name="contacts_verify_title">Codes vergleichen</string>
+    <string name="contacts_verify_body">Lies der Person diese sechs Ziffern vor – bei einem Anruf oder persönlich. Sie sieht auf ihrer Seite dieselben sechs. Bestätige nur, wenn sie übereinstimmen.</string>
+    <string name="contacts_verify_loading">Code wird abgerufen…</string>
+    <string name="contacts_verify_unavailable">Der Code ist gerade nicht verfügbar. Entsperre dieses Gerät und versuche es erneut.</string>
+    <string name="contacts_verify_confirm">Sie stimmen überein</string>
+
+    <string name="contacts_merge_title">Mögliche Duplikate</string>
+    <string name="contacts_merge_banner">%1$d mögliche Duplikate</string>
+    <string name="contacts_merge_banner_action">Prüfen und zusammenführen</string>
+    <string name="contacts_merge_pair">„%1$s“ und „%2$s“</string>
+    <string name="contacts_merge_reason_phone">Gleiche Telefonnummer</string>
+    <string name="contacts_merge_reason_email">Gleiche E-Mail-Adresse</string>
+    <string name="contacts_merge_reason_name">Gleicher Name</string>
+    <string name="contacts_merge_name_only_note">– den auch zwei verschiedene Personen haben können.</string>
+    <string name="contacts_merge_keep_label">Welcher Kontakt soll bleiben? Der andere wird mit ihm zusammengeführt, und angezeigt wird der Name des Kontakts, der bleibt.</string>
+    <string name="contacts_merge_no_undo">Schlüssel, Karten und Foto werden alle übernommen. Das kann nicht rückgängig gemacht werden.</string>
+    <string name="contacts_merge_confirm">Zusammenführen</string>
+    <string name="contacts_merge_empty_title">Keine Duplikate gefunden</string>
+    <string name="contacts_merge_empty_body">Niemand in deinen Kontakten ähnelt jemand anderem. Importierte Kontakte werden nie automatisch zusammengeführt – mögliche Duplikate würden hier erscheinen.</string>
+
+    <string name="contacts_photo_remove">Foto entfernen</string>
+
+    <string name="contacts_detail_info_title">Kontaktinfos</string>
+    <string name="contacts_detail_organisation">Organisation</string>
+    <string name="contacts_detail_note">Notiz</string>
+    <string name="contacts_edit_details_title">Kontaktinfos bearbeiten</string>
+    <string name="contacts_edit_details_save">Speichern</string>
+    <string name="contacts_edit_add_phone">Telefonnummer hinzufügen</string>
+    <string name="contacts_edit_add_email">E-Mail-Adresse hinzufügen</string>
+    <string name="contacts_edit_organisation">Organisation</string>
+    <string name="contacts_edit_note">Notiz</string>
+    <string name="contacts_edit_preserves_note">Alles andere, was deine importierte Karte enthält, bleibt erhalten, auch wenn es hier nicht angezeigt wird.</string>
+
+    <string name="contacts_import_title">Kontakte importieren</string>
+    <string name="contacts_import_intro">Übernimm Personen von diesem Gerät. Nichts wird irgendwohin gesendet – importierte Kontakte liegen in deinem eigenen Tenshu, wie alles andere auch.</string>
+    <string name="contacts_import_intro_short">Übernimm Personen von diesem Gerät.</string>
+    <string name="contacts_import_one_contact">Eine Person auswählen</string>
+    <string name="contacts_import_one_contact_supporting">Wähle einen einzelnen Kontakt. Tenshu sieht den Rest deines Adressbuchs nie.</string>
+    <string name="contacts_import_file">.vcf-Datei importieren</string>
+    <string name="contacts_import_file_supporting">Jedes Adressbuch kann eine exportieren.</string>
+    <string name="contacts_import_address_book">Ganzes Adressbuch importieren</string>
+    <string name="contacts_import_address_book_supporting">Fragt nach der Berechtigung, deine Kontakte zu lesen.</string>
+    <string name="contacts_import_working">Wird gelesen…</string>
+    <string name="contacts_import_result_one">1 Kontakt importiert.</string>
+    <string name="contacts_import_result_many">%1$d Kontakte importiert.</string>
+    <string name="contacts_import_done">Fertig</string>
+    <string name="contacts_import_no_merge_note">Alle, die du importierst, werden als neue Kontakte hinzugefügt, auch wenn du sie schon hast. Mögliche Duplikate erscheinen danach über deiner Kontaktliste, wo du sie prüfen und zusammenführen kannst.</string>
+    <string name="contacts_import_failed_permission">Tenshu konnte deine Kontakte nicht lesen. Versuche „Ganzes Adressbuch importieren“ – dort wird richtig nach der Berechtigung gefragt.</string>
+    <string name="contacts_import_failed_unreadable">Das konnte nicht gelesen werden.</string>
+    <string name="contacts_import_failed_no_cards">Dort wurden keine Kontakte gefunden.</string>
+    <string name="contacts_import_failed_nothing">Diese Kontakte konnten nicht gespeichert werden.</string>
+
+    <string name="error_contacts_none_in_file">In dieser Datei wurden keine Kontakte gefunden.</string>
+    <string name="error_contacts_nothing_to_export">Dieser Kontakt enthält nichts zum Exportieren.</string>
+    <string name="error_contacts_photo_unavailable">Das Foto dieses Kontakts ist noch nicht auf diesem Gerät. Verbinde dich mit dem Internet und versuche es erneut.</string>
+</resources>

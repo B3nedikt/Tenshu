@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    Timeline-on-iOS REAL-DEVICE entitlements (ios-signing.md §2) — sdk=iphoneos builds only; the
+    simulator keeps Timeline.entitlements. No `application-identifier` (the profile injects it);
+    Keychain groups are Team-prefixed via $(AppIdentifierPrefix); the App Group (below) is the
+    shared-replica container and needs the paid company team (ios-signing.md §6); a device build
+    that cannot resolve it refuses to open a store rather than run on an app-local one. The
+    shared Keychain group is what `RealmKeyMaterialBridge` reads Control's route-1 key material from.
+  -->
+  <key>keychain-access-groups</key>
+  <array>
+    <string>$(AppIdentifierPrefix)app.tenshu.timeline.ios</string>
+    <string>$(AppIdentifierPrefix)app.tenshu.shared</string>
+  </array>
+  <!--
+    The App Group: the ONE replica every first-party app reads and writes on a real device
+    (ios-background-scheduling.md S0). Bare id, no team prefix: iOS App Group ids are global, and
+    this string must equal the simulator file's and the Kotlin `TENSHU_APP_GROUP`.
+  -->
+  <key>com.apple.security.application-groups</key>
+  <array>
+    <string>group.app.tenshu.shared</string>
+  </array>
+  <!--
+    ⚠⚠ Wi-Fi place recognition is WIRED BUT INERT on device, and this is the one thing gating it.
+
+    `NEHotspotNetwork.fetchCurrent` returns nil without `com.apple.developer.networking.wifi-info`
+    ("Access WiFi Information"), which must be enabled on the App ID in the developer portal — a
+    free personal team cannot, the same paid gate as App Groups (docs/how-to/ios-signing.md §"three
+    rungs"). Declaring it here on a free team makes the build fail to SIGN, which is strictly worse
+    than the feature being off, so it is left out and the code degrades exactly as designed
+    (`IosConnectedWifi` answers null → `NoNetwork` → the grid-snapped placeId, i.e. today's
+    behaviour) and logs `wifi_fetch_unavailable` once, naming this entitlement.
+
+    On a paid team, uncomment:
+
+      <key>com.apple.developer.networking.wifi-info</key>
+      <true/>
+
+    …and nothing else changes — no code, no DI, no UI.
+  -->
+</dict>
+</plist>

@@ -1,0 +1,29 @@
+Tenshu Contacts hält deine Kontakte verschlüsselt und auf all deinen Geräten synchron. Nur deine eigenen Geräte können sie lesen.
+
+TENSHU CONTACTS BRAUCHT TENSHU CONTROL
+Tenshu Control verwahrt deine Schlüssel und verbindet deine Geräte. Installiere Tenshu Control über Google Play und richte es zuerst ein, dann öffne Contacts. Contacts findet Control von selbst.
+
+WAS DU TUN KANNST
+- Kontakte hinzufügen und ihre Telefonnummern, E-Mail-Adressen, Organisation und Notizen bearbeiten.
+- Personen von diesem Handy übernehmen: einen einzelnen Kontakt wählen, eine .vcf-Datei importieren oder dein ganzes Adressbuch importieren.
+- Einen Kontakt nach Name, Telefonnummer, E-Mail-Adresse oder Organisation finden.
+- Jemanden mit einem einmaligen QR-Code oder Link einladen. Wenn die Person annimmt, vergleichst du einen sechsstelligen Code, um zu bestätigen, dass sie es ist.
+- Eine Person, mit der du verbunden bist, verifizieren und eine Warnung sehen, wenn sich ihr Schlüssel ändert.
+- Mögliche Duplikate finden, den Eintrag wählen, den du behalten willst, und sie zusammenführen.
+- Den Namen festlegen, den die anderen Tenshu-Apps für dich anzeigen.
+
+WIE CONTACTS DEINE KONTAKTE PRIVAT HÄLT
+- Deine Kontakte werden auf deinem Gerät verschlüsselt, bevor sie hochgeladen werden. Die Server von Tenshu speichern nur verschlüsselte Daten und haben nicht die Schlüssel, um sie zu lesen.
+- Einige Fakten, die der Server zum Synchronisieren braucht, sieht er trotzdem: wie viel du speicherst, wie viele Geräte du hast und wann sie synchronisieren.
+- Tenshu hat kein Verzeichnis, deshalb kann niemand dich nachschlagen. Du verbindest dich mit jemandem nur, wenn ihr beide eine Einladung annehmt.
+- Contacts liest dein Adressbuch nur, wenn du einen Import daraus startest, und schreibt nie hinein.
+- Ohne Speicherplan bleiben deine Kontakte auf diesem Gerät.
+
+VORAUSSETZUNGEN
+- Android 7.0 oder neuer.
+- Tenshu Control, eingerichtet auf demselben Handy.
+- Zum Synchronisieren zwischen Geräten: ein Speicherplan. Der kostenlose Plan hat 5 GB.
+
+Tenshu ist Open Source und noch in der Testphase: Rechne mit Ecken und Kanten und sag uns, was nicht funktioniert.
+
+Hilfe und häufige Probleme: tenshu.app/apps/contacts/support/android/de

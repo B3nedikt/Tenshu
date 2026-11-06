@@ -1,0 +1,46 @@
+{
+  "title": "Files",
+  "subtitle": "An inventory of the files in your realm. Drive is where you browse them.",
+  "openDrive": "Open Drive",
+  "loading": "Loading the file inventory…",
+  "summary": {
+    "files": "Files",
+    "folders": "Folders",
+    "totalSize": "Size of your files",
+    "newest": "Last change",
+    "none": "—"
+  },
+  "byKind": {
+    "title": "By kind",
+    "count": "{count, plural, one {# file} other {# files}}"
+  },
+  "kinds": {
+    "image": "Images",
+    "video": "Videos",
+    "audio": "Audio",
+    "document": "Documents",
+    "archive": "Archives",
+    "other": "Other"
+  },
+  "empty": {
+    "title": "No files yet",
+    "body": "Files you add in Drive, on any of your devices, appear here once this browser has synced them."
+  },
+  "errors": {
+    "read": {
+      "title": "Couldn't read your files",
+      "body": "The file inventory on this browser didn't load. Nothing was changed — try again."
+    },
+    "runtime": {
+      "title": "Tenshu isn't running in this tab",
+      "body": "The file inventory needs the Tenshu runtime. Reload the page, or close other Tenshu tabs, and try again."
+    },
+    "other": {
+      "title": "Something went wrong",
+      "body": "The file inventory couldn't be read. Nothing was changed — try again."
+    }
+  },
+  "retry": "Try again",
+  "replicaNote": "Counted from what this browser has synced: a copy of a file counts separately, and files shared with you aren't included. Your plan's storage use is on",
+  "servicesLink": "Services"
+}

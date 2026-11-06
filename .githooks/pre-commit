@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+root="$(git rev-parse --show-toplevel)"
+
+# Every commit: no staged file may gain a PR reference (`#NNNN`). Reads only the staged files.
+python3 "$root/scripts/check-pr-refs.py" --staged || exit 1
+
+# The store checks run only when the commit touches store/ — every other commit pays one `git diff --cached`.
+# Keeps binaries and generated screenshots out of git (scripts/check-store-assets.py), and the
+# listing copy inside App Store Connect's limits and the copy rules (scripts/store-listing.py check).
+git diff --cached --name-only -- store | grep -q . || exit 0
+python3 "$root/scripts/check-store-assets.py" || exit 1
+exec python3 "$root/scripts/store-listing.py" check

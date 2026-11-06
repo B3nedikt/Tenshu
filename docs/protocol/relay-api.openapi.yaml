@@ -1,0 +1,1643 @@
+openapi: 3.1.0
+info:
+  title: Tenshu sync relay
+  version: "1"
+  summary: The relay's HTTP surface, in its end state after CR-2 B3.
+  description: |
+    The canonical machine-readable surface of `:sync-relay-server`. `sync-relay-api.md` keeps the
+    narrative and defers to this file for shapes.
+
+    **State described:** the end state after CR-2 B3 (`docs/proposals/content-plane-cr2-b3-wire-spec.md`
+    v0.2): `RELAY_PROTOCOL_VERSION = 4` with a minimum of 4, new `/sync/push` and `/sync/push-tombstone`
+    bodies, `POST /sync/content/reap`, and the edge form of `/sync/content/declare` and all of
+    `/sync/content/undeclare` deleted. Extracted from the code on 2026-10-02, with B3's changes applied
+    from the wire spec. Elements that B3 changes are tagged `x-b3: changed`, and new ones `x-b3: new`.
+
+    ⚠ **Release baseline: protocol 1** (the release-cut reset of 2026-10-27 renumbered the B3 contract above, which
+    was protocol 4, to 1). **Envelope authentication is part of that baseline**
+    (`docs/proposals/sync-envelope-authentication.md`, 2026-10-27): `DeleteBlock` carries a trailing
+    `authTag` (an HMAC the relay cannot verify) and `/sync/push-tombstone` 400s without a 32-byte one;
+    a `SyncBlock`'s `encryptedPayload` is sealed with its envelope bound as associated data (no field
+    change, opaque to the relay). Tagged `x-envelope-auth`.
+
+    ⚠ **CR-2 B6** (`docs/proposals/content-plane-cr2-b6-spec.md` §2) removed every route a client used
+    to free content or to enumerate content for freeing: `POST /sync/content/delete`,
+    `POST /sync/content/reclaim`, `GET /sync/content/orphan-candidates` and `GET /sync/content/contents`
+    (with the 24 h age window). They are an unmatched route (404) in every sweep mode. The relay's own
+    sweep (`CONTENT_SWEEP_MODE`, deployed `armed`) is the only thing that frees content. No protocol
+    version bump: no current client calls them.
+
+    ## Conventions
+
+    - **Two body encodings.**
+      - `application/json`: ordinary JSON.
+      - `application/octet-stream` with `x-tenshu-composite: <schema id>`: a Tenshu **binary positional
+        composite** (`core-common` `BinarySerializer` / `BinaryParser`). Its fields are listed under
+        `components.schemas`, where `x-tenshu-position` gives each field's wire order. ⚠ The order *is*
+        the wire format: inserting a field is a reshape (House Rule 9).
+    - **JSON decoding** uses Ktor's default `Json`, which **rejects unknown keys**: an extra field is a
+      400. The `/sync/pairing/*` and `/sync/realm`-family bodies are read as `Map<String,String>`, so
+      **every value is a JSON string**, numbers included (`"epoch": "3"`).
+    - **Error bodies** are `text/plain` unless a JSON shape is given. Any uncaught exception becomes
+      `500 {"error":"internal_error"}`. An unmatched route is Ktor's default 404 with an empty body.
+    - **Auth** (see `securitySchemes`):
+      - `relayJwt`: `Authorization: Bearer <EdDSA JWT>` with `iss` = ownerId, `sub` = deviceId, verified
+        against that device's registered Ed25519 key. It binds owner and device.
+      - `devOwner`: `X-Dev-Owner`, which replaces the JWT when the relay runs with `DEV_MODE=true`.
+      - Capability routes carry no header auth: an unguessable id or a signature in the body *is* the
+        authorisation (`x-auth-capability`).
+    - **Entitlement write gate** (`x-entitlement-gated: true`): a no-op unless `ENTITLEMENT_ENFORCE=true`
+      and an issuer key is configured. It checks `X-Entitlement` (a bearer token, whose answer is final),
+      then `X-Entitlement-Proof` (`signed-record.v1:<payload>`), and returns 402/403 as in
+      `components.responses`.
+    - **Signatures** are Ed25519 over a tagged, length-prefixed message
+      (`admission-revocation-names-the-capability.md` §7d, `sync-service-common/.../SignedMessageEncoding.kt`): `LP(x) = u32be(|x|) ‖ x`, and
+      `message = LP(tag) ‖ LP(field₁) ‖ … ‖ LP(fieldₙ)`. Every field is prefixed, the fixed-width ones
+      too. Strings are UTF-8 (`|x|` is a byte length), longs 8-byte big-endian, keys their raw bytes.
+      Each message has its own fixed tag, so no signature over one message verifies as another. The
+      message for each route is in `x-signed-message`.
+    - **Registration input rules** (`RegistrationInputRules.kt`): every route that registers a device
+      key, or names one in a signed record, answers 400 to a public key that is not exactly 32 bytes
+      (`public keys must be exactly 32 bytes`) or a device id that is not 1–256 characters from
+      `[A-Za-z0-9_-]` (`deviceId must be 1–256 characters from [A-Za-z0-9_-]`). Both are checked
+      before any signature.
+    - **No request-body size limit** is installed globally. Every limit is per route, in
+      `x-limits`.
+
+    ## Known issues found during extraction (2026-10-02)
+
+    Recorded here because a spec must not present them as intended; each has a follow-up.
+    1. ✅ **Fixed** (`relay-metadata-minimisation.md` D13): `DEV_MODE` used to default to **true** when
+       the variable was unset, so the default failed open. `RelayConfig.fromEnv` now fails closed — unset
+       or unparseable means `false`, and `X-Dev-Owner` is honoured only after an explicit `DEV_MODE=true`.
+       `./gradlew :sync-relay-server:run` opts in itself; the deployed configs still set `false`
+       explicitly. An explicit `true` on a public bind still only prints a warning (pinned by
+       `DevModeDefaultTest`).
+    2. ✅ **Fixed 2026-10-04** (B3 wire spec §11.3): `POST /sync/fetch-entity-blocks` took a serialised
+       `DataId` (a File's path, in the clear) and matched `DataId.getDataIdHash()`, the local 64-bit hash,
+       while pushed blocks carry the EI-1 keyed **wire name** — it matched nothing for any post-EI-1
+       block. The body is now the wire id as text, compared verbatim.
+    3. `/sync/pairing/*` bodies are read without a catch, so malformed JSON or a non-string value is
+       likely a **500**, not a 400. An approved `/pairing/offer-response` registers the device
+       **before** its consumed-hash check, so a replay re-registers it and then answers 409.
+       (✅ The `/pairing/response` half — a bad base64 `encryptedMasterKey` answering 500 after
+       registration — was fixed with F7: it is decoded first and answers 400.)
+    4. ✅ **Fixed 2026-10-28** (F7, threat model T-P-16): `GET /sync/pairing/requests` put the **raw
+       pairing secret** into the slot its schema calls `pairingSecretHash`, and join-flow responses had
+       no TTL. The join flow now sends only `pairingSecretHash` =
+       `hex(SHA-256("tenshu/pairing/join/rendezvous/v1" ‖ 0x00 ‖ utf8(secret)))` on every route and the
+       device name only sealed; the joiner's poll is `POST /sync/pairing/response/peek` (body, not
+       query); requests and responses live 7 minutes, and an acked response retires its hash for 24 h.
+    5. CORS allows GET/POST/PUT/OPTIONS and the headers `Content-Type`, `Authorization`,
+       `X-Entitlement` and `X-Entitlement-Proof` (PUT and the proof header added with B3c). A browser
+       still cannot `DELETE` (`/sync/invite/{inviteId}`, `/sync/epc/{sessionId}`, `/share/{shareId}`).
+    6. The auth-failure budget charges only the missing or malformed `Authorization` 401s, not bad
+       signatures or expired tokens (`JwtAuth.kt`), contrary to its KDoc.
+    7. `/sync/fetch-entity-blocks` and `/sync/pairing/requests` responses are unbounded. The first has
+       no page limit at all.
+
+servers:
+  - url: https://relay.tenshu.app
+    description: Production (DEV_MODE=false)
+  - url: http://localhost:8080
+    description: Local dev (`./gradlew :sync-relay-server:run`, DEV_MODE=true)
+
+tags:
+  - name: sync
+    description: Block and tombstone log, cursors, HLC tips.
+  - name: content
+    description: The content plane (ciphertext blobs, content descriptions, edge registers).
+  - name: realm
+    description: Realm genesis, device admission, recovery.
+  - name: pairing
+    description: Device pairing mailboxes.
+  - name: membership
+    description: Shared-realm membership and admission revocation.
+  - name: invite
+    description: Contact invitation handshake mailbox.
+  - name: epc
+    description: Remote EPC rendezvous frames.
+  - name: share
+    description: Public share links (Mode A).
+  - name: ops
+    description: Liveness, health, operator and account-closure routes.
+
+security: []
+
+paths:
+
+  # ─────────────────────────────── sync ───────────────────────────────
+
+  /sync/push:
+    post:
+      tags: [sync]
+      summary: Append one block and apply its edges, in one transaction.
+      x-b3: changed
+      description: |
+        Since B3 the body is an `EdgedPush`. The block is appended to the owner's mailbox under a global
+        relay sequence number. Each edge then updates the `(holder, property)` register, where the holder
+        is `block.targetEntityIdHash` and the stamp is `block.hlc`. Ordering is by HLC, never by arrival
+        (wire spec §2 rule 1). A stale edge, or one at or below the holder's watermark, is a no-op.
+
+        Since B4 (`content-plane-cr2-b4-spec.md` §1.3), inside the same transaction and before the append:
+        a **regenerable** edge naming a FREED content id clears its FREED state (never a 409); a
+        **non-regenerable** edge naming one must be covered by a `revive` entry for that id, else 409
+        `content_freed`. Each `revive` entry must name a non-regenerable edge's `contentId` of this push and
+        is validated like a describe; every ref must be stored and not queued for deletion (PUT since the
+        free), else 409 `revive_incomplete`. A verified entry replaces the content's ref set and clears its
+        FREED state; for an id that is not FREED it acts as a describe, so a retry after a lost 200 is
+        idempotent. On any 409 nothing is written: no block, no edge, no ref.
+      security: [{ relayJwt: [] }, { devOwner: [] }]
+      x-entitlement-gated: true
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            x-tenshu-composite: tenshu/sync/edgedPush
+            schema: { $ref: '#/components/schemas/EdgedPush' }
+      responses:
+        '200': { description: 'Appended, and edges applied.', content: { text/plain: { schema: { const: OK } } } }
+        '400':
+          description: |
+            `malformed request body`, edges on a block with no target (a batch), a repeated
+            `propertyId` (tag), `revive entry names no edge of this push`, `duplicate contentId in revive`,
+            `Malformed revive entry` (empty refs, more than 4096, or a ref failing the pattern), or more than
+            8192 revive refs in the request.
+          content: { text/plain: { schema: { type: string } } }
+        '402': { $ref: '#/components/responses/EntitlementRequired' }
+        '403': { description: '`block.ownerId does not match authenticated owner`, or `entitlement_owner_mismatch`.' }
+        '409':
+          description: |
+            `content_freed`: a non-regenerable edge names FREED content with no covering `revive` entry; or
+            `revive_incomplete`: a `revive` entry names a ref that is not stored or is still queued for
+            deletion. `contentIds` lists every offending id of the request, deduplicated, in request order
+            (a client must not depend on the order). Nothing was written. Not sent before B5 frees anything.
+          content: { application/json: { schema: { $ref: '#/components/schemas/FreedRefusal' } } }
+        '426': { $ref: '#/components/responses/UpgradeRequired' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /sync/push/probe:
+    post:
+      tags: [sync]
+      summary: Would `/sync/push` be accepted now? (Same gates, no body.)
+      security: [{ relayJwt: [] }, { devOwner: [] }]
+      x-entitlement-gated: true
+      responses:
+        '204': { description: 'It would be accepted.' }
+        '402': { $ref: '#/components/responses/EntitlementRequired' }
+        '403': { $ref: '#/components/responses/EntitlementOwnerMismatch' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /sync/push-tombstone:
+    post:
+      tags: [sync]
+      summary: Store a tombstone and remove its subtree's edges, in one transaction.
+      x-b3: changed
+      description: |
+        Since B3 the body is a `CascadedTombstonePush`. At `T = block.hlc`, for the target and for every
+        name in `cascade`: the holder watermark becomes `max(watermark, T)`, and every register with a
+        stamp ≤ T becomes none (wire spec §2 rule 2). A `tenshu/identity/device` tombstone with a
+        `revokedDeviceId` also revokes that device, unless the tombstone predates its admission.
+        Not entitlement-gated.
+
+        Envelope authentication: the tombstone must carry a 32-byte `authTag`, else `400`. A format check only —
+        the relay holds no realm key and cannot verify it (House Rule 1); receivers drop a tombstone
+        whose tag does not verify.
+      security: [{ relayJwt: [] }, { devOwner: [] }]
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            x-tenshu-composite: tenshu/sync/cascadedTombstonePush
+            schema: { $ref: '#/components/schemas/CascadedTombstonePush' }
+      responses:
+        '200':
+          description: The assigned relay sequence number, as decimal text. (Old relays answered `OK`.)
+          content: { text/plain: { schema: { type: string, pattern: '^[0-9]+$' } } }
+        '400': { description: '`malformed request body`, or `tombstone.authTag missing or not 32 bytes`.' }
+        '403': { description: '`tombstone.ownerId does not match authenticated owner`.' }
+        '426': { $ref: '#/components/responses/UpgradeRequired' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /sync/changes:
+    post:
+      tags: [sync]
+      summary: Page of blocks after a cursor (legacy block lane).
+      description: |
+        Records the caller's signed HLC tip. Returns at most 500 blocks with seq > `since`, ascending.
+        `nextCursor` is the highest seq returned, or `since` when the page is empty. Peer tips and
+        cursors exclude the caller. Does **not** record the caller's cursor.
+      security: [{ relayJwt: [] }, { devOwner: [] }]
+      x-dev-headers: { X-Dev-Device: 'dev mode: the caller''s device id (default `dev-device`); tip signature not checked' }
+      parameters:
+        - { name: since, in: query, schema: { type: integer, format: int64, default: 0 }, description: 'Exclusive cursor; unparsable = 0.' }
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            x-tenshu-composite: tenshu/sync/signedHlcTip
+            schema: { $ref: '#/components/schemas/SignedHlcTip' }
+      x-limits: { pageSize: 500 }
+      responses:
+        '200':
+          description: The page.
+          content:
+            application/octet-stream:
+              x-tenshu-composite: tenshu/sync/changesResponse
+              schema: { $ref: '#/components/schemas/ChangesResponse' }
+        '400': { description: '`malformed request body`.' }
+        '401': { description: '`Unknown device` / `Invalid tip signature`, or a JWT error.' }
+        '403': { description: '`tip.ownerId …` / `tip.deviceId does not match authenticated device`.' }
+
+  /sync/log:
+    post:
+      tags: [sync]
+      summary: One merged page of blocks and tombstones under one cursor.
+      description: |
+        The same auth and tip handling as `/sync/changes`. Forward: rows with seq > `since`. With
+        `before`: the highest rows with seq < `before`, where `nextCursor` is the page's floor. Each list
+        is ascending, and `hasMore` is exact. Records the caller's cursor at `since`, as an upsert by max.
+      security: [{ relayJwt: [] }, { devOwner: [] }]
+      parameters:
+        - { name: since, in: query, schema: { type: integer, format: int64, default: 0 } }
+        - { name: before, in: query, required: false, schema: { type: integer, format: int64 }, description: 'Walk backwards from here.' }
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            x-tenshu-composite: tenshu/sync/signedHlcTip
+            schema: { $ref: '#/components/schemas/SignedHlcTip' }
+      x-limits: { pageSize: '500 rows across blocks and tombstones' }
+      responses:
+        '200':
+          description: The page.
+          content:
+            application/octet-stream:
+              x-tenshu-composite: tenshu/sync/syncLogResponse
+              schema: { $ref: '#/components/schemas/SyncLogResponse' }
+        '400': { description: '`malformed request body`.' }
+        '401': { description: 'As `/sync/changes`.' }
+        '403': { description: 'As `/sync/changes`.' }
+
+  /sync/tombstones:
+    get:
+      tags: [sync]
+      summary: Page of tombstones after a cursor (legacy tombstone lane).
+      security: [{ relayJwt: [] }, { devOwner: [] }]
+      parameters:
+        - { name: since, in: query, schema: { type: integer, format: int64, default: 0 } }
+      x-limits: { pageSize: 500 }
+      responses:
+        '200':
+          description: At most 500 tombstones with seq > `since`, ascending.
+          content:
+            application/octet-stream:
+              x-tenshu-composite: tenshu/sync/tombstonesResponse
+              schema: { $ref: '#/components/schemas/TombstonesResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /sync/realm-epoch:
+    get:
+      tags: [sync]
+      summary: The caller's realm epoch, i.e. the number of Device-targeted tombstones.
+      description: |
+        Device-JWT authenticated since F8 (`relay-metadata-minimisation.md`; threat model T-RC-08): the realm
+        is the JWT's owner. ⚠ It used to take `?ownerId=` unauthenticated — an oracle for realm existence and
+        the device-removal count to anyone holding a (public) ownerId.
+      security: [{ relayJwt: [] }, { devOwner: [] }]
+      responses:
+        '200':
+          description: The epoch, **as a string**.
+          content: { application/json: { schema: { type: object, required: [epoch], properties: { epoch: { type: string } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /sync/fetch-entity-blocks:
+    post:
+      tags: [sync]
+      summary: Every block for one entity.
+      description: |
+        The body is the entity's EI-1 **wire id** (32 lowercase hex chars of keyed HMAC) as UTF-8 text,
+        compared verbatim with `sync_block.target_entity_id_hash` — the name every block is stored
+        under. ⚠ Changed in place 2026-10-04 (B3 wire spec §11.3; known issue 2, fixed): it was a
+        serialised `DataId`, which carried a File's path in the clear and was hashed relay-side with the
+        local hash that no post-EI-1 block matches. A body failing the edge-id rule (length ≤ 256,
+        conservative charset) — a serialised `DataId` included — is a 400. The response is unbounded.
+        The client also sends an `X-Owner-Id` header that the relay never reads.
+      security: [{ relayJwt: [] }, { devOwner: [] }]
+      requestBody:
+        required: true
+        content:
+          text/plain:
+            schema: { type: string, description: 'The EI-1 wire id, e.g. 0123456789abcdef0123456789abcdef.' }
+      responses:
+        '200':
+          description: A top-level `TList<SyncBlock>`, in seq order.
+          content: { application/octet-stream: { x-tenshu-composite: 'tenshu/core/list<tenshu/sync/block>', schema: { type: array, items: { $ref: '#/components/schemas/SyncBlock' } } } }
+        '400': { description: '`malformed request body: expected an entity wire id`.' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ─────────────────────────────── content ───────────────────────────────
+
+  /sync/content/{ref}:
+    parameters:
+      - { name: ref, in: path, required: true, schema: { $ref: '#/components/schemas/BlobRef' } }
+    put:
+      tags: [content]
+      summary: Store one ciphertext blob (content-addressed, idempotent).
+      description: |
+        The body is stored verbatim. A re-PUT of an existing ref always succeeds, is not counted against
+        quota again, and refreshes `last_referenced_at`. ⚠ The relay does not verify that the hash
+        matches the body: manifest refs share this namespace.
+      security: [{ relayJwt: [] }, { devOwner: [] }]
+      x-entitlement-gated: true
+      requestBody:
+        required: true
+        content: { application/octet-stream: { schema: { type: string, format: binary, minLength: 40, maxLength: 8388608 } } }
+      x-limits: { minBytes: 40, maxBytes: 8388608 }
+      responses:
+        '204': { description: 'Stored.' }
+        '400': { description: '`Missing content ref`, `ref must match blob-<64-hex-chars>`, or a body below the 40-byte AEAD minimum.' }
+        '402': { $ref: '#/components/responses/EntitlementRequired' }
+        '403': { $ref: '#/components/responses/EntitlementOwnerMismatch' }
+        '413': { description: '`content blob exceeds 8 MiB cap` (Content-Length or actual size).' }
+        '507':
+          description: A new ref would exceed the entitlement's quota.
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorCode' }, example: { error: over_quota } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    get:
+      tags: [content]
+      summary: Read one ciphertext blob.
+      security: [{ relayJwt: [] }, { devOwner: [] }]
+      responses:
+        '200': { description: 'The stored bytes.', content: { application/octet-stream: { schema: { type: string, format: binary } } } }
+        '400': { description: 'Missing or malformed ref.' }
+        '404': { description: '`Content not found` (absent, or stored shorter than 40 bytes).' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /sync/content/declare:
+    post:
+      tags: [content]
+      summary: Describe content objects (which blobs form each content id).
+      x-b3: changed
+      description: |
+        Since B3 only the **describe** (`contents`) form remains: the edge form is deleted, because edges
+        arrive on `/sync/push`. Each entry atomically replaces that content id's ref set. Not
+        entitlement-gated.
+
+        Since B6 the relay holds no reference handles (`content_reference` dropped, migration v25):
+        `referenceId` and `hlc` were accepted and ignored until the 2026-10 reset; they are now unknown
+        keys, so a body carrying either (or `edges`) is a 400.
+
+        Since B4 the whole request is one transaction, and an entry naming a FREED content id refuses it
+        whole (409, nothing written). A describe is never the way out of FREED; only a `revive` on
+        `/sync/push` is.
+      security: [{ relayJwt: [] }, { devOwner: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ContentDeclareRequest' } } }
+      x-limits: { contents: 512, refsPerContent: 4096, refsPerRequest: 8192 }
+      responses:
+        '200': { description: 'Described.', content: { application/json: { schema: { $ref: '#/components/schemas/ContentDeclareResponse' } } } }
+        '400': { description: '`Malformed declare body: …`, `contents` empty, more than 512 contents, `Malformed description for content ''…''`, or more than 8192 refs.' }
+        '409':
+          description: '`content_freed`: `contentIds` lists every entry naming FREED content. Nothing in the request was written.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/FreedRefusal' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /sync/content/reap:
+    post:
+      tags: [content]
+      summary: Apply a device's subtree reaps to the edge registers.
+      x-b3: new
+      description: |
+        For each entry, at T: the holder watermark becomes `max(watermark, T)`, and every register with a
+        stamp ≤ T becomes none (wire spec §2 rule 2). Idempotent: every device that reaps sends the same
+        `(holder, T)`, where T is the deleted folder's tombstone HLC. Not entitlement-gated.
+      security: [{ relayJwt: [] }, { devOwner: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ReapRequest' } } }
+      x-limits: { removals: 1000 }
+      responses:
+        '200':
+          description: 'Applied. `removals` counts every well-formed entry, no-ops included; `edgesCleared` counts registers that went from an edge to none (0 on a retry).'
+          content: { application/json: { schema: { type: object, required: [removals, edgesCleared], properties: { removals: { type: integer }, edgesCleared: { type: integer } } } } }
+        '400': { description: 'An undecodable body (including one without `relayProtocolVersion`), an empty list, more than 1000 entries, a holder failing the id pattern, or an unparsable `hlc`.' }
+        '426': { $ref: '#/components/responses/UpgradeRequired' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /sync/content/inventory:
+    get:
+      tags: [content]
+      summary: Diagnostic counts of the owner's content plane. Frees nothing.
+      security: [{ relayJwt: [] }, { devOwner: [] }]
+      responses:
+        '200': { description: 'Inventory.', content: { application/json: { schema: { $ref: '#/components/schemas/ContentInventoryResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /sync/usage:
+    get:
+      tags: [content]
+      summary: Bytes used, and the entitlement's limit when one is presented.
+      description: |
+        Never 402. `limitBytes` is null without a verifier or a valid matching entitlement header.
+        When the relay's sweep is armed (CR-2 B5 D5), `usedBytes` is the CHARGED figure: it leaves out the
+        bytes of refs held only by content that is unreferenced (waiting out T) or freed and queued for
+        deletion, which are reported as `heldBytes`. A ref shared with live content stays charged. In the
+        other modes `heldBytes` is 0 and everything is charged. The PUT quota check uses the same figure.
+      security: [{ relayJwt: [] }, { devOwner: [] }]
+      parameters:
+        - { name: X-Entitlement, in: header, required: false, schema: { type: string } }
+        - { name: X-Entitlement-Proof, in: header, required: false, schema: { type: string } }
+      responses:
+        '200':
+          description: Usage.
+          content: { application/json: { schema: { type: object, required: [usedBytes], properties: { usedBytes: { type: integer, format: int64 }, limitBytes: { type: [integer, 'null'], format: int64 }, heldBytes: { type: integer, format: int64, minimum: 0, default: 0, description: 'CR-2 B5 D5, diagnostics: stored but not charged. 0 unless armed.' } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ─────────────────────────────── realm ───────────────────────────────
+
+  /sync/realm:
+    post:
+      tags: [realm]
+      summary: Realm genesis (trust on first use).
+      description: |
+        The only route that reads a version as a JSON field: `relayProtocolVersion` must fall in `[1, 1]` (`RELAY_PROTOCOL_MIN_SUPPORTED_VERSION`, `RELAY_PROTOCOL_VERSION`),
+        otherwise 426. Check order: parse, required fields, the 426 gate, base64, `ownerId` equal to the
+        derivation from `masterPublicKey`, the signature, then create. Registers the first device.
+        Rate-limited per IP (`GENESIS_RATE_LIMIT_PER_HOUR`, default 20).
+      x-auth-capability: The master self-signature.
+      x-signed-message: 'LP("tenshu-realm-bootstrap-v1") ‖ LP(ownerId) ‖ LP(masterPublicKey) ‖ LP(firstDevicePublicKey) ‖ LP(firstDeviceId)  (signed by the master key)'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ownerId, masterPublicKey, firstDevicePublicKey, firstDeviceId, masterSelfSignature, relayProtocolVersion]
+              properties:
+                ownerId: { type: string }
+                masterPublicKey: { $ref: '#/components/schemas/Base64' }
+                firstDevicePublicKey: { $ref: '#/components/schemas/Base64' }
+                firstDeviceId: { type: string }
+                masterSelfSignature: { $ref: '#/components/schemas/Base64' }
+                relayProtocolVersion: { type: string, pattern: '^[0-9]+$', description: 'Integer, as a string.' }
+                admittedAtHlc: { type: string, description: '`physical:counter:deviceId`; optional.' }
+      responses:
+        '201':
+          description: Created.
+          content: { application/json: { schema: { type: object, properties: { ownerId: { type: string }, createdAt: { type: string, description: 'epoch ms, as a string' } } } } }
+        '400': { description: 'Malformed JSON, a missing field, bad base64, a key that is not 32 bytes or a malformed `firstDeviceId` (registration input rules), an owner/derivation mismatch, or `Invalid masterSelfSignature`.' }
+        '409': { description: '`Realm already exists for this ownerId`.' }
+        '426': { $ref: '#/components/responses/UpgradeRequired' }
+        '429': { description: 'Genesis rate limit.' }
+
+  /sync/admit-device:
+    post:
+      tags: [realm]
+      summary: Register a device under a master delegation (no 426 gate, no admission chain).
+      x-auth-capability: The master delegation.
+      x-signed-message: 'LP("tenshu-admit-delegation-v1") ‖ LP(newDevicePublicKey) ‖ LP(newDeviceId) ‖ LP(epoch)  (signed by the master key)'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ownerId, newDeviceId, newDevicePublicKey, masterDelegation, epoch]
+              properties:
+                ownerId: { type: string }
+                newDeviceId: { type: string }
+                newDevicePublicKey: { $ref: '#/components/schemas/Base64' }
+                masterDelegation: { $ref: '#/components/schemas/Base64' }
+                epoch: { type: string, pattern: '^-?[0-9]+$' }
+                admittedAtHlc: { type: string }
+      responses:
+        '200': { description: 'Registered.', content: { text/plain: { schema: { const: OK } } } }
+        '400': { description: 'Malformed JSON, a missing field, bad base64, a non-integer epoch, or a `newDevicePublicKey` that is not 32 bytes / a malformed `newDeviceId` (registration input rules).' }
+        '401': { description: '`Invalid master delegation`.' }
+        '404': { description: '`Realm not found`.' }
+
+  /sync/recovery-challenge:
+    get:
+      tags: [realm]
+      summary: A single-use recovery challenge (5-minute TTL).
+      description: |
+        Names no realm and is issued to anyone (F8, threat model T-RC-08): it used to take `?ownerId=` and 404 an
+        unknown realm — an existence oracle for a value every pairing QR carries. Capped per client IP (an IPv6
+        client per /64) at `RECOVERY_CHALLENGE_RATE_LIMIT_PER_MINUTE` (default 6), checked before the store.
+      responses:
+        '200': { description: 'Challenge.', content: { application/json: { schema: { type: object, properties: { challenge: { $ref: '#/components/schemas/Base64' } } } } } }
+        '429':
+          description: '`Too many recovery challenges from this address` — past the per-IP budget. Retryable.'
+          headers:
+            Retry-After: { description: 'Seconds until the next challenge is available.', schema: { type: integer } }
+        '503': { description: '`Too many outstanding recovery challenges` (10 000 unexpired).' }
+
+  /sync/recovery-claim:
+    post:
+      tags: [realm]
+      summary: Register a recovering device against a challenge.
+      description: |
+        The challenge is consumed **before** the signature is verified, and the signature is verified against the
+        body's `masterPublicKey` **before** the realm `sha256(masterPublicKey)` is looked up (F8): a caller who
+        cannot sign gets the same 401 whether or not the realm exists; only a key holder can see the 404.
+      x-auth-capability: The master signature over the challenge.
+      x-signed-message: 'LP("tenshu-recovery-claim-v1") ‖ LP(newDevicePublicKey) ‖ LP(newDeviceId) ‖ LP(challenge)  (signed by the master key)'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [masterPublicKey, newDevicePublicKey, newDeviceId, challenge, masterSignature]
+              properties:
+                masterPublicKey: { $ref: '#/components/schemas/Base64' }
+                newDevicePublicKey: { $ref: '#/components/schemas/Base64' }
+                newDeviceId: { type: string }
+                challenge: { $ref: '#/components/schemas/Base64' }
+                masterSignature: { $ref: '#/components/schemas/Base64' }
+      responses:
+        '200': { description: 'Admitted.', content: { application/json: { schema: { type: object, properties: { status: { const: admitted } } } } } }
+        '400': { description: 'Malformed JSON, a missing field, bad base64, or a `newDevicePublicKey` that is not 32 bytes / a malformed `newDeviceId` (registration input rules; checked before the challenge is consumed).' }
+        '401': { description: '`Challenge unknown, expired, or already consumed` / `Invalid master signature`.' }
+        '404': { description: '`Realm not found` — only after the master signature verified.' }
+
+  # ─────────────────────────────── pairing ───────────────────────────────
+  # ⚠ Known issue 3: these bodies are read without a catch; malformed JSON or non-string values are likely 500.
+
+  /sync/pairing/request:
+    post:
+      tags: [pairing]
+      summary: The joiner posts a pairing request.
+      description: |
+        Appended to the owner's pending list (at most 32, oldest evicted), served and kept for 7 minutes.
+        F7: the relay is sent the secret's hash and the device name sealed — never either in clear. A body
+        carrying `pairingSecret` or `deviceName` is refused with 400. 404 when the owner has no registered
+        device; 429 past `PAIRING_REQUEST_RATE_LIMIT_PER_HOUR`.
+      x-auth-capability: None; the request is addressed by `pairingSecretHash`.
+      x-limits: { ttl: 7 min, perOwner: 32, ownerIdAndDeviceIdMaxChars: 256, sealedDeviceNameMaxBytes: 1024 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ownerId, pairingSecretHash, deviceId, sealedDeviceName, publicKey, signingPublicKey]
+              properties:
+                ownerId: { type: string }
+                pairingSecretHash: { $ref: '#/components/schemas/PairingSecretHash' }
+                deviceId: { type: string }
+                sealedDeviceName: { $ref: '#/components/schemas/SealedDeviceName' }
+                publicKey: { $ref: '#/components/schemas/Base64', description: 'X25519, exactly 32 bytes.' }
+                signingPublicKey: { $ref: '#/components/schemas/Base64', description: 'Ed25519, exactly 32 bytes.' }
+      responses:
+        '200': { description: 'Queued.', content: { text/plain: { schema: { const: OK } } } }
+        '400': { description: '`Missing <field>`, a pre-F7 field (`pairingSecret` / `deviceName`), a hash that is not 64 lower-case hex, a sealed name outside 1..1024 bytes, an over-long id, a `deviceId` outside the registration input rules, or `<key> must be base64 of exactly 32 bytes`.' }
+        '404': { description: '`Unknown owner` (production only).' }
+        '429': { description: 'Past the per-IP budget.' }
+
+  /sync/pairing/requests:
+    get:
+      tags: [pairing]
+      summary: The host lists pending pairing requests.
+      description: |
+        F7 (known issue 4, fixed): JSON, each entry the joiner's hash, sealed name and two public keys — the
+        relay holds nothing more. The host filters by its own session's hash and unseals the name; the
+        IPC-facing `PairingRequest` composite (clear name, `sas`) is built proxy-side and is not wire.
+      security: [{ relayJwt: [] }, { devOwner: [] }]
+      responses:
+        '200':
+          description: The owner's live (unexpired) requests.
+          content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/PairingRequestReply' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /sync/pairing/response:
+    post:
+      tags: [pairing]
+      summary: The host answers a pairing request (admits the joiner; registered on delivery).
+      description: |
+        Verifies the delegation, stores the encrypted master key under `pairingSecretHash` for 7 minutes
+        (overwriting any earlier, un-acked one) together with the verified registration
+        `(ownerId, newDeviceId) → newDevicePublicKey`, and removes the matching requests. ⚠ The
+        registration is **applied by the joiner's first peek**, not here (2026-10-28): a response that
+        expires unfetched leaves no registered device. A hash whose response was already acked is retired
+        for 24 h and answers 409, checked before anything is stored. The removed-device fence
+        (`wasRemoved` → 403 `device-removed`) runs here and again at the peek.
+      security: [{ relayJwt: [] }, { devOwner: [] }]
+      x-signed-message: 'LP("tenshu-admit-delegation-v1") ‖ LP(newDevicePublicKey) ‖ LP(newDeviceId) ‖ LP(epoch)  (the master key, or the leaf A33 key when admissionCertChain is present)'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pairingSecretHash, encryptedMasterKey, newDevicePublicKey, newDeviceId, masterDelegation, epoch]
+              properties:
+                pairingSecretHash: { $ref: '#/components/schemas/PairingSecretHash' }
+                encryptedMasterKey: { $ref: '#/components/schemas/Base64' }
+                newDevicePublicKey: { $ref: '#/components/schemas/Base64' }
+                newDeviceId: { type: string }
+                masterDelegation: { $ref: '#/components/schemas/Base64' }
+                epoch: { type: string, pattern: '^-?[0-9]+$' }
+                admissionCertChain: { $ref: '#/components/schemas/Base64', description: '`count(4 BE) ‖ [len‖ownerId ‖ len‖a33Pub ‖ len‖deviceId ‖ mintedAtEpoch(8) ‖ len‖sig]*`, leaf → root; each certificate signed over `LP("tenshu-admit-cap-v2") ‖ LP(ownerId) ‖ LP(a33Pub) ‖ LP(deviceId) ‖ LP(mintedAtEpoch)`, the root by the master key. The chain framing itself is unchanged.' }
+                admittedAtHlc: { type: string }
+      responses:
+        '200': { description: 'Stored; the registration lands on the joiner''s first peek.', content: { text/plain: { schema: { const: OK } } } }
+        '400': { description: 'A missing field, bad base64, a non-integer epoch, an invalid cert chain, or a `newDevicePublicKey` that is not 32 bytes / a malformed `newDeviceId` (registration input rules; both refusals in one body).' }
+        '401': { description: '`Invalid master delegation`, or a JWT error.' }
+        '403': { description: '`admission-revoked: …` / `device-removed: …`. Also refused: a chain that runs through a device in the removal ledger (S1), whatever its keys.' }
+        '404': { description: '`Realm not found`.' }
+        '409': { description: '`pairing-response-consumed: pairingSecretHash already consumed` (acked within the last 24 h). The `RelayRefusal` token is first, so a host retrying a post whose reply it lost reads it as delivered.' }
+
+  /sync/pairing/response/peek:
+    post:
+      tags: [pairing]
+      summary: The joiner fetches the encrypted master key (non-destructive until ack).
+      description: |
+        Replaces `GET /sync/pairing/response?pairingSecret=` (removed, F7): the lookup key rides the body,
+        never a query string or path segment, and it is the secret's hash, never the secret. A served
+        response first **registers** the joiner's signing key the host's post was verified for, so the
+        joiner's first authenticated call (only possible after it decrypts these bytes) verifies.
+      x-auth-capability: '`pairingSecretHash`.'
+      x-limits: { ttl: 7 min }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [pairingSecretHash], properties: { pairingSecretHash: { $ref: '#/components/schemas/PairingSecretHash' } } } } }
+      responses:
+        '200': { description: 'The raw encrypted master key bytes.', content: { application/octet-stream: { schema: { type: string, format: binary } } } }
+        '400': { description: '`Missing pairingSecretHash`, or not 64 lower-case hex.' }
+        '403': { description: '`device-removed: …` — the joiner was removed between the host''s post and this fetch; or `admission-revoked: An admitter in this device''s admission chain was revoked or removed` — the queued A33 chain is re-verified in full here (removal ledger and key-scoped revocations, S1). Either way nothing is registered or served.' }
+        '404': { description: 'Nothing yet, past the TTL, or acked (empty body).' }
+
+  /sync/pairing/ack:
+    post:
+      tags: [pairing]
+      summary: The joiner acknowledges; deletes the stored response and retires its hash for 24 h (idempotent).
+      x-auth-capability: '`pairingSecretHash`.'
+      x-limits: { consumedRetention: 24 h }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [pairingSecretHash], properties: { pairingSecretHash: { $ref: '#/components/schemas/PairingSecretHash' } } } } }
+      responses:
+        '200': { description: 'Deleted (a hash with no live response retires nothing).', content: { text/plain: { schema: { const: OK } } } }
+        '400': { description: '`Missing pairingSecretHash`, or not 64 lower-case hex.' }
+
+  /sync/pairing/offer-response:
+    post:
+      tags: [pairing]
+      summary: The responder posts a QR-offer response (scanned / approved / denied).
+      description: |
+        `scanned` is a pre-approval announce: one per hash, it does not consume the hash, and it carries no
+        payload. `approved` and `denied` store the single terminal response and consume the hash, which
+        then stays consumed for 24 h after its 7-minute TTL. `approved` also admits the offerer's device:
+        the relay verifies the delegation, revocation list and removal ledger here, but queues the
+        registration with the response and applies it when the offerer **fetches** it (`GET` below) —
+        an approval that expires unfetched registers nothing (2026-10-28; before, the post registered,
+        and did so ahead of the consumed-hash check).
+      x-auth-capability: '`hostSignature` by the responder''s registered device key (ownerId, responderDeviceId).'
+      x-signed-message: 'hostSignature: LP("tenshu-offer-response-v1") ‖ LP(status) ‖ LP(pairingSecretHash) ‖ LP(publicKeyA) ‖ LP(payload, empty when absent)  (the responder''s A4 key); when approved, masterDelegation as /pairing/response: LP("tenshu-admit-delegation-v1") ‖ LP(offererSigningKey) ‖ LP(offererDeviceId) ‖ LP(epoch)'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ownerId, responderDeviceId, pairingSecretHash, status, publicKeyA, hostSignature]
+              properties:
+                ownerId: { type: string }
+                responderDeviceId: { type: string }
+                pairingSecretHash: { type: string, description: 'Hex SHA-256 of the secret, by convention; not validated.' }
+                status: { type: string, enum: [approved, denied, scanned] }
+                publicKeyA: { $ref: '#/components/schemas/Base64' }
+                payload: { $ref: '#/components/schemas/Base64', description: 'Present if and only if status = approved (nonce ‖ AEAD ciphertext).' }
+                hostSignature: { $ref: '#/components/schemas/Base64' }
+                offererDeviceId: { type: string, description: Required when approved. }
+                offererSigningKey: { $ref: '#/components/schemas/Base64', description: Required when approved. }
+                masterDelegation: { $ref: '#/components/schemas/Base64', description: Required when approved. }
+                epoch: { type: string, description: Required when approved. }
+                admissionCertChain: { $ref: '#/components/schemas/Base64' }
+                admittedAtHlc: { type: string }
+      x-limits: { ttl: 7 min, consumedRetention: 24 h }
+      responses:
+        '200': { description: 'Stored.', content: { text/plain: { schema: { const: OK } } } }
+        '400': { description: 'A missing field, a bad status, payload not present iff approved, bad base64, an invalid chain, or (approved) an `offererSigningKey` that is not 32 bytes / a malformed `offererDeviceId` (registration input rules; both refusals in one body).' }
+        '401': { description: '`Unknown responder device` / `Invalid offer-response signature` / `Invalid master delegation`.' }
+        '403': { description: '`admission-revoked` / `device-removed`. Also refused: a chain that runs through a device in the removal ledger (S1), whatever its keys.' }
+        '404': { description: '`Realm not found`.' }
+        '409': { description: '`pairingSecretHash already consumed`, or (scanned only) `already announced`.' }
+    get:
+      tags: [pairing]
+      summary: The offerer polls for the response (non-consuming).
+      description: |
+        Serving an `approved` response first registers the offerer's device from the registration its
+        post queued (idempotent across re-polls), after re-checking the removal ledger and re-verifying
+        any A33 chain the approval came through — so the
+        offerer's first JWT-authed call, possible only once it has decrypted the payload, verifies.
+      parameters:
+        - { name: hash, in: query, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: The current announce or terminal response.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ownerId, status, publicKeyA]
+                properties:
+                  ownerId: { type: string }
+                  status: { type: string, enum: [scanned, approved, denied] }
+                  publicKeyA: { $ref: '#/components/schemas/Base64' }
+                  payload: { type: [string, 'null'], description: base64; null unless approved }
+        '400': { description: '`Missing hash`.' }
+        '403': { description: '`device-removed`: the offerer was removed between approval and fetch; or `admission-revoked: An admitter in this device''s admission chain was revoked or removed` — the queued A33 chain is re-verified in full here (removal ledger and key-scoped revocations, S1). Nothing registered, nothing served.' }
+        '404': { description: 'Nothing yet, or past the TTL (empty body).' }
+
+  /sync/pairing/hub-offer:
+    post:
+      tags: [pairing]
+      summary: A hub posts its pairing offer (re-posting re-arms it; 7-minute TTL).
+      description: |
+        The relay does **not** verify `signature`; the phone verifies it against the hub's printed label.
+        F7: the name rides sealed under a key HKDF'd from the printed secret (info
+        `tenshu/pairing/hub/device-name/v1`, AAD `lp(ephemeralPublicKey) ‖ lp(deviceId)`); a clear
+        `deviceName` is refused. ⚠ `pairingSecretHash` = `hex(SHA-256("tenshu/pairing/hub/rendezvous/v1" ‖ 0x00
+        ‖ printedSecret))` — domain-separated, but of a long-lived printed secret, so it still links one
+        hub's arms (threat model T-P-17, accepted). The relay treats it as an opaque key.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pairingSecretHash, deviceId, sealedDeviceName, ephemeralPublicKey, signature]
+              properties:
+                pairingSecretHash: { type: string }
+                deviceId: { type: string }
+                sealedDeviceName: { $ref: '#/components/schemas/SealedDeviceName' }
+                ephemeralPublicKey: { $ref: '#/components/schemas/Base64' }
+                signature: { $ref: '#/components/schemas/Base64' }
+      responses:
+        '200': { description: 'Stored.', content: { text/plain: { schema: { const: OK } } } }
+        '400': { description: 'A missing field, a clear `deviceName`, a sealed name outside 1..1024 bytes, or bad base64.' }
+
+  /sync/pairing/hub-offer/fetch:
+    post:
+      tags: [pairing]
+      summary: The phone fetches the hub offer (the fetch consumes it).
+      description: |
+        ⚠ The hub's rendezvous key rides the **body** (2026-10-28): it is long-lived and links one hub's
+        arms (T-P-17), so it stays out of URIs, like `/sync/pairing/response/peek`. The old
+        `GET /sync/pairing/hub-offer?hash=` route is removed, so a stale phone gets a bodiless 404.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [pairingSecretHash], properties: { pairingSecretHash: { type: string } } } } }
+      responses:
+        '200':
+          description: The offer.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ephemeralPublicKey, deviceId, sealedDeviceName, signature]
+                properties:
+                  ephemeralPublicKey: { $ref: '#/components/schemas/Base64' }
+                  deviceId: { type: string }
+                  sealedDeviceName: { $ref: '#/components/schemas/SealedDeviceName' }
+                  signature: { $ref: '#/components/schemas/Base64' }
+        '400': { description: '`Missing pairingSecretHash`.' }
+        '404': { description: 'Body exactly `hub-offer:none`, which tells "no offer" apart from an old relay''s bodiless route 404.', content: { text/plain: { schema: { const: 'hub-offer:none' } } } }
+
+  # ─────────────────────────────── membership ───────────────────────────────
+
+  /sync/admission/revoke:
+    post:
+      tags: [membership]
+      summary: Revoke a device's admission capability (stops chain-verified admission through it).
+      description: |
+        A revocation names the capability key it revokes; there is no keyless form (F5b). A body
+        without `deviceA33PublicKey` fails to parse and is a 400. `epoch` is signed but not read (reserved).
+      x-auth-capability: A master signature.
+      x-signed-message: 'LP("tenshu-admit-revoke-v3") ‖ LP(ownerId) ‖ LP(deviceId) ‖ LP(epoch) ‖ LP(revokedAt) ‖ LP(deviceA33PublicKey)  (the only form)'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ownerId, deviceId, epoch, revokedAt, signature, deviceA33PublicKey]
+              properties:
+                ownerId: { type: string }
+                deviceId: { type: string }
+                epoch: { type: integer, format: int64 }
+                revokedAt: { type: integer, format: int64 }
+                signature: { $ref: '#/components/schemas/Base64' }
+                deviceA33PublicKey: { $ref: '#/components/schemas/Base64', description: 'The revoked A33 key, exactly 32 bytes.' }
+      responses:
+        '204': { description: 'Appended.' }
+        '400': { description: 'Malformed JSON (including a missing `deviceA33PublicKey`), bad base64, or `deviceA33PublicKey: public keys must be exactly 32 bytes`.' }
+        '401': { description: '`Invalid revocation signature`.' }
+        '404': { description: '`Realm not found`.' }
+
+  /sync/realm-member/admit:
+    post:
+      tags: [membership]
+      summary: Admit a member device to a shared realm (Q30 capability chain).
+      description: Registers `(realmId, deviceId) → perRealmDevicePublicKey`, so that device's JWTs then verify for ownerId = realmId.
+      x-auth-capability: The capability chain.
+      x-signed-message: |
+        capability, signed by the master: LP("tenshu-member-cap-v2") ‖ LP(realmId) ‖ LP(memberAuthorityPublicKey) ‖ LP(epoch) ‖ LP(issuedAt)
+        binding, signed by the member authority (A26): LP("tenshu-member-bind-v2") ‖ LP(realmId) ‖ LP(deviceId) ‖ LP(perRealmDevicePublicKey) ‖ LP(boundAt)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [realmId, capability, deviceBinding]
+              properties:
+                realmId: { type: string }
+                capability:
+                  type: object
+                  required: [memberAuthorityPublicKey, epoch, issuedAt, signature]
+                  properties:
+                    memberAuthorityPublicKey: { $ref: '#/components/schemas/Base64' }
+                    epoch: { type: integer, format: int64 }
+                    issuedAt: { type: integer, format: int64 }
+                    signature: { $ref: '#/components/schemas/Base64' }
+                deviceBinding:
+                  type: object
+                  required: [deviceId, perRealmDevicePublicKey, boundAt, signature]
+                  properties:
+                    deviceId: { type: string }
+                    perRealmDevicePublicKey: { $ref: '#/components/schemas/Base64' }
+                    boundAt: { type: integer, format: int64 }
+                    signature: { $ref: '#/components/schemas/Base64' }
+      responses:
+        '200': { description: 'Admitted.', content: { text/plain: { schema: { const: OK } } } }
+        '400': { description: 'Malformed JSON, bad base64, a `memberAuthorityPublicKey` or `perRealmDevicePublicKey` that is not 32 bytes, or a malformed `deviceBinding.deviceId` (registration input rules).' }
+        '401': { description: '`Invalid membership capability chain`.' }
+        '403': { description: '`Membership has been revoked`.' }
+        '404': { description: '`Realm not found`.' }
+
+  /sync/realm-member/revoke:
+    post:
+      tags: [membership]
+      summary: Revoke a member authority, and every device admitted under it.
+      x-auth-capability: A master signature.
+      x-signed-message: 'LP("tenshu-member-revoke-v2") ‖ LP(realmId) ‖ LP(memberAuthorityPublicKey) ‖ LP(epoch) ‖ LP(revokedAt)'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [realmId, memberAuthorityPublicKey, epoch, revokedAt, signature]
+              properties:
+                realmId: { type: string }
+                memberAuthorityPublicKey: { $ref: '#/components/schemas/Base64' }
+                epoch: { type: integer, format: int64 }
+                revokedAt: { type: integer, format: int64 }
+                signature: { $ref: '#/components/schemas/Base64' }
+      responses:
+        '204': { description: 'Revoked.' }
+        '400': { description: 'Malformed JSON, or bad base64.' }
+        '401': { description: '`Invalid revocation signature`.' }
+        '404': { description: '`Realm not found`.' }
+
+  /sync/grant/{address}:
+    parameters:
+      - { name: address, in: path, required: true, schema: { $ref: '#/components/schemas/Hex32' } }
+    post:
+      tags: [membership]
+      summary: Post a sealed membership grant (last write wins; 30-day TTL).
+      security: [{ relayJwt: [] }, { devOwner: [] }]
+      x-entitlement-gated: true
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [sealedGrant], properties: { sealedGrant: { $ref: '#/components/schemas/Base64' } } } } }
+      x-limits: { sealedGrantBytes: 8192, openGrantsPerOwner: 64, ttl: 30 d }
+      responses:
+        '204': { description: 'Stored.' }
+        '400': { description: 'An invalid address, malformed JSON, or bad base64.' }
+        '402': { $ref: '#/components/responses/EntitlementRequired' }
+        '403': { $ref: '#/components/responses/EntitlementOwnerMismatch' }
+        '413': { description: '`sealed grant exceeds 8192 bytes`.' }
+        '429': { description: '`open-grant cap reached`.' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    get:
+      tags: [membership]
+      summary: Pick up a sealed grant (single pickup; deleted on read).
+      x-auth-capability: The address.
+      responses:
+        '200': { description: 'The grant.', content: { application/json: { schema: { type: object, required: [sealedGrant], properties: { sealedGrant: { $ref: '#/components/schemas/Base64' } } } } } }
+        '400': { description: '`Invalid grant address`.' }
+        '404': { description: '`No grant available`.' }
+
+  # ─────────────────────────────── invite ───────────────────────────────
+
+  /sync/invite:
+    post:
+      tags: [invite]
+      summary: Register a contact invite (72 h by default, at most 7 days).
+      security: [{ relayJwt: [] }, { devOwner: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [inviteId]
+              properties:
+                inviteId: { $ref: '#/components/schemas/Hex32' }
+                expiresAtMillis: { type: [integer, 'null'], format: int64, description: 'null = now + 72 h; clamped to now + 7 d.' }
+      x-limits: { openInvitesPerOwner: 32 }
+      responses:
+        '201':
+          description: Registered.
+          content: { application/json: { schema: { type: object, properties: { inviteId: { type: string }, expiresAtMillis: { type: integer, format: int64 } } } } }
+        '400': { description: 'Malformed JSON, an invalid inviteId, or an expiry in the past.' }
+        '409': { description: '`inviteId already in use` / `open-invite cap reached`.' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /sync/invite/{inviteId}:
+    delete:
+      tags: [invite]
+      summary: Revoke an invite (it stays REVOKED until expiry, so a later redeem gets 410).
+      security: [{ relayJwt: [] }, { devOwner: [] }]
+      parameters:
+        - { name: inviteId, in: path, required: true, schema: { type: string } }
+      responses:
+        '204': { description: 'Revoked.' }
+        '400': { description: '`Missing inviteId`.' }
+        '404': { description: '`Invite not found` (absent or not owned).' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /sync/invite/response:
+    post:
+      tags: [invite]
+      summary: The invitee posts its sealed response (single slot).
+      x-auth-capability: The inviteId.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [inviteId, sealedResponse], properties: { inviteId: { type: string }, sealedResponse: { $ref: '#/components/schemas/Base64' } } } } }
+      x-limits: { sealedBytes: 4096 }
+      responses:
+        '204': { description: 'Stored.' }
+        '400': { description: 'Malformed JSON, or bad base64.' }
+        '404': { description: '`Invite not found`.' }
+        '409': { description: '`Invite already responded`.' }
+        '410': { description: '`Invite expired or revoked`.' }
+        '413': { description: '`sealed blob exceeds 4096 bytes`.' }
+
+  /sync/invite/responses:
+    get:
+      tags: [invite]
+      summary: The inviter lists responses it has not yet acked.
+      security: [{ relayJwt: [] }, { devOwner: [] }]
+      responses:
+        '200':
+          description: Pending responses.
+          content: { application/json: { schema: { type: object, properties: { responses: { type: array, items: { type: object, properties: { inviteId: { type: string }, sealedResponse: { $ref: '#/components/schemas/Base64' } } } } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /sync/invite/ack:
+    post:
+      tags: [invite]
+      summary: The inviter posts its sealed ack (the invite must be in state RESPONDED).
+      security: [{ relayJwt: [] }, { devOwner: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [inviteId, sealedAck], properties: { inviteId: { type: string }, sealedAck: { $ref: '#/components/schemas/Base64' } } } } }
+      x-limits: { sealedBytes: 4096 }
+      responses:
+        '204': { description: 'Stored.' }
+        '400': { description: 'Malformed JSON, or bad base64.' }
+        '404': { description: '`Invite not found`.' }
+        '409': { description: '`Invite has no pending response`.' }
+        '413': { description: '`sealed blob exceeds 4096 bytes`.' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    get:
+      tags: [invite]
+      summary: The invitee polls for the ack.
+      x-auth-capability: The inviteId.
+      parameters:
+        - { name: inviteId, in: query, required: true, schema: { type: string } }
+      responses:
+        '200': { description: 'The ack.', content: { application/json: { schema: { type: object, properties: { inviteId: { type: string }, sealedAck: { $ref: '#/components/schemas/Base64' } } } } } }
+        '400': { description: '`Missing inviteId`.' }
+        '404': { description: '`No ack available` (keep polling).' }
+        '410': { description: '`Invite expired or revoked`.' }
+
+  /sync/invite/done:
+    post:
+      tags: [invite]
+      summary: Free all state for an invite now (idempotent; TTL GC is the fallback).
+      x-auth-capability: The inviteId.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [inviteId], properties: { inviteId: { type: string } } } } }
+      responses:
+        '204': { description: 'Freed.' }
+        '400': { description: 'Malformed JSON.' }
+
+  # ─────────────────────────────── epc ───────────────────────────────
+
+  /sync/epc/{sessionId}:
+    parameters:
+      - { name: sessionId, in: path, required: true, schema: { $ref: '#/components/schemas/Hex32' } }
+    post:
+      tags: [epc]
+      summary: Provision (or refresh) a rendezvous session (15-minute TTL).
+      security: [{ relayJwt: [] }, { devOwner: [] }]
+      x-limits: { openSessionsPerOwner: 16 }
+      responses:
+        '204': { description: 'Provisioned.' }
+        '400': { description: '`Invalid session id`.' }
+        '409': { description: '`session id already in use` (another owner).' }
+        '429': { description: '`open-session cap reached`.' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    delete:
+      tags: [epc]
+      summary: Close a rendezvous session.
+      security: [{ relayJwt: [] }, { devOwner: [] }]
+      responses:
+        '204': { description: 'Closed.' }
+        '400': { description: '`Invalid session id`.' }
+        '403': { description: '`Not the session owner`.' }
+        '404': { description: '`No such session`.' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /sync/epc/{sessionId}/{direction}:
+    parameters:
+      - { name: sessionId, in: path, required: true, schema: { $ref: '#/components/schemas/Hex32' } }
+      - { name: direction, in: path, required: true, schema: { type: string, enum: [c2p, p2c] } }
+    post:
+      tags: [epc]
+      summary: Post one sealed frame.
+      x-auth-capability: The sessionId (the session must be provisioned).
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [frame], properties: { frame: { $ref: '#/components/schemas/Base64' } } } } }
+      x-limits: { frameBytes: 65536, framesPerDirection: 256 }
+      responses:
+        '204': { description: 'Stored.' }
+        '400': { description: 'An invalid id or direction, malformed JSON, or bad base64.' }
+        '404': { description: '`No such session`.' }
+        '413': { description: '`frame exceeds 65536 bytes`.' }
+        '429': { description: '`direction frame cap reached`.' }
+    get:
+      tags: [epc]
+      summary: Read the frames after `since` (non-destructive).
+      x-auth-capability: The sessionId.
+      parameters:
+        - { name: since, in: query, schema: { type: integer, format: int64, default: 0 } }
+      responses:
+        '200':
+          description: Frames.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  frames: { type: array, items: { type: object, properties: { seq: { type: integer, format: int64 }, frame: { $ref: '#/components/schemas/Base64' } } } }
+                  nextSince: { type: integer, format: int64 }
+        '400': { description: '`Invalid session id or direction`.' }
+        '404': { description: '`No such session`.' }
+
+  # ─────────────────────────────── share ───────────────────────────────
+
+  /share:
+    post:
+      tags: [share]
+      summary: Create a public share (idempotent for the same owner).
+      security: [{ relayJwt: [] }, { devOwner: [] }]
+      x-entitlement-gated: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [shareId, sealedMeta, chunkCount]
+              properties:
+                shareId: { type: string, description: 'Client-minted: 16 random bytes, base64url.' }
+                sealedMeta:
+                  type: string
+                  description: >-
+                    base64url (no padding) of the file's name, MIME type and exact size, AEAD-sealed under
+                    K_share with length-framed associated data `tenshu/file-share-meta/v1|{shareId}|{chunkCount}`
+                    (`sync-service-common` `sealShareMeta`). Opaque to the relay, which stores and serves it
+                    verbatim; must decode and be 1..16384 bytes, else 400. There is no clear name, MIME or
+                    size field (relay-metadata-minimisation.md F3).
+                chunkCount: { type: integer, minimum: 0 }
+                chunkHashes: { type: array, items: { type: string, description: base64url }, default: [] }
+                expiresAtMillis: { type: [integer, 'null'], format: int64, description: '≤ 0 = none.' }
+                maxOpens: { type: [integer, 'null'], description: '≤ 0 = none.' }
+      responses:
+        '201': { description: 'Created.', content: { application/json: { schema: { type: object, properties: { shareId: { type: string } } } } } }
+        '400': { description: 'Malformed JSON, or `Invalid share descriptor`.' }
+        '402': { $ref: '#/components/responses/EntitlementRequired' }
+        '403': { $ref: '#/components/responses/EntitlementOwnerMismatch' }
+        '409': { description: '`shareId already in use` (another owner).' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /share/{shareId}:
+    parameters:
+      - { name: shareId, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [share]
+      summary: Fetch the share descriptor (counts one open).
+      responses:
+        '200':
+          description: Descriptor.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  shareId: { type: string }
+                  sealedMeta: { type: string, description: 'The creator''s sealed blob, verbatim (base64url). The viewer opens it with K_share.' }
+                  chunkCount: { type: integer }
+                  chunkHashes: { type: array, items: { type: string } }
+                  expiresAtMillis: { type: [integer, 'null'], format: int64 }
+                  opensRemaining: { type: [integer, 'null'], description: 'null = no cap.' }
+        '400': { description: '`Missing shareId`.' }
+        '410': { description: '`Share is no longer available`.' }
+    delete:
+      tags: [share]
+      summary: Revoke a share (soft; GC removes the chunks).
+      security: [{ relayJwt: [] }, { devOwner: [] }]
+      responses:
+        '204': { description: 'Revoked.' }
+        '400': { description: '`Missing shareId`.' }
+        '404': { description: '`Share not found`.' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /share/{shareId}/chunk/{chunkIndex}:
+    parameters:
+      - { name: shareId, in: path, required: true, schema: { type: string } }
+      - { name: chunkIndex, in: path, required: true, schema: { type: integer, minimum: 0 } }
+    put:
+      tags: [share]
+      summary: Upload one chunk (first write wins; immutable).
+      security: [{ relayJwt: [] }, { devOwner: [] }]
+      x-entitlement-gated: true
+      requestBody:
+        required: true
+        content: { application/octet-stream: { schema: { type: string, format: binary, maxLength: 8388608 } } }
+      responses:
+        '204': { description: 'Stored.' }
+        '400': { description: '`Invalid chunk address` — including an index at or past the descriptor''s `chunkCount`.' }
+        '404': { description: '`Share not found`.' }
+        '410': { description: '`Share is no longer available`: the share is revoked (by its owner or by an operator takedown) and takes no more bytes.' }
+        '413': { description: '`share chunk exceeds 8 MiB cap`.' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    get:
+      tags: [share]
+      summary: Download one chunk (opens are not counted).
+      responses:
+        '200': { description: 'Ciphertext.', content: { application/octet-stream: { schema: { type: string, format: binary } } } }
+        '400': { description: '`Invalid chunk address`.' }
+        '410': { description: '`Chunk is no longer available`.' }
+
+  # ─────────────────────────────── ops ───────────────────────────────
+
+  /:
+    get:
+      tags: [ops]
+      summary: Process liveness.
+      responses:
+        '200': { description: 'Running.', content: { text/plain: { schema: { const: 'Tenshu Sync Relay is running!' } } } }
+
+  /health:
+    get:
+      tags: [ops]
+      summary: Durability probes (database volume, blob store).
+      responses:
+        '200':
+          description: Healthy. `durable` is false when no database is configured.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Health' } } }
+        '503':
+          description: A probe failed.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Health' }, example: { status: degraded, durable: true } } }
+
+  /sync/account/closure:
+    post:
+      tags: [ops]
+      summary: Commerce asks the relay to erase a closed account (content, log, devices, metadata).
+      description: |
+        Registered only when `ACCOUNT_CLOSURE_RECLAIM=true` and an entitlement issuer key is set;
+        otherwise a bare 404. Stateless: commerce re-posts until the grace window has passed.
+        Past grace the relay erases every owner-scoped row and byte except the three revocation
+        fences (`removed_device`, `admission_revocation`, `member_revocation`) — F12, see
+        `AccountErasure`. Idempotent: a re-post on an erased owner answers 200 with zero counts.
+      x-auth-capability: The body, a commerce-signed EdDSA account-closure token (kid pinned to `ENTITLEMENT_ISSUER_KEY_ID`).
+      requestBody:
+        required: true
+        content: { text/plain: { schema: { type: string } } }
+      responses:
+        '200':
+          description: Reclaimed.
+          content: { application/json: { schema: { type: object, properties: { blobsDropped: { type: integer }, bytesFreed: { type: integer, format: int64 }, rowsErased: { type: integer }, status: { const: reclaimed } } } } }
+        '202':
+          description: Still within the grace window (default 30 days from closedAt).
+          content: { application/json: { schema: { type: object, properties: { remainingMs: { type: integer, format: int64 }, status: { const: within_grace } } } } }
+        '401':
+          description: Any token failure.
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorCode' }, example: { error: invalid_closure_record } } }
+
+  /ops/content-reclaim/plan:
+    get:
+      tags: [ops]
+      summary: Plan a reclaim of undescribed ciphertext for one owner (dry run).
+      security: [{ operatorToken: [] }]
+      x-loopback-only: true
+      parameters:
+        - { $ref: '#/components/parameters/OpsOwner' }
+        - { $ref: '#/components/parameters/OpsMinIdleHours' }
+      responses:
+        '200': { description: 'The plan (`ContentReclaimJob.Plan`), including `candidateDigest`.', content: { application/json: { schema: { type: object } } } }
+        '400': { description: '`owner required`, or an invalid `minIdleHours`.' }
+        '404': { description: 'Not loopback, a wrong token, or the routes not enabled (empty body).' }
+
+  /ops/content-reclaim/enqueue:
+    post:
+      tags: [ops]
+      summary: Enqueue the planned reclaim (refused unless the digest still matches).
+      security: [{ operatorToken: [] }]
+      x-loopback-only: true
+      parameters:
+        - { $ref: '#/components/parameters/OpsOwner' }
+        - { name: expectDigest, in: query, required: true, schema: { type: string } }
+        - { $ref: '#/components/parameters/OpsMinIdleHours' }
+      responses:
+        '200': { description: 'Enqueued.', content: { application/json: { schema: { type: object, properties: { enqueued: { type: integer }, bytes: { type: integer, format: int64 } } } } } }
+        '400': { description: '`owner required` / `expectDigest required` / an invalid `minIdleHours`.' }
+        '404': { description: 'As /plan.' }
+        '409': { description: 'Refused (`{"error": "<reason>"}`).' }
+
+  /ops/content-reclaim/drain:
+    post:
+      tags: [ops]
+      summary: Drain queued deletes.
+      security: [{ operatorToken: [] }]
+      x-loopback-only: true
+      parameters:
+        - { $ref: '#/components/parameters/OpsOwner' }
+        - { name: maxBatches, in: query, schema: { type: integer, default: 50 } }
+      responses:
+        '200': { description: 'Result (`deletedBlobs`, `freedBytes`, `spared`, `remaining`, `pausedOnEdgeOnly`, `failedDeletes`).', content: { application/json: { schema: { type: object } } } }
+        '400': { description: '`owner required`.' }
+        '404': { description: 'As /plan.' }
+
+  /ops/content-sweep/status:
+    get:
+      tags: [ops]
+      summary: The relay's content sweep (CR-2 B5), read-only.
+      description: |
+        Mode (`off` | `dry_run` | `armed`), T (`graceMs`), the cadence, whether the drain is durable, when the
+        arming seed ran, the current count of unreferenced contents, the last run's report and running totals.
+        Registered with `RELAY_OPERATOR_TOKEN` set, durable store or not.
+      security: [{ operatorToken: [] }]
+      x-loopback-only: true
+      responses:
+        '200': { description: 'Status (`ContentSweepJob.Status`).', content: { application/json: { schema: { $ref: '#/components/schemas/ContentSweepStatus' } } } }
+        '404': { description: 'As /ops/content-reclaim/plan.' }
+
+  /ops/share/takedown:
+    post:
+      tags: [ops]
+      summary: Take down one share link by shareId (notice-and-action).
+      description: |
+        Revokes the share and appends one `share_takedown` audit row in one transaction (recipients then
+        get the same 410 as a revoke or an expiry), then deletes the share's chunk ciphertext at once.
+        The owner's content-plane data is untouched. Every call appends a row, including a repeat and an
+        unknown id. Registered with `RELAY_OPERATOR_TOKEN` set, durable store or not. Runbook:
+        `docs/how-to/take-down-a-share-link.md`; policy: `docs/policy/acceptable-use-and-limits.md` §3.
+      security: [{ operatorToken: [] }]
+      x-loopback-only: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [shareId, reason]
+              properties:
+                shareId: { type: string, pattern: '^[A-Za-z0-9_-]{1,128}$', description: 'The id alone, never the URL or its #k= fragment.' }
+                reason: { type: string, enum: [illegal_content, csam, ip_infringement, malware_or_phishing, terms_violation, authority_order, other] }
+                note: { type: string, maxLength: 500, description: 'One line. A ticket reference; never content or reporter data.' }
+      responses:
+        '200':
+          description: 'Done. Always 200 for an authorised call; `outcome` says what happened.'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  auditId: { type: integer, format: int64 }
+                  shareId: { type: string }
+                  outcome: { type: string, enum: [taken_down, already_taken_down, not_found] }
+                  ownerId: { type: [string, 'null'], description: 'null for not_found.' }
+                  takenDownAtMs: { type: integer, format: int64 }
+                  reason: { type: string }
+                  bytesDeleted: { type: integer, format: int64 }
+                  bytesDeleteCompleted: { type: boolean, description: 'false: the link is dead but the byte delete threw; repeat the call.' }
+        '400': { description: 'A malformed body, shareId, reason or note (`{"error": "..."}`); nothing is written.' }
+        '404': { description: 'As /ops/content-reclaim/plan (empty body).' }
+
+components:
+
+  securitySchemes:
+    relayJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: 'EdDSA JWT; iss = ownerId, sub = deviceId, iat/exp required, no skew'
+    devOwner:
+      type: apiKey
+      in: header
+      name: X-Dev-Owner
+      description: Only when the relay runs with an explicit DEV_MODE=true (unset = off; known issue 1, fixed).
+    operatorToken:
+      type: apiKey
+      in: header
+      name: X-Operator-Token
+      description: Only from a loopback socket peer, and only when RELAY_OPERATOR_TOKEN is set.
+
+  parameters:
+    OpsOwner: { name: owner, in: query, required: true, schema: { type: string, minLength: 1 } }
+    OpsMinIdleHours: { name: minIdleHours, in: query, schema: { type: integer, minimum: 1, maximum: 8760, default: 24 } }
+
+  responses:
+    Unauthorized:
+      description: |
+        A JWT failure: `Missing or malformed Authorization header`, `Empty bearer token`, `Invalid token`
+        (an unknown device or a bad signature), `Token expired`, `Token not yet valid`. Also `401 Invalid
+        token` with `Retry-After: 60` past the per-IP failure budget. (400s are possible too:
+        `Unsupported algorithm`, `Malformed token`, `Required claim missing`.)
+    EntitlementRequired:
+      description: No entitlement header (`entitlement_required`), or an invalid one (`entitlement_invalid`).
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorCode' } } }
+    EntitlementOwnerMismatch:
+      description: A valid token whose `sub` names a different owner.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorCode' }, example: { error: entitlement_owner_mismatch } } }
+    UpgradeRequired:
+      description: |
+        The body's `relayProtocolVersion` is absent, not an integer, or outside `[1, 1]`. The text names the
+        accepted range and which side must move.
+      content: { text/plain: { schema: { type: string } } }
+
+  schemas:
+
+    Base64: { type: string, contentEncoding: base64 }
+    Hex32: { type: string, pattern: '^[0-9a-f]{32}$' }
+    BlobRef: { type: string, pattern: '^blob-[0-9a-f]{64}$' }
+    EdgeId: { type: string, pattern: '^[A-Za-z0-9_.:/@+~-]{1,256}$' }
+    HlcStampString: { type: string, description: 'An `HlcStamp` encoding (`core-common` `HybridLogicalClockUtil`).' }
+    ErrorCode: { type: object, required: [error], properties: { error: { type: string } } }
+    FreedRefusal:
+      description: 'B4''s 409 body on `/sync/push` and `/sync/content/declare`.'
+      type: object
+      required: [error, contentIds]
+      properties:
+        error: { type: string, enum: [content_freed, revive_incomplete] }
+        contentIds: { type: array, items: { type: string }, minItems: 1 }
+    ContentSweepRun:
+      type: object
+      required: [mode, startedAtMs, finishedAtMs]
+      properties:
+        mode: { type: string, enum: ['off', dry_run, armed] }
+        startedAtMs: { type: integer, format: int64 }
+        finishedAtMs: { type: integer, format: int64 }
+        seeded: { type: [integer, 'null'], description: 'Rows the arming seed wrote on this run; null when it did not run.' }
+        candidates: { type: integer }
+        owners: { type: integer }
+        wouldFreeRefs: { type: integer, description: dry_run only. }
+        wouldFreeBytes: { type: integer, format: int64, description: dry_run only. }
+        pendingSeed: { type: integer, description: 'dry_run only: contents arming would seed onto the clock.' }
+        freed: { type: integer }
+        notFreed: { type: integer, description: 'A push won the race; the content is live again.' }
+        drainedBlobs: { type: integer }
+        drainedBytes: { type: integer, format: int64 }
+        remainingQueued: { type: integer }
+        error: { type: [string, 'null'] }
+    ContentSweepStatus:
+      type: object
+      required: [mode, graceMs, intervalMs, durableDrain, unreferenced, totals]
+      properties:
+        mode: { type: string, enum: ['off', dry_run, armed] }
+        graceMs: { type: integer, format: int64 }
+        intervalMs: { type: integer, format: int64 }
+        durableDrain: { type: boolean, description: 'False on an in-memory relay: frees are logical only.' }
+        seededAtMs: { type: [integer, 'null'], format: int64 }
+        unreferenced: { type: integer }
+        lastRun: { oneOf: [{ $ref: '#/components/schemas/ContentSweepRun' }, { type: 'null' }] }
+        totals:
+          type: object
+          properties:
+            runs: { type: integer, format: int64 }
+            freed: { type: integer, format: int64 }
+            notFreed: { type: integer, format: int64 }
+            drainedBlobs: { type: integer, format: int64 }
+            drainedBytes: { type: integer, format: int64 }
+            failedRuns: { type: integer, format: int64 }
+    Health: { type: object, required: [status, durable], properties: { status: { type: string, enum: [ok, degraded] }, durable: { type: boolean } } }
+
+    # ── JSON ──
+
+    ContentDeclareRequest:
+      type: object
+      x-b3: changed
+      required: [contents]
+      additionalProperties: false
+      properties:
+        contents:
+          type: array
+          minItems: 1
+          maxItems: 512
+          items:
+            type: object
+            required: [contentId, refs]
+            properties:
+              contentId: { $ref: '#/components/schemas/EdgeId' }
+              refs: { type: array, minItems: 1, maxItems: 4096, items: { $ref: '#/components/schemas/BlobRef' } }
+    ContentDeclareResponse:
+      type: object
+      x-b3: changed
+      description: '`declared` was removed with the edge form.'
+      properties:
+        refsDeclared: { type: integer, default: 0 }
+        contentsDescribed: { type: integer, default: 0 }
+    ReapRequest:
+      type: object
+      x-b3: new
+      required: [relayProtocolVersion, removals]
+      additionalProperties: false
+      properties:
+        relayProtocolVersion: { type: integer, const: 4 }
+        removals:
+          type: array
+          minItems: 1
+          maxItems: 1000
+          items:
+            type: object
+            required: [holder, hlc]
+            properties:
+              holder: { $ref: '#/components/schemas/EdgeId' }
+              hlc: { $ref: '#/components/schemas/HlcStampString' }
+    ContentInventoryResponse:
+      type: object
+      properties:
+        blobCount: { type: integer }
+        blobBytes: { type: integer, format: int64 }
+        zeroLengthBlobCount: { type: integer }
+        describedContentCount: { type: integer }
+        candidateContentCount: { type: integer, description: Counts non-null registers only (B3). }
+        undescribedBlobCount: { type: integer }
+        undescribedBlobBytes: { type: integer, format: int64 }
+        zeroLengthUndescribedBlobCount: { type: integer }
+        recentlyTouchedBlobCount: { type: integer }
+        recentlyTouchedBlobBytes: { type: integer, format: int64 }
+
+    # ── binary positional composites (x-tenshu-position = wire order) ──
+
+    HybridLogicalClock:
+      x-tenshu-composite: tenshu/core/time/hlc
+      type: object
+      properties:
+        physicalTime: { type: integer, format: int64, x-tenshu-position: 1 }
+        logicalCounter: { type: integer, format: int64, x-tenshu-position: 2 }
+        deviceId: { type: string, x-tenshu-position: 3 }
+    SyncBlock:
+      x-tenshu-composite: tenshu/sync/block
+      type: object
+      properties:
+        blockId: { type: string, x-tenshu-position: 1 }
+        ownerId: { type: string, x-tenshu-position: 2 }
+        hlc: { $ref: '#/components/schemas/HybridLogicalClock', x-tenshu-position: 3 }
+        encryptedPayload: { type: string, format: binary, x-tenshu-position: 4, x-envelope-auth: changed, description: 'Empty when the relay''s GC dropped the body. Sealed with SHA-256(canonical envelope) as associated data, so the envelope fields cannot be re-stamped.' }
+        targetEntityIdHash: { type: string, x-tenshu-position: 5, x-tenshu-optional: true, description: 'The EI-1 wire name; absent for a batch.' }
+    DeleteBlock:
+      x-tenshu-composite: tenshu/sync/block/delete
+      type: object
+      properties:
+        blockId: { type: string, x-tenshu-position: 1 }
+        ownerId: { type: string, x-tenshu-position: 2 }
+        hlc: { $ref: '#/components/schemas/HybridLogicalClock', x-tenshu-position: 3 }
+        targetEntityIdHash: { type: string, x-tenshu-position: 4 }
+        targetEntityType:
+          type: string
+          x-tenshu-position: 5
+          description: >-
+            EI-4: a discriminator, not a type. `tenshu/identity/device` (Device.ID) for a device tombstone,
+            the sentinel `tenshu/entity` for every other (mapped by the client at drain time). The relay
+            compares it only with Device.ID (revocation, realm epoch).
+        revokedDeviceId: { type: string, x-tenshu-position: 6, x-tenshu-optional: true }
+        authTag:
+          type: string
+          format: binary
+          x-tenshu-position: 7
+          x-tenshu-optional: true
+          x-envelope-auth: new
+          description: >-
+            HMAC-SHA256 under a child of the realm identity key over every field above in
+            its wire form. Required on every pushed tombstone (32 bytes); opaque to the relay.
+    PushedEdge:
+      x-tenshu-composite: tenshu/sync/pushedEdge
+      x-b3: new
+      type: object
+      properties:
+        propertyId:
+          type: string
+          x-tenshu-position: 1
+          description: >-
+            64 lowercase hex chars (the relay itself enforces only the edge-id rule). The keyed property tag, never the schema property id (B3 wire spec §11.1):
+            hex(HMAC-SHA256(K_tag, holderWireName ‖ propertyId)), K_tag = HKDF(sharedVolumeKey,
+            "tenshu/realm/content-property-tag/v1"). Opaque to the relay, which shape-checks it with the
+            edge-id rule and uses it as a register key only. `regenerable` stays plaintext.
+        contentId: { type: string, x-tenshu-position: 2, x-tenshu-optional: true, description: 'Absent = none.' }
+        regenerable: { type: boolean, x-tenshu-position: 3 }
+    ReviveEntry:
+      x-tenshu-composite: tenshu/sync/reviveEntry
+      x-b3: new
+      description: 'B4: re-references FREED content whose bytes were re-uploaded. `refs` is the full ref set (chunks + manifest), validated like a describe.'
+      type: object
+      properties:
+        contentId: { type: string, x-tenshu-position: 1 }
+        refs: { type: array, items: { type: string }, x-tenshu-position: 2 }
+    EdgedPush:
+      x-tenshu-composite: tenshu/sync/edgedPush
+      x-b3: new
+      type: object
+      properties:
+        relayProtocolVersion: { type: integer, x-tenshu-position: 1 }
+        block: { $ref: '#/components/schemas/SyncBlock', x-tenshu-position: 2 }
+        edges: { type: array, items: { $ref: '#/components/schemas/PushedEdge' }, x-tenshu-position: 3, description: 'The complete set for the row, or empty. Non-empty only with a block target.' }
+        revive: { type: array, items: { $ref: '#/components/schemas/ReviveEntry' }, x-tenshu-position: 4, description: 'One entry per FREED content id a non-regenerable edge names (B4); usually empty.' }
+    CascadedTombstonePush:
+      x-tenshu-composite: tenshu/sync/cascadedTombstonePush
+      x-b3: new
+      type: object
+      properties:
+        relayProtocolVersion: { type: integer, x-tenshu-position: 1 }
+        block: { $ref: '#/components/schemas/DeleteBlock', x-tenshu-position: 2 }
+        cascade: { type: array, items: { type: string }, x-tenshu-position: 3, description: 'The wire names of the descendants the delete removed.' }
+    SignedHlcTip:
+      x-tenshu-composite: tenshu/sync/signedHlcTip
+      type: object
+      description: 'The device''s A4 signature covers LP("tenshu-hlc-tip-v1") ‖ LP(ownerId) ‖ LP(deviceId) ‖ LP(physicalTime) ‖ LP(logicalCounter) ‖ LP(hlc.deviceId) (`HlcTipCanonicalMessage.kt`).'
+      properties:
+        ownerId: { type: string, x-tenshu-position: 1 }
+        deviceId: { type: string, x-tenshu-position: 2 }
+        hlc: { $ref: '#/components/schemas/HybridLogicalClock', x-tenshu-position: 3 }
+        signature: { type: string, format: binary, x-tenshu-position: 4 }
+    ChangesResponse:
+      x-tenshu-composite: tenshu/sync/changesResponse
+      type: object
+      properties:
+        blocks: { type: array, items: { $ref: '#/components/schemas/SyncBlock' }, x-tenshu-position: 1 }
+        peerTips: { type: array, items: { $ref: '#/components/schemas/SignedHlcTip' }, x-tenshu-position: 2 }
+        nextCursor: { type: integer, format: int64, x-tenshu-position: 3 }
+    SyncLogResponse:
+      x-tenshu-composite: tenshu/sync/syncLogResponse
+      type: object
+      properties:
+        blocks: { type: array, items: { $ref: '#/components/schemas/SyncBlock' }, x-tenshu-position: 1 }
+        tombstones: { type: array, items: { $ref: '#/components/schemas/DeleteBlock' }, x-tenshu-position: 2 }
+        peerTips: { type: array, items: { $ref: '#/components/schemas/SignedHlcTip' }, x-tenshu-position: 3 }
+        nextCursor: { type: integer, format: int64, x-tenshu-position: 4 }
+        hasMore: { type: boolean, x-tenshu-position: 5 }
+    TombstonesResponse:
+      x-tenshu-composite: tenshu/sync/tombstonesResponse
+      type: object
+      properties:
+        tombstones: { type: array, items: { $ref: '#/components/schemas/DeleteBlock' }, x-tenshu-position: 1 }
+        nextCursor: { type: integer, format: int64, x-tenshu-position: 2 }
+    PairingSecretHash:
+      type: string
+      pattern: '^[0-9a-f]{64}$'
+      description: 'F7: `hex(SHA-256("tenshu/pairing/join/rendezvous/v1" ‖ 0x00 ‖ utf8(pairingSecret)))`. Never the secret.'
+    SealedDeviceName:
+      allOf: [{ $ref: '#/components/schemas/Base64' }]
+      description: 'F7: `nonce(24) ‖ XChaCha20-Poly1305(K, aadFrame ‖ be16(len) ‖ name ‖ 0-pad to 64 B) ‖ tag(16)`, K HKDF-derived from the pairing secret. 1..1024 bytes decoded. Opaque to the relay.'
+    PairingRequestReply:
+      type: object
+      required: [deviceId, sealedDeviceName, publicKey, signingPublicKey, pairingSecretHash]
+      properties:
+        deviceId: { type: string }
+        sealedDeviceName: { $ref: '#/components/schemas/SealedDeviceName' }
+        publicKey: { $ref: '#/components/schemas/Base64' }
+        signingPublicKey: { $ref: '#/components/schemas/Base64' }
+        pairingSecretHash: { $ref: '#/components/schemas/PairingSecretHash' }
+    DataId:
+      x-tenshu-composite: tenshu/core/entity/dataId
+      description: |
+        Field 1 is `type` (string). Each subtype adds fields after it: `…/dataId/string` adds +keyValue
+        string; `…/dataId/long` adds +keyValue int; `…/dataId/composite` adds +keyValues list<DataId>;
+        `…/referenced/entity` adds +parentEntity DataId and +fieldRef string; `…/referenced/entityList`
+        adds +relationId string; `…/referenced/entityProperty` adds +parentEntity DataId and +propertyId
+        string.
+      type: object
+      properties:
+        type: { type: string, x-tenshu-position: 1 }

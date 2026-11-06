@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    Fit-on-iOS REAL-DEVICE entitlements (ios-signing.md §2) — sdk=iphoneos builds only; the
+    simulator keeps Fit.entitlements. No `application-identifier` (the profile injects it);
+    Keychain groups are Team-prefixed via $(AppIdentifierPrefix); the App Group (below) is the
+    shared-replica container and needs the paid company team (ios-signing.md §6); a device build
+    that cannot resolve it refuses to open a store rather than run on an app-local one.
+    The shared Keychain group is where FitLocalRuntime reads Control's route-1 key material.
+  -->
+  <key>keychain-access-groups</key>
+  <array>
+    <string>$(AppIdentifierPrefix)app.tenshu.fit.ios</string>
+    <string>$(AppIdentifierPrefix)app.tenshu.shared</string>
+  </array>
+  <!--
+    The App Group: the ONE replica every first-party app reads and writes on a real device
+    (ios-background-scheduling.md S0). Bare id, no team prefix: iOS App Group ids are global, and
+    this string must equal the simulator file's and the Kotlin `TENSHU_APP_GROUP`.
+  -->
+  <key>com.apple.security.application-groups</key>
+  <array>
+    <string>group.app.tenshu.shared</string>
+  </array>
+  <!-- HealthKit read access for the P-iOS-2 importer (HealthKitImporter). Free-tier capability
+       (unlike App Groups); the read grant itself is the per-type iOS consent sheet (A34). -->
+  <key>com.apple.developer.healthkit</key>
+  <true/>
+</dict>
+</plist>

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      Maps Ph7b (House Rule #1): the MapLibre AAR merges in INTERNET + current-location
+      permissions, but this app renders an entirely offline, keyless basemap from a bundled
+      PMTiles file (pmtiles://file://…) and never asks for the device's position. Strip those
+      permissions so "nothing leaves the device" is enforced at the OS boundary, not just by
+      convention. ACCESS_NETWORK_STATE/WIFI_STATE stay for MapLibre's connectivity receiver
+      (state read only, no egress).
+    -->
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" tools:node="remove" />
+
+    <!--
+      Maps reaches Control's proxy over Binder for the offline-region service (D6): all network is
+      Control's, so INTERNET stays stripped above. This <queries> lets BinderTaskTransport resolve
+      + bind Control on Android 11+ (package visibility).
+    -->
+    <queries>
+        <package android:name="app.tenshu.control.android" />
+    </queries>
+
+    <application
+        android:name=".MapsApplication"
+        android:allowBackup="false"
+        android:supportsRtl="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+          The reverse (push) channel: Control binds back to this service to deliver stream/callback
+          frames + OOB bytes. Same contract Drive declares; exported with the IClientInterface action.
+        -->
+        <service
+            android:name="org.tenshu.core.common.ClientCallbackService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="app.tenshu.control.android.IClientInterface" />
+            </intent-filter>
+        </service>
+
+    </application>
+</manifest>

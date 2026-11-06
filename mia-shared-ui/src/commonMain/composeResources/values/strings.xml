@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mia user-facing strings (docs/proposals/home-and-mia-apps.md §4; ADR 0016 n=1).
+         Mock conversation *content* (canned replies, seeded history) is English fixture
+         data in :mia-shared-logic, like Timeline's mock moments — not localised here. -->
+
+    <!-- Onboarding (§4, M5): a one-time skippable intro, never a gate on the product. -->
+    <string name="mia_onboarding_welcome_title">Meet Mia</string>
+    <string name="mia_onboarding_welcome_body">Your assistant for everything in your realm — find photos from your Drive, places from your Timeline, and control your home. Private by design: Mia works for you, not on your data.</string>
+    <string name="mia_onboarding_assistant_title">Make Mia your assistant</string>
+    <string name="mia_onboarding_assistant_body">On Android you can set Mia as your system-wide assistant — a long press on home opens Mia from anywhere.</string>
+    <string name="mia_onboarding_done_title">All set</string>
+    <string name="mia_onboarding_done_body">Ask Mia anything — and find voice identification, model settings and more in Settings.</string>
+    <string name="mia_onboarding_next">Next</string>
+    <string name="mia_onboarding_back">Back</string>
+    <string name="mia_onboarding_skip">Skip</string>
+    <string name="mia_onboarding_start">Get started</string>
+
+    <string name="mia_nav_chat">Chat</string>
+    <string name="mia_nav_history">History</string>
+    <string name="mia_nav_settings">Settings</string>
+
+    <string name="mia_chat_title">Mia</string>
+    <string name="mia_chat_greeting_title">Hi, I&#8217;m Mia</string>
+    <string name="mia_chat_greeting_body">Ask me to find photos from your Drive, places from your Timeline — or to control your home.</string>
+    <string name="mia_chat_input_hint">Ask Mia…</string>
+    <string name="mia_chat_send">Send</string>
+    <string name="mia_chat_voice">Speak with Mia</string>
+    <!-- AV-1. ⚠ The mic appears only where speech is recognised ON the device (IN-D11). -->
+    <string name="mia_chat_voice_stop">Stop listening</string>
+    <string name="mia_chat_listening">Listening…</string>
+    <string name="mia_chat_typing">Mia is thinking…</string>
+
+    <string name="mia_history_empty">No conversations yet.</string>
+    <string name="mia_detail_back">Back</string>
+
+    <string name="mia_settings_coming_soon">Coming soon</string>
+    <string name="mia_settings_grants_title">What Mia can read</string>
+    <!-- ⚠ Says "per app" plainly: grants are per SERVICE and there is no per-file control,
+         so copy implying otherwise would promise what the system cannot enforce (MQ-D6). -->
+    <string name="mia_settings_grants_body">Mia only reads what you allow, one app at a time. Turning something off here means Mia stops using it — it can't answer from it, and it will say so rather than pretending there is nothing there.</string>
+    <!-- ⚠ MQ-D6: a grant needs a VERB, not just a noun. Reading your calendar and adding to
+         it are two different permissions and a user will reasonably want the first alone. -->
+    <string name="mia_settings_grants_write">Let Mia add events</string>
+    <string name="mia_settings_grants_files">Files</string>
+    <string name="mia_settings_grants_timeline">Timeline</string>
+    <string name="mia_settings_grants_fitness">Workouts</string>
+    <string name="mia_settings_grants_places">Places</string>
+    <string name="mia_settings_grants_calendar">Calendar</string>
+    <!-- IN-4: what a model said is IN the user's photos. ⚠ Its own line, not folded into
+         "files": reading a filename and reading a model's opinion about the picture are
+         different permissions, and the second is the one more likely to be refused. -->
+    <string name="mia_settings_grants_labels">Photo contents</string>
+    <string name="mia_settings_grants_visual_search">Photo search by appearance</string>
+    <string name="mia_settings_grants_devices">Smart-home devices</string>
+    <string name="mia_settings_grants_routines">Routines</string>
+    <!-- AV-1: dictation, and why it may be missing. ⚠⚠ "Absent and says so" (IN-D11) — the mic is
+         hidden where speech cannot be recognised on the device, and this line is the "says so". -->
+    <string name="mia_settings_dictation_title">Speaking to Mia</string>
+    <string name="mia_settings_dictation_on">Your words are turned into text on this device. Nothing is recorded and no audio is sent anywhere.</string>
+    <string name="mia_settings_dictation_off">This device can't recognise speech without sending the audio away, so Mia has no microphone here. Typing works exactly the same.</string>
+    <string name="mia_settings_voice_title">Voice identification</string>
+    <string name="mia_settings_voice_body">Teach Mia your voice so the smart speaker knows who is talking.</string>
+    <string name="mia_settings_assistant_title">Set as default assistant</string>
+    <string name="mia_settings_assistant_body">On Android, Mia can be your system-wide assistant. On iOS, use the Action Button or “Hey Siri, ask Mia”.</string>
+    <string name="mia_settings_assistant_open">Open assistant settings</string>
+    <string name="mia_settings_assistant_active">Active</string>
+    <string name="mia_settings_model_title">Model &amp; inference</string>
+    <string name="mia_settings_model_body">Choose where Mia thinks — on this device, or on your Tenshu Hub.</string>
+    <string name="mia_settings_skills_title">Skills</string>
+    <string name="mia_settings_skills_body">Third-party voice skills arrive with the Tenshu Store.</string>
+    <!-- The Control wall (ADR 0025 §Decision 1b / §Decision 8). -->
+    <string name="mia_control_wall_title">Set up Tenshu Control</string>
+    <string name="mia_control_not_set_up">Tenshu Control is installed but isn't set up on this device yet. Mia answers through Control — open it to start fresh or join your other devices, then come back.</string>
+    <string name="mia_control_open_action">Open Control</string>
+    <string name="mia_control_not_installed">Tenshu Control isn't installed on this device. Mia answers through Control, so there's nothing it can look up until it's installed.</string>
+    <string name="mia_control_not_installed_unpublished">Tenshu Control isn't installed on this device, and it isn't in the store yet — Mia can't answer anything until it is.</string>
+    <string name="mia_control_not_installed_other_channel">Tenshu Control isn't installed on this device. Install it the same way you installed Mia.</string>
+    <string name="mia_control_get_action">Get Control</string>
+</resources>

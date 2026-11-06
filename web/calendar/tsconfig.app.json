@@ -1,0 +1,7 @@
+{
+  "extends": "@tenshu/app-kit/tsconfig/app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo"
+  },
+  "include": ["src"]
+}

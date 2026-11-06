@@ -1,0 +1,15 @@
+Tenshu Timeline needs Tenshu Control installed and set up on the same device first. Control holds the encryption keys; Timeline cannot open without it.
+
+To review:
+1. Install Tenshu Control and open it. Tap "Start fresh on this device", then "Continue", then "I've saved it".
+2. Open Tenshu Timeline. It shows "Home", "Places" and "Activities". On a new device they are empty, because nothing has been recorded yet; "Home" says so and points to the setting below.
+3. Tap the gear to open "Settings". Under "Location capture", turn on "Record places and trips". Only then does iOS ask for location access.
+4. Places appear after you stay somewhere for a while and then move on. iOS delivers these visit events on its own schedule, usually minutes after you leave a place, so a captured day needs the device to be carried around. Until then "Home" says "Your day will appear here once Timeline has recorded a visit."
+
+Why "Always" location access: Timeline records the places you visit and the trips between them while the app is closed. It uses iOS visit monitoring and significant location changes, which relaunch the app; it does not run continuous GPS in the background. Recording is off until the user turns it on in Settings, and turning it off stops it. If access is denied, the switch turns itself off again.
+
+The other settings are also off by default: "Recognise places by Wi-Fi" and "Look up place names" (which sends a place's coordinates to a place-name lookup service).
+
+Everything works on one device without an account. "Turn on sync" in Control is optional: it asks for an email address and then a 6-digit code. To try it without a mailbox, use the sign-in details in App Review Information: enter the user name as the email address and the password as the code (no email is sent to that address). Any address you can receive mail at also works, and a new account is free.
+
+Recorded places and trips are end-to-end encrypted on the device before they reach our servers; the servers cannot read them.

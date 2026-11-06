@@ -1,0 +1,10 @@
+[Unit]
+Description=Nightly Tenshu commerce database snapshot
+
+[Timer]
+# 03:42 UTC — offset from the relay's 03:17 so the two do not contend for upload bandwidth.
+OnCalendar=*-*-* 03:42:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

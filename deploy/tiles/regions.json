@@ -1,0 +1,14 @@
+{
+  "buildDate": "2026-08",
+  "schemaVersion": 1,
+  "tileSchemaVersion": 4,
+  "regions": [
+    { "id": "global", "name": "World", "bbox": [-180, -90, 180, 90] },
+    { "id": "de-bayern", "name": "Bayern", "bbox": [8.98, 47.27, 13.84, 50.56] },
+    { "id": "de-berlin-brandenburg", "name": "Berlin-Brandenburg", "bbox": [11.27, 51.36, 14.77, 53.56] },
+    { "id": "at", "name": "Österreich", "bbox": [9.53, 46.37, 17.16, 49.02] },
+    { "id": "ch", "name": "Schweiz", "bbox": [5.96, 45.82, 10.49, 47.81] },
+    { "id": "test-firenze", "name": "Firenze (test)", "bbox": [11.14, 43.73, 11.35, 43.83] },
+    { "id": "test-toscana", "name": "Toscana (test)", "bbox": [10.6, 43.3, 12.0, 44.3] }
+  ]
+}

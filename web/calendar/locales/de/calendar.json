@@ -1,0 +1,207 @@
+{
+  "app": {
+    "title": "Kalender",
+    "tagline": "Deine Kalender, Ende-zu-Ende-verschlüsselt."
+  },
+  "tabs": {
+    "calendar": "Kalender",
+    "calendars": "Kalender verwalten",
+    "subscriptions": "Abonnements",
+    "transfer": "Import & Export"
+  },
+  "nav": {
+    "previous": "Zurück",
+    "next": "Weiter",
+    "today": "Heute"
+  },
+  "views": {
+    "label": "Ansicht",
+    "month": "Monat",
+    "week": "Woche",
+    "day": "Tag",
+    "agenda": "Agenda",
+    "allDay": "Ganztägig",
+    "more": "{count, plural, other {+# weitere}}",
+    "agendaEmpty": "In diesen {count} Tagen ist nichts geplant.",
+    "repeats": "Wiederholt sich",
+    "hiddenUnreadable": "Es ließ sich nicht lesen, welche Kalender du in diesem Browser ausgeblendet hast, daher werden alle angezeigt."
+  },
+  "empty": {
+    "title": "Noch keine Kalender",
+    "body": "Lege einen Kalender an, um Termine einzutragen. Wenn du Tenshu Kalender schon auf einem anderen Gerät nutzt, erscheinen dessen Kalender hier, sobald dieser Browser synchronisiert hat.",
+    "create": "Kalender anlegen"
+  },
+  "event": {
+    "untitled": "(Ohne Titel)"
+  },
+  "editor": {
+    "new": "Neuer Termin",
+    "createTitle": "Neuer Termin",
+    "editTitle": "Termin bearbeiten",
+    "title": "Titel",
+    "calendar": "Kalender",
+    "allDay": "Ganztägig",
+    "startDate": "Beginn",
+    "startTime": "Beginnt um",
+    "endDate": "Ende",
+    "endTime": "Endet um",
+    "endBeforeStart": "Der Termin endet, bevor er beginnt.",
+    "zoneNote": "Die Zeiten gelten in {zone}, der Zeitzone des Termins.",
+    "repeat": "Wiederholen",
+    "customRule": "Dieser Termin wiederholt sich auf eine Weise, die dieser Editor nicht ändern kann. Sie bleibt genau so erhalten.",
+    "location": "Ort",
+    "notes": "Notizen",
+    "reminders": "Erinnerungen",
+    "remindersRing": "Erinnerungen klingeln auf deinem Handy und Desktop.",
+    "remindersUnreadable": "Die Erinnerungen dieses Termins ließen sich nicht laden. Beim Speichern bleiben sie unverändert.",
+    "remindersDefaultUnreadable": "Deine Standarderinnerung ließ sich nicht lesen, daher ist keine gesetzt.",
+    "delete": "Löschen",
+    "saveScopeQuestion": "Das ist ein wiederkehrender Termin. Nur diesen ändern oder alle Termine der Serie?",
+    "thisEvent": "Nur diesen Termin",
+    "thisEventSeriesOnly": "Du hast die Wiederholung, den Kalender oder „Ganztägig“ geändert – das geht nur für die ganze Serie.",
+    "allEvents": "Alle Termine der Serie",
+    "allEventsNote": "Die Serie beginnt dann am {date}.",
+    "deleteQuestion": "Diesen Termin löschen?",
+    "deleteScopeQuestion": "Das ist ein wiederkehrender Termin. Nur diesen löschen oder die ganze Serie?",
+    "deleteThis": "Nur diesen Termin löschen",
+    "deleteAll": "Ganze Serie löschen",
+    "savedRemindersFailed": "Der Termin wurde gespeichert, seine Erinnerungen aber nicht."
+  },
+  "recurrence": {
+    "never": "Nie",
+    "daily": "Täglich",
+    "weekly": "Wöchentlich",
+    "monthly": "Monatlich",
+    "yearly": "Jährlich",
+    "custom": "Benutzerdefiniert"
+  },
+  "reminders": {
+    "atStart": "Zu Beginn",
+    "minutesBefore": "{count, plural, one {# Minute vorher} other {# Minuten vorher}}",
+    "minutesAfter": "{count, plural, one {# Minute danach} other {# Minuten danach}}",
+    "hoursBefore": "{count, plural, one {# Stunde vorher} other {# Stunden vorher}}",
+    "daysBefore": "{count, plural, one {# Tag vorher} other {# Tage vorher}}",
+    "onTheDay": "Am Tag um {time}",
+    "daysBeforeAt": "{count, plural, one {Am Vortag um {time}} other {# Tage vorher um {time}}}"
+  },
+  "zone": {
+    "readerFallback": "Zeiten nach der Uhr deines Browsers. Die Zeitzone deines Browsers kennt Tenshu nicht beim Namen, daher folgen die Zeiten den Uhreinstellungen deines Computers.",
+    "unresolvedShort": "Unbekannte Zeitzone",
+    "refusalTitle": "Dieser Termin kann hier nicht bearbeitet werden",
+    "refusalBody": "Er verwendet die Zeitzone „{zone}“, die dieser Browser noch nicht kennt. Seine Zeiten sind daher nur eine Schätzung in deiner eigenen Zeitzone, und Speichern würde den Termin verschieben. Bearbeite ihn stattdessen auf deinem Handy oder Desktop.",
+    "shownAt": "Hier angezeigt von {start} bis {end}.",
+    "shownAllDay": "Hier als ganztägiger Termin angezeigt."
+  },
+  "calendars": {
+    "title": "Deine Kalender",
+    "new": "Neuer Kalender",
+    "createTitle": "Neuer Kalender",
+    "editTitle": "Kalender bearbeiten",
+    "create": "Anlegen",
+    "name": "Name",
+    "nameTaken": "Du hast schon einen Kalender mit diesem Namen.",
+    "colour": "Farbe",
+    "colourN": "Farbe {n}",
+    "sensitive": "Details vom Sperrbildschirm fernhalten",
+    "sensitiveDetail": "Dein Handy zeigt nur, dass etwas ansteht, nicht was.",
+    "show": "{name} anzeigen",
+    "unnamed": "Unbenannter Kalender",
+    "default": "Standard",
+    "makeDefault": "Als Standard",
+    "edit": "Bearbeiten",
+    "delete": "Löschen",
+    "deleteTitle": "„{name}“ löschen?",
+    "deleteBody": "Alle Termine in diesem Kalender werden ebenfalls gelöscht, auf all deinen Geräten.",
+    "visibilityNote": "Ein- und Ausblenden gilt nur für diesen Browser."
+  },
+  "subscriptions": {
+    "title": "Abonnierte Kalender",
+    "add": "Abonnement hinzufügen",
+    "addTitle": "Kalender abonnieren",
+    "url": "Kalenderadresse (https:// oder webcal://)",
+    "name": "Name (optional)",
+    "consent": "Dein Handy und Desktop rufen diesen Kalender von seiner Adresse ab und halten ihn aktuell. Dieser Browser ruft ihn nie selbst ab; die Termine erreichen ihn über die Synchronisierung.",
+    "addConfirm": "Abonnieren",
+    "fetchedBy": "Abonnierte Kalender werden von deinem Handy und Desktop abgerufen, nicht von diesem Browser.",
+    "empty": "Keine Abonnements.",
+    "neverFetched": "Noch von keinem deiner Geräte abgerufen",
+    "lastFetched": "Zuletzt abgerufen {when}",
+    "paused": "Pausiert",
+    "pause": "Pausieren",
+    "resume": "Fortsetzen",
+    "remove": "Entfernen",
+    "removeTitle": "Abonnement entfernen?",
+    "removeBody": "„{name}“ und seine Termine werden von all deinen Geräten entfernt."
+  },
+  "transfer": {
+    "importTitle": ".ics-Datei importieren",
+    "into": "In Kalender",
+    "drop": ".ics-Datei hier ablegen",
+    "choose": "Datei auswählen",
+    "chooseLabel": ".ics-Datei zum Importieren auswählen",
+    "importNote": "Wird dieselbe Datei erneut importiert, werden ihre Termine aktualisiert statt verdoppelt.",
+    "exportTitle": "Exportieren",
+    "from": "Kalender",
+    "allCalendars": "Alle Kalender",
+    "allFileName": "kalender",
+    "export": ".ics herunterladen",
+    "noCalendars": "Lege zuerst einen Kalender an; importierte Termine brauchen einen.",
+    "imported": "{count, plural, one {# Termin aus {file} importiert.} other {# Termine aus {file} importiert.}}",
+    "overrides": "{count, plural, one {Dazu # geänderter Einzeltermin.} other {Dazu # geänderte Einzeltermine.}}",
+    "skipped": "{count, plural, one {# Eintrag der Datei war nicht lesbar und wurde übersprungen.} other {# Einträge der Datei waren nicht lesbar und wurden übersprungen.}}",
+    "failed": "{count, plural, one {# Termin konnte nicht gespeichert werden.} other {# Termine konnten nicht gespeichert werden.}}",
+    "warnings": "{count, plural, one {# Termin wurde ohne alle Details importiert (Originaltext oder Erinnerungen).} other {# Termine wurden ohne alle Details importiert (Originaltext oder Erinnerungen).}}"
+  },
+  "common": {
+    "cancel": "Abbrechen",
+    "save": "Speichern",
+    "close": "Schließen",
+    "working": "Wird ausgeführt…",
+    "loading": "Wird geladen…",
+    "retry": "Erneut versuchen"
+  },
+  "errors": {
+    "error_generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+    "error_unexpected": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+    "error_internal": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+    "error_not_found": "Dieser Eintrag ist nicht mehr verfügbar.",
+    "error_invalid_caller": "Diese App darf das nicht.",
+    "error_unannounced_session": "Tenshu muss sich neu verbinden. Bitte versuche es erneut.",
+    "error_unsupported_operation": "Diese Version unterstützt das noch nicht.",
+    "bridge": "Tenshu ist nicht erreichbar. Stelle sicher, dass es geöffnet und entsperrt ist, und versuche es erneut.",
+    "bridge_timeout": "Tenshu hat zu lange nicht geantwortet. Versuche es erneut.",
+    "bridge_not_permitted": "Kalender darf das nicht.",
+    "error_calendar_invalid_argument": "Das konnte nicht gespeichert werden: Etwas daran ist ungültig.",
+    "error_calendar_invalid_rule": "Diese Wiederholungsregel ist ungültig, daher wurde nichts gespeichert.",
+    "error_calendar_unknown_zone": "Die Zeitzone dieses Termins ist diesem Browser unbekannt, daher kann er hier nicht gespeichert werden.",
+    "error_calendar_not_found": "Dieser Kalender oder Termin existiert nicht mehr.",
+    "error_calendar_none_in_file": "In dieser Datei wurden keine Termine gefunden.",
+    "error_calendar_subscription_url": "Diese Adresse kann nicht abonniert werden. Verwende einen https://- oder webcal://-Link.",
+    "error_calendar_no_device": "Dieser Browser ist noch nicht als eines deiner Geräte eingerichtet und kann daher keine eigenen Ansichtseinstellungen speichern. Versuche es nach der ersten Synchronisierung erneut."
+  },
+  "sync": {
+    "offline": "Du bist offline. Änderungen bleiben auf diesem Gerät und werden synchronisiert, sobald du wieder verbunden bist.",
+    "needsAttention": "Tenshu kann gerade nicht synchronisieren – dein Speicher braucht Aufmerksamkeit. Änderungen bleiben auf diesem Gerät.",
+    "locked": "Tenshu ist auf diesem Gerät gesperrt, daher wird nichts synchronisiert. Entsperre es, um fortzufahren.",
+    "deviceUnrecognized": "Dieser Browser wird nicht mehr als eines deiner Geräte erkannt und kann daher nicht synchronisieren."
+  },
+  "stream": {
+    "stopped": "Live-Aktualisierungen wurden beendet. Was du siehst, ist möglicherweise veraltet.",
+    "reconnect": "Neu verbinden"
+  },
+  "runtime": {
+    "connectingTitle": "Verbindung zu Tenshu wird noch hergestellt…",
+    "connectingBody": "Der Tenshu-Tab, in dem Kalender läuft, ist beschäftigt. Kalender lädt, sobald er antwortet.",
+    "elsewhereTitle": "Tenshu ist in einem anderen Tab geöffnet",
+    "elsewhereBody": "Tenshu läuft immer nur in einem Tab, damit deine Daten nicht auseinanderlaufen. Nutze es hier, um es in diesen Tab zu holen.",
+    "moving": "Warte, bis der andere Tab fertig gespeichert hat. Das kann bis zu zwei Minuten dauern.",
+    "movingShort": "Wird verschoben…",
+    "useHere": "Hier nutzen"
+  },
+  "crash": {
+    "title": "Etwas ist schiefgelaufen",
+    "body": "In diesem Teil von Kalender ist ein unerwarteter Fehler aufgetreten. Deine Daten sind sicher – nichts wurde geändert.",
+    "retry": "Erneut versuchen",
+    "reload": "Neu laden"
+  }
+}

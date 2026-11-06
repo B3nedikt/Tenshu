@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Exclude the secure-storage blobs from Auto Backup / device transfer. The AndroidKeyStore key that
+  seals them is device-bound and is never backed up, so a restored copy would be undecryptable
+  anyway (see AndroidSecureStorageDelegate). Excluding the file lets a restored device start clean
+  and re-onboard instead of inheriting unreadable ciphertext.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="tenshu_secret_store.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="tenshu_secret_store.xml" />
+    </device-transfer>
+</data-extraction-rules>

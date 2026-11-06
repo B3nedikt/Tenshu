@@ -1,0 +1,1623 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ uses Tenshu Control to %@. Get Control from the App Store, then come back to %@." : {
+      "comment" : "Set-up screen body when Control is not installed; %1$@ = app name, %2$@ = what the app uses Control for (an infinitive clause), %3$@ = app name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ nutzt Tenshu Control, um %2$@. Hol dir Control im App Store und kehre dann zu %3$@ zurück."
+          }
+        }
+      }
+    },
+    "%@ uses Tenshu Control to %@. Set it up on this iPhone to continue." : {
+      "comment" : "Set-up screen body; %1$@ = app name, %2$@ = what the app uses Control for (an infinitive clause)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ nutzt Tenshu Control, um %2$@. Richte es auf diesem iPhone ein, um fortzufahren."
+          }
+        }
+      }
+    },
+    "%@%d%% vs last week" : {
+      "comment" : "Fit Today: week-over-week change (%@ = sign, %d = percent)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@%d%% ggü. Vorwoche"
+          }
+        }
+      }
+    },
+    "%lld bpm" : {
+      "comment" : "Fit workout detail: lap average heart rate",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld bpm"
+          }
+        }
+      }
+    },
+    "%lld records" : {
+      "comment" : "Fit onboarding: estimated record count per category",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld Einträge"
+          }
+        }
+      }
+    },
+    "A bit about you" : {
+      "comment" : "Fit onboarding: profile step title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein bisschen über dich"
+          }
+        }
+      }
+    },
+    "About" : {
+      "comment" : "Profile section holding the privacy-policy link",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Info"
+          }
+        }
+      }
+    },
+    "Active minutes" : {
+      "comment" : "Fit Home: week card title (as fit_home_active_minutes)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktive Minuten"
+          }
+        }
+      }
+    },
+    "Active minutes: %lld" : {
+      "comment" : "Fit profile: goal stepper",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktive Minuten: %lld"
+          }
+        }
+      }
+    },
+    "Activity" : {
+      "comment" : "Section header / screen title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktivität"
+          }
+        }
+      }
+    },
+    "App" : {
+      "comment" : "Label: tab in dev harness; 'App' row in Control's About section",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App"
+          }
+        }
+      }
+    },
+    "Apple Health isn't available on this device. Record a workout or import a file to get started." : {
+      "comment" : "Fit Today: empty state body (no Apple Health on this device, e.g. iPad)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Health ist auf diesem Gerät nicht verfügbar. Zeichne ein Training auf oder importiere eine Datei, um loszulegen."
+          }
+        }
+      }
+    },
+    "Apple will see which places you open, and when. Applies in this app; you can turn it off in Settings." : {
+      "comment" : "Basemap election privacy disclosure",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple sieht, welche Orte du öffnest und wann. Gilt in dieser App; du kannst es in den Einstellungen ausschalten."
+          }
+        }
+      }
+    },
+    "Back" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zurück"
+          }
+        }
+      }
+    },
+    "Batch import" : {
+      "comment" : "Fit profile: section header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stapelimport"
+          }
+        }
+      }
+    },
+    "Bring your Google Fit history in from an export file" : {
+      "comment" : "Fit profile: Google Takeout row subtitle",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Übernimm deinen Google-Fit-Verlauf aus einer Exportdatei"
+          }
+        }
+      }
+    },
+    "Browse" : {
+      "comment" : "Fit: Browse screen title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Durchsuchen"
+          }
+        }
+      }
+    },
+    "CURRENT" : {
+      "comment" : "Fit cycle card: uppercase caption",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AKTUELL"
+          }
+        }
+      }
+    },
+    "Can't reach Tenshu Control — %@ is showing what it already has." : {
+      "comment" : "Not-connected banner; %@ = app name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenshu Control ist nicht erreichbar – %@ zeigt, was bereits vorhanden ist."
+          }
+        }
+      }
+    },
+    "Cancel" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abbrechen"
+          }
+        }
+      }
+    },
+    "Captured %@–%@ · Original file retained" : {
+      "comment" : "Fit workout detail: provenance line (start/end time)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aufgezeichnet %@–%@ · Originaldatei aufbewahrt"
+          }
+        }
+      }
+    },
+    "Centimetres" : {
+      "comment" : "Fit profile editor: height field (metric)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zentimeter"
+          }
+        }
+      }
+    },
+    "Choose which categories to bring in. You can change this later." : {
+      "comment" : "Fit onboarding: step body",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähle, welche Kategorien du übernehmen möchtest. Du kannst das später ändern."
+          }
+        }
+      }
+    },
+    "Connect" : {
+      "comment" : "Title and button of the contact connect sheet",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verbinden"
+          }
+        }
+      }
+    },
+    "Connect a data source" : {
+      "comment" : "Fit Browse: card title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datenquelle verbinden"
+          }
+        }
+      }
+    },
+    "Connect a heart-rate strap" : {
+      "comment" : "Fit record: Bluetooth rationale title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Herzfrequenz-Brustgurt verbinden"
+          }
+        }
+      }
+    },
+    "Continue" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weiter"
+          }
+        }
+      }
+    },
+    "Control was unreachable, so the workout is journalled on this device and will sync when the connection is back." : {
+      "comment" : "Fit record: offline-save alert body",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Control war nicht erreichbar. Das Training wird daher auf diesem Gerät zwischengespeichert und synchronisiert, sobald die Verbindung wieder besteht."
+          }
+        }
+      }
+    },
+    "Copyright 2022 The Noto Project Authors" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copyright 2022 The Noto Project Authors"
+          }
+        }
+      }
+    },
+    "Could not save" : {
+      "comment" : "Fit record: alert title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speichern fehlgeschlagen"
+          }
+        }
+      }
+    },
+    "Cycle day %lld" : {
+      "comment" : "Fit cycle card: current cycle day",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zyklustag %lld"
+          }
+        }
+      }
+    },
+    "Daily goals" : {
+      "comment" : "Fit profile: section header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tagesziele"
+          }
+        }
+      }
+    },
+    "Data and fonts" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daten und Schriften"
+          }
+        }
+      }
+    },
+    "Data sources" : {
+      "comment" : "Fit: data sources heading",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datenquellen"
+          }
+        }
+      }
+    },
+    "Details" : {
+      "comment" : "Accessibility hint: a Home card or value opens its detail (as fit_home_details)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Details"
+          }
+        }
+      }
+    },
+    "Detect activities automatically" : {
+      "comment" : "Fit data source: toggle",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktivitäten automatisch erkennen"
+          }
+        }
+      }
+    },
+    "Discard" : {
+      "comment" : "Button: discard a recording",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verwerfen"
+          }
+        }
+      }
+    },
+    "Discard workout?" : {
+      "comment" : "Fit record: confirmation dialog title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Training verwerfen?"
+          }
+        }
+      }
+    },
+    "Distance" : {
+      "comment" : "Fit Home: week card title (as fit_home_distance_label)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Distanz"
+          }
+        }
+      }
+    },
+    "Downloaded separately; each model shows its licence under Settings → Models" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Werden separat geladen; jedes Modell zeigt seine Lizenz unter Einstellungen → Modelle"
+          }
+        }
+      }
+    },
+    "Energy" : {
+      "comment" : "Fit Home: week card title, energy burned (as fit_home_energy_label)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Energie"
+          }
+        }
+      }
+    },
+    "Entries" : {
+      "comment" : "Fit category detail: heading",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einträge"
+          }
+        }
+      }
+    },
+    "Feet" : {
+      "comment" : "Fit profile editor: height field (imperial)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fuß"
+          }
+        }
+      }
+    },
+    "Female" : {
+      "comment" : "Fit profile editor: sex option",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weiblich"
+          }
+        }
+      }
+    },
+    "Fit maps your route and counts your steps on-device while you record. Location and motion are used only during a workout — nothing leaves your device unencrypted." : {
+      "comment" : "Fit record: permission rationale body",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fit erfasst deine Route und zählt deine Schritte auf dem Gerät, während du aufzeichnest. Standort und Bewegung werden nur während eines Trainings verwendet – nichts verlässt dein Gerät unverschlüsselt."
+          }
+        }
+      }
+    },
+    "Fit pairs with a Bluetooth heart-rate strap, only while you record." : {
+      "comment" : "Fit record: Bluetooth rationale body",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fit koppelt sich nur während der Aufzeichnung mit einem Bluetooth-Herzfrequenz-Brustgurt."
+          }
+        }
+      }
+    },
+    "Get Tenshu Control" : {
+      "comment" : "Button: opens Control's App Store page",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenshu Control laden"
+          }
+        }
+      }
+    },
+    "Heart rate" : {
+      "comment" : "Fit workout detail: chart label",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Herzfrequenz"
+          }
+        }
+      }
+    },
+    "History" : {
+      "comment" : "Screen title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verlauf"
+          }
+        }
+      }
+    },
+    "Home" : {
+      "comment" : "Tab title (as Android fit_nav_home)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start"
+          }
+        }
+      }
+    },
+    "Imperial" : {
+      "comment" : "Fit profile: unit system option",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imperial"
+          }
+        }
+      }
+    },
+    "Import" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importieren"
+          }
+        }
+      }
+    },
+    "Import a file" : {
+      "comment" : "Fit Today: button opening the file import",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datei importieren"
+          }
+        }
+      }
+    },
+    "Import again" : {
+      "comment" : "Fit batch import: re-import button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erneut importieren"
+          }
+        }
+      }
+    },
+    "Import automatically" : {
+      "comment" : "Fit data source: toggle",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatisch importieren"
+          }
+        }
+      }
+    },
+    "Import from Apple Health" : {
+      "comment" : "Fit Today / Profile: button that starts the first Apple Health import (shows the Health permission sheet)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aus Apple Health importieren"
+          }
+        }
+      }
+    },
+    "Import history" : {
+      "comment" : "Fit: section header for past imports",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importverlauf"
+          }
+        }
+      }
+    },
+    "Import now" : {
+      "comment" : "Fit data source: button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jetzt importieren"
+          }
+        }
+      }
+    },
+    "Import or record data to see it here." : {
+      "comment" : "Fit category detail: empty state body",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importiere oder zeichne Daten auf, um sie hier zu sehen."
+          }
+        }
+      }
+    },
+    "Import your activity, sleep and body data." : {
+      "comment" : "Fit Browse: card subtitle",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importiere deine Aktivitäts-, Schlaf- und Körperdaten."
+          }
+        }
+      }
+    },
+    "Inches" : {
+      "comment" : "Fit profile editor: height field (imperial)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zoll"
+          }
+        }
+      }
+    },
+    "LATEST READING" : {
+      "comment" : "Fit category detail: uppercase caption",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LETZTER MESSWERT"
+          }
+        }
+      }
+    },
+    "Laps" : {
+      "comment" : "Fit workout detail: laps heading",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Runden"
+          }
+        }
+      }
+    },
+    "Libraries" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bibliotheken"
+          }
+        }
+      }
+    },
+    "Log walks, runs and rides your phone already noticed, without pressing start." : {
+      "comment" : "Fit data source: toggle footer",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erfasse Spaziergänge, Läufe und Radfahrten, die dein Telefon bereits bemerkt hat – ohne auf Start zu tippen."
+          }
+        }
+      }
+    },
+    "Male" : {
+      "comment" : "Fit profile editor: sex option",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Männlich"
+          }
+        }
+      }
+    },
+    "Manage storage" : {
+      "comment" : "Storage banner button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speicher verwalten"
+          }
+        }
+      }
+    },
+    "Map data © OpenStreetMap contributors" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kartendaten © OpenStreetMap-Mitwirkende"
+          }
+        }
+      }
+    },
+    "Maps" : {
+      "comment" : "Settings section header for the map renderer (generic, not the app name)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Karten"
+          }
+        }
+      }
+    },
+    "Medical" : {
+      "comment" : "Fit: medical records screen title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Medizinische Daten"
+          }
+        }
+      }
+    },
+    "Metric" : {
+      "comment" : "Fit profile: unit system option",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Metrisch"
+          }
+        }
+      }
+    },
+    "No activity yet" : {
+      "comment" : "Fit Today: empty state title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch keine Aktivität"
+          }
+        }
+      }
+    },
+    "No data yet" : {
+      "comment" : "Fit category detail: empty state title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch keine Daten"
+          }
+        }
+      }
+    },
+    "No imports yet. Pick a Google Takeout export and its history lands here." : {
+      "comment" : "Fit batch import: empty state",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch keine Importe. Wähle einen Google-Takeout-Export, dann erscheint sein Verlauf hier."
+          }
+        }
+      }
+    },
+    "No offline map for this area." : {
+      "comment" : "Basemap election affordance: no offline coverage",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Für diesen Bereich gibt es keine Offline-Karte."
+          }
+        }
+      }
+    },
+    "Not now" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht jetzt"
+          }
+        }
+      }
+    },
+    "Not set" : {
+      "comment" : "Fit profile editor: sex option",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht festgelegt"
+          }
+        }
+      }
+    },
+    "Nothing imported yet." : {
+      "comment" : "Fit data source: empty import history",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch nichts importiert."
+          }
+        }
+      }
+    },
+    "Noto Sans (map labels)" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noto Sans (Kartenbeschriftungen)"
+          }
+        }
+      }
+    },
+    "OK" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        }
+      }
+    },
+    "Offline map tiles built from OpenStreetMap data with the Protomaps basemap schema" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Offline-Kartenkacheln aus OpenStreetMap-Daten, erstellt mit dem Protomaps-Basemap-Schema"
+          }
+        }
+      }
+    },
+    "Offline · © OpenStreetMap contributors" : {
+      "comment" : "Map attribution chip — the ODbL credit (ios-basemap)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Offline · © OpenStreetMap-Mitwirkende"
+          }
+        }
+      }
+    },
+    "On %@" : {
+      "comment" : "Fit data source: device the source lives on (%@ = device name)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auf %@"
+          }
+        }
+      }
+    },
+    "On-device models" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modelle auf dem Gerät"
+          }
+        }
+      }
+    },
+    "Open Fit on %@ to import from there" : {
+      "comment" : "Fit data source: hint (%@ = device name)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öffne Fit auf %@, um von dort zu importieren"
+          }
+        }
+      }
+    },
+    "Open Tenshu Control" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenshu Control öffnen"
+          }
+        }
+      }
+    },
+    "Open online" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Online öffnen"
+          }
+        }
+      }
+    },
+    "Open-source licences" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open-Source-Lizenzen"
+          }
+        }
+      }
+    },
+    "OpenStreetMap" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OpenStreetMap"
+          }
+        }
+      }
+    },
+    "Other" : {
+      "comment" : "Fit profile editor: sex option 'Other'",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Divers"
+          }
+        }
+      }
+    },
+    "Period start" : {
+      "comment" : "Fit cycle card: row label",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Periodenbeginn"
+          }
+        }
+      }
+    },
+    "Personal data" : {
+      "comment" : "Fit profile: section header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Persönliche Daten"
+          }
+        }
+      }
+    },
+    "Photon place lookup (komoot)" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photon-Ortssuche (komoot)"
+          }
+        }
+      }
+    },
+    "Pick the .zip Google emailed you, or a single .gpx / .tcx workout file." : {
+      "comment" : "Fit batch import: instructions",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähle die .zip-Datei, die Google dir per E-Mail geschickt hat, oder eine einzelne .gpx- / .tcx-Trainingsdatei."
+          }
+        }
+      }
+    },
+    "Place names, when online lookup is on, come from OpenStreetMap data via Photon, run by komoot" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ortsnamen stammen bei aktivierter Online-Suche aus OpenStreetMap-Daten über Photon, betrieben von komoot"
+          }
+        }
+      }
+    },
+    "Privacy policy" : {
+      "comment" : "Settings row that opens Tenshu's privacy policy in the browser (PrivacyPolicyLink, ios-release/Sources/PrivacyPolicy.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datenschutzerklärung"
+          }
+        }
+      }
+    },
+    "Private health & fitness, on your terms. Bring your history in — or start fresh." : {
+      "comment" : "Fit onboarding: subtitle",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gesundheit & Fitness – privat und nach deinen Regeln. Bring deinen Verlauf mit – oder fang neu an."
+          }
+        }
+      }
+    },
+    "Profile" : {
+      "comment" : "Fit: Profile screen title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Profil"
+          }
+        }
+      }
+    },
+    "Protomaps basemap" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protomaps-Basiskarte"
+          }
+        }
+      }
+    },
+    "Range" : {
+      "comment" : "Fit category detail: range picker label",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zeitraum"
+          }
+        }
+      }
+    },
+    "Recent days" : {
+      "comment" : "Fit cycle card: heading",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Letzte Tage"
+          }
+        }
+      }
+    },
+    "Record" : {
+      "comment" : "Fit: Record screen title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aufzeichnen"
+          }
+        }
+      }
+    },
+    "Record a workout" : {
+      "comment" : "Fit Today: button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Training aufzeichnen"
+          }
+        }
+      }
+    },
+    "Record a workout or import from Apple Health, and your day will show up here." : {
+      "comment" : "Fit Today: empty state body (Apple Health available)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zeichne ein Training auf oder importiere aus Apple Health, dann erscheint dein Tag hier."
+          }
+        }
+      }
+    },
+    "Record your workout" : {
+      "comment" : "Fit record: location/motion permission rationale title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Training aufzeichnen"
+          }
+        }
+      }
+    },
+    "Recovered from an interrupted recording — the last few seconds may be missing." : {
+      "comment" : "Fit record: recovered-recording note",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aus einer unterbrochenen Aufzeichnung wiederhergestellt – die letzten Sekunden fehlen möglicherweise."
+          }
+        }
+      }
+    },
+    "Save" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speichern"
+          }
+        }
+      }
+    },
+    "Save goals" : {
+      "comment" : "Fit profile: button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ziele speichern"
+          }
+        }
+      }
+    },
+    "Save workout" : {
+      "comment" : "Fit record: save button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Training speichern"
+          }
+        }
+      }
+    },
+    "Saved as a new reading, alongside anything your health app has recorded." : {
+      "comment" : "Fit profile editor: height/weight footer",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird als neuer Messwert gespeichert – zusätzlich zu allem, was deine Gesundheits-App aufgezeichnet hat."
+          }
+        }
+      }
+    },
+    "Saved on this device" : {
+      "comment" : "Fit record: alert title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auf diesem Gerät gespeichert"
+          }
+        }
+      }
+    },
+    "Set Up Tenshu Control" : {
+      "comment" : "Onboarding title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenshu Control einrichten"
+          }
+        }
+      }
+    },
+    "Set a birth date" : {
+      "comment" : "Fit profile editor: toggle",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geburtsdatum festlegen"
+          }
+        }
+      }
+    },
+    "Set up" : {
+      "comment" : "Banner button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einrichten"
+          }
+        }
+      }
+    },
+    "Set up Tenshu Control" : {
+      "comment" : "Accessibility label",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenshu Control einrichten"
+          }
+        }
+      }
+    },
+    "Sex" : {
+      "comment" : "Fit profile editor: picker label",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geschlecht"
+          }
+        }
+      }
+    },
+    "Shown on your profile and when you share with someone." : {
+      "comment" : "Fit profile editor: name footer",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird in deinem Profil und bei Freigaben für andere angezeigt."
+          }
+        }
+      }
+    },
+    "Start" : {
+      "comment" : "Fit record: big start button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Starten"
+          }
+        }
+      }
+    },
+    "Steps" : {
+      "comment" : "Fit Home: week card title (as fit_home_steps_label)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schritte"
+          }
+        }
+      }
+    },
+    "Steps: %lld" : {
+      "comment" : "Fit profile: goal stepper",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schritte: %lld"
+          }
+        }
+      }
+    },
+    "Synced to your realm · end-to-end encrypted" : {
+      "comment" : "Fit import banner: trust line",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit deinem Realm synchronisiert · Ende-zu-Ende-verschlüsselt"
+          }
+        }
+      }
+    },
+    "TODAY" : {
+      "comment" : "Fit Home: eyebrow above the date (as fit_home_today_eyebrow)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HEUTE"
+          }
+        }
+      }
+    },
+    "TRIM SUGGESTION" : {
+      "comment" : "Fit record: uppercase caption on the trim card",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KÜRZUNGSVORSCHLAG"
+          }
+        }
+      }
+    },
+    "Tenshu Control isn’t installed on this iPhone yet." : {
+      "comment" : "Onboarding notice",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenshu Control ist auf diesem iPhone noch nicht installiert."
+          }
+        }
+      }
+    },
+    "Tenshu Control isn’t on the App Store yet. Install it from TestFlight or Xcode to continue." : {
+      "comment" : "Onboarding notice",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenshu Control ist noch nicht im App Store. Installiere es über TestFlight oder Xcode, um fortzufahren."
+          }
+        }
+      }
+    },
+    "The full licence text is available online." : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der vollständige Lizenztext ist online verfügbar."
+          }
+        }
+      }
+    },
+    "The workout was kept — tap Save to try again." : {
+      "comment" : "Fit record: save-failed alert body",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Training ist noch da – tippe auf „Speichern“, um es erneut zu versuchen."
+          }
+        }
+      }
+    },
+    "These let us estimate calories properly. Your health app could not tell us, and you can skip any of them — we will use a neutral estimate instead." : {
+      "comment" : "Fit onboarding: profile step body",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Damit können wir den Kalorienverbrauch richtig schätzen. Deine Gesundheits-App konnte uns diese Angaben nicht liefern, und du kannst jede davon überspringen – dann verwenden wir stattdessen einen neutralen Schätzwert."
+          }
+        }
+      }
+    },
+    "This app is built on open-source software and open data. Each component is listed with its licence; select a library to read its licence text." : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese App baut auf Open-Source-Software und offenen Daten auf. Jede Komponente ist mit ihrer Lizenz aufgeführt; wähle eine Bibliothek, um ihren Lizenztext zu lesen."
+          }
+        }
+      }
+    },
+    "This build does not include its licence list." : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Build enthält keine Lizenzliste."
+          }
+        }
+      }
+    },
+    "This recording will be deleted and cannot be recovered." : {
+      "comment" : "Fit record: confirmation dialog message",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Aufzeichnung wird gelöscht und kann nicht wiederhergestellt werden."
+          }
+        }
+      }
+    },
+    "This week" : {
+      "comment" : "Fit Today: heading",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Woche"
+          }
+        }
+      }
+    },
+    "Title" : {
+      "comment" : "Text field",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Titel"
+          }
+        }
+      }
+    },
+    "Today" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Heute"
+          }
+        }
+      }
+    },
+    "Units" : {
+      "comment" : "Fit profile: units section/picker",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einheiten"
+          }
+        }
+      }
+    },
+    "Use Apple Maps" : {
+      "comment" : "Settings toggle: map renderer election",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Maps verwenden"
+          }
+        }
+      }
+    },
+    "Use Apple Maps here" : {
+      "comment" : "Basemap election affordance button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hier Apple Maps verwenden"
+          }
+        }
+      }
+    },
+    "Used to estimate energy burned. Leave it unset and we will use a neutral estimate." : {
+      "comment" : "Fit profile editor: sex footer",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird verwendet, um den Energieverbrauch zu schätzen. Ohne Angabe verwenden wir einen neutralen Schätzwert."
+          }
+        }
+      }
+    },
+    "Welcome to Fit" : {
+      "comment" : "Fit onboarding: title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Willkommen bei Fit"
+          }
+        }
+      }
+    },
+    "What to import" : {
+      "comment" : "Fit onboarding: step title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Was soll importiert werden?"
+          }
+        }
+      }
+    },
+    "Workout complete" : {
+      "comment" : "Fit record: summary title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Training abgeschlossen"
+          }
+        }
+      }
+    },
+    "Workouts you record in Fit, enter by hand, or that are detected from your movement. Nothing is imported — this is where they already are." : {
+      "comment" : "Fit data source detail: explanation of the built-in source",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trainings, die du in Fit aufzeichnest, von Hand einträgst oder die anhand deiner Bewegung erkannt werden. Hier wird nichts importiert – hier liegen sie bereits."
+          }
+        }
+      }
+    },
+    "Your activity couldn't be loaded. Still trying…" : {
+      "comment" : "Fit Today: load error",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine Aktivität konnte nicht geladen werden. Wird erneut versucht…"
+          }
+        }
+      }
+    },
+    "Your connected data sources" : {
+      "comment" : "Fit category detail: subtitle",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine verbundenen Datenquellen"
+          }
+        }
+      }
+    },
+    "Your name" : {
+      "comment" : "Text field / section header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Name"
+          }
+        }
+      }
+    },
+    "of %lld active min" : {
+      "comment" : "Fit Today ring: under the minutes value (%lld = goal)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "von %lld aktiven Min."
+          }
+        }
+      }
+    },
+    "record and sync your workouts, end-to-end encrypted" : {
+      "comment" : "Set-up screen: completes “%@ uses Tenshu Control to …”. German: an infinitive clause ending in “zu …”, completing “…, um”",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "deine Trainings Ende-zu-Ende-verschlüsselt aufzuzeichnen und zu synchronisieren"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

@@ -1,0 +1,36 @@
+{
+  "about": "Every screen name scripts/store-screenshots.sh captures for Tenshu Control (`captured`, from the UI tests in `uiTests`), and the names reserved for screens no pipeline captures yet (`planned`). The support pages' shot: slots may name only these; web/apex/support-pages/screens.test.ts and the screenshot script check against this file. Adding a capture means adding it here. `appearances`: the system appearances the pipeline captures every `captured` screen in (scripts/store-screenshots.sh --appearance); light is the default and the published key form, dark is keyed `…/<lang>/dark/NN-screen`, and a support page falls back to light where no dark capture is published. Docs: docs/how-to/store-screenshots.md §5.",
+  "version": 1,
+  "platform": "ios",
+  "appearances": ["light", "dark"],
+  "uiTests": ["control-ios/Screenshots/ControlScreenshots.swift"],
+  "captured": {
+    "01-welcome": { "shows": "Welcome to Tenshu: \"Start fresh on this device\", \"I have Tenshu on another device\", \"Recover from a recovery phrase\"" },
+    "02-protected": { "shows": "\"Protected by your device\" after Start fresh, with Continue (which creates the realm)" },
+    "03-recovery-phrase": { "shows": "\"You're set up\": the Turn on sync link, the 24-word recovery phrase, \"I've saved it\"" },
+    "04-home": { "shows": "Home: the realm's recent events (Drive's uploads)" },
+    "05-devices": { "shows": "Settings → This realm's devices: the device list and sync status" },
+    "06-settings": { "shows": "Settings: Storage, Shares, devices, Add a device, Recovery phrase, app lock" },
+    "07-storage": { "shows": "Settings → Storage: the Free plan, the account and the storage used", "devLabOnly": true },
+    "08-sign-in": { "shows": "Turn on sync → \"Sign in or create your free Tenshu account\", with an empty email field" },
+    "09-add-device": { "shows": "Settings → Add a device, on \"Show a code\": the QR code and the manual pairing code", "devLabOnly": true }
+  },
+  "android": {
+    "about": "The Android pipeline (scripts/store-screenshots-android.sh, walk in scripts/lib/android_shots.py) captures these on a 1080x2400 phone AVD, keyed android/phone/<lang>/[dark/]NN-screen. Same names as iOS for the same screen; a name new to Android must also be listed in captured or planned above, so a number never means two screens.",
+    "script": "scripts/lib/android_shots.py",
+    "captured": {
+      "01-welcome": {"shows": "Welcome to Tenshu, with the three ways in"},
+      "02-protected": {"shows": "\"Protected by your device\" after Start fresh, with Continue"},
+      "03-recovery-phrase": {"shows": "Settings → Set up account recovery: the Recovery Phrase screen with the 24 words shown"},
+      "06-settings": {"shows": "Settings: Synchronization & Devices, Background sync, Unlock, Set up account recovery, …"},
+      "07-storage": {"shows": "Services after sign-up: Tenshu Storage, Plan: Free, the storage used and the account", "devLabOnly": true},
+      "08-sign-in": {"shows": "\"Sign in or create your free Tenshu account\", with an empty email field", "devLabOnly": true},
+      "09-add-device": {"shows": "Settings → Synchronization & Devices → + → Add a device, on \"Show a code\": the QR code and the manual code", "devLabOnly": true},
+      "10-services": {"shows": "Services → Sign in or create an account → \"Pick a plan\": Free, Basic and Premium (a Play build sells the paid plans through Google Play)", "devLabOnly": true}
+    }
+  },
+  "planned": {
+    "10-services": { "shows": "The Services screen with the Free, Basic and Premium plans", "platforms": ["macos", "web"] },
+    "11-sign-up": { "shows": "The web sign-up page", "platforms": ["web"] }
+  }
+}

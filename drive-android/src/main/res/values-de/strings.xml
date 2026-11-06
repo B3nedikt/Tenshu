@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- German (de). Mirrors ../values/strings.xml key for key; ADR 0016.
+     See the English file for per-string developer notes. -->
+<resources>
+    <string name="app_name">Drive</string>
+
+    <string name="navigation_home">Start</string>
+    <string name="navigation_files">Dateien</string>
+    <string name="navigation_shared">Freigegeben</string>
+
+    <string name="folder_upload_channel">Uploads</string>
+
+    <string name="synced_folders_channel">Sicherung</string>
+    <string name="synced_folders_failure_could_not_check">Es konnte nicht geprüft werden, ob diese Elemente bereits gesichert sind. Wird erneut versucht.</string>
+
+    <string name="new_folder_channel">Neue Ordner</string>
+    <string name="new_folder_channel_description">Fragt, ob ein Ordner gesichert werden soll, der in deiner Galerie erscheint. Zu jedem Ordner wird nur ein einziges Mal gefragt.</string>
+    <string name="new_folder_title">„%1$s“ sichern?</string>
+    <plurals name="new_folder_body">
+        <item quantity="one">Dieser Ordner enthält %1$d Foto, das nicht gesichert ist.</item>
+        <item quantity="other">Dieser Ordner enthält %1$d Fotos, die nicht gesichert sind.</item>
+    </plurals>
+    <string name="new_folder_accept">Sichern</string>
+    <string name="new_folder_dismiss">Nein danke</string>
+</resources>

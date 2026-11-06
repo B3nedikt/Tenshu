@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Error copy catalogue — `docs/proposals/core-error-copy-catalogue.md`.
+
+  ⚠⚠ These are the ONLY place a user-facing sentence for a typed error may be written. §5.0: no
+  proxy code ever creates a localised string, so an implementation that needs to tell a user
+  something adds an entry here (and its twin in `tenshu-sdk-ios-core`) rather than writing the sentence
+  where it stands. A `GenericError` carrying a message is diagnostics, never copy.
+
+  Keys are DERIVED from the error's schema id by `errorCopyKeyForId` in `:core` — do not invent
+  one. `tenshu/result/error/notFound` -> `error_not_found`. ADR 0016 anchor #8 wants the keys in
+  the KMP and i18next worlds to line up so the n=2 catalogue merge is mechanical.
+
+  ADR 0016: bare apostrophes only; ICU MessageFormat is the content format (no entry needs an
+  argument yet — the first ones arrive with the Recovery flow, EC-1).
+-->
+<resources>
+    <!-- The catalogue miss. ⚠ Every user-facing renderer falls back to this and NEVER to the
+         error's own message; an unrecognised id is a missing entry above, not a licence to show
+         the developer's English. -->
+    <string name="error_unexpected">Something went wrong. Please try again.</string>
+
+    <!-- ⚠ Not a TError: the app knows locally that Control is absent (ADR 0025 owns the banner
+         and its reasons). Here so a failed action can name honest copy. -->
+    <string name="error_control_not_running">Tenshu Control is not running.</string>
+    <string name="error_content_pinned">This file is still uploading. Removing its download would take the only copy left to finish with.</string>
+    <string name="error_still_syncing">This item is still syncing to this device. Try again shortly.</string>
+    <string name="error_move_needs_local_bytes">You're offline and this item isn't downloaded. Download it first, or move it once you're online.</string>
+    <string name="error_content_unavailable">Couldn't load this file's contents. They may still be syncing.</string>
+    <!-- ⚠ Minted by the repositories that call CompleteContactHandshake (threat model T-CI-10):
+         the proxy raises both as InvalidParameter, whose own key is the generic sentence. The
+         first must name the remedy; the second says "not yet", because the code does arrive. -->
+    <string name="error_invite_response_changed">The reply to this invite changed after it was shown, so nothing was saved. Decline this invite and send a new one.</string>
+    <string name="error_invite_code_not_shown">There is no code to confirm for this invite yet. Try again in a moment.</string>
+
+    <!-- ── :core dispatch + operation errors ──────────────────────────────────────────────
+         These reach a user only through a bug (a client sent a malformed call), so the copy is
+         deliberately generic; the id itself is in the error's detail row and the ErrorEvent. -->
+    <string name="error_dispatch_missing_parameter">Something went wrong. Please try again.</string>
+    <string name="error_dispatch_unknown_parameter">Something went wrong. Please try again.</string>
+    <string name="error_dispatch_wrong_parameter">Something went wrong. Please try again.</string>
+    <string name="error_operation_invalid_parameter">Something went wrong. Please try again.</string>
+    <string name="error_internal">Something went wrong. Please try again.</string>
+
+    <!-- ── :core result errors ─────────────────────────────────────────────────────────── -->
+    <!-- ⚠ GenericError is developer-only by policy (§5.3). It has an entry because it can still
+         reach the Errors screen; a feature screen showing this sentence is a bug in that screen,
+         not a missing catalogue entry. -->
+    <string name="error_generic">Something went wrong. Please try again.</string>
+    <string name="error_not_found">That item is no longer available.</string>
+    <string name="error_invalid_caller">This app is not allowed to do that.</string>
+    <string name="error_open_target_unavailable">The app that owns this item is not available.</string>
+    <string name="error_unannounced_session">Tenshu needs to reconnect. Please try again.</string>
+    <string name="error_unsupported_operation">This version does not support that yet.</string>
+    <string name="error_entitlement_unverified">Your plan could not be verified. Please try again.</string>
+    <string name="error_relay_route_unsupported">Your other device needs an update to do this.</string>
+    <string name="error_recovery_phrase_unreadable">This device can't read its saved recovery phrase, so unlocking can't succeed. Use “Add This Device” from another device that is still signed in.</string>
+    <string name="error_device_already_set_up">This device is already set up with a different realm. To recover another realm here, first use “Forget this device”, then try again.</string>
+    <string name="error_semantic_search_unavailable">Smart search is not available on this device.</string>
+    <string name="error_face_groups_unavailable">People is not available on this device.</string>
+    <string name="error_model_unavailable">This model isn’t available on this device.</string>
+    <!-- ⚠ The generic fallback only. Settings → Models renders the four reasons by name
+         (inference-service.md §34.2); this is what any OTHER surface would say. -->
+    <string name="error_index_pass_refused">Photo indexing couldn’t start on this device.</string>
+
+    <!-- ── service-owned errors ────────────────────────────────────────────────────────── -->
+    <string name="error_already_exists">An item with that name already exists.</string>
+    <string name="error_insufficient">There is not enough storage left.</string>
+    <string name="error_no_storage">This realm has no storage yet.</string>
+    <string name="error_metered_network_refused">Not downloaded — you are on a metered connection.</string>
+    <!-- AppControlCheckingGate (ADR 0025 §8.6): shared by every app root, so it lives here once. -->
+    <string name="control_checking_title">Checking Tenshu Control…</string>
+    <string name="control_checking_timed_out_title">Can't confirm Tenshu Control is set up</string>
+    <string name="control_checking_timed_out_body">Tenshu Control is answering, but hasn't confirmed this device's setup yet. Open Control to check it, then try again.</string>
+    <string name="control_checking_retry">Try again</string>
+    <!-- AppAutoContinueButton (control-pairing-ux.md §9): the countdown's cancel and its spoken state.
+         Twins: control-ios Localizable.xcstrings, web/apex control.json devices.pair.autoContinue. -->
+    <!-- ⚠ One-vs-other keys, not a <plurals> — the repo convention for composeResources (see
+         fit-shared-ui's fit_run_item_one). "1" is the last tick of every countdown. -->
+    <string name="auto_continue_stay">Stay</string>
+    <string name="auto_continue_countdown_one">Continuing in 1 second</string>
+    <string name="auto_continue_countdown">Continuing in %1$d seconds</string>
+    <!-- AppPrivacyPolicyListItem (app.tenshu.ui.legal): every app's settings / profile screen links
+         the policy, so the label lives here once. Short by design; the page itself is the text. -->
+    <string name="privacy_policy">Privacy policy</string>
+    <string name="terms_of_use">Terms of use</string>
+
+    <!-- Open-source licences (docs/oss-licences.md): the row every app's settings carries and the
+         screen it opens. The data credits below are rows on that screen. -->
+    <string name="oss_licences_title">Open-source licences</string>
+    <string name="oss_licences_row_support">The software and data this app is built on</string>
+    <string name="oss_licences_intro">This app is built on open-source software and open data. Each component is listed with its licence; select a library to read its licence text.</string>
+    <string name="oss_licences_section_data">Data and fonts</string>
+    <string name="oss_licences_section_libraries">Libraries</string>
+    <string name="oss_licences_unavailable">This build does not include its licence list.</string>
+    <string name="oss_licences_close">Close</string>
+    <string name="oss_licences_open_online">Open online</string>
+    <string name="oss_licences_no_text">The full licence text is available online.</string>
+    <string name="oss_data_osm_title">OpenStreetMap</string>
+    <string name="oss_data_osm_credit">Map data © OpenStreetMap contributors</string>
+    <string name="oss_data_protomaps_title">Protomaps basemap</string>
+    <string name="oss_data_protomaps_credit">Offline map tiles built from OpenStreetMap data with the Protomaps basemap schema</string>
+    <string name="oss_data_noto_title">Noto Sans (map labels)</string>
+    <string name="oss_data_noto_credit">Copyright 2022 The Noto Project Authors</string>
+    <string name="oss_data_photon_title">Photon place lookup (komoot)</string>
+    <string name="oss_data_photon_credit">Place names, when online lookup is on, come from OpenStreetMap data via Photon, run by komoot</string>
+    <string name="oss_data_models_title">On-device models</string>
+    <string name="oss_data_models_credit">Downloaded separately; each model shows its licence under Settings → Models</string>
+</resources>

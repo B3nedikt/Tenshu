@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      Photos reaches Control's proxy over Binder for everything it shows — the feed's rows and
+      every thumbnail byte. All network is Control's. The client libraries merge in INTERNET, so
+      strip it: House Rule #1 enforced at the OS boundary rather than by convention.
+
+      ⚠ No media permission is declared, and that is not an oversight. This app *reads the realm*,
+      not the device gallery — the photos it shows were put there by Drive's backup drain, which
+      holds the gallery grant. When PH-4 moves the source picker here, READ_MEDIA_IMAGES arrives
+      with it and is requested at the point of use.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+
+    <!-- PH-4b (`photos-app.md` §19): enumerate this device's gallery folders so Photos can offer
+         a source picker of its own. ⚠ READ only — Photos still has no INTERNET permission and
+         still reaches the realm through Control; these let it *list* what is on the phone, not
+         send anything anywhere. On API < 33 they map to READ_EXTERNAL_STORAGE.
+
+         ⚠⚠ READ_MEDIA_VISUAL_USER_SELECTED is load-bearing on API 34+, not optional, for the
+         reason Drive's manifest spells out: without the declaration Android runs a compatibility
+         path where "Select photos" grants READ_MEDIA_IMAGES for the *session only*, which reads
+         as full access and then evaporates. Photos would show a folder list that silently emptied.
+
+         ⚠ ACCESS_MEDIA_LOCATION is deliberately NOT here. Photos does not upload — the drain does
+         — so it never needs a photo's original bytes, and asking for a permission it cannot use
+         would be a claim on the user's location data with nothing behind it. -->
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
+
+    <!--
+      Lets BinderTaskTransport resolve + bind Control on Android 11+ (package visibility).
+      Without it the bind silently fails.
+    -->
+    <queries>
+        <package android:name="app.tenshu.control.android" />
+    </queries>
+
+    <application
+        android:name=".PhotosApplication"
+        android:allowBackup="false"
+        android:supportsRtl="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- The reverse (push) channel: Control binds back to this service to deliver stream /
+             callback frames. Same contract Drive / Maps / Timeline / Fit / Home / Contacts
+             declare. -->
+        <service
+            android:name="org.tenshu.core.common.ClientCallbackService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="app.tenshu.control.android.IClientInterface" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>

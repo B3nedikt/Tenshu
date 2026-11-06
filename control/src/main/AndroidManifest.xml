@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+
+    <!-- Phase L2-LIVE (docs/proposals/core-background-processing.md §2.2/§8):
+         Control runs a foreground service while a user-started Layer-2 task is
+         in flight so the OS does not reclaim the process when Drive closes. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Index now (control-background-work-off-fgs.md §5.6.1): the user-started photo index runs as
+         a WorkManager long-running worker whose foreground type is mediaProcessing on API 35+. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!--
+      RE-D5 (routines-engine.md): punctual routine wake-ups.
+      ⚠⚠ SCHEDULE_EXACT_ALARM, deliberately NOT USE_EXACT_ALARM — the latter grants
+      exactness without asking, but Play policy restricts it to apps whose CORE
+      function is alarms or calendars, and claiming it for a smart-home app risks
+      the whole listing for one feature. This one is user-grantable and should be
+      requested only when a household has no always-on device; without it the
+      scheduler falls back to setAndAllowWhileIdle (inexact but Doze-aware).
+    -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
+    <!--
+      CA-5f: Control posts Calendar's reminders, so a *tap* has to launch Calendar
+      rather than Control, which knows nothing about an occurrence.
+      ⚠⚠ Without this, `getLaunchIntentForPackage` returns null on API 30+ and the
+      tap silently does nothing — package visibility is opt-in, and the failure has
+      no error, just a notification that ignores you.
+    -->
+    <!--
+      Android 11+ package visibility. ⚠⚠ Control needs an entry per app it can OPEN
+      (control-cross-app-open.md CO-D2): `resolveActivity` returns **null** rather than failing
+      loudly when one is missing, so a forgotten line reads as "that app is not installed" — the
+      one refusal that tells the user to reinstall something they already have.
+
+      ⭐ This list stays HERE and nowhere else. §5c Option A would have put an N×M copy of it in
+      every app that can cite a row; the immutable-ticket design is what keeps it in one place.
+    -->
+    <queries>
+        <package android:name="app.tenshu.calendar.android" />
+        <package android:name="app.tenshu.drive.android" />
+        <package android:name="app.tenshu.timeline.android" />
+        <package android:name="app.tenshu.maps.android" />
+        <package android:name="app.tenshu.fit.android" />
+        <package android:name="app.tenshu.home.android" />
+    </queries>
+
+    <!--
+      allowBackup=false: Control's app-private ObjectStore (`files/objects.db`) is the on-device
+      replica of decrypted realm rows — A5 user data + A6 metadata at rest (threat-model §"A5").
+      Android Auto Backup would ship that (and cached content bytes in files/) to the user's Google
+      cloud, where it survives an app wipe and re-hydrates stale files on reinstall/device-transfer.
+      The earlier per-file excludes only covered the secret store, not objects.db — so opt the whole
+      app out of cloud backup + D2D transfer, matching :drive-android. (dataExtractionRules/
+      backup_rules kept as defence-in-depth if backup is ever re-enabled.)
+    -->
+    <application
+        android:name=".ControlApplication"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:theme="@style/Theme.Drive">
+
+        <!--
+          ⚠⚠ No Google telemetry upload, on any billing rail. Two libraries log to Google through
+          `com.google.android.datatransport` (CCT backend, firebaselogging.googleapis.com):
+          MediaPipe Tasks (face grouping, `COREML_ON_DEVICE_SOLUTIONS`: every TaskRunner builds
+          a TasksStatsProtoLogger, with no option to turn it off) and the Play Billing Library
+          (`PLAY_BILLING_LIBRARY`). The runtime finds its upload backends ONLY through this
+          service's `backend:` meta-data; without it the registry is empty, so events are rejected
+          at schedule time and never stored (DefaultScheduler: "Transport backend 'cct' is not
+          registered", before EventStore.persist); any queued by an older build are deleted on the
+          next upload pass (Uploader: "Unknown backend … deleting event batch"). The libraries
+          keep working: the rejection reaches only their fire-and-forget schedule callback. Keep the scheduler service and receiver: a job for
+          a removed component would throw. Checked by `checkNoTelemetryBackend` (build.gradle.kts).
+        -->
+        <service
+            android:name="com.google.android.datatransport.runtime.backends.TransportBackendDiscovery"
+            tools:node="remove" />
+
+    <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Drive">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".server.ProxyService"
+            android:exported="true"
+            android:foregroundServiceType="dataSync">
+            <intent-filter>
+                <action android:name="app.tenshu.control.android.IProxyInterface" />
+            </intent-filter>
+        </service>
+
+        <!-- Phase 1.5 (docs/proposals/control-pairing-ux.md §3.5): keeps Control's process
+             (and the in-memory ephemeral pairing key) resident during a host pairing session,
+             started from ControlApplication on the HostPairingMonitor's idle → pairing edge. -->
+        <service
+            android:name=".server.HostPairingForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- Tenshu Drive in the system file dialogs ("Open from…", ACTION_OPEN_DOCUMENT /
+             ACTION_GET_CONTENT) — docs/proposals/cross-app-file-access.md P3. Hosted here, not in
+             Drive (D-C): Control is the proxy and holds the keys. Exported, but guarded by
+             MANAGE_DOCUMENTS, which only the system picker holds; an app receives a per-URI grant
+             for the file the user picked, never the listing (D-D, threat model A5). Read-only (D-H).
+             ⚠ The authority suffix is DriveDocumentsAccess.AUTHORITY_SUFFIX. -->
+        <provider
+            android:name="app.tenshu.control.documents.DriveDocumentsProvider"
+            android:authorities="${applicationId}.documents"
+            android:exported="true"
+            android:grantUriPermissions="true"
+            android:permission="android.permission.MANAGE_DOCUMENTS">
+            <intent-filter>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
+            </intent-filter>
+        </provider>
+
+        <!-- RE-D5: receives a punctual alarm and hands the op to the ordinary
+             expedited-work path (PunctualAlarmScheduler's KDoc explains the split). -->
+        <receiver
+            android:name="org.tenshu.sync.proxy.PunctualAlarmReceiver"
+            android:exported="false" />
+
+        <!-- CA-5f: Snooze / Dismiss on a calendar reminder. Control posts the
+             notification (it owns the AlarmManager), so Control is where the
+             button press lands and where the write happens — no app is opened.
+             exported=false: only our own PendingIntents may fire it. -->
+        <receiver
+            android:name="app.tenshu.notify.AlertActionReceiver"
+            android:exported="false" />
+        <!--
+      WorkManager's foreground service, with the types its long-running workers use (§5.6.1):
+      Index now's ManualIndexWorker (mediaProcessing on API 35+, dataSync below). ⚠ Declared here
+      because a type the manifest does not list makes startForeground throw (API 29+). The
+      expedited push / scheduled-op workers pass no type, which is valid against this declaration.
+    -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync|mediaProcessing"
+            tools:node="merge" />
+    </application>
+
+</manifest>

@@ -1,0 +1,17 @@
+[Unit]
+Description=Mirror the Tenshu relay content bucket; prune keys missing past the window when MIRROR_PRUNE=on
+After=network-online.target
+
+[Service]
+Type=oneshot
+# ⚠ The env file carries S3_* (source), BLOB_MIRROR_BUCKET (destination) and MIRROR_S3_* (the mirror
+# job's own key; without it the script falls back to S3_* and says so). Server-side CopyObject, so
+# nothing transits this box — it only issues API calls. Objects land as MIRROR_STORAGE_CLASS
+# (default ONEZONE_IA). The second region is tenshu-blob-mirror-dr.service.
+# ⚠⚠ Pruning is off unless the env file says MIRROR_PRUNE=on (window: MIRROR_RETENTION_DAYS, default
+# 30). Never add --override-breaker here: a tripped breaker is an incident, overriding it is one
+# deliberate run by hand. Any non-zero exit prunes nothing (codes: mirror-blobs.py docstring).
+EnvironmentFile=/opt/tenshu/deploy.env
+ExecStart=/usr/bin/python3 /opt/tenshu/mirror-blobs.py
+StandardOutput=append:/var/log/tenshu-blob-mirror.log
+StandardError=append:/var/log/tenshu-blob-mirror.log

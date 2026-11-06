@@ -1,0 +1,46 @@
+{
+  "title": "Fichiers",
+  "subtitle": "Un inventaire des fichiers de votre realm. C’est dans Drive que vous les parcourez.",
+  "openDrive": "Ouvrir Drive",
+  "loading": "Chargement de l’inventaire des fichiers…",
+  "summary": {
+    "files": "Fichiers",
+    "folders": "Dossiers",
+    "totalSize": "Taille de vos fichiers",
+    "newest": "Dernière modification",
+    "none": "—"
+  },
+  "byKind": {
+    "title": "Par type",
+    "count": "{count, plural, one {# fichier} other {# fichiers}}"
+  },
+  "kinds": {
+    "image": "Images",
+    "video": "Vidéos",
+    "audio": "Audio",
+    "document": "Documents",
+    "archive": "Archives",
+    "other": "Autres"
+  },
+  "empty": {
+    "title": "Aucun fichier pour l’instant",
+    "body": "Les fichiers que vous ajoutez dans Drive, sur n’importe lequel de vos appareils, apparaissent ici une fois que ce navigateur les a synchronisés."
+  },
+  "errors": {
+    "read": {
+      "title": "Impossible de lire vos fichiers",
+      "body": "L’inventaire des fichiers ne s’est pas chargé dans ce navigateur. Rien n’a été modifié — réessayez."
+    },
+    "runtime": {
+      "title": "Tenshu ne tourne pas dans cet onglet",
+      "body": "L’inventaire des fichiers a besoin de l’environnement Tenshu. Rechargez la page, ou fermez les autres onglets Tenshu, puis réessayez."
+    },
+    "other": {
+      "title": "Un problème est survenu",
+      "body": "L’inventaire des fichiers n’a pas pu être lu. Rien n’a été modifié — réessayez."
+    }
+  },
+  "retry": "Réessayer",
+  "replicaNote": "Compté à partir de ce que ce navigateur a synchronisé : une copie d’un fichier compte à part, et les fichiers partagés avec vous ne sont pas inclus. L’utilisation du stockage de votre forfait se trouve dans",
+  "servicesLink": "Services"
+}

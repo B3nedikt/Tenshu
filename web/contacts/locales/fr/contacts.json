@@ -1,0 +1,235 @@
+{
+  "app": {
+    "title": "Contacts",
+    "tagline": "Les personnes que vous connaissez, chiffrées de bout en bout."
+  },
+  "nav": {
+    "contacts": "Contacts",
+    "invites": "Invitations",
+    "duplicates": "Doublons",
+    "profile": "Vous"
+  },
+  "common": {
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "working": "En cours…",
+    "loading": "Chargement…",
+    "name": "Nom",
+    "unnamed": "Sans nom"
+  },
+  "list": {
+    "aria": "Vos contacts",
+    "searchLabel": "Rechercher",
+    "searchPlaceholder": "Rechercher dans vos contacts",
+    "add": "Ajouter un contact",
+    "emptyTitle": "Aucun contact pour l’instant",
+    "emptyBody": "Les personnes avec qui vous échangez une invitation apparaissent ici, ainsi que celles que vous ajoutez vous-même.",
+    "noMatches": "Aucun résultat."
+  },
+  "add": {
+    "title": "Ajouter un contact",
+    "supporting": "Vous pouvez ajouter quelqu’un sans vous connecter à cette personne. Échangez une invitation plus tard pour partager avec elle.",
+    "confirm": "Ajouter"
+  },
+  "import": {
+    "action": "Importer un .vcf",
+    "fileLabel": "Choisir un fichier .vcf à importer",
+    "working": "Lecture…",
+    "done": "{count, plural, one {1 contact importé.} other {# contacts importés.}}",
+    "partial": "{imported} contacts sur {cards} importés. Les autres n’ont pas pu être enregistrés."
+  },
+  "trust": {
+    "verified": "Vérifié",
+    "verifiedDetail": "Vous avez comparé le code de ce contact et l’avez confirmé.",
+    "unverified": "Non vérifié",
+    "unverifiedDetail": "Vous n’avez pas encore comparé le code de ce contact. La vérification confirme que vous parlez bien à la personne que vous pensez.",
+    "needsReverification": "Clé modifiée",
+    "needsReverificationDetail": "Ce contact utilise une clé que vous n’avez pas vérifiée. Cela arrive après une réinstallation ou sur un nouvel appareil — vérifiez à nouveau pour être sûr qu’il s’agit toujours de cette personne.",
+    "notConnected": "Non connecté",
+    "notConnectedDetail": "Vous avez ajouté cette personne vous-même : il n’y a donc aucune clé à vérifier."
+  },
+  "detail": {
+    "back": "Tous les contacts",
+    "rename": "Renommer",
+    "editInfo": "Modifier les infos",
+    "export": "Exporter en .vcf",
+    "mergeWith": "Fusionner avec…",
+    "removePhoto": "Supprimer la photo",
+    "delete": "Supprimer",
+    "keysTitle": "Clés",
+    "noKeys": "Ce contact n’a pas de clé Tenshu. Échangez une invitation pour vous connecter.",
+    "infoTitle": "Coordonnées",
+    "noInfo": "Aucune coordonnée pour l’instant.",
+    "missingTitle": "Contact introuvable",
+    "missingBody": "Il a peut-être été supprimé sur un autre appareil.",
+    "photoTooLarge": "Sa photo est trop volumineuse pour être affichée ici.",
+    "photoUnknownFormat": "Sa photo est dans un format que ce navigateur ne peut pas afficher."
+  },
+  "key": {
+    "verified": "Vérifiée",
+    "attested": "Attestée",
+    "unverified": "Non vérifiée",
+    "claimedName": "S’est présenté·e comme « {name} »",
+    "verify": "Vérifier",
+    "unverify": "Annuler la vérification",
+    "attestedNote": "Les clés attestées ne peuvent pas être modifiées ici.",
+    "relink": "Déplacer vers un autre contact",
+    "unlink": "Retirer la clé"
+  },
+  "info": {
+    "phone": "Téléphone",
+    "email": "E-mail",
+    "address": "Adresse",
+    "organisation": "Organisation",
+    "note": "Note"
+  },
+  "rename": {
+    "title": "Renommer",
+    "supporting": "Ce nom vous appartient — il n’est pas partagé avec cette personne."
+  },
+  "delete": {
+    "title": "Supprimer le contact",
+    "body": "Cela retire cette personne et ses clés de tous vos appareils.",
+    "accessWarning": "Ce que vous avez déjà partagé avec elle reste partagé. Pour lui retirer l’accès à des dossiers partagés, retirez-la d’abord dans Drive.",
+    "confirm": "Supprimer"
+  },
+  "unlink": {
+    "title": "Retirer la clé",
+    "body": "Retirer la clé {key} de ce contact ? La personne reste dans vos contacts, et vous pourrez vous reconnecter plus tard.",
+    "confirm": "Retirer la clé"
+  },
+  "relink": {
+    "title": "Déplacer la clé",
+    "body": "Déplacer la clé {key} vers un autre contact. Sa vérification reste attachée à la clé.",
+    "target": "Déplacer vers",
+    "choose": "Choisir un contact",
+    "confirm": "Déplacer"
+  },
+  "edit": {
+    "title": "Modifier les coordonnées",
+    "labelFor": "Libellé pour {field}",
+    "remove": "Retirer",
+    "addPhone": "Ajouter un numéro de téléphone",
+    "addEmail": "Ajouter une adresse e-mail",
+    "addAddress": "Ajouter une adresse",
+    "preservesNote": "Tout le reste de sa fiche est conservé, même s’il n’est pas affiché ici."
+  },
+  "verify": {
+    "title": "Comparez vos codes",
+    "body": "Lisez ces six chiffres à {name} — par téléphone ou en personne. Les mêmes six chiffres s’affichent de son côté. Ne confirmez que s’ils correspondent.",
+    "loading": "Récupération du code…",
+    "unavailable": "Le code n’est pas disponible pour le moment. Déverrouillez Tenshu et réessayez.",
+    "confirm": "Ils correspondent",
+    "noMatch": "Ils ne correspondent pas",
+    "unchanged": "Rien n’a changé — cette clé était déjà à ce niveau."
+  },
+  "merge": {
+    "dialogTitle": "Fusionner des contacts",
+    "with": "Fusionner avec",
+    "keepLabel": "Lequel conserver ? L’autre y est fusionné, et c’est son nom que vous verrez.",
+    "summary": "« {fold} » sera fusionné dans « {keep} ».",
+    "noUndo": "Ses clés, fiches et photo sont toutes transférées. Cette action est irréversible.",
+    "confirm": "Fusionner",
+    "emptyTitle": "Aucun doublon trouvé",
+    "emptyBody": "Personne dans vos contacts ne ressemble à quelqu’un d’autre. Les contacts importés ne sont jamais fusionnés automatiquement — c’est ici qu’ils apparaîtraient.",
+    "count": "{count, plural, one {1 doublon possible} other {# doublons possibles}}",
+    "pair": "« {first} » et « {second} »",
+    "reason": {
+      "phone": "Même numéro de téléphone",
+      "email": "Même adresse e-mail",
+      "name": "Même nom"
+    },
+    "nameOnlyNote": "— que deux personnes peuvent porter.",
+    "review": "Examiner"
+  },
+  "invite": {
+    "title": "Inviter quelqu’un",
+    "intro": "Créez une invitation à usage unique. La personne qui l’accepte devient l’un de vos contacts — rien n’est partagé tant que vous ne le décidez pas.",
+    "create": "Créer une invitation",
+    "creating": "Création…",
+    "qrDescription": "QR code de l’invitation",
+    "qrFailed": "Impossible de dessiner le QR code. Le lien ci-dessous fonctionne quand même.",
+    "linkCaption": "Faites-le scanner, ou envoyez le lien.",
+    "linkLabel": "Lien d’invitation",
+    "copy": "Copier le lien",
+    "copied": "Copié",
+    "oneSessionWarning": "Ce lien n’est affiché qu’une fois et ne fonctionne qu’une fois. Si vous le perdez, révoquez l’invitation et créez-en une nouvelle.",
+    "acceptedTitle": "Acceptées",
+    "noneAccepted": "Personne n’attend d’être enregistré.",
+    "outstandingTitle": "En attente de réponse",
+    "noneOutstanding": "Aucune invitation en cours.",
+    "createdAt": "Créée le {date, date, medium}",
+    "expiresAt": "expire le {date, date, medium}",
+    "revoke": "Révoquer"
+  },
+  "confirm": {
+    "banner": "« {name} » a accepté votre invitation",
+    "open": "Examiner",
+    "header": "« {name} » a accepté votre invitation",
+    "unnamed": "Quelqu’un",
+    "claimNote": "C’est le nom que cette personne a donné. Sa clé :",
+    "sasNote": "Lisez-lui ces six chiffres — par téléphone ou en personne. Les mêmes six s’affichent de son côté.",
+    "sasCheck": "Les codes correspondent",
+    "petnameLabel": "Enregistrer sous",
+    "linkExisting": "Ou ajouter cette clé à un contact existant",
+    "newContact": "Un nouveau contact",
+    "ownNameLabel": "Votre nom",
+    "ownNameNote": "C’est ainsi que cette personne vous verra.",
+    "save": "Enregistrer le contact",
+    "decline": "Refuser",
+    "failedAccept": "Impossible de finaliser la connexion. Réessayez.",
+    "failedDecline": "Impossible de refuser. Réessayez."
+  },
+  "profile": {
+    "nameLabel": "Votre nom",
+    "nameSupporting": "C’est le nom que voient les personnes que vous invitez.",
+    "nameUnset": "Aucun nom défini",
+    "editName": "Modifier le nom",
+    "identityTitle": "Votre identité",
+    "identityPending": "Votre code d’identité n’est pas encore disponible sur le web."
+  },
+  "stream": {
+    "stopped": "Les mises à jour en direct se sont arrêtées. Ce que vous voyez n’est peut-être plus à jour.",
+    "reconnect": "Se reconnecter"
+  },
+  "sync": {
+    "offline": "Vous êtes hors ligne. Les modifications restent sur cet appareil et seront synchronisées à la reconnexion.",
+    "needsAttention": "Tenshu ne peut pas synchroniser pour le moment — votre stockage demande votre attention. Les modifications restent sur cet appareil.",
+    "locked": "Tenshu est verrouillé sur cet appareil : rien ne peut être synchronisé. Déverrouillez-le pour continuer.",
+    "deviceUnrecognized": "Ce navigateur n’est plus reconnu comme l’un de vos appareils et ne peut donc pas synchroniser."
+  },
+  "runtime": {
+    "connectingTitle": "Connexion à Tenshu en cours…",
+    "connectingBody": "L’onglet Tenshu qui héberge Contacts est occupé. Contacts se chargera dès qu’il répondra.",
+    "elsewhereTitle": "Tenshu est ouvert dans un autre onglet",
+    "elsewhereBody": "Tenshu ne fonctionne que dans un onglet à la fois, pour que vos contacts restent cohérents. Utilisez-le ici pour le déplacer dans cet onglet.",
+    "moving": "Attente de la fin de l’enregistrement dans l’autre onglet. Cela peut prendre jusqu’à deux minutes.",
+    "movingShort": "Déplacement…",
+    "useHere": "Utiliser ici"
+  },
+  "crash": {
+    "title": "Une erreur s’est produite",
+    "body": "Cette partie de Contacts a rencontré une erreur inattendue. Vos contacts sont en sécurité — rien n’a été modifié.",
+    "retry": "Réessayer",
+    "reload": "Recharger"
+  },
+  "errors": {
+    "error_generic": "Une erreur s’est produite. Veuillez réessayer.",
+    "error_unexpected": "Une erreur s’est produite. Veuillez réessayer.",
+    "error_internal": "Une erreur s’est produite. Veuillez réessayer.",
+    "error_not_found": "Ce contact n’est plus disponible.",
+    "error_invalid_caller": "Cette application n’est pas autorisée à faire cela.",
+    "error_unannounced_session": "Tenshu doit se reconnecter. Veuillez réessayer.",
+    "error_unsupported_operation": "Cette version ne le permet pas encore.",
+    "error_contacts_none_in_file": "Aucun contact trouvé dans ce fichier.",
+    "error_contacts_nothing_to_export": "Ce contact n’a rien à exporter.",
+    "error_contacts_photo_unavailable": "La photo de ce contact n’est pas encore sur cet appareil. Connectez-vous à Internet et réessayez.",
+    "error_contacts_invalid_details": "Ces coordonnées n’ont pas pu être enregistrées.",
+    "error_contacts_unknown_key": "Cette clé n’est plus connue sur cet appareil.",
+    "error_invite_response_changed": "La réponse à cette invitation a changé après son affichage : rien n’a été enregistré. Refusez cette invitation et envoyez-en une nouvelle.",
+    "error_invite_code_not_shown": "Il n’y a pas encore de code à confirmer pour cette invitation. Réessayez dans un instant.",
+    "bridge": "Impossible de joindre Tenshu. Vérifiez qu’il est ouvert et déverrouillé, puis réessayez.",
+    "bridge_timeout": "Tenshu a mis trop de temps à répondre. Réessayez.",
+    "bridge_not_permitted": "Contacts n’est pas autorisé à faire cela."
+  }
+}

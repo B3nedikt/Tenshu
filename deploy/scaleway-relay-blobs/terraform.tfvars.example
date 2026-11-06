@@ -1,0 +1,14 @@
+# Copy to terraform.tfvars (git-ignored) and fill in.
+# ⚠ The same API key pair as deploy/scaleway-relay — on Scaleway one pair serves the API and S3.
+
+access_key = "SCWXXXXXXXXXXXXXXXXX"
+secret_key = "00000000-0000-0000-0000-000000000000"
+project_id = "00000000-0000-0000-0000-000000000000"
+
+# ⚠ Globally unique across Scaleway, and not re-creatable under the same name for a while after
+# deletion.
+bucket_name = "tenshu-relay-blobs"
+
+# ⚠ Put this where the RELAY is — fr-par, alongside deploy/scaleway-relay. A bucket in another region
+# or provider costs latency and egress on every chunk (README.md).
+region = "fr-par"

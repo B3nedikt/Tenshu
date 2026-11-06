@@ -1,0 +1,411 @@
+/* Support pages — store-presence-and-support-pages.md §4: only what a support page has and the
+   landing page does not (the platform pills, the table of contents, the prose, the steps and their
+   screenshots). The header, the footer, the page column and the title are the landing page's own
+   components and Tailwind classes (generate.ts, src/landing/supportChrome.tsx).
+
+   Compiled by Tailwind together with the SPA's src/index.css (generate.ts buildCss), inside
+   `@layer components`: Tailwind's preflight (layer base) sits under it and the chrome's utilities
+   (layer utilities) over it — so nothing here can restyle the shared header or footer, and
+   `@apply` is available. Colours, radii and spacing are apex's tokens, flipping with the theme
+   like the SPA: Auto (no data-theme, the OS decides) or an explicit Light / Dark from the footer. */
+
+/* The footer at the bottom of a short page (the SPA's index.css gives body min-height: 100svh). */
+body {
+  display: flex;
+  flex-direction: column;
+}
+body > footer {
+  margin-top: auto;
+}
+
+.skip {
+  position: absolute;
+  left: -9999px;
+}
+.skip:focus {
+  left: var(--spacing-s4, 16px);
+  top: var(--spacing-s4, 16px);
+  z-index: 20;
+  padding: 8px 12px;
+  background: var(--primary);
+  color: var(--on-primary);
+  border-radius: 8px;
+}
+
+/* ── page head + switchers ────────────────────────────────────────────── */
+
+.page-head h1 {
+  margin-bottom: 20px;
+}
+
+/* Platform and language on one row: the platform pills (what the page is about, a content tab) at
+   the start, the language picker (a page-wide setting, src/landing/LanguagePicker.tsx — the
+   footer's own component, styled by its utilities, not here) at the trailing edge. On a phone the
+   picker wraps to its own line and stays at the trailing edge (`margin-left: auto`), so its list,
+   which opens aligned to that edge, never reaches past the left gutter. */
+.switchers {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--line);
+}
+.switcher--platform,
+.toc {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.switcher__label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.switcher--language {
+  margin-left: auto;
+}
+.switcher--platform ul,
+.toc ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.switcher--platform a {
+  display: inline-block;
+  padding: 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill, 999px);
+  font-size: 0.875rem;
+  color: var(--text);
+  text-decoration: none;
+}
+.switcher--platform a:hover {
+  background: var(--surface-2);
+}
+.switcher--platform a[aria-current="page"] {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+}
+
+.toc {
+  margin: 20px 0 8px;
+}
+.toc a {
+  font-size: 0.875rem;
+  color: var(--text-2);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.toc a:hover {
+  color: var(--text);
+}
+
+/* ── the imprint (imprint.ts) ─────────────────────────────────────────── */
+
+/* A translation's first line: the German version is the binding one. */
+.translation-notice {
+  margin: 0 0 8px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-size: 0.875rem;
+  color: var(--text-2);
+  /* The prose measure (70ch at the body copy's size): `ch` follows this box's own, smaller font. */
+  max-width: calc(70ch / 0.875);
+}
+
+/* ── body copy ────────────────────────────────────────────────────────── */
+
+/* Preflight resets what a document needs back: paragraph and list spacing, list markers, link
+   colour and underline, heading weight. */
+.prose {
+  line-height: 1.6;
+}
+.prose p,
+.prose ul,
+.prose ol {
+  margin-block: 1em;
+}
+.prose ul {
+  list-style: disc;
+}
+.prose ol {
+  list-style: decimal;
+}
+.prose a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+/* Prose holds a readable measure (~70ch); a list of steps with screenshots uses the page width
+   (see "steps" below). The table of contents sits above the <article>, not in it, and shares the
+   measure so it lines up with the text below rather than running to the page column's edge; it
+   has the body copy's font size, so 70ch is the same width here. */
+.prose p,
+.prose h2,
+.prose h3,
+.prose ul,
+.prose ol,
+.toc {
+  max-width: 70ch;
+}
+.prose ol:has(> li.step) {
+  max-width: none;
+}
+/* The landing page's heading style (font-semibold tracking-tight) a step down in size. Scrolled
+   to below the sticky header (h-14). */
+.prose h2 {
+  @apply text-2xl font-semibold tracking-tight;
+  margin: 48px 0 12px;
+  scroll-margin-top: 5rem;
+}
+.prose h3 {
+  @apply text-lg font-semibold;
+  margin: 28px 0 6px;
+  scroll-margin-top: 5rem;
+}
+.prose p,
+.prose li {
+  color: var(--text-2);
+}
+.prose strong {
+  color: var(--text);
+}
+.prose li + li {
+  margin-top: 10px;
+}
+.prose ol,
+.prose ul {
+  padding-left: 1.4em;
+}
+.prose code {
+  font-size: 0.9em;
+  padding: 1px 5px;
+  border-radius: var(--radius-s, 4px);
+  background: var(--surface-2);
+}
+
+.section--privacy > ul {
+  list-style: none;
+  padding: 0;
+}
+.section--privacy > ul > li {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l, 14px);
+  background: var(--surface-2);
+}
+
+.source {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.8125rem;
+  color: var(--text-3);
+}
+
+/* The screenshot slots (.shot, its light/dark pair) live in src/landing/carousel/appCarousel.css:
+   the app carousel on the landing page shows the same captures, so the rules moved where both
+   pages compile them (src/index.css imports that file). --shot-w is defined there too. */
+
+
+/* ── steps ────────────────────────────────────────────────────────────────
+   A list item that ends in a screenshot (generate.ts wrapSteps): text then image on phones;
+   from 52rem (832px) the text sits beside its screenshot. The grid is on .step__body, not the
+   <li>, so the <li> stays a list item and keeps its native number. Items without a screenshot
+   stay plain list items at full width. Deliberately not a carousel — see
+   docs/proposals/store-presence-and-support-pages.md §4.3. */
+
+.prose li.step + li,
+.prose li + li.step {
+  margin-top: 28px;
+}
+.step__media {
+  display: block;
+}
+@media (min-width: 52rem) {
+  /* Capped so the screenshot sits next to its text rather than at the far edge of the page:
+     a text column of about 55ch, the gap, the screenshot. */
+  .step__body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--shot-w);
+    column-gap: 40px;
+    /* The text is centred against its screenshot (maintainer, 2026-10-15). The list number
+       follows it: an <li>'s marker sits on the first baseline of its content, which for this
+       grid is the text's first line. */
+    align-items: center;
+    max-width: 52rem;
+  }
+  .step__text {
+    max-width: 65ch;
+  }
+}
+
+/* ── breadcrumb (generate.ts breadcrumb, §4.7) ─────────────────────────────
+   "Support › Drive › Android" above the title. The chevron is drawn, not a character, so a screen
+   reader hears only the names. */
+.breadcrumb ol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 0;
+  margin: 0 0 20px;
+  padding: 0;
+  list-style: none;
+  font-size: 0.875rem;
+  color: var(--text-2);
+}
+.breadcrumb li {
+  display: inline-flex;
+  align-items: center;
+}
+.breadcrumb li + li::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  margin: 0 10px 0 6px;
+  border-top: 1.5px solid var(--text-3);
+  border-right: 1.5px solid var(--text-3);
+  transform: rotate(45deg);
+}
+.breadcrumb a {
+  color: var(--text-2);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.breadcrumb a:hover {
+  color: var(--text);
+}
+.breadcrumb [aria-current="page"] {
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* ── the support hub (generate.ts buildHub, hub.ts, §4.7) ──────────────────
+   The page's own frame: its title row and the note under the carousel. The carousel itself (.hub,
+   .hub-list, .hub-stage, .hub-panel …) is the app carousel the landing page shares:
+   src/landing/carousel/appCarousel.css, beside its component. */
+.hub-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--line);
+}
+.hub-head h1 {
+  margin-bottom: 8px;
+}
+.hub-lede {
+  margin: 0;
+  color: var(--text-2);
+}
+@media print {
+  #theme-switch {
+    display: none !important;
+  }
+}
+
+.hub-note {
+  margin-top: 16px;
+  font-size: 0.875rem;
+  color: var(--text-3);
+  text-align: center;
+}
+
+/* ── the third-party licences page (licenses.ts) ─────────────────────── */
+
+/* One package per <details>: the summary is the list, the licence text opens under it. */
+.licenses__entry {
+  border-top: 1px solid var(--line);
+  padding: 8px 0;
+}
+.licenses__entry summary {
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.licenses__name {
+  font-weight: 600;
+}
+.licenses__version,
+.licenses__license {
+  color: var(--text-2);
+}
+.licenses__file {
+  font-weight: 600;
+}
+/* Licence files are plain text with their own line breaks; long lines wrap rather than scroll the page. */
+.licenses__entry pre {
+  margin: 8px 0;
+  padding: 12px;
+  max-height: 24rem;
+  overflow: auto;
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ── the app page's hero (appPages.ts appPageHtml) ─────────────────────────
+   Text on the left, on the right the landing page's app carousel (appCarousel.css) holding this one
+   app: its phone, the cross-fading screenshots, the dots, pause and the "iPhone | Android" switch.
+   One app has nothing to choose between, so the carousel's names are hidden, and the stage shows at
+   every width instead of the narrow layout's row of cards (one card would be a row of one). */
+/* Fills the hero text's width without adding to it: that width is the icon and headline's. */
+.app-hero__fill {
+  width: 0;
+  min-width: 100%;
+}
+.app-hero__icon {
+  width: 64px;
+  height: 64px;
+}
+@media (min-width: 64rem) {
+  .app-hero__icon {
+    width: 96px;
+    height: 96px;
+  }
+}
+.app-hero .hub-name,
+.app-hero .hub-list:empty,
+.app-hero .hub.is-enhanced .hub-list,
+.app-hero .hub-m {
+  display: none;
+}
+.app-hero .hub[data-hub] {
+  display: block;
+}
+.app-hero .hub.is-enhanced {
+  display: flex;
+  flex-direction: column;
+  width: auto;
+  min-height: 0;
+  margin-inline: 0;
+  /* What the phone shares the window with: the header and the page's top padding above it, its
+     control row and the switch's note line under it. */
+  --stage-offset: 10rem;
+}
+.app-hero .hub-stage {
+  margin-top: 0;
+}
+.app-hero .hub {
+  margin-top: 0;
+}
+/* Without JavaScript the captures sit side by side, with no box around them. */
+.app-hero .hub:not(.is-enhanced) .hub-entry {
+  padding: 0;
+  border: 0;
+}
+.app-hero .hub:not(.is-enhanced) .hub-panel {
+  margin-top: 0;
+}

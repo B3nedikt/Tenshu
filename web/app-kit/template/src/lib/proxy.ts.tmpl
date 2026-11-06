@@ -1,0 +1,35 @@
+// __NAME__'s single connection to the apex proxy (docs/web/architecture.md §5.2): the app has no
+// backend of its own, and every read and write goes through the apex, which holds the keys and
+// runs the runtime. The connection is the app-kit's (`createApexBridge`); this file is the wire
+// names and the typed calls.
+//
+// ⚠⚠ No value import from `@tenshu/sdk` here — `import type` only. A value import drags the Kotlin
+// runtime into this bundle (web-app-suite.md §7; `sdkBoundary.test.ts` fails on it).
+//
+// ⚠⚠ What this origin may call is decided apex-side (F5): `methods` in
+// `web/apex/src/apps/registry/apps/__ID__.ts`. A name added to `ProxyMethod` below must be added
+// there too — the apex's `gatewayPermissions.test.ts` reads this table and fails until it is.
+import { createApexBridge } from '@tenshu/app-kit/bridge'
+import type { RuntimeLeaseState } from '@tenshu/sdk/core'
+
+// The wire names, shared with the apex gateway (`web/apex/src/lib/gateway/<ns>.ts`).
+export const ProxyMethod = {
+  Ping: 'bridge.ping',
+  RuntimeLease: 'runtime.lease',
+  RuntimeUseHere: 'runtime.useHere',
+} as const
+
+// The one shared connection to `VITE_APEX_ORIGIN` (else the apex dev server), mounted on first use.
+const bridge = createApexBridge(ProxyMethod)
+
+// ── session ─────────────────────────────────────────────────────────────────
+
+export function runtimeLease(): Promise<RuntimeLeaseState> {
+  return bridge.call<RuntimeLeaseState>(ProxyMethod.RuntimeLease)
+}
+
+export async function runtimeUseHere(): Promise<void> {
+  await bridge.call<void>(ProxyMethod.RuntimeUseHere)
+}
+
+export const APEX = bridge.apexOrigin

@@ -1,0 +1,56 @@
+{
+  "about": "Every screen name scripts/store-screenshots.sh timeline captures for Tenshu Timeline (`captured`, from the UI test in `uiTests`). The fixture is generated for the run's day (store/fixtures/timeline/generate_timeline.py: two weeks at home in Milan, then three days in Florence ending today) and goes in through the shared Google Timeline importer on a -seedFixture launch; the trip is made by tapping Read as a trip (docs/how-to/store-screenshots.md §3f). Adding a capture means adding it here. Docs: docs/how-to/store-screenshots.md §5.",
+  "version": 1,
+  "platform": "ios",
+  "appearances": [
+    "light"
+  ],
+  "uiTests": [
+    "timeline-ios/Screenshots/TimelineScreenshots.swift"
+  ],
+  "captured": {
+    "01-today": {
+      "shows": "Home: today's chapter, the places visited and the walks between them"
+    },
+    "02-suggestion": {
+      "shows": "The trip suggestion under today: three days in Florence, Read as a trip or Not a trip"
+    },
+    "03-trip": {
+      "shows": "The trip after accepting it: its route over the map, days, places and stops"
+    },
+    "04-walk": {
+      "shows": "A walk across the river: its route on the map, distance, duration and mode"
+    },
+    "05-places": {
+      "shows": "Places: every place, with its visit count"
+    },
+    "06-place": {
+      "shows": "One place: its pin on the map and its visits"
+    }
+  },
+  "android": {
+    "about": "The Android pipeline (scripts/store-screenshots-android.sh timeline, walk in scripts/lib/android_shots.py) captures these on a 1080x2400 phone AVD, light only, keyed android/phone/<lang>/NN-screen. The same fixture as iOS, imported through Settings → Import from Google Takeout (store-screenshots.md §8.2). Same names as iOS for the same screen.",
+    "script": "scripts/lib/android_shots.py",
+    "captured": {
+      "01-today": {
+        "shows": "Home: today's chapter, the places visited and the walks between them"
+      },
+      "02-suggestion": {
+        "shows": "The trip suggestion: three days in Florence, Read as a trip or Not a trip"
+      },
+      "03-trip": {
+        "shows": "The trip after accepting it"
+      },
+      "04-walk": {
+        "shows": "A walk across the river: its route on the map, distance, duration and mode"
+      },
+      "05-places": {
+        "shows": "Places: every place, with its visit count"
+      },
+      "06-place": {
+        "shows": "One place: its pin on the map and its visits"
+      }
+    }
+  },
+  "planned": {}
+}

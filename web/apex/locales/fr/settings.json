@@ -1,0 +1,21 @@
+{
+  "title": "Réglages",
+  "subtitle": "Le comportement de ce realm et de ce navigateur.",
+  "entries": {
+    "devices": {
+      "headline": "Appareils",
+      "support": "Les appareils de votre realm, et l’association d’un nouvel appareil"
+    },
+    "backgroundIngest": {
+      "headline": "Import en arrière-plan",
+      "support": "Les apps qui sauvegardent les données de l’appareil, et leurs interrupteurs d’arrêt"
+    },
+    "recovery": {
+      "headline": "Récupération du compte",
+      "support": "Votre phrase de récupération — le chemin du retour si vous perdez tous vos appareils"
+    }
+  },
+  "legal": "Mentions légales",
+  "privacyPolicy": "Politique de confidentialité",
+  "termsOfUse": "Conditions d’utilisation"
+}

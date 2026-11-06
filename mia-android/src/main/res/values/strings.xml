@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Mia</string>
+    <string name="mia_widget_label">Ask Mia</string>
+    <string name="mia_widget_description">One tap to write or speak with Mia.</string>
+</resources>

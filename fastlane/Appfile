@@ -1,0 +1,2 @@
+# Deliberately empty: the bundle id comes from store/<app>/listing.json per run (scripts/store-push.sh),
+# and the App Store Connect API key from ASC_KEY_ID / ASC_ISSUER_ID / ASC_KEY_PATH — never from here.

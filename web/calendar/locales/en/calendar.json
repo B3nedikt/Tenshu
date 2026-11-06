@@ -1,0 +1,207 @@
+{
+  "app": {
+    "title": "Calendar",
+    "tagline": "Your calendars, end-to-end encrypted."
+  },
+  "tabs": {
+    "calendar": "Calendar",
+    "calendars": "Calendars",
+    "subscriptions": "Subscriptions",
+    "transfer": "Import & export"
+  },
+  "nav": {
+    "previous": "Previous",
+    "next": "Next",
+    "today": "Today"
+  },
+  "views": {
+    "label": "View",
+    "month": "Month",
+    "week": "Week",
+    "day": "Day",
+    "agenda": "Agenda",
+    "allDay": "All day",
+    "more": "{count, plural, other {+# more}}",
+    "agendaEmpty": "Nothing scheduled in these {count} days.",
+    "repeats": "Repeats",
+    "hiddenUnreadable": "Couldn’t read which calendars you hid in this browser, so all of them are shown."
+  },
+  "empty": {
+    "title": "No calendars yet",
+    "body": "Create a calendar to start adding events. If you already use Tenshu Calendar on another device, its calendars appear here once this browser has synced.",
+    "create": "Create a calendar"
+  },
+  "event": {
+    "untitled": "(No title)"
+  },
+  "editor": {
+    "new": "New event",
+    "createTitle": "New event",
+    "editTitle": "Edit event",
+    "title": "Title",
+    "calendar": "Calendar",
+    "allDay": "All day",
+    "startDate": "Starts",
+    "startTime": "Start time",
+    "endDate": "Ends",
+    "endTime": "End time",
+    "endBeforeStart": "The event ends before it starts.",
+    "zoneNote": "Times are in {zone}, the event’s own time zone.",
+    "repeat": "Repeat",
+    "customRule": "This event repeats in a way this editor can’t change. It is kept exactly as it is.",
+    "location": "Location",
+    "notes": "Notes",
+    "reminders": "Reminders",
+    "remindersRing": "Reminders ring on your phone and desktop.",
+    "remindersUnreadable": "Couldn’t load this event’s reminders. Saving leaves them as they are.",
+    "remindersDefaultUnreadable": "Couldn’t read your default reminder, so none is set.",
+    "delete": "Delete",
+    "saveScopeQuestion": "This is a repeating event. Change only this one, or every event in the series?",
+    "thisEvent": "Only this event",
+    "thisEventSeriesOnly": "You changed how it repeats, its calendar or “All day”, which only the whole series can take.",
+    "allEvents": "All events in the series",
+    "allEventsNote": "The series will start on {date}.",
+    "deleteQuestion": "Delete this event?",
+    "deleteScopeQuestion": "This is a repeating event. Delete only this one, or the whole series?",
+    "deleteThis": "Delete only this event",
+    "deleteAll": "Delete the whole series",
+    "savedRemindersFailed": "The event was saved, but its reminders couldn’t be."
+  },
+  "recurrence": {
+    "never": "Never",
+    "daily": "Daily",
+    "weekly": "Weekly",
+    "monthly": "Monthly",
+    "yearly": "Yearly",
+    "custom": "Custom"
+  },
+  "reminders": {
+    "atStart": "At start",
+    "minutesBefore": "{count, plural, one {# minute before} other {# minutes before}}",
+    "minutesAfter": "{count, plural, one {# minute after} other {# minutes after}}",
+    "hoursBefore": "{count, plural, one {# hour before} other {# hours before}}",
+    "daysBefore": "{count, plural, one {# day before} other {# days before}}",
+    "onTheDay": "On the day at {time}",
+    "daysBeforeAt": "{count, plural, one {The day before at {time}} other {# days before at {time}}}"
+  },
+  "zone": {
+    "readerFallback": "Times shown in your browser’s clock. Your browser’s time zone isn’t one Tenshu knows by name, so times follow your computer’s clock settings.",
+    "unresolvedShort": "Unknown time zone",
+    "refusalTitle": "This event can’t be edited here",
+    "refusalBody": "It uses the time zone “{zone}”, which this browser doesn’t know yet, so its times are only an estimate in your own zone. Saving them would move the event. Edit it on your phone or desktop instead.",
+    "shownAt": "Shown here from {start} to {end}.",
+    "shownAllDay": "Shown here as an all-day event."
+  },
+  "calendars": {
+    "title": "Your calendars",
+    "new": "New calendar",
+    "createTitle": "New calendar",
+    "editTitle": "Edit calendar",
+    "create": "Create",
+    "name": "Name",
+    "nameTaken": "You already have a calendar with this name.",
+    "colour": "Colour",
+    "colourN": "Colour {n}",
+    "sensitive": "Keep details off the lock screen",
+    "sensitiveDetail": "Your phone shows only that something is happening, not what.",
+    "show": "Show {name}",
+    "unnamed": "Unnamed calendar",
+    "default": "Default",
+    "makeDefault": "Make default",
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleteTitle": "Delete “{name}”?",
+    "deleteBody": "Every event in this calendar is deleted too, on all your devices.",
+    "visibilityNote": "Showing and hiding a calendar applies to this browser only."
+  },
+  "subscriptions": {
+    "title": "Subscribed calendars",
+    "add": "Add subscription",
+    "addTitle": "Subscribe to a calendar",
+    "url": "Calendar address (https:// or webcal://)",
+    "name": "Name (optional)",
+    "consent": "Your phone and desktop will fetch this calendar from its address and keep it up to date. This browser never fetches it; the events reach it through sync.",
+    "addConfirm": "Subscribe",
+    "fetchedBy": "Subscribed calendars are fetched by your phone and desktop, not by this browser.",
+    "empty": "No subscriptions.",
+    "neverFetched": "Not fetched yet by any of your devices",
+    "lastFetched": "Last fetched {when}",
+    "paused": "Paused",
+    "pause": "Pause",
+    "resume": "Resume",
+    "remove": "Remove",
+    "removeTitle": "Remove subscription?",
+    "removeBody": "“{name}” and its events are removed from all your devices."
+  },
+  "transfer": {
+    "importTitle": "Import an .ics file",
+    "into": "Into calendar",
+    "drop": "Drop an .ics file here",
+    "choose": "Choose a file",
+    "chooseLabel": "Choose an .ics file to import",
+    "importNote": "Importing the same file again updates its events instead of duplicating them.",
+    "exportTitle": "Export",
+    "from": "Calendar",
+    "allCalendars": "All calendars",
+    "allFileName": "calendars",
+    "export": "Download .ics",
+    "noCalendars": "Create a calendar first; imported events need one to go into.",
+    "imported": "{count, plural, one {Imported # event from {file}.} other {Imported # events from {file}.}}",
+    "overrides": "{count, plural, one {Plus # changed occurrence.} other {Plus # changed occurrences.}}",
+    "skipped": "{count, plural, one {# entry in the file couldn’t be read and was skipped.} other {# entries in the file couldn’t be read and were skipped.}}",
+    "failed": "{count, plural, one {# event couldn’t be saved.} other {# events couldn’t be saved.}}",
+    "warnings": "{count, plural, one {# event was imported without all of its details (its original text or reminders).} other {# events were imported without all of their details (their original text or reminders).}}"
+  },
+  "common": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "close": "Close",
+    "working": "Working…",
+    "loading": "Loading…",
+    "retry": "Try again"
+  },
+  "errors": {
+    "error_generic": "Something went wrong. Please try again.",
+    "error_unexpected": "Something went wrong. Please try again.",
+    "error_internal": "Something went wrong. Please try again.",
+    "error_not_found": "That item is no longer available.",
+    "error_invalid_caller": "This app is not allowed to do that.",
+    "error_unannounced_session": "Tenshu needs to reconnect. Please try again.",
+    "error_unsupported_operation": "This version does not support that yet.",
+    "bridge": "Couldn’t reach Tenshu. Make sure it is open and unlocked, then try again.",
+    "bridge_timeout": "Tenshu took too long to answer. Try again.",
+    "bridge_not_permitted": "Calendar is not allowed to do that.",
+    "error_calendar_invalid_argument": "That couldn’t be saved: something in it isn’t valid.",
+    "error_calendar_invalid_rule": "This repeat rule isn’t valid, so nothing was saved.",
+    "error_calendar_unknown_zone": "This event’s time zone isn’t known to this browser, so it can’t be saved here.",
+    "error_calendar_not_found": "That calendar or event no longer exists.",
+    "error_calendar_none_in_file": "No events found in that file.",
+    "error_calendar_subscription_url": "That address can’t be subscribed to. Use an https:// or webcal:// link.",
+    "error_calendar_no_device": "This browser isn’t set up as one of your devices yet, so it can’t keep its own view settings. Try again once it has synced."
+  },
+  "sync": {
+    "offline": "You’re offline. Changes stay on this device and sync when you reconnect.",
+    "needsAttention": "Tenshu can’t sync right now — your storage needs attention. Changes stay on this device.",
+    "locked": "Tenshu is locked on this device, so nothing can sync. Unlock it to continue.",
+    "deviceUnrecognized": "This browser is no longer recognised as one of your devices, so it can’t sync."
+  },
+  "stream": {
+    "stopped": "Live updates stopped. What you see may be out of date.",
+    "reconnect": "Reconnect"
+  },
+  "runtime": {
+    "connectingTitle": "Still connecting to Tenshu…",
+    "connectingBody": "The Tenshu tab hosting Calendar is busy. Calendar will load as soon as it answers.",
+    "elsewhereTitle": "Tenshu is open in another tab",
+    "elsewhereBody": "Tenshu runs in one tab at a time, so your data can't get out of step. Use it here to move it to this tab.",
+    "moving": "Waiting for the other tab to finish saving. This can take up to two minutes.",
+    "movingShort": "Moving…",
+    "useHere": "Use here"
+  },
+  "crash": {
+    "title": "Something went wrong",
+    "body": "This part of Calendar hit an unexpected error. Your data is safe — nothing was changed.",
+    "retry": "Try again",
+    "reload": "Reload"
+  }
+}

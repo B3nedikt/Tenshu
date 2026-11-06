@@ -1,0 +1,207 @@
+{
+  "app": {
+    "title": "Calendrier",
+    "tagline": "Vos calendriers, chiffrés de bout en bout."
+  },
+  "tabs": {
+    "calendar": "Calendrier",
+    "calendars": "Calendriers",
+    "subscriptions": "Abonnements",
+    "transfer": "Import et export"
+  },
+  "nav": {
+    "previous": "Précédent",
+    "next": "Suivant",
+    "today": "Aujourd’hui"
+  },
+  "views": {
+    "label": "Affichage",
+    "month": "Mois",
+    "week": "Semaine",
+    "day": "Jour",
+    "agenda": "Agenda",
+    "allDay": "Toute la journée",
+    "more": "{count, plural, one {+# autre} other {+# autres}}",
+    "agendaEmpty": "Rien de prévu pendant ces {count} jours.",
+    "repeats": "Se répète",
+    "hiddenUnreadable": "Impossible de lire quels calendriers vous avez masqués dans ce navigateur : ils sont donc tous affichés."
+  },
+  "empty": {
+    "title": "Aucun calendrier pour l’instant",
+    "body": "Créez un calendrier pour commencer à ajouter des événements. Si vous utilisez déjà Tenshu Calendrier sur un autre appareil, ses calendriers apparaîtront ici dès que ce navigateur sera synchronisé.",
+    "create": "Créer un calendrier"
+  },
+  "event": {
+    "untitled": "(Sans titre)"
+  },
+  "editor": {
+    "new": "Nouvel événement",
+    "createTitle": "Nouvel événement",
+    "editTitle": "Modifier l’événement",
+    "title": "Titre",
+    "calendar": "Calendrier",
+    "allDay": "Toute la journée",
+    "startDate": "Début",
+    "startTime": "Heure de début",
+    "endDate": "Fin",
+    "endTime": "Heure de fin",
+    "endBeforeStart": "L’événement se termine avant de commencer.",
+    "zoneNote": "Les heures sont en {zone}, le fuseau horaire de l’événement.",
+    "repeat": "Répéter",
+    "customRule": "Cet événement se répète d’une façon que cet éditeur ne peut pas modifier. Elle est conservée telle quelle.",
+    "location": "Lieu",
+    "notes": "Notes",
+    "reminders": "Rappels",
+    "remindersRing": "Les rappels sonnent sur votre téléphone et votre ordinateur.",
+    "remindersUnreadable": "Impossible de charger les rappels de cet événement. L’enregistrement les laisse tels quels.",
+    "remindersDefaultUnreadable": "Impossible de lire votre rappel par défaut : aucun n’est défini.",
+    "delete": "Supprimer",
+    "saveScopeQuestion": "C’est un événement récurrent. Modifier seulement celui-ci, ou tous les événements de la série ?",
+    "thisEvent": "Seulement cet événement",
+    "thisEventSeriesOnly": "Vous avez modifié la récurrence, le calendrier ou « Toute la journée », ce qui ne s’applique qu’à toute la série.",
+    "allEvents": "Tous les événements de la série",
+    "allEventsNote": "La série commencera le {date}.",
+    "deleteQuestion": "Supprimer cet événement ?",
+    "deleteScopeQuestion": "C’est un événement récurrent. Supprimer seulement celui-ci, ou toute la série ?",
+    "deleteThis": "Supprimer seulement cet événement",
+    "deleteAll": "Supprimer toute la série",
+    "savedRemindersFailed": "L’événement a été enregistré, mais pas ses rappels."
+  },
+  "recurrence": {
+    "never": "Jamais",
+    "daily": "Tous les jours",
+    "weekly": "Toutes les semaines",
+    "monthly": "Tous les mois",
+    "yearly": "Tous les ans",
+    "custom": "Personnalisée"
+  },
+  "reminders": {
+    "atStart": "Au début",
+    "minutesBefore": "{count, plural, one {# minute avant} other {# minutes avant}}",
+    "minutesAfter": "{count, plural, one {# minute après} other {# minutes après}}",
+    "hoursBefore": "{count, plural, one {# heure avant} other {# heures avant}}",
+    "daysBefore": "{count, plural, one {# jour avant} other {# jours avant}}",
+    "onTheDay": "Le jour même à {time}",
+    "daysBeforeAt": "{count, plural, one {La veille à {time}} other {# jours avant à {time}}}"
+  },
+  "zone": {
+    "readerFallback": "Heures affichées selon l’horloge de votre navigateur. Tenshu ne connaît pas le fuseau horaire de votre navigateur par son nom : les heures suivent donc les réglages d’horloge de votre ordinateur.",
+    "unresolvedShort": "Fuseau horaire inconnu",
+    "refusalTitle": "Cet événement ne peut pas être modifié ici",
+    "refusalBody": "Il utilise le fuseau horaire « {zone} », que ce navigateur ne connaît pas encore : ses heures ne sont donc qu’une estimation dans votre propre fuseau, et l’enregistrer déplacerait l’événement. Modifiez-le plutôt sur votre téléphone ou votre ordinateur.",
+    "shownAt": "Affiché ici de {start} à {end}.",
+    "shownAllDay": "Affiché ici comme événement sur toute la journée."
+  },
+  "calendars": {
+    "title": "Vos calendriers",
+    "new": "Nouveau calendrier",
+    "createTitle": "Nouveau calendrier",
+    "editTitle": "Modifier le calendrier",
+    "create": "Créer",
+    "name": "Nom",
+    "nameTaken": "Vous avez déjà un calendrier portant ce nom.",
+    "colour": "Couleur",
+    "colourN": "Couleur {n}",
+    "sensitive": "Masquer les détails sur l’écran verrouillé",
+    "sensitiveDetail": "Votre téléphone indique seulement qu’il se passe quelque chose, pas quoi.",
+    "show": "Afficher {name}",
+    "unnamed": "Calendrier sans nom",
+    "default": "Par défaut",
+    "makeDefault": "Par défaut",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "deleteTitle": "Supprimer « {name} » ?",
+    "deleteBody": "Tous les événements de ce calendrier sont aussi supprimés, sur tous vos appareils.",
+    "visibilityNote": "Afficher ou masquer un calendrier ne s’applique qu’à ce navigateur."
+  },
+  "subscriptions": {
+    "title": "Calendriers abonnés",
+    "add": "Ajouter un abonnement",
+    "addTitle": "S’abonner à un calendrier",
+    "url": "Adresse du calendrier (https:// ou webcal://)",
+    "name": "Nom (facultatif)",
+    "consent": "Votre téléphone et votre ordinateur récupéreront ce calendrier à son adresse et le tiendront à jour. Ce navigateur ne le récupère jamais : les événements lui parviennent par la synchronisation.",
+    "addConfirm": "S’abonner",
+    "fetchedBy": "Les calendriers abonnés sont récupérés par votre téléphone et votre ordinateur, pas par ce navigateur.",
+    "empty": "Aucun abonnement.",
+    "neverFetched": "Pas encore récupéré par vos appareils",
+    "lastFetched": "Dernière récupération {when}",
+    "paused": "En pause",
+    "pause": "Mettre en pause",
+    "resume": "Reprendre",
+    "remove": "Supprimer",
+    "removeTitle": "Supprimer l’abonnement ?",
+    "removeBody": "« {name} » et ses événements sont supprimés de tous vos appareils."
+  },
+  "transfer": {
+    "importTitle": "Importer un fichier .ics",
+    "into": "Dans le calendrier",
+    "drop": "Déposez un fichier .ics ici",
+    "choose": "Choisir un fichier",
+    "chooseLabel": "Choisir un fichier .ics à importer",
+    "importNote": "Importer à nouveau le même fichier met à jour ses événements au lieu de les dupliquer.",
+    "exportTitle": "Exporter",
+    "from": "Calendrier",
+    "allCalendars": "Tous les calendriers",
+    "allFileName": "calendriers",
+    "export": "Télécharger le .ics",
+    "noCalendars": "Créez d’abord un calendrier : les événements importés en ont besoin.",
+    "imported": "{count, plural, one {# événement importé depuis {file}.} other {# événements importés depuis {file}.}}",
+    "overrides": "{count, plural, one {Plus # occurrence modifiée.} other {Plus # occurrences modifiées.}}",
+    "skipped": "{count, plural, one {# entrée du fichier était illisible et a été ignorée.} other {# entrées du fichier étaient illisibles et ont été ignorées.}}",
+    "failed": "{count, plural, one {# événement n’a pas pu être enregistré.} other {# événements n’ont pas pu être enregistrés.}}",
+    "warnings": "{count, plural, one {# événement a été importé sans tous ses détails (texte d’origine ou rappels).} other {# événements ont été importés sans tous leurs détails (texte d’origine ou rappels).}}"
+  },
+  "common": {
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "close": "Fermer",
+    "working": "En cours…",
+    "loading": "Chargement…",
+    "retry": "Réessayer"
+  },
+  "errors": {
+    "error_generic": "Une erreur s’est produite. Veuillez réessayer.",
+    "error_unexpected": "Une erreur s’est produite. Veuillez réessayer.",
+    "error_internal": "Une erreur s’est produite. Veuillez réessayer.",
+    "error_not_found": "Cet élément n’est plus disponible.",
+    "error_invalid_caller": "Cette application n’est pas autorisée à faire cela.",
+    "error_unannounced_session": "Tenshu doit se reconnecter. Veuillez réessayer.",
+    "error_unsupported_operation": "Cette version ne le permet pas encore.",
+    "bridge": "Impossible de joindre Tenshu. Vérifiez qu’il est ouvert et déverrouillé, puis réessayez.",
+    "bridge_timeout": "Tenshu a mis trop de temps à répondre. Réessayez.",
+    "bridge_not_permitted": "Calendrier n’est pas autorisé à faire cela.",
+    "error_calendar_invalid_argument": "Impossible d’enregistrer : un élément n’est pas valide.",
+    "error_calendar_invalid_rule": "Cette règle de récurrence n’est pas valide : rien n’a été enregistré.",
+    "error_calendar_unknown_zone": "Le fuseau horaire de cet événement est inconnu de ce navigateur : il ne peut pas être enregistré ici.",
+    "error_calendar_not_found": "Ce calendrier ou cet événement n’existe plus.",
+    "error_calendar_none_in_file": "Aucun événement trouvé dans ce fichier.",
+    "error_calendar_subscription_url": "Impossible de s’abonner à cette adresse. Utilisez un lien https:// ou webcal://.",
+    "error_calendar_no_device": "Ce navigateur n’est pas encore configuré comme l’un de vos appareils : il ne peut pas garder ses propres réglages d’affichage. Réessayez après sa synchronisation."
+  },
+  "sync": {
+    "offline": "Vous êtes hors ligne. Les modifications restent sur cet appareil et seront synchronisées à la reconnexion.",
+    "needsAttention": "Tenshu ne peut pas synchroniser pour le moment — votre stockage demande votre attention. Les modifications restent sur cet appareil.",
+    "locked": "Tenshu est verrouillé sur cet appareil : rien ne peut être synchronisé. Déverrouillez-le pour continuer.",
+    "deviceUnrecognized": "Ce navigateur n’est plus reconnu comme l’un de vos appareils et ne peut donc pas synchroniser."
+  },
+  "stream": {
+    "stopped": "Les mises à jour en direct se sont arrêtées. Ce que vous voyez n’est peut-être plus à jour.",
+    "reconnect": "Se reconnecter"
+  },
+  "runtime": {
+    "connectingTitle": "Connexion à Tenshu en cours…",
+    "connectingBody": "L’onglet Tenshu qui héberge Calendrier est occupé. Calendrier se chargera dès qu’il répondra.",
+    "elsewhereTitle": "Tenshu est ouvert dans un autre onglet",
+    "elsewhereBody": "Tenshu ne s’exécute que dans un onglet à la fois, pour que vos données restent cohérentes. Utilisez-le ici pour le déplacer dans cet onglet.",
+    "moving": "En attente de la fin de l’enregistrement dans l’autre onglet. Cela peut prendre jusqu’à deux minutes.",
+    "movingShort": "Déplacement…",
+    "useHere": "Utiliser ici"
+  },
+  "crash": {
+    "title": "Une erreur est survenue",
+    "body": "Cette partie de Calendrier a rencontré une erreur inattendue. Vos données sont en sécurité — rien n’a été modifié.",
+    "retry": "Réessayer",
+    "reload": "Recharger"
+  }
+}

@@ -1,0 +1,9 @@
+# Terraform state is SECRET-BEARING (docs/proposals/ops-secret-custody.md) — the
+# rendered cloud-init, and with it every value in dev.env, lives inside it.
+*.tfstate
+*.tfstate.*
+.terraform/
+terraform.tfvars
+crash.log
+# API signing key, if you keep it next to the module rather than in ~/.oci/.
+*.pem

@@ -1,0 +1,23 @@
+# Never commit secrets, local Terraform state, or pipeline outputs.
+# NOTE: git ignore-rules do NOT support trailing inline comments - a '#' only
+# starts a comment at the start of a line. Keep every pattern on its own line.
+
+# your real values (the admin key, principal ids)
+terraform.tfvars
+*.auto.tfvars
+# downloaded provider binaries
+.terraform/
+# !! contains every resource attribute in plaintext, incl. EVERY BOX KEY THIS MODULE MINTS
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+
+# NOTE: .terraform.lock.hcl is intentionally NOT ignored - commit it after the first
+# `terraform init` so every apply resolves the same provider plugins/hashes (HashiCorp's
+# recommended practice).

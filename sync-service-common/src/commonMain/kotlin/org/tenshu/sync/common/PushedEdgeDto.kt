@@ -1,0 +1,9 @@
+package org.tenshu.sync.common
+
+import org.tenshu.core.Data
+import org.tenshu.core.common.impl.CompositeDto
+import org.tenshu.sync.PushedEdge
+
+internal class PushedEdgeDto(
+    fieldValues: List<Data?>
+) : PushedEdge, CompositeDto(fieldValues)

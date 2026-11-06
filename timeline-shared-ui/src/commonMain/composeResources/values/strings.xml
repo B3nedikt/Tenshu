@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Timeline user-facing strings (docs/proposals/timeline-app.md §8 Localisation).
+         Duration templates are chosen from TimelineFormat.DurationForm; photo counts ride
+         as one-vs-other keys (n=1, no pluralStringResource yet — graduate to ICU plurals
+         at ADR 0016 n=2). Separators (" · ") stay literal in code (punctuation). -->
+
+    <string name="timeline_now">now</string>
+
+    <string name="timeline_photos_none">No photos</string>
+    <string name="timeline_photos_one">%1$d photo</string>
+    <string name="timeline_photos_other">%1$d photos</string>
+
+    <string name="timeline_duration_minutes">%1$d min</string>
+    <string name="timeline_duration_hours">%1$d h</string>
+    <string name="timeline_duration_hours_minutes">%1$d h %2$d min</string>
+
+    <string name="timeline_moment_count">%1$d moments</string>
+
+    <!-- The Places list's line under a place: its visit count (one-vs-other, as photos) and when it
+         was last visited ("last nov 3" — the date is pre-formatted, lower-cased in code). -->
+    <string name="timeline_place_visits_one">%1$d visit · last %2$s</string>
+    <string name="timeline_place_visits_other">%1$d visits · last %2$s</string>
+
+    <!-- Movement cards (timeline-movement-capture.md M5-lite). The mode is a raw wire string, so
+         an unrecognised value falls back to timeline_movement_unknown rather than rendering blank.
+         Distance uses one decimal above a kilometre; below that, whole metres. -->
+    <string name="timeline_movement_walk">Walk</string>
+    <string name="timeline_movement_run">Run</string>
+    <string name="timeline_movement_cycle">Ride</string>
+    <string name="timeline_movement_drive">Drive</string>
+    <string name="timeline_movement_transit">Transit</string>
+    <string name="timeline_movement_flight">Flight</string>
+    <string name="timeline_movement_unknown">Movement</string>
+    <string name="timeline_distance_km">%1$d.%2$d km</string>
+    <string name="timeline_distance_m">%1$d m</string>
+    <!-- The imperial twins (fit-app.md §18.13). The decimal separator lives in the template, as
+         for the metric pair — a translator changes "1.8" to "1,8" here, not in the formatter. -->
+    <string name="timeline_distance_mi">%1$d.%2$d mi</string>
+    <string name="timeline_distance_ft">%1$d ft</string>
+    <!-- A movement's route, from the visits bracketing it. Both endpoints known → "Home → Work";
+         only one → the travel mode plus that end ("Ride to Work" / "Ride from Home"). Word order is
+         part of the template so a locale can reorder it. -->
+    <string name="timeline_movement_route">%1$s → %2$s</string>
+    <string name="timeline_movement_route_to">%1$s to %2$s</string>
+    <string name="timeline_movement_route_from">%1$s from %2$s</string>
+    <string name="timeline_movement_distance_label">Distance</string>
+    <string name="timeline_movement_duration_label">Duration</string>
+    <string name="timeline_movement_mode_label">Mode</string>
+
+    <!-- Honesty fallback for label-less places (place-geocoding.md G1): captured / new-format
+         imported places have no name until geocoded — render this instead of blank text. -->
+    <string name="timeline_place_unnamed">Unnamed place</string>
+
+    <!-- Place roles (place-roles.md PR-3). An INFERRED role is a question the app asks; a
+         user-confirmed one is a fact it shows. "Not my home" is a real answer, not a cancel —
+         it writes a dismissal, which is why it is worded as a statement rather than "Later". -->
+    <string name="timeline_place_role_home">Home</string>
+    <string name="timeline_place_role_work">Work</string>
+    <string name="timeline_place_role_prompt_home">Is this your home?</string>
+    <string name="timeline_place_role_prompt_work">Is this where you work?</string>
+    <string name="timeline_place_role_confirm">Yes</string>
+    <string name="timeline_place_role_dismiss_home">Not my home</string>
+    <string name="timeline_place_role_dismiss_work">Not my work</string>
+    <string name="timeline_place_role_clear">Remove label</string>
+
+    <!-- Nav chrome (AdaptiveNavScaffold): Home's three surfaces, plus Settings below. These were
+         literals on an in-screen tab row before the shared shell landed. -->
+    <string name="timeline_nav_home">Home</string>
+    <string name="timeline_nav_places">Places</string>
+    <string name="timeline_nav_activities">Activities</string>
+
+    <!-- Settings (docs/proposals/timeline-app.md §7 — profile-icon → Settings destination). -->
+    <string name="timeline_settings">Settings</string>
+    <!-- Live capture opt-in (I3b, threat-model A35). Shown only where a platform binds a
+         TimelineCaptureControl (Android); off by default. -->
+    <string name="timeline_settings_capture_section">Capture</string>
+    <string name="timeline_settings_capture">Capture my timeline</string>
+    <string name="timeline_settings_capture_desc">Record the places you visit in the background. Off by default — visits stay end-to-end encrypted on your own devices, and nothing is shared.</string>
+    <!-- Place-name lookup opt-in (place-geocoding.md D5). Shown only where a platform binds a
+         PlaceGeocodingControl (none yet in G1); off by default. -->
+    <!-- B3 (takeout-import-and-recall.md TB-D6): the Timeline-only user. The empty state IS the
+         import entry point, and it must not read as "capture is broken". -->
+    <string name="timeline_empty_title">Your timeline starts here</string>
+    <string name="timeline_empty_body">Bring the location history you already have — a Google Takeout export imports every month of it at once.</string>
+    <string name="timeline_empty_capture_hint">Or turn on capture in Settings to record where you go from now on.</string>
+    <string name="timeline_empty_places">Places appear as your timeline fills in.</string>
+    <string name="timeline_empty_activities">Walks, runs and rides appear here once your timeline has some.</string>
+    <!-- B2 (takeout-import-and-recall.md): importing a Google Takeout export. Shown only where a
+         platform binds a TimelineImportControl (a picker needs an Activity or a window). -->
+    <string name="timeline_settings_import_section">Import</string>
+    <string name="timeline_settings_import">Import from Google Takeout</string>
+    <string name="timeline_settings_import_desc">Bring your location history in from a Takeout export. Pick the .zip — every month inside it is imported at once.</string>
+    <string name="timeline_settings_import_running">Reading %1$s…</string>
+    <!-- ⚠ The BUTTON's label, deliberately short and different from the row title above it. The
+         first version reused "Import from Google Takeout" for both, which was redundant *and* the
+         reason the button could not fit beside the description on a phone. -->
+    <string name="timeline_settings_import_action">Choose file…</string>
+    <string name="timeline_settings_import_dismiss">Done</string>
+    <!-- B5: opt-in, and off by default — importing a photo library is a much larger decision than
+         importing a location history, and it spends the user's storage quota. -->
+    <string name="timeline_settings_import_photos">Also bring in the photos</string>
+    <string name="timeline_settings_import_photos_desc">Copies the export's photos into Drive, with the date and place each one was taken. A photo library can be very large.</string>
+    <string name="timeline_settings_geocoding_section">Place names</string>
+    <string name="timeline_settings_geocoding">Look up place names</string>
+    <string name="timeline_settings_geocoding_desc">Name unnamed places automatically. Off by default — a lookup sends a place's coordinates to the lookup provider, and nothing else leaves your devices.</string>
+    <string name="timeline_settings_wifi_section">Wi-Fi place recognition</string>
+    <string name="timeline_settings_about_section">About</string>
+    <string name="timeline_settings_wifi">Recognise places by Wi-Fi</string>
+    <string name="timeline_settings_wifi_desc">Remember the Wi-Fi at a place you name, and reuse the name next time — even when GPS is off by a building. Off by default. Recognised places are shared across your own devices, so a new phone already knows them; what travels is a scrambled id, never the network name, and never anything the relay can read.</string>
+
+    <!-- Import result dialog + its geocoding offer (place-geocoding.md G3, D5): after a
+         successful import with place-name lookups off, offer the same consent the Settings
+         toggle drives. Disclosure mirrors timeline_settings_geocoding_desc. -->
+    <string name="timeline_import_result_title">Timeline import</string>
+    <string name="timeline_import_ok">OK</string>
+    <string name="timeline_import_not_now">Not now</string>
+    <string name="timeline_import_geocoding_enable">Look up place names</string>
+    <string name="timeline_import_geocoding_offer">Imported places have no names yet. Look them up automatically? A lookup sends a place's coordinates to the lookup provider, and nothing else leaves your devices. You can change this any time in Settings.</string>
+
+    <!-- Place rename (place-geocoding.md G4): user-authored label; the enricher never
+         overwrites a non-blank name. -->
+    <string name="timeline_place_merge_action">Merge with another place</string>
+    <string name="timeline_place_merge_title">Same place?</string>
+    <string name="timeline_place_merge_body">Pick the place this one is really part of. The visits move across and keep one name — you can undo it later.</string>
+    <string name="timeline_place_merge_cancel">Cancel</string>
+    <string name="timeline_place_unmerge">Separate merged places</string>
+    <string name="timeline_place_rename_title">Rename place</string>
+    <string name="timeline_place_rename_hint">Place name</string>
+    <string name="timeline_place_rename_confirm">Rename</string>
+    <string name="timeline_place_rename_cancel">Cancel</string>
+    <string name="timeline_place_rename_a11y">Rename this place</string>
+    <string name="timeline_place_picker_title">Choose the right place</string>
+    <string name="timeline_place_picker_nearby">Nearby</string>
+    <string name="timeline_place_picker_hint">Or type a name</string>
+    <string name="timeline_place_picker_loading">Finding nearby places…</string>
+    <string name="timeline_moment_open_place_a11y">Open this place</string>
+    <!-- The inline route hero on a trip / movement detail is a static preview (a pannable map
+         inside a scrolling page fights the page scroll); tapping it opens the full-screen,
+         pan-and-zoom map. This labels that tap target for screen readers. -->
+    <string name="timeline_route_map_open_a11y">Open the full-screen map</string>
+
+    <!-- Diagnostics section (core-logging-facade single-stream): the device-local log for
+         on-device debugging. Shown only where a platform records diagnostics (Android). -->
+    <string name="timeline_settings_diagnostics_section">Diagnostics</string>
+    <!-- §18.9 capture diagnostics — debug builds only (the control is bound only there). -->
+    <!-- S7 (§23): the Wi-Fi recognition status line. Only IdentityWithheld is actionable. -->
+    <string name="timeline_settings_wifi_status_working">Recognising this network.</string>
+    <string name="timeline_settings_wifi_status_no_network">Not connected to Wi-Fi, so there is nothing to recognise.</string>
+    <string name="timeline_settings_wifi_status_withheld">Android is not sharing this network's identity. Turn on location services so places can be recognised by Wi-Fi.</string>
+    <string name="timeline_settings_wifi_status_unknown">No reading yet — this updates the next time a place is recorded.</string>
+    <string name="timeline_settings_replay_section">Capture diagnostics</string>
+    <string name="timeline_settings_rawfix">Record raw location fixes</string>
+    <string name="timeline_settings_rawfix_desc">Keeps every location fix on this device so segmentation rules can be re-run against a real day. Off by default; never synced or uploaded.</string>
+    <string name="timeline_settings_rawfix_count">%1$d fixes recorded</string>
+    <string name="timeline_settings_rawfix_capped">Recording stopped — the limit was reached.</string>
+    <string name="timeline_settings_rawfix_delete">Delete recorded fixes</string>
+    <string name="timeline_settings_replay_run">Replay segmentation</string>
+    <string name="timeline_settings_replay_running">Replaying…</string>
+    <string name="timeline_settings_replay_hint">Results appear in the log below.</string>
+    <string name="timeline_settings_diagnostics_desc">A local record of what capture did, for troubleshooting. Stays on this device.</string>
+    <string name="timeline_settings_diagnostics_show">Show recent activity</string>
+    <string name="timeline_settings_diagnostics_hide">Hide</string>
+    <string name="timeline_settings_diagnostics_copy">Copy</string>
+    <string name="timeline_settings_diagnostics_copied">Copied</string>
+    <string name="timeline_settings_diagnostics_clear">Clear</string>
+    <string name="timeline_settings_diagnostics_empty">No activity recorded yet.</string>
+
+    <!-- Contextual offline trigger on the trip detail (maps-region-delivery.md track 3d). A trip is a
+         journey, so it can cross several regions — hence the plural, and the summed size. The route
+         already renders by streaming, so these offer availability, not repair. -->
+    <string name="timeline_trip_offline_keep_one">Keep %1$s offline</string>
+    <string name="timeline_trip_offline_keep_many">Keep this trip's %1$d map areas offline</string>
+    <string name="timeline_trip_offline_hint">%1$s · then this route works with no network at all</string>
+    <string name="timeline_trip_offline_downloading">Downloading map areas… %1$d%</string>
+    <string name="timeline_trip_offline_failed">Couldn't download — tap to try again</string>
+    <string name="timeline_trip_offline_failed_hint">The route keeps working; it just still needs the network</string>
+    <string name="timeline_trip_offline_kept">This trip's map areas are available offline</string>
+    <!-- Realm storage. No plan is the silent state — nothing syncs from any app; full blocks new
+         data only. Neither loses anything, and both say so. -->
+    <string name="timeline_storage_no_plan_text">Not syncing — this device has no storage plan, so your data stays on this device. Set up storage to sync across your devices.</string>
+    <string name="timeline_storage_full_text">Storage full — %1$s of %2$s used. Your data stays on this device and nothing is deleted, but it can't sync until you free up space or get more.</string>
+    <string name="timeline_storage_action">Manage storage</string>
+    <string name="timeline_storage_setup_action">Set up storage</string>
+    <string name="timeline_control_unreachable_text">Can't reach Tenshu Control — your timeline can't load. Make sure Control is installed and running.</string>
+    <string name="timeline_control_open_action">Open Control</string>
+    <string name="timeline_control_not_installed">Tenshu Control isn't installed on this device. Your timeline lives in Control, so there's nothing to show until it's installed.</string>
+    <string name="timeline_control_wall_title">Set up Tenshu Control</string>
+    <!-- ADR 0025 §Decision 8: Control installed and answering, no realm on this device. -->
+    <string name="timeline_control_not_set_up">Tenshu Control is installed but isn't set up on this device yet. Your timeline lives in Control — open it to start fresh or join your other devices, then come back.</string>
+    <string name="timeline_control_not_installed_unpublished">Tenshu Control isn't installed on this device, and it isn't in the store yet — your timeline stays empty until it is.</string>
+    <string name="timeline_control_not_installed_other_channel">Tenshu Control isn't installed on this device. Install it the same way you installed Timeline.</string>
+    <string name="timeline_control_get_action">Get Control</string>
+    <string name="timeline_update_action">Update</string>
+    <!--
+      SK-1b (core-schema-skew-surface.md): a proxy that is answering and *refusing* on a schema
+      version is not an unreachable one. These name the app that actually fixes it, which on
+      Android and desktop is usually Control rather than the app the banner is in.
+    -->
+    <string name="timeline_skew_update_control">Timeline is newer than Tenshu Control on this device. Update Control to keep your timeline syncing.</string>
+    <string name="timeline_skew_update_this_app">Timeline is older than Tenshu Control on this device. Update Timeline to keep your timeline syncing.</string>
+    <string name="timeline_skew_update_both">Timeline and Tenshu Control are from different versions. Update both to keep your timeline syncing.</string>
+    <!--
+      SK-3: the realm pull fence - this DEVICE is behind the others, not this app behind its
+      proxy. Different words on purpose: nothing is broken or unreachable, the device has simply
+      stopped receiving, and everything already on it still works.
+    -->
+    <string name="timeline_fenced_update_control">Tenshu Control on this device is older than your other devices, so your timeline has stopped updating. Everything already here is safe.</string>
+    <string name="timeline_fenced_update_this_app">Timeline on this device is older than your other devices, so your timeline has stopped updating. Everything already here is safe.</string>
+    <string name="timeline_fenced_update_both">This device is older than your other devices, so your timeline has stopped updating. Everything already here is safe.</string>
+    <!-- No host published a RuntimeIdentity row: say what is true, name nothing. -->
+    <string name="timeline_fenced_update_unknown">This device is older than your other devices, so your timeline has stopped updating. Updating Tenshu on this device fixes it. Everything already here is safe.</string>
+
+    <!-- Detail load states, shared by the place / moment / trip destinations. A detail read goes
+         over IPC to Control, so it can fail or stall independently of the list the user tapped
+         from. "Couldn't load" is deliberately NOT "not found": the subject is still there, this
+         device just can't read it right now, and saying otherwise reads as data loss. -->
+    <string name="timeline_detail_loading_a11y">Loading</string>
+    <string name="timeline_detail_unavailable">Couldn't load this yet</string>
+    <string name="timeline_detail_unavailable_hint">Tenshu Control didn't answer. Nothing is lost — this device just can't read it right now.</string>
+    <string name="timeline_detail_retry">Try again</string>
+    <string name="timeline_place_not_found">Place not found</string>
+    <string name="timeline_moment_not_found">Moment not found</string>
+    <string name="timeline_trip_not_found">Trip not found</string>
+</resources>

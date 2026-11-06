@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Home user-facing strings (docs/proposals/home-and-mia-apps.md; ADR 0016 n=1).
+         Unit suffixes (GB/TB, °) stay code-side like Timeline's "km" (punctuation-grade). -->
+
+    <string name="home_nav_home">Home</string>
+    <string name="home_nav_automations">Automations</string>
+    <string name="home_nav_activity">Activity</string>
+    <string name="home_nav_settings">Settings</string>
+
+    <string name="home_ask_mia_title">Ask Mia</string>
+    <string name="home_ask_mia_subtitle">Write or speak with your assistant</string>
+    <string name="home_ask_mia_back">Back</string>
+
+    <string name="home_devices_title">Devices</string>
+    <string name="home_devices_empty_title">No devices yet</string>
+    <string name="home_devices_empty_body">Add your Tenshu Hub, speakers, lamps and sensors to see them here.</string>
+    <string name="home_devices_add">Add device</string>
+
+    <string name="home_device_state_connected">Connected</string>
+    <string name="home_device_state_disconnected">Disconnected</string>
+    <!-- ⚠ Bare %, not %%: the CMP formatter does positional substitution only and renders
+         the Android-style %% escape literally (sibling of the ADR 0016 apostrophe gotcha). -->
+    <string name="home_device_state_on">On · %1$d%</string>
+    <string name="home_device_state_off">Off</string>
+    <string name="home_device_state_storage">%1$s free of %2$s</string>
+    <!-- Live storage tile (hub-backed, real figures): the freshness/offline line.
+         %1$s is a code-side-formatted time ("14:05" / "2026-07-23 14:05"). -->
+    <string name="home_storage_as_of">As of %1$s</string>
+    <string name="home_storage_offline_as_of">Hub offline · as of %1$s</string>
+    <string name="home_device_state_thermostat">%1$s · set to %2$s</string>
+    <string name="home_room_unassigned">Unassigned</string>
+
+    <!-- Actuation (HD-3 follow-up): controls appear only on real bridged devices.
+         "Waiting" vs "no answer" vs "didn't work" are three different things and the
+         copy keeps them apart — a durable command row may still be acted on later. -->
+    <string name="home_device_power">Power</string>
+    <string name="home_device_brightness">Brightness</string>
+    <string name="home_device_command_failed">That didn't work — the device may be unreachable.</string>
+    <string name="home_device_command_unconfirmed">No answer from the hub yet. It may still happen.</string>
+    <string name="home_device_command_dismiss">Dismiss</string>
+
+    <string name="home_device_menu">Device options</string>
+    <string name="home_device_move_up">Move up</string>
+    <string name="home_device_move_down">Move down</string>
+    <string name="home_device_remove">Remove</string>
+
+    <string name="home_add_title">Add device</string>
+    <string name="home_add_name_label">Name</string>
+    <string name="home_add_kind_label">Kind</string>
+    <string name="home_add_room_label">Room</string>
+    <string name="home_add_confirm">Add</string>
+    <string name="home_add_cancel">Cancel</string>
+
+    <!-- HD-2 pairing: opening a bridge's admission window is explicit and
+         time-bounded, so the copy is a countdown, not a mode. -->
+    <string name="home_pair_title">Add a device</string>
+    <string name="home_pair_body">Put the device into pairing mode — usually by holding its button until it blinks. Devices that join appear here.</string>
+    <string name="home_pair_via">Pairing through %1$s</string>
+    <string name="home_pair_start">Open pairing window</string>
+    <string name="home_pair_countdown">Pairing open — %1$d s left</string>
+    <string name="home_pair_waiting">Waiting for a device to join…</string>
+    <string name="home_pair_joined">Joined</string>
+    <string name="home_pair_close">Close window</string>
+    <string name="home_pair_done">Done</string>
+    <string name="home_pair_failed">Could not start pairing. Is the hub reachable?</string>
+
+    <string name="home_kind_hub">Tenshu Hub</string>
+    <string name="home_kind_storage">Storage</string>
+    <string name="home_kind_speaker">Speaker</string>
+    <string name="home_kind_light">Light</string>
+    <string name="home_kind_camera">Camera</string>
+    <string name="home_kind_thermostat">Thermostat</string>
+    <string name="home_kind_sensor">Sensor</string>
+
+    <string name="home_placeholder_settings_body">Rooms, notifications and Hub management arrive with a later milestone.</string>
+
+    <!-- Activity feed (§3). Filter chips slice one merged chronological stream. -->
+    <string name="home_activity_filter_devices">Devices</string>
+    <string name="home_activity_filter_automations">Automations</string>
+    <string name="home_activity_filter_voice">Voice</string>
+    <string name="home_activity_today">Today</string>
+    <string name="home_activity_yesterday">Yesterday</string>
+    <string name="home_activity_empty">Nothing here yet — automation runs will show up in this feed.</string>
+    <string name="home_activity_empty_devices">Device events aren't recorded yet, so nothing from your devices appears here.</string>
+    <string name="home_activity_empty_voice">Voice isn't available yet, so nothing from Mia appears here.</string>
+
+    <!-- Automations list (§5). -->
+    <string name="home_automations_add">Add automation</string>
+    <string name="home_automations_empty_title">No automations yet</string>
+    <string name="home_automations_empty_body">Wire up if-this-then-that rules — they run locally, no cloud round-trip.</string>
+    <string name="home_automation_menu">Automation options</string>
+    <string name="home_automation_edit">Edit</string>
+    <string name="home_automation_remove">Remove</string>
+    <string name="home_unknown_device">Unknown device</string>
+
+    <!-- Trigger / condition / action summaries — shared by the list rows and the editor. -->
+    <string name="home_trigger_schedule">At %1$s</string>
+    <string name="home_trigger_sun_at">At %1$s</string>
+    <string name="home_trigger_sun_before">%1$d min before %2$s</string>
+    <string name="home_trigger_sun_after">%1$d min after %2$s</string>
+    <string name="home_sun_sunrise">sunrise</string>
+    <string name="home_sun_sunset">sunset</string>
+    <string name="home_trigger_arrive">When you arrive home</string>
+    <string name="home_trigger_leave">When you leave home</string>
+    <string name="home_trigger_device">%1$s: %2$s</string>
+    <string name="home_trigger_voice">When you say “%1$s”</string>
+    <string name="home_event_motion">Motion detected</string>
+    <string name="home_event_person">Person detected</string>
+    <string name="home_event_opened">Opened</string>
+    <string name="home_event_closed">Closed</string>
+    <string name="home_condition_window">Between %1$s and %2$s</string>
+    <string name="home_condition_nobody">Only when nobody is home</string>
+    <string name="home_condition_somebody">Only when someone is home</string>
+    <string name="home_condition_device_on">Only while %1$s is on</string>
+    <string name="home_condition_device_off">Only while %1$s is off</string>
+    <string name="home_action_turn_on">Turn on %1$s</string>
+    <string name="home_action_turn_off">Turn off %1$s</string>
+    <string name="home_action_notify">Notify: %1$s</string>
+    <string name="home_action_run">Run “%1$s”</string>
+    <string name="home_actions_more">+%1$d more</string>
+
+    <!-- Automation editor (§5): When / Only if / Then. -->
+    <string name="home_editor_new_title">New automation</string>
+    <string name="home_editor_edit_title">Edit automation</string>
+    <string name="home_editor_save">Save</string>
+    <string name="home_editor_name_label">Name</string>
+    <string name="home_editor_when">When</string>
+    <string name="home_editor_only_if">Only if</string>
+    <string name="home_editor_then">Then</string>
+    <string name="home_editor_add_condition">Add condition</string>
+    <string name="home_editor_add_action">Add action</string>
+    <string name="home_editor_trigger_schedule">Time</string>
+    <string name="home_editor_trigger_sun">Sun</string>
+    <string name="home_editor_trigger_geofence">Home</string>
+    <string name="home_editor_trigger_device">Device</string>
+    <string name="home_editor_trigger_voice">Voice</string>
+    <string name="home_editor_time_label">Time (HH:MM)</string>
+    <string name="home_editor_offset_label">Offset in minutes (negative = before)</string>
+    <string name="home_editor_phrase_label">Phrase</string>
+    <string name="home_editor_device_label">Device</string>
+    <string name="home_editor_event_label">Event</string>
+    <string name="home_editor_direction_arrive">Arrive</string>
+    <string name="home_editor_direction_leave">Leave</string>
+    <string name="home_editor_on">On</string>
+    <string name="home_editor_off">Off</string>
+    <string name="home_editor_message_label">Message</string>
+    <string name="home_editor_after_label">After (HH:MM)</string>
+    <string name="home_editor_before_label">Before (HH:MM)</string>
+    <string name="home_editor_nobody">Nobody home</string>
+    <string name="home_editor_somebody">Someone home</string>
+    <string name="home_editor_condition_window">Time window</string>
+    <string name="home_editor_condition_presence">Presence</string>
+    <string name="home_editor_condition_device">Device state</string>
+    <string name="home_editor_action_device">Device</string>
+    <string name="home_editor_action_notify">Notification</string>
+    <string name="home_editor_action_run">Run automation</string>
+    <string name="home_editor_back">Back</string>
+    <string name="home_editor_remove_item">Remove</string>
+    <!-- The Control wall (ADR 0025 §Decision 1b / §Decision 8). -->
+    <string name="home_control_wall_title">Set up Tenshu Control</string>
+    <string name="home_control_not_set_up">Tenshu Control is installed but isn't set up on this device yet. Home reaches your devices through Control — open it to start fresh or join your other devices, then come back.</string>
+    <string name="home_control_open_action">Open Control</string>
+    <string name="home_control_not_installed">Tenshu Control isn't installed on this device. Home reaches your devices through Control, so there's nothing it can show or switch until it's installed.</string>
+    <string name="home_control_not_installed_unpublished">Tenshu Control isn't installed on this device, and it isn't in the store yet — Home can't reach your devices until it is.</string>
+    <string name="home_control_not_installed_other_channel">Tenshu Control isn't installed on this device. Install it the same way you installed Home.</string>
+    <string name="home_control_get_action">Get Control</string>
+</resources>

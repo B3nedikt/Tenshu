@@ -1,0 +1,21 @@
+{
+  "title": "Einstellungen",
+  "subtitle": "Wie sich dieser Realm und dieser Browser verhalten.",
+  "entries": {
+    "devices": {
+      "headline": "Geräte",
+      "support": "Die Geräte in deinem Realm und das Koppeln eines neuen"
+    },
+    "backgroundIngest": {
+      "headline": "Hintergrund-Import",
+      "support": "Apps, die Gerätedaten sichern, und ihre Notschalter"
+    },
+    "recovery": {
+      "headline": "Kontowiederherstellung",
+      "support": "Deine Wiederherstellungsphrase – der Weg zurück, wenn du alle Geräte verlierst"
+    }
+  },
+  "legal": "Rechtliches",
+  "privacyPolicy": "Datenschutzerklärung",
+  "termsOfUse": "Nutzungsbedingungen"
+}

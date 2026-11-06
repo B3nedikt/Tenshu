@@ -1,0 +1,531 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Drive app string catalogue (ADR 0016).
+
+  Authoring rules: see `docs/agent.md` §19. Same conventions as
+  `:control-shared`'s `strings.xml`.
+
+  English-only at n=1. Per-locale variants land in
+  `composeResources/values-<lang>/strings.xml` when the second locale
+  is added.
+-->
+<resources>
+    <!-- Create-folder dialog (drive-shared/.../common/createfolder). The
+         dialog flips its title + buttons when the chosen name collides
+         with an existing folder. -->
+    <string name="create_folder_dialog_title">Create new folder</string>
+    <string name="create_folder_dialog_title_name_taken">Name taken</string>
+    <string name="create_folder_dialog_icon_description">New folder icon</string>
+    <string name="create_folder_dialog_name_placeholder">Folder name</string>
+    <string name="create_folder_dialog_confirm">Confirm</string>
+    <string name="create_folder_dialog_dismiss">Dismiss</string>
+    <string name="create_folder_dialog_keep_both">Keep both</string>
+    <string name="create_folder_dialog_ok">Ok</string>
+    <string name="create_folder_dialog_error_name_taken">Name already taken. Keep both or choose a different name.</string>
+    <string name="create_folder_dialog_error_name_separator">A name cannot contain a slash (/). Create the folder, then open it to add folders inside.</string>
+    <string name="create_folder_dialog_error_storage">Not enough storage to create this folder.</string>
+    <string name="create_folder_dialog_error_failed">Couldn't create the folder. Please try again.</string>
+
+    <!-- Multi-select bottom sheet (drive-shared/.../common/MultiSelectBottomSheet.kt) -->
+    <string name="multi_select_share">Share</string>
+    <string name="multi_select_share_link">Share link</string>
+    <string name="multi_select_delete">Delete</string>
+    <string name="multi_select_make_offline">Make available offline</string>
+    <string name="multi_select_move">Move</string>
+
+    <!-- Horizontal file item (drive-shared/.../common/HorizontalFileItem.kt) -->
+    <string name="file_item_toggle_selection">Toggle selection</string>
+    <string name="file_item_preview_description">File preview</string>
+    <string name="file_item_icon_description">File icon</string>
+    <string name="file_item_more_actions">More actions for %1$s</string>
+    <string name="file_item_online_only_description">Online only</string>
+    <string name="file_item_offline_pending_description">Kept offline, downloading</string>
+
+    <!-- Selection top app bar (drive-shared/.../common/SelectionTopAppBar.kt) -->
+    <string name="selection_top_app_bar_title">%1$d selected</string>
+    <string name="selection_top_app_bar_clear">Clear selection</string>
+
+    <!-- File search bar (drive-shared/.../common/search/FileSearchBar.kt) -->
+    <string name="file_search_close">Close</string>
+    <string name="file_search_settings">Settings</string>
+
+    <!-- Rename-file dialog (drive-shared/.../common/rename/RenameFileDialog.kt) -->
+    <string name="rename_file_dialog_title">Rename file</string>
+    <string name="rename_file_dialog_icon_description">Rename</string>
+    <string name="rename_file_dialog_confirm">Confirm</string>
+    <string name="rename_file_dialog_dismiss">Dismiss</string>
+    <string name="rename_file_dialog_placeholder">New name</string>
+    <string name="rename_file_dialog_error_name_taken">An item with this name already exists here.</string>
+    <string name="rename_file_dialog_error_name_separator">A name cannot contain a slash (/). Use Move to put the item in another folder.</string>
+    <string name="rename_file_dialog_error_failed">Couldn't rename the item. Please try again.</string>
+    <string name="rename_file_dialog_error_still_syncing">This item is still syncing to this device. Try again shortly.</string>
+    <string name="rename_file_dialog_error_move_needs_local_bytes">You're offline and this item isn't downloaded. Download it first, or rename it once you're online.</string>
+
+    <!-- File actions bottom sheet (drive-shared/.../common/details/FileActionsBottomSheet.kt) -->
+    <!-- Offline toggle (drive-offline-online.md §2): online-only vs kept-offline -->
+    <string name="file_actions_make_available_offline">Make available offline</string>
+    <string name="file_actions_remove_download">Remove download</string>
+    <string name="file_actions_make_folder_offline">Make folder available offline</string>
+    <string name="file_actions_make_folder_online_only">Make folder online-only</string>
+    <string name="file_actions_share">Share</string>
+    <string name="file_actions_manage_access">Manage access</string>
+    <string name="file_actions_link">Link</string>
+    <string name="file_actions_move">Move</string>
+    <string name="file_actions_rename">Rename</string>
+    <string name="file_actions_delete">Delete</string>
+    <string name="file_actions_details_activity">Details &amp; Activity</string>
+
+    <!-- Move destination picker (drive-shared/.../screens/movepicker/MovePickerScreen.kt) -->
+    <string name="move_picker_title">Move "%1$s"</string>
+    <string name="move_picker_title_multi">Move %1$d items</string>
+    <string name="move_picker_root_label">My files</string>
+    <string name="move_picker_confirm">Move here</string>
+    <string name="move_picker_cancel">Cancel</string>
+    <string name="move_picker_new_folder">New folder</string>
+    <string name="move_picker_already_exists">An item with this name already exists here.</string>
+    <string name="move_picker_failed">Couldn't move the item. Please try again.</string>
+    <string name="move_picker_still_syncing">This item is still syncing to this device. Try again shortly.</string>
+    <string name="move_picker_move_needs_local_bytes">You're offline and this item isn't downloaded. Download it first, or move it once you're online.</string>
+
+    <!-- Add-file bottom sheet (drive-shared/.../common/addfile/AddFileBottomSheet.kt) -->
+    <string name="add_file_create_header">Create</string>
+    <string name="add_file_create_folder">Folder</string>
+    <string name="add_file_create_file">File</string>
+    <string name="add_file_upload_header">Upload</string>
+    <string name="add_file_upload_file">File</string>
+    <string name="add_file_upload_folder">Folder upload</string>
+    <string name="add_file_upload_images">Images</string>
+
+    <!-- Add-file FAB (drive-shared/.../common/addfileactions/AddFileActionsFloatingActionButton.kt) -->
+    <string name="add_file_fab_description">Add</string>
+
+    <!-- Upload-conflict dialog (drive-shared/.../common/uploadconflict/UploadConflictDialog.kt) -->
+    <string name="upload_conflict_title">File already exists</string>
+    <string name="upload_conflict_icon_description">Warning</string>
+    <string name="upload_conflict_keep_both">Keep both</string>
+    <string name="upload_conflict_ok">Ok</string>
+    <string name="upload_conflict_body">A file named “%1$s” already exists. Keep both or choose to cancel.</string>
+    <string name="upload_error_title">Upload failed</string>
+    <string name="upload_error_ok">Ok</string>
+    <string name="upload_error_upload_failed">Couldn't upload this file. Please try again.</string>
+    <string name="upload_error_too_many_copies">There are already too many copies of this file here. Rename it or choose a different folder.</string>
+
+    <!-- Image preview screen (drive-shared/.../common/preview/ImagePreviewScreen.kt) -->
+    <string name="image_preview_more_actions">More actions</string>
+
+    <!-- Fallback preview for file types Drive can't render yet (UnsupportedPreviewScreen.kt) -->
+    <!-- Preview failures Drive owns (core-error-copy-catalogue.md §5.1). ⚠ A bytes-arrived-but-
+         unreadable case, distinct from the core taxonomy's "not found" / "something went wrong". -->
+    <string name="error_drive_preview_undecodable">This image can't be shown. It may be damaged, or in a format this device can't read.</string>
+    <string name="error_drive_preview_pdf_unreadable">This PDF can't be opened. It may be damaged.</string>
+    <string name="error_drive_preview_video_unplayable">This video can't be played on this device.</string>
+    <string name="preview_unavailable">No preview available for this file type yet</string>
+    <!-- Action on the fallback preview to open the file in a third-party app (D3) -->
+    <string name="preview_open_externally">Open in another app</string>
+    <string name="preview_open_externally_failed">Couldn't open this file</string>
+
+    <!-- PDF preview screen (drive-shared/.../common/preview/PdfPreviewScreen.kt). %1$d = current page, %2$d = total -->
+    <string name="pdf_preview_page_indicator">%1$d / %2$d</string>
+
+    <!-- Video preview screen (drive-shared/.../common/preview/VideoPreviewScreen.kt) -->
+    <string name="video_preview_unsupported">Video playback isn't available on this device yet</string>
+
+    <!-- Folder-upload ambient UI (drive-shared/.../common/folderupload/FolderUploadUi.kt) -->
+    <string name="folder_upload_preparing">Preparing upload…</string>
+    <string name="folder_upload_uploading">Uploading… %1$s</string>
+    <string name="folder_upload_downloading_cloud">Downloading from the cloud… %1$s</string>
+    <string name="folder_upload_scanning">Scanning folder…</string>
+    <string name="folder_upload_progress">%1$d of %2$d</string>
+    <string name="folder_upload_cancel">Cancel</string>
+    <string name="folder_upload_dismiss">Dismiss</string>
+    <string name="folder_upload_summary_nothing">Nothing to upload</string>
+    <string name="folder_upload_summary_uploaded">Uploaded %1$d</string>
+    <string name="folder_upload_summary_skipped">skipped %1$d</string>
+    <string name="folder_upload_summary_failed">%1$d failed</string>
+    <!-- Online-only cloud files the provider (OneDrive/iCloud) wouldn't deliver on read (§11 P4). -->
+    <string name="folder_upload_summary_cloud_unavailable">%1$d couldn't download from the cloud</string>
+    <string name="folder_upload_summary_cancelled">Upload cancelled</string>
+    <string name="folder_upload_summary_cancelled_partial">Upload cancelled — %1$d of %2$d done</string>
+    <string name="folder_upload_summary_failed_read">Couldn't read that folder</string>
+    <string name="folder_upload_summary_insufficient_storage">Not enough storage to upload this folder</string>
+    <string name="folder_upload_conflict_title">Item already exists</string>
+    <string name="folder_upload_conflict_icon_description">Conflict</string>
+    <string name="folder_upload_conflict_skip">Skip</string>
+    <string name="folder_upload_conflict_keep_both">Keep both</string>
+    <string name="folder_upload_conflict_overwrite">Overwrite</string>
+    <string name="folder_upload_conflict_body">“%1$s” already exists in %2$s. Keep both adds it as “%3$s (1)”.</string>
+    <string name="folder_upload_conflict_apply_all">Apply to all remaining conflicts</string>
+
+    <!-- Cloud pre-flight prompt (drive-folder-upload.md §11 P2b): shown once before
+         upload when the folder holds online-only cloud-provider files. %1$d = count,
+         %2$s = formatted total size. -->
+    <string name="folder_upload_cloud_preflight_title">Some files are in the cloud</string>
+    <string name="folder_upload_cloud_preflight_body">%1$d file(s) (%2$s) are stored only in the cloud (OneDrive, iCloud, Dropbox…). They'll download to this device first, then upload.</string>
+    <string name="folder_upload_cloud_preflight_skip">Skip these — upload only files already on this device</string>
+    <string name="folder_upload_cloud_preflight_continue">Continue</string>
+    <string name="folder_upload_cloud_preflight_cancel">Cancel</string>
+
+    <!-- Sort-by menu (drive-shared/.../common/files/FileSortBar.kt). Orders the folder listing. -->
+    <string name="file_sort_button_description">Sort files</string>
+    <!-- Chip label before any explicit sort is chosen (listing is in natural order). -->
+    <string name="file_sort_key_name">Name</string>
+    <string name="file_sort_key_modified">Date modified</string>
+    <string name="file_sort_key_created">Date created</string>
+    <string name="file_sort_key_size">Size</string>
+    <string name="file_sort_ascending">Ascending</string>
+    <string name="file_sort_descending">Descending</string>
+    <string name="file_sort_selected_description">Selected</string>
+
+    <!-- List/grid display toggle (drive-shared/.../common/files/FilesListingToolbar.kt). The
+         button shows the mode it switches TO (grid icon while in list, list icon while in grid). -->
+    <string name="file_view_switch_to_grid">Switch to grid view</string>
+    <string name="file_view_switch_to_list">Switch to list view</string>
+
+    <!-- Files list empty state (drive-shared/.../common/files/{Paged,}FilesList.kt) -->
+    <string name="files_list_error_title">Couldn't load this folder</string>
+    <string name="files_list_error_body">Your files are safe — Drive just couldn't read them right now.</string>
+    <string name="files_list_error_action">Try again</string>
+    <!-- The reactive-read twin of files_list_error_body. No action: these reads retry themselves,
+         so a button would only duplicate what is already happening. -->
+    <string name="files_list_error_retrying_body">Your files are safe — Drive couldn't read them just now, and is trying again.</string>
+    <string name="search_results_error_title">Couldn't search right now</string>
+    <string name="search_results_error_body">This isn't a result — Drive couldn't reach your files to look.</string>
+    <string name="my_shares_error_title">Couldn't load your shares</string>
+    <string name="my_shares_error_body">Any links you've created are still active — Drive just couldn't read them right now.</string>
+    <string name="files_list_empty_title">No files here yet</string>
+    <string name="files_list_empty_body">Files and folders you add will show up in this list.</string>
+
+    <!-- Create-share-link sheet (drive-shared/.../share/CreateShareLinkSheet.kt) -->
+    <string name="create_share_link_title">Share “%1$s”</string>
+    <string name="create_share_link_disclosure">Anyone with this link can view this file. You can revoke it any time from “My shares.”</string>
+    <string name="create_share_link_copy">Copy link</string>
+    <string name="create_share_link_copied">Copied</string>
+    <string name="create_share_link_share_subject">A file shared with you: %1$s</string>
+    <string name="create_share_link_done">Done</string>
+    <string name="create_share_link_generating">Generating link…</string>
+    <string name="create_share_link_generate">Generate link</string>
+    <string name="create_share_link_cancel">Cancel</string>
+    <string name="create_share_link_error">Couldn't generate link: %1$s</string>
+
+    <!-- Storage capacity gate dialog (storage-capacity-gating.md Phase 2 / StorageGateDialog.kt) -->
+    <string name="storage_gate_no_storage_title">Storage needed</string>
+    <string name="storage_gate_no_storage_body">Sharing files and folders needs Tenshu storage. Set up storage in Control to start sharing.</string>
+    <string name="storage_gate_no_storage_cta">Set up storage</string>
+    <string name="storage_gate_full_title">Out of storage</string>
+    <string name="storage_gate_full_body">You have used all of your Tenshu storage. Free up space or get more to keep sharing.</string>
+    <string name="storage_gate_full_cta">Get more storage</string>
+    <string name="storage_gate_dismiss">Not now</string>
+
+    <!-- Deleting a Synced-Folders backup destination (drive-synced-folders.md §3.9).
+         Each title takes the name shown in Drive; each body takes the source device label,
+         repeated, because naming the device is what makes "your photos are safe" credible. -->
+    <string name="backup_delete_bucket_title">Delete "%1$s"?</string>
+    <string name="backup_delete_bucket_body">These files were backed up from %1$s.\n\nThe photos on %1$s are not affected — only the copies stored here are removed, and they cannot be restored. %1$s keeps backing this folder up, so new photos will still arrive here.</string>
+    <string name="backup_delete_device_title">Delete the backup from "%1$s"?</string>
+    <string name="backup_delete_device_body">This removes every folder backed up from %1$s, not just one.\n\nThe photos on %1$s are not affected — only the copies stored here are removed, and they cannot be restored. %1$s keeps backing up, so new photos will still arrive here.</string>
+    <string name="backup_delete_confirm">Delete</string>
+    <string name="backup_delete_cancel">Cancel</string>
+    <string name="backup_delete_manage">Synced Folders</string>
+
+    <!-- Local-first sync-status banner (ADR 0019 / SyncStatusBanner.kt). Bare apostrophe per CMP 1.7.3. -->
+    <string name="change_lost_text">%1$s was deleted on another device while your change was waiting</string>
+    <string name="change_lost_dismiss">Dismiss</string>
+    <string name="sync_banner_locked_text">Tenshu is locked — unlock Control to sync your files and see the ones stored on your other devices.</string>
+    <string name="sync_banner_locked_action">Unlock</string>
+    <string name="sync_banner_local_only_text">Not syncing — this device has no storage plan, so your data stays on this device. Set up storage to sync across your devices.</string>
+    <string name="drive_control_wall_title">Set up Tenshu Control</string>
+    <!-- ADR 0025 §Decision 8: Control installed and answering, no realm on this device. -->
+    <string name="drive_control_not_set_up">Tenshu Control is installed but isn't set up on this device yet. Drive keeps your files in Control — open it to start fresh or join your other devices, then come back.</string>
+    <string name="drive_control_open_action">Open Control</string>
+    <string name="drive_control_not_installed">Tenshu Control isn't installed on this device. Drive keeps your files end-to-end encrypted and synced through Control, so there's nothing to show until it's installed.</string>
+    <string name="drive_control_not_installed_unpublished">Tenshu Control isn't installed on this device, and it isn't in the store yet — Drive stays empty until it is.</string>
+    <string name="drive_control_not_installed_other_channel">Tenshu Control isn't installed on this device. Install it the same way you installed Drive.</string>
+    <string name="drive_control_get_action">Get Control</string>
+    <string name="sync_banner_local_only_action">Set up storage</string>
+    <!-- Storage full. Names the figures because "storage full" is indistinguishable from a bug
+         when the user believes they have space, and says nothing is deleted because that is the
+         actual anxiety (P3 reclamation is INERT — nothing is being removed). -->
+    <string name="sync_banner_storage_full_text">Storage full — %1$s of %2$s used. Your data stays on this device and nothing is deleted, but it can't sync until you free up space or get more.</string>
+    <string name="sync_banner_storage_full_action">Manage storage</string>
+    <string name="sync_banner_needs_attention_text">Storage needs attention on this device — your changes are saved here but can't sync yet. Sign in to sync on this device.</string>
+    <!-- The relay holds no registration for this device (401): it was revoked, or the account's
+         data was restored/reset behind it. Deliberately not phrased as "Offline", which would send
+         the user to check their network.
+         ⚠⚠ Does NOT name a cause. The relay refuses to say which of the two it is, and the earlier
+         copy ("it has been removed from your account") asserted the one the client cannot know —
+         wrong, and alarming, whenever the truth was a restored relay.
+         ⚠⚠ Names the ROLE this device must take, because it cannot take the other one: an
+         unrecognised device can neither host (`GET /sync/pairing/requests` is JWT-gated) nor
+         approve (`/sync/pairing/offer-response` verifies against its *registered* A4 key). It must
+         be the one showing a code for a healthy device to approve — which is exactly what
+         `PairingWizardViewModel` switches the tab to on `deviceUnrecognized`, so this sentence
+         describes what the user will actually see.
+         ⚠⚠ Warns off "Forget this device" by name. It is the obvious-looking remedy when nothing
+         works and it is the one action that makes this permanent: it clears DEVICE_ID while the
+         self-revoke tombstone can never be pushed from a 401'd device, so the realm keeps an
+         orphaned row and this device returns as a stranger. See docs/tech-debt.md → "A joiner that
+         loses its relay registration is wedged permanently". -->
+    <string name="sync_banner_device_unrecognized_text">This device isn't being accepted by your account, so nothing syncs here — your files on it are safe. Open Control and add this device again: it will show a code for one of your other devices to approve. Don't use Forget this device first — anything still waiting to upload would be lost.</string>
+    <string name="sync_banner_device_unrecognized_action">Open Control</string>
+    <string name="sync_banner_needs_update_text">Update needed — your other devices are using a newer version of Tenshu, so their latest changes aren't downloading here. Your files on this device are safe and still upload.</string>
+    <string name="sync_banner_needs_app_update_control">Drive is newer than Tenshu Control on this device. Update Control to see your files again.</string>
+    <string name="sync_banner_needs_app_update_this_app">Tenshu Control is newer than Drive on this device. Update Drive to see your files again.</string>
+    <string name="sync_banner_needs_app_update_both">Drive and Tenshu Control disagree on a data version. Update both to see your files again.</string>
+    <string name="sync_banner_needs_app_update_action">Update</string>
+    <string name="sync_banner_disconnected_text">Can't reach Control — your files are safe on this device. Reconnecting…</string>
+    <string name="sync_banner_offline_text">Offline — your changes are saved on this device and will sync when you reconnect.</string>
+    <!-- %1$d = file being uploaded (1-based), %2$d = files in this pass, %3$s = bytes left.
+         Replaces the old "Syncing your changes…", which said nothing the user could verify. -->
+    <string name="sync_banner_uploading_text">Uploading %1$d of %2$d · %3$s left</string>
+    <string name="sync_banner_uploading_retrying_text">Uploading %1$d of %2$d · server errors, retrying</string>
+    <!-- %1$d = files waiting to upload. ⚠ POSITIONAL, not a bare %d: CMP's formatter leaves a bare
+         specifier untouched, so the banner rendered a literal "%d" on device (2026-08-02).
+         ⚠ Two strings rather than a plural resource: the project has no <plurals> and no
+         pluralStringResource call anywhere, and ADR 0016 defers the ICU catalogue at n=1 — so
+         picking between them in code avoids introducing a mechanism this slice has no mandate to
+         choose. Revisit when the ICU catalogue lands. -->
+    <string name="sync_banner_deferred_text_one">Waiting for Wi-Fi. 1 file (%1$s) still to upload. Everything else is up to date.</string>
+    <string name="sync_banner_deferred_text">Waiting for Wi-Fi. %1$d files (%2$s) still to upload. Everything else is up to date.</string>
+    <string name="sync_banner_deferred_action">Upload over cellular</string>
+    <!-- The auto-backup's own policy pause. %1$d = new files it is holding back. One/other pairs
+         for the same reason as the deferred text above. -->
+    <string name="sync_banner_backup_waiting_wifi_one">Backup is waiting for Wi-Fi. 1 new file to back up.</string>
+    <string name="sync_banner_backup_waiting_wifi">Backup is waiting for Wi-Fi. %1$d new files to back up.</string>
+    <string name="sync_banner_backup_waiting_charging_one">Backup is waiting for a charger. 1 new file to back up.</string>
+    <string name="sync_banner_backup_waiting_charging">Backup is waiting for a charger. %1$d new files to back up.</string>
+
+    <!-- Home screen (drive-shared/.../screens/home/HomeScreen.kt) -->
+    <string name="home_recent_files">Recent Files</string>
+
+    <!-- File details screen (drive-shared/.../screens/filedetails/FileDetailsScreen.kt) -->
+    <string name="file_details_section_details">Details</string>
+    <string name="file_details_section_activity">Activity</string>
+    <string name="file_details_size">Size</string>
+    <string name="file_details_created">Created</string>
+    <string name="file_details_last_modified">Last modified</string>
+    <string name="file_details_no_activity">No activity yet</string>
+    <string name="file_details_activity_on_device">on %1$s</string>
+    <string name="file_details_activity_kind_created">Created</string>
+    <string name="file_details_activity_kind_modified">Modified</string>
+    <string name="file_details_activity_kind_renamed">Renamed</string>
+    <string name="file_details_activity_kind_moved">Moved</string>
+
+    <!-- Shared screen (drive-shared/.../screens/shared/SharedScreen.kt) -->
+    <string name="shared_title">Shared</string>
+    <string name="shared_tab_shared_with_me">Shared with me</string>
+    <string name="shared_tab_my_shares">My shares</string>
+    <string name="shared_with_me_empty_title">Nothing shared with you yet</string>
+    <string name="shared_with_me_empty_body">Folders other people share with you appear here. Tap one to browse it.</string>
+    <string name="shared_with_me_unnamed">Shared folder</string>
+    <!-- GR-4: accept a grant waiting from a connected contact (shared-realm-membership-grant.md GR-4, Option A). -->
+    <string name="shared_with_me_accept_action">Accept a shared folder</string>
+    <string name="shared_with_me_accept_picker_title">Whose shared folder?</string>
+    <string name="shared_with_me_accept_picker_empty">No connected contacts yet.</string>
+    <string name="shared_with_me_accept_none">Nothing shared from %1$s yet.</string>
+    <string name="shared_with_me_accept_error">Couldn't accept: %1$s</string>
+    <!-- GR-6: discovered pending-grant card (shared-realm-membership-grant.md GR-6, D4). -->
+    <string name="shared_with_me_pending_grant_title">%1$s shared a folder with you</string>
+    <string name="shared_with_me_pending_grant_body">Accept to add it to your shared folders.</string>
+    <string name="shared_with_me_pending_accept">Accept</string>
+    <string name="shared_with_me_pending_decline">Decline</string>
+    <string name="my_shares_empty_title">No active links yet</string>
+    <string name="my_shares_empty_body">Use “Link” on any file to generate a share link.</string>
+    <string name="my_shares_copy_id">Copy ID</string>
+    <string name="my_shares_revoke">Revoke</string>
+    <string name="shared_folders_section">Shared folders</string>
+    <string name="shared_folders_links_section">Links</string>
+
+    <!-- Shared-realm browse screen (drive-shared/.../screens/shared/SharedBrowseScreen.kt) -->
+    <string name="shared_browse_empty">This folder is empty</string>
+    <string name="shared_browse_error">Could not load this shared folder</string>
+    <string name="shared_browse_opened_bytes">%1$d bytes</string>
+    <string name="shared_browse_close">Close</string>
+
+    <!-- Sync preferences screen (drive-shared/.../screens/settings/SyncPreferencesScreen.kt) -->
+    <string name="sync_preferences_title">Sync Preferences</string>
+    <string name="sync_preferences_keep_offline_title">Keep files on this device</string>
+    <string name="sync_preferences_keep_offline_body">Download every file by default so it is available offline. Turn off to keep files in the cloud and download them when you open them.</string>
+    <string name="sync_preferences_cache_limit_title">Cache size limit</string>
+    <string name="sync_preferences_cache_limit_body">Files you keep offline don't count towards this — only files downloaded automatically when you open them.</string>
+    <string name="sync_preferences_cache_limit_none">No limit</string>
+    <string name="sync_preferences_cache_limit_dialog_title">Cache size limit</string>
+    <string name="sync_preferences_cache_limit_dialog_body">When the cache goes over this, Tenshu removes the files you opened longest ago. They stay in your account and download again when you open them.</string>
+    <string name="sync_preferences_cache_limit_dismiss">Done</string>
+    <string name="sync_preferences_offline_files_title">Files kept offline</string>
+    <string name="sync_preferences_offline_files_none">No files are kept offline on this device</string>
+    <string name="sync_preferences_offline_files_count">%1$d file(s) kept offline on this device</string>
+    <string name="sync_preferences_offline_files_remove">Remove from offline files</string>
+
+    <!-- Synced Folders auto-backup (drive-shared/.../screens/settings/SyncedFoldersScreen.kt; docs/proposals/drive-synced-folders.md §5) -->
+    <string name="sync_preferences_synced_folders_title">Synced folders</string>
+    <string name="sync_preferences_synced_folders_body">Automatically back up photos and folders from this device</string>
+    <string name="synced_folders_title">Synced Folders</string>
+    <string name="synced_folders_master_title">Automatically back up folders</string>
+    <string name="synced_folders_master_body">New photos in the folders you choose are uploaded to your drive automatically.</string>
+    <string name="synced_folders_storage_title">Backup needs storage</string>
+    <string name="synced_folders_storage_body">Add storage to your account to turn on automatic backup.</string>
+    <string name="synced_folders_storage_cta">Get storage</string>
+    <string name="synced_folders_wifi_title">Use Wi-Fi only for background data</string>
+    <string name="synced_folders_wifi_body">Pause backup and sync on mobile data to avoid extra charges. Applies across your realm devices.</string>
+    <string name="synced_folders_charging_title">Only while charging</string>
+    <string name="synced_folders_charging_body">Pause backup until the device is charging</string>
+    <string name="synced_folders_videos_title">Back up videos</string>
+    <string name="synced_folders_videos_body">Videos can be large and use more of your storage and data</string>
+    <string name="synced_folders_new_folders_title">Ask about new folders</string>
+    <string name="synced_folders_new_folders_body">Get a notification when a new folder with photos appears. Each folder is only ever asked about once.</string>
+    <!-- Media-access notice (drive-synced-folders-new-folder-prompt.md §5). Two
+         distinct states: PARTIAL backs up the picked photos but can never see a
+         folder; DENIED backs up nothing. Apostrophes are bare, not escaped — the
+         CMP resource formatter does not decode escapes. -->
+    <string name="synced_folders_media_partial_title">Drive can only see selected photos</string>
+    <string name="synced_folders_media_partial_body">You chose to share specific photos, so Drive cannot see your folders or notice new ones. Only the photos you picked will be backed up.</string>
+    <string name="synced_folders_media_denied_title">Drive cannot see your photos</string>
+    <string name="synced_folders_media_denied_body">Folder backup needs access to your photos and videos. Without it, no folders are found and nothing is backed up.</string>
+    <string name="synced_folders_media_cta">Allow access to all photos</string>
+    <!-- T-P4 (timeline-photos.md): photo locations. Deliberately NOT phrased as a problem —
+         backup works perfectly without it; what is missing is one thing photos can tell you. -->
+    <string name="synced_folders_photo_location_title">Photo locations are off</string>
+    <string name="synced_folders_photo_location_body">Your photos back up normally, but Android is hiding where each one was taken. Allow it and Timeline can put a photo on the place you took it, instead of guessing from the time.</string>
+    <string name="synced_folders_photo_location_cta">Allow photo locations</string>
+    <string name="synced_folders_folders_header">Folders on this device</string>
+    <string name="synced_folders_no_folders">No folders with photos were found on this device</string>
+    <string name="synced_folders_item_count">%1$d items</string>
+    <string name="synced_folders_document_folders_header">Other folders</string>
+    <string name="synced_folders_add_folder">Add a folder</string>
+    <string name="synced_folders_remove_folder">Remove folder</string>
+    <string name="synced_folders_control_update_title">Update Tenshu Control</string>
+    <string name="synced_folders_control_update_body">This version of Control cannot add a folder from Drive. Update Tenshu Control and try again.</string>
+    <string name="synced_folders_control_update_dismiss">OK</string>
+    <string name="synced_folders_add_failed_title">Couldn’t add the folder</string>
+    <string name="synced_folders_add_failed_body">Tenshu Control didn’t respond. Make sure it is running, then try again.</string>
+    <string name="synced_folders_status_up_to_date">Up to date</string>
+    <string name="synced_folders_status_backing_up">Backing up %1$d of %2$d…</string>
+    <string name="synced_folders_status_finished">Backed up %1$d files</string>
+    <!-- A drain that ended with failures. The count alone was all this screen ever showed, and it
+         made "every upload was rejected" look identical to "there was nothing to do". -->
+    <string name="synced_folders_status_finished_with_failures">Backed up %1$d files · %2$d couldn't be uploaded</string>
+    <!-- The same, when the data plane told us why. Developer-shaped text on purpose: something the
+         user can quote beats a polished sentence that says nothing. -->
+    <string name="synced_folders_status_finished_with_reason">Backed up %1$d files · %2$d couldn't be uploaded — %3$s</string>
+    <!-- The "already backed up?" check could not read the realm, so these were held back (neither
+         uploaded twice nor dropped) and the next backup asks again (photos-app.md §40). -->
+    <string name="synced_folders_status_finished_could_not_check">Backed up %1$d files · %2$d waiting — couldn't check whether they're already backed up, will retry</string>
+    <string name="synced_folders_status_paused_storage">Paused — no storage</string>
+    <string name="synced_folders_status_paused_space">Paused — out of space</string>
+    <string name="synced_folders_status_paused_metered">Paused — on mobile data</string>
+    <string name="synced_folders_status_paused_charging">Paused — not charging</string>
+    <string name="synced_folders_status_paused_network">Paused — no connection</string>
+    <!-- ST-2b. Says "you", because every other pause is something the device did TO the user and
+         this one is something the user chose — and this is the only one they can undo here. -->
+    <!-- %1$s = one of the paused reasons above, %2$d = files the pause is holding back. -->
+    <string name="synced_folders_status_paused_waiting_one">%1$s · 1 file waiting</string>
+    <string name="synced_folders_status_paused_waiting">%1$s · %2$d files waiting</string>
+    <string name="synced_folders_status_paused_by_user">Paused — you stopped backup</string>
+    <string name="synced_folders_back_up_now">Back up now</string>
+    <!-- Back up now's one-time override (drive-synced-folders-phase2.md §4.1a): asked only when the
+         user's own Wi-Fi-only / charging-only switch is the one thing in the way. The body says the
+         setting stays on, because the override is for this run and never changes it. -->
+    <string name="synced_folders_override_metered_title">Use mobile data this once?</string>
+    <string name="synced_folders_override_metered_body">Wi-Fi only stays on. This backup uses mobile data now; later ones wait for Wi-Fi again.</string>
+    <string name="synced_folders_override_charging_title">Back up without charging?</string>
+    <string name="synced_folders_override_charging_body">Charging only stays on. This backup runs now; later ones wait for the charger again.</string>
+    <string name="synced_folders_override_both_title">Back up now on mobile data, without charging?</string>
+    <string name="synced_folders_override_both_body">Wi-Fi only and charging only stay on. This backup runs now; later ones wait for both again.</string>
+    <string name="synced_folders_override_confirm">Back up now</string>
+    <string name="synced_folders_override_dismiss">Not now</string>
+    <string name="synced_folders_stop">Stop</string>
+    <!-- ST-2b: the banner's own Stop, shown only while an auto-backup drain drives it. -->
+    <string name="sync_banner_stop_backup_action">Stop</string>
+    <string name="synced_folders_resume">Resume</string>
+
+    <!-- Manage access sheet (drive-manage-access-ux.md §2.1) -->
+    <string name="manage_access_title">Manage access to %1$s</string>
+    <string name="manage_access_role_owner">Owner</string>
+    <string name="manage_access_member_you">You</string>
+    <string name="manage_access_invite_link_row">Invite link</string>
+    <string name="manage_access_status_invited">Invited</string>
+    <string name="manage_access_status_accepted_confirm">Accepted — tap to confirm</string>
+    <string name="manage_access_status_compromised">Link compromised — send a new invite</string>
+    <string name="manage_access_revoke">Revoke</string>
+    <string name="manage_access_invite_someone">Invite someone</string>
+    <string name="manage_access_empty_title">No one else has access yet</string>
+    <string name="manage_access_empty_body">Invite someone to connect with the + button.</string>
+    <!-- GR-4: cross-user members + the grant-a-contact action (shared-realm-membership-grant.md GR-4). -->
+    <string name="manage_access_role_member">Member</string>
+    <string name="manage_access_grant_action">Grant access to a contact</string>
+    <string name="manage_access_grant_picker_title">Who should have access?</string>
+    <string name="manage_access_grant_picker_empty">No connected contacts yet. Invite someone with the + button first.</string>
+    <string name="manage_access_grant_error">Couldn't grant access: %1$s</string>
+    <!-- GR-6: remove a cross-user member (shared-realm-membership-grant.md GR-6). -->
+    <string name="manage_access_remove">Remove</string>
+    <string name="manage_access_removing">Removing…</string>
+    <string name="manage_access_remove_error">Couldn't remove member: %1$s</string>
+
+    <!-- Invite-link sheet (drive-manage-access-ux.md §2.2) -->
+    <string name="invite_link_title">Invite someone</string>
+    <string name="invite_link_generating">Creating invite link…</string>
+    <string name="invite_link_generate">Create invite link</string>
+    <string name="invite_link_cancel">Cancel</string>
+    <string name="invite_link_share_subject">An invitation to connect on Tenshu</string>
+
+    <!-- Share-out action, labelled per platform target (ui/common/ShareText.kt) -->
+    <string name="share_action_share">Share</string>
+    <string name="share_action_email">Send by email</string>
+    <string name="invite_link_copy">Copy</string>
+    <string name="invite_link_done">Done</string>
+    <string name="invite_link_disclosure">Anyone with this link can request to connect with you. It works once and expires in 3 days.</string>
+    <string name="invite_link_grant_parked">Once you are connected, sharing this folder with them is coming in an upcoming update.</string>
+    <string name="invite_link_one_session">This link is only shown once. To hand it out again later, revoke it and create a new one.</string>
+    <string name="invite_link_error">Couldn't create the invite link: %1$s</string>
+
+    <!-- Completion prompt (drive-manage-access-ux.md §2.3) -->
+    <string name="contact_prompt_banner">An invite was accepted — confirm your new contact</string>
+    <string name="contact_prompt_header">“%1$s” accepted your invite</string>
+    <string name="contact_prompt_claim_note">This is the name they chose for themselves.</string>
+    <string name="contact_prompt_unnamed">New contact</string>
+    <string name="contact_prompt_petname_label">Save as</string>
+    <string name="contact_prompt_link_existing">Link to an existing contact</string>
+    <string name="contact_prompt_link_existing_none">No contacts yet</string>
+    <string name="contact_prompt_save">Save contact</string>
+    <string name="contact_prompt_decline">Decline</string>
+    <string name="contact_prompt_own_name_label">Your name as they'll see it</string>
+    <string name="contact_prompt_own_name_note">Shared with the other person when you connect.</string>
+    <string name="contact_prompt_error">Couldn't complete the handshake: %1$s</string>
+    <!-- GR-4: the grant offer chained off an accepted SHARE_FOLDER handshake (shared-realm-membership-grant.md §2). -->
+    <string name="contact_prompt_grant_title">Add %1$s to '%2$s'?</string>
+    <string name="contact_prompt_grant_body">They'll be able to open everything in this shared folder. You can remove their access later.</string>
+    <string name="contact_prompt_grant_confirm">Grant access</string>
+    <string name="contact_prompt_grant_skip">Not now</string>
+
+    <!-- Redeem invite (drive-manage-access-ux.md §3) -->
+    <string name="redeem_invite_title">Redeem an invite</string>
+    <string name="redeem_invite_paste_label">Paste the invite link</string>
+    <string name="redeem_invite_paste_malformed">This is not a Tenshu invite link.</string>
+    <string name="redeem_invite_paste_unsupported">This invite requires a newer version of Tenshu.</string>
+    <string name="redeem_invite_inviter_fingerprint">Inviter key: %1$s</string>
+    <string name="redeem_invite_name_label">Your name as they'll see it</string>
+    <string name="redeem_invite_name_note">Shared with the inviter so they know who is connecting.</string>
+    <string name="redeem_invite_confirm">Connect</string>
+    <string name="redeem_invite_waiting">Waiting for them to confirm — you can close this; we'll keep checking.</string>
+    <string name="redeem_invite_waiting_row">Waiting for confirmation…</string>
+    <string name="redeem_invite_accepted_title">You are connected</string>
+    <string name="redeem_invite_accepted_body">“%1$s” is now a contact. Their key: %2$s</string>
+    <string name="redeem_invite_accepted_intent">“%1$s” wants to share “%2$s” with you — folder sharing arrives in an upcoming update.</string>
+    <string name="redeem_invite_rejected">They declined this request.</string>
+    <string name="redeem_invite_gone">This invite has expired or was already used. If you didn't use this link, ask the sender to send a new one.</string>
+    <string name="redeem_invite_invalid">Something went wrong verifying this invite. Ask the sender for a new link.</string>
+    <string name="redeem_invite_error">Couldn't redeem the invite: %1$s</string>
+    <string name="redeem_invite_close">Close</string>
+
+    <!-- Shared destination additions (drive-manage-access-ux.md §2.3/§3.1) -->
+    <string name="shared_redeem_invite_action">Redeem an invite</string>
+
+    <!-- SAS verification (drive-manage-access-ux.md §5, CI-4b) -->
+    <string name="contact_sas_title">Compare this code with the other device</string>
+    <string name="contact_sas_match">The codes match</string>
+    <string name="invite_link_show_qr">Show QR code</string>
+    <string name="invite_link_show_link">Show link</string>
+    <string name="invite_link_qr_description">Invite QR code</string>
+    <string name="redeem_invite_scan_qr">Scan QR code</string>
+    <string name="redeem_invite_scan_stop">Stop scanning</string>
+</resources>

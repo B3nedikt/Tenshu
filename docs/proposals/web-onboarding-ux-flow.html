@@ -1,0 +1,733 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Tenshu — Web Onboarding Flow</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <style>
+        /* ============================================================
+           Flow diagram for docs/proposals/web-onboarding-ux.md
+           Boxes-and-arrows. No fake chrome, no invented UI details.
+           Each box references a screen number (§) in the source doc.
+
+           To add a box: copy a <div class="box" ...> block, set --x/--y.
+           To add an arrow: append a tuple to the FLOW array at the bottom.
+           ============================================================ */
+
+        :root {
+          --bg: #f3f3f1;
+          --grid: #e1e1de;
+          --ink: #1c1c1a;
+          --ink-2: #5a5a55;
+          --ink-3: #9a9a93;
+          --line: #c8c8c2;
+          --line-2: #d8d8d2;
+          --paper: #ffffff;
+          --accent: #3a6df0;
+          --note: #fff7c2;
+          --note-edge: #e8d97a;
+          --shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 12px rgba(0,0,0,.04);
+          --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+          --sans: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+        }
+
+        * { box-sizing: border-box; }
+        html, body { margin: 0; height: 100%; font-family: var(--sans); color: var(--ink); }
+        body { background: var(--bg); overflow: hidden; }
+
+        header {
+          position: fixed; top: 0; left: 0; right: 0; height: 44px; z-index: 10;
+          display: flex; align-items: center; gap: 12px; padding: 0 14px;
+          background: rgba(255,255,255,.85); backdrop-filter: blur(8px);
+          border-bottom: 1px solid var(--line);
+          font-size: 13px;
+        }
+        header .title { font-weight: 600; }
+        header .crumb { color: var(--ink-2); font-family: var(--mono); font-size: 11px; }
+        header .spacer { flex: 1; }
+        header button {
+          height: 26px; padding: 0 10px; border-radius: 6px;
+          background: var(--paper); border: 1px solid var(--line);
+          font: inherit; color: var(--ink); cursor: pointer;
+        }
+        header button:hover { background: #fafaf8; }
+        header .zoom { width: 56px; text-align: center; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+        header kbd {
+          font: 11px var(--mono); background: #ececea; border: 1px solid var(--line);
+          border-bottom-width: 2px; padding: 1px 5px; border-radius: 4px; color: var(--ink-2);
+        }
+
+        main {
+          position: fixed; inset: 44px 0 0 0; overflow: hidden; cursor: grab;
+          background:
+            radial-gradient(circle at 1px 1px, var(--grid) 1px, transparent 1px) 0 0/24px 24px,
+            var(--bg);
+        }
+        main.panning { cursor: grabbing; }
+        #world, #arrows { position: absolute; top: 0; left: 0; transform-origin: 0 0; will-change: transform; }
+        #arrows { overflow: visible; pointer-events: none; }
+
+        /* ---- Boxes ---- */
+        .box {
+          position: absolute;
+          left: calc(var(--x, 0) * 1px);
+          top:  calc(var(--y, 0) * 1px);
+          width: 240px;
+          background: var(--paper);
+          border: 1px solid var(--line);
+          border-radius: 8px;
+          box-shadow: var(--shadow);
+          padding: 10px 12px 12px;
+          font-size: 12px; line-height: 1.4;
+        }
+        .box .head {
+          display: flex; align-items: center; gap: 6px;
+          margin-bottom: 6px;
+        }
+        .box .id {
+          font: 600 11px var(--mono); color: var(--ink-2);
+          background: #f3f3f1; padding: 1px 6px; border-radius: 3px;
+        }
+        .box .grow { flex: 1; }
+        .box .title {
+          font-weight: 600; font-size: 13px; line-height: 1.25; color: var(--ink);
+          margin-bottom: 4px;
+        }
+        .box .desc { color: var(--ink-2); font-size: 11.5px; line-height: 1.4; }
+        .box .desc code { font: 11px var(--mono); background: #f3f3f1; padding: 0 4px; border-radius: 3px; }
+        .box .open {
+          margin-top: 6px; font-size: 10.5px; color: #a76a14;
+          background: #fdeed0; padding: 4px 8px; border-radius: 4px;
+        }
+
+        /* Box kinds */
+        .box.decision {
+          border-color: #b8c8ee; background: #f6f9ff;
+        }
+        .box.terminal {
+          border-color: #c1dcc7; background: #f4fbf6;
+        }
+        .box.native {
+          border-style: dashed; background: #fafaf8;
+        }
+
+        /* Status pills */
+        .status {
+          font-size: 10px; font-weight: 500; padding: 1px 6px; border-radius: 3px;
+          text-transform: uppercase; letter-spacing: .4px;
+        }
+        .status.implemented { background: #e3f1e6; color: #2c7a45; }
+        .status.implemented::before { content: "● "; color: #2c8a4a; }
+        .status.partial     { background: #e7eefe; color: #2c5ac9; }
+        .status.partial::before { content: "◐ "; }
+        .status.planned     { background: #fdeed0; color: #a76a14; }
+        .status.planned::before { content: "○ "; }
+        .status.proposed    { background: #ececea; color: var(--ink-2); }
+        .status.proposed::before { content: "◇ "; }
+
+        /* Context badges */
+        .badge {
+          font: 600 10px var(--mono); letter-spacing: .5px;
+          padding: 1px 6px; border-radius: 3px;
+          text-transform: uppercase;
+        }
+        .badge.apex      { background: #e9eef9; color: #3a6df0; }
+        .badge.browser   { background: #f0eaf6; color: #6e3aa6; }
+        .badge.logic     { background: #ececea; color: var(--ink-2); }
+
+        /* ---- Section labels ---- */
+        .section-label {
+          position: absolute;
+          left: calc(var(--x, 0) * 1px);
+          top:  calc(var(--y, 0) * 1px);
+          font: 600 11px var(--sans);
+          color: var(--ink-2);
+          text-transform: uppercase; letter-spacing: 1.2px;
+          background: rgba(243,243,241,.9);
+          padding: 4px 8px; border-radius: 4px;
+          white-space: nowrap;
+        }
+
+        /* ---- Sticky notes (annotations / open questions) ---- */
+        .note {
+          position: absolute;
+          left: calc(var(--x, 0) * 1px);
+          top:  calc(var(--y, 0) * 1px);
+          width: 220px;
+          background: var(--note);
+          border: 1px solid var(--note-edge);
+          border-radius: 4px;
+          padding: 9px 11px;
+          font-size: 11.5px; line-height: 1.45; color: #4a3f10;
+          box-shadow: 2px 3px 0 rgba(0,0,0,.06);
+          transform: rotate(-.3deg);
+        }
+        .note b { color: #2a2400; }
+        .note + .note { transform: rotate(.3deg); }
+
+        /* ---- Arrow styles ---- */
+        #arrows path { fill: none; stroke: #888; stroke-width: 1.4; }
+        #arrows path.recovery { stroke: #c64545; stroke-dasharray: 5 4; }
+        #arrows path.retry    { stroke: var(--ink-3); stroke-dasharray: 2 3; }
+        #arrows path.success  { stroke: #2c7a45; }
+        #arrows text {
+          font: 10.5px var(--sans); fill: var(--ink-2);
+          paint-order: stroke; stroke: var(--bg); stroke-width: 4; stroke-linejoin: round;
+        }
+        #arrows .head { fill: #888; stroke: none; }
+        #arrows .head.recovery { fill: #c64545; }
+        #arrows .head.retry    { fill: var(--ink-3); }
+        #arrows .head.success  { fill: #2c7a45; }
+    </style>
+</head>
+<body>
+
+<header>
+    <span class="title">Web onboarding — flow</span>
+    <span class="crumb">docs/proposals/web-onboarding-ux.md</span>
+    <span class="spacer"></span>
+    <button id="btn-fit">Fit all</button>
+    <button id="btn-zoom-out">−</button>
+    <span class="zoom" id="zoom-label">100%</span>
+    <button id="btn-zoom-in">+</button>
+    <button id="btn-reset">Reset</button>
+    <span style="color: var(--ink-3); margin-left: 8px;">
+    <kbd>scroll</kbd> zoom · <kbd>drag</kbd> pan · <kbd>0</kbd> fit
+  </span>
+</header>
+
+<main id="canvas">
+    <svg id="arrows"></svg>
+    <div id="world">
+
+        <!-- ============ COLUMN LABELS ============ -->
+        <div class="section-label" style="--x: 60;   --y: 30">§2 · Entry · §5 active</div>
+        <div class="section-label" style="--x: 380;  --y: 30">§3 · Locked</div>
+        <div class="section-label" style="--x: 700;  --y: 30">§4.0 · First-time fork</div>
+        <div class="section-label" style="--x: 1020; --y: 30">§4a · Existing realm device</div>
+        <div class="section-label" style="--x: 1340; --y: 30">§4b · Brand-new user</div>
+        <div class="section-label" style="--x: 1660; --y: 30">§6 · Recovery</div>
+
+        <!-- ============ ENTRY (§2) + ACTIVE (§5) ============ -->
+        <div class="box decision" id="s2" style="--x: 60; --y: 80">
+            <div class="head">
+                <span class="id">§2</span><span class="badge logic">decision</span>
+                <span class="grow"></span><span class="status planned">planned</span>
+            </div>
+            <div class="title">Three landing states</div>
+            <div class="desc">Apex inspects <code>IndexedDB</code> + WebAuthn session validity. No
+                network.
+            </div>
+        </div>
+
+        <div class="box terminal" id="s5" style="--x: 60; --y: 230">
+            <div class="head">
+                <span class="id">§5</span><span class="badge apex">Apex</span>
+                <span class="grow"></span><span class="status planned">planned</span>
+            </div>
+            <div class="title">Active session</div>
+            <div class="desc">Session token still valid → straight to control plane, no flow.</div>
+        </div>
+
+        <!-- ============ LOCKED (§3) ============ -->
+        <div class="box" id="s3-1" style="--x: 380; --y: 80">
+            <div class="head">
+                <span class="id">§3.1</span><span class="badge apex">Apex</span>
+                <span class="grow"></span><span class="status planned">planned</span>
+            </div>
+            <div class="title">Welcome back, {device_name}</div>
+            <div class="desc">Centred unlock card. <code>[Unlock with passkey]</code> + recovery
+                link.
+            </div>
+        </div>
+
+        <div class="box native" id="s3-2" style="--x: 380; --y: 230">
+            <div class="head">
+                <span class="id">§3.2</span><span class="badge browser">Browser</span>
+                <span class="grow"></span><span class="status planned">planned</span>
+            </div>
+            <div class="title">WebAuthn prompt</div>
+            <div class="desc">Native credential picker. Touch ID / Hello / hardware key. Not
+                Tenshu-rendered.
+            </div>
+        </div>
+
+        <div class="box" id="s3-3" style="--x: 380; --y: 380">
+            <div class="head">
+                <span class="id">§3.3</span><span class="badge apex">Apex</span>
+                <span class="grow"></span><span class="status planned">planned</span>
+            </div>
+            <div class="title">Couldn't verify</div>
+            <div class="desc">Error variants by WebAuthn failure mode. Retry or fall through to
+                recovery.
+            </div>
+        </div>
+
+        <!-- ============ FIRST-TIME FORK (§4.0) ============ -->
+        <div class="box decision" id="s4-0" style="--x: 700; --y: 80">
+            <div class="head">
+                <span class="id">§4.0</span><span class="badge apex">Apex</span>
+                <span class="grow"></span><span class="status planned">planned</span>
+            </div>
+            <div class="title">Welcome to Tenshu</div>
+            <div class="desc">Single fork question: existing-device user (§4a) vs brand-new user
+                (§4b).
+            </div>
+        </div>
+
+        <!-- ============ §4a EXISTING REALM DEVICE ============ -->
+        <div class="box" id="s4a-1" style="--x: 1020; --y: 80">
+            <div class="head">
+                <span class="id">§4a.1</span><span class="badge apex">Apex</span>
+                <span class="grow"></span><span class="status planned">planned</span>
+            </div>
+            <div class="title">Pair this browser</div>
+            <div class="desc">QR + 12-char fallback code. 5-min TTL per <code>pairing-flow.md</code>.
+            </div>
+        </div>
+
+        <div class="box" id="s4a-2" style="--x: 1020; --y: 215">
+            <div class="head">
+                <span class="id">§4a.2</span><span class="badge apex">Apex</span>
+                <span class="grow"></span><span class="status partial">partial · SAS</span>
+            </div>
+            <div class="title">Approve on existing device</div>
+            <div class="desc">Shows SAS code (e.g. <code>482 913</code>) for cross-device
+                comparison.
+            </div>
+            <div class="open">SAS not yet in pairing-flow protocol spec.</div>
+        </div>
+
+        <div class="box" id="s4a-3" style="--x: 1020; --y: 380">
+            <div class="head">
+                <span class="id">§4a.3</span><span class="badge apex">Apex</span>
+                <span class="grow"></span><span class="status planned">planned</span>
+            </div>
+            <div class="title">Pairing successful</div>
+            <div class="desc">"Welcome back. Let's set up secure unlock for next time."</div>
+        </div>
+
+        <div class="box" id="s4a-4" style="--x: 1020; --y: 515">
+            <div class="head">
+                <span class="id">§4a.4</span><span class="badge apex">Apex</span>
+                <span class="grow"></span><span class="status planned">planned</span>
+            </div>
+            <div class="title">Set up passkey</div>
+            <div class="desc">Triggers WebAuthn registration. Skip → recovery-phrase-only unlock.
+            </div>
+        </div>
+
+        <div class="box" id="s4a-5" style="--x: 1020; --y: 650">
+            <div class="head">
+                <span class="id">§4a.5</span><span class="badge apex">Apex</span>
+                <span class="grow"></span><span class="status planned">planned</span>
+            </div>
+            <div class="title">About browser sync</div>
+            <div class="desc">Choice: this browser as own realm device, or skip and decide later.
+            </div>
+        </div>
+
+        <div class="box" id="s4a-6" style="--x: 1020; --y: 785">
+            <div class="head">
+                <span class="id">§4a.6</span><span class="badge apex">Apex</span>
+                <span class="grow"></span><span class="status planned">planned</span>
+            </div>
+            <div class="title">Per-browser sync opt-out</div>
+            <div class="desc">UA-detected instructions: Chrome, Firefox, Safari, Other.</div>
+        </div>
+
+        <div class="box" id="s4a-7" style="--x: 1020; --y: 920">
+            <div class="head">
+                <span class="id">§4a.7</span><span class="badge apex">Apex</span>
+                <span class="grow"></span><span class="status planned">planned</span>
+            </div>
+            <div class="title">How you can use Tenshu</div>
+            <div class="desc">Three options: Web (here), Extension (soon), PWA install.</div>
+        </div>
+
+        <div class="box terminal" id="s4a-8" style="--x: 1020; --y: 1055">
+            <div class="head">
+                <span class="id">§4a.8</span><span class="badge apex">Apex</span>
+                <span class="grow"></span><span class="status planned">planned</span>
+            </div>
+            <div class="title">Control plane</div>
+            <div class="desc">Lands with full device list. Out of scope for this doc.</div>
+        </div>
+
+        <!-- ============ §4b BRAND-NEW USER ============ -->
+        <div class="box" id="s4b-1" style="--x: 1340; --y: 80">
+            <div class="head">
+                <span class="id">§4b.1</span><span class="badge apex">Apex</span>
+                <span class="grow"></span><span class="status planned">planned</span>
+            </div>
+            <div class="title">How Tenshu works</div>
+            <div class="desc">Brief intro: realm, end-to-end, ciphertext-only servers, recovery
+                code.
+            </div>
+        </div>
+
+        <div class="box" id="s4b-2" style="--x: 1340; --y: 215">
+            <div class="head">
+                <span class="id">§4b.2</span><span class="badge apex">Apex</span>
+                <span class="grow"></span><span class="status planned">planned</span>
+            </div>
+            <div class="title">Setting up your realm</div>
+            <div class="desc">Local BIP-39 entropy + Argon2id wrapper. Auto-advances on
+                completion.
+            </div>
+            <div class="open">BIP-39 generate landed (<code>core-common</code>); web wiring planned.
+            </div>
+        </div>
+
+        <div class="box" id="s4b-3" style="--x: 1340; --y: 380">
+            <div class="head">
+                <span class="id">§4b.3</span><span class="badge apex">Apex</span>
+                <span class="grow"></span><span class="status planned">planned</span>
+            </div>
+            <div class="title">Save your recovery phrase</div>
+            <div class="desc">24 words, 4×6 grid, monospace. Copy w/ 30s clipboard wipe + checkbox
+                gate.
+            </div>
+        </div>
+
+        <div class="box" id="s4b-4" style="--x: 1340; --y: 515">
+            <div class="head">
+                <span class="id">§4b.4</span><span class="badge apex">Apex</span>
+                <span class="grow"></span><span class="status planned">planned</span>
+            </div>
+            <div class="title">Confirm the phrase</div>
+            <div class="desc">3 random word positions. After 3 failures, force re-display. <b>State
+                commit gate.</b></div>
+        </div>
+
+        <div class="box" id="s4b-5" style="--x: 1340; --y: 650">
+            <div class="head">
+                <span class="id">§4b.5</span><span class="badge apex">Apex</span>
+                <span class="grow"></span><span class="status planned">planned</span>
+            </div>
+            <div class="title">Set up passkey</div>
+            <div class="desc">Same as §4a.4; first-encounter copy is slightly longer.</div>
+        </div>
+
+        <div class="box" id="s4b-6" style="--x: 1340; --y: 785">
+            <div class="head">
+                <span class="id">§4b.6</span><span class="badge apex">Apex</span>
+                <span class="grow"></span><span class="status planned">planned</span>
+            </div>
+            <div class="title">About browser sync</div>
+            <div class="desc">Same content as §4a.5–§4a.6.</div>
+        </div>
+
+        <div class="box" id="s4b-7" style="--x: 1340; --y: 920">
+            <div class="head">
+                <span class="id">§4b.7</span><span class="badge apex">Apex</span>
+                <span class="grow"></span><span class="status planned">planned</span>
+            </div>
+            <div class="title">How you can use Tenshu</div>
+            <div class="desc">Same as §4a.7.</div>
+        </div>
+
+        <div class="box" id="s4b-8" style="--x: 1340; --y: 1055">
+            <div class="head">
+                <span class="id">§4b.8</span><span class="badge apex">Apex</span>
+                <span class="grow"></span><span class="status planned">planned</span>
+            </div>
+            <div class="title">About storage</div>
+            <div class="desc">Free-tier size from store config. No upgrade path during onboarding.
+            </div>
+        </div>
+
+        <div class="box terminal" id="s4b-9" style="--x: 1340; --y: 1190">
+            <div class="head">
+                <span class="id">§4b.9</span><span class="badge apex">Apex</span>
+                <span class="grow"></span><span class="status planned">planned</span>
+            </div>
+            <div class="title">Control plane (with tour)</div>
+            <div class="desc">Empty-state tour: Devices, Apps, Recovery. Dismissible.</div>
+        </div>
+
+        <!-- ============ §6 RECOVERY ============ -->
+        <div class="box" id="s6-1" style="--x: 1660; --y: 380">
+            <div class="head">
+                <span class="id">§6.1</span><span class="badge apex">Apex</span>
+                <span class="grow"></span><span class="status planned">planned</span>
+            </div>
+            <div class="title">Recover access</div>
+            <div class="desc">24-word entry. Live BIP-39 wordlist validation, invalid words red.
+            </div>
+            <div class="open"><code>Bip39.decode</code> + <code>RecoveryClaim</code> landed; web UI
+                planned.
+            </div>
+        </div>
+
+        <div class="box" id="s6-2" style="--x: 1660; --y: 545">
+            <div class="head">
+                <span class="id">§6.2</span><span class="badge apex">Apex</span>
+                <span class="grow"></span><span class="status planned">planned</span>
+            </div>
+            <div class="title">Recovering your realm…</div>
+            <div class="desc">Argon2id derives master key + relay fetches backup blob. 5–10s.</div>
+        </div>
+
+        <div class="box" id="s6-3" style="--x: 1660; --y: 680">
+            <div class="head">
+                <span class="id">§6.3</span><span class="badge apex">Apex</span>
+                <span class="grow"></span><span class="status planned">planned</span>
+            </div>
+            <div class="title">Recovery successful</div>
+            <div class="desc">Treats user as returning-on-new-device. Joins §4a.4 onwards.</div>
+        </div>
+
+        <!-- ============ LEGEND ============ -->
+        <div class="note" style="--x: 1900; --y: 60; width: 240px; transform: rotate(.3deg);">
+            <b>Legend</b><br><br>
+            <span class="status implemented">implemented</span> — exists today<br>
+            <span class="status partial">partial</span> — built, key element TBD<br>
+            <span class="status planned">planned</span> — designed, not built<br>
+            <span class="status proposed">proposed</span> — exploratory<br><br>
+            <span class="badge apex">Apex</span> Tenshu-rendered page<br>
+            <span class="badge browser">Browser</span> native dialog (e.g. WebAuthn)<br>
+            <span class="badge logic">decision</span> branch point<br><br>
+            <b>Arrow colours</b><br>
+            <span style="color:#888">— gray</span> forward step<br>
+            <span style="color:#2c7a45">— green</span> success path<br>
+            <span style="color:var(--ink-3)">·· dotted</span> retry / loop<br>
+            <span style="color:#c64545">- - red</span> recovery fall-through
+        </div>
+
+        <!-- ============ EDGE-CASE NOTES (§7) ============ -->
+        <div class="note" style="--x: 1900; --y: 460; width: 220px;">
+            <b>§7.1 — State commit gate</b><br>
+            IndexedDB is <i>not</i> committed until §4b.4 succeeds. A user who closes the tab
+            between §4b.2 and §4b.4 leaves no trace; §2 routes them back to §4.0.
+        </div>
+
+        <div class="note" style="--x: 1900; --y: 620; width: 220px;">
+            <b>§7.5 — Multi-tab race</b><br>
+            First tab to commit IDB state wins; later tabs detect state and re-route to §3 Locked.
+        </div>
+
+        <div class="note" style="--x: 1900; --y: 770; width: 220px;">
+            <b>§7.2 — Passphrase fallback</b><br>
+            If WebAuthn unsupported, §4a.4 / §4b.5 swap to a passphrase screen (Argon2id-derived,
+            strength meter). Recovery-phrase-only mode if Argon2id also unsupported.
+        </div>
+
+        <div class="note" style="--x: 1900; --y: 940; width: 220px;">
+            <b>§7.6 — Recovery network retry</b><br>
+            Relay unreachable in §6.2 → retry only the relay fetch. Argon2id derivation is cached
+            so a flaky network doesn't repeat the 5s wait.
+        </div>
+
+        <div class="note" style="--x: 1900; --y: 1110; width: 220px;">
+            <b>Open: §10 i18n</b><br>
+            Recovery uses the BIP-39 English wordlist. Localising means showing English with a
+            translation note, or per-locale wordlists (which complicates cross-locale recovery).
+        </div>
+
+    </div>
+</main>
+
+<script>
+    // ===== Pan / zoom =====================================================
+    const main = document.getElementById('canvas');
+    const world = document.getElementById('world');
+    const arrows = document.getElementById('arrows');
+    const zoomLabel = document.getElementById('zoom-label');
+
+    let scale = 1, tx = 40, ty = 40;
+    const MIN = 0.15, MAX = 3;
+
+    function apply() {
+      const t = `translate(${tx}px, ${ty}px) scale(${scale})`;
+      world.style.transform = t;
+      arrows.style.transform = t;
+      zoomLabel.textContent = Math.round(scale * 100) + '%';
+    }
+
+    function fitAll() {
+      const items = world.querySelectorAll('.box, .note, .section-label');
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      items.forEach(el => {
+        const x = parseFloat(getComputedStyle(el).getPropertyValue('--x')) || 0;
+        const y = parseFloat(getComputedStyle(el).getPropertyValue('--y')) || 0;
+        const w = el.offsetWidth, h = el.offsetHeight;
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x + w > maxX) maxX = x + w;
+        if (y + h > maxY) maxY = y + h;
+      });
+      const pad = 60;
+      minX -= pad; minY -= pad; maxX += pad; maxY += pad;
+      const vw = main.clientWidth, vh = main.clientHeight;
+      scale = Math.max(MIN, Math.min(MAX, Math.min(vw / (maxX - minX), vh / (maxY - minY))));
+      tx = -minX * scale + (vw - (maxX - minX) * scale) / 2;
+      ty = -minY * scale + (vh - (maxY - minY) * scale) / 2;
+      apply();
+    }
+    function reset() { scale = 1; tx = 40; ty = 40; apply(); }
+
+    main.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      if (e.ctrlKey || e.metaKey || Math.abs(e.deltaY) > 50) {
+        const r = main.getBoundingClientRect();
+        const mx = e.clientX - r.left, my = e.clientY - r.top;
+        const f = Math.exp(-e.deltaY * 0.0015);
+        const s2 = Math.max(MIN, Math.min(MAX, scale * f));
+        tx = mx - (mx - tx) * (s2 / scale);
+        ty = my - (my - ty) * (s2 / scale);
+        scale = s2;
+      } else {
+        tx -= e.deltaX; ty -= e.deltaY;
+      }
+      apply();
+    }, { passive: false });
+
+    let dragging = false, lx = 0, ly = 0;
+    main.addEventListener('mousedown', (e) => {
+      if (e.button !== 0 && e.button !== 1) return;
+      dragging = true; lx = e.clientX; ly = e.clientY;
+      main.classList.add('panning');
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      tx += e.clientX - lx; ty += e.clientY - ly;
+      lx = e.clientX; ly = e.clientY;
+      apply();
+    });
+    window.addEventListener('mouseup', () => { dragging = false; main.classList.remove('panning'); });
+
+    document.getElementById('btn-fit').onclick = fitAll;
+    document.getElementById('btn-reset').onclick = reset;
+    document.getElementById('btn-zoom-in').onclick  = () => { scale = Math.min(MAX, scale * 1.2); apply(); };
+    document.getElementById('btn-zoom-out').onclick = () => { scale = Math.max(MIN, scale / 1.2); apply(); };
+    window.addEventListener('keydown', (e) => {
+      if (e.key === '0') fitAll();
+      if (e.key === '+' || e.key === '=') { scale = Math.min(MAX, scale * 1.2); apply(); }
+      if (e.key === '-')                   { scale = Math.max(MIN, scale / 1.2); apply(); }
+      if (e.key === 'r' || e.key === 'R')  reset();
+    });
+
+    // ===== Flow arrows ====================================================
+    // [from, to, label?, kind?]    kind: '' | 'success' | 'retry' | 'recovery'
+    const FLOW = [
+      // §2 entry decision
+      ['s2', 's5',   'session valid',     'success'],
+      ['s2', 's3-1', 'IDB has state'],
+      ['s2', 's4-0', 'IDB empty'],
+
+      // §3 locked
+      ['s3-1', 's3-2', 'unlock'],
+      ['s3-2', 's5',   'success', 'success'],
+      ['s3-2', 's3-3', 'fail'],
+      ['s3-3', 's3-1', 'try again', 'retry'],
+      ['s3-3', 's6-1', 'use recovery phrase', 'recovery'],
+
+      // §4.0 fork
+      ['s4-0', 's4a-1', 'have other device'],
+      ['s4-0', 's4b-1', 'new user'],
+
+      // §4a chain
+      ['s4a-1', 's4a-2', 'scanned'],
+      ['s4a-2', 's4a-3', 'approved'],
+      ['s4a-3', 's4a-4'],
+      ['s4a-4', 's4a-5'],
+      ['s4a-5', 's4a-6', 'separate'],
+      ['s4a-5', 's4a-7', 'skip'],
+      ['s4a-6', 's4a-7'],
+      ['s4a-7', 's4a-8'],
+
+      // §4b chain
+      ['s4b-1', 's4b-2'],
+      ['s4b-2', 's4b-3', 'auto'],
+      ['s4b-3', 's4b-4'],
+      ['s4b-4', 's4b-5', 'verified'],
+      ['s4b-4', 's4b-3', '3rd fail · re-display', 'retry'],
+      ['s4b-5', 's4b-6'],
+      ['s4b-6', 's4b-7'],
+      ['s4b-7', 's4b-8'],
+      ['s4b-8', 's4b-9'],
+
+      // §6 recovery → joins §4a.4
+      ['s6-1', 's6-2'],
+      ['s6-2', 's6-3'],
+      ['s6-3', 's4a-4', 'continue as new device', 'recovery'],
+    ];
+
+    function bbox(el) {
+      const x = parseFloat(getComputedStyle(el).getPropertyValue('--x')) || 0;
+      const y = parseFloat(getComputedStyle(el).getPropertyValue('--y')) || 0;
+      return { x, y, w: el.offsetWidth, h: el.offsetHeight };
+    }
+
+    // Choose a connection side by relative position; returns { from, to, dir }
+    function side(a, b) {
+      const ax = a.x + a.w / 2, ay = a.y + a.h / 2;
+      const bx = b.x + b.w / 2, by = b.y + b.h / 2;
+      const dx = bx - ax, dy = by - ay;
+      if (Math.abs(dx) > Math.abs(dy) * 1.1) {
+        return dx > 0
+          ? { from: { x: a.x + a.w, y: ay }, to: { x: b.x,         y: by }, dir: 'h' }
+          : { from: { x: a.x,       y: ay }, to: { x: b.x + b.w,   y: by }, dir: 'h' };
+      } else {
+        return dy > 0
+          ? { from: { x: ax, y: a.y + a.h }, to: { x: bx, y: b.y       }, dir: 'v' }
+          : { from: { x: ax, y: a.y       }, to: { x: bx, y: b.y + b.h }, dir: 'v' };
+      }
+    }
+
+    function drawArrows() {
+      arrows.innerHTML = '';
+      arrows.setAttribute('width',  '4000');
+      arrows.setAttribute('height', '2400');
+
+      FLOW.forEach(([fromId, toId, label, kind = '']) => {
+        const a = document.getElementById(fromId);
+        const b = document.getElementById(toId);
+        if (!a || !b) return;
+        const A = bbox(a), B = bbox(b);
+        const { from, to, dir } = side(A, B);
+
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('class', kind);
+
+        let d;
+        if (dir === 'h') {
+          const mx = (from.x + to.x) / 2;
+          d = `M ${from.x} ${from.y} C ${mx} ${from.y}, ${mx} ${to.y}, ${to.x} ${to.y}`;
+        } else {
+          const my = (from.y + to.y) / 2;
+          d = `M ${from.x} ${from.y} C ${from.x} ${my}, ${to.x} ${my}, ${to.x} ${to.y}`;
+        }
+        path.setAttribute('d', d);
+        arrows.appendChild(path);
+
+        // Arrowhead
+        const head = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        const angle = Math.atan2(to.y - from.y, to.x - from.x);
+        const ah = 7;
+        const x1 = to.x - Math.cos(angle - Math.PI / 6) * ah;
+        const y1 = to.y - Math.sin(angle - Math.PI / 6) * ah;
+        const x2 = to.x - Math.cos(angle + Math.PI / 6) * ah;
+        const y2 = to.y - Math.sin(angle + Math.PI / 6) * ah;
+        head.setAttribute('d', `M ${to.x} ${to.y} L ${x1} ${y1} L ${x2} ${y2} Z`);
+        head.setAttribute('class', 'head ' + kind);
+        arrows.appendChild(head);
+
+        if (label) {
+          const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          text.setAttribute('x', (from.x + to.x) / 2);
+          text.setAttribute('y', (from.y + to.y) / 2 - 4);
+          text.setAttribute('text-anchor', 'middle');
+          text.textContent = label;
+          arrows.appendChild(text);
+        }
+      });
+    }
+
+    window.addEventListener('load', () => { drawArrows(); fitAll(); });
+    window.addEventListener('resize', fitAll);
+</script>
+
+</body>
+</html>

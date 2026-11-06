@@ -1,0 +1,239 @@
+label-eval-open-images-mapping 1
+# DERIVED from label-eval-open-images-mapping.tsv (sha256 606b35bc…) for docs/models.md §3.13: the
+# 23 candidate labels of inference-service.md §39.7 (L5: §39.3's 29 without the six proxies) keep
+# their rows byte for byte; every other label is `none` here, so `select` takes images for the 23
+# alone and `evaluate` scores the 23 alone. ⚠ A row below that is `none` is NOT a judgement that
+# the label has no class: see the committed mapping for that. This file only narrows the run.
+#
+# The candidate label set (inference-service-proxy/src/jvmTest/resources/label-set-candidate-v1.tsv)
+# mapped onto Open Images V7's image-level classes, for scripts/inference/label-eval.py
+# (`select`, and `evaluate --truth open-images`). Every candidate label has exactly one row.
+#
+# ⚠⚠ THIS FILE IS A SET OF JUDGEMENTS AND WANTS A HUMAN REVIEW. docs/models.md §3.12.3 lists the
+# calls that were closest.
+#
+# Open Images verifies a class on SOME images only: present, absent, or not looked at.
+#   An image is POSITIVE for a label when any of its positive classes is verified present.
+#   It is NEGATIVE when none is, and any of its negative classes is verified absent.
+#   Otherwise the label was not verified on that image, and the image is in no figure of the label.
+# ⚠ A negative class is one whose absence means the label's absence: `Animal` for `animals`,
+# never `Dog`. Where the two columns differ, that is why.
+#
+# kind: one-to-one | one-to-many (by the number of positive classes) | thin | none.
+#   ⚠ `thin`: there are classes, and fewer than 20 verified positives or 20 verified negatives in
+#   a half of the corpus. Listed and counted, NOT scored. `none`: no class at all.
+# fidelity: exact (the classes mean the label) | broader (they cover more than it) | narrower
+#   (less) | proxy (they stand in for it; the note says how). Reported apart.
+# pool: verified positives and negatives for the label among the 143 494 images of the Open
+#   Images V7 validation and test sets whose Rotation is 0.0, which is what `select` chooses
+#   from. `select` recomputes both columns and refuses this file when they disagree.
+#
+# Classes are named by display name (oidv7-class-descriptions.csv), `;`-separated.
+# Columns: label<TAB>kind<TAB>fidelity<TAB>positive classes<TAB>negative classes<TAB>pool positives<TAB>pool negatives<TAB>note
+people	one-to-many	exact	Person;People	Person	28533	20176	-
+person	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+portrait	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+group of people	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+crowd	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+baby	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+child	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+couple	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+family	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+selfie	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+person from behind	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+people at a table	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+team	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+animals	one-to-one	exact	Animal	Animal	10121	2215	the one class whose absence means no animal; leaf classes are not added, so an image verified only as Dog is not scored for this label
+dog	one-to-one	exact	Dog	Dog	5646	393	-
+cat	one-to-one	exact	Cat	Cat	1202	218	-
+bird	one-to-one	exact	Bird	Bird	2971	449	-
+horse	one-to-one	exact	Horse	Horse	965	311	-
+cow	one-to-many	exact	Cattle;Dairy cow	Cattle	452	294	-
+sheep	one-to-one	exact	Sheep	Sheep	219	153	-
+fish	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+insect	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+butterfly	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+squirrel	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+deer	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+duck	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+farm animal	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+zoo animal	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+food and drink	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+plate of food	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+breakfast	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+sandwich	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+pizza	one-to-one	exact	Pizza	Pizza	231	85	-
+pasta	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+salad	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+soup	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+burger	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+sushi	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+dessert	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+cake	one-to-one	exact	Cake	Cake	966	371	-
+ice cream	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+bread	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+fruit	one-to-one	exact	Fruit	Fruit	2317	2371	-
+vegetables	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+coffee	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+cocktail	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+wine	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+beer	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+barbecue	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+plants	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+flower	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+tree	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+forest	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+grass	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+mushroom	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+houseplant	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+garden	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+cactus	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+autumn leaves	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+blossom	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+landscape	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+beach	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+ocean	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+mountain	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+lake	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+river	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+waterfall	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+desert	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+snowy landscape	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+field	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+valley	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+cliff	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+island	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+canyon	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+glacier	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+urban	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+city street	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+skyline	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+tall building	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+house	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+bridge	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+church	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+castle	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+market stall	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+shop front	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+train station	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+airport	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+construction site	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+parking	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+monument	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+fountain	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+graffiti	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+indoors	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+living room	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+kitchen	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+bedroom	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+bathroom	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+office	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+restaurant	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+cafe	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+museum	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+library	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+gym	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+classroom	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+hotel room	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+staircase	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+shop interior	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+transport	one-to-many	exact	Vehicle;Transport;Mode of transport	Vehicle	13259	5303	-
+car	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+bicycle	one-to-one	exact	Bicycle	Bicycle	980	430	-
+motorcycle	one-to-one	exact	Motorcycle	Motorcycle	544	243	-
+bus	one-to-one	exact	Bus	Bus	339	169	-
+train	one-to-one	exact	Train	Train	379	214	-
+tram	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+boat	one-to-one	exact	Boat	Boat	2153	661	-
+ship	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+airplane	one-to-many	exact	Airplane;Fixed-wing aircraft;Airliner	Fixed-wing aircraft;Aircraft	2929	864	Airplane itself has no verified negative
+truck	one-to-one	exact	Truck	Truck	1141	588	-
+scooter	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+traffic	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+documents and screens	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+screenshot	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+receipt	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+document	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+handwriting	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+whiteboard	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+business card	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+ticket	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+menu	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+book page	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+form	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+map	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+chart	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+slide	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+sign with text	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+qr code	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+computer screen	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+events	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+birthday	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+wedding	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+concert	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+festival	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+parade	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+sports match	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+graduation	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+conference	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+fireworks	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+camping	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+picnic	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+objects	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+phone	one-to-many	exact	Mobile phone;Smartphone;Telephone;Feature phone	Mobile phone;Telephone	560	153	-
+laptop	one-to-one	exact	Laptop	Laptop	367	200	-
+camera	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+watch	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+keys	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+shoes	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+clothing	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+bag	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+furniture	one-to-one	exact	Furniture	Furniture	2815	1969	-
+tool	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+toy	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+book	one-to-one	exact	Book	Book	762	232	-
+candle	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+jewellery	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+glasses	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+package	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+activities	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+running	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+cycling	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+swimming	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+skiing	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+snowboarding	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+surfing	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+climbing	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+football	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+basketball	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+tennis	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+yoga	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+dancing	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+cooking	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+fishing	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+sailing	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+skateboarding	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+hiking	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+art and media	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+painting	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+drawing	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+sculpture	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+mural	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+poster	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+logo	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+tattoo	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+comic	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+neon sign	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+sky and weather	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+sunset	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+sunrise	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+night sky	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+stars	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+moon	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+clouds	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+rainbow	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+storm	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+rain	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+snowfall	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+fog	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv
+lightning	none	-	-	-	-	-	not in L5's 23 (inference-service.md §39.7); its row is in label-eval-open-images-mapping.tsv

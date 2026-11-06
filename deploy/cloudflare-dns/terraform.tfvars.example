@@ -1,0 +1,20 @@
+# Copy to terraform.tfvars (git-ignored) and fill in. Then see README — the ORDER matters more than
+# the values:
+#   ../../scripts/dns-export.sh && terraform init && terraform apply
+
+# --- required ---------------------------------------------------------------
+
+# Dashboard → Account home → ⋯ next to the account → Copy account ID.
+# ⚠ The same account the R2 tiles bucket lives in.
+account_id = "0123456789abcdef0123456789abcdef"
+
+# Leave unset and export CLOUDFLARE_API_TOKEN instead.
+# api_token = ""
+
+# --- tiles ------------------------------------------------------------------------
+# "" since the R2 swap (2026-09-14): deploy/cloudflare-tiles' custom domain owns tiles.service.
+tiles_cname_target = ""
+
+# --- optional ---------------------------------------------------------------
+# zone         = "tenshu.app"
+# records_file = "../dns/records.json"

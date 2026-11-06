@@ -1,0 +1,24 @@
+import { screen } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { renderWithQueryClient } from '@tenshu/app-kit/testing'
+import i18n from './i18n'
+
+vi.mock('./lib/proxy', () => ({
+  runtimeLease: vi.fn(async () => 'held'),
+  runtimeUseHere: vi.fn(async () => {}),
+}))
+
+const { default: App } = await import('./App')
+
+beforeEach(async () => {
+  await i18n.changeLanguage('en')
+})
+
+describe('App', () => {
+  it('renders its shell, with no lease banner while this tab holds the runtime', async () => {
+    renderWithQueryClient(<App />)
+    expect(screen.getByRole('heading', { name: '__NAME__' })).toBeInTheDocument()
+    expect(await screen.findByText('Nothing here yet.')).toBeInTheDocument()
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+})

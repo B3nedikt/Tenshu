@@ -1,0 +1,397 @@
+{
+  "router": {
+    "loading": "Loading Tenshu…"
+  },
+  "deviceName": {
+    "default": "This Browser"
+  },
+  "chooser": {
+    "markAriaLabel": "Tenshu",
+    "title": "Welcome to Tenshu",
+    "body1": "Tenshu in this browser will work for now, but to keep your data safe across browser updates and devices, you'll want sync.",
+    "body2": "Everything is encrypted on this device — nobody else can read it, including us.",
+    "actionSignUp": "Sign up free",
+    "actionHaveTenshu": "I have Tenshu already",
+    "actionTryLocally": "Just try it locally"
+  },
+  "signupClosed": {
+    "title": "Tenshu isn't open yet",
+    "body1": "We're not taking new accounts just yet — the sign-up door is closed while we finish the last of the work.",
+    "body2": "Nothing on this device has changed. If you already use Tenshu here, you can still unlock and carry on as normal.",
+    "backHome": "← Back to tenshu.app"
+  },
+  "newUser": {
+    "intro": {
+      "title": "How Tenshu works",
+      "body1": "Tenshu is built on a simple idea: your data belongs to you. When you set up Tenshu, you create a <em>realm</em> — a personal space where your apps live and your data syncs end-to-end encrypted across your devices.",
+      "body2": "Apps you install in your realm can only access what you let them. Tenshu's servers see ciphertext, not your data. If you lose your devices, a recovery code lets you start over without losing anything.",
+      "continue": "Got it, let's start",
+      "tellMeMore": "Tell me more about Tenshu"
+    },
+    "generate": {
+      "title": "Setting up your realm",
+      "body": "We're generating your realm's identity in your browser, locally. This identity never leaves your device unencrypted.",
+      "spinnerLabel": "Generating identity…"
+    },
+    "show": {
+      "title": "Save your recovery phrase",
+      "body": "This is the only way to recover your realm if you lose all your devices. Write these 24 words down on paper or store them in a password manager. Don't take a screenshot — your phone's photo backup may be visible to others.",
+      "supportWarning": "Tenshu support will never ask for your recovery phrase. If anyone — even someone claiming to be from Tenshu — asks for it, refuse.",
+      "walletWarning": "This phrase looks similar to a Bitcoin or Ethereum wallet seed phrase, but it is <strong>not</strong> one. Don't enter it into a cryptocurrency wallet — your data won't be recovered, and the wallet can't decrypt it.",
+      "savedCheckbox": "I've stored this somewhere safe.",
+      "continue": "Continue"
+    },
+    "confirm": {
+      "title": "Let's check you saved it",
+      "body": "Enter the words at these positions to confirm you wrote them down.",
+      "wordLabel": "Word {position}",
+      "wordPlaceholder": "—",
+      "verify": "Verify",
+      "redisplay": "Re-display phrase",
+      "errorMismatch": "One or more words don't match. Make sure you copied your phrase exactly, then try again.",
+      "errorTooManyMisses": "That's three misses. Re-display the phrase to copy it again, then try once more."
+    },
+    "commit": {
+      "title": "Setting up your realm…",
+      "body": "Creating your realm and registering this browser. This takes a few seconds.",
+      "spinnerLabel": "Working…"
+    },
+    "commitFailed": {
+      "title": "Couldn't set up your realm",
+      "retainPhrase": "Your recovery phrase is still in this tab — try again to use it.",
+      "retry": "Try again",
+      "cancel": "Cancel and start over",
+      "networkHint": "If this keeps failing, your network may be blocked. Try a different network."
+    },
+    "deviceName": {
+      "title": "Name this browser",
+      "body": "You'll see this name in your device list. Pick something that helps you recognise this browser later — for example, \"Work laptop — Chrome\" or \"iPad\".",
+      "fieldLabel": "Device name",
+      "continue": "Continue",
+      "back": "Back"
+    }
+  },
+  "pairing": {
+    "submit": {
+      "title": "Add this browser to your realm",
+      "body": "To add this browser to your realm, pair it with one of your existing devices. This keeps your data secure: even Tenshu can't add a device to your realm without your existing devices approving it.",
+      "step1": "Open the Tenshu app on your existing device.",
+      "step2": "Go to <em>Realm Devices → Add new device</em>.",
+      "step3": "Scan the QR code on that device with the camera below — or paste the pairing code.",
+      "useCamera": "Use camera",
+      "stopCamera": "Stop camera",
+      "cameraHint": "Camera scanning is supported in Chrome and Edge.",
+      "pasteLabel": "Or paste the pairing code",
+      "pastePlaceholder": "tenshu://join?o=…&d=…&k=…&s=…",
+      "validation": {
+        "wrongScheme": "That doesn't look like a Tenshu pairing code (expected `tenshu://join?…`).",
+        "missingParams": "This pairing code is missing required fields. Generate a fresh one on your existing device.",
+        "unknownRole": "This pairing code requires a newer version of Tenshu than this page supports. Update and try again.",
+        "offerRole": "That's a code shown by a new device. Paste the code from your existing device instead."
+      },
+      "error": {
+        "invalidUri": "We couldn't read that pairing code. Try again, or generate a fresh one on your existing device.",
+        "network": "We couldn't reach the Tenshu relay. Check your connection and try again.",
+        "fallback": "Something went wrong. Try again."
+      },
+      "submitting": "Connecting…",
+      "continue": "Continue",
+      "cancel": "Cancel"
+    },
+    "tabs": {
+      "label": "How do you want to pair?",
+      "scan": "Scan a code",
+      "show": "Show a code"
+    },
+    "offer": {
+      "title": "Show this code to your existing device",
+      "body": "This browser will join your realm once one of your existing devices scans this code and approves.",
+      "step1": "Open the Tenshu app on your existing device.",
+      "step2": "Go to <em>Realm Devices → Add new device</em> and choose to scan.",
+      "step3": "Point its camera at the code below and approve when the codes match.",
+      "waiting": "Waiting for your existing device to scan…",
+      "validity": "This code expires after 5 minutes. Leave this page open until pairing completes.",
+      "pairedSasHint": "Confirm this code matched the one on your existing device:",
+      "cancel": "Cancel"
+    },
+    "await": {
+      "connecting": "Connecting…",
+      "title": "Approve on your existing device",
+      "body1": "Your other device received the request. Look for a notification or open the Tenshu app to approve.",
+      "body2": "Confirm this code matches on your other device:",
+      "mismatchHint": "If the code doesn't match, deny on your existing device — someone may be trying to intercept the pairing.",
+      "versionHint": "If the codes don't match, don't continue — make sure both devices are on the latest version of Tenshu.",
+      "cancel": "Cancel pairing"
+    },
+    "paired": {
+      "title": "Welcome back to Tenshu",
+      "body": "This browser is now part of your realm. Let's set up secure unlock for next time.",
+      "continue": "Set up passkey"
+    },
+    "denied": {
+      "title": "Pairing was denied",
+      "body": "Your existing device declined this pairing request. If you didn't expect that, try generating a fresh QR code on your existing device.",
+      "retry": "Try again",
+      "cancel": "Cancel"
+    },
+    "expired": {
+      "title": "Pairing expired",
+      "body": "The pairing code expires after 5 minutes. Generate a new one on your existing device and try again.",
+      "retry": "Try again",
+      "cancel": "Cancel"
+    },
+    "failed": {
+      "title": "Pairing failed",
+      "retry": "Try again",
+      "cancel": "Cancel"
+    }
+  },
+  "tail": {
+    "passkey": {
+      "fallback": {
+        "title": "Set up a passphrase",
+        "body": "Your browser doesn't support passkeys. Set a passphrase to unlock Tenshu — pick something you'll remember, but that no one would guess.",
+        "placeholder": "(Passphrase fallback is a placeholder in this preview; the full Argon2id-derived session key flow lands with Track A.)",
+        "continue": "Use recovery phrase only"
+      },
+      "title": "Add a passkey for this browser",
+      "body": "Passkeys let you unlock Tenshu quickly using your device's biometrics or a security key. Your passkey is unique to this browser; it's not shared with your other devices.",
+      "firstEncounterNote": "If your hardware doesn't support passkeys, you can skip this and use your recovery phrase to unlock instead — but unlocking will take longer each time.",
+      "registering": "Waiting on browser…",
+      "register": "Set up passkey",
+      "skip": "Skip",
+      "saveFailedFallback": "Could not save passkey. Try again.",
+      "error": {
+        "cancelled": "You cancelled the passkey prompt. Try again when you're ready.",
+        "unsupported": "This browser doesn't support passkeys. You can skip and use your recovery phrase to unlock.",
+        "hardware": "Your security device couldn't be reached. Make sure it's plugged in (or Bluetooth-paired) and try again.",
+        "wrongCredential": "A passkey is already registered for this browser.",
+        "other": "Couldn't register a passkey: {message}"
+      }
+    },
+    "syncWarning": {
+      "title": "About browser sync",
+      "body1": "If you use Chrome Sync, Firefox Sync, or another browser-sync feature, this browser's Tenshu data may be shared across all browsers signed into your sync account.",
+      "body2": "When that happens, Tenshu treats those browsers as <strong>one</strong> realm device, not several. This is your choice — there are reasons to want it that way (instant access on a new machine after sync) and reasons not to (a sync-account compromise reaches your Tenshu data).",
+      "question": "Do you want this browser to be its own realm device?",
+      "separate": "Yes, make this its own realm device",
+      "skip": "Skip — I'll decide later"
+    },
+    "syncOptOut": {
+      "title": "Exclude Tenshu from {family} sync",
+      "browserLabel": "Browser:",
+      "doneAction": "I've done this",
+      "skipAction": "Skip for now",
+      "hint": "You can revisit this from the control plane's \"How you're using Tenshu\" panel.",
+      "chrome": {
+        "step1": "Open Settings → You and Google → Sync and Google services.",
+        "step2": "Click <em>Manage what you sync</em>.",
+        "step3": "Switch to <em>Customize sync</em>.",
+        "step4": "Disable the toggle for <strong>Site Settings</strong>.",
+        "outcome": "This excludes IndexedDB for tenshu.app from sync."
+      },
+      "firefox": {
+        "step1": "Open Settings → Sync.",
+        "step2": "Under <em>What's syncing</em>, click <em>Change</em>.",
+        "step3": "Disable <em>Site Settings</em>."
+      },
+      "safari": {
+        "intro": "Safari syncs site data through iCloud. To exclude tenshu.app:",
+        "step1": "Open System Settings → Apple ID → iCloud.",
+        "step2": "Click <em>Manage</em> next to iCloud Drive.",
+        "step3": "Find Safari and turn off <em>Browse with Safari</em> — <em>or</em> use Private Browsing for tenshu.app, which Safari excludes from iCloud sync automatically.",
+        "caveat": "(Safari's options here are unfortunately less granular than other browsers'.)"
+      },
+      "other": "Consult your browser's settings for site-data sync. The setting you want to disable is usually called \"Site settings\" or \"Site data\" inside the browser's sync options."
+    },
+    "explainer": {
+      "title": "How you can use Tenshu",
+      "body": "Tenshu works on the web in three ways. You can use any combination — they all work together.",
+      "continue": "Continue to control plane",
+      "layer": {
+        "web": {
+          "title": "Web",
+          "chip": "You're using this now",
+          "body": "First-party Tenshu apps work in any modern browser. No install needed."
+        },
+        "extension": {
+          "title": "Browser extension",
+          "chip": "Coming soon",
+          "body": "Adds support for third-party Tenshu apps on websites outside tenshu.app. Available once Tenshu Rei is operational.",
+          "action": "Tell me when it's available",
+          "actionAlert": "We'll let you know."
+        },
+        "pwa": {
+          "title": "PWA install",
+          "chip": "Optional",
+          "body": "Install Tenshu as an app for icon launching, offline support, and a window without browser chrome.",
+          "action": "Install Tenshu",
+          "actionAlert": "Browser PWA install prompt would fire here."
+        }
+      }
+    },
+    "storage": {
+      "title": "About storage",
+      "body1": "Tenshu's free tier gives you {sizeGb} GB of encrypted storage on Tenshu's relay. This is enough for documents, notes, and most photos. If you fill it up, you can upgrade to a paid tier from the control plane.",
+      "body2": "Storage is on a Tenshu-operated server, end-to-end encrypted. Tenshu's servers store the ciphertext, but cannot read your data.",
+      "continue": "Continue"
+    },
+    "completing": {
+      "title": "Finishing setup…"
+    }
+  },
+  "locked": {
+    "welcome": {
+      "title": "Welcome back, {deviceName}",
+      "body": "Your Tenshu data is locked. Use your security key or device passkey to unlock.",
+      "unlock": "Unlock with passkey",
+      "lostPasskey": "Lost your passkey?",
+      "whatIsPasskey": "What is a passkey?",
+      "noPasskeyHint": "This browser doesn't support passkeys. Use your recovery phrase below to unlock.",
+      "disconnect": "Not you? Disconnect this browser"
+    },
+    "unlocking": {
+      "title": "Waiting for your passkey…",
+      "body": "Follow the prompt in your browser to authenticate."
+    },
+    "disconnect": {
+      "title": "Disconnect this browser?",
+      "body1": "This removes the Tenshu data stored on {deviceName} and returns you to the start. You'll need your passkey or 24-word recovery phrase to sign back in here.",
+      "body2": "Your data on your other devices is untouched. This browser may still appear in their device list until you remove it from there.",
+      "confirm": "Disconnect this browser",
+      "cancel": "Cancel"
+    },
+    "failed": {
+      "title": "Couldn't verify",
+      "retry": "Try again",
+      "usePhrase": "Use recovery phrase",
+      "back": "Back",
+      "disconnect": "Disconnect this browser",
+      "message": {
+        "cancelled": "You cancelled the unlock. Try again when you're ready.",
+        "wrongCredential": "That security key isn't registered for this browser. Use a different one or recover via your recovery phrase.",
+        "hardware": "Your security device couldn't be reached. Make sure it's plugged in (or Bluetooth-paired) and try again.",
+        "unsupported": "This browser doesn't support passkeys. To unlock, use your recovery phrase on a supported browser, or switch to one.",
+        "masterKeyUnwrap": "We verified your passkey, but couldn't restore your encryption keys for this browser. Use your recovery phrase to continue.",
+        "unknown": "Something went wrong unlocking. Try again or use your recovery phrase."
+      }
+    },
+    "phraseEntry": {
+      "title": "Use your recovery phrase",
+      "body1": "Enter your 24-word recovery phrase to unlock this browser. Your phrase rebuilds your encryption keys locally — nothing is sent to Tenshu's servers.",
+      "body2": "This takes a few seconds. The delay is what protects your phrase from brute-force guessing.",
+      "fieldLabel": "Recovery phrase",
+      "placeholder": "Type your 24 words, separated by spaces or newlines.",
+      "wordsLabel": "Words:",
+      "recognisedLabel": "Recognised:",
+      "unknownLabel": "Unknown:",
+      "submit": "Unlock",
+      "back": "Back",
+      "hintLostAll": "Lost <em>all</em> your devices and passkeys? <restore>Restore from your relay backup</restore> instead."
+    },
+    "phraseProcessing": {
+      "title": "Unlocking…",
+      "body": "This may take a few seconds.",
+      "spinnerLabel": "Deriving master key…"
+    },
+    "phraseFailed": {
+      "tryAgain": "Try again",
+      "editPhrase": "Edit recovery phrase",
+      "backToPasskey": "Back to passkey unlock",
+      "invalidLength": {
+        "title": "Phrase has the wrong number of words",
+        "body": "We expected 24 words but found {wordCount}. Check for missing or extra words."
+      },
+      "unknownWord": {
+        "title": "Unknown word in your phrase",
+        "body": "\"{word}\" isn't a recovery word. Check for typos and try again."
+      },
+      "noMatch": {
+        "title": "Phrase doesn't match",
+        "body": "The phrase you entered isn't valid. Check for typos and try again."
+      },
+      "wrongRealm": {
+        "title": "That phrase doesn't match this browser",
+        "body": "This browser is set up for a different Tenshu account. Check that you're entering the phrase that matches this browser, or sign out to switch accounts."
+      },
+      "other": {
+        "title": "Unlock failed"
+      }
+    }
+  },
+  "recovery": {
+    "entry": {
+      "title": "Recover access",
+      "body1": "If you've lost access to all your devices and passkeys, enter your 24-word recovery phrase below to recover your realm.",
+      "body2": "This is a slow operation by design — it takes a few seconds to derive your master key from your recovery phrase. That delay is what protects your phrase from brute-force guessing.",
+      "fieldLabel": "Recovery phrase",
+      "placeholder": "Type your 24 words, separated by spaces or newlines.",
+      "wordsLabel": "Words:",
+      "recognisedLabel": "Recognised:",
+      "unknownLabel": "Unknown:",
+      "submit": "Recover",
+      "cancel": "Cancel",
+      "hint": "Don't worry if you mistype — we check every word against the recovery wordlist before sending anything.",
+      "footer": "Have your devices? <back>Go back</back>."
+    },
+    "processing": {
+      "title": "Recovering your realm…",
+      "body": "This may take 5–10 seconds.",
+      "spinnerLabel": "Deriving master key…"
+    },
+    "failed": {
+      "tryAgain": "Try again",
+      "editPhrase": "Edit recovery phrase",
+      "invalidLength": {
+        "title": "Phrase has the wrong number of words",
+        "body": "We expected 24 words but found {wordCount}. Check for missing or extra words."
+      },
+      "unknownWord": {
+        "title": "Unknown word in your phrase",
+        "body": "\"{word}\" isn't a recovery word. Check for typos and try again."
+      },
+      "noMatch": {
+        "title": "Phrase doesn't match",
+        "body": "The phrase you entered isn't valid. Check for typos and try again."
+      },
+      "noBackupOnRelay": {
+        "title": "Couldn't find a backup",
+        "body": "We couldn't find a backup for this recovery phrase. If you set up Tenshu recently, your backup may not have synced yet — try again in a few minutes."
+      },
+      "kdfParametersOutOfDate": {
+        "title": "This recovery phrase is from an older Tenshu",
+        "body": "Recovery is still possible, but takes longer. Try again — it will take an extra few seconds this time."
+      },
+      "deviceAlreadySetUp": {
+        "title": "This browser is already set up",
+        "body": "This browser already belongs to a different realm. To recover another realm here, disconnect this browser first, then try again."
+      },
+      "network": {
+        "title": "Network error",
+        "body": "We couldn't reach the Tenshu relay to fetch your backup. Check your connection and try again — your recovery phrase is still in this tab so the slow part won't repeat."
+      },
+      "other": {
+        "title": "Recovery failed"
+      }
+    }
+  },
+  "mnemonicGrid": {
+    "copy": "Copy to clipboard",
+    "copied": "Copied",
+    "clearingNotice": "Clipboard will be cleared in {seconds, plural, =1 {1 second} other {{seconds} seconds}}."
+  },
+  "wordlistInput": {
+    "notARecoveryWord": "Not a recovery word."
+  },
+  "qrScanner": {
+    "unsupported": "Your browser doesn't support in-browser QR scanning yet. Paste the pairing code below instead.",
+    "denied": "Camera permission denied. Allow camera access for this site, or paste the pairing code below.",
+    "error": "Couldn't start the camera. Paste the pairing code below instead.",
+    "requesting": "Requesting camera…",
+    "pointHint": "Point at the pairing QR code"
+  },
+  "qrDisplay": {
+    "alt": "Pairing QR code",
+    "renderFailed": "Couldn't render the QR code. Try again."
+  }
+}

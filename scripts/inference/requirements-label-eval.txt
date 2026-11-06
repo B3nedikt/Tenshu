@@ -1,0 +1,7 @@
+# The toolchain `label-eval.py` runs in, and refuses to run outside of. Python 3.13.
+#
+# ⚠ Exactly the retrieval gate's set, and that is the point: the ONNX pair is run on the
+# onnxruntime the apps ship, the Core ML pair with the coremltools that converted it, and the corpus
+# is resized by the Pillow whose pixels the corpus manifest pins. Nothing is added here; a pin moves
+# in `requirements-retrieval-gate.txt` or `requirements-coreml-export.txt`, with their own re-runs.
+-r requirements-retrieval-gate.txt

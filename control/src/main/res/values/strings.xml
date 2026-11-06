@@ -1,0 +1,22 @@
+<resources>
+    <string name="app_name">Control</string>
+
+    <!-- Phase L2-LIVE foreground-service notification -->
+    <string name="foreground_task_liveness_channel">Background tasks</string>
+    <!-- %1$d = file being uploaded (1-based), %2$d = files in this pass. Shown instead of the
+         task count while an upload pass is running (drive-upload-progress.md P5). -->
+    <string name="foreground_uploading">Uploading %1$d of %2$d</string>
+    <string name="foreground_indexing">Indexing photos, %1$d of %2$d</string>
+    <plurals name="foreground_task_liveness">
+        <item quantity="one">Keeping %d background task running</item>
+        <item quantity="other">Keeping %d background tasks running</item>
+    </plurals>
+
+    <!-- Phase 1.5 host-pairing foreground-service notification (control-pairing-ux.md §3.5).
+         PII-free: no device name, no SAS (§6). -->
+    <string name="host_pairing_channel">Device pairing</string>
+    <string name="host_pairing_title">Pairing a device</string>
+    <string name="host_pairing_waiting">Waiting for a device — %1$s left</string>
+    <string name="host_pairing_waiting_no_countdown">Waiting for a device to join</string>
+    <string name="host_pairing_request">A device wants to join — tap to review</string>
+</resources>

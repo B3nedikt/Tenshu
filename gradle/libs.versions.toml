@@ -1,0 +1,271 @@
+[versions]
+# SKIE — Swift/Kotlin bridge applied to the :tenshu-sdk-ios-<app> frameworks only (root build)
+# (Flow→AsyncSequence, suspend→async, sealed→enum). COMPILER-VERSION-COUPLED:
+# Gate any Kotlin bump on SKIE support — see docs/tech-debt.md "SKIE ⨯ Kotlin
+# version pin". 0.10.15 supports Kotlin 2.0.0 … 2.4.20 — and ⚠ NOT 2.4.21: SKIE lists
+# each supported patch explicitly (`versionSupport.kotlin` in its gradle.properties), and
+# 2.4.21 is absent. The repo pin is at the TOP of that range, so headroom is zero again.
+# Check https://skie.touchlab.co/changelog before bumping.
+skie = "0.10.15"
+
+kotlin = "2.4.20"
+ktor = "3.6.1"
+agp = "9.5.0"
+compose = "2026.09.00"
+jetbrains-compose = "1.12.1"
+
+appcompat = "1.8.0"
+core-ktx = "1.19.1"
+garmin-fit = "21.218.0"
+health-connect = "1.1.0"
+documentfile = "1.1.0"
+kotlinx-coroutines = "1.11.0"
+# The lock primitives only (`kotlinx.atomicfu.locks`), no compiler plugin. ⚠ On JVM/Android this
+# entry is the ONLY request for atomicfu (coroutines-jvm does not use it), so it alone sets the
+# version there. iOS conflict-resolves to the highest request in its graph, so keep this at least
+# that high or the same lock runs on different versions per target.
+kotlinx-atomicfu = "0.33.0"
+kotlinx-datetime = "0.8.0"
+lifecycle-runtime-compose = "2.11.0"
+material3 = "1.4.0"
+biometric = "1.1.0"
+savedstate = "1.5.0"
+androidx-sqlite = "2.7.1"
+# Pinned deliberately: compose-bom does NOT manage androidx.activity, and the KMP
+# UI modules apply no BOM at all, so an unversioned entry resolved to whatever
+# transitive constraint happened to win (1.12.0 in :ui-core vs 1.12.4 elsewhere).
+activity-compose = "1.13.0"
+
+koin = "4.2.2"
+koin-test = "4.2.2"
+# ⚠ 2.14.0+ ships Java 21 bytecode (class major 65). Only `:drive-shared-ui` and `:drive-android`
+# use it, and `:drive-shared-ui` therefore runs its tests on a JDK 21 (its build file). A new
+# consumer on a 17 test JVM fails with `UnsupportedClassVersionError` at test time, not compile.
+zoomable = "2.16.0"
+junit = "4.13.2"
+junit-version = "1.3.0"
+espresso-core = "3.7.0"
+lifecycle-runtime-ktx = "2.11.0"
+kotlinx-io = "0.9.2"
+kotlin-test = "2.4.20"
+runner = "1.7.0"
+core = "1.7.0"
+androidx-test-core-ktx = "1.7.0"
+
+nav3 = "1.2.0"
+kotlinxSerialization = "1.11.0"
+# MapLibre Compose — live vector-tile basemap (Maps Ph7b). Android AND iOS here
+# (desktop target of the lib is ~15% complete → desktop keeps the schematic MapSnippet).
+# ⚠ 0.15 swapped the MapLibre Android SDK for `maplibre-native-ffi`, so the render
+# runtime is no longer transitive: Android must declare one explicitly (below), and
+# the iOS apps carry its linker flags in their project.yml. 0.17+ requires Kotlin 2.4.20
+# (SKIE-gated); 0.18+ requires iOS 15.5. ⚠ 0.20 raised the default max zoom of tile-URL
+# sources to 22 — irrelevant while the basemap comes from style JSON (`resolveBasemapSource`),
+# whose camera ceiling is `BASEMAP_MAX_ZOOM`.
+maplibreCompose = "0.20.0"
+paging = "3.5.3"
+work-manager = "2.12.0"
+robolectric = "4.17"
+glance = "1.2.0"
+qrose = "1.3.1"
+# ZXing core: pure-Java QR decoding for `:ui-qr-scanner` on Android. Replaced ML Kit, whose
+# bundled barcode model logs usage to Google (firebaselogging.googleapis.com) through datatransport.
+zxing = "3.5.4"
+play-billing = "9.1.0"
+camerax = "1.6.2"
+
+# BouncyCastle: JVM (desktop + Android) Ed25519 + X25519 + AEAD backend.
+# Picked because Android's standard provider only adds Ed25519 at API 33+,
+# and minSdk = 24 — BC works on every API level we ship and is identical
+# code on desktop, so behaviour is uniform across JVM targets.
+bouncycastle = "1.86"
+
+# Apache PDFBox — desktop-only PDF page→bitmap rendering (drive-content-preview.md
+# §4). The JVM has no built-in PDF renderer; Android uses android.graphics.pdf
+# instead, so this dep is confined to drive-shared-ui's desktopMain source set.
+pdfbox = "3.0.8"
+
+# ONNX Runtime SHIPS: `:inference-service-proxy` runs the embedding models on it in
+# Android Control (`onnxRuntimeAndroid`, androidMain) and desktop Control (`onnxRuntime`, jvmMain).
+# Its native graph moved from test-scoped to shipped in IN-3b. ⚠ A bump is a runtime change under
+# photo search, so it needs a phone re-index check. ⚠ It also grows Control: arm64
+# `libonnxruntime.so` is 18.2 MB at 1.22.0 and 34.2 MB at 1.31.0. Held at 1.22.0 on purpose
+# (2026-10-14) until a release brings a measured reason.
+# ⚠⚠ 1.22.0 is a FLOOR, not a preference: below it `libonnxruntime4j_jni.so` is 4 KB-aligned, and Play
+# refuses a bundle whose native libraries do not support 16 KB pages. `scripts/android-release.sh`
+# checks every `.so` it ships.
+onnxRuntime = "1.22.0"
+# IN-6's detector + landmark half (`photos-people-and-pets.md` §7a), chosen on licence grounds
+# (Apache-2.0, consented training data — `models.md` §5.9). ⚠⚠ In the SHIPPED Android graph since F2
+# (2026-09-24), once the phone measurement said the pipeline is worth shipping (§12.6–§12.8b). It is
+# an Android AAR only: desktop has no MediaPipe, which is why the face catalog entry's runtime
+# (`FaceModel.RUNTIME`) is contributed on Android alone.
+# ⚠⚠ 0.10.26 is the 16 KB-page floor (same Play rule as above). Since 0.10.35 the native library is
+# `libmediapipe_tasks_jni.so` inside the transitive `tasks-core` AAR, not `…_tasks_vision_jni.so` in
+# this one — check that artifact's alignment on a bump.
+# ⚠ 1.x is a runtime swap, not a bump: it adds `com.google.ai.edge.litertlm:litertlm-android` (the
+# LiteRT-LM engine, ~21 MB) and moves the natives there. It needs a face-pipeline re-measurement.
+mediapipeTasksVision = "0.10.35"
+# AboutLibraries — the open-source licence notices every app ships (`docs/oss-licences.md`). The plugin
+# (root build) writes each app's dependency + licence JSON at build time; `:ui-core` parses it itself.
+# ⚠ Not `aboutlibraries-core`: 15.2.0's JVM classes are Java 21 bytecode and the shared modules run
+# on 17 (it fails at class load, measured).
+aboutlibraries = "15.3.0"
+
+# JVM servers (`:sync-relay-server`, `:commerce-service`).
+logback = "1.6.6"
+sqlite-jdbc = "3.53.4.0"
+awssdk = "2.54.19"
+s3mock = "4.12.4"
+
+[libraries]
+
+appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
+pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
+core-ktx = { module = "androidx.core:core-ktx", version.ref = "core-ktx" }
+garmin-fit = { module = "com.garmin:fit", version.ref = "garmin-fit" }
+health-connect-client = { module = "androidx.health.connect:connect-client", version.ref = "health-connect" }
+documentfile = { module = "androidx.documentfile:documentfile", version.ref = "documentfile" }
+kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinx-coroutines" }
+kotlinx-coroutines-swing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "kotlinx-coroutines" }
+kotlinx-coroutines = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
+kotlinx-atomicfu = { module = "org.jetbrains.kotlinx:atomicfu", version.ref = "kotlinx-atomicfu" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }
+
+compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose" }
+
+# AndroidX
+activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activity-compose" }
+kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinx-datetime" }
+lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle-runtime-compose" }
+lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle-runtime-compose" }
+# Base (Compose-free) multiplatform ViewModel + viewModelScope, for :drive-shared-logic
+# (the logic layer can't pull the Compose viewmodel artifacts). KMP incl. iOS.
+lifecycle-viewmodel = { module = "androidx.lifecycle:lifecycle-viewmodel", version.ref = "lifecycle-runtime-compose" }
+material-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
+material3 = { module = "androidx.compose.material3:material3", version.ref = "material3" }
+savedstate = { module = "androidx.savedstate:savedstate", version.ref = "savedstate" }
+savedstate-compose = { module = "androidx.savedstate:savedstate-compose", version.ref = "savedstate" }
+ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
+ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
+androidx-biometric = { module = "androidx.biometric:biometric", version.ref = "biometric" }
+androidx-work-runtime = { module = "androidx.work:work-runtime-ktx", version.ref = "work-manager" }
+androidx-work-testing = { module = "androidx.work:work-testing", version.ref = "work-manager" }
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+androidx-glance-appwidget = { module = "androidx.glance:glance-appwidget", version.ref = "glance" }
+androidx-sqlite = { module = "androidx.sqlite:sqlite", version.ref = "androidx-sqlite" }
+androidx-sqlite-bundled = { module = "androidx.sqlite:sqlite-bundled", version.ref = "androidx-sqlite" }
+monitor = { group = "androidx.test", name = "monitor", version = "1.8.0" }
+
+navigation3-runtime = { module = "androidx.navigation3:navigation3-runtime", version.ref = "nav3" }
+navigation3-ui = { module = "androidx.navigation3:navigation3-ui", version.ref = "nav3" }
+lifecycle-viewmodel-navigation3 = { module = "androidx.lifecycle:lifecycle-viewmodel-navigation3", version.ref = "lifecycle-runtime-ktx" }
+# Eclipse Paho v3 — the hub's MQTT client for the zigbee2mqtt sidecar
+# (home-device-service.md HD-2). Dependency-free pure JVM, unremarkable on ARM;
+# HiveMQ's client was the alternative but drags Netty into a runtime with none.
+# Behind the :hub `MqttClient` seam, so swapping it is a one-file change.
+paho-mqtt-client = { module = "org.eclipse.paho:org.eclipse.paho.client.mqttv3", version = "1.2.5" }
+kotlinx-serialization-core = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core", version.ref = "kotlinxSerialization" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+maplibre-compose = { module = "org.maplibre.compose:maplibre-compose", version.ref = "maplibreCompose" }
+# The render backend, `runtimeOnly` on Android. OpenGL ES rather than Vulkan: it is
+# available on every API level this app ships to (minSdk 24) and on the smoke gate's
+# swiftshader emulator, where Vulkan is not.
+maplibre-compose-runtime = { module = "org.maplibre.compose:maplibre-compose-runtime-opengl-android", version.ref = "maplibreCompose" }
+
+paging-runtime = { module = "androidx.paging:paging-runtime", version.ref = "paging" }
+paging-common = { module = "androidx.paging:paging-common", version.ref = "paging" }
+paging-compose = { module = "androidx.paging:paging-compose", version.ref = "paging" }
+paging-testing = { module = "androidx.paging:paging-testing", version.ref = "paging" }
+
+# Third Party
+koinCore = { module = "io.insert-koin:koin-core", version.ref = "koin" }
+koin = { module = "io.insert-koin:koin-androidx-compose", version.ref = "koin" }
+koinMultiplatform = { module = "io.insert-koin:koin-compose", version.ref = "koin" }
+koinComposeViewmodel = { module = "io.insert-koin:koin-compose-viewmodel", version.ref = "koin" }
+koinTest = { module = "io.insert-koin:koin-test", version.ref = "koin-test" }
+zoomable = { module = "net.engawapg.lib:zoomable", version.ref = "zoomable" }
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junit-version" }
+espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso-core" }
+lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle-runtime-ktx" }
+lifecycle-process = { group = "androidx.lifecycle", name = "lifecycle-process", version.ref = "lifecycle-runtime-ktx" }
+ui = { group = "androidx.compose.ui", name = "ui" }
+ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
+ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
+ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+ui-test = { group = "androidx.compose.ui", name = "ui-test" }
+kotlinx-io = { group = "org.jetbrains.kotlinx", name = "kotlinx-io-core", version.ref = "kotlinx-io" }
+kotlin-test = { group = "org.jetbrains.kotlin", name = "kotlin-test", version.ref = "kotlin-test" }
+kotlin-reflect = { group = "org.jetbrains.kotlin", name = "kotlin-reflect", version.ref = "kotlin-test" }
+runner = { group = "androidx.test", name = "runner", version.ref = "runner" }
+androidxTestCore = { group = "androidx.test", name = "core", version.ref = "core" }
+testCoreKtx = { module = "androidx.test:core-ktx", version.ref = "androidx-test-core-ktx" }
+androidxTestRules = { group = "androidx.test", name = "rules", version.ref = "core" }
+
+ktorClientCore = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
+ktorClientOkhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
+ktorClientJs = { module = "io.ktor:ktor-client-js", version.ref = "ktor" }
+# iOS HTTP engine. The rendezvous relay client (RelayRendezvousTaskTransport,
+# :sync-service-proxy) uses OkHttp on JVM/Android and Js on web; the Darwin
+# engine is its iOS counterpart. Wired into the iOS client packaging in
+# Phase 6b (docs/proposals/ios-proxy-architecture.md) — no iOS-exported
+# module consumes an HttpClient engine yet.
+ktorClientDarwin = { module = "io.ktor:ktor-client-darwin", version.ref = "ktor" }
+ktorClientMock = { module = "io.ktor:ktor-client-mock", version.ref = "ktor" }
+# The JVM jar: desktop Control (jvmMain) and the IN-3 desktop harness (jvmTest).
+onnxRuntime = { module = "com.microsoft.onnxruntime:onnxruntime", version.ref = "onnxRuntime" }
+# ⚠⚠ A DIFFERENT ARTIFACT, not a variant. `com.microsoft.onnxruntime:onnxruntime` is a JVM jar with
+# no native libraries for Android ABIs; the device needs this AAR, which ships a `.so` per ABI.
+# Reusing the jar compiles and then fails at runtime with `UnsatisfiedLinkError` — a failure that
+# looks like a device problem and is a dependency problem (`inference-service.md` §15.2).
+onnxRuntimeAndroid = { module = "com.microsoft.onnxruntime:onnxruntime-android", version.ref = "onnxRuntime" }
+# ⚠ Face detection + the 478-point mesh, from which IN-6's five alignment points are read
+# (`FaceMesh`). Android only — see the version comment.
+mediapipeTasksVision = { module = "com.google.mediapipe:tasks-vision", version.ref = "mediapipeTasksVision" }
+ktorClientContentNegotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktor" }
+ktorSerializationJson = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
+
+ktor-server-core = { module = "io.ktor:ktor-server-core-jvm", version.ref = "ktor" }
+ktor-server-netty = { module = "io.ktor:ktor-server-netty-jvm", version.ref = "ktor" }
+ktor-server-content-negotiation = { module = "io.ktor:ktor-server-content-negotiation-jvm", version.ref = "ktor" }
+ktor-server-call-logging = { module = "io.ktor:ktor-server-call-logging-jvm", version.ref = "ktor" }
+ktor-server-status-pages = { module = "io.ktor:ktor-server-status-pages-jvm", version.ref = "ktor" }
+ktor-server-cors = { module = "io.ktor:ktor-server-cors-jvm", version.ref = "ktor" }
+ktor-server-test-host = { module = "io.ktor:ktor-server-test-host-jvm", version.ref = "ktor" }
+ktor-server-rate-limit = { module = "io.ktor:ktor-server-rate-limit-jvm", version.ref = "ktor" }
+ktor-server-forwarded-header = { module = "io.ktor:ktor-server-forwarded-header-jvm", version.ref = "ktor" }
+ktor-server-html-builder = { module = "io.ktor:ktor-server-html-builder-jvm", version.ref = "ktor" }
+ktorClientCio = { module = "io.ktor:ktor-client-cio-jvm", version.ref = "ktor" }
+
+bouncycastle = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
+
+logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
+sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite-jdbc" }
+awssdk-s3 = { module = "software.amazon.awssdk:s3", version.ref = "awssdk" }
+awssdk-url-connection-client = { module = "software.amazon.awssdk:url-connection-client", version.ref = "awssdk" }
+s3mock = { module = "com.adobe.testing:s3mock", version.ref = "s3mock" }
+
+qrose = { module = "io.github.alexzhirkevich:qrose", version.ref = "qrose" }
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
+play-billing-ktx = { module = "com.android.billingclient:billing-ktx", version.ref = "play-billing" }
+androidx-camera-core = { module = "androidx.camera:camera-core", version.ref = "camerax" }
+androidx-camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "camerax" }
+androidx-camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camerax" }
+androidx-camera-view = { module = "androidx.camera:camera-view", version.ref = "camerax" }
+
+[plugins]
+
+skie = { id = "co.touchlab.skie", version.ref = "skie" }
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+android-kotlin-multiplatform-library = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
+android-lint = { id = "com.android.lint", version.ref = "agp" }
+kotlinx-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+jetbrains-compose = { id = "org.jetbrains.compose", version.ref = "jetbrains-compose" }
+ktor-plugin = { id = "io.ktor.plugin", version.ref = "ktor" }
+aboutlibraries = { id = "com.mikepenz.aboutlibraries.plugin", version.ref = "aboutlibraries" }

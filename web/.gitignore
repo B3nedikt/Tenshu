@@ -1,0 +1,3 @@
+# Workspace root — pnpm hoists shared deps here
+node_modules
+.pnpm-store

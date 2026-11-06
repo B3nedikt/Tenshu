@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      House Rule #1 / maps-region-delivery.md R1: the MapLibre AAR (via :ui-map, for workout-route
+      basemaps) merges in INTERNET, but Fit's data is in-process, health import is local (Health
+      Connect / files), the recorder is local sensors, and map tiles come from Control. Strip
+      INTERNET so "nothing leaves the device" holds at the OS boundary. Location stays (recorder).
+    -->
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+
+    <!-- Health Connect read permissions (P5.2). Requested at runtime via the HC permission
+         contract; the relay never sees this data (threat-model A34 — GDPR Art. 9, sealed plane). -->
+    <uses-permission android:name="android.permission.health.READ_EXERCISE" />
+    <!-- READ_EXERCISE yields a session's summary only; its GPS track is gated separately, and
+         without this every imported workout renders map-less (HealthConnectImporter.ROUTES_PERMISSION). -->
+    <uses-permission android:name="android.permission.health.READ_EXERCISE_ROUTES" />
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
+    <uses-permission android:name="android.permission.health.READ_DISTANCE" />
+    <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED" />
+    <uses-permission android:name="android.permission.health.READ_NUTRITION" />
+    <uses-permission android:name="android.permission.health.READ_HYDRATION" />
+    <uses-permission android:name="android.permission.health.READ_MENSTRUATION" />
+    <uses-permission android:name="android.permission.health.READ_SLEEP" />
+    <uses-permission android:name="android.permission.health.READ_WEIGHT" />
+    <!-- Height joins weight in the Body category (FP-2). A permission the importer *requires* but
+         the manifest never declares can never be granted, and the import aborts on the missing-set
+         check before reading a record — so this line is load-bearing, not decorative. -->
+    <uses-permission android:name="android.permission.health.READ_HEIGHT" />
+    <uses-permission android:name="android.permission.health.READ_RESTING_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.READ_OXYGEN_SATURATION" />
+    <uses-permission android:name="android.permission.health.READ_RESPIRATORY_RATE" />
+
+    <!-- Optional deep-history grant. Without it Health Connect returns nothing older than 30 days
+         before our first health-permission grant, so "import my whole history" would silently read
+         the same month. Requested separately, on demand (Profile / onboarding), never as part of
+         the required set: a refusal must cost only history, not the ordinary import. -->
+    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY" />
+
+    <!-- Detect / launch the Health Connect provider app (Android 13+ package visibility); plus
+         Control, which Fit reaches over Binder for the offline-region service (D6) — all region
+         egress is Control's, so INTERNET stays stripped above. -->
+    <queries>
+        <package android:name="com.google.android.apps.healthdata" />
+        <package android:name="app.tenshu.control.android" />
+        <!-- Detect-only, never launched or read from: Google Fit writes nothing to Health Connect,
+             so an import that finds none of its data must be able to say *why* rather than look
+             like our bug (ImportNotices.GOOGLE_FIT_PACKAGE). Without this entry the probe
+             reports an installed Google Fit as absent and the explanation never appears. -->
+        <package android:name="com.google.android.apps.fitness" />
+    </queries>
+
+    <!-- First-party recorder (§9.8). GPS is acquired ONLY during an active workout (no background
+         location). Route + HR are sealed-plane / GDPR Art. 9 (A34); nothing here is relay-visible.
+         Android 12+ requires FINE to be paired with COARSE (users may grant COARSE-only); the
+         recorder degrades to coarse fixes when that is all that is granted. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- On-device step counter (hardware pedometer, no network). -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <!-- BLE heart-rate strap. SCAN declares neverForLocation — we do not derive location from BLE. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <!-- The ongoing "Recording…" notification + its foreground service (GPS + the BLE device). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <!-- Fitness recorder FGS: the step counter / active workout is a `health` foreground service,
+         backed by the ACTIVITY_RECOGNITION runtime grant (the reliable type when no BLE strap is
+         paired — connectedDevice is only added once Bluetooth is granted). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
+    <!-- Battery-optimisation exemption, asked for at Start (BackgroundRunGate). A typed foreground
+         service is not enough on an aggressive OEM: ColorOS killed a live 21-minute run recording
+         mid-stride (o-kill, importance=125), and the exemption is the only lever that prevents it.
+         Same posture as Timeline's capture, which already carries this. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- The Google Takeout import runs as a `dataSync` foreground service (§9.6b): it writes tens of
+         thousands of records over minutes and must survive the app being backgrounded. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+
+    <application
+        android:name=".FitApplication"
+        android:allowBackup="false"
+        android:supportsRtl="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Health Connect's permission rationale: what Fit reads, why, and the privacy policy
+             (HealthPermissionsRationaleActivity). Health Connect opens it from the consent sheet's
+             privacy link (this filter, Android 13 and below) and from Settings → Health Connect
+             (the ViewPermissionUsageActivity alias below, Android 14+). ⚠ Its own screen, never
+             MainActivity: pointing these at the launcher opened the app instead of the explanation. -->
+        <activity
+            android:name=".HealthPermissionsRationaleActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.health.connect.action.SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
+        </activity>
+
+        <!-- The recorder watchdog's alarm target (§13.5e): after an OEM kill this is what still
+             exists, and all it does is read the journal and post "tap to pick it up". Not exported
+             — only our own alarm reaches it. -->
+        <receiver
+            android:name=".recorder.RecorderWatchdogReceiver"
+            android:exported="false" />
+
+        <!-- The recorder's foreground service (§9.8): keeps GPS + BLE-HR capture alive while a
+             workout records and the app is backgrounded. Not exported — app-internal only. -->
+        <service
+            android:name=".recorder.RecordingService"
+            android:exported="false"
+            android:foregroundServiceType="health|location|connectedDevice" />
+
+        <!-- Keeps Fit alive + shows progress during a long Google Takeout import (§9.6b). Not
+             exported — app-internal only; started by FitImportServiceLauncher. -->
+        <service
+            android:name=".FitImportForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- The reverse (push) channel for the region client: Control binds back to this service to
+             deliver stream/callback frames + OOB bytes. Same contract Drive/Maps/Timeline declare. -->
+        <service
+            android:name="org.tenshu.core.common.ClientCallbackService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="app.tenshu.control.android.IClientInterface" />
+            </intent-filter>
+        </service>
+
+        <!-- Health Connect permission rationale (Android 14+ / privacy dashboard). -->
+        <activity-alias
+            android:name="ViewPermissionUsageActivity"
+            android:exported="true"
+            android:targetActivity=".HealthPermissionsRationaleActivity"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>
+
+    </application>
+</manifest>

@@ -1,0 +1,10 @@
+# Eine Bildunterschrift pro Screen für die gerahmten Google-Play-Screenshots (scripts/store-frame render control --device phone --lang de).
+# `NN-screen: text` — der Screen-Name aus ../../screens.json (android.captured). Nur die hier genannten Screens
+# werden gerahmt. Schlicht, kurz, keine Superlative (D6); Wörter, die jeder kennt (kein „Schlüssel", kein „Realm").
+01-welcome: Synchronisation für deine Tenshu-Apps
+02-protected: Geschützt durch die Displaysperre deines Handys
+# Der Control-Slogan der Website (web/apex/locales/de/landing.json tech.control.tagline), gekürzt.
+06-settings: Ende-zu-Ende-verschlüsselt synchronisiert
+# Aus dem Realm-Abschnitt der Website (landing.json block4.body3), gekürzt.
+09-add-device: Geräte jederzeit hinzufügen und entfernen
+10-services: Starte kostenlos mit 5 GB. Mehr, wenn du es brauchst.

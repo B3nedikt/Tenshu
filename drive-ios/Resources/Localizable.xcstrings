@@ -1,0 +1,1777 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ uses Tenshu Control to %@. Get Control from the App Store, then come back to %@." : {
+      "comment" : "Set-up screen body when Control is not installed; %1$@ = app name, %2$@ = what the app uses Control for (an infinitive clause), %3$@ = app name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ nutzt Tenshu Control, um %2$@. Hol dir Control im App Store und kehre dann zu %3$@ zurück."
+          }
+        }
+      }
+    },
+    "%@ uses Tenshu Control to %@. Set it up on this iPhone to continue." : {
+      "comment" : "Set-up screen body; %1$@ = app name, %2$@ = what the app uses Control for (an infinitive clause)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ nutzt Tenshu Control, um %2$@. Richte es auf diesem iPhone ein, um fortzufahren."
+          }
+        }
+      }
+    },
+    "%d photos" : {
+      "comment" : "Album row: photo count (Kotlin Int → Int32)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d Fotos"
+          }
+        }
+      }
+    },
+    "A file named “%@” already exists. Keep both or cancel." : {
+      "comment" : "Upload conflict alert message",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine Datei namens „%@“ existiert bereits. Behalte beide oder brich ab."
+          }
+        }
+      }
+    },
+    "A file shared with you: %@" : {
+      "comment" : "Share-sheet subject; %@ = file name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine Datei wurde mit dir geteilt: %@"
+          }
+        }
+      }
+    },
+    "Accept" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Annehmen"
+          }
+        }
+      }
+    },
+    "Accept a Folder" : {
+      "comment" : "Sheet title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordner annehmen"
+          }
+        }
+      }
+    },
+    "Accept from a contact" : {
+      "comment" : "Action",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Von einem Kontakt annehmen"
+          }
+        }
+      }
+    },
+    "Actions for %@" : {
+      "comment" : "Accessibility label; %@ = file name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktionen für %@"
+          }
+        }
+      }
+    },
+    "Activity" : {
+      "comment" : "Section header / screen title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktivität"
+          }
+        }
+      }
+    },
+    "Albums" : {
+      "comment" : "Section header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alben"
+          }
+        }
+      }
+    },
+    "An invitation to connect on Tenshu" : {
+      "comment" : "Share-sheet subject sent to the invitee",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine Einladung, dich mit mir auf Tenshu zu verbinden"
+          }
+        }
+      }
+    },
+    "Anyone with this link can view" : {
+      "comment" : "Section header on the share-link sheet",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jede Person mit diesem Link kann die Datei ansehen"
+          }
+        }
+      }
+    },
+    "App" : {
+      "comment" : "Label: tab in dev harness; 'App' row in Control's About section",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App"
+          }
+        }
+      }
+    },
+    "Applies when you back up selected albums — with All Photos, a new album is already included." : {
+      "comment" : "Footer",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gilt, wenn du ausgewählte Alben sicherst – bei „Alle Fotos“ ist ein neues Album bereits enthalten."
+          }
+        }
+      }
+    },
+    "Ascending" : {
+      "comment" : "Sort direction",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aufsteigend"
+          }
+        }
+      }
+    },
+    "Ask about new albums" : {
+      "comment" : "Toggle label",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bei neuen Alben fragen"
+          }
+        }
+      }
+    },
+    "Back up" : {
+      "comment" : "Notification action: back up new album",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sichern"
+          }
+        }
+      }
+    },
+    "Back up my Photos" : {
+      "comment" : "Toggle label",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meine Fotos sichern"
+          }
+        }
+      }
+    },
+    "Back up now" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jetzt sichern"
+          }
+        }
+      }
+    },
+    "Back up “%@”?" : {
+      "comment" : "New-album notification title; %@ = album name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„%@“ sichern?"
+          }
+        }
+      }
+    },
+    "Cache size limit" : {
+      "comment" : "Picker",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cache-Größenlimit"
+          }
+        }
+      }
+    },
+    "Can't reach Tenshu Control — %@ is showing what it already has." : {
+      "comment" : "Not-connected banner; %@ = app name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenshu Control ist nicht erreichbar – %@ zeigt, was bereits vorhanden ist."
+          }
+        }
+      }
+    },
+    "Cancel" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abbrechen"
+          }
+        }
+      }
+    },
+    "Choose File" : {
+      "comment" : "Upload menu item",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datei auswählen"
+          }
+        }
+      }
+    },
+    "Choose Photo" : {
+      "comment" : "Upload menu item",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foto auswählen"
+          }
+        }
+      }
+    },
+    "Close" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schließen"
+          }
+        }
+      }
+    },
+    "Connect" : {
+      "comment" : "Title and button of the contact connect sheet",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verbinden"
+          }
+        }
+      }
+    },
+    "Connected through Control" : {
+      "comment" : "Settings: connection status",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Über Control verbunden"
+          }
+        }
+      }
+    },
+    "Connection" : {
+      "comment" : "Section header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verbindung"
+          }
+        }
+      }
+    },
+    "Continue" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weiter"
+          }
+        }
+      }
+    },
+    "Copy ID" : {
+      "comment" : "Action",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ID kopieren"
+          }
+        }
+      }
+    },
+    "Copyright 2022 The Noto Project Authors" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copyright 2022 The Noto Project Authors"
+          }
+        }
+      }
+    },
+    "Create" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erstellen"
+          }
+        }
+      }
+    },
+    "Creates a one-time link. Share it in person or send it — it works only until you connect." : {
+      "comment" : "Invite sheet footer",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erstellt einen Einmal-Link. Zeig ihn persönlich oder schick ihn – er funktioniert nur, bis ihr verbunden seid."
+          }
+        }
+      }
+    },
+    "Data and fonts" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daten und Schriften"
+          }
+        }
+      }
+    },
+    "Date Created" : {
+      "comment" : "Sort key",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erstellungsdatum"
+          }
+        }
+      }
+    },
+    "Date Modified" : {
+      "comment" : "Sort key",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Änderungsdatum"
+          }
+        }
+      }
+    },
+    "Decline" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ablehnen"
+          }
+        }
+      }
+    },
+    "Delete" : {
+      "comment" : "Action / button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Löschen"
+          }
+        }
+      }
+    },
+    "Delete “%@”?" : {
+      "comment" : "Delete confirmation alert title; %@ = file name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„%@“ löschen?"
+          }
+        }
+      }
+    },
+    "Descending" : {
+      "comment" : "Sort direction",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Absteigend"
+          }
+        }
+      }
+    },
+    "Details" : {
+      "comment" : "Section header in file details",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Details"
+          }
+        }
+      }
+    },
+    "Done" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fertig"
+          }
+        }
+      }
+    },
+    "Downloaded separately; each model shows its licence under Settings → Models" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Werden separat geladen; jedes Modell zeigt seine Lizenz unter Einstellungen → Modelle"
+          }
+        }
+      }
+    },
+    "Drive keeps your files end-to-end encrypted through Tenshu Control. To disconnect, open Control." : {
+      "comment" : "Settings footer",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drive hält deine Dateien über Tenshu Control Ende-zu-Ende-verschlüsselt. Um die Verbindung zu trennen, öffne Control."
+          }
+        }
+      }
+    },
+    "File already exists" : {
+      "comment" : "Alert title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datei existiert bereits"
+          }
+        }
+      }
+    },
+    "Files" : {
+      "comment" : "Tab title and root folder title (as Android navigation_files)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dateien"
+          }
+        }
+      }
+    },
+    "Files kept offline" : {
+      "comment" : "Section header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Offline verfügbare Dateien"
+          }
+        }
+      }
+    },
+    "Files you keep offline don't count towards this. When the cache goes over the limit, Tenshu removes the files you opened longest ago — they stay in your account and download again when you open them." : {
+      "comment" : "Cache footer",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Offline verfügbare Dateien zählen hier nicht mit. Überschreitet der Cache das Limit, entfernt Tenshu die Dateien, die du am längsten nicht geöffnet hast – sie bleiben in deinem Konto und werden beim Öffnen erneut heruntergeladen."
+          }
+        }
+      }
+    },
+    "Folder name" : {
+      "comment" : "Text field placeholder",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordnername"
+          }
+        }
+      }
+    },
+    "Generate Invite" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einladung erstellen"
+          }
+        }
+      }
+    },
+    "Generate Link" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Link erstellen"
+          }
+        }
+      }
+    },
+    "Get Tenshu Control" : {
+      "comment" : "Button: opens Control's App Store page",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenshu Control laden"
+          }
+        }
+      }
+    },
+    "Grant Access" : {
+      "comment" : "Sheet title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zugriff gewähren"
+          }
+        }
+      }
+    },
+    "Grant access to a contact" : {
+      "comment" : "Action",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einem Kontakt Zugriff gewähren"
+          }
+        }
+      }
+    },
+    "Grant access to someone you've already connected with, or invite someone new with a link or QR code." : {
+      "comment" : "Manage access footer",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gewähre jemandem Zugriff, mit dem du schon verbunden bist, oder lade eine neue Person per Link oder QR-Code ein."
+          }
+        }
+      }
+    },
+    "Icons" : {
+      "comment" : "View mode: grid",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Symbole"
+          }
+        }
+      }
+    },
+    "Invite" : {
+      "comment" : "Sheet title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einladen"
+          }
+        }
+      }
+    },
+    "Invite QR code" : {
+      "comment" : "Accessibility label",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "QR-Code der Einladung"
+          }
+        }
+      }
+    },
+    "Invite someone new" : {
+      "comment" : "Action",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neue Person einladen"
+          }
+        }
+      }
+    },
+    "Invites" : {
+      "comment" : "Section header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einladungen"
+          }
+        }
+      }
+    },
+    "Keep both" : {
+      "comment" : "Button in name-conflict alert",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beide behalten"
+          }
+        }
+      }
+    },
+    "Keep files offline by default" : {
+      "comment" : "Toggle",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dateien standardmäßig offline verfügbar halten"
+          }
+        }
+      }
+    },
+    "Libraries" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bibliotheken"
+          }
+        }
+      }
+    },
+    "Link to an existing contact" : {
+      "comment" : "Disclosure group",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit bestehendem Kontakt verknüpfen"
+          }
+        }
+      }
+    },
+    "Links" : {
+      "comment" : "Section header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Links"
+          }
+        }
+      }
+    },
+    "List" : {
+      "comment" : "View mode: list",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Liste"
+          }
+        }
+      }
+    },
+    "Loading albums…" : {
+      "comment" : "Backup scope: progress",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alben werden geladen…"
+          }
+        }
+      }
+    },
+    "Loading…" : {
+      "comment" : "Progress",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird geladen…"
+          }
+        }
+      }
+    },
+    "Manage Access" : {
+      "comment" : "File action",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zugriff verwalten"
+          }
+        }
+      }
+    },
+    "Manage storage" : {
+      "comment" : "Storage banner button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speicher verwalten"
+          }
+        }
+      }
+    },
+    "Map data © OpenStreetMap contributors" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kartendaten © OpenStreetMap-Mitwirkende"
+          }
+        }
+      }
+    },
+    "Move" : {
+      "comment" : "Action",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verschieben"
+          }
+        }
+      }
+    },
+    "Move Here" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hierher verschieben"
+          }
+        }
+      }
+    },
+    "My Shares" : {
+      "comment" : "Segment",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meine Freigaben"
+          }
+        }
+      }
+    },
+    "Name" : {
+      "comment" : "Sort key / name text field",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name"
+          }
+        }
+      }
+    },
+    "Name this contact" : {
+      "comment" : "Section header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kontakt benennen"
+          }
+        }
+      }
+    },
+    "New Folder" : {
+      "comment" : "Title / menu item",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neuer Ordner"
+          }
+        }
+      }
+    },
+    "No connected contacts to grant yet." : {
+      "comment" : "Empty state",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch keine verbundenen Kontakte, denen du Zugriff gewähren kannst."
+          }
+        }
+      }
+    },
+    "No connected contacts yet." : {
+      "comment" : "Empty state",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch keine verbundenen Kontakte."
+          }
+        }
+      }
+    },
+    "No existing contacts yet." : {
+      "comment" : "Empty state",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch keine Kontakte vorhanden."
+          }
+        }
+      }
+    },
+    "No files matching “%@”" : {
+      "comment" : "Search empty state; %@ = query",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Dateien für „%@“"
+          }
+        }
+      }
+    },
+    "No files yet" : {
+      "comment" : "Empty folder",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch keine Dateien"
+          }
+        }
+      }
+    },
+    "No subfolders here" : {
+      "comment" : "Move picker empty state",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Unterordner"
+          }
+        }
+      }
+    },
+    "No thanks" : {
+      "comment" : "Notification action: decline",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nein danke"
+          }
+        }
+      }
+    },
+    "Nothing shared from %@ yet." : {
+      "comment" : "Caption; %@ = contact name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Von %@ wurde noch nichts freigegeben."
+          }
+        }
+      }
+    },
+    "Nothing shared with you yet." : {
+      "comment" : "Empty state",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch nichts für dich freigegeben."
+          }
+        }
+      }
+    },
+    "Noto Sans (map labels)" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noto Sans (Kartenbeschriftungen)"
+          }
+        }
+      }
+    },
+    "Offline" : {
+      "comment" : "Section header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Offline"
+          }
+        }
+      }
+    },
+    "Offline map tiles built from OpenStreetMap data with the Protomaps basemap schema" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Offline-Kartenkacheln aus OpenStreetMap-Daten, erstellt mit dem Protomaps-Basemap-Schema"
+          }
+        }
+      }
+    },
+    "Ok" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        }
+      }
+    },
+    "On-device models" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modelle auf dem Gerät"
+          }
+        }
+      }
+    },
+    "Open Settings" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einstellungen öffnen"
+          }
+        }
+      }
+    },
+    "Open Tenshu Control" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenshu Control öffnen"
+          }
+        }
+      }
+    },
+    "Open online" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Online öffnen"
+          }
+        }
+      }
+    },
+    "Open-source licences" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open-Source-Lizenzen"
+          }
+        }
+      }
+    },
+    "OpenStreetMap" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OpenStreetMap"
+          }
+        }
+      }
+    },
+    "Or paste your invite link" : {
+      "comment" : "Section header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oder füge deinen Einladungslink ein"
+          }
+        }
+      }
+    },
+    "Or send this link" : {
+      "comment" : "Section header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oder sende diesen Link"
+          }
+        }
+      }
+    },
+    "Order" : {
+      "comment" : "Picker title: sort direction",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reihenfolge"
+          }
+        }
+      }
+    },
+    "Owner" : {
+      "comment" : "Badge",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eigentümer"
+          }
+        }
+      }
+    },
+    "Pending" : {
+      "comment" : "Section header / device status",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ausstehend"
+          }
+        }
+      }
+    },
+    "People with access" : {
+      "comment" : "Section header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Personen mit Zugriff"
+          }
+        }
+      }
+    },
+    "Photo Backup" : {
+      "comment" : "Section header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fotosicherung"
+          }
+        }
+      }
+    },
+    "Photon place lookup (komoot)" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photon-Ortssuche (komoot)"
+          }
+        }
+      }
+    },
+    "Photos to back up" : {
+      "comment" : "Screen title / settings row",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zu sichernde Fotos"
+          }
+        }
+      }
+    },
+    "Place names, when online lookup is on, come from OpenStreetMap data via Photon, run by komoot" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ortsnamen stammen bei aktivierter Online-Suche aus OpenStreetMap-Daten über Photon, betrieben von komoot"
+          }
+        }
+      }
+    },
+    "Preferences" : {
+      "comment" : "Settings section header ('Preferences')",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Optionen"
+          }
+        }
+      }
+    },
+    "Privacy policy" : {
+      "comment" : "Settings row that opens Tenshu's privacy policy in the browser (PrivacyPolicyLink, ios-release/Sources/PrivacyPolicy.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datenschutzerklärung"
+          }
+        }
+      }
+    },
+    "Protomaps basemap" : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protomaps-Basiskarte"
+          }
+        }
+      }
+    },
+    "Redeem Invite" : {
+      "comment" : "Sheet title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einladung einlösen"
+          }
+        }
+      }
+    },
+    "Redeem invite" : {
+      "comment" : "Action",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einladung einlösen"
+          }
+        }
+      }
+    },
+    "Remove" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entfernen"
+          }
+        }
+      }
+    },
+    "Rename" : {
+      "comment" : "Action / sheet title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Umbenennen"
+          }
+        }
+      }
+    },
+    "Revoke" : {
+      "comment" : "Button: revoke a link/share",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Widerrufen"
+          }
+        }
+      }
+    },
+    "Scan Invite QR" : {
+      "comment" : "Scanner title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einladungs-QR scannen"
+          }
+        }
+      }
+    },
+    "Scan invite QR code" : {
+      "comment" : "Button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "QR-Code der Einladung scannen"
+          }
+        }
+      }
+    },
+    "Scan the QR they're showing you, or paste their invite link below." : {
+      "comment" : "Instructions",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scanne den QR-Code, den dir die andere Person zeigt, oder füge unten ihren Einladungslink ein."
+          }
+        }
+      }
+    },
+    "Scan to connect" : {
+      "comment" : "Section header above invite QR",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zum Verbinden scannen"
+          }
+        }
+      }
+    },
+    "Security code" : {
+      "comment" : "Section header (SAS)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sicherheitscode"
+          }
+        }
+      }
+    },
+    "Set Up Tenshu Control" : {
+      "comment" : "Onboarding title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenshu Control einrichten"
+          }
+        }
+      }
+    },
+    "Set up" : {
+      "comment" : "Banner button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einrichten"
+          }
+        }
+      }
+    },
+    "Set up Tenshu Control" : {
+      "comment" : "Accessibility label",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenshu Control einrichten"
+          }
+        }
+      }
+    },
+    "Settings" : {
+      "comment" : "Screen title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einstellungen"
+          }
+        }
+      }
+    },
+    "Share" : {
+      "comment" : "OS share sheet button",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Teilen"
+          }
+        }
+      }
+    },
+    "Share Link" : {
+      "comment" : "Sheet title / file action",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Link teilen"
+          }
+        }
+      }
+    },
+    "Shared" : {
+      "comment" : "Screen title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Freigegeben"
+          }
+        }
+      }
+    },
+    "Shared folders" : {
+      "comment" : "Section header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Freigegebene Ordner"
+          }
+        }
+      }
+    },
+    "Shared with Me" : {
+      "comment" : "Segment",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Für mich freigegeben"
+          }
+        }
+      }
+    },
+    "Shared with me" : {
+      "comment" : "Section header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Für mich freigegeben"
+          }
+        }
+      }
+    },
+    "Shared with this contact so they know who connected." : {
+      "comment" : "Footer under your name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird mit diesem Kontakt geteilt, damit er weiß, wer sich verbunden hat."
+          }
+        }
+      }
+    },
+    "Size" : {
+      "comment" : "Sort key",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Größe"
+          }
+        }
+      }
+    },
+    "Someone redeemed your invite" : {
+      "comment" : "Banner title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jemand hat deine Einladung eingelöst"
+          }
+        }
+      }
+    },
+    "Sort By" : {
+      "comment" : "Picker title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sortieren nach"
+          }
+        }
+      }
+    },
+    "Storage" : {
+      "comment" : "Section header / screen title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speicher"
+          }
+        }
+      }
+    },
+    "Sync Preferences" : {
+      "comment" : "Settings row / screen title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync-Einstellungen"
+          }
+        }
+      }
+    },
+    "Tap to confirm and connect" : {
+      "comment" : "Banner subtitle",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tippe zum Bestätigen und Verbinden"
+          }
+        }
+      }
+    },
+    "Tenshu Control isn’t installed on this iPhone yet." : {
+      "comment" : "Onboarding notice",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenshu Control ist auf diesem iPhone noch nicht installiert."
+          }
+        }
+      }
+    },
+    "Tenshu Control isn’t on the App Store yet. Install it from TestFlight or Xcode to continue." : {
+      "comment" : "Onboarding notice",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tenshu Control ist noch nicht im App Store. Installiere es über TestFlight oder Xcode, um fortzufahren."
+          }
+        }
+      }
+    },
+    "The full licence text is available online." : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der vollständige Lizenztext ist online verfügbar."
+          }
+        }
+      }
+    },
+    "Their name" : {
+      "comment" : "Text field placeholder: contact's name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name der Person"
+          }
+        }
+      }
+    },
+    "Their security fingerprint" : {
+      "comment" : "Label",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sicherheits-Fingerabdruck der anderen Person"
+          }
+        }
+      }
+    },
+    "They chose this name themselves — confirm it's really them before connecting." : {
+      "comment" : "Contact prompt: self-asserted name warning",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diesen Namen hat die Person selbst gewählt – prüfe, ob sie es wirklich ist, bevor du dich verbindest."
+          }
+        }
+      }
+    },
+    "This album has %d photos that aren't backed up." : {
+      "comment" : "New-album notification body",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Album enthält %d Fotos, die nicht gesichert sind."
+          }
+        }
+      }
+    },
+    "This app is built on open-source software and open data. Each component is listed with its licence; select a library to read its licence text." : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese App baut auf Open-Source-Software und offenen Daten auf. Jede Komponente ist mit ihrer Lizenz aufgeführt; wähle eine Bibliothek, um ihren Lizenztext zu lesen."
+          }
+        }
+      }
+    },
+    "This build does not include its licence list." : {
+      "comment" : "Open-source licences (ios-about, docs/oss-licences.md)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Build enthält keine Lizenzliste."
+          }
+        }
+      }
+    },
+    "This device is still connecting to Tenshu Control. Backup choices are stored per device, so they cannot be saved yet." : {
+      "comment" : "Backup scope: identity not resolved yet",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Gerät verbindet sich noch mit Tenshu Control. Sicherungseinstellungen gelten pro Gerät und können daher noch nicht gespeichert werden."
+          }
+        }
+      }
+    },
+    "This matches the code on their screen" : {
+      "comment" : "Toggle confirming SAS match",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stimmt mit dem Code auf dem Bildschirm der anderen Person überein"
+          }
+        }
+      }
+    },
+    "Upload failed" : {
+      "comment" : "Alert title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Upload fehlgeschlagen"
+          }
+        }
+      }
+    },
+    "View" : {
+      "comment" : "Picker title in view options menu",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ansicht"
+          }
+        }
+      }
+    },
+    "View options" : {
+      "comment" : "Accessibility label",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ansichtsoptionen"
+          }
+        }
+      }
+    },
+    "Waiting for them to confirm…" : {
+      "comment" : "Progress",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Warten auf Bestätigung…"
+          }
+        }
+      }
+    },
+    "What to back up" : {
+      "comment" : "Section header on the photo backup scope screen",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zu sichernde Inhalte"
+          }
+        }
+      }
+    },
+    "When on, new files download to this device automatically." : {
+      "comment" : "Footer",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wenn aktiviert, werden neue Dateien automatisch auf dieses Gerät heruntergeladen."
+          }
+        }
+      }
+    },
+    "You" : {
+      "comment" : "Row label for the current user / profile title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Du"
+          }
+        }
+      }
+    },
+    "You haven't shared anything yet." : {
+      "comment" : "Empty state",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Du hast noch nichts freigegeben."
+          }
+        }
+      }
+    },
+    "Your name" : {
+      "comment" : "Text field / section header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Name"
+          }
+        }
+      }
+    },
+    "Your name as they'll see it" : {
+      "comment" : "Section header",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Name, wie die andere Person ihn sieht"
+          }
+        }
+      }
+    },
+    "keep your files end-to-end encrypted and synced across your devices" : {
+      "comment" : "Set-up screen: completes “%@ uses Tenshu Control to …”. German: an infinitive clause ending in “zu …”, completing “…, um”",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "deine Dateien Ende-zu-Ende-verschlüsselt und auf all deinen Geräten synchron zu halten"
+          }
+        }
+      }
+    },
+    "on this device" : {
+      "comment" : "Settings: connection subtitle",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "auf diesem Gerät"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

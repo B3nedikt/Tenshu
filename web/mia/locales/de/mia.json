@@ -1,0 +1,105 @@
+{
+  "app": {
+    "title": "Mia",
+    "tagline": "Frag nach deinen eigenen Daten – beantwortet auf diesem Gerät, Ende-zu-Ende-verschlüsselt."
+  },
+  "runtime": {
+    "connectingTitle": "Verbindung zu Tenshu wird noch hergestellt…",
+    "connectingBody": "Der Tenshu-Tab, in dem Mia läuft, ist beschäftigt. Mia lädt, sobald er antwortet.",
+    "elsewhereTitle": "Tenshu ist in einem anderen Tab geöffnet",
+    "elsewhereBody": "Tenshu läuft immer nur in einem Tab, damit deine Daten nicht auseinanderlaufen. Nutze es hier, um es in diesen Tab zu holen.",
+    "moving": "Warte, bis der andere Tab fertig gespeichert hat. Das kann bis zu zwei Minuten dauern.",
+    "movingShort": "Wird verschoben…",
+    "useHere": "Hier nutzen"
+  },
+  "crash": {
+    "title": "Etwas ist schiefgelaufen",
+    "body": "In diesem Teil von Mia ist ein unerwarteter Fehler aufgetreten. Deine Daten sind sicher – nichts wurde geändert.",
+    "retry": "Erneut versuchen",
+    "reload": "Neu laden"
+  },
+  "tabs": {
+    "label": "Mia",
+    "chat": "Chat",
+    "history": "Verlauf",
+    "grants": "Was Mia lesen darf"
+  },
+  "chat": {
+    "greetingTitle": "Hallo, ich bin Mia",
+    "greetingBody": "Frag mich nach deinem Kalender, deinen Trainings, Orten, Dateien oder Geräten – zum Beispiel „was steht morgen in meinem Kalender“ oder „Trainings letzte Woche“.",
+    "inputLabel": "Deine Frage",
+    "inputHint": "Frag Mia…",
+    "send": "Senden",
+    "thinking": "Mia denkt nach…",
+    "remaining": "{count, plural, one {# Zeichen übrig} other {# Zeichen übrig}}",
+    "lookOnly": "Im Browser schlägt Mia nur nach: Mia kann keine Geräte schalten, keine Routinen ausführen und keine Termine hinzufügen.",
+    "nothingMatched": "{explanation} – nichts gefunden.",
+    "results": "Ergebnisse",
+    "turns": "Unterhaltung",
+    "earlier": "Frühere anzeigen"
+  },
+  "hitKind": {
+    "place": "Ort",
+    "moment": "Timeline-Moment",
+    "workout": "Training",
+    "device": "Gerät",
+    "event": "Kalendertermin",
+    "file": "Datei"
+  },
+  "history": {
+    "memoryNote": "Deine Unterhaltung wird nur im Arbeitsspeicher dieses Browsers gehalten, solange Tenshu geöffnet ist. Sie wird nie gespeichert und gelöscht, wenn du dich abmeldest oder Tenshu sich sperrt – genau wie in der Mia-App.",
+    "empty": "Noch keine Unterhaltungen.",
+    "meta": "{date} · {count, plural, one {# Frage} other {# Fragen}}"
+  },
+  "grants": {
+    "title": "Was Mia lesen darf",
+    "body": "Mia liest nur, was du erlaubst – App für App. Schaltest du hier etwas aus, nutzt Mia es nicht mehr: Mia kann dann nicht daraus antworten und sagt dir das, statt so zu tun, als gäbe es dort nichts.",
+    "everywhere": "Diese Schalter gelten für Mia auf all deinen Geräten.",
+    "write": "Mia darf Termine hinzufügen",
+    "source": {
+      "FILES": "Dateien",
+      "TIMELINE": "Timeline",
+      "FITNESS": "Trainings",
+      "PLACES": "Orte",
+      "DEVICES": "Smart-Home-Geräte",
+      "ROUTINES": "Routinen",
+      "LABELS": "Fotoinhalte",
+      "VISUAL_SEARCH": "Fotosuche nach Aussehen",
+      "CALENDAR": "Kalender"
+    }
+  },
+  "errors": {
+    "error_generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+    "error_unexpected": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+    "error_internal": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+    "error_not_found": "Das ist nicht mehr verfügbar.",
+    "error_invalid_caller": "Diese App darf das nicht.",
+    "error_unannounced_session": "Tenshu muss sich neu verbinden. Bitte versuche es erneut.",
+    "error_unsupported_operation": "Diese Version unterstützt das noch nicht.",
+    "error_mia_empty_utterance": "Gib zuerst eine Frage ein.",
+    "error_mia_utterance_too_long": "Diese Frage ist zu lang. Bleib unter 500 Zeichen.",
+    "error_mia_invalid_zone": "Mia konnte deine Zeitzone nicht erkennen und hat deshalb nicht gefragt. Prüfe die Zeitzone deines Browsers und versuche es erneut.",
+    "error_mia_bad_cursor": "Frühere Nachrichten konnten nicht geladen werden. Versuche es erneut.",
+    "error_mia_bad_page_size": "Frühere Nachrichten konnten nicht geladen werden. Versuche es erneut.",
+    "error_mia_conversation_not_found": "Diese Unterhaltung gibt es nicht mehr – sie wurde gelöscht, als du dich abgemeldet hast oder Tenshu sich gesperrt hat.",
+    "error_mia_session_cleared": "Du wurdest abgemeldet oder Tenshu hat sich gesperrt, während Mia antwortete. Die Frage wurde daher nicht behalten. Frag noch einmal.",
+    "error_mia_unexpected_action": "Mia wollte etwas ändern, was im Browser nicht geht. Es wurde nichts geändert.",
+    "error_mia_unknown_source": "Mia kennt diese Quelle nicht. Es wurde nichts geändert.",
+    "error_mia_no_write_grant": "Mia kann in diese Quelle nicht schreiben. Es wurde nichts geändert.",
+    "bridge": "Tenshu ist nicht erreichbar. Stelle sicher, dass es geöffnet und entsperrt ist, und versuche es erneut.",
+    "bridge_timeout": "Tenshu hat zu lange gebraucht. Versuche es erneut.",
+    "bridge_not_permitted": "Mia darf das nicht."
+  },
+  "common": {
+    "back": "Zurück",
+    "loading": "Wird geladen…",
+    "retry": "Erneut versuchen"
+  },
+  "read": {
+    "failedTitle": "Konnte nicht geladen werden"
+  },
+  "stream": {
+    "stopped": "Aktualisierungen gestoppt – was du siehst, ist eventuell veraltet.",
+    "reconnect": "Neu verbinden"
+  }
+}

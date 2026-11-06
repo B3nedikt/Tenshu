@@ -1,0 +1,233 @@
+label-eval-open-images-mapping 1
+# The candidate label set (inference-service-proxy/src/jvmTest/resources/label-set-candidate-v1.tsv)
+# mapped onto Open Images V7's image-level classes, for scripts/inference/label-eval.py
+# (`select`, and `evaluate --truth open-images`). Every candidate label has exactly one row.
+#
+# ⚠⚠ THIS FILE IS A SET OF JUDGEMENTS AND WANTS A HUMAN REVIEW. docs/models.md §3.12.3 lists the
+# calls that were closest.
+#
+# Open Images verifies a class on SOME images only: present, absent, or not looked at.
+#   An image is POSITIVE for a label when any of its positive classes is verified present.
+#   It is NEGATIVE when none is, and any of its negative classes is verified absent.
+#   Otherwise the label was not verified on that image, and the image is in no figure of the label.
+# ⚠ A negative class is one whose absence means the label's absence: `Animal` for `animals`,
+# never `Dog`. Where the two columns differ, that is why.
+#
+# kind: one-to-one | one-to-many (by the number of positive classes) | thin | none.
+#   ⚠ `thin`: there are classes, and fewer than 20 verified positives or 20 verified negatives in
+#   a half of the corpus. Listed and counted, NOT scored. `none`: no class at all.
+# fidelity: exact (the classes mean the label) | broader (they cover more than it) | narrower
+#   (less) | proxy (they stand in for it; the note says how). Reported apart.
+# pool: verified positives and negatives for the label among the 143 494 images of the Open
+#   Images V7 validation and test sets whose Rotation is 0.0, which is what `select` chooses
+#   from. `select` recomputes both columns and refuses this file when they disagree.
+#
+# Classes are named by display name (oidv7-class-descriptions.csv), `;`-separated.
+# Columns: label<TAB>kind<TAB>fidelity<TAB>positive classes<TAB>negative classes<TAB>pool positives<TAB>pool negatives<TAB>note
+people	one-to-many	exact	Person;People	Person	28533	20176	-
+person	none	-	-	-	-	-	the prompt asks for a single person; presence does not express a count
+portrait	one-to-one	exact	Portrait	Portrait	718	280	-
+group of people	one-to-many	broader	People;Social group	People	1508	187	Open Images' People is two or more persons, not a group posed together
+crowd	one-to-one	exact	Crowd	Crowd	399	61	-
+baby	one-to-one	exact	Baby	Baby	447	230	-
+child	one-to-one	exact	Child	Child	1339	182	-
+couple	none	-	-	-	-	-	no class; Romance and Love are not a count of two
+family	thin	exact	Family	Family	32	147	-
+selfie	one-to-one	exact	Selfie	Selfie	121	65	-
+person from behind	none	-	-	-	-	-	no class for a pose
+people at a table	none	-	-	-	-	-	a relation between two classes, not a class
+team	one-to-one	broader	Team	Team	465	93	any team, the prompt asks for a sports team posing
+animals	one-to-one	exact	Animal	Animal	10121	2215	the one class whose absence means no animal; leaf classes are not added, so an image verified only as Dog is not scored for this label
+dog	one-to-one	exact	Dog	Dog	5646	393	-
+cat	one-to-one	exact	Cat	Cat	1202	218	-
+bird	one-to-one	exact	Bird	Bird	2971	449	-
+horse	one-to-one	exact	Horse	Horse	965	311	-
+cow	one-to-many	exact	Cattle;Dairy cow	Cattle	452	294	-
+sheep	one-to-one	exact	Sheep	Sheep	219	153	-
+fish	one-to-one	exact	Fish	Fish	1350	557	the live animal; Fish (Food) is another class and is not used
+insect	one-to-one	exact	Insect	Insect	1133	482	-
+butterfly	one-to-one	exact	Butterfly	Butterfly	283	130	-
+squirrel	one-to-one	exact	Squirrel	Squirrel	141	116	-
+deer	one-to-one	exact	Deer	Deer	387	125	-
+duck	one-to-one	exact	Duck	Duck	254	114	-
+farm animal	one-to-many	proxy	Cattle;Sheep;Goat;Pig;Chicken;Rooster	Animal	1179	2193	⚠ no Livestock class: the positives are six farm species, and a negative is an image with no animal at all, so the label is never tested against a wild or a pet animal
+zoo animal	one-to-one	proxy	Zoo	Zoo	568	61	the place stands in for the animal in it
+food and drink	one-to-many	exact	Food;Drink	Food	13419	4373	⚠ a negative is Food verified absent; an image of a drink alone that was verified for Food and not for Drink would count against the label
+plate of food	one-to-one	broader	Dish	Dish	10984	1246	a prepared dish, on a plate or not
+breakfast	one-to-one	exact	Breakfast	Breakfast	2575	1421	-
+sandwich	one-to-one	exact	Sandwich	Sandwich	256	141	-
+pizza	one-to-one	exact	Pizza	Pizza	231	85	-
+pasta	one-to-one	exact	Pasta	Pasta	472	58	-
+salad	one-to-one	exact	Salad	Salad	885	253	-
+soup	thin	exact	Soup	Soup	799	38	-
+burger	one-to-one	exact	Hamburger	Hamburger	292	53	-
+sushi	one-to-one	exact	Sushi	Sushi	160	74	-
+dessert	one-to-one	exact	Dessert	Dessert	2639	2526	-
+cake	one-to-one	exact	Cake	Cake	966	371	-
+ice cream	one-to-one	exact	Ice cream	Ice cream	374	289	-
+bread	one-to-one	exact	Bread	Bread	956	475	-
+fruit	one-to-one	exact	Fruit	Fruit	2317	2371	-
+vegetables	one-to-one	exact	Vegetable	Vegetable	2120	2706	-
+coffee	one-to-one	exact	Coffee (drink)	Coffee (drink)	422	173	-
+cocktail	one-to-one	exact	Cocktail	Cocktail	534	258	-
+wine	one-to-one	exact	Wine	Wine	317	182	the drink; COCO could only offer a wine glass
+beer	one-to-one	exact	Beer	Beer	285	280	-
+barbecue	one-to-one	exact	Barbecue	Barbecue	129	53	-
+plants	one-to-one	exact	Plant	Plant	23096	24103	-
+flower	one-to-one	exact	Flower	Flower	8857	7770	-
+tree	one-to-one	exact	Tree	Tree	20460	16318	-
+forest	one-to-one	exact	Forest	Forest	619	66	-
+grass	one-to-one	exact	Grass	Grass	1688	937	-
+mushroom	one-to-one	exact	Mushroom	Mushroom	291	91	-
+houseplant	one-to-one	exact	Houseplant	Houseplant	1022	589	-
+garden	one-to-one	exact	Garden	Garden	663	434	-
+cactus	one-to-one	exact	Cactus	Cactus	214	72	-
+autumn leaves	one-to-one	proxy	Autumn	Autumn	127	628	the season stands in for its leaves
+blossom	one-to-one	exact	Blossom	Blossom	250	1792	-
+landscape	thin	exact	Landscape	Landscape	810	0	-
+beach	one-to-one	exact	Beach	Beach	329	398	-
+ocean	one-to-many	broader	Ocean;Sea	Ocean;Sea	2331	554	a sea is counted as ocean
+mountain	one-to-one	exact	Mountain	Mountain	1498	117	-
+lake	one-to-one	exact	Lake	Lake	364	134	-
+river	one-to-one	exact	River	River	916	164	-
+waterfall	thin	exact	Waterfall	Waterfall	181	52	-
+desert	thin	exact	Desert	Desert	201	36	-
+snowy landscape	one-to-one	broader	Snow	Snow	1582	312	any snow, a landscape or not
+field	one-to-one	broader	Field	Field	1278	392	Open Images' Field includes sports fields
+valley	one-to-one	exact	Valley	Valley	341	228	-
+cliff	one-to-one	exact	Cliff	Cliff	337	227	-
+island	thin	exact	Island	Island	192	40	-
+canyon	one-to-one	exact	Canyon	Canyon	82	108	-
+glacier	thin	exact	Glacier	Glacier	76	42	-
+urban	one-to-many	narrower	Urban area;City;Cityscape;Downtown;Metropolis	Urban area;City	607	236	a small town's street is urban and none of these classes
+city street	one-to-one	broader	Street	Street	365	51	any street
+skyline	one-to-many	broader	Skyline;Cityscape	Skyline;Cityscape	155	97	a cityscape need not show a skyline
+tall building	one-to-many	exact	Skyscraper;Tower block	Skyscraper;Tower block	290	153	-
+house	one-to-one	exact	House	House	2746	1994	-
+bridge	one-to-one	exact	Bridge (structure)	Bridge (structure)	598	108	-
+church	one-to-many	exact	Church;Cathedral	Church;Cathedral;Place of worship	124	255	-
+castle	thin	exact	Castle	Castle	147	29	-
+market stall	one-to-many	broader	Market;Marketplace;Flea market	Market;Marketplace	344	54	a market, not one stall
+shop front	none	-	-	-	-	-	Retail is used for shop interior; no class separates a front from an interior
+train station	thin	exact	Train station	Train station	55	43	-
+airport	one-to-one	exact	Airport	Airport	191	64	-
+construction site	one-to-one	exact	Construction	Construction	93	65	-
+parking	one-to-many	exact	Parking;Parking lot	Parking;Parking lot	82	87	-
+monument	one-to-one	exact	Monument	Monument	284	628	-
+fountain	one-to-one	exact	Fountain	Fountain	104	105	-
+graffiti	thin	exact	Graffiti	Graffiti	96	21	-
+indoors	one-to-one	proxy	Room	Room	2576	167	⚠ the label §28 asks about, and Open Images has no Indoor class: a Room verified present is indoors, a Room verified absent is taken as not indoors, which a stadium or a station concourse contradicts
+living room	one-to-one	exact	Living room	Living room	153	264	-
+kitchen	one-to-one	exact	Kitchen	Kitchen	167	43	-
+bedroom	thin	exact	Bedroom	Bedroom	126	14	-
+bathroom	one-to-one	exact	Bathroom	Bathroom	192	63	-
+office	none	-	-	-	-	-	the class Office has one verified image
+restaurant	one-to-one	exact	Restaurant	Restaurant	290	203	-
+cafe	one-to-one	exact	Coffeehouse	Coffeehouse	87	49	-
+museum	thin	exact	Museum	Museum	51	33	-
+library	one-to-one	exact	Library	Library	160	60	-
+gym	thin	exact	Gym	Gym	102	41	-
+classroom	one-to-one	exact	Classroom	Classroom	106	130	-
+hotel room	none	-	-	-	-	-	Hotel has 18 verified positives and is the building, not the room
+staircase	one-to-one	exact	Stairs	Stairs	605	233	-
+shop interior	one-to-one	broader	Retail	Retail	409	198	any retail scene, inside or at the front
+transport	one-to-many	exact	Vehicle;Transport;Mode of transport	Vehicle	13259	5303	-
+car	one-to-one	exact	Car	Car	18947	4495	-
+bicycle	one-to-one	exact	Bicycle	Bicycle	980	430	-
+motorcycle	one-to-one	exact	Motorcycle	Motorcycle	544	243	-
+bus	one-to-one	exact	Bus	Bus	339	169	-
+train	one-to-one	exact	Train	Train	379	214	-
+tram	thin	exact	Tram	Tram	140	36	-
+boat	one-to-one	exact	Boat	Boat	2153	661	-
+ship	one-to-one	exact	Ship	Ship	1031	426	-
+airplane	one-to-many	exact	Airplane;Fixed-wing aircraft;Airliner	Fixed-wing aircraft;Aircraft	2929	864	Airplane itself has no verified negative
+truck	one-to-one	exact	Truck	Truck	1141	588	-
+scooter	thin	exact	Scooter	Scooter	81	33	-
+traffic	thin	exact	Traffic;Traffic congestion	Traffic;Traffic congestion	158	19	-
+documents and screens	one-to-many	proxy	Document;Screenshot;Handwriting;Whiteboard;Newspaper;Receipt;Map;Menu;Web page;Computer monitor	Document;Screenshot	1550	1183	⚠ a union of leaf classes: a negative is an image verified to be not a Document or not a Screenshot and verified as none of the others
+screenshot	one-to-one	exact	Screenshot	Screenshot	388	1029	-
+receipt	thin	exact	Receipt	Receipt	48	32	-
+document	one-to-one	exact	Document	Document	322	353	-
+handwriting	one-to-one	exact	Handwriting	Handwriting	217	129	-
+whiteboard	one-to-one	exact	Whiteboard	Whiteboard	87	66	-
+business card	thin	exact	Business card	Business card	1	0	-
+ticket	thin	exact	Ticket	Ticket	32	65	-
+menu	thin	exact	Menu	Menu	57	36	-
+book page	none	-	-	-	-	-	Book is the object, not a page of one
+form	none	-	-	-	-	-	no class
+map	thin	exact	Map	Map	195	31	-
+chart	one-to-many	broader	Chart;Diagram	Diagram	289	234	Chart has no verified negative; a diagram is counted as a chart
+slide	one-to-one	proxy	Presentation	Presentation	109	506	the class is the presentation, which may show the speaker and not the slide
+sign with text	one-to-many	exact	Signage;Sign;Street sign;Traffic sign	Signage;Sign	482	216	-
+qr code	thin	exact	QR code	QR code	4	0	-
+computer screen	one-to-one	exact	Computer monitor	Computer monitor;Display device	437	398	the class COCO lacked; its `tv` was the proxy there
+events	one-to-one	exact	Event	Event	1159	271	-
+birthday	thin	exact	Birthday	Birthday	85	40	-
+wedding	one-to-many	exact	Wedding;Wedding reception	Wedding	126	59	-
+concert	one-to-many	exact	Concert;Rock concert	Concert	100	74	-
+festival	one-to-one	exact	Festival	Festival	205	239	-
+parade	thin	exact	Parade;Pride parade	Parade	61	41	-
+sports match	one-to-one	broader	Sports	Sports	8716	2620	any sport, a match or not
+graduation	thin	exact	Graduation	Graduation	86	13	-
+conference	one-to-many	broader	Academic conference;Convention;Seminar	Academic conference;Convention;Seminar	218	124	-
+fireworks	thin	exact	Fireworks	Fireworks	93	23	-
+camping	thin	exact	Camping	Camping	43	41	-
+picnic	thin	exact	Picnic	Picnic	44	43	-
+objects	none	-	-	-	-	-	no class for "an object"
+phone	one-to-many	exact	Mobile phone;Smartphone;Telephone;Feature phone	Mobile phone;Telephone	560	153	-
+laptop	one-to-one	exact	Laptop	Laptop	367	200	-
+camera	one-to-one	exact	Camera	Camera	571	139	-
+watch	one-to-one	exact	Watch	Watch	137	152	-
+keys	none	-	-	-	-	-	Keychain alone, with 16 verified negatives
+shoes	one-to-many	exact	Shoe;Footwear	Footwear	6972	5770	-
+clothing	one-to-one	exact	Clothing	Clothing	25378	13119	-
+bag	one-to-many	exact	Bag;Handbag;Luggage and bags;Backpack	Bag;Luggage and bags	1008	124	-
+furniture	one-to-one	exact	Furniture	Furniture	2815	1969	-
+tool	one-to-one	exact	Tool	Tool	457	743	-
+toy	one-to-one	exact	Toy	Toy	1744	1405	-
+book	one-to-one	exact	Book	Book	762	232	-
+candle	one-to-one	exact	Candle	Candle	190	183	-
+jewellery	one-to-one	exact	Jewellery	Jewellery	421	632	-
+glasses	one-to-many	exact	Glasses;Sunglasses	Glasses	1660	943	-
+package	one-to-many	proxy	Box;Cardboard packaging;Packaging and labeling	Box	695	115	any box stands in for a parcel
+activities	none	-	-	-	-	-	no class for "an activity"
+running	one-to-many	exact	Running;Jogging;Cross country running	Running	258	124	-
+cycling	one-to-one	exact	Cycling	Cycling	412	98	-
+swimming	one-to-one	exact	Swimming	Swimming	505	134	-
+skiing	one-to-one	exact	Skiing	Skiing	145	80	the activity; COCO offered the skis
+snowboarding	one-to-one	exact	Snowboarding	Snowboarding	60	75	the activity; COCO offered the snowboard
+surfing	one-to-one	exact	Surfing	Surfing	143	127	the activity; COCO offered the surfboard
+climbing	one-to-many	exact	Climbing;Rock climbing	Climbing	126	120	-
+football	one-to-many	exact	Football;Soccer;American football;Gridiron football	Football;Soccer	429	504	both codes
+basketball	one-to-one	exact	Basketball (Sport)	Basketball (Sport)	152	92	-
+tennis	one-to-one	exact	Tennis	Tennis	192	68	the activity; COCO offered the racket
+yoga	thin	exact	Yoga	Yoga	71	32	-
+dancing	one-to-one	exact	Dance	Dance	718	173	-
+cooking	thin	exact	Cooking	Cooking	489	49	-
+fishing	one-to-one	exact	Fishing	Fishing	232	68	-
+sailing	one-to-many	exact	Sailing;Sailing (Sport)	Sailing	199	164	-
+skateboarding	thin	exact	Skateboarding	Skateboarding	139	42	the activity; COCO offered the skateboard
+hiking	one-to-many	exact	Hiking;Backpacking	Hiking	75	65	-
+art and media	one-to-one	narrower	Art	Art	4194	803	art, not media
+painting	one-to-one	exact	Painting	Painting	673	142	-
+drawing	one-to-many	exact	Drawing;Sketch	Drawing	843	476	-
+sculpture	one-to-many	exact	Sculpture;Statue	Sculpture	1254	553	-
+mural	one-to-one	exact	Mural	Mural	92	69	-
+poster	one-to-one	exact	Poster	Poster	1210	344	-
+logo	thin	exact	Logo	Logo	434	36	-
+tattoo	thin	exact	Tattoo	Tattoo	166	30	-
+comic	one-to-many	exact	Comics;Comic book	Comics;Comic book	64	291	-
+neon sign	thin	exact	Neon sign	Neon sign	56	44	-
+sky and weather	one-to-one	narrower	Sky	Sky	15545	75	sky, not weather
+sunset	one-to-one	exact	Sunset	Sunset	152	60	-
+sunrise	thin	exact	Sunrise	Sunrise	113	31	-
+night sky	one-to-one	broader	Night	Night	511	50	any night scene
+stars	thin	exact	Star	Star	176	31	⚠ the class is not only the night-sky kind
+moon	thin	exact	Moon;Full moon	Moon;Full moon	145	43	-
+clouds	one-to-one	exact	Cloud	Cloud	3351	98	-
+rainbow	one-to-one	exact	Rainbow	Rainbow	53	60	-
+storm	one-to-many	exact	Storm;Thunderstorm	Storm;Thunderstorm	89	52	-
+rain	one-to-one	exact	Rain	Rain	67	71	-
+snowfall	one-to-many	proxy	Blizzard;Winter storm	Blizzard;Winter storm	184	65	a snowstorm stands in for falling snow
+fog	thin	exact	Fog;Mist	Fog;Mist	195	29	mist is counted as fog
+lightning	thin	exact	Lightning	Lightning	37	70	-

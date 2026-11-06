@@ -1,0 +1,101 @@
+# The store listing lanes (store-presence-and-support-pages.md §2.2, docs/how-to/store-listings.md).
+#
+# ⚠ Run them through scripts/store-push.sh, not by hand: the script checks the copy, assembles the
+# deliver folder from store/ (deliver cannot read store/<app>/ directly), fetches the screenshots by
+# sha256, and passes `force` only for exactly the files a preview was made of.
+#
+#   bundle exec fastlane ios preview dir:<assembled>        offline: no credentials, no network
+#   bundle exec fastlane ios push dir:<assembled> version:1.0 force:false|true [screenshots:false]
+#
+# <assembled> = build/store/deliver/<app>/ios: metadata/, screenshots/<locale>/, age_rating.json, bundle_id.
+
+opt_out_usage
+skip_docs
+
+default_platform(:ios)
+
+platform :ios do
+  def assembled(options)
+    dir = File.expand_path(options[:dir].to_s, "..") # lanes run in fastlane/; the script passes a repo path
+    UI.user_error!("dir:#{options[:dir]} is not an assembled listing — run scripts/store-push.sh") \
+      unless File.directory?(File.join(dir, "metadata")) && File.file?(File.join(dir, "bundle_id"))
+    dir
+  end
+
+  def screenshots?(dir, options)
+    options[:screenshots].to_s != "false" && !Dir.glob(File.join(dir, "screenshots", "*", "*.png")).empty?
+  end
+
+  # deliver's own HTML preview (Deliver::HtmlGenerator — the page `deliver` shows before an upload
+  # when `force` is false), rendered from the files alone. It never logs in: the name and the
+  # languages come from metadata/, so nothing here needs App Store Connect.
+  desc "Render deliver's HTML preview of an assembled listing — offline, writes nothing to App Store Connect"
+  lane :preview do |options|
+    require "deliver"
+    dir = assembled(options)
+    config = FastlaneCore::Configuration.create(Deliver::Options.available_options, {
+      app_identifier: File.read(File.join(dir, "bundle_id")).strip,
+      platform: "ios",
+      metadata_path: File.join(dir, "metadata"),
+      screenshots_path: File.join(dir, "screenshots"),
+      skip_screenshots: !screenshots?(dir, options),
+      skip_binary_upload: true
+    })
+    Deliver::UploadMetadata.new(config).load_from_filesystem
+    shots = Deliver::UploadScreenshots.new.collect_screenshots(config)
+    html = Deliver::HtmlGenerator.new.render(config, shots, dir)
+    UI.success("Preview: #{html} (#{shots.count} screenshot(s))")
+  end
+
+  desc "Push an assembled listing's metadata and screenshots to App Store Connect (never a binary, never a submission)"
+  lane :push do |options|
+    dir = assembled(options)
+    %w[ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_PATH].each do |name|
+      UI.user_error!("#{name} is not set (docs/how-to/ios-testflight.md §2.1)") if ENV[name].to_s.empty?
+    end
+    api_key = app_store_connect_api_key(
+      key_id: ENV["ASC_KEY_ID"],
+      issuer_id: ENV["ASC_ISSUER_ID"],
+      key_filepath: ENV["ASC_KEY_PATH"]
+    )
+    with_screenshots = screenshots?(dir, options)
+    # App Review Information only on `review_info:true` (store-push.sh --review-info). deliver sets
+    # demo_account_required=false whenever it writes these details without a demo account, which would
+    # wipe the sign-in entered by hand on every push, so a normal push must not write them at all:
+    # drop the assembled notes so deliver's loader finds nothing and skips the section.
+    review_info =
+      if options[:review_info].to_s == "true"
+        {
+          first_name: ENV.fetch("ASC_REVIEW_FIRST_NAME"),
+          last_name: ENV.fetch("ASC_REVIEW_LAST_NAME"),
+          email_address: ENV.fetch("ASC_REVIEW_EMAIL"),
+          phone_number: ENV.fetch("ASC_REVIEW_PHONE")
+        }
+      else
+        FileUtils.rm_rf(File.join(dir, "metadata", "review_information"))
+        nil
+      end
+    deliver(
+      api_key: api_key,
+      app_identifier: File.read(File.join(dir, "bundle_id")).strip,
+      platform: "ios",
+      app_version: options[:version],
+      metadata_path: File.join(dir, "metadata"),
+      screenshots_path: File.join(dir, "screenshots"),
+      skip_screenshots: !with_screenshots,
+      # ⚠ Replaces EVERY screenshot set of each pushed language with ours — the listing is the files.
+      overwrite_screenshots: with_screenshots,
+      app_rating_config_path: File.join(dir, "age_rating.json"),
+      app_review_information: review_info,
+      skip_binary_upload: true,
+      submit_for_review: false,
+      automatic_release: false,
+      # Only true when store-push.sh holds a preview stamp for exactly these files; otherwise deliver
+      # renders its preview and asks before it writes anything.
+      force: options[:force].to_s == "true",
+      # deliver runs precheck after the upload (read-only, warnings by default). With an API key it
+      # cannot look at in-app purchases, and refuses to run unless told not to.
+      precheck_include_in_app_purchases: false
+    )
+  end
+end

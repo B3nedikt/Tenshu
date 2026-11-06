@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly Tenshu relay content-bucket mirror
+
+[Timer]
+# Sundays 04:40 UTC — after the nightly database snapshot, not on top of it.
+OnCalendar=Sun *-*-* 04:40:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

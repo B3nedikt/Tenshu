@@ -1,0 +1,29 @@
+Tenshu Timeline records the places you visit and the trips between them, on your phone. Your timeline is encrypted before it leaves your phone, and only your own devices can read it.
+
+TENSHU TIMELINE NEEDS TENSHU CONTROL
+Tenshu Control holds your keys and connects your devices. Install Tenshu Control from Google Play and set it up first, then open Timeline. Timeline finds Control on its own.
+
+WHAT YOU CAN DO
+- Turn on Capture my timeline in Settings. Timeline asks for location and physical activity access, then for Allow all the time, so it keeps recording after you close it. While it records, Android shows a notification.
+- Read your days as a feed: the places you stayed and the trips between them, with each trip's route, distance, duration and how you traveled.
+- When a run of days looks like a journey, Timeline suggests grouping it. Accept it or say it was not a trip.
+- See all your places and their visits. Name a place, tell Timeline which one is your home, merge two that are the same, or choose the right place for a visit.
+- Import your location history from a Google Takeout export.
+- Keep the map areas of a trip offline.
+
+HOW TIMELINE KEEPS YOUR LOCATION PRIVATE
+- Timeline records your location only after you turn on Capture my timeline.
+- Your places and trips are encrypted on your device before they are uploaded. Tenshu's servers store only encrypted data, and they don't have the keys to read it.
+- The server can still see some facts it needs to sync: how much you store, how many devices you have, and when they sync.
+- Look up place names is off until you turn it on. When it is on, a place's coordinates go to a place-name service: Photon, run by komoot, or Android's own place-name lookup, which can use Google's servers.
+- Recognise places by Wi-Fi is off until you turn it on. It syncs a scrambled id, never the network name.
+- Without a storage plan, your timeline stays on this device.
+
+REQUIREMENTS
+- Android 7.0 or later.
+- Tenshu Control, set up on the same phone.
+- To sync between devices: a storage plan. The free plan has 5 GB.
+
+Tenshu is open source and still in testing: expect rough edges, and tell us what breaks.
+
+Help and common problems: tenshu.app/apps/support/en

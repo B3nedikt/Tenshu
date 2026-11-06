@@ -1,0 +1,22 @@
+Tenshu Mia answers questions about your own Tenshu data: your photos, files, places, workouts and calendar. It shows you what it found.
+
+TENSHU MIA NEEDS TENSHU CONTROL
+Tenshu Control holds your keys and connects your devices. Install Tenshu Control from the App Store and set it up first, then open Mia. Mia finds Control on its own.
+Mia answers from the data your other Tenshu apps keep, so install the apps you want to ask about.
+
+WHAT YOU CAN DO
+- Type a question about your photos, files, places, workouts or calendar, and see what Mia found.
+- Read your earlier questions and answers again in History, until you close Mia.
+
+Mia is an early preview. It understands simple questions in English, and there is no AI model behind it yet. It only reads your data and never changes anything. On a new device there is little to find, so most answers say that nothing matched.
+
+HOW MIA KEEPS YOUR QUESTIONS PRIVATE
+- Your questions are answered on your iPhone or iPad, and are not sent to a server or an AI service.
+- Mia has no voice input and does not use the microphone.
+- Your chats are not saved: they are gone when you close Mia.
+
+REQUIREMENTS
+- iOS 16 or later, on iPhone or iPad.
+- Tenshu Control, set up on the same device.
+
+Help and common problems: tenshu.app/apps/mia/support/ios/en

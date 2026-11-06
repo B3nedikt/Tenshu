@@ -1,0 +1,57 @@
+# MinIO for LOCAL DEVELOPMENT — an S3-compatible endpoint to run the relay's S3 backend against
+# without a cloud bucket (`sync-relay-persistence.md` §6; `hosting-provider-economics.md` D10 S5).
+#
+# NOT a deployment file. The production stack is docker-compose.yml beside this; nothing here is
+# ever part of it, and MinIO is not something we run in production.
+#
+#   docker compose -f docker-compose.minio.yml up -d
+#   S3_TEST_ENDPOINT=http://127.0.0.1:9000 ./gradlew :sync-relay-server:test --tests '*RealS3*'
+#
+# Setting S3_TEST_ENDPOINT points S3BlobStoreRealS3ContractTest at MinIO instead of the in-JVM
+# S3Mock it otherwise starts, so the SAME contract runs against both. Without the variable the
+# suite still runs — CI has no Docker registry access (see below), so it must not depend on this.
+#
+# ⚠⚠ **This file could not be executed where it was written.** Every container registry's blob CDN
+# — Docker Hub's CloudFront, ghcr's pkg-containers, public.ecr.aws — is unreachable from the
+# authoring environment, so the image cannot be pulled and these settings are unverified. Expect to
+# adjust them the first time someone with registry access runs it.
+#
+# ⚠ And MinIO is a *closer* stand-in than S3Mock, not a proof: the stores that break our client
+# (Hetzner, R2) break by being LESS capable than S3, and MinIO is faithful. The `aws-chunked`
+# framing bug is invisible against all three. Only the real target bucket settles that — a
+# pre-window step in docs/how-to/migrate-relay-blobs-to-s3.md.
+
+services:
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: "tenshu-dev"
+      MINIO_ROOT_PASSWORD: "tenshu-dev-secret"
+    ports:
+      - "9000:9000" # S3 API — this is the S3_ENDPOINT
+      - "9001:9001" # web console
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  # MinIO has no declarative bucket creation, so one shot of `mc` makes it and exits.
+  createbucket:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 tenshu-dev tenshu-dev-secret &&
+      mc mb --ignore-existing local/tenshu-relay-blobs &&
+      echo 'bucket ready: tenshu-relay-blobs'
+      "
+
+volumes:
+  minio_data:

@@ -1,0 +1,82 @@
+package app.tenshu.maps.data
+
+import app.tenshu.reachability.ControlReachability
+import app.tenshu.reachability.ProxyHost
+import app.tenshu.reachability.UnreachableReason
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import org.tenshu.core.collection.list.fields
+import org.tenshu.core.collection.list.getAll
+import org.tenshu.core.collection.list.select
+import org.tenshu.core.collection.list.take
+import org.tenshu.core.common.TenshuClient
+import org.tenshu.core.fold
+import org.tenshu.core.place.Place as SvcPlace
+import org.tenshu.place.client.placeService
+
+/**
+ * Maps' **one** Control-reachability engine (fit-app.md §9.14 recipe, `:app-reachability`) —
+ * a Koin single shared by [PlaceProjectionRepository] *and* [ClientRegionRepository], so the
+ * place reads, the region reads and the probe all feed the same shell banner (one signal per
+ * app, not one per repository). The probe is the cheapest possible round-trip: a one-row,
+ * one-field place select — used only by the recovery loop, never on a healthy path.
+ *
+ * [probeScope] `null` (tests, previews) disables the probe; the signal then tracks only
+ * organic read outcomes.
+ */
+fun mapsControlReachability(
+    client: TenshuClient,
+    probeScope: CoroutineScope?,
+    probeIntervalMs: Long = 5_000,
+    /**
+     * The schema-skew verdict (`core-schema-skew-surface.md` SK-1b), so the shell banner can say
+     * *update Control* rather than *can't reach Control* when the proxy is answering and refusing.
+     * ⚠ Absent (tests, previews) every outage reads as a transport problem — the pre-SK-1
+     * behaviour, not a crash.
+     */
+    schemaSkew: StateFlow<UnreachableReason.Skew?>? = null,
+    /**
+     * The realm schema pull fence (SK-3) and the proxy's published host identity (SK-2).
+     * WARN: absent, a fenced device renders no banner at all - it answers every read and looks
+     * healthy while silently receiving nothing.
+     */
+    schemaFence: StateFlow<List<String>>? = null,
+    proxyHost: StateFlow<ProxyHost?>? = null,
+    /**
+     * Whether Control's device has a realm (ADR 0025 §Decision 8) — wired on Android/desktop to
+     * `syncService.getSyncStatus()`. ⚠ Absent (iOS route-1, tests, previews), `NotSetUp` never
+     * fires.
+     */
+    controlHasRealm: app.tenshu.reachability.RealmProbe,
+): ControlReachability = ControlReachability(
+    probe = {
+        try {
+            client.placeService.places.take(1)
+                .select { fields(SvcPlace.Fields.PLACE_ID) }.getAll()
+                .fold(onSuccess = { true }, onFailure = { false })
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // A dead dispatch may throw rather than fold.
+            false
+        }
+    },
+    scope = probeScope,
+    probeIntervalMs = probeIntervalMs,
+    // R4's transport signal: reports the outage instantly instead of after a probe interval,
+    // and suppresses probing across a channel that cannot carry one.
+    transportConnected = client.proxyConnected,
+    schemaSkew = schemaSkew,
+    schemaFence = schemaFence,
+    proxyHost = proxyHost,
+    // ADR 0025: lets the shell say "Control isn't installed" instead of "open Control and unlock
+    // it" — an instruction naming an app that is not on the device. `null` (desktop today, every
+    // in-process runtime) leaves the outage worded exactly as before.
+    controlInstalled = { client.controlInstalled() },
+    // One event per call the proxy served, used to WAKE the probe rather than to answer for it —
+    // see `ControlReachability.answered`. This is what replaced the repositories' hand-written
+    // `markReachable` calls.
+    answered = client.proxyAnswered,
+    controlHasRealm = controlHasRealm,
+)

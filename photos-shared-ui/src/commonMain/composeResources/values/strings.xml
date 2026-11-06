@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ADR 0016: Photos' catalogue starts with the Control banner and walls (ADR 0025); the rest of
+         the app's strings follow in the i18n rollout. Bare apostrophes, never \' (docs/agent.md). -->
+    <string name="photos_control_wall_title">Set up Tenshu Control</string>
+    <string name="photos_control_not_set_up">Tenshu Control is installed but isn't set up on this device yet. Photos keeps your library in Control — open it to start fresh or join your other devices, then come back.</string>
+    <string name="photos_control_open_action">Open Control</string>
+    <string name="photos_control_not_installed">Tenshu Control isn't installed on this device. Photos keeps your library through Control, so there's nothing to show until it's installed.</string>
+    <string name="photos_control_not_installed_unpublished">Tenshu Control isn't installed on this device, and it isn't in the store yet — your library stays empty until it is.</string>
+    <string name="photos_control_not_installed_other_channel">Tenshu Control isn't installed on this device. Install it the same way you installed Photos.</string>
+    <string name="photos_control_get_action">Get Control</string>
+    <string name="photos_update_action">Update</string>
+    <string name="photos_control_unreachable">Can't reach Tenshu Control — your photos can't load. Make sure Control is installed and running.</string>
+    <string name="photos_control_skew_update_control">Photos is newer than Tenshu Control on this device. Update Control to keep your photos syncing.</string>
+    <string name="photos_control_skew_update_app">Tenshu Control is newer than Photos on this device. Update Photos to keep your photos syncing.</string>
+    <string name="photos_control_skew_update_both">Photos and Tenshu Control disagree on a data version. Update both to keep your photos syncing.</string>
+    <string name="photos_control_fenced_update_control">This device is behind the rest of your realm and has stopped receiving photos. Update Tenshu Control to catch up.</string>
+    <string name="photos_control_fenced_update_app">This device is behind the rest of your realm and has stopped receiving photos. Update Photos to catch up.</string>
+    <string name="photos_control_fenced_update_both">This device is behind the rest of your realm and has stopped receiving photos. Update Photos and Tenshu Control to catch up.</string>
+    <string name="photos_control_fenced_update_unknown">This device is behind the rest of your realm and has stopped receiving photos. Update Tenshu on this device to catch up.</string>
+</resources>

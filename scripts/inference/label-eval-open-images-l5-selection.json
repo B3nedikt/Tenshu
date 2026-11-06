@@ -1,0 +1,383 @@
+{
+  "format": "label-eval-selection 1",
+  "images": {
+    "count": 25996,
+    "licence": "https://creativecommons.org/licenses/by/2.0/",
+    "test": 19743,
+    "validation": 6253
+  },
+  "inputs": {
+    "annotations": [
+      {
+        "bytes": 28392297,
+        "name": "oidv7-val-annotations-human-imagelabels.csv",
+        "sha256": "92ddbdfceb3626e044df5e89100b24f6c22a79c1888a4bddd00a6f231d86d56a"
+      },
+      {
+        "bytes": 93606939,
+        "name": "oidv7-test-annotations-human-imagelabels.csv",
+        "sha256": "917d3ca8c0a2e09d652fb3148e9264df6117bfcaccf425a60a29b23269487953"
+      }
+    ],
+    "classes": {
+      "bytes": 501178,
+      "name": "oidv7-class-descriptions.csv",
+      "sha256": "84a4373a0efb7fd6d93fe19b0e7ceb6c1b855c233d13b9b78a9a33655c9fdce3"
+    },
+    "imageInfo": [
+      {
+        "bytes": 15245485,
+        "name": "validation-images-with-rotation.csv",
+        "sha256": "ed93a0e121fe345effdfc7359b848dbc64a1ff6778c8c73563157cb500b33a17"
+      },
+      {
+        "bytes": 45227339,
+        "name": "test-images-with-rotation.csv",
+        "sha256": "de55c6b8cbda32a79f4a20f28572d54e9c49d527a4006725675764074a51a36d"
+      }
+    ],
+    "labels": "c9d15726b010bb5c8e9ce6a441223046373a925286db74da635793a5405ba489",
+    "mapping": "8effec5065a33d3a0cfd1cc7f91af04773d181ba8709af10e51fd9ae5372d53b"
+  },
+  "labels": {
+    "airplane": {
+      "calibration": {
+        "negatives": 419,
+        "positives": 572
+      },
+      "held-out": {
+        "negatives": 445,
+        "positives": 602
+      },
+      "pool": {
+        "negatives": 864,
+        "positives": 2929
+      }
+    },
+    "animals": {
+      "calibration": {
+        "negatives": 599,
+        "positives": 1374
+      },
+      "held-out": {
+        "negatives": 614,
+        "positives": 1308
+      },
+      "pool": {
+        "negatives": 2215,
+        "positives": 10121
+      }
+    },
+    "bicycle": {
+      "calibration": {
+        "negatives": 207,
+        "positives": 500
+      },
+      "held-out": {
+        "negatives": 223,
+        "positives": 480
+      },
+      "pool": {
+        "negatives": 430,
+        "positives": 980
+      }
+    },
+    "bird": {
+      "calibration": {
+        "negatives": 226,
+        "positives": 574
+      },
+      "held-out": {
+        "negatives": 223,
+        "positives": 588
+      },
+      "pool": {
+        "negatives": 449,
+        "positives": 2971
+      }
+    },
+    "boat": {
+      "calibration": {
+        "negatives": 322,
+        "positives": 579
+      },
+      "held-out": {
+        "negatives": 339,
+        "positives": 517
+      },
+      "pool": {
+        "negatives": 661,
+        "positives": 2153
+      }
+    },
+    "book": {
+      "calibration": {
+        "negatives": 108,
+        "positives": 380
+      },
+      "held-out": {
+        "negatives": 124,
+        "positives": 382
+      },
+      "pool": {
+        "negatives": 232,
+        "positives": 762
+      }
+    },
+    "bus": {
+      "calibration": {
+        "negatives": 82,
+        "positives": 161
+      },
+      "held-out": {
+        "negatives": 87,
+        "positives": 178
+      },
+      "pool": {
+        "negatives": 169,
+        "positives": 339
+      }
+    },
+    "cake": {
+      "calibration": {
+        "negatives": 183,
+        "positives": 469
+      },
+      "held-out": {
+        "negatives": 188,
+        "positives": 497
+      },
+      "pool": {
+        "negatives": 371,
+        "positives": 966
+      }
+    },
+    "cat": {
+      "calibration": {
+        "negatives": 113,
+        "positives": 508
+      },
+      "held-out": {
+        "negatives": 105,
+        "positives": 510
+      },
+      "pool": {
+        "negatives": 218,
+        "positives": 1202
+      }
+    },
+    "cow": {
+      "calibration": {
+        "negatives": 139,
+        "positives": 232
+      },
+      "held-out": {
+        "negatives": 155,
+        "positives": 220
+      },
+      "pool": {
+        "negatives": 294,
+        "positives": 452
+      }
+    },
+    "dog": {
+      "calibration": {
+        "negatives": 198,
+        "positives": 650
+      },
+      "held-out": {
+        "negatives": 195,
+        "positives": 631
+      },
+      "pool": {
+        "negatives": 393,
+        "positives": 5646
+      }
+    },
+    "fruit": {
+      "calibration": {
+        "negatives": 544,
+        "positives": 535
+      },
+      "held-out": {
+        "negatives": 523,
+        "positives": 537
+      },
+      "pool": {
+        "negatives": 2371,
+        "positives": 2317
+      }
+    },
+    "furniture": {
+      "calibration": {
+        "negatives": 586,
+        "positives": 611
+      },
+      "held-out": {
+        "negatives": 548,
+        "positives": 650
+      },
+      "pool": {
+        "negatives": 1969,
+        "positives": 2815
+      }
+    },
+    "horse": {
+      "calibration": {
+        "negatives": 154,
+        "positives": 454
+      },
+      "held-out": {
+        "negatives": 157,
+        "positives": 511
+      },
+      "pool": {
+        "negatives": 311,
+        "positives": 965
+      }
+    },
+    "laptop": {
+      "calibration": {
+        "negatives": 110,
+        "positives": 182
+      },
+      "held-out": {
+        "negatives": 90,
+        "positives": 185
+      },
+      "pool": {
+        "negatives": 200,
+        "positives": 367
+      }
+    },
+    "motorcycle": {
+      "calibration": {
+        "negatives": 131,
+        "positives": 273
+      },
+      "held-out": {
+        "negatives": 112,
+        "positives": 271
+      },
+      "pool": {
+        "negatives": 243,
+        "positives": 544
+      }
+    },
+    "people": {
+      "calibration": {
+        "negatives": 2806,
+        "positives": 3213
+      },
+      "held-out": {
+        "negatives": 2819,
+        "positives": 3301
+      },
+      "pool": {
+        "negatives": 20176,
+        "positives": 28533
+      }
+    },
+    "phone": {
+      "calibration": {
+        "negatives": 73,
+        "positives": 283
+      },
+      "held-out": {
+        "negatives": 80,
+        "positives": 277
+      },
+      "pool": {
+        "negatives": 153,
+        "positives": 560
+      }
+    },
+    "pizza": {
+      "calibration": {
+        "negatives": 45,
+        "positives": 129
+      },
+      "held-out": {
+        "negatives": 40,
+        "positives": 102
+      },
+      "pool": {
+        "negatives": 85,
+        "positives": 231
+      }
+    },
+    "sheep": {
+      "calibration": {
+        "negatives": 76,
+        "positives": 105
+      },
+      "held-out": {
+        "negatives": 77,
+        "positives": 114
+      },
+      "pool": {
+        "negatives": 153,
+        "positives": 219
+      }
+    },
+    "train": {
+      "calibration": {
+        "negatives": 115,
+        "positives": 180
+      },
+      "held-out": {
+        "negatives": 99,
+        "positives": 199
+      },
+      "pool": {
+        "negatives": 214,
+        "positives": 379
+      }
+    },
+    "transport": {
+      "calibration": {
+        "negatives": 976,
+        "positives": 2266
+      },
+      "held-out": {
+        "negatives": 963,
+        "positives": 2301
+      },
+      "pool": {
+        "negatives": 5303,
+        "positives": 13259
+      }
+    },
+    "truck": {
+      "calibration": {
+        "negatives": 289,
+        "positives": 522
+      },
+      "held-out": {
+        "negatives": 299,
+        "positives": 495
+      },
+      "pool": {
+        "negatives": 588,
+        "positives": 1141
+      }
+    }
+  },
+  "minPerHalf": 20,
+  "outputs": {
+    "image-info.csv": "f40cabd229668efc5b162b808c6027cab95764b424bc9f6ea1326f8bff1e8e61",
+    "image-list.txt": "8c0ed01df8c06be892d641bf5f613ced86ac118ce7643f0f5b6209faa60e76d3",
+    "open-images-labels.csv": "2cbd947f4b2c5311d543ee8a0a51d0936248a560c50a704cd7be7f2ed98fe0c7"
+  },
+  "perLabel": 1000,
+  "pool": {
+    "images": 143494,
+    "imagesWithAVerifiedLabel": 143494,
+    "rule": "Rotation == 0.0"
+  },
+  "seed": 20261010,
+  "split": {
+    "calibration": 12998,
+    "heldOut": 12998
+  }
+}

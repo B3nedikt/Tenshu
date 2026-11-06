@@ -1,0 +1,1 @@
+Record workouts and bring in your history from Apple Health, encrypted on your devices. Only your own devices can read it. Needs Tenshu Control.

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Production logging for the sync relay. Policy and its reasons: docs/how-to/server-logging.md.
+
+  Without this file logback falls back to its BasicConfigurator, which logs EVERYTHING at DEBUG —
+  that is how the AWS SDK's per-request DEBUG lines rotated the relay's container log down to
+  ~15 minutes of history (tech-debt.md, 2026-10-01).
+
+  * LOG_LEVEL (env, default INFO) sets the level of the relay's own lines and of Ktor's
+    `io.ktor.server.Application` logger, which carries the boot lines operators grep for
+    ("Content sweep: armed, T=…", "Entitlement ENFORCED …") and the one-line-per-request call log.
+    Raise it for a debugging session only: `RELAY_LOG_LEVEL=DEBUG` in deploy.env + recreate.
+  * Third-party libraries are pinned at WARN and do NOT follow LOG_LEVEL, so DEBUG on our own code
+    does not bring the AWS SDK flood back.
+  * ⚠ LOG_LEVEL also sets the ROOT, so DEBUG raises every library NOT pinned below as well.
+  * ⚠ A misspelt LOG_LEVEL (e.g. "DEGUB", "verbose") is read by logback as DEBUG, not INFO
+    (Level.toLevel's default). LogbackConfigTest pins that, so the trap stays visible.
+  * Console only: docker's json-file driver is the store (50m x 5, sync-relay-server/docker-compose.yml).
+  * Backstop: any e-mail address in a message or a stack trace is masked to `***@domain`. The relay
+    never handles one; this is here so a library message can't put one on disk either.
+    ⚠ The regex deliberately avoids `\`, `{`, `}`, `,` and `%`: logback's option parser treats them
+    specially. LogbackConfigTest pins that it still matches.
+  * Second backstop: Ktor's engine logs a request that fails past StatusPages as
+    `<status>: <METHOD> - <path>` (DefaultEnginePipeline.logFailure: every mid-request client
+    disconnect at DEBUG, any other escape at ERROR), and the path carries capabilities (F4 of
+    relay-metadata-minimisation). The outer %replace swaps the path in that shape for the literal
+    text `<path>`.
+    RouteTemplateLoggingTest drives a real failure through this file and pins it.
+-->
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [%thread] %logger{36} - %replace(%replace(%msg){'[A-Za-z0-9._+-]+@([A-Za-z0-9-]+[.][A-Za-z0-9.-]+)', '***@$1'}){': ([A-Z]+) - /[^ ]*', ': $1 - &lt;path&gt;'}%n%replace(%ex){'[A-Za-z0-9._+-]+@([A-Za-z0-9-]+[.][A-Za-z0-9.-]+)', '***@$1'}%nopex</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Our own lines, and Ktor's application logger (boot lines + CallLogging + StatusPages). -->
+    <logger name="org.tenshu" level="${LOG_LEVEL:-INFO}"/>
+    <logger name="io.ktor.server.Application" level="${LOG_LEVEL:-INFO}"/>
+
+    <!-- Third-party: WARN regardless of LOG_LEVEL. -->
+    <logger name="io.ktor" level="WARN"/>
+    <logger name="io.netty" level="WARN"/>
+    <logger name="software.amazon.awssdk" level="WARN"/>
+    <logger name="org.sqlite" level="WARN"/>
+    <logger name="org.xerial" level="WARN"/>
+
+    <root level="${LOG_LEVEL:-INFO}">
+        <appender-ref ref="STDOUT"/>
+    </root>
+</configuration>

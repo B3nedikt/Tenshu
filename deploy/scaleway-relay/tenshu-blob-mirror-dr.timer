@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly Tenshu relay content-bucket mirror into the second region
+
+[Timer]
+# Sundays 05:40 UTC — an hour after the same-region mirror (04:40), so the two never contend; the
+# first run carries the whole bucket and may take a while.
+OnCalendar=Sun *-*-* 05:40:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

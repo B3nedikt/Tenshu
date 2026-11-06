@@ -1,0 +1,222 @@
+# The Tenshu **dev lab** stack — an OVERLAY over the production composes, not a copy of them.
+#
+#   /opt/tenshu/compose up -d          # on the box — the wrapper cloud-init writes
+#
+# which is:
+#
+#   docker compose -p tenshu-dev --project-directory /opt/tenshu/repo \
+#     -f sync-relay-server/docker-compose.yml \
+#     -f commerce-service/docker-compose.yml \
+#     -f deploy/scaleway-dev/stack/dev-overlay.yml \
+#     --env-file /opt/tenshu/dev.env up -d
+#
+# ⚠⚠ **Never run this file alone.** It defines no relay and no commerce; it only amends the two
+# production files and adds what a dev plane needs on top. `docker compose -f dev-overlay.yml up`
+# starts a Caddy with nothing behind it.
+#
+# ## Why an overlay and not its own stack
+#
+# This file replaces a 183-line fork of the three service definitions. The fork's stated reason was
+# that each production compose publishes its own Caddy on :80/:443, so merging them would produce
+# three containers fighting over the ports. That turns out not to happen: the relay's and commerce's
+# Caddy services **share the name `caddy`**, so compose merges them into ONE service — environment,
+# networks and depends_on unioned, identical port bindings de-duplicated. Verified with
+# `docker compose config`, not assumed.
+#
+# What the fork cost is the thing that matters: `relay:`'s ~25 environment lines and `commerce:`'s
+# ~30 are the plane's real configuration surface, and a copy of them drifts the moment production
+# gains a variable — as a copied cloud-init that still reads another provider's volume path fails
+# silently.
+#
+# ## The three things that genuinely do not merge
+#
+# 1. **apex is declared here, not merged in.** `web/apex/docker-compose.yml` publishes :80/:443 from
+#    the apex container itself — in production the apex image IS the edge. Compose **appends** port
+#    lists across files and offers no way to remove one, so including that file would collide with
+#    Caddy. The service body is three lines; the fidelity lost is nil.
+# 2. **`STRIPE_MODE`, `WEB_APP_ORIGIN`, `PUBLIC_BASE_URL`** get their dev values here. Production's
+#    compose declares all three with empty defaults (dropping them makes commerce refuse every
+#    browser call). A later file wins key by key, so these
+#    lines override it. ⚠⚠ The `--env-file` trap still applies: an env file feeds compose-file
+#    SUBSTITUTION only, and a container only gets what an `environment:` block names.
+# 3. **Paths resolve against the PROJECT DIRECTORY**, not against the file that spells them. That is
+#    why the invocation above passes `--project-directory /opt/tenshu/repo` and why the Caddyfile
+#    below is written from the repo root: `./Caddyfile` in the relay's file would otherwise win.
+#    A later file's mount to the same container path replaces an earlier one — also verified.
+#
+# Differences from production that are the POINT, not drift (docs/proposals/ops-dev-lab.md §4):
+#   - a different issuer seed, so a dev entitlement is worthless against the production relay;
+#   - STRIPE_MODE=fake, so checkout works end-to-end with no Stripe account;
+#   - mailpit as the SMTP transport, so OTP mail is visible and reaches nobody;
+#   - the apex image is built against THIS relay's URL (Vite inlines it — see build-apex-image.sh).
+#
+# House Rule #1 is unchanged here: the relay stores ciphertext + public keys only.
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "5"
+
+services:
+  # ---- the one front proxy ----------------------------------------------------
+  # Merged from the relay's `caddy` and commerce's `caddy`. It already carries RELAY_DOMAIN,
+  # COMMERCE_DOMAIN, ACME_EMAIL, the three port bindings and both networks; all it needs from here
+  # is the third hostname, the three-site Caddyfile, and reach to apex.
+  caddy:
+    environment:
+      APEX_DOMAIN: "${APEX_DOMAIN}"
+      DRIVE_DOMAIN: "drive.${APEX_DOMAIN}"
+      CONTACTS_DOMAIN: "contacts.${APEX_DOMAIN}"
+      CALENDAR_DOMAIN: "calendar.${APEX_DOMAIN}"
+      PHOTOS_DOMAIN: "photos.${APEX_DOMAIN}"
+      TIMELINE_DOMAIN: "timeline.${APEX_DOMAIN}"
+      MAPS_DOMAIN: "maps.${APEX_DOMAIN}"
+      FIT_DOMAIN: "fit.${APEX_DOMAIN}"
+      HOME_DOMAIN: "home.${APEX_DOMAIN}"
+      MIA_DOMAIN: "mia.${APEX_DOMAIN}"
+      # ⚠⚠ The default is load-bearing: a dev.env written before this line existed has no
+      # MAIL_SITE, an empty site address is a Caddyfile parse error, and that takes all four
+      # hostnames down, not one.
+      MAIL_SITE: "${MAIL_SITE:-http://mail.disabled.invalid}"
+      MAILPIT_TOKEN: "${MAILPIT_TOKEN:-}"
+    volumes:
+      # ⚠⚠ Replaces the production single-site Caddyfile at the same container path. Written from
+      # the repo root because that is the --project-directory; a `./Caddyfile` here would resolve
+      # to sync-relay-server/Caddyfile, which serves the relay hostname only.
+      - ./deploy/scaleway-dev/stack/Caddyfile:/etc/caddy/Caddyfile:ro
+    networks: [devnet]
+
+  # ---- commerce: the dev rail, a real Postgres, and a mail sink ----------------
+  commerce:
+    depends_on: [db, mailpit]
+    environment:
+      # Defaults to the fake rail here; production's compose leaves it empty (the real rail).
+      STRIPE_MODE: "${STRIPE_MODE:-fake}"
+      # The fake rail hosts its own confirm page and posts a signed event back to itself, so it
+      # needs to know the origin it is reachable at from a browser.
+      PUBLIC_BASE_URL: "https://${COMMERCE_DOMAIN}"
+      WEB_APP_ORIGIN: "https://${APEX_DOMAIN}"
+    networks: [devnet]
+
+  db:
+    image: postgres:16-alpine
+    logging: *default-logging
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: "commerce"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_DB: "commerce"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    expose: ["5432"]
+    networks: [devnet]
+
+  # ---- mail sink --------------------------------------------------------------
+  # Every OTP the dev plane sends lands here and nowhere else. The UI is bound to loopback: reach
+  # it with `ssh -L 8025:127.0.0.1:8025 root@<ip>`, not by opening a port.
+  mailpit:
+    image: axllent/mailpit:latest
+    logging: *default-logging
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8025:8025"
+    expose: ["1025"]
+    networks: [devnet]
+
+  # ---- apex SPA ---------------------------------------------------------------
+  # ⚠⚠ APEX_DOMAIN=":80" INSIDE this container on purpose. The image is Caddy serving the baked
+  # SPA; given a hostname it would try to get its own certificate for a port it does not hold.
+  # ":80" makes it plain HTTP on the internal network, and the front Caddy terminates TLS. This is
+  # also why web/apex/docker-compose.yml is not one of the -f files: there the container IS the edge.
+  #
+  # ⚠ The relay URL is NOT read from here — Vite inlined it at BUILD time. An apex image built
+  # against production's relay will happily serve from this box and talk to production. Build it
+  # with RELAY_URL=https://relay.<dev domain> (deploy/build-apex-image.sh, or ship-dev-stack.sh
+  # which reads the domain off the box).
+  apex:
+    image: ghcr.io/b3nedikt/tenshu-apex:${APEX_IMAGE_TAG:-latest}
+    logging: *default-logging
+    restart: unless-stopped
+    environment:
+      APEX_DOMAIN: ":80"
+      ACME_EMAIL: "${ACME_EMAIL}"
+      # Drive on its own origin, plain HTTP behind the front Caddy like the apex. The hostname is
+      # more specific than ":80", so Caddy routes drive.<domain> here and everything else to the
+      # apex. Build the image with DRIVE_ORIGIN=https://drive.<domain> (ship-dev-stack.sh does).
+      DRIVE_SITE: "http://drive.${APEX_DOMAIN}"
+      DRIVE_FRAME_ANCESTORS: "https://${APEX_DOMAIN}"
+      # Contacts, the same way (CONTACTS_ORIGIN=https://contacts.<domain> at image build).
+      CONTACTS_SITE: "http://contacts.${APEX_DOMAIN}"
+      CONTACTS_FRAME_ANCESTORS: "https://${APEX_DOMAIN}"
+      # Calendar, the same way (CALENDAR_ORIGIN=https://calendar.<domain> at image build).
+      CALENDAR_SITE: "http://calendar.${APEX_DOMAIN}"
+      CALENDAR_FRAME_ANCESTORS: "https://${APEX_DOMAIN}"
+      # Photos, the same way (PHOTOS_ORIGIN=https://photos.<domain> at image build).
+      PHOTOS_SITE: "http://photos.${APEX_DOMAIN}"
+      PHOTOS_FRAME_ANCESTORS: "https://${APEX_DOMAIN}"
+      # Timeline, the same way (TIMELINE_ORIGIN=https://timeline.<domain> at image build).
+      TIMELINE_SITE: "http://timeline.${APEX_DOMAIN}"
+      TIMELINE_FRAME_ANCESTORS: "https://${APEX_DOMAIN}"
+      # Maps, the same way (MAPS_ORIGIN=https://maps.<domain> at image build).
+      MAPS_SITE: "http://maps.${APEX_DOMAIN}"
+      MAPS_FRAME_ANCESTORS: "https://${APEX_DOMAIN}"
+      # Fit, the same way (FIT_ORIGIN=https://fit.<domain> at image build).
+      FIT_SITE: "http://fit.${APEX_DOMAIN}"
+      FIT_FRAME_ANCESTORS: "https://${APEX_DOMAIN}"
+      # Home, the same way (HOME_ORIGIN=https://home.<domain> at image build). ⚠ `HOME_*` names are
+      # their own variables; none is the shell's `$HOME`.
+      HOME_SITE: "http://home.${APEX_DOMAIN}"
+      HOME_FRAME_ANCESTORS: "https://${APEX_DOMAIN}"
+      # Mia, the same way (MIA_ORIGIN=https://mia.<domain> at image build).
+      MIA_SITE: "http://mia.${APEX_DOMAIN}"
+      MIA_FRAME_ANCESTORS: "https://${APEX_DOMAIN}"
+    # The apex image's own Caddy writes access + error logs to /var/log/caddy too (web/apex/Caddyfile).
+    # ⚠ Its OWN volume, not the front Caddy's `caddy_logs`: both would write apex.log / errors.log.
+    volumes:
+      - apex_caddy_logs:/var/log/caddy
+    expose: ["80"]
+    networks: [devnet]
+
+networks:
+  # relaynet and commercenet come from the two production files and are kept: this only adds the
+  # one network on which caddy reaches apex, and commerce reaches db + mailpit.
+  devnet:
+    driver: bridge
+
+volumes:
+  # Bind-backed by the attached block volume so an instance rebuild keeps the data.
+  # ⚠⚠ A rebuild is something you ask for (`-replace` on the instance — editing cloud-init does
+  # NOT plan one); the durable state survives it only because the volume is its own resource.
+  # See main.tf.
+  #
+  # ⚠ relay_data is REDEFINED, not added: the production file binds it to /mnt/relay_data, and this
+  # box mounts its volume at /mnt/tenshu. Overriding driver_opts here keeps cloud-init's layout.
+  relay_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: /mnt/tenshu/relay
+      o: bind
+  apex_caddy_logs:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: /mnt/tenshu/postgres
+      o: bind
+  # ⚠ In production these are plain named volumes on the root disk, so a rebuild re-issues one
+  # certificate. This plane serves THREE hostnames, and Let's Encrypt's failure budget is per
+  # hostname per hour — so the ACME state goes on the durable volume instead.
+  caddy_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: /mnt/tenshu/caddy
+      o: bind
+  caddy_config:
+    driver: local
+    driver_opts:
+      type: none
+      device: /mnt/tenshu/caddy-config
+      o: bind

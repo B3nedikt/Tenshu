@@ -1,0 +1,11 @@
+{
+  "about": "The Google Play listing's inputs beside the copy (docs/how-to/store-listings.md \u00a78): the package, the feature graphic's second line, and the phone screenshots \u2014 `manifest` keys (published captures, fetched from R2 by sha256) or a `local` folder of captures not yet published (gitignored, so a fresh clone has none) — the en-US set; `localeScreenshots` gives every other locale its own set in the same shape, or \"en-US\" for the English one.",
+  "package": "app.tenshu.calendar.android",
+  "tagline": "Private, encrypted calendar",
+  "taglines": {"de-DE": "Privater, verschl\u00fcsselter Kalender"},
+  "featureScreens": ["android/phone/en/01-month", "android/phone/en/07-week"],
+  "screenshots": {
+    "local": "build/store/play-captures/calendar"
+  },
+  "localeScreenshots": {"de-DE": "en-US"}
+}

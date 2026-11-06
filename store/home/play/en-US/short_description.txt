@@ -1,0 +1,1 @@
+Switch the devices your Tenshu Hub reports, and run your own automations.

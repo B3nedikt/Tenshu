@@ -1,0 +1,1 @@
+adressbuch,personen,telefonnummern,duplikate,zusammenführen,verifizieren,verschlüsselt,privat,e2ee

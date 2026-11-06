@@ -1,0 +1,224 @@
+#cloud-config
+# First-boot bootstrap for the Tenshu commerce-issuer instance. Rendered by Terraform
+# (templatefile) and handed to the instance as user_data. Written for a fresh Ubuntu LTS box.
+#
+# What it does:
+#   1. Install Docker Engine + compose plugin.
+#   2. Add a swapfile (`swapfile_size_gb`: 1 GB with a prebuilt image, 4 for an on-box build), cap the
+#      journal and rotate the container logs.
+#   3. Mount the attached block-storage volume at /mnt/commerce_data (Postgres data - A28 store).
+#   4. Clone the repo at the pinned ref (for the compose + Caddy files), write the env + the
+#      Postgres override, `docker compose up`.
+#
+# Separate trust boundary from the relay (commerce-billing-plane.md D1): this box holds the A29
+# signing seed + email PII (A28). TLS is load-bearing - Caddy terminates it; nothing is served
+# in clear text. deploy.env is 0600 (issuer seed + Stripe keys + db password).
+
+package_update: true
+package_upgrade: false
+
+write_files:
+  # Env consumed by commerce-service/docker-compose.yml + the Postgres override below.
+  - path: /opt/tenshu/deploy.env
+    permissions: "0600"
+    content: |
+      COMMERCE_DOMAIN=${commerce_domain}
+      ACME_EMAIL=${acme_email}
+      COMMERCE_IMAGE_TAG=${commerce_image_tag}
+      COMMERCE_DEV_MODE=${dev_mode}
+      ISSUER_ID=${issuer_id}
+      ISSUER_SEED=${issuer_seed}
+      SIGNING_KEY_ID=${signing_key_id}
+      DATABASE_URL=${database_url}
+      POSTGRES_PASSWORD=${database_password}
+      REDEMPTION_CODES=${redemption_codes}
+      TOKEN_TTL_HOURS=${token_ttl_hours}
+      TOP_TIER_QUOTA_BYTES=${top_tier_quota_bytes}
+      ADMIN_TOKEN=${admin_token}
+      ADMIN_TOTP_SECRET=${admin_totp_secret}
+      SMTP_HOST=${smtp_host}
+      SMTP_PORT=${smtp_port}
+      SMTP_FROM=${smtp_from}
+      SMTP_FROM_NAME=${smtp_from_name}
+      SMTP_USERNAME=${smtp_username}
+      SMTP_PASSWORD=${smtp_password}
+      SMTP_STARTTLS=${smtp_starttls}
+      STRIPE_SECRET_KEY=${stripe_secret_key}
+      STRIPE_WEBHOOK_SECRET=${stripe_webhook_secret}
+      STRIPE_PRICE_IDS=${stripe_price_ids}
+      WEB_APP_ORIGIN=${web_app_origin}
+      GOOGLE_PLAY_SERVICE_ACCOUNT_JSON=${google_play_service_account_json_b64}
+      GOOGLE_PLAY_RTDN_TOKEN=${google_play_rtdn_token}
+      ACCOUNT_CLOSURE_RELAY_URL=${account_closure_relay_url}
+      REVIEW_SIGNIN_ACCOUNTS=${review_signin_accounts}
+      REVIEW_SIGNIN_HMAC_KEY=${review_signin_hmac_key}
+
+  # Compose override: the durable account store (A28). The committed
+  # commerce-service/docker-compose.yml deliberately omits Postgres ("explicit deploy choice");
+  # this module bundles a postgres:16 sidecar with its data on the attached block volume so the
+  # deploy is one-command + self-contained. Point DATABASE_URL at an external managed DB instead
+  # (via the `database_url` var) and this sidecar just goes unused.
+  - path: /opt/tenshu/commerce.override.yml
+    permissions: "0644"
+    content: |
+      services:
+        commerce:
+          depends_on:
+            db:
+              condition: service_healthy
+        db:
+          image: postgres:16
+          restart: unless-stopped
+          # ⚠⚠ Spelled out here, NOT inherited. commerce-service/docker-compose.yml
+          # caps its own services with an `x-logging` anchor, but a YAML anchor does
+          # NOT cross compose files - and `db` exists only in this override, so it
+          # would keep Docker's unbounded json-file default. That default filled the
+          # relay droplet's root disk on 2026-08-15 (9.1 GB of container logs); see
+          # docs/proposals/drive-upload-stop-and-reclamation.md §4.6.
+          logging:
+            driver: json-file
+            options:
+              max-size: "50m"
+              max-file: "5"
+          environment:
+            POSTGRES_DB: commerce
+            POSTGRES_USER: commerce
+            POSTGRES_PASSWORD: "$${POSTGRES_PASSWORD}"
+          volumes:
+            - /mnt/commerce_data/pgdata:/var/lib/postgresql/data
+          networks:
+            - commercenet
+          healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U commerce -d commerce"]
+            interval: 5s
+            timeout: 5s
+            retries: 30
+
+  # Bootstrap script, invoked once by runcmd below. Kept as a file (not inline)
+  # so its output lands in /var/log/tenshu-bootstrap.log for debugging.
+  - path: /opt/tenshu/bootstrap.sh
+    permissions: "0755"
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      exec > >(tee -a /var/log/tenshu-bootstrap.log) 2>&1
+      echo "=== tenshu commerce bootstrap $(date -u) ==="
+
+      # --- 1. swap: ${swapfile_size_gb} GB (`swapfile_size_gb`), a capped journal, rotated container logs ---
+      # ⚠⚠ The swapfile lives on the ROOT disk. It used to be a fixed 4G for the on-box image build;
+      # images are prebuilt off the box now, and on commerce's 8.9G root disk those 4G filled it in
+      # October 2026, which stopped the nightly database backup for 23 days (docs/how-to/box-health.md).
+      if [ ! -f /swapfile ] && [ "${swapfile_size_gb}" -gt 0 ]; then
+        echo "creating ${swapfile_size_gb}G swapfile"
+        fallocate -l ${swapfile_size_gb}G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=$(( ${swapfile_size_gb} * 1024 ))
+        chmod 600 /swapfile
+        mkswap /swapfile
+        swapon /swapfile
+        echo '/swapfile none swap sw 0 0' >> /etc/fstab
+      fi
+      mkdir -p /etc/systemd/journald.conf.d
+      printf '[Journal]\nSystemMaxUse=200M\n' > /etc/systemd/journald.conf.d/tenshu-size.conf
+      systemctl restart systemd-journald || true
+      # Container logs rotate (json-file, 3 x 20 MB per container): Docker's default never rotates them,
+      # on the same root disk. Written before Docker is installed, so no daemon restart is needed.
+      mkdir -p /etc/docker
+      [ -f /etc/docker/daemon.json ] || printf '{ "log-driver": "json-file", "log-opts": { "max-size": "20m", "max-file": "3" } }\n' > /etc/docker/daemon.json
+
+      # --- 2. Docker Engine + compose plugin ---
+      if ! command -v docker >/dev/null 2>&1; then
+        echo "installing docker"
+        install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+          | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+        chmod a+r /etc/apt/keyrings/docker.gpg
+        . /etc/os-release
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $${VERSION_CODENAME} stable" \
+          > /etc/apt/sources.list.d/docker.list
+        apt-get update -y
+        apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+        systemctl enable --now docker
+      fi
+
+      # --- 3. mount the block-storage volume (durable: Postgres data) ---
+      #
+      # ⚠⚠ PROVIDER-NEUTRAL detection, the same as deploy/scaleway-relay: derive the ROOT disk,
+      # then take the first disk that is not it. This used to read DigitalOcean's
+      # `/dev/disk/by-id/scsi-0DO_Volume_tenshu-commerce-data`, which does not exist on Scaleway —
+      # and that took the box down on the 2026-09-14 cutover even though the fallback below it
+      # would have found /dev/sdb: `readlink -f` still PRINTS a path whose last component is
+      # missing, so VOL_DEV was never empty, the fallback never ran, and `mkfs.ext4 -F` on a
+      # nonexistent device killed the script under `set -e`, before the clone.
+      ROOT_SRC="$(findmnt -no SOURCE / 2>/dev/null || true)"
+      ROOT_DISK="$(lsblk -dpno PKNAME "$${ROOT_SRC}" 2>/dev/null || true)"
+      if [ -z "$${ROOT_DISK}" ]; then
+        # `/` sits directly on a whole disk (no partition table), so PKNAME is empty.
+        ROOT_DISK="$${ROOT_SRC}"
+      fi
+      VOL_DEV="$(lsblk -dpno NAME,TYPE | awk '$2=="disk"{print $1}' | grep -v -x -F "$${ROOT_DISK}" | head -n1 || true)"
+      if [ -n "$${VOL_DEV}" ]; then
+        echo "data volume: $${VOL_DEV} (root disk is $${ROOT_DISK})"
+      fi
+      mkdir -p /mnt/commerce_data
+      if [ -n "$${VOL_DEV}" ]; then
+        if ! blkid "$${VOL_DEV}" >/dev/null 2>&1; then
+          echo "formatting $${VOL_DEV} ext4"
+          mkfs.ext4 -F "$${VOL_DEV}"
+        fi
+        if ! mountpoint -q /mnt/commerce_data; then
+          mount "$${VOL_DEV}" /mnt/commerce_data
+        fi
+        grep -q "/mnt/commerce_data" /etc/fstab || \
+          echo "$${VOL_DEV} /mnt/commerce_data ext4 defaults,nofail,discard 0 2" >> /etc/fstab
+      else
+        echo "WARNING: no data volume found; Postgres data will live on the instance root disk"
+      fi
+      # The postgres:16 entrypoint (root) chowns its data dir to the postgres uid on init, so we
+      # only need the bind target to exist. Don't chmod 0777 - postgres rejects a too-open data dir.
+      mkdir -p /mnt/commerce_data/pgdata
+
+      # --- 4. clone repo at the pinned ref (compose + Caddy files) + bring the stack up ---
+      CLONE_URL="${git_repo_url}"
+      if [ -n "${git_token}" ]; then
+        CLONE_URL="$(echo "${git_repo_url}" | sed -e "s#^https://#https://x-access-token:${git_token}@#")"
+      fi
+      if [ ! -d /opt/tenshu/repo/.git ]; then
+        git clone "$${CLONE_URL}" /opt/tenshu/repo
+      fi
+      cd /opt/tenshu/repo
+      git remote set-url origin "$${CLONE_URL}"
+      git fetch --all --tags --prune
+      git checkout "${git_ref}"
+      git pull --ff-only origin "${git_ref}" || true
+
+      # --- bring the stack up: pull a prebuilt image, or build on-box ---
+      # commerce_image_tag set => pull ghcr.io/b3nedikt/tenshu-commerce:<tag> (fast, amd64, no
+      # RAM-hungry on-box build). Empty => build the fat jar here on first boot (needs the bigger box).
+      COMPOSE="docker compose -f commerce-service/docker-compose.yml -f /opt/tenshu/commerce.override.yml --env-file /opt/tenshu/deploy.env"
+      if [ -n "${commerce_image_tag}" ]; then
+        if [ -n "${ghcr_token}" ]; then
+          echo "logging in to ghcr.io as ${ghcr_user}"
+          echo "${ghcr_token}" | docker login ghcr.io -u "${ghcr_user}" --password-stdin
+        fi
+        echo "pulling prebuilt commerce image (tag ${commerce_image_tag})"
+        $${COMPOSE} pull commerce
+        $${COMPOSE} up -d
+      else
+        echo "building + starting commerce on-box (first build can take several minutes)"
+        $${COMPOSE} up -d --build
+      fi
+
+      echo "--- issuer public key (set the relay's ENTITLEMENT_ISSUER_PUBKEY to this) ---"
+      # The issuer logs its public key on boot; surface it here for convenience.
+      sleep 5
+      $${COMPOSE} logs commerce 2>/dev/null | grep -i "issuer public key" | tail -n1 || \
+        echo "(not logged yet - run: $${COMPOSE} logs commerce | grep -i 'issuer public key')"
+      echo "=== bootstrap done $(date -u) ==="
+
+packages:
+  - git
+  - curl
+  - ca-certificates
+  - gnupg
+
+runcmd:
+  - ["bash", "/opt/tenshu/bootstrap.sh"]

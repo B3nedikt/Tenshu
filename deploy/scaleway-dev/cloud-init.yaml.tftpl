@@ -1,0 +1,294 @@
+#cloud-config
+# First boot for the Tenshu dev lab (Scaleway, Ubuntu, x86_64). Rendered by Terraform and handed
+# over under the `cloud-init` key of the instance's user_data MAP — never as a bare string.
+#
+#   1. Docker Engine + compose plugin
+#   2. Mount the block volume at /mnt/tenshu
+#   3. Write /opt/tenshu/dev.env, clone the repo, bring the stack up
+#
+# ⚠ No firewall step here, unlike the OCI version this replaced. Oracle's Ubuntu images ship
+# iptables rules that drop 80/443 whatever the cloud-side rules say; Scaleway's do not. The
+# security group in main.tf is the whole firewall — which is also why `inbound_default_policy =
+# "drop"` there is load-bearing.
+#
+# House Rule #1 is untouched: nothing here decrypts user data.
+
+package_update: true
+package_upgrade: false
+
+packages:
+  - git
+  - curl
+  - ca-certificates
+  - gnupg
+  # ⚠ Not decoration: without `sqlite3` every verification command returns `command not found` —
+  # which reads as an empty schema when stderr is discarded
+  # (docs/how-to/move-the-relay-to-another-provider.md).
+  - sqlite3
+
+write_files:
+  # ⚠ Contains the issuer seed — 0600, root only.
+  - path: /opt/tenshu/dev.env
+    permissions: "0600"
+    owner: root:root
+    content: |
+      DEV_DOMAIN=${dev_domain}
+      RELAY_DOMAIN=${relay_domain}
+      COMMERCE_DOMAIN=${commerce_domain}
+      APEX_DOMAIN=${apex_domain}
+      ACME_EMAIL=${acme_email}
+
+      RELAY_IMAGE_TAG=${relay_image_tag}
+      COMMERCE_IMAGE_TAG=${commerce_image_tag}
+      APEX_IMAGE_TAG=${apex_image_tag}
+
+      ISSUER_SEED=${issuer_seed}
+      POSTGRES_PASSWORD=${postgres_password}
+      ISSUER_ID=tenshu.commerce.dev
+      DATABASE_URL=jdbc:postgresql://db:5432/commerce?user=commerce&password=${postgres_password_urlencoded}
+
+      # The fake rail by default: checkout completes end to end with no Stripe account at all.
+      # With the stripe_* variables set this renders `real` plus TEST-mode keys (never live —
+      # main.tf refuses one), for the hosted Checkout page and Stripe's own webhook payloads.
+      STRIPE_MODE=${stripe_mode}
+      STRIPE_SECRET_KEY=${stripe_secret_key}
+      STRIPE_WEBHOOK_SECRET=${stripe_webhook_secret}
+      STRIPE_PRICE_IDS=${stripe_price_ids}
+
+      # ⚠⚠ TRUE here, and this is not the footgun it looks like. CommerceConfig.validate() REFUSES
+      # to start when DEV_MODE=false and STRIPE_MODE=fake ("a dev-only payment rail ... illegal
+      # when DEV_MODE=false"), so the two settings this plane wants are mutually exclusive — the
+      # earlier DEV_MODE=false here could never have booted commerce at all.
+      #
+      # ⚠ What devMode actually does in commerce is relax four startup REFUSALS and nothing else
+      # (CommerceConfig.validate): the committed dev seed becomes legal, the fake rail becomes
+      # legal, SMTP becomes optional, and an admin token may skip TOTP. It enables no auth bypass
+      # at runtime — unlike the relay's DEV_MODE, which is why THAT one stays false below.
+      # This plane still supplies its own real ISSUER_SEED and a real SMTP transport, so three of
+      # the four relaxations are unused, and ADMIN_TOKEN is left unset so the fourth is too.
+      COMMERCE_DEV_MODE=true
+
+      # Mail goes to the sink. STARTTLS off — mailpit speaks plain SMTP on 1025. Supplying a real
+      # transport is what keeps the dev EmailSender (which prints the OTP to the log) out of it.
+      SMTP_HOST=mailpit
+      SMTP_PORT=1025
+      SMTP_STARTTLS=false
+      SMTP_FROM=no-reply@${apex_domain}
+      SMTP_FROM_NAME=Tenshu (dev)
+
+      # Production's budgets (20 per IP, 5 per email, per hour) are sized for strangers and would
+      # block an afternoon of your own testing, so they are RAISED here — not removed.
+      # ⚠⚠ 0 means off. Nothing leaves this box, so there is no mail to
+      # abuse — but these hostnames are public, and with no budget one caller could write
+      # commerce rows and inbox messages without limit until the disk decided otherwise.
+      OTP_SEND_PER_IP_PER_HOUR=300
+      OTP_SEND_PER_EMAIL_PER_HOUR=60
+
+      # The browser origin allowed to reach the relay and commerce: this plane's own apex.
+      CORS_ALLOWED_ORIGINS=https://${apex_domain}
+
+      # Rendered from entitlement_issuer_pubkey: set => enforcing from first boot, empty => OFF.
+      # ⚠ Empty is only for a NEW plane, before commerce has logged the key once. Do not fix an
+      # unenforced box by editing this file alone — the next rebuild re-renders it. Put the key in
+      # terraform.tfvars as well.
+      ENTITLEMENT_ENFORCE=${entitlement_enforce}
+      ENTITLEMENT_ISSUER_PUBKEY=${entitlement_issuer_pubkey}
+      ENTITLEMENT_ISSUER_KEY_ID=
+
+      # The read-only mail endpoint for sessions with no SSH (variables.tf, mailpit_token).
+      # Off => MAIL_SITE is a plain-HTTP placeholder and the token is empty.
+      MAIL_SITE=${mail_site}
+      MAILPIT_TOKEN=${mailpit_token}
+
+      # Production caps the unauthenticated realm bootstrap at 20 per IP per hour, which a test
+      # run that onboards devices in a loop would hit. Raised, not removed (0 is off): `POST
+      # /sync/realm` needs no credential at all, so with no cap an anonymous caller could mint
+      # realms forever.
+      # ⚠ Not the only credential-less relay write — `POST /sync/pairing/request` is too; it is
+      # capped per IP by `PAIRING_REQUEST_RATE_LIMIT_PER_HOUR` (compose default 120), on top of
+      # `PairingRequestInbox`'s per-owner bound (ops-dev-lab.md §4.1).
+      GENESIS_RATE_LIMIT_PER_HOUR=300
+
+  # ⚠ Written unconditionally, possibly EMPTY — bootstrap.sh gates on `-s` rather than this file's
+  # existence, so an unset ssh_ca_public_key leaves sshd exactly as the image shipped it.
+  - path: /etc/ssh/tenshu_ca.pub
+    permissions: "0644"
+    owner: root:root
+    content: |
+      ${ssh_ca_public_key}
+
+  # ⭐ The ONE place the stack's compose invocation is spelled. Every script and every runbook step
+  # goes through it — `/opt/tenshu/compose logs -f`, `… ps`, `… restart relay` — so the file list can
+  # change without a doc rewrite, and nobody reaches the box with a half-remembered `-f`.
+  - path: /opt/tenshu/compose
+    permissions: "0755"
+    content: |
+      #!/usr/bin/env bash
+      # ⚠⚠ The dev plane is the two PRODUCTION composes plus an overlay — never a stack of its own.
+      # Running any ONE of these files alone gives you a different, wrong deployment: the relay's
+      # alone is production's single-site Caddy; the overlay's alone is a Caddy with nothing behind it.
+      #
+      # Order matters (later files win) and so does --project-directory: every relative path in
+      # every one of these files resolves against IT, not against the file that spells it, which is
+      # what lets the overlay's three-site Caddyfile replace the relay's single-site one.
+      # ⚠ -p pins the project name; without it compose derives it from the FIRST -f file's
+      # directory and every container would be named sync-relay-server-*.
+      set -euo pipefail
+      cd /opt/tenshu/repo
+      exec docker compose \
+        -p tenshu-dev \
+        --project-directory /opt/tenshu/repo \
+        -f sync-relay-server/docker-compose.yml \
+        -f commerce-service/docker-compose.yml \
+        -f deploy/scaleway-dev/stack/dev-overlay.yml \
+        --env-file /opt/tenshu/dev.env \
+        "$@"
+
+  # Its own script because it runs twice: here, and again from deploy/ship-dev-stack.sh.
+  - path: /opt/tenshu/up.sh
+    permissions: "0755"
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      COMPOSE=/opt/tenshu/compose
+
+      # ⚠⚠ Two steps on purpose. caddy/db/mailpit come from public registries and always start;
+      # relay/commerce/apex come from GHCR or from `docker save | ssh docker load`, so on a first
+      # boot without GHCR credentials they are NOT on the box — and a single `up -d` would fail on
+      # the pull and start NOTHING, including Caddy, which is what obtains the TLS certificates.
+      # Certificates first, apps when they land.
+      #
+      # ⚠⚠ --no-deps is load-bearing since the merge: the production files give `caddy` a
+      # depends_on relay + commerce, so without it this first step drags in the two images that are
+      # the whole reason the step exists, and Caddy never starts on a bare box.
+      $${COMPOSE} up -d --no-deps caddy db mailpit
+      if ! $${COMPOSE} up -d; then
+        echo "⚠ relay/commerce/apex not started — their images are not on this box yet."
+        echo "  Ship them from your workstation:  ./deploy/ship-dev-stack.sh root@<ip>"
+      fi
+      $${COMPOSE} ps
+
+  - path: /opt/tenshu/bootstrap.sh
+    permissions: "0755"
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      exec > >(tee -a /var/log/tenshu-bootstrap.log) 2>&1
+      echo "=== tenshu dev-lab bootstrap $(date -u) ==="
+
+      # --- 1. Docker Engine + compose plugin ---
+      if ! command -v docker >/dev/null 2>&1; then
+        install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+          | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+        chmod a+r /etc/apt/keyrings/docker.gpg
+        . /etc/os-release
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $${VERSION_CODENAME} stable" \
+          > /etc/apt/sources.list.d/docker.list
+        apt-get update -y
+        apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+        systemctl enable --now docker
+      fi
+
+      # --- 1b. trust the SSH certificate authority, if one was supplied ---
+      # ⭐ This is what lets an AGENT in without anyone holding a long-lived key: you sign a
+      # short-lived certificate for a throwaway keypair, and it expires on its own.
+      #
+      # ⚠ Scaleway injects PROJECT ssh keys at first boot only, so the set of raw keys is fixed the
+      # moment this box exists. A certificate can be issued afterwards, which is the point.
+      #
+      # ⚠⚠ sshd ignores a TrustedUserCAKeys file it cannot read, and says so only in its own log —
+      # a bad mode here is a silent "certificate rejected" later. 0644 root:root is what it wants.
+      if [ -s /etc/ssh/tenshu_ca.pub ]; then
+        if ! grep -q "^TrustedUserCAKeys" /etc/ssh/sshd_config; then
+          echo "TrustedUserCAKeys /etc/ssh/tenshu_ca.pub" >> /etc/ssh/sshd_config
+        fi
+        # ⚠ The unit is `ssh` on Debian/Ubuntu and `sshd` elsewhere; try both rather than assume.
+        # ⚠⚠ SAY SO if the config does not validate. `sshd -t` can fail for reasons that have nothing
+        # to do with this line, and a bare `&&` would then skip the reload without a word — leaving
+        # certificate logins broken until something else happens to restart sshd, with a bootstrap
+        # log that looks clean. Never restart on an invalid config; just do not do it quietly.
+        if sshd -t; then
+          systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true
+          echo "ssh CA: trusting $(ssh-keygen -l -f /etc/ssh/tenshu_ca.pub 2>/dev/null || echo unreadable)"
+        else
+          echo "WARNING: sshd -t FAILED; the CA is configured but sshd was NOT reloaded."
+          echo "         Certificate logins will not work until sshd restarts. Run: sshd -t"
+        fi
+      else
+        echo "ssh CA: none supplied — Project keys only"
+      fi
+
+      # --- 2. the data volume ---
+      # ⚠⚠ PROVIDER-NEUTRAL detection, lifted from deploy/scaleway-relay: derive the ROOT disk,
+      # then take the first disk that is not it. Excluding `vda|sda` by name happens to work on
+      # Scaleway, but "happens to work" is not a property worth a durable data plane.
+      #
+      # ⚠ Getting this wrong does NOT fail loudly: the else branch warns and carries on with dev
+      # state on the root disk, where a rebuild silently destroys it. `findmnt /mnt/tenshu` is the
+      # check that matters, not /health.
+      ROOT_SRC="$(findmnt -no SOURCE / 2>/dev/null || true)"
+      ROOT_DISK="$(lsblk -dpno PKNAME "$${ROOT_SRC}" 2>/dev/null || true)"
+      if [ -z "$${ROOT_DISK}" ]; then
+        ROOT_DISK="$${ROOT_SRC}"
+      fi
+      VOL_DEV="$(lsblk -dpno NAME,TYPE | awk '$2=="disk"{print $1}' | grep -v -x -F "$${ROOT_DISK}" | head -n1 || true)"
+
+      mkdir -p /mnt/tenshu
+      if [ -n "$${VOL_DEV}" ]; then
+        echo "data volume: $${VOL_DEV} (root disk is $${ROOT_DISK})"
+        if ! blkid "$${VOL_DEV}" >/dev/null 2>&1; then
+          echo "formatting $${VOL_DEV} ext4"
+          mkfs.ext4 -F "$${VOL_DEV}"
+        fi
+        mountpoint -q /mnt/tenshu || mount "$${VOL_DEV}" /mnt/tenshu
+        grep -q "/mnt/tenshu" /etc/fstab || \
+          echo "$${VOL_DEV} /mnt/tenshu ext4 defaults,nofail,discard 0 2" >> /etc/fstab
+      else
+        echo "WARNING: no data volume found — dev state will live on the ROOT disk, where a rebuild destroys it"
+      fi
+      mkdir -p /mnt/tenshu/relay/relay-blobs /mnt/tenshu/postgres /mnt/tenshu/caddy /mnt/tenshu/caddy-config
+      # The relay container runs as a non-root uid.
+      chmod -R 0777 /mnt/tenshu/relay /mnt/tenshu/caddy /mnt/tenshu/caddy-config
+
+      # --- 3. repo + stack ---
+      # Only the compose file and Caddyfile are needed; nothing is built on this box.
+      CLONE_URL="${git_repo_url}"
+      if [ -n "${git_token}" ]; then
+        CLONE_URL="$(echo "${git_repo_url}" | sed -e "s#^https://#https://x-access-token:${git_token}@#")"
+      fi
+      # ⚠⚠ Clone the ref that was ASKED for. `--depth` implies `--single-branch`, so a plain
+      # `git clone --depth` followed by `git fetch --all` can only ever reach the repository's
+      # DEFAULT branch — the clone's refspec is master-only and `--all` honours it. git_ref is
+      # documented as "branch/tag/sha", so any other branch, any tag and any pinned sha would fail
+      # the `git checkout` below under `set -e`, aborting first boot before the stack starts. The
+      # failure is at the very end of a log you can only read once SSH works.
+      #
+      # `--branch` accepts a branch or a tag but NOT a raw sha, hence the fallback to a plain
+      # clone; the explicit fetch then makes the sha reachable (GitHub serves sha fetches).
+      if [ ! -d /opt/tenshu/repo/.git ]; then
+        git clone --depth 50 --branch "${git_ref}" "$${CLONE_URL}" /opt/tenshu/repo \
+          || git clone --depth 50 "$${CLONE_URL}" /opt/tenshu/repo
+      fi
+      cd /opt/tenshu/repo
+      git remote set-url origin "$${CLONE_URL}"
+      # ⚠ By REF, not `--all`: in a shallow single-branch clone `--all` fetches the default
+      # branch and nothing else. `--tags` so an annotated tag resolves to its commit.
+      git fetch --depth 50 --tags origin "${git_ref}"
+      git checkout "${git_ref}"
+      # ⚠ Load-bearing on a REBOOT, not on first boot: the fetch above moves origin/<ref>, but a
+      # checkout of a local branch stays where it was until this fast-forwards it.
+      git pull --ff-only origin "${git_ref}" || true
+
+      # ⚠ Optional: with GHCR credentials the box pulls its own images and needs no `--ship`.
+      # Without them it waits for deploy/ship-dev-stack.sh. Neither is echoed to this log.
+      if [ -n "${ghcr_token}" ]; then
+        echo "logging in to ghcr.io as ${ghcr_user}"
+        echo "${ghcr_token}" | docker login ghcr.io -u "${ghcr_user}" --password-stdin || true
+      fi
+
+      bash /opt/tenshu/up.sh || true
+      echo "=== bootstrap done $(date -u) ==="
+
+runcmd:
+  - ["bash", "/opt/tenshu/bootstrap.sh"]

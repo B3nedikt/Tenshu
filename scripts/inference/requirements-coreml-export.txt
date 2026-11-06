@@ -1,0 +1,12 @@
+# The toolchain `export-coreml-towers.py` converts with, and refuses to run outside of.
+# Python 3.13. Converts both SigLIP towers with no edit inside coremltools.
+#
+# ⚠ numpy stays below 2.4: coremltools 9.0's `_cast` turns a size-1 array into a scalar, which
+# numpy 2.4 made an error. ⚠ torch 2.7.0 is the newest torch coremltools 9.0 was tested with.
+# Bump the set together, re-run the export's self-check, and re-run the retrieval gate
+# (retrieval-gate.py, whose requirements-retrieval-gate.txt includes this file) before publishing
+# an archive from a new set.
+coremltools==9.0
+torch==2.7.0
+numpy==2.2.6
+transformers==4.53.3

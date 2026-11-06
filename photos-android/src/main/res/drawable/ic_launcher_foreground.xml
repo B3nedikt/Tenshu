@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Ported from docs/design/tenshu-icons/icons/android/foreground/photos.svg.
+  Source wraps a 64-unit-grid pictogram in <g transform="translate(84 84) scale(4.125)">.
+  Rather than bake the transform into every coordinate, the pictogram lives inside a
+  <group> with the same translate/scale so the path data is copied verbatim from the SVG
+  (the group scale also scales the 3.5 nominal stroke-width to the 14.4375 rendered width).
+  Rects and circles have no VectorDrawable primitive, so each is expressed as a path.
+  The sun is filled, never stroked, so it survives at launcher size.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="432"
+    android:viewportHeight="432">
+    <group
+        android:translateX="84"
+        android:translateY="84"
+        android:scaleX="4.125"
+        android:scaleY="4.125">
+        <!-- Back frame, open where the front frame overlaps it -->
+        <path
+            android:pathData="M 20 22 L 20 16 A 4 4 0 0 1 24 12 L 48 12 A 4 4 0 0 1 52 16 L 52 38 A 4 4 0 0 1 48 42 L 44 42"
+            android:strokeColor="#FFFBFF"
+            android:strokeWidth="3.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <!-- Front frame (rect 12,22 32x30 rx=4) -->
+        <path
+            android:pathData="M 16 22 L 40 22 A 4 4 0 0 1 44 26 L 44 48 A 4 4 0 0 1 40 52 L 16 52 A 4 4 0 0 1 12 48 L 12 26 A 4 4 0 0 1 16 22 Z"
+            android:strokeColor="#FFFBFF"
+            android:strokeWidth="3.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <!-- Sun (r=3.4) -->
+        <path
+            android:pathData="M 17.6 32 a 3.4 3.4 0 1 0 6.8 0 a 3.4 3.4 0 1 0 -6.8 0 Z"
+            android:fillColor="#FFFBFF" />
+    </group>
+</vector>

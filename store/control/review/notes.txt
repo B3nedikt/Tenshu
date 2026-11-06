@@ -1,0 +1,7 @@
+Tenshu Control is the companion app of the Tenshu apps (Tenshu Drive and others). It creates the user's realm, holds the keys and pairs devices. It needs no account and no sign-in to use on one device.
+
+To review: open Control, tap "Start fresh on this device", then "Continue". Control shows a 24-word recovery phrase; tap "I've saved it". Home, Settings and the device list are then available.
+
+"Turn on sync" is optional. It asks for an email address and then a 6-digit code. To try it without a mailbox, use the sign-in details in App Review Information: enter the user name as the email address and the password as the code (no email is sent to that address). Any address you can receive mail at also works, and a new account starts on the free plan.
+
+All user data is end-to-end encrypted on the device before it reaches our servers; the servers cannot read it.

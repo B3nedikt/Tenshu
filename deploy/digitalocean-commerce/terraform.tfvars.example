@@ -1,0 +1,77 @@
+# Copy to terraform.tfvars (git-ignored) and fill in. Then:
+#   terraform init && terraform apply
+
+# --- required ---------------------------------------------------------------
+
+# DO API token (write scope). Prefer exporting DIGITALOCEAN_TOKEN instead of
+# putting the secret in this file.
+do_token = "dop_v1_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# SSH key fingerprints/names already on your DO account (Settings > Security,
+# or `doctl compute ssh-key list`). Without one you can't SSH into the droplet.
+ssh_keys = ["aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99"]
+
+# Hostname the issuer is served on (web/architecture.md §3.4 D9) + Let's Encrypt contact email.
+domain     = "commerce.service.tenshu.app"
+acme_email = "admin@tenshu.app"
+
+# Real Ed25519 issuer signing seed, base64 (REQUIRED unless dev_mode="true").
+#   head -c 32 /dev/urandom | base64
+issuer_seed = "BASE64_32_BYTE_SEED"
+
+# Bundled-Postgres password (REQUIRED — never commit a real one; keep it in a real
+# terraform.tfvars, which is git-ignored). Generate:  openssl rand -hex 24
+database_password = "GENERATE_ME"
+
+# Outbound OTP email (REQUIRED unless dev_mode="true" — the issuer refuses to start
+# without a real transport, because the fallback prints the OTP to the container log).
+# Shown for Scaleway TEM: username = the Project ID, password = an API key's SECRET KEY.
+# For SES swap the host for email-smtp.<region>.amazonaws.com and use the SMTP credentials
+# from the SES console (NOT your AWS access keys). See docs/how-to/set-up-otp-email.md.
+smtp_host     = "smtp.tem.scaleway.com"
+smtp_from     = "no-reply@tenshu.app"
+smtp_username = "SCALEWAY_PROJECT_ID"
+smtp_password = "SCALEWAY_API_SECRET_KEY"
+# ⚠⚠ smtp_port defaults to 2587 because DigitalOcean blocks outbound 25/465/587.
+# Only set it to "587" on a host that does not block it.
+# smtp_port      = "587"
+# smtp_from_name = "Tenshu"
+
+# --- DNS --------------------------------------------------------------------
+# DO-managed DNS => leave manage_dns = true and TF creates the A record. Elsewhere
+# (Cloudflare, registrar) => set false and create an A record for `domain` -> the
+# `commerce_ip` output yourself.
+manage_dns = true
+# dns_zone = "tenshu.app"   # only if it can't be derived from `domain`
+
+# --- prebuilt-image deploy (recommended — skip the on-box build) ------------
+# Push the image via CI first (.github/workflows/commerce-image.yml), then:
+# commerce_image_tag = "latest"          # or a short commit sha, e.g. "1a2b3c4"
+# droplet_size       = "s-1vcpu-2gb"     # no on-box build => JVM + Postgres fit in 2GB
+# ghcr_token         = "ghp_xxx"         # only if the GHCR package is PRIVATE (read:packages)
+# ghcr_user          = "b3nedikt"
+
+# --- optional (sensible defaults) -------------------------------------------
+# region              = "fra1"
+# droplet_size        = "s-2vcpu-4gb"    # enough RAM to build the fat jar on-box
+# data_volume_size_gb = 10
+# git_ref             = "master"         # pin to a tag/SHA for reproducible deploys
+# ssh_allowed_cidrs   = ["203.0.113.4/32"]  # lock SSH to your IP
+# issuer_id           = "tenshu.commerce"
+# redemption_codes    = "FOUNDER-1:tenshu.drive.premium:1"  # grant yourself a tier sans Stripe
+# admin_token         = "long-random"    # read-only admin console on :8082 (SSH-tunnel only)
+
+# Read-only GitHub token, ONLY while the repo is private. Fine-grained PAT,
+# scoped to this repo, Contents: Read-only. Delete this line once the repo is public.
+# git_token = "github_pat_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# --- Stripe rail (set all three to enable paid storage) ---------------------
+# For the live TEST-MODE round-trip use sk_test_/whsec_ keys and prices created in the
+# Stripe test dashboard. The service refuses to start with the secret key but not the
+# webhook secret. Add a webhook endpoint in Stripe -> https://<domain>/commerce/webhook/stripe.
+# stripe_secret_key     = "sk_test_xxx"
+# stripe_webhook_secret = "whsec_xxx"
+# stripe_price_ids      = "tenshu.drive.basic=price_xxx,tenshu.drive.premium=price_yyy"
+
+# --- external managed Postgres (instead of the bundled sidecar) -------------
+# database_url = "jdbc:postgresql://db.example:5432/commerce?user=commerce&password=…&sslmode=require"

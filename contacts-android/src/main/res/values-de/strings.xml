@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- German (de). Mirrors ../values/strings.xml key for key; ADR 0016.
+         See the English file for per-string developer notes. -->
+    <string name="app_name">Contacts</string>
+</resources>

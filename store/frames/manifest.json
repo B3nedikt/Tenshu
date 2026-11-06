@@ -1,0 +1,58 @@
+{
+  "about": "Device bezels for the framed store screenshots (store-presence-and-support-pages.md §3.2, §3.3; docs/how-to/store-listings.md §6). The files are NOT in this repo and never may be: Apple's licence allows using a product bezel to show our app, not redistributing it. They live in the private bucket tenshu-store-fixtures and in the gitignored build/store/frames/. Per frame: `source` (the Apple Design Resources download), `file` (its name in that download — confirm on download), `sha256` and `fetch` (null until the maintainer has downloaded and uploaded it), `screen` (the transparent screen area in the bezel's own pixels — measure with `scripts/store-frame inspect`), `output` (the rendered PNG: a size App Store Connect accepts for the slot). A frame with \"kind\": \"css\" is drawn by us in CSS (web/store-frame/src/android.ts, a copy of the website's Android phone in web/apex/src/landing/carousel/appCarousel.css): nobody's device art, so no file, pin or fetch — only the capture size it takes and the output size.",
+  "version": 1,
+  "frames": {
+    "iphone69": {
+      "device": "iPhone 17 Pro Max",
+      "source": "Apple Design Resources (developer.apple.com/design/resources) → Product Bezels → iPhone 17 Pro Max, portrait",
+      "file": "iPhone 17 Pro Max - Silver - Portrait.png",
+      "licence": "⚖️ App Store Marketing Guidelines + Marketing Agreement (developer.apple.com/app-store/marketing/guidelines, read 2026-10-16): show our app on the latest device, as is (no shadow, crop, tilt, case), never beside a competing device, never redistributed; the agreement covers only apps available on the App Store. Counsel confirms before the first framed image is published (design §3.2.1).",
+      "sha256": null,
+      "fetch": null,
+      "screen": {
+        "x": null,
+        "y": null,
+        "width": null,
+        "height": null,
+        "cornerRadius": null
+      },
+      "output": {
+        "width": 1320,
+        "height": 2868
+      }
+    },
+    "ipad13": {
+      "device": "iPad Pro 13-inch (M5)",
+      "source": "Apple Design Resources (developer.apple.com/design/resources) → Product Bezels → iPad Pro 13-inch, portrait",
+      "file": "iPad Pro 13 - M5 - Space Black - Portrait.png",
+      "licence": "⚖️ App Store Marketing Guidelines + Marketing Agreement (developer.apple.com/app-store/marketing/guidelines, read 2026-10-16): show our app on the latest device, as is (no shadow, crop, tilt, case), never beside a competing device, never redistributed; the agreement covers only apps available on the App Store. Counsel confirms before the first framed image is published (design §3.2.1).",
+      "sha256": null,
+      "fetch": null,
+      "screen": {
+        "x": null,
+        "y": null,
+        "width": null,
+        "height": null,
+        "cornerRadius": null
+      },
+      "output": {
+        "width": 2064,
+        "height": 2752
+      }
+    },
+    "phone": {
+      "kind": "css",
+      "platform": "android",
+      "device": "A generic Android phone, drawn in CSS: the website's frame (appCarousel.css .shot-frame / .hub-shot--android)",
+      "licence": "None needed: drawn by us, no vendor's device art, logo or product traced (store-presence-and-support-pages.md §3.2.1). The caption face is Roboto (Apache 2.0), loaded from Google Fonts at render time.",
+      "capture": {
+        "width": 1080,
+        "height": 2400
+      },
+      "output": {
+        "width": 1242,
+        "height": 2208
+      }
+    }
+  }
+}

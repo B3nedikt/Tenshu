@@ -1,0 +1,221 @@
+# XcodeGen spec for the Photos iOS app (docs/proposals/photos-ios.md — PIO-1).
+# Mirrors calendar-ios/project.yml. The generated `PhotosIos.xcodeproj` + `Info.plist` are
+# gitignored (build from source, like the Kotlin framework + libsodium).
+#
+# Regenerate after editing:   ./gradlew generatePhotosIosProject   (or: cd photos-ios && xcodegen generate)
+# Build (simulator):          xcodebuild -project PhotosIos.xcodeproj -scheme PhotosIos \
+#                               -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' build
+#
+# ⚠ Photos is **born on route 1** (ios-first-party-route-1-migration.md): no EPC tier.
+#
+# ⚠ No `MapBearingApp` template: Photos draws no map (nor does Android's). That include would pull
+# ~40 MB of tile archive into an app with nothing to plot.
+#
+# ⚠ No `NSPhotoLibraryUsageDescription` yet: PIO-1 never touches PhotoKit — Drive runs the backup
+# drain (PIO-D5). PIO-5's album picker adds it, in the same change that first asks.
+name: PhotosIos
+options:
+  bundleIdPrefix: app.tenshu
+  deploymentTarget:
+    # Every sibling shell pins the same floor (PIO-D11). ⚠ `ContentUnavailableView` is 17+.
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+configs:
+  Debug: debug
+  # `-photosFixture` / `-photosCompactWidth` render probes only (photos-ios.md §8.3 step 6).
+  DebugHarness: debug
+  Release: release
+
+# The shared forward-to-Control surface (ADR 0022), applied below as
+# `templates: [ControlOnboardingApp]`. Photos takes the *wall* (PIO-D4): a photo library has nothing
+# legible without data, and "no photos" for an unreachable proxy says the library is gone.
+include:
+  # The shared adaptive navigation shell (N6), applied as `templates: [AdaptiveAppShell]`.
+  - path: ../ios-shell/shell.yml
+  - path: ../ios-onboarding/onboarding.yml
+  # The shared realm-storage banner (§8b.5c), applied below as `templates: [RealmStorageBanner]`.
+  - path: ../ios-storage/storage.yml
+  # Version numbers and orientations (`ReleaseApp`), and how Photos links its OWN Kotlin framework
+  # (`AppFramework`, `ios-per-app-frameworks.md` P4). Archived by `scripts/ios-archive.sh photos`.
+  - path: ../ios-release/release.yml
+  # The open-source notices (`docs/oss-licences.md`), applied below as `templates: [OssLicences]`.
+  - path: ../ios-about/about.yml
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    # Ad-hoc-signed on the SIMULATOR (CODE_SIGN_IDENTITY = "-"), matching the sibling iOS apps.
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGNING_ALLOWED: "YES"
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    # Real-device (iphoneos) builds sign for the personal team (ios-signing.md §2/§3).
+    CODE_SIGNING_REQUIRED[sdk=iphoneos*]: "YES"
+    CODE_SIGN_STYLE[sdk=iphoneos*]: Automatic
+    CODE_SIGN_IDENTITY[sdk=iphoneos*]: "Apple Development"
+    DEVELOPMENT_TEAM[sdk=iphoneos*]: ${TENSHU_TEAM_ID}
+    # Apple-silicon simulator only — matches `:tenshu-sdk-ios-photos`'s arch set.
+    EXCLUDED_ARCHS[sdk=iphonesimulator*]: x86_64
+
+targets:
+  PhotosIos:
+    type: application
+    platform: iOS
+    # The shared forward-to-Control surface (see the `include` above).
+    templates:
+      - AdaptiveAppShell
+      - ControlOnboardingApp
+      - RealmStorageBanner
+      # Version numbers and orientations for an archived build (`ios-release/release.yml`).
+      - ReleaseApp
+      - OssLicences
+      # ⚠ Photos links `:tenshu-sdk-ios-photos` (`ios-per-app-frameworks.md`
+      # P4): a `TenshuSdk` built from Photos' code and the shared core only.
+      - AppFramework
+    sources:
+      - path: Sources
+      - path: Resources
+    info:
+      path: Info.plist
+      properties:
+        # Cross-app open (`control-cross-app-open.md` CO-D4, §5i). ⚠⚠ On iOS this URL is the
+        # ONLY carrier: under route 1 every first-party app runs its own in-process proxy, so
+        # there is no channel between two apps for a request to be pushed down.
+        # ⚠⚠ The scheme is DERIVED from the appId (`app.tenshu.photos` -> `tenshu-photos`), never
+        # authored — `OpenTargetUrl.schemeFor` is the single source and a test pins the mapping.
+        # ⚠ This file is the source; `Info.plist` is generated and gitignored.
+        CFBundleURLTypes:
+          - CFBundleURLName: app.tenshu.photos.open
+            CFBundleURLSchemes:
+              - tenshu-photos
+        # Lets canOpenURL("tenshu-control://services") answer truthfully so the storage banner
+        # can offer "Manage storage". ⚠⚠ Without it iOS reports Control absent even when
+        # installed and the action silently disappears.
+        LSApplicationQueriesSchemes:
+          - tenshu-control
+        CFBundleDisplayName: Tenshu Photos
+        # Export compliance (`docs/how-to/ios-testflight.md`): libsodium ships standard (IETF)
+        # algorithms beside Apple's own, so App Store Connect's answer is "standard algorithms".
+        ITSAppUsesNonExemptEncryption: true
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        # Route-1: the effective shared Keychain group RealmKeyMaterialBridge reads Control's
+        # route-1 key material from (bare on the sim, Team-prefixed on device).
+        TenshuSharedKeychainGroup: $(TENSHU_SHARED_KEYCHAIN_GROUP)
+        # Tenshu Control's App Store product id, for the forward-to-Control surface
+        # (ADR 0022). Empty until Control ships → the screen says so instead of opening
+        # a broken page. Same build-setting → Info.plist path as the Keychain group above.
+        TenshuControlAppStoreId: $(TENSHU_CONTROL_APP_STORE_ID)
+        # This app's own App Store product id, for the skew fence's Update button
+        # (core-schema-skew-surface.md §8.5). Empty until the listing exists → no button.
+        TenshuAppStoreId: $(TENSHU_APP_STORE_ID)
+        # On-device AI (PIO-7 PR-5, `ios-on-device-inference.md` §14): the build flag
+        # `PhotosLocalRuntime.onDeviceAiBuildFlag` reads. Only the exact string YES binds a
+        # backend; the setting below is NO.
+        TenshuPhotosOnDeviceAi: $(TENSHU_PHOTOS_ON_DEVICE_AI)
+        # *Index now* goes on after Photos is left (PIO-7 PR-7, `ios-on-device-inference.md` §15):
+        # a `BGContinuedProcessingTask`, iOS 26+. ⚠ Only the wildcard is declared; each press
+        # registers and submits `app.tenshu.photos.ios.indexnow.<uuid>`. ⚠ The base begins with the
+        # bundle id, as Apple requires (PR-7's row wrote `app.tenshu.photos.indexnow.*`, which does
+        # not). Inert with the build flag off: nothing registers or submits.
+        # `PhotosIndexNowTaskDeclaredTest` keeps this in step with `PhotosIndexNowTask`.
+        BGTaskSchedulerPermittedIdentifiers:
+          - app.tenshu.photos.ios.indexnow.*
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.tenshu.photos.ios
+        # ⚠⚠ OFF, and it stays off until PR-5's device pass: search by description on the iPhone
+        # is not finished behind it. Try it with `xcodebuild … TENSHU_PHOTOS_ON_DEVICE_AI=YES`,
+        # never by editing this line.
+        TENSHU_PHOTOS_ON_DEVICE_AI: "NO"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_ENTITLEMENTS: Photos.entitlements
+        TENSHU_SHARED_KEYCHAIN_GROUP: app.tenshu.shared
+        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: Photos.device.entitlements
+        TENSHU_SHARED_KEYCHAIN_GROUP[sdk=iphoneos*]: $(DEVELOPMENT_TEAM).app.tenshu.shared
+        GENERATE_INFOPLIST_FILE: "NO"
+        # Photos' own static `TenshuSdk` framework — linked by search path and name (the
+        # `AppFramework` template), not embedded.
+        TENSHU_SDK_MODULE: tenshu-sdk-ios-photos
+      configs:
+        DebugHarness:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) DEV_HARNESS
+    preBuildScripts:
+      - name: Build TenshuSdk.framework
+        # Keep the linked framework fresh before compile/link: one slice of Photos' framework
+        # (scripts/ios-build-sdk.sh).
+        script: |
+          "$SRCROOT/../scripts/ios-build-sdk.sh" photos
+        basedOnDependencyAnalysis: false
+
+  # XCUITest bundle — the gestures `simctl` cannot make (pinch, pan, swipe, drag to dismiss), against
+  # the DEV_HARNESS app on the `-photosFixture` library (photos-ios.md §8.13). The Drive precedent:
+  # screenshots are `.deleteOnSuccess` attachments in the .xcresult, never committed.
+  PhotosIosUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+    dependencies:
+      - target: PhotosIos
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.tenshu.photos.ios.uitests
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_TARGET_NAME: PhotosIos
+
+  # The store and landing captures (docs/how-to/store-screenshots.md §3d, §9): XCUITests over the
+  # SHIPPING app — `Debug`, so no `-photosFixture` mock — on the realm Drive's landing seed filled.
+  # Run only through `scripts/store-screenshots.sh photos` / `--set landing`.
+  PhotosIosScreenshots:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: Screenshots
+      - path: ../ios-shell/UITestSupport
+    dependencies:
+      - target: PhotosIos
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.tenshu.photos.ios.screenshots
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_TARGET_NAME: PhotosIos
+
+schemes:
+  PhotosIos:
+    build:
+      targets:
+        PhotosIos: all
+    run:
+      config: Debug
+  PhotosIos-Dev:
+    build:
+      targets:
+        PhotosIos: all
+    run:
+      config: DebugHarness
+  # XCUITest scheme: the app in DebugHarness (so `-photosFixture` works) plus the gesture tests.
+  PhotosIos-UITests:
+    build:
+      targets:
+        PhotosIos: all
+        PhotosIosUITests: [test]
+    test:
+      config: DebugHarness
+      targets:
+        - PhotosIosUITests
+    run:
+      config: DebugHarness
+  PhotosIos-Screenshots:
+    build:
+      targets:
+        PhotosIos: all
+        PhotosIosScreenshots: [test]
+    test:
+      config: Debug
+      targets:
+        - PhotosIosScreenshots
+    run:
+      config: Debug

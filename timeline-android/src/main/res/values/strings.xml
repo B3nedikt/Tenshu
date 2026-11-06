@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Timeline</string>
+    <string name="capture_channel">Timeline capture</string>
+    <string name="capture_notification_title">Timeline is on</string>
+    <string name="capture_notification_text">Recording the places you visit · Manage in Settings</string>
+
+    <!--
+      Capture permission rationale. Android-only platform copy, so it lives in this catalogue
+      alongside the foreground-service notification strings rather than in the shared Compose
+      resources — the shared Settings screen is also built for desktop, where none of this applies.
+    -->
+    <string name="capture_permission_title">Before Timeline starts recording</string>
+    <string name="capture_permission_reason_location">Timeline uses your location to record the places you visit and the journeys between them, even when the app is closed or not in use. It stays end-to-end encrypted on your own devices.</string>
+    <string name="capture_permission_reason_activity">Physical activity lets Timeline count your steps, which is what tells a bike ride apart from a run. Without it, cycling is usually recorded as running.</string>
+    <string name="capture_permission_continue">Continue</string>
+    <string name="capture_permission_not_now">Not now</string>
+
+    <!--
+      "Allow all the time". ⚠ The copy leads with the consequence rather than the permission, because
+      the consequence is the only part a user can weigh: without it capture cannot restart itself
+      after the system stops it, which on aggressive OEMs is most days.
+    -->
+    <string name="capture_background_title">Keep recording after the app closes</string>
+    <string name="capture_background_message">Timeline collects your location to record the places you visit and your trips, even when the app is closed or not in use. Android stops Timeline in the background from time to time; to start recording again on its own, it needs location access set to “Allow all the time”.\n\nWithout it, recording resumes only when you next open the app. Your timeline stays end-to-end encrypted on your own devices.</string>
+</resources>

@@ -1,0 +1,28 @@
+Tenshu Home shows the smart-home devices that a Tenshu Hub in your realm reports, and runs your automations on your phone. Your home data is encrypted and in sync across your devices.
+
+TENSHU HOME NEEDS TENSHU CONTROL AND A TENSHU HUB
+Tenshu Control holds your keys and connects your devices. Install Tenshu Control from Google Play and set it up first, then open Home. Home finds Control on its own.
+To see and switch devices, Home needs a Tenshu Hub: a home server you run yourself, today an early, self-built setup for Zigbee devices. Without a Hub, the device list stays empty.
+
+WHAT YOU CAN DO
+- See your devices by room, switch them on and off, and dim the lights that support it.
+- Pair a new Zigbee device through your Hub.
+- Create automations that run at a time of day, or at sunrise or sunset, with conditions such as a time window, a device's state or whether someone is home. Turn devices on or off, or run another automation.
+- Switch automations on and off, and see in Activity when each one ran.
+
+Home is early. Some options in the automation editor are not available yet, and the app says so. Settings for rooms, notifications and the Hub come later.
+
+HOW HOME KEEPS YOUR HOME PRIVATE
+- Home has no internet access of its own: it reaches your Hub and your other devices only through Tenshu Control.
+- Your devices, automations and their activity are encrypted on your device before they are uploaded. Tenshu's servers store only encrypted data, and they don't have the keys to read it.
+- The server can still see some facts it needs to sync: how much you store, how many devices you have, and when they sync.
+
+REQUIREMENTS
+- Android 7.0 or later.
+- Tenshu Control, set up on the same phone.
+- A Tenshu Hub, to see and switch devices.
+- To sync between devices: a storage plan. The free plan has 5 GB.
+
+Tenshu is open source and still in testing: expect rough edges, and tell us what breaks.
+
+Help and common problems: tenshu.app/apps/support/en

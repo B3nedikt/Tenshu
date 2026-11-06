@@ -1,0 +1,67 @@
+# The shared XcodeGen fragment every **first-party iOS app** includes for its open-source notices
+# (`docs/oss-licences.md`). Consumed as:
+#
+#     include:
+#       - path: ../ios-about/about.yml
+#     targets:
+#       <App>:
+#         templates: [OssLicences]
+#
+# It carries the three things the notices need, so no app re-derives them:
+#
+#   1. `OpenSourceLicencesView` + `OpenSourceLicencesLink` (Sources/), which each app's settings,
+#      profile or management screen pushes;
+#   2. the hand-maintained notices for code the Gradle graph cannot see (Resources/: libsodium,
+#      SKIE's generated runtime) — MapLibre's lives in `ios-basemap`, beside the package it credits;
+#   3. a post-build step that copies the app framework's GENERATED notices
+#      (`:tenshu-sdk-ios-<app>:exportLibraryDefinitions`, run by `scripts/ios-build-sdk.sh` in the
+#      pre-build) into the bundle as `kotlin-licences.json`.
+#
+# The view reads every `*-licences.json` in the bundle, so a fragment that adds code adds its own file.
+#
+# ⚠ Paths here are relative to THIS file's directory — XcodeGen's `include` default
+# (`relativePaths: true`) rewrites them for whichever spec includes it. Same convention as
+# `ios-onboarding/onboarding.yml` and `ios-basemap/basemap.yml`.
+#
+# Verified 2026-10-24: all ten apps compile (`scripts/ios-smoke.sh --build-only`) and each simulator
+# bundle carries `kotlin-licences.json` (71 entries) + `swift-licences.json`. The Kotlin half is also
+# pinned by `OssLicencesJsonTest`.
+
+targetTemplates:
+  OssLicences:
+    sources:
+      # ⚠ Compiled INTO each app target rather than vended as a local Swift package — the
+      # constraint `ios-onboarding` documents (a SwiftPM package resolves before the pre-build that
+      # produces `TenshuSdk`). These files do not import it, but they follow the same shape.
+      - path: Sources
+      - path: Resources/swift-licences.json
+        buildPhase: resources
+    postBuildScripts:
+      - name: Bundle the Kotlin framework's open-source notices
+        # ⚠ A post-build script, so the resources phase has created the bundle; code signing runs
+        # after every phase, so the copied file is sealed with the rest.
+        # ⚠⚠ A Release build without the file — or with a file that lists NO library — FAILS rather than
+        # shipping notices that omit the whole Kotlin graph; the Apache-2.0 / MIT texts must travel with
+        # the binary. "Lists no library" is the plugin's known silent failure (an empty `libraries` for
+        # a misconfigured Kotlin/Native graph, docs/oss-licences.md §1), so existence alone proves
+        # nothing: the guard counts entries and wants at least `min` of them (71 today).
+        script: |
+          src="$SRCROOT/../$TENSHU_SDK_MODULE/build/generated/ossLicences/iosArm64/aboutlibraries.json"
+          dst="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/kotlin-licences.json"
+          min=20
+          count=0
+          [ -f "$src" ] && count=$(grep -o '"uniqueId"' "$src" | wc -l | tr -d ' ')
+          if [ "$count" -ge "$min" ]; then
+            cp "$src" "$dst"
+          elif [ "$CONFIGURATION" = "Release" ]; then
+            echo "error: $src lists $count libraries (want >= $min) — run scripts/ios-build-sdk.sh (docs/oss-licences.md)"
+            exit 1
+          else
+            echo "warning: $src lists $count libraries; this build's licence screen omits the Kotlin libraries"
+            [ -f "$src" ] && cp "$src" "$dst"
+          fi
+        inputFiles:
+          - $(SRCROOT)/../$(TENSHU_SDK_MODULE)/build/generated/ossLicences/iosArm64/aboutlibraries.json
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/kotlin-licences.json
+        basedOnDependencyAnalysis: false

@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      Calendar reaches Control's proxy over Binder; all network is Control's. The client
+      libraries merge in INTERNET, so strip it — House Rule #1 enforced at the OS boundary
+      rather than by convention.
+
+      ⚠ SCHEDULE_EXACT_ALARM is NOT declared here: CA-5's reminders are armed by *Control*,
+      which owns the AlarmManager (calendar-app.md Q6) — declaring it here would be the wrong
+      process asking.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+
+    <!--
+      READ_CALENDAR arrived with *Copy from this phone* (calendar-external-sources.md CX-1), and
+      it is requested at that one button and nowhere else — a user who never copies a calendar is
+      never asked. ⚠ Here and not in Control, deliberately (§4.4): OS data belongs to the app
+      that uses it, the network to Control. No WRITE_CALENDAR: the copy is one-way, by decision.
+    -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+
+    <!--
+      CX-1b: the daily *Keep in sync* job is persisted across reboots, which JobScheduler only
+      allows with this. Declared here rather than relied on from a merged library manifest.
+    -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!--
+      Lets BinderTaskTransport resolve + bind Control on Android 11+ (package visibility).
+      Without it the bind silently fails.
+    -->
+    <queries>
+        <package android:name="app.tenshu.control.android" />
+    </queries>
+
+    <application
+        android:name=".CalendarApplication"
+        android:allowBackup="false"
+        android:supportsRtl="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!--
+              CA-6d: *Open with* on a `.ics`. This is what puts Calendar in the chooser
+              a file manager or mail client shows, and what lets a user make it the
+              default for calendar files.
+
+              ⚠⚠ **No `*/*` mimeType, deliberately** — and this is the opposite call to
+              the one `ICS_MIME_TYPES` makes for the *picker*. A wildcard in a picker
+              only widens what the user may select; a wildcard here widens what the OS
+              offers *this app* for, so Calendar would appear in the "open with" list
+              for every PDF, video and zip on the device. Missing the occasional
+              provider that mislabels a `.ics` as `application/octet-stream` is the
+              better failure: that user still has *Share* below, and the in-app picker,
+              both of which do accept anything.
+
+              ⚠ `text/x-vcalendar` is the vCalendar 1.0 type still emitted by older
+              exporters. `IcsImport` reads those blocks fine — the wire format barely
+              moved — so refusing the type would reject files the parser handles.
+
+              ⚠ BROWSABLE is absent: this handles files, not links. Adding it would
+              make a web page able to hand this activity a URI.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="text/calendar" />
+                <data android:mimeType="text/x-vcalendar" />
+            </intent-filter>
+
+            <!--
+              CA-6d: *Share* a `.ics` attachment into Calendar. The gesture a mail
+              client offers, and where a `.ics` most often actually is.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/calendar" />
+                <data android:mimeType="text/x-vcalendar" />
+            </intent-filter>
+        </activity>
+
+        <!-- The reverse (push) channel: Control binds back to this service to deliver
+             stream / callback frames — how the contact list stays live without polling.
+             Same contract Drive / Maps / Timeline / Fit / Home declare. -->
+        <service
+            android:name="org.tenshu.core.common.ClientCallbackService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="app.tenshu.control.android.IClientInterface" />
+            </intent-filter>
+        </service>
+        <!-- CX-1b: refreshes *Keep in sync* calendars when the OS calendar changes, and daily.
+             Only the OS may bind it. -->
+        <service
+            android:name=".mirror.MirrorRefreshJobService"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="false" />
+
+        <!-- CA-7c: the "what's next" home-screen widget. exported=true is required
+             for a launcher to place it; it reads through the same Binder client the
+             app does and holds no data of its own. -->
+        <receiver
+            android:name=".widget.CalendarWidgetReceiver"
+            android:exported="true"
+            android:label="@string/calendar_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/calendar_widget_info" />
+        </receiver>
+    </application>
+</manifest>

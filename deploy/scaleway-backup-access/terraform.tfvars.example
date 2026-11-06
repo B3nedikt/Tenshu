@@ -1,0 +1,30 @@
+# Copy to terraform.tfvars (git-ignored) and fill in.
+# ⚠ The ADMIN key pair — the one that runs deploy/scaleway-relay-backups. It needs IAM rights
+# (IAMManager or Organization owner) to create applications, policies and API keys.
+
+access_key      = "SCWXXXXXXXXXXXXXXXXX"
+secret_key      = "00000000-0000-0000-0000-000000000000"
+organization_id = "00000000-0000-0000-0000-000000000000"
+project_id      = "00000000-0000-0000-0000-000000000000"
+
+# ⚠⚠ Who keeps full access to every policed bucket. Put yourself here (console → IAM → Users → your
+# user id), and the principal that owns the admin key above if that is a different one. A policy that
+# omits you locks you out of restores until the Organization owner removes it.
+admin_principals = ["user_id:00000000-0000-0000-0000-000000000000"]
+
+# Bucket names default to the ones in the two bucket modules' examples; override if you changed them.
+# relay_backup_bucket       = "tenshu-relay-db-backups"
+# relay_backup_dr_bucket    = "tenshu-relay-db-backups-ams"
+# blob_mirror_bucket        = "tenshu-relay-blobs-mirror"
+# blob_mirror_dr_bucket     = "tenshu-relay-blobs-mirror-ams"
+# commerce_backup_bucket    = "tenshu-commerce-db-backups"
+# commerce_backup_dr_bucket = "tenshu-commerce-db-backups-ams"
+# content_bucket            = "tenshu-relay-blobs"
+
+# ⚠⚠ Staged switches — flip them in runbook order (docs/how-to/back-up-the-relay-database.md,
+# "Applying the backup hardening"), one apply each, never all at once.
+enforce_on_existing_buckets = false # step 11: after both boxes ran on their new keys
+create_relay_content_key    = true  # minted at step 3; installed on the relay at step 10
+enforce_on_content_bucket   = false # step 12: last, after the relay runs on its own content key
+
+# key_expires_at = "2027-10-01T00:00:00Z"

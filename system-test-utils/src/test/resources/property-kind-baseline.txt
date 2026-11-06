@@ -1,0 +1,110 @@
+# Pinned storage kind of every property AND service relation in the graph this module
+# wires — both are slots addressed by id in a row's named map, so both take the same
+# DbEntryMapper read arm and both can be flipped.
+# Generated — do not hand-edit. See PropertyKindBaselineEnforcementTest and
+# docs/proposals/core-schema-evolution.md §8.9.
+#
+# Format: propertyId|receiverTypeId|INLINE|CHILD_ROW
+#   INLINE    = valueProperty  -> a ValueSchema  -> the value sits in the row
+#   CHILD_ROW = dynamicProperty -> a RelationSchema -> the slot is a child-row id
+#
+# A flip between them re-reads every stored slot through the other arm. It is allowed,
+# but it owes a migration that strips the stale slots, shipped with the version bump.
+#
+# Regenerate with:
+#   ./gradlew :system-test-utils:test --tests '*PropertyKindBaselineEnforcementTest*' -Dtenshu.propertyKindBaseline.regenerate=true
+
+tenshu/app/service/appGrants|tenshu/app/service|CHILD_ROW
+tenshu/app/service/appRegistrations|tenshu/app/service|CHILD_ROW
+tenshu/calendar/service/calendars|tenshu/calendar/service|CHILD_ROW
+tenshu/calendar/service/eventOverrides|tenshu/calendar/service|CHILD_ROW
+tenshu/calendar/service/eventSources|tenshu/calendar/service|CHILD_ROW
+tenshu/calendar/service/events|tenshu/calendar/service|CHILD_ROW
+tenshu/calendar/service/mirrorStamps|tenshu/calendar/service|CHILD_ROW
+tenshu/calendar/service/mirrors|tenshu/calendar/service|CHILD_ROW
+tenshu/calendar/service/reminderStates|tenshu/calendar/service|CHILD_ROW
+tenshu/calendar/service/reminders|tenshu/calendar/service|CHILD_ROW
+tenshu/calendar/service/subscriptions|tenshu/calendar/service|CHILD_ROW
+tenshu/contact/contactSource/contentId|tenshu/contact/contactSource|INLINE
+tenshu/contact/contactSource/photos|tenshu/contact/contactSource|CHILD_ROW
+tenshu/contact/person/avatar|tenshu/contact/person|CHILD_ROW
+tenshu/contact/service/avatars|tenshu/contact/service|CHILD_ROW
+tenshu/contact/service/contactInvites|tenshu/contact/service|CHILD_ROW
+tenshu/contact/service/persons|tenshu/contact/service|CHILD_ROW
+tenshu/contact/service/sources|tenshu/contact/service|CHILD_ROW
+tenshu/contact/service/tenshuIdentities|tenshu/contact/service|CHILD_ROW
+tenshu/file/cameraMake|tenshu/file|INLINE
+tenshu/file/cameraModel|tenshu/file|INLINE
+tenshu/file/captureLatE7|tenshu/file|INLINE
+tenshu/file/captureLngE7|tenshu/file|INLINE
+tenshu/file/category|tenshu/file|CHILD_ROW
+tenshu/file/contentHash|tenshu/file|INLINE
+tenshu/file/contentId|tenshu/file|INLINE
+tenshu/file/contentModifiedAt|tenshu/file|INLINE
+tenshu/file/createdAt|tenshu/file|INLINE
+tenshu/file/data|tenshu/file|CHILD_ROW
+tenshu/file/durationMs|tenshu/file|INLINE
+tenshu/file/folder/fileCount|tenshu/file/folder|CHILD_ROW
+tenshu/file/folder/files|tenshu/file/folder|CHILD_ROW
+tenshu/file/lastModifiedAt|tenshu/file|INLINE
+tenshu/file/name|tenshu/file|CHILD_ROW
+tenshu/file/orientation|tenshu/file|INLINE
+tenshu/file/pixelHeight|tenshu/file|INLINE
+tenshu/file/pixelWidth|tenshu/file|INLINE
+tenshu/file/preview|tenshu/file|CHILD_ROW
+tenshu/file/service/defaultFileSystem|tenshu/file/service|CHILD_ROW
+tenshu/file/service/modifications|tenshu/file/service|CHILD_ROW
+tenshu/file/service/placements|tenshu/file/service|CHILD_ROW
+tenshu/file/service/shares|tenshu/file/service|CHILD_ROW
+tenshu/file/size|tenshu/file|INLINE
+tenshu/file/system/root|tenshu/file/system|CHILD_ROW
+tenshu/file/thumbnail|tenshu/file|CHILD_ROW
+tenshu/file/thumbnailLarge|tenshu/file|CHILD_ROW
+tenshu/file/thumbnailMotion|tenshu/file|CHILD_ROW
+tenshu/file/thumbnailXLarge|tenshu/file|CHILD_ROW
+tenshu/file/thumbnailXXLarge|tenshu/file|CHILD_ROW
+tenshu/file/trashed|tenshu/file|CHILD_ROW
+tenshu/file/viewerPreview|tenshu/file|CHILD_ROW
+tenshu/health/service/dailyActivities|tenshu/health/service|CHILD_ROW
+tenshu/health/service/dailyNutritions|tenshu/health/service|CHILD_ROW
+tenshu/health/service/healthSamples|tenshu/health/service|CHILD_ROW
+tenshu/health/service/importRuns|tenshu/health/service|CHILD_ROW
+tenshu/health/service/latestSamples|tenshu/health/service|CHILD_ROW
+tenshu/health/service/medicalRecords|tenshu/health/service|CHILD_ROW
+tenshu/health/service/menstruationDays|tenshu/health/service|CHILD_ROW
+tenshu/health/service/sleepSessions|tenshu/health/service|CHILD_ROW
+tenshu/health/service/sources|tenshu/health/service|CHILD_ROW
+tenshu/health/service/workoutActivityRollups|tenshu/health/service|CHILD_ROW
+tenshu/health/service/workouts|tenshu/health/service|CHILD_ROW
+tenshu/health/workout/contentId|tenshu/health/workout|INLINE
+tenshu/health/workout/streams|tenshu/health/workout|CHILD_ROW
+tenshu/home/device/service/deviceCommands|tenshu/home/device/service|CHILD_ROW
+tenshu/home/device/service/deviceStates|tenshu/home/device/service|CHILD_ROW
+tenshu/home/device/service/homeDevices|tenshu/home/device/service|CHILD_ROW
+tenshu/hub/management/service/hubCommands|tenshu/hub/management/service|CHILD_ROW
+tenshu/hub/management/service/hubStatuses|tenshu/hub/management/service|CHILD_ROW
+tenshu/identity/devices|tenshu/identity|CHILD_ROW
+tenshu/identity/hardwareDescriptions|tenshu/identity|CHILD_ROW
+tenshu/identity/lastSeenObservations|tenshu/identity|CHILD_ROW
+tenshu/identity/members|tenshu/identity|CHILD_ROW
+tenshu/identity/pendingGrants|tenshu/identity|CHILD_ROW
+tenshu/identity/retainedRealmKeys|tenshu/identity|CHILD_ROW
+tenshu/identity/sharedRealmMemberships|tenshu/identity|CHILD_ROW
+tenshu/notification/service/dismissedRequests|tenshu/notification/service|CHILD_ROW
+tenshu/notification/service/notifications|tenshu/notification/service|CHILD_ROW
+tenshu/photo/service/albumEntries|tenshu/photo/service|CHILD_ROW
+tenshu/photo/service/albums|tenshu/photo/service|CHILD_ROW
+tenshu/photo/service/photoFlags|tenshu/photo/service|CHILD_ROW
+tenshu/photo/service/trashedPhotos|tenshu/photo/service|CHILD_ROW
+tenshu/preference/service/deviceSettings|tenshu/preference/service|CHILD_ROW
+tenshu/preference/service/realmSettings|tenshu/preference/service|CHILD_ROW
+tenshu/routine/service/presenceStates|tenshu/routine/service|CHILD_ROW
+tenshu/routine/service/routineRuns|tenshu/routine/service|CHILD_ROW
+tenshu/routine/service/routines|tenshu/routine/service|CHILD_ROW
+tenshu/sync/service/catchUp|tenshu/sync/service|CHILD_ROW
+tenshu/sync/service/catchUpHeartbeat|tenshu/sync/service|CHILD_ROW
+tenshu/sync/service/contentTransfer|tenshu/sync/service|CHILD_ROW
+tenshu/sync/service/contentUploadProgress|tenshu/sync/service|CHILD_ROW
+tenshu/sync/service/runtimeIdentity|tenshu/sync/service|CHILD_ROW
+tenshu/sync/service/schemaFence|tenshu/sync/service|CHILD_ROW
+tenshu/sync/service/syncHealth|tenshu/sync/service|CHILD_ROW

@@ -1,0 +1,26 @@
+Tenshu Contacts zeigt die Personen in deinem Tenshu-Realm, verschlüsselt und auf all deinen Geräten synchron. Nur deine eigenen Geräte können sie lesen.
+
+TENSHU CONTACTS BRAUCHT TENSHU CONTROL
+Tenshu Control verwahrt deine Schlüssel und verbindet deine Geräte. Installiere Tenshu Control aus dem App Store und richte es zuerst ein, dann öffne Contacts. Contacts findet Control von selbst.
+Auf iPhone und iPad zeigt Contacts die Kontakte, die du auf deinen anderen Geräten in Tenshu Contacts hinzugefügt hast, und die Personen, die deine Einladung angenommen haben. Auf iPhone und iPad kannst du noch keinen Kontakt hinzufügen oder bearbeiten.
+
+WAS DU TUN KANNST
+- Einen Kontakt nach Name, Telefonnummer, E-Mail-Adresse oder Organisation finden.
+- Die Telefonnummern, E-Mail-Adressen, Organisation und Notizen eines Kontakts sehen.
+- Eine Person, mit der du verbunden bist, verifizieren: einen sechsstelligen Code mit ihr vergleichen und eine Warnung sehen, wenn sich ihr Schlüssel ändert.
+- Mögliche Duplikate finden, den Eintrag wählen, den du behalten willst, und sie zusammenführen.
+- Den Namen festlegen, den die anderen Tenshu-Apps für dich anzeigen.
+
+WIE CONTACTS DEINE KONTAKTE PRIVAT HÄLT
+- Deine Kontakte werden auf deinem Gerät verschlüsselt, bevor sie hochgeladen werden. Die Server von Tenshu speichern nur verschlüsselte Daten und haben nicht die Schlüssel, um sie zu lesen.
+- Einige Fakten, die der Server zum Synchronisieren braucht, sieht er trotzdem: wie viel du speicherst, wie viele Geräte du hast und wann sie synchronisieren.
+- Tenshu hat kein Verzeichnis, deshalb kann niemand dich nachschlagen. Du verbindest dich mit jemandem nur, wenn ihr beide eine Einladung annehmt.
+- Contacts liest das Adressbuch auf deinem Gerät nicht.
+- Ohne Speicherplan bleiben deine Kontakte auf diesem Gerät.
+
+VORAUSSETZUNGEN
+- iOS 16 oder neuer, auf iPhone oder iPad.
+- Tenshu Control, eingerichtet auf demselben Gerät.
+- Zum Synchronisieren zwischen Geräten: ein Speicherplan. Der kostenlose Plan hat 5 GB.
+
+Hilfe und häufige Probleme: tenshu.app/apps/contacts/support/ios/de

@@ -1,0 +1,15 @@
+Tenshu Photos needs Tenshu Control installed and set up on the same device first. Control holds the encryption keys; Photos cannot open without it. Photos shows the photos and videos that Tenshu Drive backs up, so Tenshu Drive is needed to put photos in the library.
+
+To review:
+1. Install Tenshu Control and open it. Tap "Start fresh on this device", then "Continue", then "I've saved it".
+2. Install Tenshu Drive, open it, and back up a few photos from the photo library (Drive asks for photo library access; Photos never does).
+3. Open Tenshu Photos. The "Library" tab shows the backed-up photos. Select photos to "Add to Album" or "Move to Trash"; open one and use "More" for the same actions.
+4. "Collections" → "New album" creates an album. "Search" searches the library.
+
+With no photos backed up, the Library shows "No Photos Yet"; that is expected.
+
+Permissions: Photos asks for none. It does not access the system photo library; that is Drive's backup.
+
+Everything works on one device without an account. "Turn on sync" in Control is optional: it asks for an email address and then a 6-digit code. To try it without a mailbox, use the sign-in details in App Review Information: enter the user name as the email address and the password as the code (no email is sent to that address). Any address you can receive mail at also works, and a new account is free.
+
+All photos are end-to-end encrypted on the device before they reach our servers; the servers cannot read them.

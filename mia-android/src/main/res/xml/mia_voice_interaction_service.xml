@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Assistant-role qualification metadata (home-and-mia-apps.md D7, M4): names the
+     session + (stub) recognition services; supportsAssist lists Mia in the system's
+     default-assistant picker. -->
+<voice-interaction-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:sessionService="app.tenshu.mia.android.assist.MiaVoiceInteractionSessionService"
+    android:recognitionService="app.tenshu.mia.android.assist.MiaRecognitionService"
+    android:supportsAssist="true" />

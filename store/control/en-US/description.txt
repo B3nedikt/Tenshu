@@ -1,0 +1,26 @@
+Tenshu Control is the companion app the other Tenshu apps need. Install it first. It creates your realm, the private space your Tenshu apps share. It holds your keys and connects your devices. Tenshu Drive and the other Tenshu apps work only when Control is set up on the same device.
+
+SET UP TENSHU
+- Tap Start fresh on this device, then Continue. Tenshu protects your keys with this device's secure storage, so there is no password to remember.
+- Write down your recovery phrase: 24 words that restore your realm if you lose every device. Keep them somewhere safe, offline.
+- Turn on sync when you want your data on more than one device. Enter your email address, and a new account starts on the free plan with 5 GB. Until you do, everything stays on this device.
+
+ADD YOUR OTHER DEVICES
+Install Tenshu Control on your other device and choose I have Tenshu on another device. On this device, go to Settings, then Add a device. One device shows a code and the other scans it. Check that both show the same confirmation code, then confirm.
+
+HOW CONTROL KEEPS YOUR DATA PRIVATE
+- Your keys are made on your devices and never leave them unencrypted. When you add a device, your existing device encrypts the keys for the new one before they pass through our server.
+- Tenshu's servers cannot read your data. They pass on and store only encrypted data. They do see some facts they need to work: how much you store, how many devices you have, and when they sync.
+- Your recovery phrase is yours alone. Nobody else holds a copy, so nobody, including us, can restore your realm without it. Anyone who has it can open everything, so keep it offline.
+- You can use Tenshu without an account. On one device, Tenshu works with no account and sends nothing to our servers.
+
+ALSO IN CONTROL
+- Require unlock: Control asks for Face ID, Touch ID or your passcode before it opens.
+- See your devices, your storage plan and how much you use, in Settings.
+
+REQUIREMENTS
+- iOS 16 or later, on iPhone or iPad.
+- To sync between devices: a storage plan. The free plan has 5 GB.
+
+Help and common problems: tenshu.app/apps/control/support/ios/en
+Support will never ask for your recovery phrase.

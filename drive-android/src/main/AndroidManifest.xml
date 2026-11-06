@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+
+    <!-- Drive's two dataSync foreground services are BOTH user-initiated (Play's dataSync
+         policy): the folder upload the user picks (docs/proposals/drive-folder-upload.md §5d),
+         and Synced Folders' "Back up now". Each keeps the Drive process alive while that
+         transfer is in flight and carries its notification. ⚠⚠ Automatic photo backup never
+         starts a foreground service — it is WorkManager's BackupWorker
+         (drive-synced-folders-phase2.md §4.1a). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Synced Folders auto-backup (docs/proposals/drive-synced-folders.md §3.2):
+         enumerate the gallery buckets + open image/video bytes from the Drive
+         process. READ_MEDIA_VIDEO is only exercised when the user opts into video
+         backup. On API < 33 these map to READ_EXTERNAL_STORAGE. -->
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <!-- ⚠ Load-bearing on API 34+, not optional. Declaring this is what makes
+         "Select photos and videos" a DURABLE, DETECTABLE partial grant. Without the
+         declaration Android runs a compatibility path in which picking "Select
+         photos" grants READ_MEDIA_IMAGES *for the app session only* — it reads as
+         full access and then evaporates when the process is backgrounded or killed,
+         which is exactly when BackupWorker runs. See AndroidMediaAccessProvider. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
+    <!-- ⚠⚠ Without this, MediaStore strips the GPS tags from every image it hands out, so a
+         backed-up photo reaches the realm with no record of where it was taken — and nothing
+         downstream can distinguish that from a photo that never had a coordinate
+         (docs/proposals/timeline-photos.md T-P4). Requested in the same dialog as the read
+         permissions (AndroidMediaAccessProvider.requiredPermissions); denying it costs the
+         coordinate and nothing else, so backup never gates on it. -->
+    <uses-permission android:name="android.permission.ACCESS_MEDIA_LOCATION" />
+
+    <!-- Synced Folders auto-backup gate (docs/proposals/drive-synced-folders.md §3.8):
+         the in-process drain reads the metered/unmetered + connected state to honour
+         the Wi-Fi-only policy (AndroidBackupEnvironment.network()).
+         ACCESS_NETWORK_STATE is read-only connectivity *status* — it does NOT grant
+         socket/internet access. Drive deliberately holds no INTERNET permission: all
+         data traffic goes through Control over Binder IPC (the zero-direct-egress
+         invariant). This permission preserves that — it cannot send or receive a byte. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- ⚠⚠ ...and that "no INTERNET" has to be ENFORCED, not just not-requested: a library's
+         manifest can merge INTERNET in (ML Kit's datatransport/CCT telemetry did, until the QR
+         scanner moved to ZXing on the device). All egress is Control's (House Rule #1 at the OS
+         boundary). scripts/lib/check_client_no_internet.py fails the smoke gate if any client's
+         merged manifest grows INTERNET again. -->
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+
+    <queries>
+        <package android:name="app.tenshu.control.android" />
+    </queries>
+
+    <application
+        android:name=".DriveApplication"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:label="@string/app_name"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Contact-invite deep links (drive-manage-access-ux.md §3.1).
+                 The custom scheme works everywhere; the App Link is verified
+                 against web/apex/public/.well-known/assetlinks.json, which must
+                 name this app's signing keys (AssetLinksTest). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="tenshu-invite" />
+            </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="tenshu.app"
+                    android:path="/i" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name="org.tenshu.core.common.ClientCallbackService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="app.tenshu.control.android.IClientInterface" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".upload.FolderUploadForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- Synced Folders "Back up now" only — started from the user's tap
+             (SyncedFolderServiceLauncher gates on SyncedFolderController.userRequest).
+             ⚠⚠ Never for automatic backup: Play names "daily auto backup of all new
+             photos" as a use dataSync may not carry (drive-synced-folders-phase2.md §4.1a). -->
+        <service
+            android:name=".backup.SyncedFolderForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- "Open in another app" (drive-content-preview.md §6, Decision D3): shares
+             the transient decrypted preview temp file with a third-party app via a
+             content:// URI (a raw file:// URI throws on API 24+). Not exported;
+             access is granted per-launch via FLAG_GRANT_READ_URI_PERMISSION only. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_provider_paths" />
+        </provider>
+
+        <!-- Streaming video preview (drive-streaming-preview.md §3.5, D2b S4): serves an open
+             streaming session to VideoView/MediaPlayer as a seekable content:// fd backed by
+             on-demand range decryption (no whole-file plaintext on disk). Not exported and no URI
+             grants — only Drive's own process ever opens the uri (MediaPlayer reads in-process,
+             then hands a raw fd to the media server), so the stream never leaves the app here. -->
+        <provider
+            android:name="app.tenshu.drive.ui.common.StreamingVideoProvider"
+            android:authorities="${applicationId}.streaming"
+            android:exported="false"
+            android:grantUriPermissions="false" />
+
+        <!-- Inline answers on the new-folder prompt
+             (drive-synced-folders-new-folder-prompt.md). Not exported: the only
+             sender is Drive's own PendingIntent, and an exported receiver would let
+             any app on the device silently add gallery folders to auto-backup. -->
+        <receiver
+            android:name=".backup.NewFolderActionReceiver"
+            android:exported="false" />
+
+    </application>
+</manifest>

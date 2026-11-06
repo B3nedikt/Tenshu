@@ -1,0 +1,30 @@
+# Copy to terraform.tfvars (git-ignored) and fill in. Then:
+#   terraform init && terraform apply
+
+# --- required ---------------------------------------------------------------
+
+# DO API token (write scope) — creates the CDN endpoint, managed cert, and DNS.
+# Prefer exporting DIGITALOCEAN_TOKEN instead of putting the secret in this file.
+do_token = "dop_v1_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# Spaces (S3-compatible) key pair — generate under API > Spaces Keys. Distinct from the
+# API token above. May instead be exported as SPACES_ACCESS_KEY_ID / SPACES_SECRET_ACCESS_KEY.
+spaces_access_id  = "DO00XXXXXXXXXXXXXXXX"
+spaces_secret_key = "GENERATE_ME"
+
+# Public host the catalog + bundles are served on (the *.service.tenshu.app convention).
+domain     = "tiles.service.tenshu.app"
+acme_email = "admin@tenshu.app"   # required while enable_custom_domain = true
+
+# --- DNS --------------------------------------------------------------------
+# DO-managed DNS => leave manage_dns = true (also lets the managed cert DNS-validate).
+# Elsewhere (Cloudflare, registrar) => set manage_dns = false AND enable_custom_domain = false,
+# then create a CNAME (domain -> the cdn_endpoint output) + your own cert yourself.
+manage_dns = true
+# dns_zone = "tenshu.app"   # only if it can't be derived from `domain`
+
+# --- optional (sensible defaults) -------------------------------------------
+# bucket_name          = "tenshu-tiles"    # globally-unique bucket slug (public host is `domain`)
+# region               = "fra1"            # a Spaces-capable region (fra1/ams3/nyc3/sfo3/sgp1/syd1)
+# enable_custom_domain = true              # false => reach the CDN at its *.cdn.digitaloceanspaces.com endpoint
+# cdn_ttl              = 3600              # edge TTL for immutable bundles; catalog.json is flushed on publish

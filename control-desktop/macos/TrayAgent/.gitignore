@@ -1,0 +1,4 @@
+# Locally-built tray binary (see README.md)
+tray-agent
+*.o
+*.dSYM/

@@ -1,0 +1,30 @@
+Tenshu Control ist die App, die die anderen Tenshu-Apps brauchen. Installiere sie zuerst. Sie erstellt dein Realm, den privaten Bereich, den sich deine Tenshu-Apps teilen. Sie verwahrt deine Schlüssel, verbindet deine Geräte und synchronisiert deine Daten. Tenshu Drive, Photos, Calendar und die anderen Tenshu-Apps funktionieren nur, wenn Control auf demselben Handy eingerichtet ist.
+
+TENSHU EINRICHTEN
+- Tippe auf „Auf diesem Gerät neu beginnen“ und dann auf „Weiter“. Tenshu schützt deine Schlüssel mit dem sicheren Speicher dieses Handys, du musst dir also kein Passwort merken.
+- Tippe auf „Sync einschalten“, wenn du deine Daten auf mehr als einem Gerät haben willst. Gib deine E-Mail-Adresse ein, und ein neues Konto startet im kostenlosen Plan mit 5 GB. Bis dahin bleibt alles auf diesem Handy.
+- Richte unter „Einstellungen“ die Kontowiederherstellung ein und schreib deine Wiederherstellungsphrase auf: 24 Wörter, die dein Realm wiederherstellen, wenn du alle Geräte verlierst. Bewahre sie offline an einem sicheren Ort auf.
+
+DEINE ANDEREN GERÄTE HINZUFÜGEN
+Installiere Tenshu Control auf deinem anderen Gerät und wähle „Ich habe Tenshu auf einem anderen Gerät“. Öffne auf diesem Handy „Einstellungen“, dann „Synchronisierung & Geräte“, und tippe auf +. Ein Gerät zeigt einen Code an, das andere scannt ihn. Prüfe, dass beide denselben Bestätigungscode anzeigen, und bestätige dann.
+
+WIE CONTROL DEINE DATEN PRIVAT HÄLT
+- Deine Schlüssel entstehen auf deinen Geräten und verlassen sie nie unverschlüsselt. Wenn du ein Gerät hinzufügst, verschlüsselt dein vorhandenes Gerät die Schlüssel für das neue, bevor sie unseren Server passieren.
+- Die Server von Tenshu können deine Daten nicht lesen. Sie leiten nur verschlüsselte Daten weiter und speichern nur solche. Einige Fakten, die sie zum Arbeiten brauchen, sehen sie aber: wie viel du speicherst, wie viele Geräte du hast und wann sie synchronisieren.
+- Deine Wiederherstellungsphrase gehört nur dir. Niemand sonst hat eine Kopie, deshalb kann niemand, auch wir nicht, dein Realm ohne sie wiederherstellen. Wer sie hat, kann alles öffnen, also bewahre sie offline auf.
+- Du kannst Tenshu ohne Konto nutzen. Auf einem einzelnen Gerät funktioniert Tenshu ohne Konto und sendet nichts an unsere Server.
+
+AUCH IN CONTROL
+- „Entsperren verlangen“: Control fragt nach deinem Fingerabdruck, deinem Gesicht oder deiner Displaysperre, bevor es sich öffnet.
+- Sieh deine Geräte unter „Synchronisierung & Geräte“ und deinen Plan und deinen Verbrauch unter „Dienste“.
+- Sieh und widerrufe die Links, die du aus Tenshu Drive geteilt hast.
+- Wähle, ob Hintergrund-Sync und Foto-Sicherung auf WLAN warten.
+
+VORAUSSETZUNGEN
+- Android 7.0 oder neuer.
+- Zum Synchronisieren zwischen Geräten: ein Speicherplan. Der kostenlose Plan hat 5 GB.
+
+Tenshu ist Open Source und noch in der Testphase: Rechne mit Ecken und Kanten und sag uns, was nicht funktioniert.
+
+Hilfe und häufige Probleme: tenshu.app/apps/control/support/android/de
+Der Support fragt dich nie nach deiner Wiederherstellungsphrase.

@@ -1,0 +1,7 @@
+[Unit]
+Description=Snapshot the Tenshu commerce database to object storage
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/tenshu/backup-commerce-db.sh

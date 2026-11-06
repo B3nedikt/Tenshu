@@ -1,0 +1,76 @@
+# The shared XcodeGen fragment for an iOS app that is ARCHIVED and uploaded
+# (docs/how-to/ios-testflight.md). Consumed as:
+#
+#     include:
+#       - path: ../ios-release/release.yml
+#     targets:
+#       <App>:
+#         templates: [ReleaseApp]
+#
+# plus a `Resources/PrivacyInfo.xcprivacy`, and the app's own Kotlin framework
+# (`docs/proposals/ios-per-app-frameworks.md`): `templates: [ReleaseApp, AppFramework]`, a
+# `TENSHU_SDK_MODULE` setting and a prebuild running `scripts/ios-build-sdk.sh <app>` — as
+# control-ios and drive-ios do. One spec; the Release configuration links the release framework.
+#
+# ⚠ The generic "this app does not use …" purpose strings and the `ArchiveApp` second spec, which
+# let an app on the old shared umbrella framework through App Store Connect, were deleted with P3.
+# Since P4 every app links its own framework, so none needs them.
+#
+# All ten apps include this file and apply both templates, and all ten are set up for archiving
+# (`scripts/ios-archive.sh`: a `spec_for` entry, an allowlist, a `PrivacyInfo.xcprivacy`).
+
+settings:
+  base:
+    # One version line for every first-party app, the same as Android's `versionName`.
+    MARKETING_VERSION: "1.0.1"
+    # ⚠ The build number of a DEVELOPMENT build is the constant below.
+    # `scripts/ios-archive.sh` passes a distinct one for every archive, because App Store
+    # Connect refuses a build number it has already seen for a version.
+    CURRENT_PROJECT_VERSION: "1"
+
+targetTemplates:
+  ReleaseApp:
+    sources:
+      # `PrivacyPolicy` + `PrivacyPolicyLink` (Sources/PrivacyPolicy.swift): the in-app privacy
+      # link guideline 5.1.1(i) asks of every app, so it rides the one template all ten apply.
+      # ⚠ Compiled into each app target, not a Swift package — the same `-derivedDataPath`
+      # constraint `ios-onboarding/onboarding.yml` documents.
+      - path: Sources
+    info:
+      properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # Spelled out because App Store validation refuses an iPad-capable app that does
+        # not declare all four iPad orientations. These are the values iOS already
+        # assumes when the keys are absent, so nothing changes on a device.
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+
+  # The app's OWN Kotlin framework, `:tenshu-sdk-ios-<app>` (`ios-per-app-frameworks.md` D5): linked
+  # by search path and name, one slice, in every configuration, so no second spec. The app sets `TENSHU_SDK_MODULE` (e.g. `tenshu-sdk-ios-control`) and a prebuild
+  # running `scripts/ios-build-sdk.sh <app>`, which reads the two settings below.
+  # ⚠ The Release configuration links the RELEASE framework (whole-program, ~8 min, `-Xmx10g`),
+  # from the archive script and from Xcode's Product menu alike.
+  AppFramework:
+    settings:
+      base:
+        TENSHU_SDK_VARIANT: debug
+        TENSHU_SDK_TARGET: iosSimulatorArm64
+        TENSHU_SDK_TARGET[sdk=iphoneos*]: iosArm64
+        FRAMEWORK_SEARCH_PATHS:
+          - $(inherited)
+          - $(SRCROOT)/../$(TENSHU_SDK_MODULE)/build/bin/$(TENSHU_SDK_TARGET)/$(TENSHU_SDK_VARIANT)Framework
+        OTHER_LDFLAGS:
+          - $(inherited)
+          - -framework
+          - TenshuSdk
+      configs:
+        Release:
+          TENSHU_SDK_VARIANT: release

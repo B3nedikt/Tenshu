@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    Maps-on-iOS SIMULATOR Keychain + App-Group entitlements (route-1;
+    ios-first-party-route-1-migration.md P4). Mirrors timeline-ios/Timeline.entitlements. An
+    ad-hoc-signed sim build needs an `application-identifier` to have a Keychain at all, plus the
+    SHARED `app.tenshu.shared` group (bare string — ad-hoc signing has no team) that Control writes
+    the route-1 key material into (`RealmKeyMaterialBridge`, read via `TenshuSharedKeychainGroup`),
+    and the App Group `group.app.tenshu.shared` so `MapsLocalRuntime` reads the SAME `objects`
+    replica Control writes (in-process route 1). A real device uses the Team-prefixed variant in
+    Maps.device.entitlements; App Groups are paid-tier there.
+
+    ⚠ timeline-ios shipped for a while with neither of these (found in route-1 migration P3-2) — a
+    shell with no entitlements has no Keychain, so the route-1 gate can never see provisioning and
+    the app is permanently "not connected". Built in from the start here.
+  -->
+  <key>application-identifier</key>
+  <string>app.tenshu.maps.ios</string>
+  <key>keychain-access-groups</key>
+  <array>
+    <string>app.tenshu.maps.ios</string>
+    <string>app.tenshu.shared</string>
+  </array>
+  <key>com.apple.security.application-groups</key>
+  <array>
+    <string>group.app.tenshu.shared</string>
+  </array>
+</dict>
+</plist>

@@ -1,0 +1,13 @@
+Tenshu Calendar needs Tenshu Control installed and set up on the same device first. Control holds the encryption keys; Calendar cannot open without it.
+
+To review:
+1. Install Tenshu Control and open it. Tap "Start fresh on this device", then "Continue", then "I've saved it".
+2. Open Tenshu Calendar. It shows "Month", "Agenda" and "Calendars".
+3. Tap "+" to create an event, then "Save". Open an event to "Edit" or "Delete event".
+4. On "Calendars": "New calendar" creates one, and "Subscribe to a calendar" takes an https or webcal address. A calendar's menu has "Import or export…" for .ics files, through the system file picker.
+
+Permissions: notifications only, for event reminders. iOS asks only when you tap "Turn on reminders" in the "Reminders" section of the Calendars tab. Calendar does not read the system calendar.
+
+Everything works on one device without an account. "Turn on sync" in Control is optional: it asks for an email address and then a 6-digit code. To try it without a mailbox, use the sign-in details in App Review Information: enter the user name as the email address and the password as the code (no email is sent to that address). Any address you can receive mail at also works, and a new account is free.
+
+All events are end-to-end encrypted on the device before they reach our servers; the servers cannot read them.

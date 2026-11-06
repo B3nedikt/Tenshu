@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- German (de). Mirrors ../values/strings.xml key for key; ADR 0016.
+     See the English file for per-string developer notes. -->
+<resources>
+    <string name="error_unexpected">Etwas ist schiefgelaufen. Bitte versuche es erneut.</string>
+    <string name="error_control_not_running">Tenshu Control läuft nicht.</string>
+    <string name="error_content_pinned">Diese Datei wird noch hochgeladen. Wenn du ihren Download entfernst, fehlt die einzige Kopie, mit der der Upload abgeschlossen werden kann.</string>
+    <string name="error_still_syncing">Dieses Element wird noch mit diesem Gerät synchronisiert. Versuche es gleich noch einmal.</string>
+    <string name="error_move_needs_local_bytes">Du bist offline und dieses Element ist nicht heruntergeladen. Lade es zuerst herunter oder verschiebe es, sobald du wieder online bist.</string>
+    <string name="error_content_unavailable">Der Inhalt dieser Datei konnte nicht geladen werden. Möglicherweise wird er noch synchronisiert.</string>
+    <string name="error_invite_response_changed">Die Antwort auf diese Einladung hat sich geändert, nachdem sie angezeigt wurde, daher wurde nichts gespeichert. Lehne diese Einladung ab und sende eine neue.</string>
+    <string name="error_invite_code_not_shown">Für diese Einladung gibt es noch keinen Code zum Bestätigen. Versuche es gleich noch einmal.</string>
+    <string name="error_dispatch_missing_parameter">Etwas ist schiefgelaufen. Bitte versuche es erneut.</string>
+    <string name="error_dispatch_unknown_parameter">Etwas ist schiefgelaufen. Bitte versuche es erneut.</string>
+    <string name="error_dispatch_wrong_parameter">Etwas ist schiefgelaufen. Bitte versuche es erneut.</string>
+    <string name="error_operation_invalid_parameter">Etwas ist schiefgelaufen. Bitte versuche es erneut.</string>
+    <string name="error_internal">Etwas ist schiefgelaufen. Bitte versuche es erneut.</string>
+    <string name="error_generic">Etwas ist schiefgelaufen. Bitte versuche es erneut.</string>
+    <string name="error_not_found">Dieses Element ist nicht mehr verfügbar.</string>
+    <string name="error_invalid_caller">Diese App darf das nicht tun.</string>
+    <string name="error_open_target_unavailable">Die App, zu der dieses Element gehört, ist nicht verfügbar.</string>
+    <string name="error_unannounced_session">Tenshu muss sich neu verbinden. Bitte versuche es erneut.</string>
+    <string name="error_unsupported_operation">Diese Version unterstützt das noch nicht.</string>
+    <string name="error_entitlement_unverified">Dein Plan konnte nicht überprüft werden. Bitte versuche es erneut.</string>
+    <string name="error_relay_route_unsupported">Dein anderes Gerät braucht dafür ein Update.</string>
+    <string name="error_recovery_phrase_unreadable">Dieses Gerät kann seine gespeicherte Wiederherstellungsphrase nicht lesen, daher kann das Entsperren nicht gelingen. Verwende „Dieses Gerät hinzufügen“ auf einem anderen Gerät, das noch angemeldet ist.</string>
+    <string name="error_device_already_set_up">Dieses Gerät ist bereits mit einem anderen Realm eingerichtet. Um hier ein anderes Realm wiederherzustellen, verwende zuerst „Dieses Gerät vergessen“ und versuche es dann erneut.</string>
+    <string name="error_semantic_search_unavailable">Die intelligente Suche ist auf diesem Gerät nicht verfügbar.</string>
+    <string name="error_face_groups_unavailable">„Personen“ ist auf diesem Gerät nicht verfügbar.</string>
+    <string name="error_model_unavailable">Dieses Modell ist auf diesem Gerät nicht verfügbar.</string>
+    <string name="error_index_pass_refused">Die Foto-Indexierung konnte auf diesem Gerät nicht gestartet werden.</string>
+    <string name="error_already_exists">Ein Element mit diesem Namen existiert bereits.</string>
+    <string name="error_insufficient">Es ist nicht mehr genug Speicher frei.</string>
+    <string name="error_no_storage">Dieses Realm hat noch keinen Speicher.</string>
+    <string name="error_metered_network_refused">Nicht heruntergeladen – du nutzt eine getaktete Verbindung.</string>
+    <string name="control_checking_title">Tenshu Control wird geprüft…</string>
+    <string name="control_checking_timed_out_title">Einrichtung von Tenshu Control lässt sich nicht bestätigen</string>
+    <string name="control_checking_timed_out_body">Tenshu Control antwortet, hat die Einrichtung dieses Geräts aber noch nicht bestätigt. Öffne Control, um sie zu prüfen, und versuche es dann erneut.</string>
+    <string name="control_checking_retry">Erneut versuchen</string>
+    <!-- AppAutoContinueButton (control-pairing-ux.md §9). -->
+    <string name="auto_continue_stay">Bleiben</string>
+    <string name="auto_continue_countdown_one">Weiter in 1 Sekunde</string>
+    <string name="auto_continue_countdown">Weiter in %1$d Sekunden</string>
+    <string name="privacy_policy">Datenschutzerklärung</string>
+    <string name="terms_of_use">Nutzungsbedingungen</string>
+
+    <!-- Open-Source-Lizenzen (docs/oss-licences.md). -->
+    <string name="oss_licences_title">Open-Source-Lizenzen</string>
+    <string name="oss_licences_row_support">Die Software und Daten, auf denen diese App aufbaut</string>
+    <string name="oss_licences_intro">Diese App baut auf Open-Source-Software und offenen Daten auf. Jede Komponente ist mit ihrer Lizenz aufgeführt; wähle eine Bibliothek, um ihren Lizenztext zu lesen.</string>
+    <string name="oss_licences_section_data">Daten und Schriften</string>
+    <string name="oss_licences_section_libraries">Bibliotheken</string>
+    <string name="oss_licences_unavailable">Dieser Build enthält keine Lizenzliste.</string>
+    <string name="oss_licences_close">Schließen</string>
+    <string name="oss_licences_open_online">Online öffnen</string>
+    <string name="oss_licences_no_text">Der vollständige Lizenztext ist online verfügbar.</string>
+    <string name="oss_data_osm_title">OpenStreetMap</string>
+    <string name="oss_data_osm_credit">Kartendaten © OpenStreetMap-Mitwirkende</string>
+    <string name="oss_data_protomaps_title">Protomaps-Basiskarte</string>
+    <string name="oss_data_protomaps_credit">Offline-Kartenkacheln aus OpenStreetMap-Daten, erstellt mit dem Protomaps-Basemap-Schema</string>
+    <string name="oss_data_noto_title">Noto Sans (Kartenbeschriftungen)</string>
+    <string name="oss_data_noto_credit">Copyright 2022 The Noto Project Authors</string>
+    <string name="oss_data_photon_title">Photon-Ortssuche (komoot)</string>
+    <string name="oss_data_photon_credit">Ortsnamen stammen bei aktivierter Online-Suche aus OpenStreetMap-Daten über Photon, betrieben von komoot</string>
+    <string name="oss_data_models_title">Modelle auf dem Gerät</string>
+    <string name="oss_data_models_credit">Werden separat geladen; jedes Modell zeigt seine Lizenz unter Einstellungen → Modelle</string>
+</resources>

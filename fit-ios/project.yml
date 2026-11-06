@@ -1,0 +1,233 @@
+# XcodeGen spec for the Fit iOS app (docs/proposals/fit-app.md +
+# docs/proposals/ios-proxy-architecture.md §9.3 "share view models + repos, native UI").
+# Mirrors timeline-ios/project.yml. The generated `FitIos.xcodeproj` + `Info.plist` are
+# gitignored (build from source, like the Kotlin framework + libsodium).
+#
+# Regenerate after editing:   (cd fit-ios && xcodegen generate)
+# Build (simulator):          xcodebuild -project FitIos.xcodeproj -scheme FitIos \
+#                               -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' build
+#
+# v1 is the app *over the mock*: native SwiftUI screens bound to the real
+# `:fit-shared-logic` view models through the `FitSurface` umbrella seam, with
+# `MockFitRepository` + `MockRecordingEngine` standing in for a proxy. The live-EPC
+# data path (a real `FitProjectionRepository` over an EPC channel to a Control) is a
+# later tier; it swaps in behind `FitSurface.installRepository` with no SwiftUI change.
+name: FitIos
+options:
+  bundleIdPrefix: app.tenshu
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+# Two build configs over one app target: the shipping `Debug` config is the mock-only app; the
+# `DebugHarness` config additionally defines the `DEV_HARNESS` Swift compilation condition, which
+# surfaces the dev/test EPC pairing tab (live-EPC seam, ios-proxy-architecture.md §12). The two
+# schemes below pin each to its config.
+configs:
+  Debug: debug
+  DebugHarness: debug
+  Release: release
+
+# Everything this app owes the map beyond its Kotlin framework (D9) — the shared SwiftUI map layer,
+# the MapLibre SPM package, and the tile archive + glyph atlas as bundle resources — arrives through
+# ONE include, applied to the target below as `templates: [MapBearingApp]`. Timeline's shell includes
+# the same file (P3); Maps will be the third.
+include:
+  # The shared adaptive navigation shell (N6), applied as `templates: [AdaptiveAppShell]`.
+  - path: ../ios-shell/shell.yml
+  - path: ../ios-basemap/basemap.yml
+  # The shared forward-to-Control screen (ADR 0022), applied below as
+  # `templates: [ControlOnboardingApp]`. Drive includes the same file.
+  - path: ../ios-onboarding/onboarding.yml
+  # The shared realm-storage banner (§8b.5c), applied below as `templates: [RealmStorageBanner]`.
+  - path: ../ios-storage/storage.yml
+  # Version numbers and orientations (`ReleaseApp`), and how Fit links its OWN Kotlin framework
+  # (`AppFramework`, `ios-per-app-frameworks.md` P4). Archived by `scripts/ios-archive.sh fit`.
+  - path: ../ios-release/release.yml
+  # The open-source notices (`docs/oss-licences.md`), applied below as `templates: [OssLicences]`.
+  - path: ../ios-about/about.yml
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    # Ad-hoc-signed on the SIMULATOR (CODE_SIGN_IDENTITY = "-"), matching the sibling iOS
+    # apps. A mock-only app needs no Keychain / App Group / entitlements, so there is no
+    # CODE_SIGN_ENTITLEMENTS here. Ad-hoc signing needs NO Apple ID / Team ID.
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGNING_ALLOWED: "YES"
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    # Real-device (iphoneos) builds sign for the personal team (ios-signing.md §2/§3);
+    # the simulator keeps the ad-hoc config above. Team ID from $TENSHU_TEAM_ID at
+    # `xcodegen generate` time (local.properties tenshu.teamId).
+    CODE_SIGNING_REQUIRED[sdk=iphoneos*]: "YES"
+    CODE_SIGN_STYLE[sdk=iphoneos*]: Automatic
+    CODE_SIGN_IDENTITY[sdk=iphoneos*]: "Apple Development"
+    DEVELOPMENT_TEAM[sdk=iphoneos*]: ${TENSHU_TEAM_ID}
+    # Apple-silicon simulator only — matches the Kotlin framework's arch set (no iosX64 because
+    # paging-common ships no iosX64 klib).
+    EXCLUDED_ARCHS[sdk=iphonesimulator*]: x86_64
+
+targets:
+  FitIos:
+    type: application
+    platform: iOS
+    # The shared map layer + MapLibre + the tile/glyph payload, and the shared
+    # forward-to-Control screen (see the `include`s above).
+    templates:
+      - AdaptiveAppShell
+      - MapBearingApp
+      - ControlOnboardingApp
+      - RealmStorageBanner
+      # Version numbers and orientations for an archived build (`ios-release/release.yml`).
+      - ReleaseApp
+      - OssLicences
+      # ⚠ Fit links `:tenshu-sdk-ios-fit` (`ios-per-app-frameworks.md`
+      # P4): a `TenshuSdk` built from Fit's code and the shared core only.
+      - AppFramework
+    sources:
+      - path: Sources
+      - path: Resources
+    info:
+      path: Info.plist
+      properties:
+        # Cross-app open (`control-cross-app-open.md` CO-D4, §5i). ⚠⚠ On iOS this URL is the
+        # ONLY carrier: under route 1 every first-party app runs its own in-process proxy, so
+        # there is no channel between two apps for a request to be pushed down.
+        # ⚠⚠ The scheme is DERIVED from the appId (`app.tenshu.fit` -> `tenshu-fit`), never
+        # authored — `OpenTargetUrl.schemeFor` is the single source and a test pins the mapping.
+        # ⚠ This file is the source; `Info.plist` is generated and gitignored.
+        CFBundleURLTypes:
+          - CFBundleURLName: app.tenshu.fit.open
+            CFBundleURLSchemes:
+              - tenshu-fit
+        # Lets `canOpenURL("tenshu-control://services")` answer truthfully so the realm-storage
+        # banner can offer "Manage storage". ⚠⚠ Without this entry iOS reports Control as absent
+        # even when it is installed, and the banner silently degrades to text — the failure is a
+        # missing button, never a crash, which is exactly why it needs declaring rather than
+        # discovering. ⚠ `control-cross-app-open.md` rules out launch-by-BUNDLE-ID; a registered
+        # scheme is a different mechanism and Control-iOS registers one.
+        LSApplicationQueriesSchemes:
+          - tenshu-control
+        CFBundleDisplayName: Tenshu Fit
+        # Export compliance (`docs/how-to/ios-testflight.md`): libsodium ships standard (IETF)
+        # algorithms beside Apple's own, so App Store Connect's answer is "standard algorithms".
+        ITSAppUsesNonExemptEncryption: true
+        # Tenshu Control's App Store product id, for the forward-to-Control screen
+        # (ADR 0022). Empty until Control ships → the screen says so instead of opening
+        # a broken page.
+        TenshuControlAppStoreId: $(TENSHU_CONTROL_APP_STORE_ID)
+        # This app's own App Store product id, for the skew fence's Update button
+        # (core-schema-skew-surface.md §8.5). Empty until the listing exists → no button.
+        TenshuAppStoreId: $(TENSHU_APP_STORE_ID)
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        # ⚠ No `NSCameraUsageDescription`: the only camera code is the DEV_HARNESS EPC pairing
+        # scanner (`QrScannerView`), which a shipping build does not compile, and App Review asks
+        # about a purpose string with nothing behind it. The harness scanner checks for the key and
+        # shows its paste-instead message without it (ios-per-app-frameworks.md §10.4).
+        # The build's effective shared Keychain access group (bare on the sim, Team-prefixed on
+        # a signed device build) — read by the Kotlin RealmKeyMaterialBridge for the route-1 key
+        # material (ios-signing.md §2).
+        TenshuSharedKeychainGroup: $(TENSHU_SHARED_KEYCHAIN_GROUP)
+        # HealthKit consent-sheet copy (P-iOS-2 HealthKitImporter — A34: explicit per-type consent).
+        NSHealthShareUsageDescription: Fit imports your workouts, activity, sleep and vitals from Apple Health into your encrypted realm, and reads your date of birth and sex once to estimate calories. Nothing leaves your devices unencrypted.
+        # HealthKit WRITE consent copy (R-iOS-6): Fit exports a workout it records back to Apple
+        # Health so it appears there too. Required for the share-authorization request; without it
+        # requestAuthorization aborts the process.
+        NSHealthUpdateUsageDescription: Fit adds workouts you record to Apple Health, so your activity shows up there too.
+        # First-party recorder consent copy (R-iOS-2, fit-app.md §11.2). Route + heart rate are
+        # GDPR Art. 9 / home-revealing (A34) — captured only during an explicitly started workout.
+        # We request *when-in-use* location and enable background updates only while recording (the
+        # UIBackgroundModes:location below), so no `Always` description is needed.
+        NSLocationWhenInUseUsageDescription: Fit records your route while a workout is active. Location is captured only during a recording — never otherwise — and never leaves your device unencrypted.
+        # ⚠ Fit never asks for Always (above). This key is for App Store Connect: the embedded
+        # MapLibre.framework references `requestAlwaysAuthorization` (measured on the first archive,
+        # 2026-10-17, as for Maps), and an app carrying that call owes the key. It says what is true.
+        NSLocationAlwaysAndWhenInUseUsageDescription: Fit uses your location only while you record a workout, and never asks for access at other times.
+        NSMotionUsageDescription: Fit counts your steps and distance during a workout using the on-device motion sensor.
+        NSBluetoothAlwaysUsageDescription: Fit connects to a Bluetooth heart-rate strap while you record a workout.
+        # location: keep GPS alive if the user leaves the app mid-workout (the FGS analog; the
+        # engine sets allowsBackgroundLocationUpdates only while recording). fetch: the R-iOS-5
+        # BGAppRefreshTask window for the background HealthKit refresh + recorder-outbox drain.
+        UIBackgroundModes:
+          - location
+          - fetch
+        # The BGAppRefreshTask identifier the app registers (R-iOS-5, FitBackgroundRefresh).
+        BGTaskSchedulerPermittedIdentifiers:
+          - app.tenshu.fit.refresh
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.tenshu.fit.ios
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: "NO"
+        # Keychain entitlements for the route-1 shared-Keychain key material (FitLocalRuntime reads
+        # what Control publishes). Sim = bare group; device = Team-prefixed variant.
+        CODE_SIGN_ENTITLEMENTS: Fit.entitlements
+        TENSHU_SHARED_KEYCHAIN_GROUP: app.tenshu.shared
+        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: Fit.device.entitlements
+        TENSHU_SHARED_KEYCHAIN_GROUP[sdk=iphoneos*]: $(DEVELOPMENT_TEAM).app.tenshu.shared
+        # Fit's own static `TenshuSdk` framework — linked by search path and name (the
+        # `AppFramework` template), not embedded.
+        TENSHU_SDK_MODULE: tenshu-sdk-ios-fit
+      configs:
+        # Only the harness config compiles the dev/test EPC pairing tab.
+        # `$(inherited)` keeps the `DEBUG` the debug-config preset already sets.
+        DebugHarness:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) DEV_HARNESS
+    preBuildScripts:
+      - name: Build TenshuSdk.framework
+        # Keep the linked framework fresh before compile/link: one slice of Fit's framework
+        # (scripts/ios-build-sdk.sh).
+        script: |
+          "$SRCROOT/../scripts/ios-build-sdk.sh" fit
+        basedOnDependencyAnalysis: false
+
+  # The store screenshots (docs/how-to/store-screenshots.md): an XCUITest over the SHIPPING app —
+  # the `Debug` configuration, no harness — that seeds Apple Health and the workouts in one launch
+  # (`-seedFixture`, data only) and captures the next. Run only through
+  # `scripts/store-screenshots.sh fit`, which runs Control's genesis on the same simulator first.
+  FitIosScreenshots:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: Screenshots
+      # AdaptiveAppShell's tab lookup, shared by every walk (bottom tabs, iPad top tabs, sidebar).
+      - path: ../ios-shell/UITestSupport
+    dependencies:
+      - target: FitIos
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.tenshu.fit.ios.screenshots
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_TARGET_NAME: FitIos
+
+schemes:
+  # Shipping app: mock-only, no pairing tab.
+  FitIos:
+    build:
+      targets:
+        FitIos: all
+    run:
+      config: Debug
+  # Dev/test harness: adds the EPC pairing tab that reaches a live Control (§12).
+  FitIos-Dev:
+    build:
+      targets:
+        FitIos: all
+    run:
+      config: DebugHarness
+  # Store screenshots — ⚠ `Debug`, NOT `DebugHarness`: the harness adds a Pair tab the shipping app
+  # does not have, and a listing must not show it.
+  FitIos-Screenshots:
+    build:
+      targets:
+        FitIos: all
+        FitIosScreenshots: [test]
+    test:
+      config: Debug
+      targets:
+        - FitIosScreenshots
+    run:
+      config: Debug

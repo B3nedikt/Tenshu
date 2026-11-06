@@ -1,0 +1,105 @@
+{
+  "app": {
+    "title": "Mia",
+    "tagline": "Ask about your own data — answered on this device, end-to-end encrypted."
+  },
+  "runtime": {
+    "connectingTitle": "Still connecting to Tenshu…",
+    "connectingBody": "The Tenshu tab hosting Mia is busy. Mia will load as soon as it answers.",
+    "elsewhereTitle": "Tenshu is open in another tab",
+    "elsewhereBody": "Tenshu runs in one tab at a time, so your data can't get out of step. Use it here to move it to this tab.",
+    "moving": "Waiting for the other tab to finish saving. This can take up to two minutes.",
+    "movingShort": "Moving…",
+    "useHere": "Use here"
+  },
+  "crash": {
+    "title": "Something went wrong",
+    "body": "This part of Mia hit an unexpected error. Your data is safe — nothing was changed.",
+    "retry": "Try again",
+    "reload": "Reload"
+  },
+  "tabs": {
+    "label": "Mia",
+    "chat": "Chat",
+    "history": "History",
+    "grants": "What Mia can read"
+  },
+  "chat": {
+    "greetingTitle": "Hi, I’m Mia",
+    "greetingBody": "Ask me about your calendar, workouts, places, files or devices — for example “what’s on my calendar tomorrow” or “workouts last week”.",
+    "inputLabel": "Your question",
+    "inputHint": "Ask Mia…",
+    "send": "Send",
+    "thinking": "Mia is thinking…",
+    "remaining": "{count, plural, one {# character left} other {# characters left}}",
+    "lookOnly": "In the browser Mia only looks things up: it can’t switch devices, run routines or add events.",
+    "nothingMatched": "{explanation} — nothing matched.",
+    "results": "Results",
+    "turns": "Conversation",
+    "earlier": "Show earlier"
+  },
+  "hitKind": {
+    "place": "Place",
+    "moment": "Timeline moment",
+    "workout": "Workout",
+    "device": "Device",
+    "event": "Calendar event",
+    "file": "File"
+  },
+  "history": {
+    "memoryNote": "Your conversation is kept only in this browser’s memory while Tenshu is open. It is never saved, and it is cleared when you sign out or Tenshu locks — the same as in the Mia app.",
+    "empty": "No conversations yet.",
+    "meta": "{date} · {count, plural, one {# question} other {# questions}}"
+  },
+  "grants": {
+    "title": "What Mia can read",
+    "body": "Mia only reads what you allow, one app at a time. Turning something off here means Mia stops using it — it can’t answer from it, and it will say so rather than pretending there is nothing there.",
+    "everywhere": "These switches apply to Mia on all your devices.",
+    "write": "Let Mia add events",
+    "source": {
+      "FILES": "Files",
+      "TIMELINE": "Timeline",
+      "FITNESS": "Workouts",
+      "PLACES": "Places",
+      "DEVICES": "Smart-home devices",
+      "ROUTINES": "Routines",
+      "LABELS": "Photo contents",
+      "VISUAL_SEARCH": "Photo search by appearance",
+      "CALENDAR": "Calendar"
+    }
+  },
+  "errors": {
+    "error_generic": "Something went wrong. Please try again.",
+    "error_unexpected": "Something went wrong. Please try again.",
+    "error_internal": "Something went wrong. Please try again.",
+    "error_not_found": "That is no longer available.",
+    "error_invalid_caller": "This app is not allowed to do that.",
+    "error_unannounced_session": "Tenshu needs to reconnect. Please try again.",
+    "error_unsupported_operation": "This version does not support that yet.",
+    "error_mia_empty_utterance": "Type a question first.",
+    "error_mia_utterance_too_long": "That question is too long. Keep it under 500 characters.",
+    "error_mia_invalid_zone": "Mia couldn’t tell which time zone you’re in, so it didn’t ask. Check your browser’s time zone and try again.",
+    "error_mia_bad_cursor": "Couldn’t load earlier messages. Try again.",
+    "error_mia_bad_page_size": "Couldn’t load earlier messages. Try again.",
+    "error_mia_conversation_not_found": "This conversation is gone — it was cleared when you signed out or Tenshu locked.",
+    "error_mia_session_cleared": "You were signed out or Tenshu locked while Mia was answering, so that question wasn’t kept. Ask again.",
+    "error_mia_unexpected_action": "Mia wanted to change something, which it can’t do in the browser. Nothing was changed.",
+    "error_mia_unknown_source": "Mia doesn’t know that source. Nothing was changed.",
+    "error_mia_no_write_grant": "Mia can’t write to that source. Nothing was changed.",
+    "bridge": "Couldn’t reach Tenshu. Make sure it is open and unlocked, then try again.",
+    "bridge_timeout": "Tenshu took too long to answer. Try again.",
+    "bridge_not_permitted": "Mia is not allowed to do that."
+  },
+  "common": {
+    "back": "Back",
+    "loading": "Loading…",
+    "retry": "Try again"
+  },
+  "read": {
+    "failedTitle": "Couldn’t load this"
+  },
+  "stream": {
+    "stopped": "Updates stopped — what you see may be out of date.",
+    "reconnect": "Reconnect"
+  }
+}

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- The "open in another app" temp file (writePreviewTempFile) is created via
+         File.createTempFile, which uses java.io.tmpdir == the app cache dir on
+         Android (set by ActivityThread). `cache-path` roots at getCacheDir(), so
+         path="." exposes that whole private dir to the FileProvider — and nothing
+         outside it. See drive-content-preview.md §6 (D3). -->
+    <cache-path
+        name="preview_cache"
+        path="." />
+</paths>

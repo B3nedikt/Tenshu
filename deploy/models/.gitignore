@@ -1,0 +1,22 @@
+# Never commit pipeline outputs or secrets.
+# NOTE: git ignore-rules do NOT support trailing inline comments - a '#' only
+# starts a comment at the start of a line. Keep every pattern on its own line.
+
+# ⚠ This directory held a Scaleway Terraform module until 2026-09-17 (never applied; the bucket moved to
+# deploy/cloudflare-models). Its ignores stay, so a local terraform.tfvars or state left behind by that
+# module — which carried provider keys — can never be committed from here.
+terraform.tfvars
+*.auto.tfvars
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# --- pipeline outputs (inference-service.md IN-D10) ---
+# ⚠⚠ A checkpoint tower is ~380 MB. Model artifacts are built out-of-band and published to the R2
+# bucket; they never belong in the tree. The MANIFEST (models.json) is tracked — it is the thing a
+# human writes — and everything the signer derives from it is not.
+build/
+*.onnx
+*.bin
+catalog.json
+catalog.json.sig

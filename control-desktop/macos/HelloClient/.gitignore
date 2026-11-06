@@ -1,0 +1,4 @@
+# Locally-built de-risk binary (see README.md)
+hello-client
+*.o
+*.dSYM/

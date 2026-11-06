@@ -1,0 +1,221 @@
+label-eval-mapping 1
+# The candidate label set (inference-service-proxy/src/jvmTest/resources/label-set-candidate-v1.tsv)
+# mapped onto COCO's 80 object categories, for scripts/inference/label-eval.py. Every candidate
+# label has exactly one row; label-eval.py refuses a mapping that misses one or names a label or a
+# category that does not exist.
+#
+# An image is positive for a label when it has at least one instance of any listed category.
+#
+# kind: one-to-one | one-to-many | none. ⚠⚠ `none` labels are OUT of what the evaluation can
+# score: every scene, document, screenshot, event and most activities. They are the majority.
+# fidelity: exact (the label means the categories) | proxy (the categories stand in for it; the
+# note says how). Proxy rows are scored and reported apart.
+#
+# Columns: label<TAB>kind<TAB>fidelity<TAB>COCO categories, `;`-separated, `-` for none<TAB>note
+people	one-to-one	exact	person	-
+person	none	-	-	the prompt asks for a single person; presence does not express a count
+portrait	none	-	-	a kind or arrangement of people; COCO annotates person only
+group of people	none	-	-	a kind or arrangement of people; COCO annotates person only
+crowd	none	-	-	a kind or arrangement of people; COCO annotates person only
+baby	none	-	-	a kind or arrangement of people; COCO annotates person only
+child	none	-	-	a kind or arrangement of people; COCO annotates person only
+couple	none	-	-	a kind or arrangement of people; COCO annotates person only
+family	none	-	-	a kind or arrangement of people; COCO annotates person only
+selfie	none	-	-	a kind or arrangement of people; COCO annotates person only
+person from behind	none	-	-	a kind or arrangement of people; COCO annotates person only
+people at a table	none	-	-	a relation between two categories, not a category
+team	none	-	-	a kind or arrangement of people; COCO annotates person only
+animals	one-to-many	exact	bird;cat;dog;horse;sheep;cow;elephant;bear;zebra;giraffe	COCO annotates ten animal kinds; an image of any other animal is a false negative of the truth
+dog	one-to-one	exact	dog	-
+cat	one-to-one	exact	cat	-
+bird	one-to-one	exact	bird	-
+horse	one-to-one	exact	horse	-
+cow	one-to-one	exact	cow	-
+sheep	one-to-one	exact	sheep	-
+fish	none	-	-	not a COCO category
+insect	none	-	-	not a COCO category
+butterfly	none	-	-	not a COCO category
+squirrel	none	-	-	not a COCO category
+deer	none	-	-	not a COCO category
+duck	none	-	-	a kind of COCO's bird, not annotated on its own
+farm animal	none	-	-	the prompt names a setting COCO does not annotate
+zoo animal	none	-	-	the prompt names a setting COCO does not annotate
+food and drink	one-to-many	exact	banana;apple;sandwich;orange;broccoli;carrot;hot dog;pizza;donut;cake	the food half only: COCO's bottle, cup and wine glass do not say there is a drink in them
+plate of food	none	-	-	not a COCO category
+breakfast	none	-	-	not a COCO category
+sandwich	one-to-one	exact	sandwich	-
+pizza	one-to-one	exact	pizza	-
+pasta	none	-	-	not a COCO category
+salad	none	-	-	not a COCO category
+soup	none	-	-	not a COCO category
+burger	none	-	-	COCO has hot dog and sandwich, not a hamburger
+sushi	none	-	-	not a COCO category
+dessert	one-to-many	proxy	cake;donut	two desserts stand in for the class
+cake	one-to-one	exact	cake	-
+ice cream	none	-	-	not a COCO category
+bread	none	-	-	not a COCO category
+fruit	one-to-many	exact	banana;apple;orange	COCO annotates three fruits; any other fruit is a false negative of the truth
+vegetables	one-to-many	exact	broccoli;carrot	COCO annotates two vegetables; any other is a false negative of the truth
+coffee	none	-	-	COCO's cup does not say what is in it
+cocktail	none	-	-	not a COCO category
+wine	one-to-one	proxy	wine glass	the glass is annotated whether or not there is wine in it
+beer	none	-	-	not a COCO category
+barbecue	none	-	-	not a COCO category
+plants	none	-	-	COCO annotates potted plant only; trees, grass and flowers are unannotated, so its negatives are not negatives
+flower	none	-	-	not a COCO category
+tree	none	-	-	not a COCO category
+forest	none	-	-	not a COCO category
+grass	none	-	-	not a COCO category
+mushroom	none	-	-	not a COCO category
+houseplant	one-to-one	exact	potted plant	-
+garden	none	-	-	not a COCO category
+cactus	none	-	-	not a COCO category
+autumn leaves	none	-	-	not a COCO category
+blossom	none	-	-	not a COCO category
+landscape	none	-	-	a scene; COCO instances annotate objects
+beach	none	-	-	a scene; COCO instances annotate objects
+ocean	none	-	-	a scene; COCO instances annotate objects
+mountain	none	-	-	a scene; COCO instances annotate objects
+lake	none	-	-	a scene; COCO instances annotate objects
+river	none	-	-	a scene; COCO instances annotate objects
+waterfall	none	-	-	a scene; COCO instances annotate objects
+desert	none	-	-	a scene; COCO instances annotate objects
+snowy landscape	none	-	-	a scene; COCO instances annotate objects
+field	none	-	-	a scene; COCO instances annotate objects
+valley	none	-	-	a scene; COCO instances annotate objects
+cliff	none	-	-	a scene; COCO instances annotate objects
+island	none	-	-	a scene; COCO instances annotate objects
+canyon	none	-	-	a scene; COCO instances annotate objects
+glacier	none	-	-	a scene; COCO instances annotate objects
+urban	none	-	-	a scene or structure; not a COCO category
+city street	none	-	-	a scene or structure; not a COCO category
+skyline	none	-	-	a scene or structure; not a COCO category
+tall building	none	-	-	a scene or structure; not a COCO category
+house	none	-	-	a scene or structure; not a COCO category
+bridge	none	-	-	a scene or structure; not a COCO category
+church	none	-	-	a scene or structure; not a COCO category
+castle	none	-	-	a scene or structure; not a COCO category
+market stall	none	-	-	a scene or structure; not a COCO category
+shop front	none	-	-	a scene or structure; not a COCO category
+train station	none	-	-	a scene or structure; not a COCO category
+airport	none	-	-	a scene or structure; not a COCO category
+construction site	none	-	-	a scene or structure; not a COCO category
+parking	none	-	-	a scene or structure; not a COCO category
+monument	none	-	-	a scene or structure; not a COCO category
+fountain	none	-	-	a scene or structure; not a COCO category
+graffiti	none	-	-	a scene or structure; not a COCO category
+indoors	none	-	-	a scene; COCO instances annotate objects
+living room	none	-	-	a scene; COCO instances annotate objects
+kitchen	none	-	-	a scene; COCO instances annotate objects
+bedroom	none	-	-	a scene; COCO instances annotate objects
+bathroom	none	-	-	a scene; COCO instances annotate objects
+office	none	-	-	a scene; COCO instances annotate objects
+restaurant	none	-	-	a scene; COCO instances annotate objects
+cafe	none	-	-	a scene; COCO instances annotate objects
+museum	none	-	-	a scene; COCO instances annotate objects
+library	none	-	-	a scene; COCO instances annotate objects
+gym	none	-	-	a scene; COCO instances annotate objects
+classroom	none	-	-	a scene; COCO instances annotate objects
+hotel room	none	-	-	a scene; COCO instances annotate objects
+staircase	none	-	-	a scene; COCO instances annotate objects
+shop interior	none	-	-	a scene; COCO instances annotate objects
+transport	one-to-many	exact	bicycle;car;motorcycle;airplane;bus;train;truck;boat	-
+car	one-to-one	exact	car	-
+bicycle	one-to-one	exact	bicycle	-
+motorcycle	one-to-one	exact	motorcycle	-
+bus	one-to-one	exact	bus	-
+train	one-to-one	exact	train	COCO's train includes trams, which the candidate set lists separately
+tram	none	-	-	inside COCO's train, not annotated on its own
+boat	one-to-one	exact	boat	COCO's boat includes ships, which the candidate set lists separately
+ship	none	-	-	inside COCO's boat, not annotated on its own
+airplane	one-to-one	exact	airplane	-
+truck	one-to-one	exact	truck	-
+scooter	none	-	-	not a COCO category
+traffic	none	-	-	a scene, not an object category
+documents and screens	none	-	-	documents and screens are not COCO categories
+screenshot	none	-	-	documents and screens are not COCO categories
+receipt	none	-	-	documents and screens are not COCO categories
+document	none	-	-	documents and screens are not COCO categories
+handwriting	none	-	-	documents and screens are not COCO categories
+whiteboard	none	-	-	documents and screens are not COCO categories
+business card	none	-	-	documents and screens are not COCO categories
+ticket	none	-	-	documents and screens are not COCO categories
+menu	none	-	-	documents and screens are not COCO categories
+book page	none	-	-	documents and screens are not COCO categories
+form	none	-	-	documents and screens are not COCO categories
+map	none	-	-	documents and screens are not COCO categories
+chart	none	-	-	documents and screens are not COCO categories
+slide	none	-	-	documents and screens are not COCO categories
+sign with text	none	-	-	COCO annotates stop sign only
+qr code	none	-	-	documents and screens are not COCO categories
+computer screen	one-to-one	proxy	tv	COCO's tv covers televisions and monitors alike
+events	none	-	-	an event; COCO instances annotate objects
+birthday	none	-	-	an event; COCO instances annotate objects
+wedding	none	-	-	an event; COCO instances annotate objects
+concert	none	-	-	an event; COCO instances annotate objects
+festival	none	-	-	an event; COCO instances annotate objects
+parade	none	-	-	an event; COCO instances annotate objects
+sports match	none	-	-	an event; COCO instances annotate objects
+graduation	none	-	-	an event; COCO instances annotate objects
+conference	none	-	-	an event; COCO instances annotate objects
+fireworks	none	-	-	an event; COCO instances annotate objects
+camping	none	-	-	an event; COCO instances annotate objects
+picnic	none	-	-	an event; COCO instances annotate objects
+objects	none	-	-	the prompt describes a framing (a close-up), not a category
+phone	one-to-one	exact	cell phone	-
+laptop	one-to-one	exact	laptop	-
+camera	none	-	-	not a COCO category
+watch	none	-	-	COCO's clock is not a wristwatch
+keys	none	-	-	not a COCO category
+shoes	none	-	-	not a COCO category
+clothing	none	-	-	COCO annotates tie only
+bag	one-to-many	exact	backpack;handbag;suitcase	-
+furniture	one-to-many	exact	chair;couch;bed;dining table;bench	-
+tool	none	-	-	not a COCO category
+toy	none	-	-	COCO annotates teddy bear only; every other toy would be a false negative of the truth
+book	one-to-one	exact	book	-
+candle	none	-	-	not a COCO category
+jewellery	none	-	-	not a COCO category
+glasses	none	-	-	not a COCO category
+package	none	-	-	not a COCO category
+activities	none	-	-	an activity; COCO instances annotate objects
+running	none	-	-	an activity; COCO instances annotate objects
+cycling	none	-	-	a bicycle is annotated whether or not anyone rides it
+swimming	none	-	-	an activity; COCO instances annotate objects
+skiing	one-to-one	proxy	skis	the equipment stands in for the activity
+snowboarding	one-to-one	proxy	snowboard	the equipment stands in for the activity
+surfing	one-to-one	proxy	surfboard	the equipment stands in for the activity
+climbing	none	-	-	an activity; COCO instances annotate objects
+football	none	-	-	COCO's sports ball is any ball
+basketball	none	-	-	COCO's sports ball is any ball
+tennis	one-to-one	proxy	tennis racket	the equipment stands in for the activity
+yoga	none	-	-	an activity; COCO instances annotate objects
+dancing	none	-	-	an activity; COCO instances annotate objects
+cooking	none	-	-	an activity; COCO instances annotate objects
+fishing	none	-	-	an activity; COCO instances annotate objects
+sailing	none	-	-	an activity; COCO instances annotate objects
+skateboarding	one-to-one	proxy	skateboard	the equipment stands in for the activity
+hiking	none	-	-	an activity; COCO instances annotate objects
+art and media	none	-	-	not a COCO category
+painting	none	-	-	not a COCO category
+drawing	none	-	-	not a COCO category
+sculpture	none	-	-	not a COCO category
+mural	none	-	-	not a COCO category
+poster	none	-	-	not a COCO category
+logo	none	-	-	not a COCO category
+tattoo	none	-	-	not a COCO category
+comic	none	-	-	not a COCO category
+neon sign	none	-	-	not a COCO category
+sky and weather	none	-	-	a scene; COCO instances annotate objects
+sunset	none	-	-	a scene; COCO instances annotate objects
+sunrise	none	-	-	a scene; COCO instances annotate objects
+night sky	none	-	-	a scene; COCO instances annotate objects
+stars	none	-	-	a scene; COCO instances annotate objects
+moon	none	-	-	a scene; COCO instances annotate objects
+clouds	none	-	-	a scene; COCO instances annotate objects
+rainbow	none	-	-	a scene; COCO instances annotate objects
+storm	none	-	-	a scene; COCO instances annotate objects
+rain	none	-	-	a scene; COCO instances annotate objects
+snowfall	none	-	-	a scene; COCO instances annotate objects
+fog	none	-	-	a scene; COCO instances annotate objects
+lightning	none	-	-	a scene; COCO instances annotate objects

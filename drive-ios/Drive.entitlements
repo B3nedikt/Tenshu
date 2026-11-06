@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    Drive-on-iOS simulator Keychain entitlement (C3 cross-app handshake experiment).
+
+    Mirrors control-ios/Control.entitlements: an `application-identifier` so the ad-hoc-signed
+    sim build gets a Keychain at all, plus the SHARED `app.tenshu.shared` group (bare string,
+    no team prefix — ad-hoc simulator signing has no team). Drive READS the route-1 key material
+    Control publishes into this group (RealmKeyMaterialBridge; the DEV_HARNESS stub in
+    ControlSession.swift uses it too). Both apps must declare the identical
+    bare group for the simulator to treat it as shared. On a real device this needs a
+    Team-prefixed value (`$(AppIdentifierPrefix)app.tenshu.shared`) + both apps under one team.
+  -->
+  <key>application-identifier</key>
+  <string>app.tenshu.drive.ios.smoke</string>
+  <key>keychain-access-groups</key>
+  <array>
+    <string>app.tenshu.drive.ios.smoke</string>
+    <string>app.tenshu.shared</string>
+  </array>
+  <!--
+    App Group (C4d route-1 substrate probe) — mirrors control-ios. Both ad-hoc-signed sim apps declare
+    the identical bare `group.app.tenshu.shared`; the probe tests whether the simulator gives them ONE
+    shared container (Control writes a marker + holds a flock; Drive reads the marker + tries the lock).
+  -->
+  <key>com.apple.security.application-groups</key>
+  <array>
+    <string>group.app.tenshu.shared</string>
+  </array>
+</dict>
+</plist>

@@ -1,0 +1,42 @@
+# zigbee2mqtt — the Zigbee radio sidecar beside `tenshu-hub`
+# (home-device-service.md HD-D3: the JVM is the brain, radios are sidecars —
+# two proven upstream services rather than a coordinator stack of our own).
+# Install: docs/how-to/hub-pi-deploy.md §7.
+#
+# Assumes the upstream install at /opt/zigbee2mqtt (Node) with its data dir at
+# /opt/zigbee2mqtt/data, running as a dedicated `zigbee2mqtt` user that is a
+# member of `dialout` (for the USB coordinator).
+
+[Unit]
+Description=zigbee2mqtt (Zigbee radio sidecar for the Tenshu Hub)
+Wants=network-online.target mosquitto.service
+After=network-online.target mosquitto.service
+# The hub tolerates the sidecar being absent (it reconnects with backoff), so
+# this is an ordering hint, not a hard dependency.
+
+[Service]
+Type=simple
+User=zigbee2mqtt
+Group=zigbee2mqtt
+WorkingDirectory=/opt/zigbee2mqtt
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=10s
+
+# ⚠ The Zigbee NETWORK KEY lives in this data dir (data/configuration.yaml).
+# It is the credential that lets a radio join the household's Zigbee network —
+# same at-rest class as the hub's realm replica, and covered by the same
+# answer: put it on the LUKS volume (hub-pi-deploy.md §6). Keep the service's
+# filesystem view minimal in the meantime.
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/zigbee2mqtt/data
+# The USB coordinator (or the GPIO UART for a HAT).
+DeviceAllow=/dev/ttyUSB0 rw
+DeviceAllow=/dev/ttyACM0 rw
+DeviceAllow=/dev/ttyAMA0 rw
+
+[Install]
+WantedBy=multi-user.target

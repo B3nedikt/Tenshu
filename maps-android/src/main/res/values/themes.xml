@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Minimal launch theme; the in-app look comes from TenshuTheme (Compose).
+         ⚠ Light here, dark in values-night: the window theme's light/dark decides the status-bar
+         icon colour over enableEdgeToEdge(), so a dark parent in light mode draws white icons on a
+         white screen — and a .Light parent alone breaks dark mode. -->
+    <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

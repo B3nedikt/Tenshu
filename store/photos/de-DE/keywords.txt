@@ -1,0 +1,1 @@
+fotos,bilder,videos,alben,galerie,favoriten,duplikate,backup,verschlüsselt,privat,sync,e2ee

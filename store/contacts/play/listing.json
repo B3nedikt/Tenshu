@@ -1,0 +1,11 @@
+{
+  "about": "The Google Play listing's inputs beside the copy (docs/how-to/store-listings.md \u00a78): the package, the feature graphic's second line, and the phone screenshots \u2014 `manifest` keys (published captures, fetched from R2 by sha256) or a `local` folder of captures not yet published (gitignored, so a fresh clone has none) — the en-US set; `localeScreenshots` gives every other locale its own set in the same shape, or \"en-US\" for the English one.",
+  "package": "app.tenshu.contacts.android",
+  "tagline": "Your contacts, encrypted",
+  "taglines": {"de-DE": "Deine Kontakte, verschl\u00fcsselt"},
+  "featureScreens": ["android/phone/en/01-contacts", "android/phone/en/02-contact"],
+  "screenshots": {
+    "local": "build/store/play-captures/contacts"
+  },
+  "localeScreenshots": {"de-DE": {"manifest": ["android/phone/de/01-contacts", "android/phone/de/02-contact", "android/phone/de/04-duplicates", "android/phone/de/05-merge", "android/phone/de/07-invite"]}}
+}

@@ -1,0 +1,64 @@
+{
+    "schemaVersion": 1,
+    "buildDate": "2026-09-25",
+    "models": [
+        {
+            "id": "siglip-base-patch16-256-multilingual",
+            "name": "SigLIP base (multilingual)",
+            "version": 1,
+            "capabilities": [
+                "semanticImageSearch"
+            ],
+            "labelSetVersion": 1,
+            "runtime": "onnx",
+            "artifactVersion": 1,
+            "licence": "Apache-2.0",
+            "artifacts": [
+                {
+                    "role": "vision",
+                    "path": "siglip-base-patch16-256-multilingual/1/vision_model_uint8.onnx",
+                    "sha256": "84c7bb927e8b6bd6d79a9ec6da20648193c667b15ee50e0036c62ea23418a7ce",
+                    "byteSize": 100273427
+                },
+                {
+                    "role": "text",
+                    "path": "siglip-base-patch16-256-multilingual/1/text_model_int8.onnx",
+                    "sha256": "277534a4a9905ea31bccfeee51aa9ae57a92efe56617becadcd68adf7c6abaa3",
+                    "byteSize": 279628799
+                },
+                {
+                    "role": "vocabulary",
+                    "path": "siglip-base-patch16-256-multilingual/1/tokenizer.bin",
+                    "sha256": "0077b8d2b79f30ff96015e1b76ff4c7d3d036667083e8a4da3bf1ee3df3d34aa",
+                    "byteSize": 3066150
+                }
+            ]
+        },
+        {
+            "id": "auraface-v1-int8",
+            "name": "People (AuraFace + MediaPipe Face Landmarker)",
+            "version": 1,
+            "capabilities": [
+                "faceClustering"
+            ],
+            "labelSetVersion": 0,
+            "runtime": "onnx+mediapipe",
+            "artifactVersion": 1,
+            "licence": "Apache-2.0",
+            "artifacts": [
+                {
+                    "role": "faceDetector",
+                    "path": "auraface-v1-int8/1/face_landmarker.task",
+                    "sha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",
+                    "byteSize": 3758596
+                },
+                {
+                    "role": "faceEmbedder",
+                    "path": "auraface-v1-int8/1/auraface_int8.onnx",
+                    "sha256": "1b7b3c18b113b1c2cbc99c537dd9b83d65e2bc35f37e948b84131ae092389a9a",
+                    "byteSize": 66033423
+                }
+            ]
+        }
+    ]
+}

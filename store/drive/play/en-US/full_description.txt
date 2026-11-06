@@ -1,0 +1,29 @@
+Tenshu Drive keeps your files and photos encrypted and in sync across your devices. Your files are encrypted on your phone before they are uploaded, and only your own devices can read them.
+
+TENSHU DRIVE NEEDS TENSHU CONTROL
+Tenshu Control holds your keys and connects your devices. Install Tenshu Control from Google Play and set it up first, then open Drive. Drive finds Control on its own.
+
+WHAT YOU CAN DO
+- Upload files, whole folders and images, and keep them in folders.
+- Open photos, PDFs and videos in the app, and other files in another app.
+- Rename, move and delete files, one at a time or several at once. Search, sort, and switch between a list and a grid.
+- Back up your phone's photo folders, and other folders you choose, automatically in the background. Choose Wi-Fi only, only while charging, and whether to include videos.
+- Keep files on this phone to open them offline, or keep them in the cloud and download them when you open them.
+- See a file's history: when it was created, changed, renamed or moved, and on which device.
+- Share a file with a link. Anyone with the link can view the file until you revoke it.
+- Open Drive on your other devices and find your files there.
+
+HOW DRIVE KEEPS YOUR FILES PRIVATE
+- Your files are encrypted on your device before they are uploaded. Tenshu's servers store only encrypted data, and they don't have the keys to read it.
+- File and folder names are encrypted too, except the name of a file you share by link (see below). The server can still see some facts it needs to sync: how much you store, how many devices you have, and when they sync.
+- A share link carries its own key, in the part of the link after #k=. Your browser never sends that part to our server, so the server can deliver the file but cannot open it. When you share a file by link, the server stores that file's name, type and size with it.
+- Without a storage plan, nothing leaves your device. Your files only go to Tenshu's servers, encrypted, once you turn on sync in Tenshu Control.
+
+REQUIREMENTS
+- Android 7.0 or later.
+- Tenshu Control, set up on the same phone.
+- To sync between devices, back up or share a link: a storage plan. The free plan has 5 GB.
+
+Tenshu is open source and still in testing: expect rough edges, and tell us what breaks.
+
+Help and common problems: tenshu.app/apps/drive/support/android/en

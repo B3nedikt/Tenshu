@@ -1,0 +1,75 @@
+{
+  "about": "Every screen name scripts/store-screenshots.sh calendar captures for Tenshu Calendar (`captured`, from the UI test in `uiTests`). The fixture is generated for the run's day (store/fixtures/calendar/generate_calendar.py) — one .ics file per calendar — and goes in through Calendar's own .ics import on a data-only seed launch (docs/how-to/store-screenshots.md §3b). Adding a capture means adding it here. Docs: docs/how-to/store-screenshots.md §5.",
+  "version": 1,
+  "platform": "ios",
+  "appearances": [
+    "light"
+  ],
+  "uiTests": [
+    "calendar-ios/Screenshots/CalendarScreenshots.swift"
+  ],
+  "captured": {
+    "01-month": {
+      "shows": "The month grid with a coloured dot per busy day, and today's events beneath it"
+    },
+    "02-agenda": {
+      "shows": "The agenda: the coming days' events across five calendars, recurring ones marked"
+    },
+    "03-event": {
+      "shows": "An event's detail: when, where and its notes"
+    },
+    "04-new-event": {
+      "shows": "Creating an event: title, location, calendar, time, repeat and reminders"
+    },
+    "05-calendars": {
+      "shows": "The calendars list: Personal, Work, Family, Fitness and Travel in their colours"
+    },
+    "06-edit-calendar": {
+      "shows": "A calendar's sheet: its name, the lock-screen privacy switch and the colour palette"
+    }
+  },
+  "android": {
+    "about": "The Android pipeline (scripts/store-screenshots-android.sh, walk in scripts/lib/android_shots.py) captures these on a 1080x2400 phone AVD, light only, keyed android/phone/<lang>/NN-screen. Same names as iOS for the same screen; a name new to Android must also be listed in captured or planned above, so a number never means two screens.",
+    "script": "scripts/lib/android_shots.py",
+    "captured": {
+      "01-month": {
+        "shows": "The month grid with a coloured dot per busy day, and today's events beneath it"
+      },
+      "02-agenda": {
+        "shows": "The agenda: the coming days' events across five calendars"
+      },
+      "03-event": {
+        "shows": "An event opened: its time, repeat, reminder, calendar, location and notes (Android opens events in the editor)"
+      },
+      "04-new-event": {
+        "shows": "Creating an event: title, date and time, repeat, reminders, calendar and location"
+      },
+      "05-calendars": {
+        "shows": "The calendars list: Personal, Work, Family, Fitness and Travel in their colours"
+      },
+      "06-edit-calendar": {
+        "shows": "Work's sheet: its name, the colour palette and the lock-screen privacy switch"
+      },
+      "07-week": {
+        "shows": "The week as a time grid, events in their calendars' colours"
+      },
+      "08-day": {
+        "shows": "Today as a time grid"
+      }
+    }
+  },
+  "planned": {
+    "07-week": {
+      "shows": "The week as a time grid",
+      "platforms": [
+        "android"
+      ]
+    },
+    "08-day": {
+      "shows": "One day as a time grid",
+      "platforms": [
+        "android"
+      ]
+    }
+  }
+}

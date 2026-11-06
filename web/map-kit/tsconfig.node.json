@@ -1,0 +1,7 @@
+{
+  "extends": "../app-kit/tsconfig.node.base.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo"
+  },
+  "include": ["vitest.config.ts", "src/vite.ts", "harness/vite.config.ts"]
+}

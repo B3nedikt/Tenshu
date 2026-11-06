@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Fit</string>
+    <string name="recording_channel_name">Workout recording</string>
+    <string name="recording_interrupted_channel_name">Interrupted recording</string>
+    <string name="recording_interrupted_title">Your phone stopped the recording</string>
+    <string name="recording_interrupted_text">Tap to pick it up where it left off</string>
+    <string name="recording_notification_title">Recording workout</string>
+    <string name="recording_notification_paused_title">Recording paused</string>
+    <string name="recording_notification_text">Fit is recording your activity.</string>
+    <string name="recording_notification_distance_km">%1$s km</string>
+    <string name="recording_notification_bpm">%1$d bpm</string>
+    <string name="recording_action_pause">Pause</string>
+    <string name="recording_action_resume">Resume</string>
+    <string name="recording_action_stop">Stop</string>
+    <string name="recording_review_notification_title">Workout recorded</string>
+    <string name="recording_review_notification_text">Tap to review and save it.</string>
+    <!-- HealthPermissionsRationaleActivity: Health Connect's permission rationale. ⚠ Keep
+         fit_hc_rationale_reads in step with the READ permissions in AndroidManifest.xml, and
+         fit_hc_rationale_read_only true: Fit declares no WRITE permission in a release build. -->
+    <string name="fit_hc_rationale_title">How Fit uses your health data</string>
+    <string name="fit_hc_rationale_reads">With your permission, Fit reads these from Health Connect: workouts and their routes, steps, distance, calories burned, nutrition, hydration, cycle tracking, sleep, weight, height, heart rate, resting heart rate, blood oxygen and breathing rate. If you also allow it, Fit reads data older than 30 days, so it can import your whole history. Fit uses this data only to show you your activity, trends and history in Tenshu\'s apps.</string>
+    <string name="fit_hc_rationale_read_only">Fit only reads. It never writes to or changes your data in Health Connect.</string>
+    <string name="fit_hc_rationale_storage">Fit keeps your health data on this device and syncs it, end-to-end encrypted, only to your own devices. Tenshu\'s servers cannot read it, and it is never used for advertising.</string>
+    <string name="fit_hc_rationale_control">You can change or withdraw Fit\'s access at any time in Health Connect.</string>
+    <string name="fit_hc_rationale_close">Close</string>
+</resources>

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 13+ themed icons honour ONLY the alpha channel, so every opaque pixel collapses
+  to one tint. The door is an additive fill on the walls' empty interior rather than a
+  contrasting colour over them, so it still reads after tinting and needs no evenodd
+  cutout. Same 84/4.125 group as the foreground; coordinates copied verbatim.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="432"
+    android:viewportHeight="432">
+    <group
+        android:translateX="84"
+        android:translateY="84"
+        android:scaleX="4.125"
+        android:scaleY="4.125">
+        <!-- Roof, eaves proud of the walls -->
+        <path
+            android:pathData="M 9 31 L 32 12 L 55 31"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="3.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <!-- Walls -->
+        <path
+            android:pathData="M 15 27.5 L 15 52 L 49 52 L 49 27.5"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="3.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <!-- Door -->
+        <path
+            android:pathData="M 27 42 a 2 2 0 0 1 2 -2 L 35 40 a 2 2 0 0 1 2 2 L 37 52 L 27 52 Z"
+            android:fillColor="#FFFFFF" />
+    </group>
+</vector>

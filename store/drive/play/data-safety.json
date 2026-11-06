@@ -1,0 +1,23 @@
+{
+  "about": "Reviewed in docs/how-to/play-console-answers.md \u00a711.2. Files are end-to-end encrypted and not declared; a share link's file name, type and size are (T-S-02). No third-party SDK sends anything: Drive holds no INTERNET (\u00a72) and its QR scanner is ZXing, on the device.",
+  "collects": true,
+  "encrypted_in_transit": true,
+  "account_creation": [
+    "PSL_ACM_NONE"
+  ],
+  "data_deletion": "DATA_DELETION_YES",
+  "data_deletion_url": "https://tenshu.app/apps/drive/support/android/en#privacy",
+  "outside_app_accounts": false,
+  "data_types": {
+    "PSL_FILES_AND_DOCS": {
+      "collected": true,
+      "shared": false,
+      "ephemeral": false,
+      "optional": true,
+      "collection_purposes": [
+        "PSL_APP_FUNCTIONALITY"
+      ],
+      "sharing_purposes": []
+    }
+  }
+}

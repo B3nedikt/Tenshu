@@ -1,0 +1,230 @@
+{
+  "about": "Tenshu Contacts' store-screenshot fixture: an invented address book, rendered to one vCard 3.0 file by generate_contacts.py and imported through the shared repository's importVcards — the op every Tenshu Contacts import calls (docs/how-to/store-screenshots.md §3c). ⚠ Every person, company and address is fictional. Phone numbers stay in ranges reserved for fiction (US 555-0100–0199, UK 07700 900xxx, Germany 030 23125xxx, France 01 99 00xx xx, Australia 0491 570 156/157/158/159), and every address is at example.com / example.org / example.net. Two pairs are deliberate duplicates (one shared phone, one shared email); keep every other number's last nine digits and every other email unique, or the duplicate count changes. No photos (nothing binary under store/): the app draws monograms.",
+  "version": 1,
+  "people": [
+    {
+      "name": ["Aiko", "Tanaka"],
+      "org": "Lumen & Vale Architects",
+      "title": "Project architect",
+      "phones": [["cell", "+1 415 555 0134"], ["work", "+1 415 555 0101"]],
+      "emails": [["work", "aiko.tanaka@lumenvale.example.com"], ["home", "aiko.t@example.net"]],
+      "addresses": [["work", ["", "", "220 Harbor View Drive, Suite 4", "San Francisco", "CA", "94111", "USA"]]],
+      "birthday": "1990-03-18",
+      "categories": ["Work"]
+    },
+    {
+      "name": ["Amara", "Okafor"],
+      "org": "Riverside Community Clinic",
+      "title": "Paediatrician",
+      "phones": [["cell", "+44 7700 900417"], ["home", "+44 7700 900152"]],
+      "emails": [["home", "amara.okafor@example.org"], ["work", "a.okafor@riverside-clinic.example.org"]],
+      "addresses": [["home", ["", "", "14 Elderflower Row", "London", "", "N16 7QT", "United Kingdom"]]],
+      "note": "Godmother to Leo.",
+      "birthday": "1986-07-02",
+      "categories": ["Friends", "Family"]
+    },
+    {
+      "name": ["Ana Lucía", "Torres"],
+      "org": "Casa Alameda",
+      "title": "Head chef",
+      "phones": [["cell", "+1 312 555 0187"]],
+      "emails": [["work", "analucia@casa-alameda.example.com"]],
+      "birthday": "1984-11-25",
+      "categories": ["Friends"]
+    },
+    {
+      "name": ["Ben", "Carter"],
+      "org": "Carter & Sons Joinery",
+      "phones": [["work", "+44 7700 900288"]],
+      "emails": [["work", "ben@carterjoinery.example.org"]],
+      "note": "Built the kitchen shelves. Good with old oak.",
+      "categories": ["Home"]
+    },
+    {
+      "name": ["Chloé", "Martin"],
+      "org": "Atelier Lisière",
+      "title": "Textile designer",
+      "phones": [["cell", "+33 1 99 00 27 45"]],
+      "emails": [["home", "chloe.martin@example.org"]],
+      "addresses": [["home", ["", "", "8 rue des Tilleuls", "Paris", "", "75011", "France"]]],
+      "birthday": "1992-05-09",
+      "categories": ["Friends"]
+    },
+    {
+      "name": ["Daniel", "Weber"],
+      "org": "Weber Fahrradwerkstatt",
+      "phones": [["work", "+49 30 23125 467"], ["cell", "+49 30 23125 468"]],
+      "emails": [["work", "daniel@weber-rad.example.net"]],
+      "addresses": [["work", ["", "", "Kastanienallee 31", "Berlin", "", "10435", "Germany"]]],
+      "categories": ["Work"]
+    },
+    {
+      "name": ["Devika", "Rao"],
+      "org": "Lumen & Vale Architects",
+      "title": "Landscape architect",
+      "phones": [["cell", "+1 415 555 0162"]],
+      "emails": [["work", "devika.rao@lumenvale.example.com"]],
+      "birthday": "1993-01-30",
+      "categories": ["Work"]
+    },
+    {
+      "name": ["Elena", "Petrova"],
+      "title": "Piano teacher",
+      "phones": [["cell", "+1 617 555 0119"]],
+      "emails": [["home", "elena.petrova@example.org"]],
+      "note": "Lessons on Thursdays at 5. Mia's recital is in May.",
+      "categories": ["Family"]
+    },
+    {
+      "name": ["Farah", "Haddad"],
+      "org": "Northlight Studio",
+      "title": "Photographer",
+      "phones": [["cell", "+44 7700 900631"]],
+      "emails": [["work", "farah@northlight.example.com"]],
+      "birthday": "1989-09-14",
+      "categories": ["Friends", "Work"]
+    },
+    {
+      "name": ["Grace", "Liu"],
+      "org": "Lumen & Vale Architects",
+      "title": "Partner",
+      "phones": [["work", "+1 415 555 0175"]],
+      "emails": [["work", "grace.liu@lumenvale.example.com"]],
+      "categories": ["Work"]
+    },
+    {
+      "name": ["Hannah", "Becker"],
+      "phones": [["cell", "+49 30 23125 512"]],
+      "emails": [["home", "hannah.becker@example.net"]],
+      "addresses": [["home", ["", "", "Lindenstraße 7", "Leipzig", "", "04109", "Germany"]]],
+      "birthday": "1995-04-21",
+      "categories": ["Family"]
+    },
+    {
+      "name": ["Isabela", "Costa"],
+      "org": "Mar Aberto Surf School",
+      "phones": [["cell", "+1 808 555 0143"]],
+      "emails": [["home", "isabela.costa@example.net"]],
+      "categories": ["Friends"]
+    },
+    {
+      "name": ["Jonas", "Lindqvist"],
+      "org": "Fjällgården Bakery",
+      "phones": [["cell", "+1 206 555 0128"]],
+      "emails": [["work", "jonas@fjallgarden.example.com"]],
+      "note": "Cardamom buns on Saturdays — order by Friday.",
+      "categories": ["Friends"]
+    },
+    {
+      "name": ["Kwame", "Mensah"],
+      "org": "Mensah Legal",
+      "title": "Solicitor",
+      "phones": [["work", "+44 7700 900724"]],
+      "emails": [["work", "kwame.mensah@mensahlegal.example.org"]],
+      "addresses": [["work", ["", "", "3 Cathedral Yard", "Bristol", "", "BS1 5TJ", "United Kingdom"]]],
+      "categories": ["Work"]
+    },
+    {
+      "name": ["Layla", "Hassan"],
+      "phones": [["cell", "+61 491 570 156"]],
+      "emails": [["home", "layla.hassan@example.com"]],
+      "birthday": "1991-12-03",
+      "categories": ["Friends"]
+    },
+    {
+      "name": ["Lucas", "Moreau"],
+      "org": "Moreau Vélos",
+      "phones": [["cell", "+33 1 99 00 61 12"]],
+      "emails": [["home", "lucas.moreau@example.org"]],
+      "categories": ["Friends"]
+    },
+    {
+      "name": ["Mateo", "Fernández"],
+      "org": "Studio Brisa",
+      "title": "Sound engineer",
+      "phones": [["cell", "+1 323 555 0156"]],
+      "emails": [["work", "mateo@studiobrisa.example.com"]],
+      "categories": ["Work"]
+    },
+    {
+      "name": ["Mei", "Chen"],
+      "title": "Neighbour",
+      "phones": [["cell", "+1 415 555 0198"]],
+      "emails": [["home", "mei.chen@example.net"]],
+      "note": "Spare key for number 12. Waters the plants in August.",
+      "categories": ["Home"]
+    },
+    {
+      "name": ["Noah", "Bergström"],
+      "org": "Bergström Climbing Wall",
+      "phones": [["cell", "+61 491 570 157"]],
+      "emails": [["home", "noah.bergstrom@example.org"]],
+      "categories": ["Friends"]
+    },
+    {
+      "name": ["Oliver", "Brooks"],
+      "org": "Brightwater Dental",
+      "phones": [["work", "+44 7700 900815"]],
+      "emails": [["work", "reception@brightwater-dental.example.org"]],
+      "addresses": [["work", ["", "", "41 Mill Lane", "Cambridge", "", "CB2 1RX", "United Kingdom"]]],
+      "categories": ["Home"]
+    },
+    {
+      "name": ["Priya", "Raman"],
+      "org": "Kalpa Health",
+      "title": "Product lead",
+      "phones": [["cell", "+1 646 555 0113"]],
+      "emails": [["work", "priya.raman@kalpa.example.com"]],
+      "birthday": "1988-08-19",
+      "categories": ["Work"]
+    },
+    {
+      "name": ["Priya", "R."],
+      "phones": [["cell", "+1 (646) 555-0113"]],
+      "note": "From the old phone.",
+      "comment": "Duplicate of Priya Raman: the same mobile, written another way (the shared-phone pair)."
+    },
+    {
+      "name": ["Rohan", "Iyer"],
+      "org": "Iyer Physiotherapy",
+      "phones": [["work", "+1 512 555 0139"]],
+      "emails": [["work", "rohan@iyerphysio.example.com"]],
+      "categories": ["Home"]
+    },
+    {
+      "name": ["Sara", "Nilsson"],
+      "phones": [["cell", "+44 7700 900906"]],
+      "emails": [["home", "sara.nilsson@example.org"]],
+      "birthday": "1994-06-27",
+      "categories": ["Family"]
+    },
+    {
+      "name": ["Tomás", "Oliveira"],
+      "org": "Oliveira Coffee Roasters",
+      "title": "Roaster",
+      "phones": [["cell", "+1 503 555 0171"]],
+      "emails": [["work", "tomas@oliveira-coffee.example.com"]],
+      "categories": ["Friends"]
+    },
+    {
+      "name": ["Tom", "Oliveira"],
+      "emails": [["work", "Tomas@oliveira-coffee.example.com"]],
+      "comment": "Duplicate of Tomás Oliveira: the same email (the shared-email pair)."
+    },
+    {
+      "name": ["Yusuf", "Demir"],
+      "org": "Demir Ceramics",
+      "phones": [["cell", "+49 30 23125 733"]],
+      "emails": [["work", "yusuf@demir-ceramics.example.net"]],
+      "categories": ["Friends"]
+    },
+    {
+      "name": ["Zanele", "Dlamini"],
+      "org": "Kalpa Health",
+      "title": "Data scientist",
+      "phones": [["cell", "+1 646 555 0124"]],
+      "emails": [["work", "zanele.dlamini@kalpa.example.com"]],
+      "categories": ["Work"]
+    }
+  ]
+}

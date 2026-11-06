@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Notification channel for the short notification Android shows while an expedited sync job
+         runs on API 24–30 (SyncPushWorker, TenshuOperationWorker). -->
+    <string name="background_sync_channel">Background sync</string>
+    <string name="background_sync_syncing">Syncing…</string>
+</resources>

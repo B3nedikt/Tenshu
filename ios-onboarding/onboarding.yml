@@ -1,0 +1,48 @@
+# The shared XcodeGen fragment every **first-party route-1 iOS app** includes (ADR 0022).
+# Consumed as:
+#
+#     include:
+#       - path: ../ios-onboarding/onboarding.yml
+#     targets:
+#       <App>:
+#         templates: [ControlOnboardingApp]
+#         info:
+#           properties:
+#             TenshuControlAppStoreId: $(TENSHU_CONTROL_APP_STORE_ID)
+#
+# It carries the one screen every such app owes when Control is absent — the
+# forward-to-Control surface plus its deep-link / App Store routing — so the second and
+# third consumer inherit it instead of re-deriving it (Fit's Record tab had a dead-end
+# wall with no button at all before this existed).
+#
+# ⚠ Paths here are relative to THIS file's directory — XcodeGen's `include` default
+# (`relativePaths: true`) rewrites them for whichever spec includes it. Same convention as
+# `ios-basemap/basemap.yml`.
+
+settings:
+  base:
+    # The Tenshu Control App Store product id (digits only, no `id` prefix). Empty until
+    # Control ships to the Store — `Control.appStoreURL` then resolves to nil and the
+    # screen renders an honest "not on the App Store yet" state rather than a button that
+    # opens a broken page. ⚠ Override per-configuration or via `xcodegen` env, NOT by
+    # editing this default back to a placeholder number.
+    TENSHU_CONTROL_APP_STORE_ID: ""
+    # The including app's OWN App Store product id, same rules: the skew fence's Update button
+    # (core-schema-skew-surface.md §8.5) opens it when this app is the stale one.
+    # ⚠⚠ Set it in each app's project.yml (or per configuration), NEVER here: every app includes
+    # this file, so a value here would send every app's Update button to one app's page.
+    TENSHU_APP_STORE_ID: ""
+
+targetTemplates:
+  ControlOnboardingApp:
+    sources:
+      # `ConnectToControlView` (the screen) + `ControlLink` (`Control.url` /
+      # `Control.appStoreURL`).
+      #
+      # ⚠ Compiled INTO each app target rather than vended as a local Swift package —
+      # the same constraint `ios-basemap` documents: a SwiftPM `.binaryTarget` is resolved
+      # before any build phase runs, so a package that (transitively) sits alongside the
+      # Gradle-built `TenshuSdk` framework fails on the fresh `-derivedDataPath` this
+      # repo's build instructions require. XcodeGen takes sources from any path, so this
+      # costs one line per app.
+      - path: Sources

@@ -1,0 +1,26 @@
+Tenshu Photos shows your photos and videos in one library, the same on each of your devices. They are encrypted before they leave the device that backs them up, and only your own devices can read them.
+
+TENSHU PHOTOS NEEDS TENSHU CONTROL
+Tenshu Control holds your keys and connects your devices. Install Tenshu Control from the App Store and set it up first, then open Photos. Photos finds Control on its own.
+Photos does not read your photo library itself. Tenshu Drive backs up your photos, and Photos shows what Drive has backed up, from this device and your others. To back up from this iPhone or iPad, install Tenshu Drive too.
+
+WHAT YOU CAN DO
+- Browse your library as a mosaic, or by day, month or year, and jump through the years with the scrubber.
+- Open a photo full screen, zoom in, and swipe to the next one. See its date, details and albums.
+- Mark favorites, and make albums: create, rename and delete them, and add photos to them.
+- Find exact duplicates, choose the copy to keep, and move the rest to the trash.
+- Move photos to the trash, restore them, or delete them for good.
+- Search your photos by file name.
+
+HOW PHOTOS KEEPS YOUR PHOTOS PRIVATE
+- Your photos are encrypted on your device before they are uploaded. Tenshu's servers store only encrypted data, and they don't have the keys to read it.
+- Your albums and favorites are encrypted too. The server can still see some facts it needs to sync: how much you store, how many devices you have, and when they sync.
+- Without a storage plan, nothing leaves your device. Your photos only go to Tenshu's servers, encrypted, once you turn on sync in Tenshu Control.
+
+REQUIREMENTS
+- iOS 16 or later, on iPhone or iPad.
+- Tenshu Control, set up on the same device.
+- Tenshu Drive, to back up photos from this device.
+- To sync between devices: a storage plan. The free plan has 5 GB.
+
+Help and common problems: tenshu.app/apps/photos/support/ios/en

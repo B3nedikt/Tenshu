@@ -1,0 +1,157 @@
+# XcodeGen spec for the Mia iOS app (docs/proposals/home-and-mia-apps.md §4/§8, M4;
+# mia-query-layer.md §19). Mirrors calendar-ios/project.yml, minus what an assistant that
+# authors nothing does not need (no storage banner, no URL scheme, no dev-harness scheme).
+#
+# Regenerate after editing:   (cd mia-ios && xcodegen generate)
+# Build (simulator):          xcodebuild -project MiaIos.xcodeproj -scheme MiaIos \
+#                               -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' build
+#
+# ⚠ Mia is on **route 1** since 2026-10-02: `MiaLocalRuntime` runs the production proxy graph in
+# this process, read-only (the iOS proxy offers no action). Unprovisioned → the shared set-up
+# screen. No mock is reachable from a shipping build. iOS cannot replace Siri (D7) — the Action
+# Button / App Intents tier is a follow-up slice.
+name: MiaIos
+options:
+  bundleIdPrefix: app.tenshu
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+configs:
+  Debug: debug
+  Release: release
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    # Ad-hoc-signed on the simulator, personal team on device — matching the sibling apps.
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGNING_ALLOWED: "YES"
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGNING_REQUIRED[sdk=iphoneos*]: "YES"
+    CODE_SIGN_STYLE[sdk=iphoneos*]: Automatic
+    CODE_SIGN_IDENTITY[sdk=iphoneos*]: "Apple Development"
+    DEVELOPMENT_TEAM[sdk=iphoneos*]: ${TENSHU_TEAM_ID}
+    # Apple-silicon simulator only — matches `:tenshu-sdk-ios-mia`'s arch set.
+    EXCLUDED_ARCHS[sdk=iphonesimulator*]: x86_64
+
+include:
+  # The shared adaptive navigation shell (N6), applied as `templates: [AdaptiveAppShell]`.
+  - path: ../ios-shell/shell.yml
+  # The shared forward-to-Control surface (ADR 0022), applied as
+  # `templates: [ControlOnboardingApp]`. Mia takes the full-screen gate at its root
+  # (§Decision 6) and NOT the banner: see `MiaLocalRuntime` for why it has no reachability
+  # engine to drive one.
+  - path: ../ios-onboarding/onboarding.yml
+  # The shared realm-storage banner (§8b.5c) and the sync-activity capsule beside it
+  # (`ios-sync-activity-indicator.md` §6a.2), applied below as `templates: [RealmStorageBanner]`.
+  - path: ../ios-storage/storage.yml
+  # Version numbers and orientations (`ReleaseApp`), and how Mia links its OWN Kotlin framework
+  # (`AppFramework`, `ios-per-app-frameworks.md` P4). Archived by `scripts/ios-archive.sh mia`.
+  - path: ../ios-release/release.yml
+  # The open-source notices (`docs/oss-licences.md`), applied below as `templates: [OssLicences]`.
+  - path: ../ios-about/about.yml
+
+targets:
+  MiaIos:
+    type: application
+    platform: iOS
+    templates:
+      - AdaptiveAppShell
+      - ControlOnboardingApp
+      - RealmStorageBanner
+      # Version numbers and orientations for an archived build (`ios-release/release.yml`).
+      - ReleaseApp
+      - OssLicences
+      # ⚠ Mia links `:tenshu-sdk-ios-mia` (`ios-per-app-frameworks.md`
+      # P4): a `TenshuSdk` built from Mia's code and the shared core only.
+      - AppFramework
+    sources:
+      - path: Sources
+      - path: Resources
+    info:
+      path: Info.plist
+      properties:
+        # ⚠ What makes the storage banner's "Manage storage" action appear: without it
+        # `canOpenURL` reports Control as absent even when it is installed (`ios-storage/storage.yml`).
+        LSApplicationQueriesSchemes:
+          - tenshu-control
+        CFBundleDisplayName: Tenshu Mia
+        # Export compliance (`docs/how-to/ios-testflight.md`): libsodium ships standard (IETF)
+        # algorithms beside Apple's own, so App Store Connect's answer is "standard algorithms".
+        ITSAppUsesNonExemptEncryption: true
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        # ⚠ This file is the source; `Info.plist` is generated and gitignored.
+        # Route-1: the effective shared Keychain group RealmKeyMaterialBridge reads Control's
+        # route-1 key material from (bare on the sim, Team-prefixed on device).
+        TenshuSharedKeychainGroup: $(TENSHU_SHARED_KEYCHAIN_GROUP)
+        # Tenshu Control's App Store product id, for the forward-to-Control surface
+        # (ADR 0022). Empty until Control ships → the screen says so instead of opening
+        # a broken page. Same build-setting → Info.plist path as the Keychain group above.
+        TenshuControlAppStoreId: $(TENSHU_CONTROL_APP_STORE_ID)
+        # This app's own App Store product id, for the skew fence's Update button
+        # (core-schema-skew-surface.md §8.5). Empty until the listing exists → no button.
+        TenshuAppStoreId: $(TENSHU_APP_STORE_ID)
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.tenshu.mia.ios
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # ⚠⚠ Without entitlements there is no Keychain, so the gate can never see provisioning
+        # and Mia sits on the set-up screen forever (the timeline-ios finding).
+        CODE_SIGN_ENTITLEMENTS: Mia.entitlements
+        TENSHU_SHARED_KEYCHAIN_GROUP: app.tenshu.shared
+        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: Mia.device.entitlements
+        TENSHU_SHARED_KEYCHAIN_GROUP[sdk=iphoneos*]: $(DEVELOPMENT_TEAM).app.tenshu.shared
+        GENERATE_INFOPLIST_FILE: "NO"
+        # Mia's own static `TenshuSdk` framework — linked by search path and name (the
+        # `AppFramework` template), not embedded.
+        TENSHU_SDK_MODULE: tenshu-sdk-ios-mia
+    preBuildScripts:
+      - name: Build TenshuSdk.framework
+        # Keep the linked framework fresh before compile/link: one slice of Mia's framework
+        # (scripts/ios-build-sdk.sh).
+        script: |
+          "$SRCROOT/../scripts/ios-build-sdk.sh" mia
+        basedOnDependencyAnalysis: false
+
+  # The store screenshots (docs/how-to/store-screenshots.md §3g): an XCUITest over the SHIPPING app —
+  # the `Debug` configuration, no hook in Mia at all. Run only through `scripts/store-screenshots.sh
+  # mia`, which runs Control's genesis and Drive's, Calendar's and Fit's seed launches on the same
+  # simulator first, so the answers cite real rows.
+  MiaIosScreenshots:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: Screenshots
+      # AdaptiveAppShell's tab lookup, shared by every walk (bottom tabs, iPad top tabs, sidebar).
+      - path: ../ios-shell/UITestSupport
+    dependencies:
+      - target: MiaIos
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.tenshu.mia.ios.screenshots
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_TARGET_NAME: MiaIos
+
+schemes:
+  MiaIos:
+    build:
+      targets:
+        MiaIos: all
+    run:
+      config: Debug
+  # Store screenshots — `Debug`, the shipping app's configuration.
+  MiaIos-Screenshots:
+    build:
+      targets:
+        MiaIos: all
+        MiaIosScreenshots: [test]
+    test:
+      config: Debug
+      targets:
+        - MiaIosScreenshots
+    run:
+      config: Debug

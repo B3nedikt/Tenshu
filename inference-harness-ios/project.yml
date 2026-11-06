@@ -1,0 +1,82 @@
+# XcodeGen spec for the IN-3m-iOS measurement harness
+# (docs/proposals/ios-on-device-inference.md §4.2, §4.4). ⚠⚠ Never shipped, in no gate, and not in
+# `scripts/ios-smoke.sh`'s set: a measurement that can fail a build is a benchmark pretending to
+# be a test (inference-service.md §15.8).
+#
+# Its OWN bundle id, NO App Group, NO Keychain group and no entitlements file: it reads and writes
+# its own container only, so it needs no capability and does not wait for the App Group build.
+# It links `In3mHarnessKit` (`:inference-harness-ios`), not `TenshuSdk`: no C shim, no fetched
+# framework. Core ML and ImageIO are system frameworks, named below because a static Kotlin/Native
+# framework carries no link instructions of its own.
+#
+# Do not build this by hand; `./run-in3m.sh build` assembles the Kotlin framework first.
+# ⚠⚠ Device builds sign with ${TENSHU_TEAM_ID}. Never build for a device on the old personal team:
+# that registers the bundle id to it for good (ios-background-scheduling.md §4.1.1).
+name: In3mHarness
+options:
+  bundleIdPrefix: app.tenshu
+  deploymentTarget:
+    # The fp16 towers are ML Programs converted for iOS 17 (§3.4), so the harness has that floor.
+    iOS: "17.0"
+  createIntermediateGroups: true
+
+configs:
+  Debug: debug
+  Release: release
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGNING_ALLOWED: "YES"
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGNING_REQUIRED[sdk=iphoneos*]: "YES"
+    CODE_SIGN_STYLE[sdk=iphoneos*]: Automatic
+    CODE_SIGN_IDENTITY[sdk=iphoneos*]: "Apple Development"
+    DEVELOPMENT_TEAM[sdk=iphoneos*]: ${TENSHU_TEAM_ID}
+    EXCLUDED_ARCHS[sdk=iphonesimulator*]: x86_64
+
+targets:
+  In3mHarness:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: IN-3m
+        UILaunchScreen: {}
+        # ⚠ This file is the source; `Info.plist` is generated and gitignored.
+        # The archives and the corpus are side-loaded into Documents (§4.4); this also shows the
+        # folder in Finder and Files, which is the easy way to drop 562 photos in.
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.tenshu.in3m.ios
+        GENERATE_INFOPLIST_FILE: "NO"
+        # The harness's own RELEASE XCFramework: a static framework, linked, not embedded.
+        FRAMEWORK_SEARCH_PATHS:
+          - $(inherited)
+          - $(SRCROOT)/build/XCFrameworks/release
+    dependencies:
+      - framework: build/XCFrameworks/release/In3mHarnessKit.xcframework
+        embed: false
+      - sdk: CoreML.framework
+      - sdk: ImageIO.framework
+    preBuildScripts:
+      - name: Build In3mHarnessKit.xcframework
+        script: |
+          cd "$SRCROOT/.."
+          ./gradlew :inference-harness-ios:assembleIn3mHarnessKitReleaseXCFramework
+        basedOnDependencyAnalysis: false
+
+schemes:
+  In3mHarness:
+    build:
+      targets:
+        In3mHarness: all
+    run:
+      config: Release

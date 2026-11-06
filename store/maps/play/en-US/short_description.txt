@@ -1,0 +1,1 @@
+Your places on a map drawn on your phone. Maps never uses your location.

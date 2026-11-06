@@ -1,0 +1,133 @@
+#cloud-config
+# ASCII ONLY. cloud-init's YAML parser rejects the whole config on a stray
+# non-ASCII byte (e.g. an em-dash) with "unacceptable character #x0080" -> it
+# silently treats the user-data as empty and provisions NOTHING. Keep punctuation
+# to plain ASCII (use -- not an em-dash, straight quotes, etc.).
+#
+# First-boot bootstrap for the Tenshu apex web-frontend droplet. Rendered by
+# Terraform (templatefile) and handed to the droplet as user_data. Idempotent
+# enough to survive a re-run, but it's written for a fresh Ubuntu LTS box.
+#
+# What it does:
+#   1. Install Docker Engine + compose plugin.
+#   2. Add a swapfile (`swapfile_size_gb`: 1 GB with a prebuilt image, 4 for an on-box build), cap the
+#      journal and rotate the container logs.
+#   3. Clone the repo at the pinned ref, write the env file, `docker compose up`.
+#
+# Stateless: no data volume to mount (contrast the relay's cloud-init) -- the site
+# is the public open-source build and Caddy re-issues its cert on its own.
+
+package_update: true
+package_upgrade: false
+
+write_files:
+  # Caddy + apex config consumed by docker-compose (see web/apex/). The
+  # domain/email drive Caddy's automatic HTTPS. APEX_IMAGE_TAG picks the prebuilt
+  # image (empty => on-box build). VITE_TENSHU_RELAY_URL only matters on the
+  # on-box build path (a prebuilt image has the relay URL baked in already).
+  - path: /opt/tenshu/apex.env
+    permissions: "0644"
+    content: |
+      APEX_DOMAIN=${apex_domain}
+      ACME_EMAIL=${acme_email}
+      APEX_IMAGE_TAG=${apex_image_tag}
+      VITE_TENSHU_RELAY_URL=${relay_url}
+      VITE_CONSTRUCTION_CODE=${construction_code}
+      VITE_SIGNUP_DISABLED=${signup_disabled}
+
+  # Bootstrap script, invoked once by runcmd below. Kept as a file (not inline) so
+  # its output lands in /var/log/tenshu-bootstrap.log for debugging.
+  - path: /opt/tenshu/bootstrap.sh
+    permissions: "0755"
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      exec > >(tee -a /var/log/tenshu-bootstrap.log) 2>&1
+      echo "=== tenshu apex bootstrap $(date -u) ==="
+
+      # --- 1. swap: ${swapfile_size_gb} GB (`swapfile_size_gb`), a capped journal, rotated container logs ---
+      # ⚠⚠ The swapfile lives on the ROOT disk. It used to be a fixed 4G for the on-box image build;
+      # images are prebuilt off the box now, and on commerce's 8.9G root disk those 4G filled it in
+      # October 2026, which stopped the nightly database backup for 23 days (docs/how-to/box-health.md).
+      if [ ! -f /swapfile ] && [ "${swapfile_size_gb}" -gt 0 ]; then
+        echo "creating ${swapfile_size_gb}G swapfile"
+        fallocate -l ${swapfile_size_gb}G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=$(( ${swapfile_size_gb} * 1024 ))
+        chmod 600 /swapfile
+        mkswap /swapfile
+        swapon /swapfile
+        echo '/swapfile none swap sw 0 0' >> /etc/fstab
+      fi
+      mkdir -p /etc/systemd/journald.conf.d
+      printf '[Journal]\nSystemMaxUse=200M\n' > /etc/systemd/journald.conf.d/tenshu-size.conf
+      systemctl restart systemd-journald || true
+      # Container logs rotate (json-file, 3 x 20 MB per container): Docker's default never rotates them,
+      # on the same root disk. Written before Docker is installed, so no daemon restart is needed.
+      mkdir -p /etc/docker
+      [ -f /etc/docker/daemon.json ] || printf '{ "log-driver": "json-file", "log-opts": { "max-size": "20m", "max-file": "3" } }\n' > /etc/docker/daemon.json
+
+      # --- 2. Docker Engine + compose plugin ---
+      if ! command -v docker >/dev/null 2>&1; then
+        echo "installing docker"
+        install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+          | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+        chmod a+r /etc/apt/keyrings/docker.gpg
+        . /etc/os-release
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $${VERSION_CODENAME} stable" \
+          > /etc/apt/sources.list.d/docker.list
+        apt-get update -y
+        apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+        systemctl enable --now docker
+      fi
+
+      # --- 3. clone repo at the pinned ref + bring the stack up ---
+      # Splice a read-only token into the HTTPS URL for a private repo. Empty
+      # git_token => anonymous clone (works once the repo is public). git output
+      # doesn't echo the URL, so the token doesn't hit the bootstrap log - but it
+      # does live in this script + .git/config on the box (read-only single-repo
+      # scope keeps that acceptable).
+      CLONE_URL="${git_repo_url}"
+      if [ -n "${git_token}" ]; then
+        CLONE_URL="$(echo "${git_repo_url}" | sed -e "s#^https://#https://x-access-token:${git_token}@#")"
+      fi
+      if [ ! -d /opt/tenshu/repo/.git ]; then
+        git clone "$${CLONE_URL}" /opt/tenshu/repo
+      fi
+      cd /opt/tenshu/repo
+      git remote set-url origin "$${CLONE_URL}"
+      git fetch --all --tags --prune
+      git checkout "${git_ref}"
+      git pull --ff-only origin "${git_ref}" || true
+
+      # Symlink the compose dir's expected env file into place.
+      ln -sf /opt/tenshu/apex.env /opt/tenshu/repo/web/apex/apex.env
+
+      # --- bring the stack up: pull a prebuilt image, or build on-box ---
+      # apex_image_tag set => pull ghcr.io/b3nedikt/tenshu-apex:<tag> (fast, no
+      # RAM-hungry on-box build, so the droplet can be tiny). Empty => build the
+      # image here on first boot (needs the bigger box + the swapfile above).
+      COMPOSE="docker compose -f web/apex/docker-compose.yml --env-file /opt/tenshu/apex.env"
+      if [ -n "${apex_image_tag}" ]; then
+        # Private GHCR package needs a one-time login; empty token => anonymous
+        # pull (works once the package is public). Token isn't echoed.
+        if [ -n "${ghcr_token}" ]; then
+          echo "logging in to ghcr.io as ${ghcr_user}"
+          echo "${ghcr_token}" | docker login ghcr.io -u "${ghcr_user}" --password-stdin
+        fi
+        echo "pulling prebuilt apex image (tag ${apex_image_tag})"
+        $${COMPOSE} pull apex
+        $${COMPOSE} up -d
+      else
+        echo "building + starting apex on-box (first build can take several minutes)"
+        $${COMPOSE} up -d --build
+      fi
+      echo "=== bootstrap done $(date -u) ==="
+
+packages:
+  - git
+  - curl
+  - ca-certificates
+  - gnupg
+
+runcmd:
+  - ["bash", "/opt/tenshu/bootstrap.sh"]

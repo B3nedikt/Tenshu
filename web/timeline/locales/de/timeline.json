@@ -1,0 +1,203 @@
+{
+  "app": {
+    "title": "Timeline",
+    "tagline": "Wo du warst – Ende-zu-Ende-verschlüsselt."
+  },
+  "runtime": {
+    "connectingTitle": "Verbindung zu Tenshu wird noch hergestellt…",
+    "connectingBody": "Der Tenshu-Tab, in dem Timeline läuft, ist beschäftigt. Timeline lädt, sobald er antwortet.",
+    "elsewhereTitle": "Tenshu ist in einem anderen Tab geöffnet",
+    "elsewhereBody": "Tenshu läuft immer nur in einem Tab, damit deine Daten nicht auseinanderlaufen. Nutze es hier, um es in diesen Tab zu holen.",
+    "moving": "Warte, bis der andere Tab fertig gespeichert hat. Das kann bis zu zwei Minuten dauern.",
+    "movingShort": "Wird verschoben…",
+    "useHere": "Hier nutzen"
+  },
+  "crash": {
+    "title": "Etwas ist schiefgelaufen",
+    "body": "In diesem Teil von Timeline ist ein unerwarteter Fehler aufgetreten. Deine Daten sind sicher – nichts wurde geändert.",
+    "retry": "Erneut versuchen",
+    "reload": "Neu laden"
+  },
+  "nav": {
+    "timeline": "Zeitleiste",
+    "places": "Orte"
+  },
+  "common": {
+    "back": "Zurück",
+    "cancel": "Abbrechen",
+    "loading": "Wird geladen…",
+    "retry": "Erneut versuchen",
+    "working": "Wird ausgeführt…"
+  },
+  "read": {
+    "failedTitle": "Konnte nicht geladen werden",
+    "silentTitle": "Lädt noch – oder konnte nicht geladen werden"
+  },
+  "stream": {
+    "stopped": "Aktualisierungen gestoppt – die Anzeige ist eventuell nicht aktuell.",
+    "reconnect": "Neu verbinden"
+  },
+  "home": {
+    "trips": "Reisen",
+    "emptyTitle": "Noch nichts in deiner Zeitleiste",
+    "emptyBody": "Deine Zeitleiste wird auf deinem Telefon aufgezeichnet und erscheint hier, sobald sie synchronisiert ist."
+  },
+  "kind": {
+    "Visit": "Besuch",
+    "Movement": "Unterwegs",
+    "Activity": "Aktivität",
+    "Event": "Ereignis",
+    "Quiet": "Ruhige Zeit",
+    "other": "Moment"
+  },
+  "movement": {
+    "walk": "Zu Fuß",
+    "run": "Laufen",
+    "cycle": "Radfahrt",
+    "drive": "Autofahrt",
+    "transit": "ÖPNV",
+    "flight": "Flug",
+    "unknown": "Unterwegs"
+  },
+  "activity": {
+    "running": "Laufen",
+    "walking": "Gehen",
+    "cycling": "Radfahren",
+    "strength": "Krafttraining",
+    "other": "Training"
+  },
+  "distance": {
+    "m": "{value} m",
+    "km": "{whole},{tenths} km",
+    "ft": "{value} ft",
+    "mi": "{whole},{tenths} mi"
+  },
+  "duration": {
+    "minutes": "{minutes} Min.",
+    "hours": "{hours} Std.",
+    "hoursMinutes": "{hours} Std. {minutes} Min."
+  },
+  "suggestion": {
+    "label": "Als Reise zusammenfassen?",
+    "untitled": "Eine Reise",
+    "days": "{count, plural, one {# Tag} other {# Tage}}",
+    "places": "{count, plural, one {# Ort} other {# Orte}}",
+    "accept": "Als Reise speichern",
+    "dismiss": "Keine Reise"
+  },
+  "moment": {
+    "when": "Wann",
+    "duration": "Dauer",
+    "mode": "Fortbewegung",
+    "distance": "Strecke",
+    "activity": "Aktivität",
+    "notFound": "Moment nicht gefunden",
+    "openPlace": "Diesen Ort öffnen",
+    "placePending": "Ein Ort, der noch nicht auf diesem Gerät ist",
+    "subjectPending": "Die Details dieses Moments sind noch nicht auf diesem Gerät. Sie erscheinen nach der Synchronisierung."
+  },
+  "trip": {
+    "untitled": "Unbenannte Reise",
+    "notFound": "Reise nicht gefunden",
+    "legs": "Etappen",
+    "days": "Tage",
+    "noDays": "Noch keiner der Momente dieser Reise ist auf diesem Gerät.",
+    "missing": "{count, plural, one {# Moment dieser Reise ist noch nicht auf diesem Gerät.} other {# Momente dieser Reise sind noch nicht auf diesem Gerät.}}"
+  },
+  "places": {
+    "empty": "Orte erscheinen, sobald sich deine Zeitleiste füllt.",
+    "visits": "{count, plural, one {# Besuch} other {# Besuche}}"
+  },
+  "place": {
+    "unnamed": "Unbenannter Ort",
+    "notFound": "Ort nicht gefunden",
+    "lastVisit": "zuletzt {when}",
+    "redirected": "Der geöffnete Ort wurde mit diesem zusammengeführt.",
+    "rename": "Umbenennen",
+    "setRole": "Markieren als…",
+    "merge": "Mit anderem Ort zusammenführen",
+    "folded": "{count, plural, one {# Ort hier zusammengeführt} other {# Orte hier zusammengeführt}}",
+    "unmerge": "Trennen",
+    "visitsTitle": "Besuche",
+    "noVisits": "Noch keine Besuche auf diesem Gerät."
+  },
+  "role": {
+    "home": "Zuhause",
+    "work": "Arbeit",
+    "none": "Keine Markierung",
+    "yes": "Ja",
+    "prompt": {
+      "home": "Ist das dein Zuhause?",
+      "work": "Arbeitest du hier?"
+    },
+    "refuse": {
+      "home": "Nicht mein Zuhause",
+      "work": "Nicht meine Arbeit"
+    }
+  },
+  "roleDialog": {
+    "title": "Diesen Ort markieren",
+    "body": "Deine Antwort wird als deine gespeichert und mit deinen Geräten synchronisiert. Tenshu überschreibt sie nie.",
+    "confirm": "Speichern"
+  },
+  "rename": {
+    "title": "Ort umbenennen",
+    "label": "Name des Orts",
+    "confirm": "Umbenennen"
+  },
+  "merge": {
+    "title": "Derselbe Ort?",
+    "body": "Wähle den Ort, zu dem dieser eigentlich gehört.",
+    "with": "Zusammenführen mit",
+    "choose": "Ort wählen…",
+    "noOthers": "Es gibt keinen anderen Ort zum Zusammenführen.",
+    "next": "Weiter",
+    "confirmTitle": "Diese Orte zusammenführen?",
+    "confirmBody": "„{a}“ und „{b}“ werden ein Ort mit allen Besuchen. Du kannst sie später auf der Seite des Orts wieder trennen.",
+    "confirm": "Zusammenführen"
+  },
+  "unmerge": {
+    "title": "Diesen Ort trennen?",
+    "body": "„{name}“ wird wieder ein eigener Ort mit eigenen Besuchen.",
+    "confirm": "Trennen"
+  },
+  "map": {
+    "route": "Route",
+    "place": "Karte dieses Ortes",
+    "loading": "Karte wird geladen…",
+    "routeLoading": "Route wird geladen…",
+    "unavailable": "Karte nicht verfügbar",
+    "noWebGL": "Dieser Browser kann keine Karten anzeigen (WebGL ist aus oder wird nicht unterstützt).",
+    "noRegion": "Für dieses Gebiet gibt es keine Kartendaten.",
+    "origin": "Start",
+    "destination": "Ziel"
+  },
+  "errors": {
+    "error_generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+    "error_unexpected": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+    "error_internal": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+    "error_not_found": "Das ist nicht mehr verfügbar.",
+    "error_invalid_caller": "Diese App darf das nicht.",
+    "error_unannounced_session": "Tenshu muss sich neu verbinden. Bitte versuche es erneut.",
+    "error_unsupported_operation": "Diese Version unterstützt das noch nicht.",
+    "error_timeline_invalid_zone": "Die Zeitzone deines Browsers ist unbekannt, daher können Tage nicht gruppiert werden.",
+    "error_timeline_place_not_found": "Dieser Ort ist nicht mehr verfügbar.",
+    "error_timeline_blank_name": "Gib einen Namen ein.",
+    "error_timeline_invalid_role": "Diese Markierung kann nicht gespeichert werden.",
+    "error_timeline_invalid_merge": "Diese Orte können nicht zusammengeführt werden.",
+    "error_timeline_not_merged": "Dieser Ort ist mit keinem anderen zusammengeführt, es gibt nichts zu trennen.",
+    "error_timeline_suggestion_gone": "Dieser Vorschlag hat sich inzwischen geändert. Hier ist der aktuelle.",
+    "error_timeline_corrupt_route": "Diese Route kann nicht gelesen werden.",
+    "error_timeline_already_merged": "Das ist bereits derselbe Ort.",
+    "error_timeline_source_silent": "Ein Teil deiner Zeitleiste hat noch nicht geantwortet. Er kann noch kommen – versuche es gleich erneut.",
+    "bridge": "Tenshu ist nicht erreichbar. Stelle sicher, dass es geöffnet und entsperrt ist, und versuche es erneut.",
+    "bridge_timeout": "Tenshu hat zu lange gebraucht. Versuche es erneut.",
+    "bridge_not_permitted": "Timeline darf das nicht.",
+    "error_map_transport_unconfigured": "Karten sind im Web noch nicht verfügbar.",
+    "error_map_transport_failed": "Die Kartenkacheln konnten nicht geladen werden. Versuche es erneut.",
+    "error_map_catalog_unverified": "Der Kartenkatalog konnte nicht überprüft werden, daher wird keine Karte angezeigt.",
+    "error_map_unknown_region": "Dieses Kartengebiet ist nicht mehr verfügbar.",
+    "error_map_bad_request": "Diese Karte konnte nicht geladen werden.",
+    "error_map_unavailable": "Karten sind gerade nicht verfügbar. Versuche es später erneut."
+  }
+}

@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- German (de). Mirrors ../values/strings.xml key for key; ADR 0016.
+  See the English file for per-string developer notes. -->
+<resources>
+    <string name="mia_onboarding_welcome_title">Das ist Mia</string>
+    <string name="mia_onboarding_welcome_body">Deine Assistentin für alles in deinem Realm – finde Fotos aus Drive und Orte aus Timeline und steuere dein Zuhause. Von Grund auf privat: Mia arbeitet für dich, nicht an deinen Daten.</string>
+    <string name="mia_onboarding_assistant_title">Mia als Assistentin einrichten</string>
+    <string name="mia_onboarding_assistant_body">Unter Android kannst du Mia als systemweite Assistentin festlegen – mit langem Drücken auf die Home-Taste öffnest du Mia von überall aus.</string>
+    <string name="mia_onboarding_done_title">Alles bereit</string>
+    <string name="mia_onboarding_done_body">Frag Mia, was du willst – Stimmerkennung, Modelleinstellungen und mehr findest du in den Einstellungen.</string>
+    <string name="mia_onboarding_next">Weiter</string>
+    <string name="mia_onboarding_back">Zurück</string>
+    <string name="mia_onboarding_skip">Überspringen</string>
+    <string name="mia_onboarding_start">Los geht's</string>
+    <string name="mia_nav_chat">Chat</string>
+    <string name="mia_nav_history">Verlauf</string>
+    <string name="mia_nav_settings">Einstellungen</string>
+    <string name="mia_chat_title">Mia</string>
+    <string name="mia_chat_greeting_title">Hallo, ich bin Mia</string>
+    <string name="mia_chat_greeting_body">Bitte mich, Fotos aus Drive oder Orte aus Timeline zu finden – oder dein Zuhause zu steuern.</string>
+    <string name="mia_chat_input_hint">Frag Mia…</string>
+    <string name="mia_chat_send">Senden</string>
+    <string name="mia_chat_voice">Mit Mia sprechen</string>
+    <string name="mia_chat_voice_stop">Zuhören beenden</string>
+    <string name="mia_chat_listening">Hört zu…</string>
+    <string name="mia_chat_typing">Mia denkt nach…</string>
+    <string name="mia_history_empty">Noch keine Unterhaltungen.</string>
+    <string name="mia_detail_back">Zurück</string>
+    <string name="mia_settings_coming_soon">Demnächst verfügbar</string>
+    <string name="mia_settings_grants_title">Was Mia lesen darf</string>
+    <string name="mia_settings_grants_body">Mia liest nur, was du erlaubst – App für App. Schaltest du hier etwas aus, nutzt Mia es nicht mehr: Mia kann dann nicht daraus antworten und sagt dir das, statt so zu tun, als gäbe es dort nichts.</string>
+    <string name="mia_settings_grants_write">Mia darf Termine hinzufügen</string>
+    <string name="mia_settings_grants_files">Dateien</string>
+    <string name="mia_settings_grants_timeline">Timeline</string>
+    <string name="mia_settings_grants_fitness">Trainings</string>
+    <string name="mia_settings_grants_places">Orte</string>
+    <string name="mia_settings_grants_calendar">Kalender</string>
+    <string name="mia_settings_grants_labels">Fotoinhalte</string>
+    <string name="mia_settings_grants_visual_search">Fotosuche nach Aussehen</string>
+    <string name="mia_settings_grants_devices">Smart-Home-Geräte</string>
+    <string name="mia_settings_grants_routines">Routinen</string>
+    <string name="mia_settings_dictation_title">Mit Mia sprechen</string>
+    <string name="mia_settings_dictation_on">Deine Worte werden auf diesem Gerät in Text umgewandelt. Es wird nichts aufgenommen und kein Audio irgendwohin gesendet.</string>
+    <string name="mia_settings_dictation_off">Dieses Gerät kann Sprache nicht erkennen, ohne das Audio zu versenden – deshalb hat Mia hier kein Mikrofon. Tippen funktioniert genauso.</string>
+    <string name="mia_settings_voice_title">Stimmerkennung</string>
+    <string name="mia_settings_voice_body">Bring Mia deine Stimme bei, damit der smarte Lautsprecher weiß, wer spricht.</string>
+    <string name="mia_settings_assistant_title">Als Standard-Assistentin festlegen</string>
+    <string name="mia_settings_assistant_body">Unter Android kann Mia deine systemweite Assistentin sein. Unter iOS nutzt du die Aktionstaste oder „Hey Siri, frag Mia“.</string>
+    <string name="mia_settings_assistant_open">Assistenten-Einstellungen öffnen</string>
+    <string name="mia_settings_assistant_active">Aktiv</string>
+    <string name="mia_settings_model_title">Modell &amp; Inferenz</string>
+    <string name="mia_settings_model_body">Wähle, wo Mia denkt – auf diesem Gerät oder auf deinem Tenshu Hub.</string>
+    <string name="mia_settings_skills_title">Skills</string>
+    <string name="mia_settings_skills_body">Sprach-Skills von Drittanbietern kommen mit dem Tenshu Store.</string>
+    <string name="mia_control_wall_title">Tenshu Control einrichten</string>
+    <string name="mia_control_not_set_up">Tenshu Control ist installiert, aber auf diesem Gerät noch nicht eingerichtet. Mia antwortet über Control – öffne es, um neu anzufangen oder dich deinen anderen Geräten anzuschließen, und komm dann zurück.</string>
+    <string name="mia_control_open_action">Control öffnen</string>
+    <string name="mia_control_not_installed">Tenshu Control ist auf diesem Gerät nicht installiert. Mia antwortet über Control und kann daher nichts nachschlagen, bis Control installiert ist.</string>
+    <string name="mia_control_not_installed_unpublished">Tenshu Control ist auf diesem Gerät nicht installiert und noch nicht im Store erhältlich – bis dahin kann Mia nichts beantworten.</string>
+    <string name="mia_control_not_installed_other_channel">Tenshu Control ist auf diesem Gerät nicht installiert. Installiere es auf demselben Weg wie Mia.</string>
+    <string name="mia_control_get_action">Control holen</string>
+</resources>

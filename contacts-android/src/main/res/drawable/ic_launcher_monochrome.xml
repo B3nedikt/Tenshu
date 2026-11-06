@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 13+ themed icons honour ONLY the alpha channel: the opaque strokes form the
+  tinted silhouette directly. Same 84/4.125 group as the foreground so coordinates are
+  copied verbatim.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="432"
+    android:viewportHeight="432">
+    <group
+        android:translateX="84"
+        android:translateY="84"
+        android:scaleX="4.125"
+        android:scaleY="4.125">
+        <!-- Head (r=9.5) -->
+        <path
+            android:pathData="M 22.5 23 a 9.5 9.5 0 1 0 19 0 a 9.5 9.5 0 1 0 -19 0 Z"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="3.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <!-- Shoulders -->
+        <path
+            android:pathData="M 13 51 c 0 -11 8.5 -16 19 -16 s 19 5 19 16"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="3.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
+</vector>

@@ -1,0 +1,10 @@
+@import 'tailwindcss';
+
+/* Shared Tenshu token layer — amethyst roles (light + dark) + the Tailwind
+   v4 @theme mapping that exposes semantic utilities (bg-surface, text-text,
+   bg-primary, …). Adopting these utilities (Phase 2) is what gives Contacts
+   dark mode + the amethyst brand. See docs/proposals/web-design-system.md. */
+@import '@tenshu/web-tokens/tokens.css';
+
+/* The app-kit's shell pieces (banners, error boundary, stream notice) — so Tailwind sees their classes. */
+@import '@tenshu/app-kit/styles.css';

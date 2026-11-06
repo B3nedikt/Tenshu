@@ -1,0 +1,109 @@
+# Production-shaped run of the apex web frontend: a single Caddy container that
+# serves the static SPA (baked into the image) with automatic HTTPS. This is the
+# stack the DigitalOcean apex droplet boots (deploy/digitalocean-apex/), and it
+# also runs as-is on any other Docker host.
+#
+#   docker compose --env-file apex.env up -d --build
+#
+# Build context is the REPO ROOT (the SDK bundle build is multi-module Gradle and
+# the @tenshu/sdk workspace package lives above web/) — note `context: ../..`.
+# Run this file from web/apex/, or point `-f` at it from the repo root.
+#
+# Stateless: unlike the relay there's no DB or blob volume — the only persisted
+# state is Caddy's ACME certs/account key. Nothing here touches user data; the
+# encrypted sync traffic goes straight to the relay origin baked into the SPA.
+
+# ⚠⚠ Docker's json-file driver grows without bound and nothing rotates it. On
+# 2026-08-15 that filled the relay droplet's root disk (9.1 G of container logs);
+# this deployment has the same shape, so it gets the same ceiling. 50m x 5 =
+# 250 MB per container. Applies at container CREATION - an already-running
+# container keeps its old config until `up -d --force-recreate`.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "5"
+
+services:
+  apex:
+    logging: *default-logging
+    # Two ways to get this image, both from one file:
+    #   - prebuilt path: `docker compose pull apex` fetches it from GHCR (built by
+    #     .github/workflows/apex-image.yml or deploy/build-and-push-apex.sh). Lets
+    #     the droplet skip the RAM-hungry on-box Gradle+pnpm build.
+    #   - on-box path:   `docker compose up -d --build` builds locally and tags it
+    #     with this same name.
+    # APEX_IMAGE_TAG pins an exact tag (e.g. a git sha); unset => latest.
+    image: ghcr.io/b3nedikt/tenshu-apex:${APEX_IMAGE_TAG:-latest}
+    build:
+      context: ../..
+      dockerfile: web/apex/Dockerfile
+      args:
+        # The relay URL is compiled into the SPA. Defaults to the prod relay in
+        # the Dockerfile; override here for a different relay host (apex.env).
+        VITE_TENSHU_RELAY_URL: "${VITE_TENSHU_RELAY_URL:-https://relay.tenshu.app}"
+        # Pre-launch construction gate. Empty (default) = no curtain. Set a 6-digit code in
+        # apex.env to hide the site before marketing; clear it + redeploy to lift the curtain.
+        VITE_CONSTRUCTION_CODE: "${VITE_CONSTRUCTION_CODE:-}"
+        # Pre-launch signup gate. Empty (default) = signup open — which is what a TEST deployment
+        # wants, so it needs no configuration. Set any non-empty value in apex.env to close the
+        # door behind "Get started" while leaving the marketing site public.
+        VITE_SIGNUP_DISABLED: "${VITE_SIGNUP_DISABLED:-}"
+    restart: unless-stopped
+    environment:
+      APEX_DOMAIN: "${APEX_DOMAIN}"
+      ACME_EMAIL: "${ACME_EMAIL}"
+      # Each hosted app on its own origin: `<ID>_SITE` + `<ID>_FRAME_ANCESTORS`, read by its
+      # two-line site block in web/apex/Caddyfile (the `hosted_app` snippet). ⚠ Deliberately one
+      # pair PER APP here rather than generated: compose cannot loop, and a missing default is a
+      # Caddyfile parse error that takes the apex down (web-app-suite.md F4).
+      #
+      # Drive. OFF until DRIVE_DOMAIN is set in apex.env AND its DNS record points here; the
+      # default is a placeholder site, so an unset value can never break the apex. The image must
+      # also have been built with DRIVE_ORIGIN=https://<that domain> (deploy/build-apex-image.sh).
+      DRIVE_SITE: "${DRIVE_DOMAIN:-http://drive.disabled.invalid}"
+      DRIVE_FRAME_ANCESTORS: "https://${APEX_DOMAIN}"
+      # Contacts — the Drive pattern exactly: OFF until
+      # CONTACTS_DOMAIN is set in apex.env AND its DNS record points here, and the image must have
+      # been built with CONTACTS_ORIGIN=https://<that domain>.
+      CONTACTS_SITE: "${CONTACTS_DOMAIN:-http://contacts.disabled.invalid}"
+      CONTACTS_FRAME_ANCESTORS: "https://${APEX_DOMAIN}"
+      # Calendar — the same pattern: OFF until CALENDAR_DOMAIN is set (and its DNS points here).
+      CALENDAR_SITE: "${CALENDAR_DOMAIN:-http://calendar.disabled.invalid}"
+      CALENDAR_FRAME_ANCESTORS: "https://${APEX_DOMAIN}"
+      # Photos — the same pattern: OFF until PHOTOS_DOMAIN is set (image built with PHOTOS_ORIGIN).
+      PHOTOS_SITE: "${PHOTOS_DOMAIN:-http://photos.disabled.invalid}"
+      PHOTOS_FRAME_ANCESTORS: "https://${APEX_DOMAIN}"
+      # Timeline — the same pattern (TIMELINE_ORIGIN=https://<that domain> at image build).
+      TIMELINE_SITE: "${TIMELINE_DOMAIN:-http://timeline.disabled.invalid}"
+      TIMELINE_FRAME_ANCESTORS: "https://${APEX_DOMAIN}"
+      # Maps — the same pattern (MAPS_ORIGIN=https://<that domain> at image build).
+      MAPS_SITE: "${MAPS_DOMAIN:-http://maps.disabled.invalid}"
+      MAPS_FRAME_ANCESTORS: "https://${APEX_DOMAIN}"
+      # Fit — the same pattern (FIT_ORIGIN=https://<that domain> at image build). A map app: its site
+      # block sends the full map policy (`hosted_map_app`), with this value as frame-src too.
+      FIT_SITE: "${FIT_DOMAIN:-http://fit.disabled.invalid}"
+      FIT_FRAME_ANCESTORS: "https://${APEX_DOMAIN}"
+      # Home — the same pattern (HOME_ORIGIN=https://<that domain> at image build). Read-only, plain
+      # `hosted_app` policy. ⚠ `HOME_DOMAIN` / `HOME_SITE` are their own variables, not `$HOME`.
+      HOME_SITE: "${HOME_DOMAIN:-http://home.disabled.invalid}"
+      HOME_FRAME_ANCESTORS: "https://${APEX_DOMAIN}"
+      # Mia — the same pattern (MIA_ORIGIN=https://<that domain> at image build). Not a map app:
+      # `hosted_app`. ⚠ The placeholder default is load-bearing (an empty site address takes the apex down).
+      MIA_SITE: "${MIA_DOMAIN:-http://mia.disabled.invalid}"
+      MIA_FRAME_ANCESTORS: "https://${APEX_DOMAIN}"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    volumes:
+      - caddy_data:/data # ACME certs + account key (persist across restarts!)
+      - caddy_config:/config
+      # Caddy's access log (the `access_log` snippet in the Caddyfile): a file, rolled daily and
+      # deleted after 7 days, because docker's json-file driver can only bound by size.
+      - caddy_logs:/var/log/caddy
+
+volumes:
+  caddy_data:
+  caddy_config:
+  caddy_logs:

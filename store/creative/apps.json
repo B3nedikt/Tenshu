@@ -1,0 +1,11 @@
+{
+  "about": "Which published iPhone screens each app's App Store header/search creative asset shows (scripts/store-creative-assets.sh, docs/how-to/store-listings.md §6a). Screens are keys of store/<app>/screenshots.manifest.json under ios/iphone69/en/; the left phone sits higher than the right. The colour is not here: it is sampled from the app's icon_1024.png.",
+  "apps": {
+    "control":  {"screens": ["01-welcome", "06-settings"]},
+    "drive":    {"screens": ["01-files", "02-photos"]},
+    "calendar": {"screens": ["01-month", "02-agenda"]},
+    "contacts": {"screens": ["01-contacts", "02-contact"]},
+    "photos":   {"screens": ["01-library", "02-collections"]},
+    "fit":      {"screens": ["01-home", "03-workout"]}
+  }
+}

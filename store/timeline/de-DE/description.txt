@@ -1,0 +1,26 @@
+Tenshu Timeline zeichnet auf deinem iPhone die Orte auf, die du besuchst, und die Strecken dazwischen. Deine Timeline wird verschlüsselt, bevor sie dein Gerät verlässt, und nur deine eigenen Geräte können sie lesen.
+
+TENSHU TIMELINE BRAUCHT TENSHU CONTROL
+Tenshu Control verwahrt deine Schlüssel und verbindet deine Geräte. Installiere Tenshu Control aus dem App Store und richte es zuerst ein, dann öffne Timeline. Timeline findet Control von selbst.
+
+WAS DU TUN KANNST
+- „Orte und Strecken aufzeichnen“ in den Einstellungen einschalten. Timeline fragt nach dem Standortzugriff „Immer“, damit es auch aufzeichnen kann, wenn die App geschlossen ist. iOS weckt Timeline, wenn du irgendwo ankommst oder losgehst, deshalb kann eine sehr kurze Strecke fehlen.
+- Deine Tage als Feed lesen: die Orte, an denen du warst, und die Strecken dazwischen, jeweils mit Route, Entfernung, Dauer und Fortbewegungsart.
+- Wenn mehrere Tage nach einer Reise aussehen, schlägt Timeline vor, sie zusammenzufassen. Nimm den Vorschlag an oder sag, dass es keine Reise war.
+- Alle deine Orte und ihre Aufenthalte sehen. Einen Ort benennen, zwei Orte zusammenführen, die derselbe sind, oder für einen Aufenthalt den richtigen Ort wählen.
+- Für die Karten Apple Maps verwenden, wenn du möchtest. Es ist aus, bis du es einschaltest.
+
+WIE TIMELINE DEINEN STANDORT PRIVAT HÄLT
+- Timeline zeichnet deinen Standort erst auf, wenn du „Orte und Strecken aufzeichnen“ einschaltest.
+- Deine Orte und Strecken werden auf deinem Gerät verschlüsselt, bevor sie hochgeladen werden. Die Server von Tenshu speichern nur verschlüsselte Daten und haben nicht die Schlüssel, um sie zu lesen.
+- Einige Fakten, die der Server zum Synchronisieren braucht, sieht er trotzdem: wie viel du speicherst, wie viele Geräte du hast und wann sie synchronisieren.
+- Auf iPhone und iPad schlägt Timeline keine Ortsnamen nach, deshalb sendet es deine Koordinaten an keinen Dienst für Ortsnamen. Du benennst deine Orte selbst.
+- Wenn du „Apple Maps verwenden“ einschaltest, liefert Apple die Karte und sieht, welchen Ort oder welche Strecke du öffnest und wann.
+- Ohne Speicherplan bleibt deine Timeline auf diesem Gerät.
+
+VORAUSSETZUNGEN
+- iOS 16 oder neuer, auf iPhone oder iPad.
+- Tenshu Control, eingerichtet auf demselben Gerät.
+- Zum Synchronisieren zwischen Geräten: ein Speicherplan. Der kostenlose Plan hat 5 GB.
+
+Hilfe und häufige Probleme: tenshu.app/apps/timeline/support/ios/de

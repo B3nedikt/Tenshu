@@ -1,0 +1,237 @@
+# IN-D9's vocabulary, first candidate — a MEASUREMENT INPUT, not the shipped label set.
+#
+# ⚠⚠ Nothing reads this at runtime. It is the source the harness's label vectors are generated
+# from (scripts/inference/embed-label-set.py), and it exists so the quality read has something
+# concrete to be wrong about. IN-D9 ends on a per-label review that has NOT happened; treat every
+# row below as a proposal.
+#
+# ⚠ The prompt is spelled out per label rather than templated. A template hides exactly the rows
+# where it does not work — "This is a photo of a screenshot" is not a sentence anyone would write,
+# and prompt phrasing is a real lever on zero-shot quality. Making it a column makes it reviewable.
+#
+# Shape follows IN-D9: two tiers, no deeper. `top` rows are independently thresholded; `leaf` rows
+# are argmax-within-siblings plus a margin test, degrading to the parent when the top two are close.
+#
+# Columns: tier<TAB>parent<TAB>label<TAB>prompt
+# tier ∈ {top, leaf}; parent is `-` for top rows.
+
+top	-	people	This is a photo of people.
+leaf	people	person	This is a photo of a single person.
+leaf	people	portrait	This is a close-up portrait of a person's face.
+leaf	people	group of people	This is a photo of a small group of people together.
+leaf	people	crowd	This is a photo of a large crowd of people.
+leaf	people	baby	This is a photo of a baby.
+leaf	people	child	This is a photo of a child.
+leaf	people	couple	This is a photo of a couple of two people together.
+leaf	people	family	This is a photo of a family.
+leaf	people	selfie	This is a selfie taken at arm's length.
+leaf	people	person from behind	This is a photo of a person seen from behind.
+leaf	people	people at a table	This is a photo of people sitting around a table.
+leaf	people	team	This is a photo of a sports team posing together.
+
+top	-	animals	This is a photo of an animal.
+leaf	animals	dog	This is a photo of a dog.
+leaf	animals	cat	This is a photo of a cat.
+leaf	animals	bird	This is a photo of a bird.
+leaf	animals	horse	This is a photo of a horse.
+leaf	animals	cow	This is a photo of a cow.
+leaf	animals	sheep	This is a photo of a sheep.
+leaf	animals	fish	This is a photo of a fish.
+leaf	animals	insect	This is a photo of an insect.
+leaf	animals	butterfly	This is a photo of a butterfly.
+leaf	animals	squirrel	This is a photo of a squirrel.
+leaf	animals	deer	This is a photo of a deer.
+leaf	animals	duck	This is a photo of a duck.
+leaf	animals	farm animal	This is a photo of a farm animal in a field.
+leaf	animals	zoo animal	This is a photo of a wild animal at a zoo.
+
+top	-	food and drink	This is a photo of food or drink.
+leaf	food and drink	plate of food	This is a photo of a plate of food.
+leaf	food and drink	breakfast	This is a photo of a breakfast.
+leaf	food and drink	sandwich	This is a photo of a sandwich.
+leaf	food and drink	pizza	This is a photo of a pizza.
+leaf	food and drink	pasta	This is a photo of a plate of pasta.
+leaf	food and drink	salad	This is a photo of a salad.
+leaf	food and drink	soup	This is a photo of a bowl of soup.
+leaf	food and drink	burger	This is a photo of a hamburger.
+leaf	food and drink	sushi	This is a photo of sushi.
+leaf	food and drink	dessert	This is a photo of a dessert.
+leaf	food and drink	cake	This is a photo of a cake.
+leaf	food and drink	ice cream	This is a photo of ice cream.
+leaf	food and drink	bread	This is a photo of bread.
+leaf	food and drink	fruit	This is a photo of fruit.
+leaf	food and drink	vegetables	This is a photo of vegetables.
+leaf	food and drink	coffee	This is a photo of a cup of coffee.
+leaf	food and drink	cocktail	This is a photo of a cocktail.
+leaf	food and drink	wine	This is a photo of a glass of wine.
+leaf	food and drink	beer	This is a photo of a glass of beer.
+leaf	food and drink	barbecue	This is a photo of a barbecue grill with food on it.
+
+top	-	plants	This is a photo of plants.
+leaf	plants	flower	This is a photo of a flower.
+leaf	plants	tree	This is a photo of a tree.
+leaf	plants	forest	This is a photo of a forest.
+leaf	plants	grass	This is a photo of grass.
+leaf	plants	mushroom	This is a photo of a mushroom.
+leaf	plants	houseplant	This is a photo of a houseplant in a pot.
+leaf	plants	garden	This is a photo of a garden.
+leaf	plants	cactus	This is a photo of a cactus.
+leaf	plants	autumn leaves	This is a photo of autumn leaves.
+leaf	plants	blossom	This is a photo of a tree in blossom.
+
+top	-	landscape	This is a photo of a landscape.
+leaf	landscape	beach	This is a photo of a beach.
+leaf	landscape	ocean	This is a photo of the open sea.
+leaf	landscape	mountain	This is a photo of a mountain.
+leaf	landscape	lake	This is a photo of a lake.
+leaf	landscape	river	This is a photo of a river.
+leaf	landscape	waterfall	This is a photo of a waterfall.
+leaf	landscape	desert	This is a photo of a desert.
+leaf	landscape	snowy landscape	This is a photo of a snow-covered landscape.
+leaf	landscape	field	This is a photo of an open field.
+leaf	landscape	valley	This is a photo of a valley.
+leaf	landscape	cliff	This is a photo of a cliff.
+leaf	landscape	island	This is a photo of an island.
+leaf	landscape	canyon	This is a photo of a canyon.
+leaf	landscape	glacier	This is a photo of a glacier.
+
+top	-	urban	This is a photo of a city or town.
+leaf	urban	city street	This is a photo of a city street.
+leaf	urban	skyline	This is a photo of a city skyline.
+leaf	urban	tall building	This is a photo of a tall building.
+leaf	urban	house	This is a photo of a house.
+leaf	urban	bridge	This is a photo of a bridge.
+leaf	urban	church	This is a photo of a church.
+leaf	urban	castle	This is a photo of a castle.
+leaf	urban	market stall	This is a photo of a market stall.
+leaf	urban	shop front	This is a photo of a shop front from the street.
+leaf	urban	train station	This is a photo of a train station.
+leaf	urban	airport	This is a photo of an airport terminal.
+leaf	urban	construction site	This is a photo of a construction site.
+leaf	urban	parking	This is a photo of a car park.
+leaf	urban	monument	This is a photo of a monument or statue in a public place.
+leaf	urban	fountain	This is a photo of a fountain.
+leaf	urban	graffiti	This is a photo of graffiti on a wall.
+
+top	-	indoors	This is a photo taken indoors.
+leaf	indoors	living room	This is a photo of a living room.
+leaf	indoors	kitchen	This is a photo of a kitchen.
+leaf	indoors	bedroom	This is a photo of a bedroom.
+leaf	indoors	bathroom	This is a photo of a bathroom.
+leaf	indoors	office	This is a photo of an office desk.
+leaf	indoors	restaurant	This is a photo of the inside of a restaurant.
+leaf	indoors	cafe	This is a photo of the inside of a cafe.
+leaf	indoors	museum	This is a photo of the inside of a museum.
+leaf	indoors	library	This is a photo of a library.
+leaf	indoors	gym	This is a photo of the inside of a gym.
+leaf	indoors	classroom	This is a photo of a classroom.
+leaf	indoors	hotel room	This is a photo of a hotel room.
+leaf	indoors	staircase	This is a photo of a staircase.
+leaf	indoors	shop interior	This is a photo of the inside of a shop.
+
+top	-	transport	This is a photo of a vehicle.
+leaf	transport	car	This is a photo of a car.
+leaf	transport	bicycle	This is a photo of a bicycle.
+leaf	transport	motorcycle	This is a photo of a motorcycle.
+leaf	transport	bus	This is a photo of a bus.
+leaf	transport	train	This is a photo of a train.
+leaf	transport	tram	This is a photo of a tram.
+leaf	transport	boat	This is a photo of a boat.
+leaf	transport	ship	This is a photo of a large ship.
+leaf	transport	airplane	This is a photo of an airplane.
+leaf	transport	truck	This is a photo of a truck.
+leaf	transport	scooter	This is a photo of a scooter.
+leaf	transport	traffic	This is a photo of traffic on a road.
+
+top	-	documents and screens	This is a picture of a document or a screen, not a scene.
+leaf	documents and screens	screenshot	This is a screenshot of a phone or computer screen.
+leaf	documents and screens	receipt	This is a photo of a paper receipt.
+leaf	documents and screens	document	This is a photo of a printed document.
+leaf	documents and screens	handwriting	This is a photo of handwritten notes.
+leaf	documents and screens	whiteboard	This is a photo of a whiteboard with writing on it.
+leaf	documents and screens	business card	This is a photo of a business card.
+leaf	documents and screens	ticket	This is a photo of a ticket.
+leaf	documents and screens	menu	This is a photo of a restaurant menu.
+leaf	documents and screens	book page	This is a photo of a page of a book.
+leaf	documents and screens	form	This is a photo of a printed form.
+leaf	documents and screens	map	This is a picture of a map.
+leaf	documents and screens	chart	This is a picture of a chart or graph.
+leaf	documents and screens	slide	This is a picture of a presentation slide.
+leaf	documents and screens	sign with text	This is a photo of a sign with text on it.
+leaf	documents and screens	qr code	This is a picture of a QR code.
+leaf	documents and screens	computer screen	This is a photo of a computer monitor.
+
+top	-	events	This is a photo taken at an event.
+leaf	events	birthday	This is a photo of a birthday party.
+leaf	events	wedding	This is a photo of a wedding.
+leaf	events	concert	This is a photo of a concert.
+leaf	events	festival	This is a photo of a festival.
+leaf	events	parade	This is a photo of a parade.
+leaf	events	sports match	This is a photo of a sports match.
+leaf	events	graduation	This is a photo of a graduation ceremony.
+leaf	events	conference	This is a photo of a conference talk.
+leaf	events	fireworks	This is a photo of fireworks.
+leaf	events	camping	This is a photo of a campsite with a tent.
+leaf	events	picnic	This is a photo of a picnic.
+
+top	-	objects	This is a close-up photo of an object.
+leaf	objects	phone	This is a photo of a mobile phone.
+leaf	objects	laptop	This is a photo of a laptop computer.
+leaf	objects	camera	This is a photo of a camera.
+leaf	objects	watch	This is a photo of a wristwatch.
+leaf	objects	keys	This is a photo of a bunch of keys.
+leaf	objects	shoes	This is a photo of a pair of shoes.
+leaf	objects	clothing	This is a photo of an item of clothing.
+leaf	objects	bag	This is a photo of a bag.
+leaf	objects	furniture	This is a photo of a piece of furniture.
+leaf	objects	tool	This is a photo of a hand tool.
+leaf	objects	toy	This is a photo of a toy.
+leaf	objects	book	This is a photo of a book.
+leaf	objects	candle	This is a photo of a candle.
+leaf	objects	jewellery	This is a photo of jewellery.
+leaf	objects	glasses	This is a photo of a pair of glasses.
+leaf	objects	package	This is a photo of a cardboard parcel.
+
+top	-	activities	This is a photo of someone doing a sport or activity.
+leaf	activities	running	This is a photo of someone running.
+leaf	activities	cycling	This is a photo of someone cycling.
+leaf	activities	swimming	This is a photo of someone swimming.
+leaf	activities	skiing	This is a photo of someone skiing.
+leaf	activities	snowboarding	This is a photo of someone snowboarding.
+leaf	activities	surfing	This is a photo of someone surfing.
+leaf	activities	climbing	This is a photo of someone climbing.
+leaf	activities	football	This is a photo of a game of football.
+leaf	activities	basketball	This is a photo of a game of basketball.
+leaf	activities	tennis	This is a photo of a game of tennis.
+leaf	activities	yoga	This is a photo of someone doing yoga.
+leaf	activities	dancing	This is a photo of people dancing.
+leaf	activities	cooking	This is a photo of someone cooking.
+leaf	activities	fishing	This is a photo of someone fishing.
+leaf	activities	sailing	This is a photo of a sailing boat being sailed.
+leaf	activities	skateboarding	This is a photo of someone skateboarding.
+leaf	activities	hiking	This is a photo of someone hiking on a trail.
+
+top	-	art and media	This is a picture of an artwork or a printed design.
+leaf	art and media	painting	This is a picture of a painting.
+leaf	art and media	drawing	This is a picture of a drawing.
+leaf	art and media	sculpture	This is a photo of a sculpture.
+leaf	art and media	mural	This is a photo of a painted mural on a wall.
+leaf	art and media	poster	This is a picture of a poster.
+leaf	art and media	logo	This is a picture of a logo.
+leaf	art and media	tattoo	This is a photo of a tattoo on skin.
+leaf	art and media	comic	This is a picture of a comic strip.
+leaf	art and media	neon sign	This is a photo of a neon sign.
+
+top	-	sky and weather	This is a photo of the sky or the weather.
+leaf	sky and weather	sunset	This is a photo of a sunset.
+leaf	sky and weather	sunrise	This is a photo of a sunrise.
+leaf	sky and weather	night sky	This is a photo of the night sky.
+leaf	sky and weather	stars	This is a photo of stars in the night sky.
+leaf	sky and weather	moon	This is a photo of the moon.
+leaf	sky and weather	clouds	This is a photo of clouds.
+leaf	sky and weather	rainbow	This is a photo of a rainbow.
+leaf	sky and weather	storm	This is a photo of a storm.
+leaf	sky and weather	rain	This is a photo of rain.
+leaf	sky and weather	snowfall	This is a photo of falling snow.
+leaf	sky and weather	fog	This is a photo of fog.
+leaf	sky and weather	lightning	This is a photo of lightning.

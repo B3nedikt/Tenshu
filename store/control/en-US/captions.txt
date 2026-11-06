@@ -1,0 +1,11 @@
+# One caption per screen for the framed store screenshots (scripts/store-frame, design §3.2).
+# `NN-screen: text` — the screen name from ../screens.json. Plain, short, no superlatives (D6).
+01-welcome: Tenshu starts here
+02-protected: Your keys stay on your device
+03-recovery-phrase: 24 words restore everything
+04-home: See what your apps did
+05-devices: All your devices in one place
+06-settings: Storage, devices and app lock
+07-storage: Start free with 5 GB
+08-sign-in: Turn on sync when you want it
+09-add-device: Add a device with a code

@@ -1,0 +1,29 @@
+Tenshu Calendar keeps your events and reminders encrypted and in sync across your devices. Only your own devices can read them.
+
+TENSHU CALENDAR NEEDS TENSHU CONTROL
+Tenshu Control holds your keys and connects your devices. Install Tenshu Control from Google Play and set it up first, then open Calendar. Calendar finds Control on its own.
+
+WHAT YOU CAN DO
+- See your month, week or day, or a list of what is coming up.
+- Add, change and delete events: all-day or timed, with a location, notes and a repeat. Change one occurrence of a repeating event, or all of them.
+- Get reminders before an event, even when Calendar is closed, and snooze or dismiss them from the notification. Hide an event's title on the lock screen for a calendar you choose.
+- Keep several calendars, each with its own color. Show or hide each one on this phone.
+- Subscribe to a calendar by its web address, such as public holidays or a team schedule. It updates on its own, and you can pause it.
+- Import an .ics file into a calendar, or export a calendar as an .ics file. Open .ics files from other apps in Calendar.
+- See what is next on your home screen with the widget.
+
+HOW CALENDAR KEEPS YOUR EVENTS PRIVATE
+- Your events and calendars are encrypted on your device before they are uploaded. Tenshu's servers store only encrypted data, and they don't have the keys to read it.
+- The server can still see some facts it needs to sync: how much you store, how many devices you have, and when they sync.
+- When you subscribe to a calendar, your device downloads it directly from its publisher, and the publisher sees your IP address. Each of your devices downloads it for itself.
+- Calendar does not read the other calendars on your device.
+- Without a storage plan, your events stay on this device.
+
+REQUIREMENTS
+- Android 7.0 or later.
+- Tenshu Control, set up on the same phone.
+- To sync between devices: a storage plan. The free plan has 5 GB.
+
+Tenshu is open source and still in testing: expect rough edges, and tell us what breaks.
+
+Help and common problems: tenshu.app/apps/calendar/support/android/en

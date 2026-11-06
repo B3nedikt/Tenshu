@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- German (de). Mirrors ../values/strings.xml key for key; ADR 0016.
+         See the English file for per-string developer notes. -->
+
+    <string name="home_nav_home">Start</string>
+    <string name="home_nav_automations">Automationen</string>
+    <string name="home_nav_activity">Aktivität</string>
+    <string name="home_nav_settings">Einstellungen</string>
+
+    <string name="home_ask_mia_title">Mia fragen</string>
+    <string name="home_ask_mia_subtitle">Schreib oder sprich mit deiner Assistentin</string>
+    <string name="home_ask_mia_back">Zurück</string>
+
+    <string name="home_devices_title">Geräte</string>
+    <string name="home_devices_empty_title">Noch keine Geräte</string>
+    <string name="home_devices_empty_body">Füge deinen Tenshu Hub, Lautsprecher, Lampen und Sensoren hinzu, um sie hier zu sehen.</string>
+    <string name="home_devices_add">Gerät hinzufügen</string>
+
+    <string name="home_device_state_connected">Verbunden</string>
+    <string name="home_device_state_disconnected">Getrennt</string>
+    <string name="home_device_state_on">An · %1$d%</string>
+    <string name="home_device_state_off">Aus</string>
+    <string name="home_device_state_storage">%1$s von %2$s frei</string>
+    <string name="home_storage_as_of">Stand: %1$s</string>
+    <string name="home_storage_offline_as_of">Hub offline · Stand: %1$s</string>
+    <string name="home_device_state_thermostat">%1$s · eingestellt auf %2$s</string>
+    <string name="home_room_unassigned">Nicht zugeordnet</string>
+
+    <string name="home_device_power">Ein/Aus</string>
+    <string name="home_device_brightness">Helligkeit</string>
+    <string name="home_device_command_failed">Das hat nicht funktioniert – das Gerät ist möglicherweise nicht erreichbar.</string>
+    <string name="home_device_command_unconfirmed">Noch keine Antwort vom Hub. Der Befehl kann trotzdem noch ausgeführt werden.</string>
+    <string name="home_device_command_dismiss">Schließen</string>
+
+    <string name="home_device_menu">Geräteoptionen</string>
+    <string name="home_device_move_up">Nach oben</string>
+    <string name="home_device_move_down">Nach unten</string>
+    <string name="home_device_remove">Entfernen</string>
+
+    <string name="home_add_title">Gerät hinzufügen</string>
+    <string name="home_add_name_label">Name</string>
+    <string name="home_add_kind_label">Typ</string>
+    <string name="home_add_room_label">Raum</string>
+    <string name="home_add_confirm">Hinzufügen</string>
+    <string name="home_add_cancel">Abbrechen</string>
+
+    <string name="home_pair_title">Gerät hinzufügen</string>
+    <string name="home_pair_body">Versetze das Gerät in den Kopplungsmodus – meist, indem du seine Taste gedrückt hältst, bis es blinkt. Geräte, die beitreten, erscheinen hier.</string>
+    <string name="home_pair_via">Kopplung über %1$s</string>
+    <string name="home_pair_start">Kopplung starten</string>
+    <string name="home_pair_countdown">Kopplung offen – noch %1$d s</string>
+    <string name="home_pair_waiting">Warten auf ein Gerät…</string>
+    <string name="home_pair_joined">Beigetreten</string>
+    <string name="home_pair_close">Kopplung beenden</string>
+    <string name="home_pair_done">Fertig</string>
+    <string name="home_pair_failed">Kopplung konnte nicht gestartet werden. Ist der Hub erreichbar?</string>
+
+    <string name="home_kind_hub">Tenshu Hub</string>
+    <string name="home_kind_storage">Speicher</string>
+    <string name="home_kind_speaker">Lautsprecher</string>
+    <string name="home_kind_light">Licht</string>
+    <string name="home_kind_camera">Kamera</string>
+    <string name="home_kind_thermostat">Thermostat</string>
+    <string name="home_kind_sensor">Sensor</string>
+
+    <string name="home_placeholder_settings_body">Räume, Benachrichtigungen und die Hub-Verwaltung kommen mit einem späteren Meilenstein.</string>
+
+    <string name="home_activity_filter_devices">Geräte</string>
+    <string name="home_activity_filter_automations">Automationen</string>
+    <string name="home_activity_filter_voice">Sprache</string>
+    <string name="home_activity_today">Heute</string>
+    <string name="home_activity_yesterday">Gestern</string>
+    <string name="home_activity_empty">Hier ist noch nichts – ausgeführte Automationen erscheinen in diesem Verlauf.</string>
+    <string name="home_activity_empty_devices">Geräteereignisse werden noch nicht aufgezeichnet, daher erscheint hier nichts von deinen Geräten.</string>
+    <string name="home_activity_empty_voice">Sprachsteuerung ist noch nicht verfügbar, daher erscheint hier nichts von Mia.</string>
+
+    <string name="home_automations_add">Automation hinzufügen</string>
+    <string name="home_automations_empty_title">Noch keine Automationen</string>
+    <string name="home_automations_empty_body">Erstelle Wenn-dann-Regeln – sie laufen lokal, ohne Umweg über die Cloud.</string>
+    <string name="home_automation_menu">Automationsoptionen</string>
+    <string name="home_automation_edit">Bearbeiten</string>
+    <string name="home_automation_remove">Entfernen</string>
+    <string name="home_unknown_device">Unbekanntes Gerät</string>
+
+    <string name="home_trigger_schedule">Um %1$s</string>
+    <string name="home_trigger_sun_at">Bei %1$s</string>
+    <string name="home_trigger_sun_before">%1$d Min. vor %2$s</string>
+    <string name="home_trigger_sun_after">%1$d Min. nach %2$s</string>
+    <string name="home_sun_sunrise">Sonnenaufgang</string>
+    <string name="home_sun_sunset">Sonnenuntergang</string>
+    <string name="home_trigger_arrive">Wenn du nach Hause kommst</string>
+    <string name="home_trigger_leave">Wenn du das Haus verlässt</string>
+    <string name="home_trigger_device">%1$s: %2$s</string>
+    <string name="home_trigger_voice">Wenn du „%1$s“ sagst</string>
+    <string name="home_event_motion">Bewegung erkannt</string>
+    <string name="home_event_person">Person erkannt</string>
+    <string name="home_event_opened">Geöffnet</string>
+    <string name="home_event_closed">Geschlossen</string>
+    <string name="home_condition_window">Zwischen %1$s und %2$s</string>
+    <string name="home_condition_nobody">Nur wenn niemand zu Hause ist</string>
+    <string name="home_condition_somebody">Nur wenn jemand zu Hause ist</string>
+    <string name="home_condition_device_on">Nur solange %1$s an ist</string>
+    <string name="home_condition_device_off">Nur solange %1$s aus ist</string>
+    <string name="home_action_turn_on">%1$s einschalten</string>
+    <string name="home_action_turn_off">%1$s ausschalten</string>
+    <string name="home_action_notify">Benachrichtigen: %1$s</string>
+    <string name="home_action_run">„%1$s“ ausführen</string>
+    <string name="home_actions_more">+%1$d weitere</string>
+
+    <string name="home_editor_new_title">Neue Automation</string>
+    <string name="home_editor_edit_title">Automation bearbeiten</string>
+    <string name="home_editor_save">Speichern</string>
+    <string name="home_editor_name_label">Name</string>
+    <string name="home_editor_when">Wenn</string>
+    <string name="home_editor_only_if">Nur wenn</string>
+    <string name="home_editor_then">Dann</string>
+    <string name="home_editor_add_condition">Bedingung hinzufügen</string>
+    <string name="home_editor_add_action">Aktion hinzufügen</string>
+    <string name="home_editor_trigger_schedule">Uhrzeit</string>
+    <string name="home_editor_trigger_sun">Sonne</string>
+    <string name="home_editor_trigger_geofence">Zuhause</string>
+    <string name="home_editor_trigger_device">Gerät</string>
+    <string name="home_editor_trigger_voice">Sprache</string>
+    <string name="home_editor_time_label">Uhrzeit (HH:MM)</string>
+    <string name="home_editor_offset_label">Versatz in Minuten (negativ = vorher)</string>
+    <string name="home_editor_phrase_label">Sprachbefehl</string>
+    <string name="home_editor_device_label">Gerät</string>
+    <string name="home_editor_event_label">Ereignis</string>
+    <string name="home_editor_direction_arrive">Ankommen</string>
+    <string name="home_editor_direction_leave">Weggehen</string>
+    <string name="home_editor_on">An</string>
+    <string name="home_editor_off">Aus</string>
+    <string name="home_editor_message_label">Nachricht</string>
+    <string name="home_editor_after_label">Nach (HH:MM)</string>
+    <string name="home_editor_before_label">Vor (HH:MM)</string>
+    <string name="home_editor_nobody">Niemand zu Hause</string>
+    <string name="home_editor_somebody">Jemand zu Hause</string>
+    <string name="home_editor_condition_window">Zeitfenster</string>
+    <string name="home_editor_condition_presence">Anwesenheit</string>
+    <string name="home_editor_condition_device">Gerätezustand</string>
+    <string name="home_editor_action_device">Gerät</string>
+    <string name="home_editor_action_notify">Benachrichtigung</string>
+    <string name="home_editor_action_run">Automation ausführen</string>
+    <string name="home_editor_back">Zurück</string>
+    <string name="home_editor_remove_item">Entfernen</string>
+    <string name="home_control_wall_title">Tenshu Control einrichten</string>
+    <string name="home_control_not_set_up">Tenshu Control ist installiert, aber auf diesem Gerät noch nicht eingerichtet. Home erreicht deine Geräte über Control – öffne es, um neu anzufangen oder dich deinen anderen Geräten anzuschließen, und komm dann zurück.</string>
+    <string name="home_control_open_action">Control öffnen</string>
+    <string name="home_control_not_installed">Tenshu Control ist auf diesem Gerät nicht installiert. Home erreicht deine Geräte über Control, daher kann es nichts anzeigen oder schalten, bis Control installiert ist.</string>
+    <string name="home_control_not_installed_unpublished">Tenshu Control ist auf diesem Gerät nicht installiert und noch nicht im Store erhältlich – bis dahin kann Home deine Geräte nicht erreichen.</string>
+    <string name="home_control_not_installed_other_channel">Tenshu Control ist auf diesem Gerät nicht installiert. Installiere es auf demselben Weg wie Home.</string>
+    <string name="home_control_get_action">Control holen</string>
+</resources>

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Ported from docs/design/tenshu-icons/icons/android/foreground/fit.svg by the
+  recipe in docs/adr/0026-app-icon-system.md §5. The pictogram sits in a <group>
+  carrying the source's own translate/scale so path data is copied verbatim; rects
+  and circles have no VectorDrawable primitive and are expressed as paths.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="432"
+    android:viewportHeight="432">
+    <group
+        android:translateX="84"
+        android:translateY="84"
+        android:scaleX="4.125"
+        android:scaleY="4.125">
+        <path
+            android:pathData="M 41.5 13.5 c -4.25 0 -7.875 3.375 -9.5 7 C 30.375 16.875 26.75 13.5 22.5 13.5 C 16.75 13.5 12 18.25 12 24 c 0 11.75 11.875 14.875 20 26.5 c 7.625 -11.625 20 -15.125 20 -26.5 C 52 18.25 47.25 13.5 41.5 13.5 z"
+            android:strokeColor="#FAFAFA"
+            android:strokeWidth="3.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            />
+    </group>
+</vector>

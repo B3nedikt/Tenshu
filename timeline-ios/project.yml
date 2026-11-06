@@ -1,0 +1,217 @@
+# XcodeGen spec for the Timeline iOS app (docs/proposals/timeline-app.md +
+# docs/proposals/ios-proxy-architecture.md §9.3 "share view models + repos, native UI").
+# Mirrors control-ios/project.yml / drive-ios/project.yml. The generated
+# `TimelineIos.xcodeproj` + `Info.plist` are gitignored (build from source, like the
+# Kotlin framework + libsodium).
+#
+# Regenerate after editing:   (cd timeline-ios && xcodegen generate)
+# Build (simulator):          xcodebuild -project TimelineIos.xcodeproj -scheme TimelineIos \
+#                               -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' build
+#
+# v1 is the app *over the mock*: native SwiftUI screens bound to the real
+# `:timeline-shared-logic` view models through the `TimelineSurface` umbrella seam, with
+# `MockTimelineRepository` standing in for a proxy — exactly as drive-ios / control-ios
+# first stood up over their fakes. The live-EPC data path (a real
+# `TimelineProjectionRepository` over an EPC channel) is a later tier; it swaps in behind
+# `TimelineSurface.installRepository` with no SwiftUI change.
+name: TimelineIos
+options:
+  bundleIdPrefix: app.tenshu
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+# Two build configs over one app target: the shipping `Debug` config is the mock-only app; the
+# `DebugHarness` config additionally defines the `DEV_HARNESS` Swift compilation condition, which
+# surfaces the dev/test EPC pairing tab (live-EPC seam, ios-proxy-architecture.md §12). The two
+# schemes below pin each to its config.
+configs:
+  Debug: debug
+  DebugHarness: debug
+  Release: release
+
+# Everything a map-bearing app owes beyond its Kotlin framework (D9) — the shared SwiftUI map layer,
+# the MapLibre SPM package, and the tile archive + glyph atlas as bundle resources — arrives through
+# ONE include, applied to the target below as `templates: [MapBearingApp]`. Timeline's three detail
+# heroes (movement route, trip route, place point) are its consumers (P3); `fit-ios` includes the
+# same file.
+include:
+  - path: ../ios-basemap/basemap.yml
+  # The shared forward-to-Control surface (ADR 0022), applied below as
+  # `templates: [ControlOnboardingApp]`. Drive, Fit, Maps and Contacts include the same file.
+  # Timeline takes the *banner* half of it, not the full-screen gate: its screens stay browsable
+  # over cached content (ADR §Decision 4 + §Decision 5).
+  - path: ../ios-onboarding/onboarding.yml
+  # The shared realm-storage banner (§8b.5c), applied below as `templates: [RealmStorageBanner]`.
+  - path: ../ios-storage/storage.yml
+  # Version numbers and orientations (`ReleaseApp`), and how Timeline links its OWN Kotlin framework
+  # (`AppFramework`, `ios-per-app-frameworks.md` P4). Archived by `scripts/ios-archive.sh timeline`.
+  - path: ../ios-release/release.yml
+  # The open-source notices (`docs/oss-licences.md`), applied below as `templates: [OssLicences]`.
+  - path: ../ios-about/about.yml
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    # Ad-hoc-signed on the SIMULATOR (CODE_SIGN_IDENTITY = "-"), matching the sibling iOS
+    # apps. A mock-only app needs no Keychain / App Group / entitlements, so there is no
+    # CODE_SIGN_ENTITLEMENTS here (unlike control-ios). Ad-hoc signing needs NO Apple ID /
+    # Team ID — that's only a real-device requirement.
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGNING_ALLOWED: "YES"
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    # Real-device (iphoneos) builds sign for the personal team (ios-signing.md §2/§3);
+    # the simulator keeps the ad-hoc config above. Team ID from $TENSHU_TEAM_ID at
+    # `xcodegen generate` time (local.properties tenshu.teamId).
+    CODE_SIGNING_REQUIRED[sdk=iphoneos*]: "YES"
+    CODE_SIGN_STYLE[sdk=iphoneos*]: Automatic
+    CODE_SIGN_IDENTITY[sdk=iphoneos*]: "Apple Development"
+    DEVELOPMENT_TEAM[sdk=iphoneos*]: ${TENSHU_TEAM_ID}
+    # Apple-silicon simulator only — matches the Kotlin framework's arch set (no iosX64 because
+    # paging-common ships no iosX64 klib). Without this the app builds x86_64 and can't
+    # load the framework's Swift module for that arch.
+    EXCLUDED_ARCHS[sdk=iphonesimulator*]: x86_64
+
+targets:
+  TimelineIos:
+    type: application
+    platform: iOS
+    # The shared map layer + MapLibre + the tile/glyph payload, and the shared
+    # forward-to-Control surface (see the `include`s above).
+    templates:
+      - MapBearingApp
+      - ControlOnboardingApp
+      - RealmStorageBanner
+      # Version numbers and orientations for an archived build (`ios-release/release.yml`).
+      - ReleaseApp
+      - OssLicences
+      # ⚠ Timeline links `:tenshu-sdk-ios-timeline` (`ios-per-app-frameworks.md`
+      # P4): a `TenshuSdk` built from Timeline's code and the shared core only.
+      - AppFramework
+    sources:
+      - path: Sources
+      - path: Resources
+    info:
+      path: Info.plist
+      properties:
+        # Cross-app open (`control-cross-app-open.md` CO-D4, §5i). ⚠⚠ On iOS this URL is the
+        # ONLY carrier: under route 1 every first-party app runs its own in-process proxy, so
+        # there is no channel between two apps for a request to be pushed down.
+        # ⚠⚠ The scheme is DERIVED from the appId (`app.tenshu.timeline` -> `tenshu-timeline`), never
+        # authored — `OpenTargetUrl.schemeFor` is the single source and a test pins the mapping.
+        # ⚠ This file is the source; `Info.plist` is generated and gitignored.
+        CFBundleURLTypes:
+          - CFBundleURLName: app.tenshu.timeline.open
+            CFBundleURLSchemes:
+              - tenshu-timeline
+        # Lets canOpenURL("tenshu-control://services") answer truthfully so the realm-storage
+        # banner can offer "Manage storage". ⚠⚠ Without this iOS reports Control absent even
+        # when installed and the action silently disappears. ⚠ project.yml is the source;
+        # Info.plist is generated and gitignored.
+        LSApplicationQueriesSchemes:
+          - tenshu-control
+        CFBundleDisplayName: Tenshu Timeline
+        # Export compliance (`docs/how-to/ios-testflight.md`): libsodium ships standard (IETF)
+        # algorithms beside Apple's own, so App Store Connect's answer is "standard algorithms".
+        ITSAppUsesNonExemptEncryption: true
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        # ⚠ No `NSCameraUsageDescription`: the only camera code is the DEV_HARNESS EPC pairing
+        # scanner (`QrScannerView`), which a shipping build does not compile, and App Review asks
+        # about a purpose string with nothing behind it. The harness scanner checks for the key and
+        # shows its paste-instead message without it (ios-per-app-frameworks.md §10.4).
+        # M4 live capture (timeline-movement-capture.md §6): CLVisit + significant-location-change
+        # monitoring behind the Settings opt-in. Both strings must be present or the Always
+        # authorization request silently no-ops. No `location` UIBackgroundModes — visit/SLC
+        # monitoring relaunches the app per event; the background mode is only for continuous
+        # standard updates, which capture deliberately does not use.
+        NSLocationWhenInUseUsageDescription: Timeline records the places you visit and the trips between them — end-to-end encrypted, only on your own devices.
+        NSLocationAlwaysAndWhenInUseUsageDescription: Allowing background access lets Timeline record places and trips while the app is closed. Everything stays end-to-end encrypted on your own devices.
+        # Route-1 (ios-first-party-route-1-migration.md P3): the effective shared Keychain group
+        # RealmKeyMaterialBridge reads Control's route-1 key material from (bare on the sim,
+        # Team-prefixed on device — set per-sdk in settings.base below).
+        TenshuSharedKeychainGroup: $(TENSHU_SHARED_KEYCHAIN_GROUP)
+        # Tenshu Control's App Store product id, for the forward-to-Control surface
+        # (ADR 0022). Empty until Control ships → the screen says so instead of opening
+        # a broken page. Same build-setting → Info.plist path as the Keychain group above.
+        TenshuControlAppStoreId: $(TENSHU_CONTROL_APP_STORE_ID)
+        # This app's own App Store product id, for the skew fence's Update button
+        # (core-schema-skew-surface.md §8.5). Empty until the listing exists → no button.
+        TenshuAppStoreId: $(TENSHU_APP_STORE_ID)
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.tenshu.timeline.ios
+        # Route-1 entitlements (Keychain + App Group; ios-first-party-route-1-migration.md P3) —
+        # sim uses the bare Keychain group, device the Team-prefixed one; the App Group id is the same.
+        CODE_SIGN_ENTITLEMENTS: Timeline.entitlements
+        TENSHU_SHARED_KEYCHAIN_GROUP: app.tenshu.shared
+        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: Timeline.device.entitlements
+        TENSHU_SHARED_KEYCHAIN_GROUP[sdk=iphoneos*]: $(DEVELOPMENT_TEAM).app.tenshu.shared
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: "NO"
+        # Timeline's own static `TenshuSdk` framework — linked by search path and name (the
+        # `AppFramework` template), not embedded.
+        TENSHU_SDK_MODULE: tenshu-sdk-ios-timeline
+      configs:
+        # Only the harness config compiles the dev/test EPC pairing tab.
+        # `$(inherited)` keeps the `DEBUG` the debug-config preset already sets.
+        DebugHarness:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) DEV_HARNESS
+    preBuildScripts:
+      - name: Build TenshuSdk.framework
+        # Keep the linked framework fresh before compile/link: one slice of Timeline's framework
+        # (scripts/ios-build-sdk.sh).
+        script: |
+          "$SRCROOT/../scripts/ios-build-sdk.sh" timeline
+        basedOnDependencyAnalysis: false
+
+  # The store screenshots (docs/how-to/store-screenshots.md §3f): an XCUITest over the SHIPPING app —
+  # the `Debug` configuration, no harness — that imports a Google Timeline export in one launch
+  # (`-seedFixture`, data only) and captures the next. Run only through
+  # `scripts/store-screenshots.sh timeline`, which runs Control's genesis on the same simulator first.
+  TimelineIosScreenshots:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: Screenshots
+      # The walks' label lookup (ShotStrings) and the shell's tab lookup — Timeline has no tabs, but
+      # the folder is one unit every walk compiles.
+      - path: ../ios-shell/UITestSupport
+    dependencies:
+      - target: TimelineIos
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.tenshu.timeline.ios.screenshots
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_TARGET_NAME: TimelineIos
+
+schemes:
+  # Shipping app: mock-only, no pairing tab.
+  TimelineIos:
+    build:
+      targets:
+        TimelineIos: all
+    run:
+      config: Debug
+  # Dev/test harness: adds the EPC pairing tab that reaches a live Control (§12).
+  TimelineIos-Dev:
+    build:
+      targets:
+        TimelineIos: all
+    run:
+      config: DebugHarness
+  # Store screenshots — ⚠ `Debug`, NOT `DebugHarness`: the harness adds a Pair tab the shipping app
+  # does not have, and a listing must not show it.
+  TimelineIos-Screenshots:
+    build:
+      targets:
+        TimelineIos: all
+        TimelineIosScreenshots: [test]
+    test:
+      config: Debug
+      targets:
+        - TimelineIosScreenshots
+    run:
+      config: Debug

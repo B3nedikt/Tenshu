@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- No INTERNET: Mia asks Control, and Control does everything that touches the realm
+         (mia-query-layer.md MQ-D2). Stripped explicitly, as every other client does, so a
+         dependency that merges it in later cannot quietly give it back (House Rule #1 at the OS
+         boundary; scripts/lib/check_client_no_internet.py guards it). -->
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+
+    <!-- AV-1: dictation. ⚠⚠ The audio never leaves the device — the recogniser is
+         `createOnDeviceSpeechRecognizer`, and where that is unavailable the app has no mic at
+         all rather than falling back to one that would upload a recording (IN-D11). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!--
+      ⚠ Lets BinderTaskTransport resolve + bind Control on Android 11+ (package
+      visibility). Without it the bind fails SILENTLY and every turn reports that Control
+      cannot be reached — indistinguishable, from the outside, from Control not running.
+    -->
+    <queries>
+        <package android:name="app.tenshu.control.android" />
+    </queries>
+
+    <application
+        android:name=".MiaApplication"
+        android:allowBackup="false"
+        android:supportsRtl="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- The reverse (push) channel: Control binds back to this service to deliver
+             stream / callback frames. Mia's one op is request/reply today, but the
+             transport requires the service to exist — the same contract Drive / Maps /
+             Timeline / Fit / Home declare. -->
+        <service
+            android:name="org.tenshu.core.common.ClientCallbackService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="app.tenshu.control.android.IClientInterface" />
+            </intent-filter>
+        </service>
+
+        <!-- Assistant-role qualification (home-and-mia-apps.md D7, M4): declaring a
+             VoiceInteractionService lists Mia in the system's default-assistant picker;
+             the session opens the chat. The real voice pipeline lands here later. -->
+        <service
+            android:name=".assist.MiaVoiceInteractionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_VOICE_INTERACTION">
+            <intent-filter>
+                <action android:name="android.service.voice.VoiceInteractionService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.voice_interaction"
+                android:resource="@xml/mia_voice_interaction_service" />
+        </service>
+        <service
+            android:name=".assist.MiaVoiceInteractionSessionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_VOICE_INTERACTION" />
+        <service
+            android:name=".assist.MiaRecognitionService"
+            android:exported="true"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.speech.RecognitionService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.speech"
+                android:resource="@xml/mia_recognition_service" />
+        </service>
+
+        <!-- "Ask Mia" home-screen widget (Glance). -->
+        <receiver
+            android:name=".widget.MiaWidgetReceiver"
+            android:exported="true"
+            android:label="@string/mia_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/mia_widget_info" />
+        </receiver>
+    </application>
+</manifest>

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  Info.plist for the Tenshu Drive File Provider extension (.appex)
+  (docs/proposals/desktop-macos-integration.md §5 task 1).
+
+  Extension point com.apple.fileprovider-nonui = a headless
+  NSFileProviderReplicatedExtension (no UI). The principal class is resolved at
+  load from the built module name; keep TenshuFileProviderExtension in sync with
+  TenshuFileProviderExtension.swift. CFBundleIdentifier must be a child of the
+  host app's id (Drive.app embeds this in Contents/PlugIns).
+
+  The document group is spelled with $(DEVELOPMENT_TEAM), not $(TeamIdentifierPrefix): Xcode
+  only fills the prefix in when IT signs, and this target is built unsigned and signed by
+  Gradle (project.yml).
+-->
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleDisplayName</key>
+    <string>Tenshu Drive</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>$(PRODUCT_NAME)</string>
+    <key>CFBundlePackageType</key>
+    <string>XPC!</string>
+    <key>CFBundleShortVersionString</key>
+    <string>$(MARKETING_VERSION)</string>
+    <key>CFBundleVersion</key>
+    <string>$(CURRENT_PROJECT_VERSION)</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+    <key>NSExtension</key>
+    <dict>
+        <key>NSExtensionPointIdentifier</key>
+        <string>com.apple.fileprovider-nonui</string>
+        <key>NSExtensionPrincipalClass</key>
+        <string>$(PRODUCT_MODULE_NAME).TenshuFileProviderExtension</string>
+        <key>NSExtensionFileProviderSupportsEnumeration</key>
+        <true/>
+        <key>NSExtensionFileProviderDocumentGroup</key>
+        <string>$(DEVELOPMENT_TEAM).app.tenshu.shared</string>
+    </dict>
+</dict>
+</plist>

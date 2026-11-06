@@ -1,0 +1,28 @@
+Tenshu Maps shows your places on a map that is drawn on your phone. Maps never uses your location.
+
+TENSHU MAPS NEEDS TENSHU CONTROL
+Tenshu Control holds your keys and connects your devices. Install Tenshu Control from Google Play and set it up first, then open Maps. Maps finds Control on its own.
+Your places come from Tenshu Timeline: the places it records appear in Maps, on this phone and your other devices.
+
+WHAT YOU CAN DO
+- See your places in a list, and open one to see it on the map.
+- Download the map of a region to keep it on your phone, and delete it when you no longer need it.
+- Keep the region around a place offline with one tap on the place's page.
+
+Maps is early: it has no search and no directions yet.
+
+HOW MAPS KEEPS YOUR PLACES PRIVATE
+- Maps never uses your location.
+- The map is drawn on your phone. Where you have not downloaded a region, Tenshu Control fetches the map around the place you open from Tenshu's map server, so that server can see which area you look at. Download a region, and its map comes from your phone.
+- Your places are encrypted on your device before they are uploaded. Tenshu's servers store only encrypted data, and they don't have the keys to read it.
+- The server can still see some facts it needs to sync: how much you store, how many devices you have, and when they sync.
+
+REQUIREMENTS
+- Android 7.0 or later.
+- Tenshu Control, set up on the same phone.
+- Tenshu Timeline, to record the places Maps shows.
+- To sync between devices: a storage plan. The free plan has 5 GB.
+
+Tenshu is open source and still in testing: expect rough edges, and tell us what breaks.
+
+Help and common problems: tenshu.app/apps/support/en

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    Timeline-on-iOS SIMULATOR Keychain + App-Group entitlements (route-1;
+    ios-first-party-route-1-migration.md P3). Added when Timeline moved off mock-only onto route-1;
+    mirrors fit-ios/Fit.entitlements (minus HealthKit). An ad-hoc-signed sim build needs an
+    `application-identifier` to have a Keychain at all, plus the SHARED `app.tenshu.shared` group
+    (bare string — ad-hoc signing has no team) that Control writes the route-1 key material into
+    (`RealmKeyMaterialBridge`, read via `TenshuSharedKeychainGroup`), and the App Group
+    `group.app.tenshu.shared` so `TimelineLocalRuntime` reads the SAME `objects` replica Control
+    writes (in-process route 1). A real device uses the Team-prefixed variant in
+    Timeline.device.entitlements; App Groups are paid-tier there (the on-device shared-replica gate).
+  -->
+  <key>application-identifier</key>
+  <string>app.tenshu.timeline.ios</string>
+  <key>keychain-access-groups</key>
+  <array>
+    <string>app.tenshu.timeline.ios</string>
+    <string>app.tenshu.shared</string>
+  </array>
+  <key>com.apple.security.application-groups</key>
+  <array>
+    <string>group.app.tenshu.shared</string>
+  </array>
+  <!--
+    Wi-Fi place recognition (timeline-recognition-and-place-naming.md §4.5).
+    `NEHotspotNetwork.fetchCurrent` returns nil without this, per its own SDK header.
+
+    ⚠ Declared on the SIMULATOR only, and it does NOT make the feature work here — the simulator
+    has no Wi-Fi interface of its own, so fetchCurrent returns nil regardless. It is declared so
+    the ad-hoc sim build exercises the real code path (and its inert degradation) rather than a
+    different one, and so the capability is recorded where the rest of them are.
+
+    ⚠⚠ Deliberately ABSENT from Timeline.device.entitlements: "Access WiFi Information" must be
+    enabled on the App ID in the developer portal, which a free personal team cannot do — the same
+    paid gate as App Groups (docs/how-to/ios-signing.md). Adding it there would make device builds
+    fail to sign rather than make recognition work. On a paid team, copy this key across and the
+    subsystem lights up with no code change.
+  -->
+  <key>com.apple.developer.networking.wifi-info</key>
+  <true/>
+</dict>
+</plist>

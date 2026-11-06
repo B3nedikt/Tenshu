@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 13+ themed icons honour ONLY the alpha channel, so every opaque pixel collapses
+  to one tint. The needle's south half is an unfilled region inside a stroked outline —
+  a real hole in the alpha channel, not a lighter colour — so the two-tone reading
+  survives tinting. Same 84/4.125 group as the foreground; coordinates copied verbatim.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="432"
+    android:viewportHeight="432">
+    <group
+        android:translateX="84"
+        android:translateY="84"
+        android:scaleX="4.125"
+        android:scaleY="4.125">
+        <!-- Bezel (r=21) -->
+        <path
+            android:pathData="M 11 32 a 21 21 0 1 0 42 0 a 21 21 0 1 0 -42 0 Z"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="3.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <!-- Needle outline -->
+        <path
+            android:pathData="M 43.5 20.5 L 37 37 L 20.5 43.5 L 27 27 Z"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="3"
+            android:strokeLineJoin="round" />
+        <!-- Needle, north half -->
+        <path
+            android:pathData="M 43.5 20.5 L 37 37 L 27 27 Z"
+            android:fillColor="#FFFFFF" />
+    </group>
+</vector>

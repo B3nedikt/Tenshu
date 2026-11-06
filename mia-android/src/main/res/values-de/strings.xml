@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- German (de). Mirrors ../values/strings.xml key for key; ADR 0016.
+  See the English file for per-string developer notes. -->
+<resources>
+    <string name="app_name">Mia</string>
+    <string name="mia_widget_label">Mia fragen</string>
+    <string name="mia_widget_description">Mit einem Tippen an Mia schreiben oder mit ihr sprechen.</string>
+</resources>

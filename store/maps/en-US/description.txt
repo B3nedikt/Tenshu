@@ -1,0 +1,25 @@
+Tenshu Maps shows your places on a map that is drawn on your device, from map regions you download and keep. Maps never uses your location.
+
+TENSHU MAPS NEEDS TENSHU CONTROL
+Tenshu Control holds your keys and connects your devices. Install Tenshu Control from the App Store and set it up first, then open Maps. Maps finds Control on its own.
+Your places come from Tenshu Timeline: the places it records appear in Maps, on this device and your others.
+
+WHAT YOU CAN DO
+- See your places in a list, and open one to see it on the map.
+- Download the map of a region to keep it on your device, and delete it when you no longer need it. Maps shows the map only where you have downloaded a region.
+- Use Apple Maps instead, if you prefer. It is off until you turn it on.
+
+HOW MAPS KEEPS YOUR PLACES PRIVATE
+- Maps never uses your location.
+- The map is drawn on your device from the regions you download. Tenshu's map server sees which regions you download, not which places you look at.
+- Your places are encrypted on your device before they are uploaded. Tenshu's servers store only encrypted data, and they don't have the keys to read it.
+- The server can still see some facts it needs to sync: how much you store, how many devices you have, and when they sync.
+- If you turn on Use Apple Maps, Apple serves the map, and sees which place you open and when.
+
+REQUIREMENTS
+- iOS 16 or later, on iPhone or iPad.
+- Tenshu Control, set up on the same device.
+- Tenshu Timeline, to record the places Maps shows.
+- To sync between devices: a storage plan. The free plan has 5 GB.
+
+Help and common problems: tenshu.app/apps/maps/support/ios/en

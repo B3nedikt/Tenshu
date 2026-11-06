@@ -1,0 +1,521 @@
+{
+  "shell": {
+    "loading": "Loading…",
+    "thisDeviceLabel": "This device",
+    "synced": "Synced",
+    "sections": {
+      "home": "Home",
+      "apps": "Apps",
+      "data": "Data",
+      "services": "Services",
+      "settings": "Settings"
+    }
+  },
+  "appLauncher": {
+    "triggerAriaLabel": "Apps",
+    "triggerTitle": "Open another Tenshu app",
+    "dialogAriaLabel": "Tenshu apps",
+    "entries": {
+      "tenshu": {
+        "label": "Tenshu",
+        "description": "Devices, permissions, recovery, settings."
+      },
+      "drive": {
+        "label": "Drive",
+        "description": "Your end-to-end encrypted file system."
+      },
+      "contacts": {
+        "label": "Contacts",
+        "description": "The people you know, end-to-end encrypted."
+      }
+    },
+    "installAnother": "+ Install another app",
+    "installAnotherTitle": "Coming with the Tenshu Store"
+  },
+  "deviceMenu": {
+    "signedInOnPrefix": "You're signed in on ",
+    "signedInOnSuffix": ".",
+    "lockNow": "Lock now",
+    "lockNowAriaLabel": "Lock now",
+    "signOutEverywhere": "Sign out everywhere",
+    "confirm": {
+      "title": "Sign out everywhere?",
+      "body1": "This will end your session on this browser and revoke this device from your realm. You'll need to onboard again from another device — or use your recovery phrase — to return.",
+      "body2": "Your realm data on other devices keeps working normally.",
+      "cancel": "Cancel",
+      "confirm": "Sign out everywhere",
+      "revoking": "Signing out…",
+      "offline": {
+        "title": "Couldn't remove this browser remotely",
+        "body": "We couldn't reach the relay to revoke this browser, so it will keep showing in your device list on your other devices until you remove it from one of them. You can still sign out of this browser now.",
+        "proceed": "Sign out anyway",
+        "cancel": "Back"
+      }
+    }
+  },
+  "home": {
+    "title": "Home",
+    "subtitle": "What's happened in your realm since you last looked."
+  },
+  "notificationFeed": {
+    "emptyAll": "Activity will show up here as you use Tenshu.",
+    "emptyCaughtUp": "You're all caught up.",
+    "count": "{count, plural, =1 {1 notification} other {{count} notifications}}",
+    "markAllRead": "Mark all read",
+    "clearAriaLabel": "Clear notification",
+    "showOlder": "Show older",
+    "relative": {
+      "justNow": "just now",
+      "minutes": "{value}m ago",
+      "hours": "{value}h ago",
+      "days": "{value}d ago"
+    }
+  },
+  "recoveryBanner": {
+    "titleVerify": "Verify your recovery phrase",
+    "titleReverify": "Re-verify your recovery phrase",
+    "bodyVerify": "Your phrase is the only way to recover this realm if you lose every device. Take a minute to confirm you still have it.",
+    "bodyReverify": "You last checked it on {date}. A quick recheck makes sure your backup still works.",
+    "cta": "Verify"
+  },
+  "tryMode": {
+    "title": "You're trying Tenshu locally",
+    "body": "Your data lives only in this browser. Sign up to save it across devices.",
+    "cta": "Sign up free"
+  },
+  "apps": {
+    "list": {
+      "title": "Apps",
+      "subtitle": "Apps installed in your realm. Open one to review its permissions, services, and per-app actions.",
+      "empty": "No apps yet. Apps you install and connect to this realm will appear here.",
+      "footer": "More apps will appear here as the platform grows. Tenshu itself is the management surface, not an app to permission against.",
+      "version": "v{version}",
+      "installed": "Installed {date}",
+      "permissionCount": "{count, plural, =1 {1 permission} other {{count} permissions}}"
+    },
+    "detail": {
+      "backLink": "← Apps",
+      "meta": {
+        "version": "Version",
+        "installed": "Installed",
+        "launchPath": "Launch path"
+      },
+      "permissions": {
+        "title": "Permissions",
+        "subtitle": "Declared by the app's manifest. Choose how each is granted on this device.",
+        "lastUsedLabel": "Last used: ",
+        "lastUsedNever": "never"
+      },
+      "services": {
+        "title": "Services",
+        "subtitlePrefix": "Platform services this app uses. Configuration lives under ",
+        "subtitleLink": "Services",
+        "subtitleSuffix": "."
+      },
+      "perAppActions": "Per-app actions",
+      "revokeAll": "Revoke all permissions",
+      "uninstall": "Uninstall",
+      "grant": {
+        "granted": "Granted",
+        "denied": "Denied",
+        "askEachTime": "Ask each time",
+        "setAriaLabel": "Set {permission} to {state}"
+      },
+      "uninstallConfirm": {
+        "title": "Uninstall {appName}?",
+        "ariaLabel": "Uninstall {appName}",
+        "thisDevice": "Remove from this device",
+        "allDevices": "Remove from all devices",
+        "note": "Deregisters the app and forgets its permissions. To fully remove it, uninstall it from your operating system.",
+        "cancel": "Cancel",
+        "remove": "Remove"
+      },
+      "notFound": {
+        "title": "Unknown app",
+        "bodyPrefix": "No app with id ",
+        "bodySuffix": " is installed in this realm."
+      }
+    }
+  },
+  "devices": {
+    "list": {
+      "title": "Devices",
+      "subtitle": "Devices in your realm. Each one holds your master identity and can sync everything the realm carries.",
+      "loading": "Loading…",
+      "count": "{count, plural, =1 {1 device} other {{count} devices}}",
+      "pairNew": "Pair a new device",
+      "syncWarning": {
+        "title": "This browser shares its identity with your {browser} sync account",
+        "body": "Other browsers signed into the same {browser} account can read this realm. If you don't want that, sign out of {browser} sync — or pair a fresh device that doesn't share an account."
+      },
+      "empty": "No devices yet. Pair this browser's first peer to start syncing.",
+      "thisDeviceBadge": "This device"
+    },
+    "detail": {
+      "backLink": "← Devices",
+      "thisDeviceBadge": "This device",
+      "meta": {
+        "deviceId": "Device ID",
+        "status": "Status",
+        "statusAuthorised": "Authorised",
+        "statusPendingRevocation": "Pending revocation"
+      },
+      "actions": "Actions",
+      "rename": {
+        "title": "Rename",
+        "description": "Change the display name shown next to this device's fingerprint.",
+        "note": "Wires up once the rename SDK op lands; native control surfaces don't support it yet either."
+      },
+      "revokeSelf": {
+        "title": "Revoke",
+        "description": "Remove this device from the realm. To remove the browser you're signed in on, use “Sign out everywhere”.",
+        "note": "Use “Sign out everywhere” in the device menu (top right) to sign this browser out and remove it from your realm."
+      },
+      "revoke": {
+        "title": "Revoke",
+        "description": "Remove this device from the realm. It'll lose access to sync immediately and will need to re-pair.",
+        "cta": "Revoke device",
+        "dialogTitle": "Revoke device",
+        "bodyPrefix": "Remove ",
+        "bodySuffix": " from your realm. It'll stop syncing immediately and need to re-pair from scratch if you want to add it back.",
+        "inFlight": "Revoking…",
+        "cancel": "Cancel",
+        "networkError": "Couldn't reach the relay. Check your connection and try again.",
+        "fallbackError": "Revoke failed. Please try again."
+      },
+      "notFound": {
+        "title": "Unknown device",
+        "bodyPrefix": "No device with id ",
+        "bodySuffix": " is currently in this realm. It may have been revoked from another device."
+      }
+    },
+    "dialog": {
+      "closeAriaLabel": "Close"
+    },
+    "pair": {
+      "dialogTitle": "Pair a new device",
+      "starting": "Generating pairing code…",
+      "failedStartFallback": "Pairing failed to start.",
+      "networkError": "Couldn't reach the relay. Check your connection and try again.",
+      "close": "Close",
+      "showing": {
+        "body": "Open Tenshu on your other device and enter the code below to add it to this realm.",
+        "label": "Pairing code",
+        "validity": "The code is valid for about 5 minutes. Keep this dialog open until the other device finishes pairing.",
+        "waiting": "Waiting for the other device…",
+        "cancel": "Cancel"
+      },
+      "request": {
+        "wantsToJoinSuffix": " wants to join your realm.",
+        "sasLabel": "Verify these digits match on the other device",
+        "versionHint": "If the codes don't match, don't continue — make sure both devices are on the latest version of Tenshu.",
+        "noSasHint": "Confirm the device name above looks right before approving.",
+        "approve": "Approve",
+        "approving": "Approving…",
+        "approvalFailed": "Approval failed.",
+        "cancel": "Cancel"
+      },
+      "paired": {
+        "body": "Device paired. It'll appear in your devices list shortly.",
+        "done": "Done"
+      },
+      "autoContinue": {
+        "stay": "Stay",
+        "countdown": "{seconds, plural, one {Continuing in # second} other {Continuing in # seconds}}"
+      },
+      "cancelled": {
+        "body": "Pairing cancelled. The pairing code is no longer valid.",
+        "close": "Close"
+      },
+      "errorFallback": "Pairing failed."
+    }
+  },
+  "recoverySetup": {
+    "title": "Set up account recovery",
+    "subtitle": "This phrase has been protecting your Tenshu since day one. Write it down now so you can recover if you lose this browser.",
+    "gateBody": "We'll show you your 24-word recovery phrase, then ask you to confirm a few words so we know it's safely written down.",
+    "gateNote": "The phrase is shown only while your session is unlocked, and only in this browser — it never reaches our servers.",
+    "start": "Show my recovery phrase",
+    "cancel": "Not now",
+    "revealing": "Unlocking your recovery phrase…",
+    "retry": "Try again",
+    "backToRecovery": "Back to Recovery",
+    "errors": {
+      "unavailable": "Re-displaying your recovery phrase from this browser is coming soon. For now, write it down from a device where you first created your Tenshu.",
+      "locked": "Unlock Tenshu first, then come back to set up account recovery.",
+      "joinerDevice": "This browser was paired from another device, so it never received the recovery phrase. View it on the device where you first created your Tenshu.",
+      "other": "Couldn't show your recovery phrase: {message}"
+    },
+    "done": {
+      "title": "Recovery is set up",
+      "body": "You've written down your recovery phrase. Keep it somewhere safe and offline — anyone with it can access your realm.",
+      "back": "Back to Recovery →"
+    }
+  },
+  "recovery": {
+    "page": {
+      "title": "Recovery",
+      "subtitle": "Your 24-word phrase is the only way to recover this realm if every device is lost. Keep it offline; check it once in a while.",
+      "loading": "Loading…",
+      "verified": "Recovery is verified",
+      "verifiedBody": "You last tested your phrase on {date}. We'll remind you in a few months.",
+      "verify": "Verify your recovery phrase",
+      "reverify": "Re-verify your recovery phrase",
+      "verifyBody": "You haven't tested your phrase yet on this browser. A quick check confirms you can still recover.",
+      "reverifyBody": "You last checked it on {date}. A quick recheck makes sure your backup still works.",
+      "setup": {
+        "title": "Set up account recovery",
+        "description": "Write down your 24-word recovery phrase so you can get back in if you lose this browser.",
+        "cta": "Set up recovery"
+      },
+      "manifestTitle": "What your phrase covers",
+      "manifest": {
+        "masterIdentity": "Master identity",
+        "masterIdentityDescription": "Your realm, devices, and the keys that unwrap everything else.",
+        "driveFiles": "Drive files",
+        "driveFilesDescription": "Files synced through the Drive app on any of your devices.",
+        "always": "Always",
+        "defaultOn": "Default on"
+      },
+      "manifestNote": "Editing this list per-volume lands once the manifest API ships. Today, every realm covers master identity + Drive files by default.",
+      "actions": "Actions",
+      "test": {
+        "title": "Test recovery",
+        "description": "Type your phrase to confirm it still works. We re-derive your master key locally — nothing leaves this device.",
+        "cta": "Start test"
+      },
+      "reveal": {
+        "title": "Re-display recovery phrase",
+        "description": "Show the 24 words again so you can write them down. Requires a fresh authenticator approval.",
+        "cta": "Reveal phrase"
+      },
+      "lostEverything": {
+        "title": "Lost every device?",
+        "body": "Start a fresh recovery from any browser using your 24-word phrase. The recovery flow rebuilds your realm on the new device.",
+        "openLink": "Open recovery flow →"
+      }
+    },
+    "dialog": {
+      "closeAriaLabel": "Close"
+    },
+    "test": {
+      "title": "Test recovery",
+      "intro": "Type the 24 words from your recovery phrase, separated by spaces. We'll re-derive your master key and check it matches this realm.",
+      "subhint": "Nothing leaves this device. The check takes a few seconds because re-deriving keys is intentionally slow.",
+      "placeholder": "word1 word2 word3 …",
+      "wordCount": "{count} / 24 words",
+      "verify": "Verify",
+      "cancel": "Cancel",
+      "verifying": "Re-deriving your master key. This usually takes 5–10 seconds.",
+      "retry": "Try again",
+      "verified": "Your phrase matches this realm. Recovery is good to go.",
+      "done": "Done",
+      "errors": {
+        "wrongRealm": "That phrase doesn't match this realm. Make sure you're typing the phrase from this device's account.",
+        "otherFallback": "Something went wrong. Please try again.",
+        "invalidLength": "Expected 24 words, got {wordCount}.",
+        "unknownWordGeneric": "One of the words isn't in the BIP-39 wordlist.",
+        "unknownWord": "\"{word}\" isn't in the BIP-39 wordlist — check the spelling.",
+        "checksum": "The phrase didn't pass its built-in checksum. Double-check the words and their order."
+      }
+    },
+    "reveal": {
+      "title": "Re-display recovery phrase",
+      "gateBody": "Showing your recovery phrase grants total access to this realm. Approve a fresh passkey check to confirm it's really you.",
+      "gateNote": "This prompt is independent of your unlock — even if your session is already active, we'll ask the authenticator one more time.",
+      "noWebAuthn": "This browser doesn't support WebAuthn, which is required to reveal the phrase.",
+      "approve": "Approve and continue",
+      "cancel": "Cancel",
+      "authenticating": "Waiting for your authenticator…",
+      "retry": "Try again",
+      "stagedTitle": "Phrase reveal — coming soon",
+      "stagedBody": "The auth gate works, but reading your phrase back needs a small SDK extension (the master-key store currently keeps the keypair, not the BIP-39 entropy). Tracked as a Track A follow-up; the gate ships in Phase B so the flow is ready when the SDK lands.",
+      "stagedFallback": "For now, your phrase is whatever you wrote down at signup. If you've lost it, rotate the realm: pair a fresh device, then trigger a new recovery from there.",
+      "approved": "Authenticator approved.",
+      "done": "Done",
+      "errors": {
+        "assertionExpired": "Assertion expired before it could be used.",
+        "cancelled": "Authenticator prompt cancelled. Approve the prompt to reveal your phrase.",
+        "wrongCredential": "That credential doesn't match this browser's passkey.",
+        "hardware": "Your authenticator reported an error. Try again, or use a different device.",
+        "unsupported": "This browser doesn't support the WebAuthn ceremony required to reveal the phrase.",
+        "unknownFallback": "Authentication failed. Please try again."
+      }
+    }
+  },
+  "services": {
+    "page": {
+      "title": "Services",
+      "tenshuRelayTitle": "Tenshu Relay",
+      "emptyBody": "No account yet. To sync across devices, you'll need a free account.",
+      "notSignedInBody": "Your plan is synced from your realm. Sign in on this device to change it or manage your identity.",
+      "signUp": "Sign up",
+      "plan": "Plan",
+      "storage": "Storage",
+      "storageChecking": "Checking…",
+      "storageNone": "No storage plan on this device.",
+      "storageProvisioning": "Setting up your storage…",
+      "storageLabel": "{used} of {limit} used",
+      "identity": "Identity",
+      "identityEmail": "Verified with {address}",
+      "getMoreStorage": "Get more storage",
+      "disconnect": "Disconnect",
+      "manageBilling": "Manage billing",
+      "signIn": "Sign in",
+      "portalUnavailable": "Billing management is not available on this deployment.",
+      "portalNoSubscription": "You don't have a paid subscription to manage.",
+      "deviceStorage": "This browser",
+      "deviceStoragePersisted": "Kept — the browser has committed to storing your realm here.",
+      "deviceStorageEvictable": "May be cleared. If the browser reclaims space, this browser loses its place in your realm and has to be paired again. Installing Tenshu as an app usually makes it permanent.",
+      "deleteAccount": "Delete account"
+    },
+    "picker": {
+      "title": "To sync your data, pick a plan",
+      "body": "Tenshu syncs your data across your devices through our relay server. We never see your files — they're encrypted on your device first.",
+      "priceFree": "Free",
+      "pricePerMonth": "{price} / month",
+      "choose": "Choose",
+      "redeemLink": "Have a code? Redeem it",
+      "cancel": "Cancel",
+      "tiers": {
+        "free": {
+          "title": "Free",
+          "body": "{storage} of encrypted storage. Verify your email — free forever.",
+          "cta": "Sign up free",
+          "ctaSignedIn": "Manage account"
+        },
+        "basic": {
+          "title": "Basic",
+          "body": "{storage} of encrypted storage."
+        },
+        "premium": {
+          "title": "Premium",
+          "body": "{storage} of encrypted storage."
+        }
+      }
+    },
+    "signup": {
+      "titleForm": "Sign in or create your Tenshu account",
+      "titleCode": "Enter your code",
+      "intro": "We use your email only to verify you're a real person and to recover your account if you lose your devices. We never see your files.",
+      "emailLabel": "Email address",
+      "displayNameLabel": "Display name (optional)",
+      "send": "Send code",
+      "sending": "Sending…",
+      "legalNotice": "By continuing you accept our <terms>terms of use</terms> and confirm that you are 16 or older. How we handle your data is explained in our <policy>privacy policy</policy>.",
+      "codeSent": "We sent a 6-digit code to {email}. It expires shortly.",
+      "codeLabel": "6-digit code",
+      "verify": "Continue",
+      "verifying": "Checking…",
+      "resend": "Send a new code",
+      "invalidCode": "That code didn't work. Check it and try again, or send a new one.",
+      "cancel": "Cancel"
+    },
+    "disconnect": {
+      "title": "Disconnect from the Tenshu Relay?",
+      "warning": "Your other devices will stop syncing. Your local data stays in this browser.",
+      "labelPrefix": "Type ",
+      "labelSuffix": " to confirm",
+      "cancel": "Cancel",
+      "confirm": "Yes, disconnect",
+      "inFlight": "Disconnecting…"
+    },
+    "checkout": {
+      "title": "Confirm your purchase",
+      "tier": "{tier} — {storage}",
+      "unknownTier": "That plan is not available.",
+      "ackBody": "Your storage starts working as soon as you pay, rather than after a waiting period.",
+      "ackCheckbox": "I expressly ask Tenshu to start before the withdrawal period ends. I understand that if I withdraw, I pay for the time up to my withdrawal.",
+      "ackWithdrawalLink": "Right of withdrawal and model form",
+      "ackTerms": "Recorded against our terms of {version}.",
+      "continue": "Continue to payment",
+      "cancel": "Cancel",
+      "launching": "Taking you to our payment provider…",
+      "unavailable": "Paid plans are not available on this deployment yet.",
+      "genericError": "Something went wrong. Please try again.",
+      "retry": "Try again",
+      "alreadySubscribed": "You are already on this plan. Nothing was charged.",
+      "planChange": "You already have a paid plan. Change it in billing, so you keep one subscription and are only charged the difference.",
+      "changeInBilling": "Change plan in billing",
+      "subscribedElsewhere": "This device's storage already has a paid plan under a different email address. Nothing was charged. Sign in with that email to manage or change it."
+    },
+    "checkoutResult": {
+      "backToServices": "Back to Services",
+      "cancelled": {
+        "title": "Payment cancelled",
+        "body": "Nothing was charged. You can pick a plan again whenever you like."
+      },
+      "portal": {
+        "title": "Back from billing",
+        "body": "Any change you made updates on this device as soon as it syncs."
+      },
+      "confirm": {
+        "title": "Thanks — confirm your email to activate your plan",
+        "body": "Enter the email address you used at checkout. We send it a code, and your plan is added to this device as soon as you enter it.",
+        "cta": "Confirm email"
+      },
+      "activating": {
+        "title": "Thanks — activating your plan",
+        "body": "This usually takes a few seconds."
+      },
+      "active": {
+        "title": "Your plan is active",
+        "body": "{plan} storage is now active on this device."
+      },
+      "pending": {
+        "title": "Thanks — your plan is on its way",
+        "body": "We have not received the payment confirmation for {email} yet. Your Services page updates once it arrives. If you paid with a different email address, sign in with that one instead."
+      }
+    },
+    "redeem": {
+      "title": "Redeem a code",
+      "body": "If you were given a code for a storage plan, enter it here. You do not need an account to redeem one.",
+      "label": "Code",
+      "continue": "Redeem",
+      "checking": "Checking…",
+      "invalid": "That code isn't valid.",
+      "notSavedSignedIn": "Your code was accepted, but the plan couldn't be added on this device. The code is used up, so don't redeem it again — open Services to fetch the plan.",
+      "notSavedSignedOut": "Your code was accepted, but the plan couldn't be added on this device. The code is used up, so don't redeem it again — keep it and contact support to have the plan restored.",
+      "cancel": "Cancel"
+    }
+  },
+  "shares": {
+    "title": "Shares",
+    "subtitle": "Links you've shared from your realm. Anyone with a link can view that file until you revoke it.",
+    "loading": "Loading…",
+    "count": "{count, plural, =1 {1 share} other {{count} shares}}",
+    "empty": "Nothing shared yet. Links you share from Drive show up here.",
+    "revokedBadge": "Revoked",
+    "sharedPrefix": "Shared ",
+    "revoke": "Revoke",
+    "revokeDialog": {
+      "ariaLabel": "Revoke link",
+      "title": "Revoke link?",
+      "body": "Anyone with the link to “{fileName}” will lose access. This can't be undone.",
+      "cancel": "Cancel",
+      "confirm": "Yes, revoke",
+      "inFlight": "Revoking…"
+    },
+    "caps": {
+      "opens": "{count, plural, =1 {up to 1 open} other {up to {count} opens}}",
+      "expires": "expires {date}",
+      "none": "no expiry · no open limit"
+    }
+  },
+  "backgroundIngest": {
+    "title": "Background ingest",
+    "subtitle": "Apps that back up device data in the background. Turn a source off to stop it on its device.",
+    "loading": "Loading…",
+    "count": "{count, plural, =1 {1 source} other {{count} sources}}",
+    "empty": "No background ingest yet. Apps that back up device data — like Drive photo backup — will appear here.",
+    "toggleAria": "Enable {name}",
+    "status": {
+      "IDLE": "Idle",
+      "RUNNING": "Backing up…",
+      "UP_TO_DATE": "Up to date",
+      "PAUSED_POLICY": "Paused",
+      "OUT_OF_SPACE": "Out of space",
+      "ERROR": "Error"
+    }
+  }
+}

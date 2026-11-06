@@ -1,0 +1,21 @@
+Tenshu Fit needs Tenshu Control installed and set up on the same device first. Control holds the encryption keys; Fit cannot open without it.
+
+To review:
+1. Install Tenshu Control and open it. Tap "Start fresh on this device", then "Continue", then "I've saved it".
+2. Open Tenshu Fit. On a new device "Today" shows "No activity yet" with "Record a workout" and "Import from Apple Health".
+3. Tap "Import from Apple Health": the Health access sheet appears, and Fit brings in the last 30 days of workouts, activity, sleep and vitals. The same button is under "Profile" → "Data sources". Fit never asks for Health access before this tap; after it, Fit imports again when it is opened. On an iPad without Apple Health (iPadOS 16), Fit says "Apple Health isn't available on this device" and offers recording and file import instead.
+4. To record a workout: "Record" → pick an activity → "Start". Fit explains that it records your route, then asks for location access. "Pause", "Resume", "Finish", then "Save workout".
+5. "Home" (Today) and "History" show the imported and recorded activity.
+
+Permissions and when they appear:
+- Apple Health, read: only on "Import from Apple Health" (see 3). Workouts, steps, distance, active energy, exercise time, dietary energy, water, menstrual flow, sleep, body mass, height, date of birth, biological sex, resting heart rate, blood oxygen, respiratory rate. Date of birth and sex are used to estimate calories.
+- Apple Health, write: when you save a recorded workout, so it also appears in Apple Health. Workouts only.
+- Location, while using: when you start a recording. The route is recorded only during a workout, and background location is on only while a workout is being recorded. Fit never asks for "Always".
+- Motion: when a recording starts, for steps and distance.
+- Bluetooth: only after "Connect" next to heart rate, to pair a heart-rate strap.
+
+Health data is never used for advertising and never shared with third parties. It is stored on the device and, only if the user turns on sync, in the user's own end-to-end encrypted storage.
+
+Everything works on one device without an account. "Turn on sync" in Control is optional: it asks for an email address and then a 6-digit code. To try it without a mailbox, use the sign-in details in App Review Information: enter the user name as the email address and the password as the code (no email is sent to that address). Any address you can receive mail at also works, and a new account is free.
+
+All health and workout data is end-to-end encrypted on the device before it reaches our servers; the servers cannot read it.

@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 13+ themed icons honour ONLY the alpha channel (docs/adr/0026-app-icon-system.md
+  §5): every opaque pixel becomes the user's tint. Same geometry as the foreground,
+  coordinates copied verbatim.
+
+  ⚠ The inner <group> is the radius-30 fit: the mark is scaled about the grid centre so
+  every rendered pixel stays inside radius 30 and no launcher mask clips it. Stroke
+  widths are authored pre-scale, so they render at the set's 3.5 baseline.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="432"
+    android:viewportHeight="432">
+    <group
+        android:translateX="84"
+        android:translateY="84"
+        android:scaleX="4.125"
+        android:scaleY="4.125">
+        <group
+            android:translateX="3.904"
+            android:translateY="3.904"
+            android:scaleX="0.878"
+            android:scaleY="0.878">
+            <path
+                android:pathData="M 14.609 49.965 a 18 22 0 0 1 36 0 z M 24.86 36.736 a 2.1 2.1 0 1 0 4.2 0 a 2.1 2.1 0 1 0 -4.2 0 Z M 35.86 36.736 a 2.1 2.1 0 1 0 4.2 0 a 2.1 2.1 0 1 0 -4.2 0 Z M 26.978 43.235 L 27.333 43.771 L 27.699 44.241 L 28.083 44.646 L 28.489 44.985 L 28.926 45.25 L 29.397 45.43 L 29.894 45.508 L 30.397 45.474 L 30.88 45.333 L 31.331 45.1 L 31.749 44.79 L 32.14 44.411 L 32.251 44.301 L 32.345 44.224 L 32.42 44.177 L 32.473 44.153 L 32.506 44.143 L 32.526 44.141 L 32.547 44.143 L 32.579 44.153 L 32.633 44.177 L 32.708 44.224 L 32.802 44.301 L 32.913 44.411 L 33.304 44.79 L 33.722 45.1 L 34.173 45.333 L 34.656 45.474 L 35.159 45.508 L 35.656 45.43 L 36.127 45.25 L 36.564 44.985 L 36.97 44.646 L 37.354 44.241 L 37.72 43.771 L 38.075 43.235 A 0.8 0.8 0 0 0 36.713 42.395 L 36.419 42.839 L 36.136 43.202 L 35.871 43.484 L 35.628 43.687 L 35.416 43.817 L 35.238 43.885 L 35.086 43.91 L 34.94 43.9 L 34.774 43.851 L 34.576 43.747 L 34.345 43.575 L 34.087 43.325 L 33.873 43.113 L 33.643 42.927 L 33.394 42.769 L 33.122 42.647 L 32.83 42.569 L 32.526 42.541 L 32.222 42.569 L 31.93 42.647 L 31.659 42.769 L 31.409 42.927 L 31.179 43.113 L 30.966 43.325 L 30.708 43.575 L 30.477 43.747 L 30.279 43.851 L 30.113 43.9 L 29.967 43.91 L 29.815 43.885 L 29.637 43.817 L 29.425 43.687 L 29.182 43.484 L 28.917 43.202 L 28.634 42.839 L 28.34 42.395 A 0.8 0.8 0 0 0 26.978 43.235 Z"
+                android:fillColor="#FFFFFF"
+                android:fillType="evenOdd"
+                />
+            <path
+                android:pathData="M 29.367 24.200 L 18.609 14.082 L 15.726 31.715 c -0.005 2.162 3.279 -5.888 13.640 -7.515 z"
+                android:fillColor="#FFFFFF"
+                />
+            <path
+                android:pathData="M 35.687 23.847 c 3.859 -3.614 7.518 -6.788 10.758 -10.117 L 49.327 31.362 c 0.005 2.162 -3.279 -5.888 -13.640 -7.515 z"
+                android:fillColor="#FFFFFF"
+                />
+            <path
+                android:pathData="M 20.842 38.516 Q 14.030 36.410 5.270 34.304"
+                android:strokeColor="#FFFFFF"
+                android:strokeWidth="1.4"
+                android:strokeLineCap="round"
+                android:strokeLineJoin="round"
+                />
+            <path
+                android:pathData="M 20.842 40.622 Q 13.057 40.622 4.297 40.622"
+                android:strokeColor="#FFFFFF"
+                android:strokeWidth="1.4"
+                android:strokeLineCap="round"
+                android:strokeLineJoin="round"
+                />
+            <path
+                android:pathData="M 20.842 42.728 Q 14.030 44.833 5.270 47.992"
+                android:strokeColor="#FFFFFF"
+                android:strokeWidth="1.4"
+                android:strokeLineCap="round"
+                android:strokeLineJoin="round"
+                />
+            <path
+                android:pathData="M 44.206 38.516 Q 51.020 36.410 59.780 34.304"
+                android:strokeColor="#FFFFFF"
+                android:strokeWidth="1.4"
+                android:strokeLineCap="round"
+                android:strokeLineJoin="round"
+                />
+            <path
+                android:pathData="M 44.206 40.622 Q 51.993 40.622 60.754 40.622"
+                android:strokeColor="#FFFFFF"
+                android:strokeWidth="1.4"
+                android:strokeLineCap="round"
+                android:strokeLineJoin="round"
+                />
+            <path
+                android:pathData="M 44.206 42.728 Q 51.020 44.833 59.780 47.992"
+                android:strokeColor="#FFFFFF"
+                android:strokeWidth="1.4"
+                android:strokeLineCap="round"
+                android:strokeLineJoin="round"
+                />
+        </group>
+    </group>
+</vector>

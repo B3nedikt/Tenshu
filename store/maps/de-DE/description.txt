@@ -1,0 +1,25 @@
+Tenshu Maps zeigt deine Orte auf einer Karte, die auf deinem Gerät gezeichnet wird, aus Kartenregionen, die du herunterlädst und behältst. Maps nutzt nie deinen Standort.
+
+TENSHU MAPS BRAUCHT TENSHU CONTROL
+Tenshu Control verwahrt deine Schlüssel und verbindet deine Geräte. Installiere Tenshu Control aus dem App Store und richte es zuerst ein, dann öffne Maps. Maps findet Control von selbst.
+Deine Orte kommen aus Tenshu Timeline: Die Orte, die Timeline aufzeichnet, erscheinen in Maps, auf diesem Gerät und auf deinen anderen.
+
+WAS DU TUN KANNST
+- Deine Orte in einer Liste sehen und einen öffnen, um ihn auf der Karte zu sehen.
+- Die Karte einer Region herunterladen, um sie auf deinem Gerät zu behalten, und sie löschen, wenn du sie nicht mehr brauchst. Maps zeigt die Karte nur dort, wo du eine Region heruntergeladen hast.
+- Stattdessen Apple Maps verwenden, wenn du möchtest. Es ist aus, bis du es einschaltest.
+
+WIE MAPS DEINE ORTE PRIVAT HÄLT
+- Maps nutzt nie deinen Standort.
+- Die Karte wird auf deinem Gerät aus den Regionen gezeichnet, die du herunterlädst. Der Kartenserver von Tenshu sieht, welche Regionen du herunterlädst, nicht welche Orte du dir ansiehst.
+- Deine Orte werden auf deinem Gerät verschlüsselt, bevor sie hochgeladen werden. Die Server von Tenshu speichern nur verschlüsselte Daten und haben nicht die Schlüssel, um sie zu lesen.
+- Einige Fakten, die der Server zum Synchronisieren braucht, sieht er trotzdem: wie viel du speicherst, wie viele Geräte du hast und wann sie synchronisieren.
+- Wenn du „Apple Maps verwenden“ einschaltest, liefert Apple die Karte und sieht, welchen Ort du öffnest und wann.
+
+VORAUSSETZUNGEN
+- iOS 16 oder neuer, auf iPhone oder iPad.
+- Tenshu Control, eingerichtet auf demselben Gerät.
+- Tenshu Timeline, um die Orte aufzuzeichnen, die Maps zeigt.
+- Zum Synchronisieren zwischen Geräten: ein Speicherplan. Der kostenlose Plan hat 5 GB.
+
+Hilfe und häufige Probleme: tenshu.app/apps/maps/support/ios/de

@@ -1,0 +1,1 @@
+training,fitness,laufen,joggen,radfahren,gps,herzfrequenz,schritte,schlaf,gesundheit,privat,e2ee
