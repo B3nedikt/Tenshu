@@ -12,7 +12,6 @@ import java.net.UnixDomainSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.SocketChannel
 import java.nio.file.Files
-import java.nio.file.Path
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertFalse
@@ -26,7 +25,7 @@ class WindowBridgeTest {
 
     // Short /tmp path: macOS Unix-domain sun_path caps at ~104 chars, and the
     // default /var/folders temp dir blows past it once a socket name is appended.
-    private val tempDir = Files.createTempDirectory(Path.of("/tmp"), "tw")
+    private val tempDir = org.tenshu.core.common.shortTempDirectory("tw")
 
     @AfterTest
     fun cleanup() {

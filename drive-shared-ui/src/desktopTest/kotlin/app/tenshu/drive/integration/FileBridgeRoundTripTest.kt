@@ -43,7 +43,7 @@ import kotlin.test.assertTrue
 class FileBridgeRoundTripTest {
 
     // Short /tmp path — macOS Unix-domain sun_path caps at ~104 chars.
-    private val tempDir = Files.createTempDirectory(Path.of("/tmp"), "fb")
+    private val tempDir = org.tenshu.core.common.shortTempDirectory("fb")
 
     private lateinit var appKoin: AppIntegrationKoin
     private val client: TenshuClient get() = appKoin.client

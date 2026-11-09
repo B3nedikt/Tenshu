@@ -2,7 +2,9 @@ package org.tenshu.core.common.transport
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import org.junit.Assume.assumeTrue
 import org.tenshu.core.common.TestProxy
+import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.PosixFilePermissions
@@ -38,14 +40,15 @@ class SocketDirectoryTest {
      * `sun_path` maximum on macOS is **102, measured**. So the bind failed whenever the suffix came
      * out long: roughly one run in three, in a test that looks entirely deterministic.
      *
-     * ⚠ `/tmp` rather than `$TMPDIR` because the length is the whole point — it is 4 characters
+     * ⚠ `/tmp` rather than `$TMPDIR` (via `shortTempDirectory`, which falls back to `java.io.tmpdir`
+     * on Windows, where `/tmp` is not a real place) because the length is the whole point — it is 4 characters
      * against 48, which buys enough headroom that the random suffix cannot matter. ⚠ The one-letter
      * prefix is deliberate for the same reason; every character here is budget.
      *
      * ⚠ Still cleaned up in [cleanUp] — a short path is not a licence to litter.
      */
     private fun tempRoot(): Path =
-        Files.createTempDirectory(Path.of("/tmp"), "t").also { roots.add(it) }
+        org.tenshu.core.common.shortTempDirectory("t").also { roots.add(it) }
 
     /**
      * ⚠ Well under the measured 102-byte macOS maximum — the margin absorbs `createTempDirectory`'s
@@ -74,8 +77,21 @@ class SocketDirectoryTest {
     private fun mode(dir: Path): String =
         PosixFilePermissions.toString(Files.getPosixFilePermissions(dir))
 
+    /**
+     * Skips a case that sets or reads POSIX modes on a host that has none (Windows/NTFS).
+     *
+     * ⚠⚠ A skip, not a pass: on such a host [SocketDirectory] is a deliberate no-op, so there is
+     * **no** socket-directory gate there at all — the ACL equivalent is open work
+     * (`docs/proposals/desktop-windows-port.md` §3.3). The cases that do not need POSIX still run.
+     */
+    private fun posixOnly() = assumeTrue(
+        "POSIX file permissions are unsupported on this host",
+        "posix" in FileSystems.getDefault().supportedFileAttributeViews(),
+    )
+
     @Test
     fun prepare_createsTheDirectoryOwnerOnly() {
+        posixOnly()
         val dir = tempRoot().resolve("nested").resolve(".tenshu")
 
         SocketDirectory.prepare(dir) {}
@@ -91,6 +107,7 @@ class SocketDirectoryTest {
      */
     @Test
     fun prepare_repairsAnAlreadyWorldTraversableDirectory() {
+        posixOnly()
         val dir = tempRoot().resolve(".tenshu")
         Files.createDirectories(dir)
         Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwxr-xr-x"))
@@ -104,6 +121,7 @@ class SocketDirectoryTest {
 
     @Test
     fun prepare_isQuietWhenTheDirectoryIsAlreadySound() {
+        posixOnly()
         val dir = tempRoot().resolve(".tenshu")
         Files.createDirectories(dir, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")))
 
@@ -116,6 +134,7 @@ class SocketDirectoryTest {
 
     @Test
     fun inspect_callsAnOwnerOnlyDirectorySound() {
+        posixOnly()
         val dir = tempRoot().resolve(".tenshu")
         Files.createDirectories(dir)
         Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwx------"))
@@ -129,6 +148,7 @@ class SocketDirectoryTest {
      */
     @Test
     fun inspect_refusesADirectoryAnotherUserCanWriteTo() {
+        posixOnly()
         val dir = tempRoot().resolve(".tenshu")
         Files.createDirectories(dir)
         Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwxrwxr-x"))
@@ -138,6 +158,7 @@ class SocketDirectoryTest {
 
     @Test
     fun inspect_refusesAWorldWritableDirectory() {
+        posixOnly()
         val dir = tempRoot().resolve(".tenshu")
         Files.createDirectories(dir)
         Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwxr-xrwx"))
@@ -153,6 +174,7 @@ class SocketDirectoryTest {
      */
     @Test
     fun inspect_warnsButDoesNotRefuseAMerelyTraversableDirectory() {
+        posixOnly()
         val dir = tempRoot().resolve(".tenshu")
         Files.createDirectories(dir)
         Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwxr-xr-x"))
@@ -197,6 +219,7 @@ class SocketDirectoryTest {
      */
     @Test
     fun inspect_stillRefusesAWorldWritableDirectoryWithoutTheStickyBit() {
+        posixOnly()
         val dir = tempRoot().resolve("open")
         Files.createDirectories(dir)
         Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwxrwxrwx"))
@@ -265,6 +288,7 @@ class SocketDirectoryTest {
 
     @Test
     fun startingTheServer_tightensTheDirectoryItBindsIn() {
+        posixOnly()
         val dir = tempRoot().resolve(".tenshu")
         Files.createDirectories(dir)
         Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwxr-xr-x"))
@@ -281,6 +305,7 @@ class SocketDirectoryTest {
 
     @Test
     fun prepareThenInspect_agree() {
+        posixOnly()
         val dir = tempRoot().resolve(".tenshu")
         Files.createDirectories(dir)
         Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwxrwxrwx"))

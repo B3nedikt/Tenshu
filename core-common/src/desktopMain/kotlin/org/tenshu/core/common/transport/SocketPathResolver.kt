@@ -73,7 +73,9 @@ object SocketPathResolver {
     fun resolveDir(): String {
         explicitDir()?.let { return it }
         appGroupContainer()?.let { return it }
-        return "${System.getProperty("user.home")}/.tenshu"
+        // Through `File` so the separator is the host's: identical on macOS/Linux, and on Windows
+        // a clean `C:\Users\<u>\.tenshu` rather than a mixed `C:\Users\<u>/.tenshu`.
+        return File(System.getProperty("user.home"), ".tenshu").path
     }
 
     /**

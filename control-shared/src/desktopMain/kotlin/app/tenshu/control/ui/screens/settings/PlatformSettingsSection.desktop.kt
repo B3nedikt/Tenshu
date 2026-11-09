@@ -11,6 +11,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import app.tenshu.control.lifecycle.DesktopControlSettings
+import app.tenshu.control.lifecycle.DesktopShellSupport
 import app.tenshu.control.lifecycle.DesktopStartAtLoginManager
 import app.tenshu.control.shared.resources.Res
 import app.tenshu.control.shared.resources.settings_close_to_tray_headline
@@ -28,6 +29,10 @@ import org.jetbrains.compose.resources.stringResource
  * for unsandboxed development/Developer ID bundles. Local `mutableStateOf`
  * mirrors that state for the switches; there's no config-change recreation on
  * desktop, and re-entering Settings re-reads it.
+ *
+ * ⚠ Each switch is shown only where [DesktopShellSupport] says the OS has the feature: a
+ * close-to-tray switch with no tray, or a start-at-login switch with no mechanism behind it, is a
+ * promise the app cannot keep (desktop-windows-port.md §3.4).
  */
 @Composable
 actual fun PlatformSettingsSection() {
@@ -59,14 +64,16 @@ actual fun PlatformSettingsSection() {
         startAtLoginApprovalRequired = startAtLoginManager.isApprovalRequired()
     }
 
-    AppListItem(
+    val shell = DesktopShellSupport.current
+
+    if (shell.trayAvailable) AppListItem(
         headline = stringResource(Res.string.settings_close_to_tray_headline),
         supportingText = stringResource(Res.string.settings_close_to_tray_support),
         leadingContent = { Icon(Icons.Default.DesktopMac, contentDescription = null) },
         trailingContent = { Switch(checked = closeToTray, onCheckedChange = ::setCloseToTray) },
         onClick = { setCloseToTray(!closeToTray) },
     )
-    AppListItem(
+    if (shell.startAtLoginAvailable) AppListItem(
         headline = stringResource(Res.string.settings_start_at_login_headline),
         supportingText = stringResource(
             if (startAtLoginApprovalRequired) {

@@ -24,6 +24,15 @@ import java.nio.channels.OverlappingFileLockException
  * say *which* copy is running. Only the holder writes; the content is for people, never for logic.
  *
  * ⚠ `java.io`/`FileChannel` only, like the store lock, so this stays usable from any JVM target.
+ *
+ * ⚠⚠ **Windows differs twice** (`docs/proposals/desktop-windows-port.md` §3.3):
+ *  - Its locks are *mandatory*: a refused process cannot read the locked file, so the holder text
+ *    is also written to an unlocked sibling, `<lock>.holder`, and read from there when the lock
+ *    file itself is unreadable.
+ *  - A killed holder's lock is released *asynchronously* after the process is gone (measured: still
+ *    held right after `waitFor`). So when the recorded holder pid is **no longer alive**, the attempt
+ *    is retried for up to [DEAD_HOLDER_GRACE_MILLIS]. A live holder is answered at once — a second
+ *    launch hands off to the running Control without waiting.
  */
 class SingleInstanceLock private constructor(
     private val channel: FileChannel,
@@ -54,11 +63,38 @@ class SingleInstanceLock private constructor(
     }
 
     companion object {
+        /** How long a lock whose recorded holder is dead may take to be released by the OS. */
+        const val DEAD_HOLDER_GRACE_MILLIS = 5_000L
+
+        private const val RETRY_INTERVAL_MILLIS = 50L
+
         /**
-         * Tries once to take the lock on [file], never waiting. Creates the file and its parent
-         * directory if needed.
+         * Tries to take the lock on [file]. Creates the file and its parent directory if needed.
+         *
+         * Never waits on a live holder. Waits up to [deadHolderGraceMillis] only while the lock is
+         * held **and** the pid the holder recorded is gone — the OS has not released a dead
+         * process's lock yet.
          */
-        fun tryAcquire(file: File): Outcome {
+        fun tryAcquire(file: File, deadHolderGraceMillis: Long = DEAD_HOLDER_GRACE_MILLIS): Outcome {
+            val deadline = System.currentTimeMillis() + deadHolderGraceMillis
+            while (true) {
+                val outcome = tryAcquireOnce(file)
+                if (outcome !is Outcome.HeldElsewhere) return outcome
+                if (holderIsAlive(outcome.holder) || System.currentTimeMillis() >= deadline) return outcome
+                Thread.sleep(RETRY_INTERVAL_MILLIS)
+            }
+        }
+
+        /** `true` unless the holder text names a pid that is verifiably not running. */
+        private fun holderIsAlive(holder: String?): Boolean {
+            val pid = holder?.let { Regex("""^pid (\d+)""").find(it)?.groupValues?.get(1)?.toLongOrNull() }
+                ?: return true
+            return ProcessHandle.of(pid).orElse(null)?.isAlive == true
+        }
+
+        private fun holderFile(file: File): File = File(file.parentFile, "${file.name}.holder")
+
+        private fun tryAcquireOnce(file: File): Outcome {
             val channel = try {
                 file.parentFile?.mkdirs()
                 RandomAccessFile(file, "rw").channel
@@ -75,11 +111,12 @@ class SingleInstanceLock private constructor(
                 return Outcome.Unavailable(t)
             }
             if (lock == null) {
-                val holder = readHolder(channel)
+                val holder = readHolder(channel) ?: readHolderFile(file)
                 runCatching { channel.close() }
                 return Outcome.HeldElsewhere(holder)
             }
             writeHolder(channel)
+            runCatching { holderFile(file).writeText(describeThisProcess()) }
             return Outcome.Acquired(SingleInstanceLock(channel, lock))
         }
 
@@ -97,6 +134,9 @@ class SingleInstanceLock private constructor(
                 channel.force(false)
             }
         }
+
+        private fun readHolderFile(file: File): String? =
+            runCatching { holderFile(file).readText().trim().takeIf { it.isNotEmpty() } }.getOrNull()
 
         private fun readHolder(channel: FileChannel): String? = runCatching {
             val size = channel.size().coerceAtMost(4096).toInt()

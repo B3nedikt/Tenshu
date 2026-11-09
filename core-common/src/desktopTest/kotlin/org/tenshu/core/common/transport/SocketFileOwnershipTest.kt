@@ -24,8 +24,8 @@ import kotlin.test.assertTrue
  */
 class SocketFileOwnershipTest {
 
-    // Short /tmp path — macOS Unix-domain sun_path caps at ~104 chars.
-    private val tempDir = Files.createTempDirectory(Path.of("/tmp"), "own")
+    // Short path — macOS Unix-domain sun_path caps at ~104 chars; see shortTempDirectory.
+    private val tempDir = org.tenshu.core.common.shortTempDirectory("own")
 
     @AfterTest
     fun cleanup() {

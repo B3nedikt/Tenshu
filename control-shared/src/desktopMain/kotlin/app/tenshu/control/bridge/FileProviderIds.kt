@@ -3,6 +3,9 @@ package app.tenshu.control.bridge
 import java.io.File
 import java.net.URLDecoder
 import java.net.URLEncoder
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.UUID
 
 /**
@@ -218,7 +221,15 @@ internal class FileProviderIds(private val journal: File? = null) {
                 INTENT_OPEN + listOf(from, move.to, move.fingerprint).joinToString("\t") { encode(it) } + "\n"
             }
             tmp.writeText(ids + intents)
-            if (tmp.renameTo(file)) journalLines = pathById.size + deferred.size
+            // ⚠⚠ Not `File.renameTo`: on Windows it never replaces an existing file, so the journal
+            // was never compacted there — and a torn tail then stayed, gluing the next append onto
+            // the fragment (desktop-windows-port.md §7.3; FileProviderIdsTest).
+            try {
+                Files.move(tmp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+            } catch (_: AtomicMoveNotSupportedException) {
+                Files.move(tmp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            }
+            journalLines = pathById.size + deferred.size
         }
     }
 

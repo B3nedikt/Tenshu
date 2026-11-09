@@ -123,6 +123,8 @@ class UnixSocketServer(
         // is `0755` — every local user could reach the socket, and (worse) place one here before
         // the daemon started.
         SocketDirectory.prepare(path.parent)
+        // ⚠ Before the unlink: see BoundSocketFile.claim.
+        val claim = BoundSocketFile.claim(path)
         Files.deleteIfExists(path)
 
         val bound = CountDownLatch(1)
@@ -134,7 +136,7 @@ class UnixSocketServer(
                 ServerSocketChannel.open(StandardProtocolFamily.UNIX).use { serverChannel ->
                     try {
                         serverChannel.bind(address)
-                        boundFile = BoundSocketFile.of(path)
+                        boundFile = claim.bound()
                     } catch (e: Exception) {
                         // Report the bind on the STARTING thread: a caller told "started" by a
                         // method that only managed a stack trace on a daemon thread has no way to

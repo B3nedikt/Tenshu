@@ -2554,7 +2554,7 @@ invariants even if it is true. It is not a subset of AD4; it is the assumed defa
 4. Client-side at-rest storage (app storage, keystore, caches, logs, OS backups).
 5. Client UI (approval prompts, screens, accessibility APIs, screenshots).
 6. Device boundaries (OS ↔ app, app ↔ keystore, app ↔ IPC, Control ↔ co-installed Tenshu
-   apps on desktop via Unix socket / named pipe, and on Android via Binder in both directions —
+   apps on desktop via a Unix-domain socket (Windows included), and on Android via Binder in both directions —
    each app's exported `IClientInterface` callback service is T-C-19, Control's exported
    `IProxyInterface` is T-C-20).
 7. Human user (social engineering, coercion, mistakes).
@@ -4972,7 +4972,8 @@ names, at which point the relation needs a per-member access gate — tracked al
 **T-C-11. Same-user malicious app connects to Control IPC (desktop).**
 Actors: AD3 — a co-installed but untrusted process running as the user. Assets: A1 (by
 extension), A14. Invariants: I1, I3.
-A non-Tenshu binary opens a connection to `~/.tenshu/ipc.sock` (or the Windows named pipe)
+A non-Tenshu binary opens a connection to `~/.tenshu/ipc.sock` (on Windows the same AF_UNIX
+socket under `%USERPROFILE%\.tenshu` — there is no named pipe, `desktop-ipc.md` §4)
 and sends a forged `Hello` block claiming to be a known Tenshu `AppId`. The
 filesystem-permission posture (`700` on `~/.tenshu/`) blocks cross-user but not same-user
 processes. On a signed macOS install the socket is in the App Group container instead; the
@@ -4981,13 +4982,17 @@ itself is `700` once `containermanagerd` owns it), and same-user reachability is
 Defense: peer-credential check per [
 `docs/protocol/desktop-ipc.md`](../protocol/desktop-ipc.md) §3 step 2. Control resolves
 the connecting PID's binary path via `SO_PEERCRED` (Linux), `LOCAL_PEERPID` (macOS), or
-`GetNamedPipeClientProcessId` (Windows), reads its code-signing identity, and verifies it
+`SIO_AF_UNIX_GETPEERPID` (Windows), reads its code-signing identity, and verifies it
 matches a publication held by the local Rei source. The hello `AppId` must agree with the
 peer-credential identity (A14) — discrepancy is a hard reject.
 Residual risk: **Low** with peer-credential checks enforced; **High** without them. Open
 edge cases (cache warmup before publication is observed, signature-change-on-update, the
-Windows peer-PID race where `GetNamedPipeClientProcessId` may return a PID whose process
-has exited) tracked in [`tenshu-rei.md`](../proposals/tenshu-rei.md) §5.F.49.
+Windows peer-PID race where `SIO_AF_UNIX_GETPEERPID` may return a PID whose process
+has exited) tracked in [`tenshu-rei.md`](../proposals/tenshu-rei.md) §5.F.49. ⚠ Only the macOS
+verifier is built (and it uses the audit token, not the pid); on Windows every peer resolves
+unattested, so a strict (packaged) Control admits no one and a developer-mode run admits
+everyone. No Windows build ships, so this is a dev posture, not a shipped exposure, until
+[`desktop-windows-port.md`](../proposals/desktop-windows-port.md) §3.2 lands.
 
 **T-C-12. Developer mode silently enabled by attacker.**
 Actors: AD2 / AD3 with local write access to Control's config. Assets: A16; by extension

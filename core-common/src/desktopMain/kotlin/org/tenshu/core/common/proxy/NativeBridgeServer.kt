@@ -136,11 +136,13 @@ class NativeBridgeServer(
         // client plaintext file read/write, so it is the last one that should sit in a
         // world-traversable directory.
         SocketDirectory.prepare(path.parent)
+        // ⚠ Before the unlink: see BoundSocketFile.claim.
+        val claim = BoundSocketFile.claim(path)
         Files.deleteIfExists(path)
 
         val channel = ServerSocketChannel.open(StandardProtocolFamily.UNIX)
         channel.bind(UnixDomainSocketAddress.of(socketPath))
-        boundFile = BoundSocketFile.of(path)
+        boundFile = claim.bound()
         serverChannel = channel
 
         thread(isDaemon = true, name = "NativeBridgeServer") {

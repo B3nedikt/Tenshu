@@ -7,6 +7,7 @@ import app.tenshu.drive.integration.utils.AppIntegrationKoin
 import app.tenshu.drive.integration.utils.startAppIntegrationKoin
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
 import org.tenshu.core.common.TenshuClient
@@ -17,7 +18,6 @@ import java.net.UnixDomainSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.SocketChannel
 import java.nio.file.Files
-import java.nio.file.Path
 import java.util.Base64
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -32,8 +32,8 @@ import kotlin.test.assertTrue
  */
 class FileWriteBridgeRoundTripTest {
 
-    // Short /tmp path — macOS Unix-domain sun_path caps at ~104 chars.
-    private val tempDir = Files.createTempDirectory(Path.of("/tmp"), "fw")
+    // Short path — macOS Unix-domain sun_path caps at ~104 chars; see shortTempDirectory.
+    private val tempDir = org.tenshu.core.common.shortTempDirectory("fw")
 
     private lateinit var appKoin: AppIntegrationKoin
     private val client: TenshuClient get() = appKoin.client
@@ -169,6 +169,13 @@ class FileWriteBridgeRoundTripTest {
      */
     @Test
     fun contentsCrossInTheStagingDirectory_notInTheReply() {
+        // Staging fails closed without POSIX permissions (Windows) — pinned in
+        // FileProviderStagingTest.stagingFailsClosedWithoutPosixPermissions; the Windows
+        // design needs no staging (desktop-windows-port.md §7.2).
+        assumeTrue(
+            "staging needs POSIX permissions",
+            "posix" in java.nio.file.FileSystems.getDefault().supportedFileAttributeViews(),
+        )
         val staging = tempDir.resolve("staging").toFile()
         val socketPath = tempDir.resolve("staged.sock").toString()
         NativeBridgeServer(socketPath).apply {
