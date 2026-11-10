@@ -31,6 +31,9 @@ internal static class CatIcon
 
     private static readonly Lazy<List<Shape>> Shapes = new(Load);
 
+    /// <summary>The square frame's side, relative to the face's larger side: room for short whisker stubs.</summary>
+    private const float FrameMargin = 1.18f;
+
     /// <summary>Whether the taskbar uses the light theme (then the cat is drawn black).</summary>
     public static bool TaskbarIsLight()
     {
@@ -45,16 +48,24 @@ internal static class CatIcon
         return bitmap.GetHicon();
     }
 
+    /// <summary>
+    /// ⚠⚠ Framed on the <b>face</b> (the filled shapes: head and ears, nearly square), not on the whole mark. A
+    /// tray icon is always square, while the mark with its whiskers is about 1.6 : 1 — fitting all of it left the
+    /// face a squashed strip across the middle. The macOS menu bar can widen a status item instead; Windows cannot.
+    /// The whiskers run off the sides, leaving stubs; <see cref="FrameMargin"/> is how much of them shows.
+    /// </summary>
     public static Bitmap Render(int size, Color ink, int alpha)
     {
         var shapes = Shapes.Value;
-        var bounds = RectangleF.Empty;
-        foreach (var s in shapes)
+        var face = RectangleF.Empty;
+        foreach (var s in shapes.Where(s => s.Fill))
         {
             var b = s.Path.GetBounds();
-            if (!s.Fill) b.Inflate(s.StrokeWidth / 2, s.StrokeWidth / 2);
-            bounds = bounds.IsEmpty ? b : RectangleF.Union(bounds, b);
+            face = face.IsEmpty ? b : RectangleF.Union(face, b);
         }
+        var side = Math.Max(face.Width, face.Height) * FrameMargin;
+        var bounds = new RectangleF(
+            face.X + face.Width / 2 - side / 2, face.Y + face.Height / 2 - side / 2, side, side);
 
         var bitmap = new Bitmap(size, size, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
         using var g = Graphics.FromImage(bitmap);

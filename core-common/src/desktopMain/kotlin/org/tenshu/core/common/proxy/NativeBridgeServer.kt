@@ -129,6 +129,13 @@ class NativeBridgeServer(
     @Volatile
     private var boundFile: BoundSocketFile? = null
 
+    /** The last gate message logged, so a repeat of the same reason stays quiet. */
+    private val lastGateLog = java.util.concurrent.atomic.AtomicReference<String?>(null)
+
+    private fun logGateOnce(message: String) {
+        if (lastGateLog.getAndSet(message) != message) System.err.println(message)
+    }
+
     fun start() {
         check(serverChannel == null) { "NativeBridgeServer already started" }
         val path = Path.of(socketPath)
@@ -188,7 +195,10 @@ class NativeBridgeServer(
         // frame. Non-enforcing by default; closes the channel on a strict reject.
         // The bridge serves only Control's own tray agent and has no per-app identity of its
         // own, so it uses the admit/reject half of the gate and ignores the credential.
-        if (peerVerifier.admit(clientChannel, peerPolicy, developerMode) == null) return
+        // ⚠ One log line per distinct reason: a tray agent opens a connection for every poll and every
+        // click, so logging each admission flooded a dev run's console (the client side does the same,
+        // `UnixSocketTaskTransport.logServerGateOnce`). A different peer or a new reason still logs.
+        if (peerVerifier.admit(clientChannel, peerPolicy, developerMode, log = ::logGateOnce) == null) return
         val writeLock = ReentrantLock()
         val connScope = CoroutineScope(handlerDispatcher + SupervisorJob())
 
