@@ -21,7 +21,9 @@ import java.nio.channels.OverlappingFileLockException
  * The OS drops the lock when the process dies, however it dies, so a leftover file never blocks
  * the next start. The file is never deleted: deleting a lock file another process may hold is the
  * classic race. The holder writes its pid and launcher path into the file, so a refused copy can
- * say *which* copy is running. Only the holder writes; the content is for people, never for logic.
+ * say *which* copy is running. Only the holder writes. The content is for people, with one exception on
+ * Windows: the recorded pid decides whether a refusal is worth retrying (below). A stale or missing text
+ * only costs retries there, never a wrong verdict — the lock itself is the verdict.
  *
  * ⚠ `java.io`/`FileChannel` only, like the store lock, so this stays usable from any JVM target.
  *
@@ -33,6 +35,9 @@ import java.nio.channels.OverlappingFileLockException
  *    held right after `waitFor`). So when the recorded holder pid is **no longer alive**, the attempt
  *    is retried for up to [DEAD_HOLDER_GRACE_MILLIS]. A live holder is answered at once — a second
  *    launch hands off to the running Control without waiting.
+ *    ⚠ Windows only: elsewhere locks are released with the process, and a holder in another sandbox or
+ *    pid namespace can be invisible to `ProcessHandle`, which would make a live holder look dead and
+ *    cost a pointless wait.
  */
 class SingleInstanceLock private constructor(
     private val channel: FileChannel,
@@ -68,6 +73,8 @@ class SingleInstanceLock private constructor(
 
         private const val RETRY_INTERVAL_MILLIS = 50L
 
+        private val isWindows = System.getProperty("os.name").orEmpty().startsWith("Windows", ignoreCase = true)
+
         /**
          * Tries to take the lock on [file]. Creates the file and its parent directory if needed.
          *
@@ -75,7 +82,10 @@ class SingleInstanceLock private constructor(
          * held **and** the pid the holder recorded is gone — the OS has not released a dead
          * process's lock yet.
          */
-        fun tryAcquire(file: File, deadHolderGraceMillis: Long = DEAD_HOLDER_GRACE_MILLIS): Outcome {
+        fun tryAcquire(
+            file: File,
+            deadHolderGraceMillis: Long = if (isWindows) DEAD_HOLDER_GRACE_MILLIS else 0L,
+        ): Outcome {
             val deadline = System.currentTimeMillis() + deadHolderGraceMillis
             while (true) {
                 val outcome = tryAcquireOnce(file)
