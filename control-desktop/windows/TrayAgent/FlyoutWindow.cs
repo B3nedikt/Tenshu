@@ -230,20 +230,27 @@ internal sealed class FlyoutWindow
     /// <summary>
     /// Sizes the window to its content and anchors it beside (<paramref name="x"/>, <paramref name="y"/>) inside the
     /// work area. ⚠ Sized to the content, never to a guessed constant: a fixed 230 DIP clipped the last button.
+    /// ⚠ Never larger than the work area in either direction — a narrow or heavily scaled display (a portrait panel
+    /// at 300 %) is smaller than the flyout's preferred width, and clamping a position into a range whose minimum
+    /// exceeds its maximum throws. The content is measured at the width it will actually get.
     /// </summary>
     private void Place(IntPtr hwnd, int x, int y)
     {
         var scale = GetDpiForWindow(hwnd) / 96.0;
-        _root.Measure(new Windows.Foundation.Size(WidthDip, double.PositiveInfinity));
-        var heightDip = Math.Max(_root.DesiredSize.Height, 120) + 2; // + the window border
-        int width = (int)(WidthDip * scale), height = (int)Math.Ceiling(heightDip * scale), margin = (int)(12 * scale);
+        var margin = (int)(12 * scale);
         var work = DisplayArea.GetFromPoint(new PointInt32(x, y), DisplayAreaFallback.Nearest).WorkArea;
-        height = Math.Min(height, work.Height - 2 * margin);
-        // Up and to the left of the anchor (the taskbar is usually at the bottom right), clamped inside the work area.
-        var left = Math.Clamp(x - width + margin, work.X + margin, work.X + work.Width - width - margin);
-        var top = Math.Clamp(y - height - margin, work.Y + margin, work.Y + work.Height - height - margin);
+        var width = Math.Max(1, Math.Min((int)(WidthDip * scale), work.Width - 2 * margin));
+        _root.Measure(new Windows.Foundation.Size(width / scale, double.PositiveInfinity));
+        var heightDip = Math.Max(_root.DesiredSize.Height, 120) + 2; // + the window border
+        var height = Math.Max(1, Math.Min((int)Math.Ceiling(heightDip * scale), work.Height - 2 * margin));
+        // Up and to the left of the anchor (the taskbar is usually at the bottom right), kept inside the work area.
+        var left = ClampInto(x - width + margin, work.X + margin, work.X + work.Width - width - margin);
+        var top = ClampInto(y - height - margin, work.Y + margin, work.Y + work.Height - height - margin);
         _window.AppWindow.MoveAndResize(new RectInt32(left, top, width, height));
     }
+
+    /// <summary>Like <see cref="Math.Clamp(int, int, int)"/>, but an empty range pins to its start instead of throwing.</summary>
+    private static int ClampInto(int value, int min, int max) => max < min ? min : Math.Clamp(value, min, max);
 
     public void Hide()
     {
