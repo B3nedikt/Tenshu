@@ -847,17 +847,23 @@ off by default while the folder is read-only. Log: `diagnostics/explorer.log`.
   token (`WindowsAccount`), not `whoami`.
 - **In step**: a pass lists the realm and applies `ExplorerMirror.plan` — at start, on every emission of the
   realm listing, and every 60 s (which also restores what was deleted locally). Moves and renames made elsewhere
-  are delete + create, as on macOS (§7.3); a changed file (size or modification time) is replaced, dropping its
-  hydrated copy.
+  are delete + create, as on macOS (§7.3); a changed file (size, modification time or the content version in its
+  identity) is replaced, dropping its hydrated copy. ⚠ A pass that would remove more than half of the folder (and
+  more than ten placeholders) is applied only when a listing at least 30 s later says the same — a listing that is
+  empty for a moment (cold store, reset) would otherwise take every downloaded and pinned copy with it.
 - **The FileIdentity blob** is `1\n<realm path>\n<content version>`, not a `FileProviderIds` id: nothing here
   follows a move, so an id buys nothing, and the version lets a fetch refuse a stale placeholder instead of
   sending bytes of a different length than Windows expects.
 - **Hydration**: `FETCH_DATA` is handed off at once to four Control threads, which read the realm's content
-  stream in 1 MiB ranges and `CfExecute` each — never the whole file in memory. A file with no stream yet (not
-  synced) is read locally. Cancels are honoured between chunks.
-- ⚠⚠ **Only placeholders are ever touched.** Until X3 nothing local is uploaded, so the user's own file in the
-  folder is the only copy: the mirror never removes or replaces one, and a realm row whose path it occupies is
-  not shown. Files are created `READONLY`, so editors refuse to save over them.
+  stream in 1 MiB ranges and `CfExecute` each. A file with no stream yet (not synced, so its bytes are only
+  local) is read whole, once per request. Cancels are honoured between chunks.
+- ⚠⚠ **Only our placeholders are ever touched.** Until X3 nothing local is uploaded, so the user's own file in
+  the folder is the only copy: the mirror never removes or replaces one, and a realm row whose path it occupies
+  is not shown. "Ours" is decided by `CfGetPlaceholderInfo` on a handle that opens links as themselves — an entry
+  carrying a Tenshu identity — and, for a file, still **in sync**: ⚠ not `FILE_ATTRIBUTE_REPARSE_POINT`, which
+  every symlink and junction also has. A placeholder the user saved an edit into (read-only is advisory) is out of
+  sync, so it is theirs and kept. Each deletion re-checks this right before it happens. Files are created
+  `READONLY`, so editors refuse to save over them.
 - **Names**: a row Windows cannot hold (`:`, `CON`, a trailing dot…) is not shown, nor anything below it. NTFS is
   case-insensitive: of two rows differing only in case, the first in path order is shown.
 - **Turning it off** stops serving, deletes every placeholder (never the user's files), unregisters, and removes
@@ -865,11 +871,15 @@ off by default while the folder is read-only. Log: `diagnostics/explorer.log`.
   says the provider is not running (§7.7).
 
 - **Always keep / Free up space**: Explorer only *marks* the file (`FILE_ATTRIBUTE_PINNED` / `UNPINNED`); the
-  provider acts. A pin pass — on any change notification in the folder tree (a `FILE_TREE` watch), after every
-  mirror pass and every 60 s — downloads pinned files still online-only (`CfHydratePlaceholder`) and drops the copy
-  of unpinned ones (`CfDehydratePlaceholder`), both on attribute-only handles that download nothing. A file without
-  a mark of its own follows the nearest marked folder above it (`ExplorerMirror.copies`). A replaced file keeps its
-  pin (`CfSetPinState`). An opened file without a mark keeps its copy until freed.
+  provider acts. A pin pass — on any change notification in the folder tree, after every mirror pass and every
+  60 s — downloads pinned files still online-only (`CfHydratePlaceholder`) whenever it sees them, and drops the copy
+  of an unpinned one (`CfDehydratePlaceholder`) only when the mark is **new since the last pass**: ⚠ opening a
+  freed file downloads it and keeps the mark, and dropping on every pass would take the copy away half a second
+  after it was opened. Both run on attribute-only handles that download nothing. A file without a mark of its own
+  follows the nearest marked folder above it (`ExplorerMirror.copies`). A replaced file keeps its pin
+  (`CfSetPinState`). An opened file without a mark keeps its copy until freed.
+- **Stopping** (quit, or the switch going off) waits up to 10 s for a pass in flight, so a pass still creating
+  placeholders cannot outlive their deletion. A start Windows refuses leaves the switch off.
 - **At start** Control unregisters this user's other `TenshuDrive!` roots, so Explorer never shows two.
 - **Hardened from §7.7**: a `FETCH_DATA` whose details cannot be read is failed from its keys alone (no 60 s wait);
   `CF_CALLBACK_INFO` fields are read only up to the `StructSize` the OS sent; `register` releases every COM
@@ -883,3 +893,6 @@ Explorer downloaded and showed. Pin and free, by `attrib +P` / `+U` (the marks E
 online-only photo was downloaded within a second of `+P` and its copy dropped within a second of `+U`.
 ⚠ Found only on the device: `ExtendedWatchEventModifier.FILE_TREE` is in `jdk.unsupported`, which the packaged
 runtime does not carry (`NoClassDefFoundError`) — so each folder is watched on its own.
+After the review fixes, also on the device: our placeholders are recognised by `CfGetPlaceholderInfo` (pinning
+still downloads); a freed photo opened again keeps its new copy; a junction put in the folder and a hydrated
+photo edited in place (read-only cleared, a byte appended) both survived a repair pass untouched.
