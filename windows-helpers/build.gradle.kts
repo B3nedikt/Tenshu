@@ -43,3 +43,22 @@ tasks.withType<Test>().configureEach {
         "--enable-native-access=ALL-UNNAMED",
     )
 }
+
+// ⚠⚠ SPIKE, not shipped: the X0 Cloud Files driver (`docs/proposals/desktop-windows-port.md` §7, X0
+// findings). Its own source set so nothing in `main` — and so no app — can reach it. It registers a REAL
+// sync root under %TEMP%\tenshu-cfapi-spike\ and unregisters it at the end of every run.
+//   ./gradlew :windows-helpers:cfapiSpike [-PspikeArgs=--hold | -PspikeArgs=--cleanup]
+val spike: SourceSet = sourceSets.create("spike") {
+    compileClasspath += sourceSets.main.get().output + sourceSets.main.get().compileClasspath
+    runtimeClasspath += output + compileClasspath + sourceSets.main.get().runtimeClasspath
+}
+
+tasks.register<JavaExec>("cfapiSpike") {
+    description = "X0 spike: register a Cloud Files sync root, hydrate a placeholder, unregister (Windows only)."
+    classpath = spike.runtimeClasspath
+    mainClass.set("app.tenshu.windows.spike.CfapiSpikeKt")
+    javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(FFM_JDK)) })
+    jvmArgs("--enable-native-access=ALL-UNNAMED")
+    args((findProperty("spikeArgs") as String?)?.split(' ')?.filter { it.isNotBlank() } ?: emptyList<String>())
+    standardInput = System.`in`
+}

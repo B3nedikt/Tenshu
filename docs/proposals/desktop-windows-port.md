@@ -671,6 +671,8 @@ The FileIdentity blob and the folder's names are plaintext metadata on disk, as 
 
 ### 7.5 Unknowns — a spike answers them before anything is built
 
+*Answered by X0 — see §7.7 for the measurements; the list stays as the question set.*
+
 - ⚠ Whether `StorageProviderSyncRootManager.Register` (navigation-pane entry, Explorer's Cloud UI) works
   **without package identity**, or needs MSIX / a sparse package. The C `CfRegisterSyncRoot` alone does not
   make the navigation-pane entry (*not verified*). If identity is required, §7 moves after §5.2's
@@ -684,7 +686,7 @@ The FileIdentity blob and the folder's names are plaintext metadata on disk, as 
 
 | Phase | Content | Gate |
 |---|---|---|
-| **X0** | Spike: register a sync root from the JVM, one placeholder, hydrate it via FFM; answer §7.5 | a placeholder created by Control opens in Notepad |
+| **X0** | Spike: register a sync root from the JVM, one placeholder, hydrate it via FFM; answer §7.5 | a placeholder created by Control opens in Notepad — ✅ scripted equivalent 2026-11-10 (another process opens and hashes it, §7.7); Explorer/Notepad by eye still owed |
 | **X1** | Read path: placeholders from the realm listing, hydration from the content stream, push updates from `FileProviderChangeFeed`, pin/evict | a realm browses in Explorer; open downloads, "Free up space" evicts; hashes match |
 | **X2** | Thumbnail handler DLL over the bridge (§7.3) | a folder of online-only photos shows thumbnails **and stays online-only** |
 | **X3** | Write path: folder watcher → upload, rename/delete callbacks, conflicts | create / edit / rename / delete in Explorer round-trips to another device |
@@ -692,3 +694,103 @@ The FileIdentity blob and the folder's names are plaintext metadata on disk, as 
 
 X0 can run any time after W1. X1 onwards needs W2 (paired, restart-stable Control) and W3 (autostart), because
 hydration needs Control resident.
+
+### 7.7 X0 findings (measured 2026-11-10, Windows 11 Pro 26300, JBR 25 x64)
+
+Bindings: `:windows-helpers` — `WindowsCloudFiles` (CfAPI over FFM, callbacks as upcall stubs),
+`WindowsSyncRootManager` (`StorageProviderSyncRootManager` by raw WinRT vtable calls — no C++/WinRT, no
+Windows SDK), `CloudFilesHResult`. Headless tests pin every struct layout (`CloudFilesLayoutsTest`) and
+the HRESULTs (`CloudFilesHResultTest`). The driver is a separate `spike` source set that nothing ships:
+
+```
+./gradlew :windows-helpers:cfapiSpike                       # measure + clean up; exit 0 = ALL PASS
+./gradlew :windows-helpers:cfapiSpike -PspikeArgs=--hold    # pauses while connected, for Explorer
+./gradlew :windows-helpers:cfapiSpike -PspikeArgs=--cleanup # only remove leftovers of a killed run
+```
+
+It registers a real root under `%TEMP%\tenshu-cfapi-spike\`, removes any earlier run's leftovers first
+(from the **registry**, see trap 1), and unregisters + verifies in `finally` and a shutdown hook.
+
+**What works, end to end, from the JVM:** `Register` → `CfConnectSyncRoot` (FETCH_DATA + CANCEL upcalls)
+→ `CfCreatePlaceholders` → another process (`powershell Get-FileHash`) opens the placeholder → FETCH_DATA
+upcall → answered later from a JVM executor thread by 4 KiB-aligned `CfExecute(TRANSFER_DATA)` chunks →
+the opener reads exactly the payload (SHA-256 matches; ~250 ms including PowerShell start-up) →
+`Unregister` leaves no HKLM key, nav-pane entry or CLSID. The OS's `CF_CALLBACK_INFO.StructSize` (152) and
+`ParamSize` (64) equal our layouts. Attributes: fresh placeholder `SPARSE|REPARSE_POINT|OFFLINE|
+RECALL_ON_DATA_ACCESS` (`0x401620`), hydrated `REPARSE_POINT` (`0x420`) — the §7.3 upload probe holds.
+
+**§7.5's questions:**
+
+- **Package identity — not required.** `StorageProviderSyncRootManager.Register` from an unpackaged
+  JVM succeeds, writes `HKLM\…\Explorer\SyncRootManager\<id>` and an HKCU
+  `Explorer\Desktop\NameSpace\{CLSID}` entry (the navigation-pane item), and does the CfAPI
+  registration itself. `CfRegisterSyncRoot` alone also works and can be connected to, but makes **no**
+  registry key and **no** nav-pane entry — so `Register` is the only call X1 needs. The id form
+  `<provider>!<SID>!<account>` is accepted. ⚠ **The packaged case is not measured**:
+  `Invoke-CommandInDesktopPackage` (Tenshu.Control's family) did *not* confer identity
+  (`GetCurrentPackageFamilyName` → none), and the spike installs nothing. MSIX virtualises a packaged
+  process's HKCU writes, which is exactly where the nav-pane entry goes — X1's first task.
+- **Which process owns the sync root — Control, confirmed (§7.2), and now for a second reason.** (a) With
+  no provider connected, opening a dehydrated placeholder fails at once — *"The cloud file provider is
+  not running"* — so the owner must be resident. (b) ⚠⚠ While a provider is connected, **only that
+  process may create placeholders**; any other gets `ERROR_CLOUD_FILE_ACCESS_DENIED`, and a second
+  `CfConnectSyncRoot` gets `ALREADY_CONNECTED`. The callbacks and every placeholder write are therefore
+  one process — the one holding the realm listing and `FileProviderChangeFeed`. Drive cannot be a
+  co-writer; it can only ask Control.
+- **When the owner is not running.** Clean disconnect → "not running", no hang. Provider killed while an
+  opener is waiting on its FETCH_DATA → the opener fails within ~50–70 ms ("exited unexpectedly" /
+  "not running"), not after the 60 s timeout; later opens say *"exited unexpectedly"* until something
+  reconnects. Already-hydrated files stay readable. ⚠ The **registration outlives the process** — a
+  crashed or uninstalled owner leaves the root in Explorer (X4).
+- **Callback threading vs the JVM.** Upcalls arrive on the OS's thread pool, attached by the JVM as
+  daemon threads named `Thread-N`, never the thread that made the CfAPI call. Sequential requests reuse
+  one thread; three concurrent requests whose callbacks each blocked 1 s ran on three threads and
+  finished in 1.3 s — blocking does not serialise at that width, but the pool is the OS's, so X1
+  returns at once and answers from its own dispatcher (measured to work: `CfExecute` from a JVM thread).
+  The upcall stubs are never freed (`Arena.global()`) because disconnect does not fence a running
+  callback. An exception escaping an upcall would abort the JVM; the dispatcher catches everything.
+
+**⚠ Traps found:**
+
+1. ⚠⚠ `GetCurrentSyncRoots` **omits a registered root whose folder is under `%TEMP%`** (same root under
+   another folder: listed). Never use it to decide that nothing is registered — sweep from the
+   `SyncRootManager` registry key.
+2. ⚠ The provider's **own process hydrates implicitly**: a read of a placeholder inside Control calls back
+   into Control. Any Control code that walks the folder (indexer, upload probe) downloads everything
+   unless X1 connects with `CF_CONNECT_FLAG_BLOCK_SELF_IMPLICIT_HYDRATION`.
+3. ⚠ A request the handler **fails** was delivered twice (the opener retried); FETCH_DATA handling must be
+   idempotent per transfer key.
+4. ⚠ HYDRATION_FULL asked for the whole file in one request (`0+13440`); X1 still has to honour arbitrary
+   ranges (4 KiB alignment except at EOF) — the spike's `serve` is the shape.
+5. ⚠ `HRESULT_FROM_WIN32(385)` sits inside the cloud-file error block but is
+   `ERROR_FILE_SYSTEM_VIRTUALIZATION_INVALID_OPERATION` — the table is pinned against `FormatMessage`.
+
+**Changes to X1–X4:**
+
+- **X1** starts with the unmeasured half: `Register` + connect from the **installed** Control MSIX (a
+  debug entry point in Control, not this spike), checking the nav-pane entry is visible to Explorer
+  despite HKCU virtualisation. If it is not, the MSIX `windows.cloudFiles` manifest extension is the
+  route (from Microsoft's CloudMirror sample — *not verified here*). Then: `Register` only (no
+  `CfRegisterSyncRoot`), the self-hydration flag, idempotent FETCH_DATA, a startup sweep of stale
+  `Tenshu…!` roots from the registry.
+- **X1 threat-model amendment (HR #2)** — owed with X1's code, not with this spike. New trust boundary:
+  the OS invokes Control's FETCH_DATA **on behalf of any same-user process**, outside the IPC peer gate
+  (§3.2) — hydration is a same-user-reachable "decrypt and fetch this item" path; `CF_PROCESS_INFO`
+  names the opener but is informational. ⚠⚠ And **while Control is not connected, any same-user
+  process can `CfConnectSyncRoot` to Tenshu's root and become its provider** (measured: a second
+  process connected as soon as the first disconnected; nothing checks who) — serving arbitrary bytes
+  into files the user believes are Tenshu's, and creating placeholders. That is a provider-spoofing row
+  next to T-C-16 (A20), alongside §7.4's plaintext-at-rest row. Within TA2 like the other same-user
+  rows, but it must be written down.
+- **X4**: unregistering on uninstall needs measuring for MSIX (whether Windows removes a packaged
+  app's roots itself); the startup sweep above is the backstop either way.
+
+**For the maintainer, by eye** (`cfapiSpike -PspikeArgs=--hold`; run it from a terminal so Enter reaches
+it), then look at: (1) Explorer's navigation pane shows **Tenshu Drive (spike)** with the imageres icon;
+(2) inside it, the Status column shows `open-me.txt` and `fail.txt` as online-only and `hello.txt`,
+`self.txt`, `block-1..3.txt` as available on this device; (3) double-click `open-me.txt` → Notepad shows
+"Tenshu X0 cfapi spike - payload line 001…" and its status flips; (4) double-click `fail.txt` → an error,
+not a hang; (5) right-click shows "Always keep on this device" / "Free up space" (not wired: the spike
+has no dehydration path). After Enter, the entry must disappear from the navigation pane (an open Explorer
+window may need F5). If it stays: `cfapiSpike -PspikeArgs=--cleanup`. *None of (1)–(5) has been seen by a
+human yet* — the run here was scripted.
