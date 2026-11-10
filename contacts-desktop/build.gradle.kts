@@ -26,6 +26,8 @@ val FFM_JDK = 25
 kotlin {
     jvmToolchain(FFM_JDK)
     jvm()
+    // The window's own icon on Windows — title bar, Alt+Tab (TenshuWindowIcon; ADR 0026 §6b).
+    sourceSets.named("jvmMain") { resources.srcDir("icons/windows/window") }
 
     sourceSets {
         getByName("jvmMain") {
@@ -99,6 +101,8 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg, TargetFormat.Pkg)
             packageName = "TenshuContacts"
             packageVersion = "1.0.1"
+            // Windows: the launcher .exe's icon (ADR 0026 §6b; scripts/windows-app-icons.py).
+            windows { iconFile.set(project.file("icons/windows/contacts.ico")) }
             macOS {
                 // Pin the CFBundleIdentifier explicitly — the desktop IPC gate
                 // authenticates on the signed identifier, so it must not be left to the

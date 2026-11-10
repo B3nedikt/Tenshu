@@ -50,6 +50,7 @@ import app.tenshu.control.ui.App
 import app.tenshu.control.ui.LocalWindowVisible
 import app.tenshu.ui.layout.LocalNavRailPreference
 import app.tenshu.ui.layout.filePersistedNavRailPreference
+import app.tenshu.ui.layout.TenshuWindowIcon
 import app.tenshu.ui.layout.rememberPersistedWindowState
 import app.tenshu.ui.theme.TenshuTheme
 import kotlinx.coroutines.Dispatchers
@@ -331,6 +332,7 @@ fun main() {
             title = "Tenshu Control",
             state = windowState
         ) {
+            TenshuWindowIcon()
             // Raise + focus when (re)shown — e.g. the tray's Open Control.
             LaunchedEffect(isVisible) {
                 if (isVisible) {

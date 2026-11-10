@@ -66,6 +66,8 @@ val FFM_JDK = 25
 kotlin {
     jvmToolchain(FFM_JDK)
     jvm()
+    // The window's own icon on Windows — title bar, Alt+Tab (TenshuWindowIcon; ADR 0026 §6b).
+    sourceSets.named("jvmMain") { resources.srcDir("icons/windows/window") }
 
     sourceSets {
         getByName("jvmMain") {
@@ -190,6 +192,8 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg, TargetFormat.Pkg)
             packageName = "TenshuDrive"
             packageVersion = desktopMarketingVersion
+            // Windows: the launcher .exe's icon (ADR 0026 §6b; scripts/windows-app-icons.py).
+            windows { iconFile.set(project.file("icons/windows/drive.ico")) }
             macOS {
                 // Reuse Drive's iOS bundle ID so this macOS target can share one
                 // App Store Connect record and remain eligible for Universal Purchase.

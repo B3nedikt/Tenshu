@@ -539,7 +539,8 @@ package Control from the jpackage app-image, side-load it locally, then submit.
 
 > **As built (W2, 2026-11-10) — the local side-load build.** `gradle/desktop-msix.gradle.kts` adds
 > `packageMsix` to Control and Drive: the jpackage app-image plus a generated `AppxManifest.xml` (full trust,
-> `runFullTrust`) and placeholder logos, packed with `makeappx` and signed with `signtool`. It prints the
+> `runFullTrust`) and the app's logos (since 2026-11-10 the real ones — ADR 0026 §6b, with a `makepri`-built
+> `resources.pri`; before, placeholder letter tiles), packed with `makeappx` and signed with `signtool`. It prints the
 > package family name and the **publisher id** to compile into Control (`-Ptenshu.windowsPublisherIds=…`).
 > `scripts/windows/msix-test-cert.ps1` mints the matching throwaway certificate (`CN=Tenshu Local Test`).
 > - The publisher id is derived exactly as Windows does (`MsixPublisherId`), pinned by a known answer:

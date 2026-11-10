@@ -1,9 +1,4 @@
-import java.awt.Color
-import java.awt.Font
-import java.awt.RenderingHints
-import java.awt.image.BufferedImage
 import java.security.MessageDigest
-import javax.imageio.ImageIO
 
 // ── MSIX packaging for the Windows desktop apps ───────────────────────────────
 //
@@ -21,9 +16,12 @@ import javax.imageio.ImageIO
 // `makeappx` and, when a certificate is configured, signs it with `signtool`. Windows hosts only.
 //
 // ⚠⚠ This is the LOCAL, SIDE-LOAD build: the W2 peer-gate test and the W3 toast/reminder test need a
-// process with package identity, which a `:run` never has. The Store build differs in exactly two
-// inputs — the Publisher Partner Center assigns, and real logos (ADR 0026) instead of these
-// placeholders — and is not signed by us at all (the Store re-signs).
+// process with package identity, which a `:run` never has. The Store build differs in one input — the
+// Publisher Partner Center assigns — and is not signed by us at all (the Store re-signs).
+//
+// Logos: `<module>/icons/windows/msix/`, committed, from scripts/windows-app-icons.py (ADR 0026 §6b). Packed with a
+// `resources.pri` so Windows picks the right size per place and DPI. ⚠ No fallback: a module without them fails
+// here rather than shipping the placeholder letter tiles this once drew.
 //
 // Inputs, each `-P<name>` → `$ENV`:
 //  - tenshu.msix.publisher / TENSHU_MSIX_PUBLISHER — the manifest Publisher, which MUST equal the signing
@@ -99,6 +97,9 @@ tasks.register("packageMsix") {
     val appImage = layout.buildDirectory.dir("compose/binaries/main/app/$executable").get().asFile
     val layoutDir = layout.buildDirectory.dir("msix/layout").get().asFile
     val msixFile = layout.buildDirectory.file("msix/$executable.msix").get().asFile
+    val msixLogos = project.file("icons/windows/msix")
+    val priDir = layout.buildDirectory.dir("msix/pri").get().asFile
+    inputs.dir(msixLogos).optional()
 
     inputs.property("identity", "$identityName|$publisher|$version|$appId|$displayName")
     // ⚠⚠ The app-image is an input too. Without it Gradle called this task UP-TO-DATE after a code change
@@ -140,25 +141,15 @@ tasks.register("packageMsix") {
         }
         val assets = File(layoutDir, "Assets").apply { mkdirs() }
 
-        // Placeholder logos: a flat tile with the app's initial. ⚠ The Store build must ship the real
-        // ones (docs/adr/0026-app-icon-system.md); these only satisfy the manifest for side-loading.
-        fun logo(name: String, size: Int) {
-            val image = BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB)
-            val g = image.createGraphics()
-            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-            g.color = Color(0x1F, 0x3A, 0x5F)
-            g.fillRect(0, 0, size, size)
-            g.color = Color.WHITE
-            g.font = Font(Font.SANS_SERIF, Font.BOLD, (size * 0.55).toInt())
-            val initial = displayName.removePrefix("Tenshu ").take(1)
-            val metrics = g.fontMetrics
-            g.drawString(initial, (size - metrics.stringWidth(initial)) / 2, (size - metrics.height) / 2 + metrics.ascent)
-            g.dispose()
-            ImageIO.write(image, "png", File(assets, name))
+        // The logos, qualified by size (`.targetsize-N`, `.scale-N`); the manifest names the bare files and
+        // resources.pri (built below) resolves them.
+        val logos = msixLogos.listFiles { f -> f.isFile && f.name.endsWith(".png") }.orEmpty()
+        for (base in listOf("Square44x44Logo", "Square150x150Logo", "StoreLogo")) {
+            check(logos.any { it.name.startsWith("$base.") }) {
+                "no $base in $msixLogos — run scripts/windows-app-icons.py (docs/adr/0026-app-icon-system.md §6b)"
+            }
         }
-        logo("StoreLogo.png", 50)
-        logo("Square44x44Logo.png", 44)
-        logo("Square150x150Logo.png", 150)
+        logos.forEach { it.copyTo(File(assets, it.name), overwrite = true) }
 
         fun xml(s: String) = s.replace("&", "&amp;").replace("\"", "&quot;").replace("<", "&lt;")
         // The tray agent posts Control's toasts (desktop-windows-port.md §3.9 T2). A click is delivered over COM to
@@ -245,6 +236,19 @@ tasks.register("packageMsix") {
             val output = process.inputStream.bufferedReader().readText()
             check(process.waitFor() == 0) { "${File(command[0]).name} failed:\n$output" }
         }
+
+        // resources.pri: without it Windows resolves only the manifest's literal file names, and none exists —
+        // the qualified logos would all be invisible. Indexed from a copy holding only the manifest and the
+        // logos, so the index does not catalogue every jar and runtime file of the app-image as a "resource".
+        priDir.deleteRecursively()
+        File(layoutDir, "AppxManifest.xml").copyTo(File(priDir, "project/AppxManifest.xml"))
+        assets.copyRecursively(File(priDir, "project/Assets"))
+        val priConfig = File(priDir, "priconfig.xml")
+        run(File(bin, "makepri.exe").path, "createconfig", "/cf", priConfig.path, "/dq", "en-US", "/pv", "10.0.0", "/o")
+        run(
+            File(bin, "makepri.exe").path, "new", "/pr", File(priDir, "project").path, "/cf", priConfig.path,
+            "/mn", File(priDir, "project/AppxManifest.xml").path, "/of", File(layoutDir, "resources.pri").path, "/o",
+        )
 
         msixFile.delete()
         run(File(bin, "makeappx.exe").path, "pack", "/o", "/d", layoutDir.path, "/p", msixFile.path)
