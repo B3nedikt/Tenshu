@@ -834,3 +834,36 @@ not a hang; (5) right-click shows "Always keep on this device" / "Free up space"
 has no dehydration path). After Enter, the entry must disappear from the navigation pane (an open Explorer
 window may need F5). If it stays: `cfapiSpike -PspikeArgs=--cleanup`. ✅ (1) seen by the maintainer
 2026-11-10 — the entry appears in Explorer's navigation pane; (2)–(5) not yet reported.
+
+### 7.8 X1 as built — the read path
+
+`ExplorerSyncRoot` (`:control-shared`, `bridge/`) behind `ExplorerIntegration`; the rules are
+`ExplorerMirror` (pure, `ExplorerMirrorTest`). Control's **Settings → Show Drive in File Explorer** turns it on;
+off by default while the folder is read-only. Log: `diagnostics/explorer.log`.
+
+- **Where**: `%USERPROFILE%\Tenshu Drive`, registered as `TenshuDrive!<user SID>!default` by
+  `StorageProviderSyncRootManager.Register` on every start (idempotent), then connected with
+  `BLOCK_SELF_IMPLICIT_HYDRATION` — §7.7 trap 2: our own scans never download. The SID comes from the process
+  token (`WindowsAccount`), not `whoami`.
+- **In step**: a pass lists the realm and applies `ExplorerMirror.plan` — at start, on every emission of the
+  realm listing, and every 60 s (which also restores what was deleted locally). Moves and renames made elsewhere
+  are delete + create, as on macOS (§7.3); a changed file (size or modification time) is replaced, dropping its
+  hydrated copy.
+- **The FileIdentity blob** is `1\n<realm path>\n<content version>`, not a `FileProviderIds` id: nothing here
+  follows a move, so an id buys nothing, and the version lets a fetch refuse a stale placeholder instead of
+  sending bytes of a different length than Windows expects.
+- **Hydration**: `FETCH_DATA` is handed off at once to four Control threads, which read the realm's content
+  stream in 1 MiB ranges and `CfExecute` each — never the whole file in memory. A file with no stream yet (not
+  synced) is read locally. Cancels are honoured between chunks.
+- ⚠⚠ **Only placeholders are ever touched.** Until X3 nothing local is uploaded, so the user's own file in the
+  folder is the only copy: the mirror never removes or replaces one, and a realm row whose path it occupies is
+  not shown. Files are created `READONLY`, so editors refuse to save over them.
+- **Names**: a row Windows cannot hold (`:`, `CON`, a trailing dot…) is not shown, nor anything below it. NTFS is
+  case-insensitive: of two rows differing only in case, the first in path order is shown.
+- **Turning it off** stops serving, deletes every placeholder (never the user's files), unregisters, and removes
+  the folder if it is empty. Quitting Control only disconnects: the entry stays, and opening an online-only file
+  says the provider is not running (§7.7).
+
+**Still open in X1:** the packaged measurement (does `Register` from the installed MSIX still give the
+navigation-pane entry — §7.7); pin / "Free up space" (Windows marks the file, a provider must act on it); a
+startup sweep of stale `TenshuDrive!` roots; the hardening list in §7.7; the threat-model amendment (§7.4, §7.7).

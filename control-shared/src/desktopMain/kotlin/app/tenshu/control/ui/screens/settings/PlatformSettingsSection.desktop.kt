@@ -4,6 +4,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DesktopMac
 import androidx.compose.material.icons.filled.DesktopWindows
 import androidx.compose.material.icons.automirrored.filled.Login
+import androidx.compose.material.icons.filled.FolderOpen
+import app.tenshu.control.bridge.ExplorerIntegration
+import app.tenshu.control.shared.resources.settings_explorer_integration_headline
+import app.tenshu.control.shared.resources.settings_explorer_integration_support
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
@@ -58,7 +62,23 @@ actual fun PlatformSettingsSection() {
     var startAtLogin by remember { mutableStateOf(false) }
     var startAtLoginApprovalRequired by remember { mutableStateOf(false) }
     var startAtLoginBusy by remember { mutableStateOf(true) }
+    var explorer by remember { mutableStateOf(ExplorerIntegration.isEnabled()) }
+    var explorerBusy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    // Registering, filling or emptying the folder is file and COM work: off the UI thread, one at a time.
+    fun setExplorer(value: Boolean) {
+        if (explorerBusy) return
+        explorerBusy = true
+        explorer = value
+        scope.launch {
+            try {
+                withContext(Dispatchers.IO) { ExplorerIntegration.setEnabled(value) }
+            } finally {
+                explorerBusy = false
+            }
+        }
+    }
 
     suspend fun readStartAtLogin() {
         val (enabled, approval) = withContext(Dispatchers.IO) {
@@ -136,5 +156,12 @@ actual fun PlatformSettingsSection() {
             Switch(checked = startAtLogin, onCheckedChange = ::setStartAtLogin, enabled = !startAtLoginBusy)
         },
         onClick = { setStartAtLogin(!startAtLogin) },
+    )
+    if (ExplorerIntegration.supported) AppListItem(
+        headline = stringResource(Res.string.settings_explorer_integration_headline),
+        supportingText = stringResource(Res.string.settings_explorer_integration_support),
+        leadingContent = { Icon(Icons.Default.FolderOpen, contentDescription = null) },
+        trailingContent = { Switch(checked = explorer, onCheckedChange = ::setExplorer, enabled = !explorerBusy) },
+        onClick = { setExplorer(!explorer) },
     )
 }

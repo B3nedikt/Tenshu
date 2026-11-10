@@ -518,7 +518,7 @@ private suspend fun FileSystem.refreshFeed(state: FileProviderBridgeState): Pair
     return items to anchor
 }
 
-private fun Koin.fileSystem(): FileSystem =
+internal fun Koin.fileSystem(): FileSystem =
     get<TenshuClient>().fileService.defaultFileSystem
 
 private fun Map<String, String>.require(key: String): String =
@@ -557,7 +557,7 @@ private fun childPath(parent: String, name: String): String =
     if (parent == FileProviderIds.ROOT_PATH) "/$name" else "$parent/$name"
 
 /** What every item-shaped read projects; shared so listings and metadata cannot drift. */
-private fun <T : org.tenshu.core.Data> ListBuilder<Selector<T>>.itemProjection() {
+internal fun <T : org.tenshu.core.Data> ListBuilder<Selector<T>>.itemProjection() {
     fields(File.Field.PATH)
     relations(
         File.Category, File.Size, File.CreatedAt, File.LastModifiedAt, File.ContentModifiedAt,
@@ -698,7 +698,7 @@ private fun carriesStills(path: String): Boolean = nameOf(path).let { name ->
     isPdf(name) || fileCategoryForName(name).let { it == FileCategory.Image || it == FileCategory.Video }
 }
 
-private suspend fun FileSystem.readBytes(path: String): ByteArray =
+internal suspend fun FileSystem.readBytes(path: String): ByteArray =
     root.files
         .fileAt(path)
         .select { relations(File.Data) }
@@ -716,7 +716,7 @@ private suspend fun FileSystem.readBytes(path: String): ByteArray =
             onFailure = { throw it.asBridgeException("readContents", path) },
         )
 
-private suspend fun FileSystem.readEntityItem(path: String): ProjectedFile {
+internal suspend fun FileSystem.readEntityItem(path: String): ProjectedFile {
     if (path == FileProviderIds.ROOT_PATH) throw BridgeException("invalid_request", "the root has no metadata row")
     return root.files
         .fileAt(path)
@@ -762,7 +762,7 @@ private fun TList<File>.fileAt(fullPath: String) =
  * [BridgeFileItem] because minting an identifier is a write to the map: a caller that may
  * still discard the row (a deferred move) must be able to look first.
  */
-private class ProjectedFile(entity: Entity<File>) {
+internal class ProjectedFile(entity: Entity<File>) {
     val path: String = entity.path.get()
     val isFolder: Boolean = entity.type.get() == Folder.ID
     val size: Long = entity.get(File.Size)?.get() ?: 0L
@@ -795,6 +795,14 @@ private class ProjectedFile(entity: Entity<File>) {
      */
     fun moveFingerprint(): String? = if (isFolder) null else contentId?.takeIf { it.isNotBlank() }
 
+    /**
+     * Changes exactly when the bytes do. The content hash says "these bytes"; the content id is re-minted on
+     * every overwrite that changes them. Size + the realm's touch time is the fallback for rows older than
+     * both — ⚠ not [modifiedAtMillis], which an overwrite from an older source moves backwards or not at all.
+     */
+    val contentVersion: String =
+        if (isFolder) "" else contentHash ?: contentId ?: "$size:${touchedAtMillis ?: 0}"
+
     fun toBridgeItem(ids: FileProviderIds) = BridgeFileItem(
         id = ids.idFor(path),
         parentId = ids.idFor(path.substringBeforeLast('/').ifEmpty { FileProviderIds.ROOT_PATH }),
@@ -804,11 +812,7 @@ private class ProjectedFile(entity: Entity<File>) {
         createdAtMillis = createdAtMillis,
         modifiedAtMillis = modifiedAtMillis,
         category = category,
-        // The content hash says "these bytes"; the content id is re-minted on every overwrite
-        // that changes them. Size + the realm's touch time is the fallback for rows older than
-        // both — ⚠ not `modifiedAtMillis`, which an overwrite from an older source moves backwards
-        // or not at all.
-        contentVersion = if (isFolder) "" else contentHash ?: contentId ?: "$size:${touchedAtMillis ?: 0}",
+        contentVersion = contentVersion,
         path = path,
     )
 }

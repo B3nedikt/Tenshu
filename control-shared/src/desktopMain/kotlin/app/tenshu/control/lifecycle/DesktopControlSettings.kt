@@ -47,6 +47,14 @@ class DesktopControlSettings(
 
     fun setSyncPaused(value: Boolean) = write(KEY_SYNC_PAUSED, value.toString())
 
+    /**
+     * Whether Drive shows in File Explorer (Windows, desktop-windows-port.md §7.8). Off by default while the
+     * folder is read-only (X1); device-local, like every switch here.
+     */
+    fun explorerIntegration(): Boolean = read().getProperty(KEY_EXPLORER_INTEGRATION)?.toBooleanStrictOrNull() ?: false
+
+    fun setExplorerIntegration(value: Boolean) = write(KEY_EXPLORER_INTEGRATION, value.toString())
+
     private fun read(): Properties {
         val props = Properties()
         if (file.exists()) {
@@ -67,6 +75,7 @@ class DesktopControlSettings(
         const val KEY_CLOSE_TO_TRAY = "closeToTray"
         const val KEY_START_AT_LOGIN_DEFAULT_APPLIED = "startAtLoginDefaultApplied"
         const val KEY_SYNC_PAUSED = "syncPaused"
+        const val KEY_EXPLORER_INTEGRATION = "explorerIntegration"
 
         private fun defaultFile(): File =
             DesktopAppPaths.sharedFile("control.settings.properties")
