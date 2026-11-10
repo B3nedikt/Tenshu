@@ -35,7 +35,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Pinned to what T0 first restored (2026-11-10). Bump deliberately; a floating version made builds unreproducible. -->
+    <!-- Pinned: bump deliberately. A floating version makes builds unreproducible, and Control's manifest declares the
+         matching runtime (tenshu.msix.windowsAppRuntime in control-desktop/build.gradle.kts). -->
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260921001" />
     <PackageReference Include="System.Drawing.Common" Version="10.0.14" />
   </ItemGroup>

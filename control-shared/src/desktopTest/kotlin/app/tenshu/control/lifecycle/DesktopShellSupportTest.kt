@@ -64,7 +64,7 @@ class DesktopShellSupportTest {
         assertEquals(DesktopShellSupport(false, false, false), DesktopShellSupport.forOs(""))
     }
 
-    /** ⚠⚠ The lie itself: before, `enable()` wrote a plist and `isAutostartEnabled()` then said yes. */
+    /** ⚠⚠ The lie to rule out: `enable()` writing a plist nobody reads and `isAutostartEnabled()` then saying yes. */
     @Test
     fun anUnsupportedOsNeitherWritesALaunchAgentNorReportsOne() {
         val manager = DesktopStartAtLoginManager(

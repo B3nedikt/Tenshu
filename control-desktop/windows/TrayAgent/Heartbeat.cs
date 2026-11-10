@@ -51,7 +51,7 @@ internal static class Heartbeat
         {
             var path = Path.Combine(dir, JournalFileName);
             var lines = File.Exists(path) ? File.ReadAllLines(path).Where(l => l.Length > 0).ToList() : [];
-            lines.Add($"{at.ToUnixTimeMilliseconds()} {(visible ? "visible" : "hidden")}");
+            lines.Add(Line(visible, at).TrimEnd('\n')); // one spelling of the format TrayLiveness parses
             File.WriteAllLines(path, lines.TakeLast(JournalMaxLines));
         }
         catch (Exception) { }

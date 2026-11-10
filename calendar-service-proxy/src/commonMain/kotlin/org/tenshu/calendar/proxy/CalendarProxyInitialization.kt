@@ -34,6 +34,11 @@ fun ExecutionContext.initCalendarService(
     actionHandler: CalendarReminderActionHolder? = null,
     /** ⚠ Only used to date a snooze; unused when [actionHandler] is null. */
     nowEpochMs: () -> Long = { 0L },
+    /**
+     * Plan reminders once at session start, not only on the first calendar change. ⚠ Only for a host whose
+     * presenter hands the plan to the OS rather than posting (desktop); see `ReminderRearmObserver`.
+     */
+    planRemindersOnStart: Boolean = false,
 ) {
     installRelationMaintainer()
 
@@ -43,7 +48,7 @@ fun ExecutionContext.initCalendarService(
     // `Schedule` op.
     implementationFactory?.let { factory ->
         addDataObserver(
-            ReminderRearmObserver(scope = sessionScope) {
+            ReminderRearmObserver(scope = sessionScope, planOnStart = planRemindersOnStart) {
                 (factory(DeliverDueReminders.ID) as? SyncOperationImplementation)?.execute<Data?>(
                     executionContext = this,
                     operationContext = null,

@@ -144,6 +144,7 @@ class UnixSocketServer(
                         bindFailure.set(e)
                         throw e
                     } finally {
+                        claim.release() // no-op after bound(); frees the takeover lock if the bind failed
                         bound.countDown()
                     }
                     while (true) {
@@ -152,6 +153,7 @@ class UnixSocketServer(
                     }
                 }
             } catch (e: Exception) {
+                claim.release()
                 bound.countDown() // idempotent; covers a throw from open() before the inner try
                 e.printStackTrace()
             }

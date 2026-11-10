@@ -77,8 +77,14 @@ class DesktopMasterKeyStore(
         } catch (e: Exception) {
             // Wrong/rotated/orphaned wrapping key, or a corrupt blob: treat as an
             // empty bucket (forces a re-pair) rather than crashing — mirrors
-            // Android's KeyInvalidated "re-enroll" semantics.
-            System.err.println("[DesktopMasterKeyStore] secrets.enc unreadable (${e.message}); treating as empty — re-pair required")
+            // Android's KeyInvalidated "re-enroll" semantics. The unreadable file is
+            // moved aside, never overwritten: the next write would otherwise destroy
+            // the only copy of what may yet open (a profile restored, a key back).
+            val aside = keepAside(file)
+            System.err.println(
+                "[DesktopMasterKeyStore] secrets.enc unreadable (${e.message}); treating as empty — " +
+                    "re-pair required" + (aside?.let { "; kept as ${it.name}" } ?: ""),
+            )
             mutableMapOf()
         }
     }
@@ -214,28 +220,41 @@ class KeychainWrappingKeyStore(
  * blob is a file, written atomically, and [clear] deletes it.
  *
  * ⚠⚠ A blob that exists but will not open (another user's profile copied in, an admin password
- * *reset* — not a change — which discards the DPAPI master key, or a corrupt file) is NOT silently
- * replaced: that would orphan `secrets.enc` while looking like success. It answers `null` ⇒ the
- * in-memory fallback, the same "re-pair required" outcome `DesktopMasterKeyStore` gives an unreadable
- * `secrets.enc`, and the old blob stays on disk for diagnosis.
+ * *reset* — not a change — which discards the DPAPI master key, or a corrupt file) is retried briefly,
+ * then **moved aside** (`wrap-key.dpapi.unreadable-<time>`, never deleted) and a new key takes its place.
+ * `DesktopMasterKeyStore` then cannot read `secrets.enc` either and keeps that aside too, so the device
+ * re-pairs **once** — as on macOS — with both old files still on disk for diagnosis or a manual restore.
+ * ⚠ Not "keep the blob and run in memory": nothing could then ever be saved, and the device would
+ * silently re-pair on every launch. If the blob cannot even be moved, that is still the answer (`null`).
  *
- * [protect] / [unprotect] are seams for tests off Windows; production binds `WindowsDpapi`.
+ * ⚠⚠ Only a blob that DPAPI **refuses** is set aside — never one it could not be asked about. When DPAPI
+ * itself is unavailable (no native binding on this JVM) the blob stays where it is and the store runs in
+ * memory, so the next launch with DPAPI back reads the same key. And the replacement is minted and
+ * protected **before** the old blob moves, so a failure at any step leaves the existing key in place.
+ *
+ * [protect] / [unprotect] / [available] are seams for tests off Windows; production binds `WindowsDpapi`.
  */
 class DpapiWrappingKeyStore(
     private val blobFile: File,
     private val protect: (ByteArray, ByteArray) -> ByteArray? = app.tenshu.windows.WindowsDpapi::protect,
     private val unprotect: (ByteArray, ByteArray) -> ByteArray? = app.tenshu.windows.WindowsDpapi::unprotect,
+    private val available: () -> Boolean = app.tenshu.windows.WindowsDpapi::isAvailable,
 ) : WrappingKeyStore {
 
     override fun loadOrCreate(): ByteArray? {
-        if (blobFile.exists()) {
-            val key = runCatching { unprotect(blobFile.readBytes(), ENTROPY) }.getOrNull()
-            return key?.takeIf { it.size == WRAP_KEY_LEN }.also {
-                if (it == null) System.err.println("[DpapiWrappingKeyStore] ${blobFile.name} will not open; secrets will not persist")
-            }
-        }
+        if (!available()) return null // nothing can be judged, and nothing is touched
+        val existing = blobFile.exists()
+        if (existing) open()?.let { return it }
         val fresh = ByteArray(WRAP_KEY_LEN).also { SecureRandom().nextBytes(it) }
         val blob = protect(fresh, ENTROPY) ?: return null
+        if (existing) {
+            val aside = keepAside(blobFile)
+            if (aside == null) {
+                System.err.println("[DpapiWrappingKeyStore] ${blobFile.name} will not open and cannot be moved aside; secrets will not persist")
+                return null
+            }
+            System.err.println("[DpapiWrappingKeyStore] ${blobFile.name} will not open; kept as ${aside.name}, a new key is made and this device re-pairs once")
+        }
         return runCatching {
             blobFile.parentFile?.mkdirs()
             val tmp = File(blobFile.parentFile, blobFile.name + ".tmp")
@@ -245,6 +264,16 @@ class DpapiWrappingKeyStore(
         }.getOrNull()
     }
 
+    /** The key, or null if the blob will not open after a few tries (a transient failure is not a lost key). */
+    private fun open(): ByteArray? {
+        repeat(OPEN_ATTEMPTS) { attempt ->
+            val key = runCatching { unprotect(blobFile.readBytes(), ENTROPY) }.getOrNull()
+            if (key != null) return key.takeIf { it.size == WRAP_KEY_LEN }
+            if (attempt < OPEN_ATTEMPTS - 1) Thread.sleep(OPEN_RETRY_MILLIS)
+        }
+        return null
+    }
+
     override fun clear() {
         blobFile.delete()
     }
@@ -252,10 +281,21 @@ class DpapiWrappingKeyStore(
     companion object {
         const val FILE_NAME = "wrap-key.dpapi"
         private const val WRAP_KEY_LEN = 32
+        private const val OPEN_ATTEMPTS = 3
+        private const val OPEN_RETRY_MILLIS = 200L
 
         /** DPAPI's optional entropy — see `WindowsDpapi` for what it does and does not protect. */
         private val ENTROPY = "app.tenshu.control.master-wrap-key.v1".encodeToByteArray()
     }
+}
+
+/**
+ * Moves an unreadable secrets file aside as `<name>.unreadable-<epochMillis>` and returns where, or null when it
+ * could not be moved (it is then left where it is).
+ */
+internal fun keepAside(file: File): File? {
+    val aside = File(file.parentFile, "${file.name}.unreadable-${System.currentTimeMillis()}")
+    return runCatching { Files.move(file.toPath(), aside.toPath()) }.map { aside }.getOrNull()
 }
 
 /** [WrappingKeyStore] that never persists — forces [DesktopMasterKeyStore] into its in-memory fallback. */

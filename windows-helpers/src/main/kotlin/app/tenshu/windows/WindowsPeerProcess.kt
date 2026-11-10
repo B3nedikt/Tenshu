@@ -22,7 +22,8 @@ import java.nio.channels.SocketChannel
  *     and the same process. (Whether that process is the one that connected is
  *     [WindowsPeerDecision]'s creation-time check.)
  *  3. `GetProcessTimes` (created), `GetExitCodeProcess` (alive), `GetPackageFamilyName`,
- *     `QueryFullProcessImageNameW`.
+ *     `QueryFullProcessImageNameW`, and `GetPackageFullName` → `GetStagedPackageOrigin` (how the
+ *     package was installed: a loose registration can claim our family name, see [WindowsPeerDecision]).
  *
  * ⚠ Requires `--add-opens java.base/sun.nio.ch=ALL-UNNAMED` and `java.base/java.io`, like macOS'
  * `PeerAuditToken`: the JDK exposes no public route to a channel's handle, and on Windows a socket's
@@ -91,6 +92,8 @@ private class Natives private constructor(
     private val getExitCodeProcess: MethodHandle,
     private val getPackageFamilyName: MethodHandle,
     private val queryImageName: MethodHandle,
+    private val getPackageFullName: MethodHandle,
+    private val getStagedPackageOrigin: MethodHandle,
 ) {
 
     fun read(socket: Long): WindowsPeerProcess.Result = Arena.ofConfined().use { arena ->
@@ -112,7 +115,7 @@ private class Natives private constructor(
 
         val process = openProcess.invokeExact(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid.toInt()) as MemorySegment
         if (process.address() == 0L) {
-            return@use WindowsPeerProcess.Result.Unavailable("peer pid $pid could not be opened (it has exited)")
+            return@use WindowsPeerProcess.Result.Unavailable("peer pid $pid could not be opened (exited, or access denied)")
         }
         try {
             val times = arena.allocate(8L * 4, 8L)
@@ -133,6 +136,7 @@ private class Natives private constructor(
                     alive = alive,
                     packageFamilyName = familyName(arena, process),
                     imagePath = imagePath(arena, process),
+                    packageOrigin = origin(arena, process),
                 ),
             )
         } finally {
@@ -146,6 +150,16 @@ private class Natives private constructor(
         val rc = getPackageFamilyName.invokeExact(process, length, buffer) as Int
         // APPMODEL_ERROR_NO_PACKAGE (15700) is the ordinary answer for every non-MSIX process.
         return if (rc == 0) utf16z(buffer) else null
+    }
+
+    /** `PackageOrigin` of the process's package, or null without package identity or on any failure. */
+    private fun origin(arena: Arena, process: MemorySegment): Int? {
+        val length = arena.allocate(ValueLayout.JAVA_INT).also { it.set(ValueLayout.JAVA_INT, 0L, NAME_CHARS) }
+        val fullName = arena.allocate(NAME_CHARS * 2L)
+        if (getPackageFullName.invokeExact(process, length, fullName) as Int != 0) return null
+        val origin = arena.allocate(ValueLayout.JAVA_INT)
+        if (getStagedPackageOrigin.invokeExact(fullName, origin) as Int != 0) return null
+        return origin.get(ValueLayout.JAVA_INT, 0L)
     }
 
     private fun imagePath(arena: Arena, process: MemorySegment): String? {
@@ -185,6 +199,10 @@ private class Natives private constructor(
                 val address = SymbolLookup.libraryLookup(library, Arena.global()).find(symbol).orElse(null) ?: return null
                 return linker.downcallHandle(address, descriptor)
             }
+            // The newer app-model functions are exported by kernelbase.dll only (GetStagedPackageOrigin is not in
+            // kernel32.dll — measured), so look in both.
+            fun appModel(symbol: String, descriptor: FunctionDescriptor): MethodHandle? =
+                handle("kernel32.dll", symbol, descriptor) ?: handle("kernelbase.dll", symbol, descriptor)
             val i = ValueLayout.JAVA_INT
             val a = ValueLayout.ADDRESS
             return Natives(
@@ -200,6 +218,10 @@ private class Natives private constructor(
                 getPackageFamilyName = handle("kernel32.dll", "GetPackageFamilyName", FunctionDescriptor.of(i, a, a, a)) ?: return null,
                 // BOOL QueryFullProcessImageNameW(HANDLE, DWORD flags, LPWSTR, PDWORD size)
                 queryImageName = handle("kernel32.dll", "QueryFullProcessImageNameW", FunctionDescriptor.of(i, a, i, a, a)) ?: return null,
+                // LONG GetPackageFullName(HANDLE, UINT32* length, PWSTR name)
+                getPackageFullName = appModel("GetPackageFullName", FunctionDescriptor.of(i, a, a, a)) ?: return null,
+                // LONG GetStagedPackageOrigin(PCWSTR packageFullName, PackageOrigin* origin)
+                getStagedPackageOrigin = appModel("GetStagedPackageOrigin", FunctionDescriptor.of(i, a, a)) ?: return null,
             )
         }
     }

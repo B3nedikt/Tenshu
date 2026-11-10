@@ -11,11 +11,11 @@ import java.awt.SystemTray
  *  - **Tray.** macOS: the Swift `tray-agent`, a separate process. Windows: an in-process Compose
  *    `Tray` in the notification area ([inProcessTray]), so only where AWT reports a system tray.
  *    Linux: none. With close-to-tray on (the default), closing the window where there is no tray
- *    left a resident Control with no window, no tray icon and no taskbar entry.
+ *    would leave a resident Control with no window, no tray icon and no taskbar entry.
  *  - **Start at login.** macOS: a LaunchAgent or `SMAppService`. Windows: the MSIX startup task,
  *    toggled through the packaged tray agent ([WindowsStartupTask]), so only inside the package.
- *    Linux: none. Before either existed, the LaunchAgent path wrote a plist nobody reads and the
- *    switch then reported itself **on**.
+ *    Linux: none. Without this gate the LaunchAgent path would write a plist nobody reads and the
+ *    switch would report itself **on**.
  *
  * This is the one place that says what the shell can do, so the window, the settings screen, the
  * tray and the start-at-login manager cannot disagree.

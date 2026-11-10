@@ -28,13 +28,15 @@ internal sealed class FlyoutWindow
     private static Strings S => Strings.Current;
 
     private readonly Window _window = new();
-    private readonly StackPanel _root;
+    private readonly Grid _root;
     private readonly StackPanel _body = new() { Spacing = 4 };
     private readonly TextBlock _label = new() { FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Right };
     private readonly Button _pause = ListButton();
     private TrayState _current = TrayState.Unknown;
     private string? _launchFailure;
     private (int X, int Y)? _anchor;
+    private long _hiddenAt;
+    private volatile bool _open;
 
     public event Action? OpenControl;
     public event Action<bool>? SetPaused;
@@ -68,12 +70,26 @@ internal sealed class FlyoutWindow
         actions.Children.Add(open);
         actions.Children.Add(quit);
 
-        _window.Content = _root = new StackPanel
+        // Header, a scrolling middle, fixed actions. ⚠ The middle scrolls because the window is clamped to the work
+        // area: with many requests, recent items and apps the content outgrows the screen, and a plain stack would
+        // push Pause / Open Control / Quit out of reach. The star row takes whatever height the window has left.
+        var footer = new StackPanel { Spacing = 8, Children = { Divider(), _pause, actions } };
+        var scroll = new ScrollViewer
         {
-            Padding = new Thickness(16),
-            Spacing = 8,
-            Children = { header, _body, Divider(), _pause, actions },
+            Content = _body,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
         };
+        _root = new Grid { Padding = new Thickness(16), RowSpacing = 8 };
+        _root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        _root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        Grid.SetRow(scroll, 1);
+        Grid.SetRow(footer, 2);
+        _root.Children.Add(header);
+        _root.Children.Add(scroll);
+        _root.Children.Add(footer);
+        _window.Content = _root;
 
         var presenter = OverlappedPresenter.Create();
         presenter.SetBorderAndTitleBar(hasBorder: true, hasTitleBar: false);
@@ -88,10 +104,26 @@ internal sealed class FlyoutWindow
         {
             if (e.WindowActivationState == WindowActivationState.Deactivated) Hide();
         };
+        // ⚠⚠ Never close, only hide: this is the agent's one WinUI window, and closing it (Alt+F4) would end the
+        // dispatcher loop — the icon vanishes — or leave a closed window for the next click to Show().
+        _window.AppWindow.Closing += (_, e) =>
+        {
+            e.Cancel = true;
+            Hide();
+        };
         Render(_current);
     }
 
     public bool IsVisible => _window.AppWindow.IsVisible;
+
+    /// <summary>Whether the flyout is showing — safe to read from any thread, unlike <see cref="IsVisible"/>.</summary>
+    public bool IsOpen => _open;
+
+    /// <summary>
+    /// True just after the flyout hid itself. A click on the tray icon first deactivates the open flyout (which hides
+    /// it) and only then arrives as a select; without this the second click would reopen what the user closed.
+    /// </summary>
+    public bool JustHidden => Environment.TickCount64 - _hiddenAt < 400;
 
     public void Render(TrayState state)
     {
@@ -143,11 +175,16 @@ internal sealed class FlyoutWindow
         if (IsVisible && _anchor is { } anchor) Place(Hwnd, anchor.X, anchor.Y);
     }
 
-    /// <summary>Marks a launch that Windows refused, shown on the row until the flyout is next opened.</summary>
+    /// <summary>
+    /// Marks a launch that Windows refused and reopens the flyout where it was, so the refusal is seen: the row's
+    /// button hid the flyout before launching, and a mark on a hidden flyout would be cleared by the next opening
+    /// unread. The mark lasts until the flyout is next opened from the tray.
+    /// </summary>
     public void MarkLaunchFailed(string appId)
     {
         _launchFailure = appId;
         Render(_current);
+        if (!IsVisible && _anchor is { } anchor) Present(anchor.X, anchor.Y);
     }
 
     private Button AppButton(AppRow app)
@@ -177,12 +214,18 @@ internal sealed class FlyoutWindow
     /// <summary>Shows the flyout beside the tray anchor at screen point (<paramref name="x"/>, <paramref name="y"/>).</summary>
     public void ShowAt(int x, int y)
     {
-        _anchor = (x, y);
         if (_launchFailure != null)
         {
             _launchFailure = null;
             Render(_current);
         }
+        Present(x, y);
+    }
+
+    private void Present(int x, int y)
+    {
+        _anchor = (x, y);
+        _open = true;
         var hwnd = Hwnd;
         Place(hwnd, x, y);
         _window.AppWindow.Show();
@@ -197,24 +240,34 @@ internal sealed class FlyoutWindow
     /// <summary>
     /// Sizes the window to its content and anchors it beside (<paramref name="x"/>, <paramref name="y"/>) inside the
     /// work area. ⚠ Sized to the content, never to a guessed constant: a fixed 230 DIP clipped the last button.
+    /// ⚠ Never larger than the work area in either direction — a narrow or heavily scaled display (a portrait panel
+    /// at 300 %) is smaller than the flyout's preferred width, and clamping a position into a range whose minimum
+    /// exceeds its maximum throws. The content is measured at the width it will actually get.
     /// </summary>
     private void Place(IntPtr hwnd, int x, int y)
     {
         var scale = GetDpiForWindow(hwnd) / 96.0;
-        _root.Measure(new Windows.Foundation.Size(WidthDip, double.PositiveInfinity));
-        var heightDip = Math.Max(_root.DesiredSize.Height, 120) + 2; // + the window border
-        int width = (int)(WidthDip * scale), height = (int)Math.Ceiling(heightDip * scale), margin = (int)(12 * scale);
+        var margin = (int)(12 * scale);
         var work = DisplayArea.GetFromPoint(new PointInt32(x, y), DisplayAreaFallback.Nearest).WorkArea;
-        height = Math.Min(height, work.Height - 2 * margin);
-        // Up and to the left of the anchor (the taskbar is usually at the bottom right), clamped inside the work area.
-        var left = Math.Clamp(x - width + margin, work.X + margin, work.X + work.Width - width - margin);
-        var top = Math.Clamp(y - height - margin, work.Y + margin, work.Y + work.Height - height - margin);
+        var width = Math.Max(1, Math.Min((int)(WidthDip * scale), work.Width - 2 * margin));
+        _root.Measure(new Windows.Foundation.Size(width / scale, double.PositiveInfinity));
+        var heightDip = Math.Max(_root.DesiredSize.Height, 120) + 2; // + the window border
+        var height = Math.Max(1, Math.Min((int)Math.Ceiling(heightDip * scale), work.Height - 2 * margin));
+        // Up and to the left of the anchor (the taskbar is usually at the bottom right), kept inside the work area.
+        var left = ClampInto(x - width + margin, work.X + margin, work.X + work.Width - width - margin);
+        var top = ClampInto(y - height - margin, work.Y + margin, work.Y + work.Height - height - margin);
         _window.AppWindow.MoveAndResize(new RectInt32(left, top, width, height));
     }
 
+    /// <summary>Like <see cref="Math.Clamp(int, int, int)"/>, but an empty range pins to its start instead of throwing.</summary>
+    private static int ClampInto(int value, int min, int max) => max < min ? min : Math.Clamp(value, min, max);
+
     public void Hide()
     {
-        if (_window.AppWindow.IsVisible) _window.AppWindow.Hide();
+        _open = false;
+        if (!_window.AppWindow.IsVisible) return;
+        _window.AppWindow.Hide();
+        _hiddenAt = Environment.TickCount64;
     }
 
     // ── building blocks ──

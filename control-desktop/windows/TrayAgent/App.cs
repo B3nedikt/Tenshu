@@ -28,6 +28,10 @@ public sealed class App : Application, IXamlMetadataProvider
     private DispatcherQueueTimer _poll = null!;
     private TrayState _state = TrayState.Unknown;
     private bool? _lastPlaced;
+    private int _refreshing;
+    private volatile bool _refreshAgain;
+    private IReadOnlyList<AppRow> _apps = [];
+    private (int Size, bool Light)? _iconKey;
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
@@ -41,7 +45,13 @@ public sealed class App : Application, IXamlMetadataProvider
         _flyout.Quit += QuitControl;
 
         _tray = new TrayIcon(
-            onSelect: (x, y) => { if (_flyout.IsVisible) _flyout.Hide(); else { _flyout.ShowAt(x, y); Refresh(); } },
+            onSelect: (x, y) =>
+            {
+                // A click on the icon while the flyout is open first deactivates it (hiding it): JustHidden makes
+                // that click close the flyout rather than reopen it.
+                if (_flyout.IsVisible || _flyout.JustHidden) _flyout.Hide();
+                else { _flyout.ShowAt(x, y); Refresh(); }
+            },
             menu: () =>
             [
                 new TrayIcon.MenuItem(Strings.Current.OpenControl, OpenControl),
@@ -73,21 +83,49 @@ public sealed class App : Application, IXamlMetadataProvider
     /// Reads the bridge off the UI thread, then renders on the UI thread. Only <c>getSyncState</c> decides whether
     /// Control is reachable; the three section calls each fall back to empty, so a daemon without one of them
     /// still gets the rest of the flyout.
+    ///
+    /// ⚠ One at a time. Overlapping rounds would apply their snapshots in finishing order, so an older one could
+    /// land after a newer one and, say, re-post the toast of a request that was just resolved. A request made while
+    /// a round runs is not dropped: it runs once that round ends.
     /// </summary>
     private void Refresh()
     {
+        if (Interlocked.Exchange(ref _refreshing, 1) == 1)
+        {
+            _refreshAgain = true;
+            return;
+        }
         Task.Run(() =>
+        {
+            try { RefreshOnce(); }
+            finally
+            {
+                Volatile.Write(ref _refreshing, 0);
+                if (_refreshAgain)
+                {
+                    _refreshAgain = false;
+                    Refresh();
+                }
+            }
+        });
+    }
+
+    private void RefreshOnce()
+    {
         {
             TrayState next;
             try
             {
                 var sync = _bridge.Call("getSyncState");
                 var requests = TryCall("pendingRequests");
+                // Installed apps are resolved only while the flyout is open — package lookups and manifest reads for
+                // a list nobody is looking at would otherwise run every 10 s, around the clock.
+                if (_flyout.IsOpen) _apps = AppLauncher.Launchable(TryCall("listApps"));
                 next = TrayState.From(
                     sync,
                     requests,
                     TryCall("recentNotifications", new Dictionary<string, string> { ["limit"] = "4" }),
-                    AppLauncher.Launchable(TryCall("listApps")));
+                    _apps);
                 // The notifiers ride the same poll, so they alert with the flyout and Control's window closed. A
                 // failed call feeds nothing — never an empty list (see Notifier).
                 var pairing = TryCall("pairingApproval");
@@ -105,10 +143,10 @@ public sealed class App : Application, IXamlMetadataProvider
             {
                 _state = next;
                 _flyout.Render(next);
-                // Re-rendered each poll so a taskbar theme switch (light ↔ dark) is picked up within 10 s.
+                // Checked each poll so a taskbar theme switch (light ↔ dark) is picked up within 10 s.
                 UpdateIcon();
             });
-        });
+        }
     }
 
     /// <summary>
@@ -142,7 +180,18 @@ public sealed class App : Application, IXamlMetadataProvider
         });
     }
 
-    private void UpdateIcon() => _tray.Update(CatIcon.CreateHicon(IconSize()), Tooltip());
+    /// <summary>Re-renders the cat only when its size or ink changed; otherwise just the tooltip is refreshed.</summary>
+    private void UpdateIcon()
+    {
+        var key = (IconSize(), CatIcon.TaskbarIsLight());
+        if (key == _iconKey)
+        {
+            _tray.UpdateTooltip(Tooltip());
+            return;
+        }
+        _iconKey = key;
+        _tray.Update(CatIcon.CreateHicon(key.Item1), Tooltip());
+    }
 
     private string Tooltip() => $"{Strings.Current.Title} — {_state.Label}";
 

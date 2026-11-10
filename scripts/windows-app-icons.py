@@ -13,7 +13,7 @@ Per module, under `<module>/icons/windows/`:
                                     scale-100/150/200/400)
   msix/Square150x150Logo.*.png      the medium Start tile (scale-100/150/200/400)
   msix/StoreLogo.*.png              the package logo (scale-100/150/200/400)
-  window/tenshu-app-icon/<N>.png    the window's own icon — title bar, Alt+Tab — on the classpath (DesktopWindowIcon)
+  window/tenshu-app-icon/<N>.png    the window's own icon — title bar, Alt+Tab — on the classpath (TenshuWindowIcon)
 
 **The pictogram and colours are the macOS icon's (§6); the shape is Windows'.** Windows 11 does not mask app icons —
 an app ships its own shape — and the Apple squircle in its wide transparent margin read as small and foreign next to
@@ -111,8 +111,10 @@ def icns_1024(path: Path) -> Image.Image:
     if data[:4] != b"icns":
         raise ValueError(f"{path}: not an .icns")
     i = 8
-    while i < len(data):
+    while i + 8 <= len(data):
         kind, length = data[i:i + 4], struct.unpack(">I", data[i + 4:i + 8])[0]
+        if length < 8:
+            raise ValueError(f"{path}: corrupt chunk {kind!r} at {i}")  # would otherwise loop forever
         if kind == b"ic10":
             return Image.open(io.BytesIO(data[i + 8:i + length])).convert("RGBA")
         i += length
@@ -228,7 +230,24 @@ def outputs(r: Renderer) -> dict[str, bytes]:
     return files
 
 
+def ico_entries(data: bytes) -> list[bytes]:
+    """The embedded images of an ICO, in directory order."""
+    count = struct.unpack("<H", data[4:6])[0]
+    entries = []
+    for k in range(count):
+        size, offset = struct.unpack("<II", data[6 + 16 * k + 8: 6 + 16 * k + 16])
+        entries.append(data[offset: offset + size])
+    return entries
+
+
 def same_pixels(a: bytes, b: bytes) -> bool:
+    """
+    Pixel equality, not byte equality: another Pillow or zlib re-encodes the same pixels differently, and that is
+    not drift. An ICO is compared entry by entry.
+    """
+    if a[:4] == b"\x00\x00\x01\x00" and b[:4] == b"\x00\x00\x01\x00":
+        ea, eb = ico_entries(a), ico_entries(b)
+        return len(ea) == len(eb) and all(same_pixels(x, y) for x, y in zip(ea, eb))
     if a[:4] != b"\x89PNG" or b[:4] != b"\x89PNG":
         return a == b
     ia, ib = Image.open(io.BytesIO(a)).convert("RGBA"), Image.open(io.BytesIO(b)).convert("RGBA")

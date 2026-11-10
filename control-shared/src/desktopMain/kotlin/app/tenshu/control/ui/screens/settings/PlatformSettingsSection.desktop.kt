@@ -7,10 +7,15 @@ import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import app.tenshu.control.lifecycle.DesktopControlSettings
 import app.tenshu.control.lifecycle.DesktopShellSupport
 import app.tenshu.control.lifecycle.DesktopStartAtLoginManager
@@ -37,6 +42,10 @@ import org.jetbrains.compose.resources.stringResource
  * ⚠ Each switch is shown only where [DesktopShellSupport] says the OS has the feature: a
  * close-to-tray switch with no tray, or a start-at-login switch with no mechanism behind it, is a
  * promise the app cannot keep (desktop-windows-port.md §3.4).
+ *
+ * ⚠ Start-at-login calls run on [Dispatchers.IO], never in composition or a click handler: on Windows
+ * each one starts the tray agent as a process (`WindowsStartupTask`), which can take seconds. The
+ * switch is disabled while one is in flight.
  */
 @Composable
 actual fun PlatformSettingsSection() {
@@ -46,9 +55,22 @@ actual fun PlatformSettingsSection() {
     }
 
     var closeToTray by remember { mutableStateOf(settings.closeToTray()) }
-    var startAtLogin by remember { mutableStateOf(startAtLoginManager.isAutostartEnabled()) }
-    var startAtLoginApprovalRequired by remember {
-        mutableStateOf(startAtLoginManager.isApprovalRequired())
+    var startAtLogin by remember { mutableStateOf(false) }
+    var startAtLoginApprovalRequired by remember { mutableStateOf(false) }
+    var startAtLoginBusy by remember { mutableStateOf(true) }
+    val scope = rememberCoroutineScope()
+
+    suspend fun readStartAtLogin() {
+        val (enabled, approval) = withContext(Dispatchers.IO) {
+            startAtLoginManager.isAutostartEnabled() to startAtLoginManager.isApprovalRequired()
+        }
+        startAtLogin = enabled
+        startAtLoginApprovalRequired = approval
+    }
+
+    LaunchedEffect(startAtLoginManager) {
+        readStartAtLogin()
+        startAtLoginBusy = false
     }
 
     fun setCloseToTray(value: Boolean) {
@@ -57,29 +79,43 @@ actual fun PlatformSettingsSection() {
     }
 
     fun setStartAtLogin(value: Boolean) {
-        if (value && startAtLoginManager.isApprovalRequired()) {
-            startAtLoginManager.openLoginItemsSettings()
-        } else if (value) {
-            startAtLoginManager.enable()
-        } else {
-            startAtLoginManager.disable()
+        if (startAtLoginBusy) return
+        startAtLoginBusy = true
+        scope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    // Re-read first: the user may have changed it in the OS's own settings since this screen opened.
+                    startAtLoginManager.isAutostartEnabled()
+                    if (value && startAtLoginManager.isApprovalRequired()) {
+                        startAtLoginManager.openLoginItemsSettings()
+                    } else if (value) {
+                        startAtLoginManager.enable()
+                    } else {
+                        startAtLoginManager.disable()
+                    }
+                }
+                readStartAtLogin()
+            } finally {
+                startAtLoginBusy = false
+            }
         }
-        startAtLogin = startAtLoginManager.isAutostartEnabled()
-        startAtLoginApprovalRequired = startAtLoginManager.isApprovalRequired()
     }
 
     val shell = DesktopShellSupport.current
+    // The OS decides the wording, not how the tray is drawn: a packaged Windows Control can start at login
+    // even where AWT reports no system tray.
+    val windows = System.getProperty("os.name").orEmpty().startsWith("Windows", ignoreCase = true)
 
     // The Windows tray lives in the notification area, not a menu bar; the wording follows it.
     if (shell.trayAvailable) AppListItem(
         headline = stringResource(
-            if (shell.inProcessTray) Res.string.settings_close_to_tray_headline_windows else Res.string.settings_close_to_tray_headline,
+            if (windows) Res.string.settings_close_to_tray_headline_windows else Res.string.settings_close_to_tray_headline,
         ),
         supportingText = stringResource(
-            if (shell.inProcessTray) Res.string.settings_close_to_tray_support_windows else Res.string.settings_close_to_tray_support,
+            if (windows) Res.string.settings_close_to_tray_support_windows else Res.string.settings_close_to_tray_support,
         ),
         leadingContent = {
-            Icon(if (shell.inProcessTray) Icons.Default.DesktopWindows else Icons.Default.DesktopMac, contentDescription = null)
+            Icon(if (windows) Icons.Default.DesktopWindows else Icons.Default.DesktopMac, contentDescription = null)
         },
         trailingContent = { Switch(checked = closeToTray, onCheckedChange = ::setCloseToTray) },
         onClick = { setCloseToTray(!closeToTray) },
@@ -89,14 +125,16 @@ actual fun PlatformSettingsSection() {
         supportingText = stringResource(
             if (startAtLoginApprovalRequired) {
                 // Windows: turned off in its Settings, the one place allowed to turn it back on.
-                if (shell.inProcessTray) Res.string.settings_start_at_login_approval_support_windows
+                if (windows) Res.string.settings_start_at_login_approval_support_windows
                 else Res.string.settings_start_at_login_approval_support
             } else {
                 Res.string.settings_start_at_login_support
             },
         ),
         leadingContent = { Icon(Icons.AutoMirrored.Filled.Login, contentDescription = null) },
-        trailingContent = { Switch(checked = startAtLogin, onCheckedChange = ::setStartAtLogin) },
+        trailingContent = {
+            Switch(checked = startAtLogin, onCheckedChange = ::setStartAtLogin, enabled = !startAtLoginBusy)
+        },
         onClick = { setStartAtLogin(!startAtLogin) },
     )
 }

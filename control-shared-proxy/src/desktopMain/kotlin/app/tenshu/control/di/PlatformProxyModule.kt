@@ -915,7 +915,9 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
             // ⚠⚠ Without it a calendar row arriving via
             // sync lands in the store but stays invisible to
             // `CalendarService.events` — present but unfindable.
-            initCalendarService(implementationFactory)
+            // ⚠ Plans once at start: the presenter is PendingAlertSchedule, which only hands the plan to the
+            // tray, so without this the tray sees no reminders after a restart until a calendar change.
+            initCalendarService(implementationFactory, planRemindersOnStart = true)
             // storage-capacity-gating.md: derive StorageStatus from the
             // bound StorageProvider on this session's scope.
             initStorageService(sessionScope, get<StorageProvider>(), get<StorageCapacityHolder>())

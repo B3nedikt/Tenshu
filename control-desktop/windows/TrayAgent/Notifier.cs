@@ -37,6 +37,15 @@ internal sealed class Notifier
     private static Strings S => Strings.Current;
 
     private readonly bool _available;
+
+    /// <summary>How late a reminder may first be seen and still be shown rather than dropped.</summary>
+    private static readonly TimeSpan ImminentGrace = TimeSpan.FromMinutes(1);
+
+    /// <summary>Reminder keys this process saw in, or put into, the OS schedule: the scheduler delivers those.</summary>
+    private readonly HashSet<string> _everArmed = [];
+
+    /// <summary>Reminder keys this process showed at once because they were already due.</summary>
+    private readonly HashSet<string> _shownNow = [];
     private readonly HashSet<string> _requests = [];
     private string? _pairing;
     /// <summary>Null until this process's first known verdict: a previous agent's alert may still be on screen.</summary>
@@ -152,6 +161,10 @@ internal sealed class Notifier
     /// alone and a changed one is swapped. ⚠ Not <c>Id</c>: Windows rejects setting it (0x803E0120, 2026-11-10).
     /// ⚠ Pending only: a reminder already shown stays in the notification center — retracting an alert the user may
     /// not have read yet is worse than leaving one for an event that has since moved.
+    /// ⚠ A reminder first seen when it is already due (within 5 s, or up to <see cref="ImminentGrace"/> late — Control
+    /// just started, or the event was just created) cannot be scheduled any more; it is shown at once rather than
+    /// dropped. Never twice: not if the notification center already has it, not if this process ever saw it armed
+    /// (the scheduler then delivered it), and not if it was already shown here.
     /// </summary>
     public void ReconcileReminders(JsonObject result)
     {
@@ -174,20 +187,35 @@ internal sealed class Notifier
             var desiredKeys = desired.Select(d => d.ContentKey).ToHashSet();
 
             var scheduled = notifier.GetScheduledToastNotifications().Where(t => t.Group == ReminderGroup).ToList();
-            foreach (var stale in scheduled.Where(t => !desiredKeys.Contains(t.Tag))) notifier.RemoveFromSchedule(stale);
+            // ⚠⚠ Only an authoritative plan may cancel. Until the daemon has planned since it started (`planned`
+            // false, or absent from an older daemon), an empty list means "unknown": cancelling against it would
+            // delete every reminder armed before a reboot.
+            if (TrayState.Bool(result, "planned"))
+            {
+                foreach (var stale in scheduled.Where(t => !desiredKeys.Contains(t.Tag))) notifier.RemoveFromSchedule(stale);
+            }
             var armed = scheduled.Select(t => t.Tag).ToHashSet();
+            _everArmed.UnionWith(armed);
 
             foreach (var (row, contentKey) in desired)
             {
-                // A time already past never fires; scheduling it would only throw.
-                if (armed.Contains(contentKey) || row.At <= now.AddSeconds(5)) continue;
+                if (armed.Contains(contentKey)) continue;
                 var xml = new Windows.Data.Xml.Dom.XmlDocument();
                 xml.LoadXml(ToastXml(row.Title, row.Body));
-                notifier.AddToSchedule(new ScheduledToastNotification(xml, row.At)
+                if (row.At > now.AddSeconds(5))
                 {
-                    Tag = contentKey,
-                    Group = ReminderGroup,
-                });
+                    notifier.AddToSchedule(new ScheduledToastNotification(xml, row.At)
+                    {
+                        Tag = contentKey,
+                        Group = ReminderGroup,
+                    });
+                    _everArmed.Add(contentKey);
+                    continue;
+                }
+                // Due now or just past: too late to schedule (it would throw or never fire), so show it now — once.
+                if (row.At < now - ImminentGrace || _everArmed.Contains(contentKey) || !_shownNow.Add(contentKey)) continue;
+                if (InNotificationCenter(contentKey)) continue;
+                notifier.Show(new ToastNotification(xml) { Tag = contentKey, Group = ReminderGroup });
             }
         }
         catch (Exception)
@@ -218,6 +246,12 @@ internal sealed class Notifier
         {
             return e.ToString();
         }
+    }
+
+    private static bool InNotificationCenter(string tag)
+    {
+        try { return ToastNotificationManager.History.GetHistory().Any(t => t.Tag == tag && t.Group == ReminderGroup); }
+        catch (Exception) { return false; }
     }
 
     private static void Post(string tag, string group, string title, string body)

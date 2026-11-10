@@ -8,8 +8,12 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.toComposeImageBitmap
+import androidx.compose.ui.unit.IntSize
+import app.tenshu.ui.layout.appIconImage
 import androidx.compose.ui.window.ApplicationScope
 import androidx.compose.ui.window.Tray
 import app.tenshu.control.data.SyncPauseState
@@ -27,7 +31,8 @@ import app.tenshu.control.lifecycle.WindowController
  * owns the icon) and never where AWT has no system tray. The icon is removed when this leaves the
  * composition, i.e. when `exitApplication()` ends `application { }`.
  *
- * @param onOpen show, de-minimise and raise the window — the primary click and *Open Control*.
+ * @param onOpen show, de-minimise and raise the window — *Open Control*, and the icon's action. ⚠ AWT fires that
+ *   action on a double-click on Windows, not a single one; a single click does nothing here, unlike the native agent.
  */
 @Composable
 internal fun ApplicationScope.WindowsControlTray(
@@ -36,7 +41,8 @@ internal fun ApplicationScope.WindowsControlTray(
     onOpen: () -> Unit,
 ) {
     val paused by syncPauseState.paused.collectAsState()
-    val icon = remember(paused) { ControlTrayIcon(paused) }
+    val image = remember { appIconImage(32)?.toComposeImageBitmap() }
+    val icon = remember(paused, image) { ControlTrayIcon(paused, image) }
     Tray(
         icon = icon,
         tooltip = if (paused) "Tenshu Control — sync paused" else "Tenshu Control",
@@ -54,27 +60,31 @@ internal fun ApplicationScope.WindowsControlTray(
 }
 
 /**
- * The tray glyph, drawn in code: there is no raster Control icon off macOS (`icons/` holds only an
- * `.icns`). A rounded tile with a "T"; grey with pause bars while sync is paused, so the state reads
- * without opening the menu. Compose rasterises it at the tray's own icon size.
+ * The tray glyph: Control's own app icon (ADR 0026 §6b, from the app's classpath), dimmed with pause bars while
+ * sync is paused, so the state reads without opening the menu. A drawn tile stands in only when the app ships no
+ * icon. Compose rasterises it at the tray's own icon size.
  */
-internal class ControlTrayIcon(private val paused: Boolean) : Painter() {
+internal class ControlTrayIcon(private val paused: Boolean, private val image: ImageBitmap? = null) : Painter() {
     override val intrinsicSize: Size = Size(INTRINSIC, INTRINSIC)
 
     override fun DrawScope.onDraw() {
         val s = size.minDimension
-        drawRoundRect(
-            color = if (paused) PAUSED_TILE else ACTIVE_TILE,
-            size = Size(s, s),
-            cornerRadius = CornerRadius(s * 0.22f),
-        )
+        if (image != null) {
+            drawImage(image, dstSize = IntSize(s.toInt(), s.toInt()), alpha = if (paused) 0.45f else 1f)
+        } else {
+            drawRoundRect(
+                color = if (paused) PAUSED_TILE else ACTIVE_TILE,
+                size = Size(s, s),
+                cornerRadius = CornerRadius(s * 0.22f),
+            )
+        }
         if (paused) {
             val barWidth = s * 0.16f
             val barHeight = s * 0.52f
             val top = (s - barHeight) / 2
             drawRect(GLYPH, Offset(s * 0.30f, top), Size(barWidth, barHeight))
             drawRect(GLYPH, Offset(s * 0.54f, top), Size(barWidth, barHeight))
-        } else {
+        } else if (image == null) {
             drawRect(GLYPH, Offset(s * 0.22f, s * 0.22f), Size(s * 0.56f, s * 0.16f))
             drawRect(GLYPH, Offset(s * 0.42f, s * 0.22f), Size(s * 0.16f, s * 0.58f))
         }

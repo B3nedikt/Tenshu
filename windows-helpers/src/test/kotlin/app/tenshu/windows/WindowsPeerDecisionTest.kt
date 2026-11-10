@@ -16,12 +16,14 @@ class WindowsPeerDecisionTest {
         family: String? = "Tenshu.Drive_$ours",
         createdAt: Long = now - 60_000,
         alive: Boolean = true,
+        origin: Int? = WindowsPackageOrigin.STORE,
     ) = WindowsPeerFacts(
         pid = 4242,
         createdAtMillis = createdAt,
         alive = alive,
         packageFamilyName = family,
         imagePath = "C:\\Program Files\\WindowsApps\\Tenshu.Drive\\TenshuDrive.exe",
+        packageOrigin = origin,
     )
 
     @Test
@@ -66,6 +68,49 @@ class WindowsPeerDecisionTest {
     fun malformedFamilyNamesAreUnattested_notCrashes() {
         for (bad in listOf("", "_$ours", "Tenshu.Drive", "Tenshu.Drive_", "Tenshu.Drive_TOOSHORT", "Tenshu.Drive_4k2m9q8vxz1aI")) {
             assertIs<WindowsPeerAttestation.Unattested>(WindowsPeerDecision.decide(facts(family = bad), now, policy), bad)
+        }
+    }
+
+    /**
+     * ⚠⚠ The forgery the family name cannot stop: a package family name hashes a publisher *string*, not a key,
+     * and that string is public. A same-user process can register a loose, unsigned manifest claiming our name and
+     * publisher (`Add-AppxPackage -Register`, Developer Mode) and get our exact family name. Only how the package
+     * was installed tells it apart.
+     */
+    @Test
+    fun aLooseOrUnsignedRegistrationOfOurNameIsUnattested() {
+        for (origin in listOf(
+            WindowsPackageOrigin.DEVELOPER_UNSIGNED,
+            WindowsPackageOrigin.UNSIGNED,
+            WindowsPackageOrigin.UNKNOWN,
+            WindowsPackageOrigin.INBOX,
+        )) {
+            val outcome = assertIs<WindowsPeerAttestation.Unattested>(
+                WindowsPeerDecision.decide(facts(origin = origin), now, policy),
+                "origin $origin",
+            )
+            assertTrue("signed package" in outcome.reason, outcome.reason)
+        }
+    }
+
+    /** An origin the OS would not tell us is a refusal, never a pass. */
+    @Test
+    fun anUnreadableOriginIsUnattested() {
+        assertIs<WindowsPeerAttestation.Unattested>(WindowsPeerDecision.decide(facts(origin = null), now, policy))
+    }
+
+    /**
+     * The Store, a line-of-business install and a developer-signed side-load (our local test build) all require a
+     * signature from a certificate the machine trusts — which takes an administrator to add.
+     */
+    @Test
+    fun signedOriginsAreAttested() {
+        for (origin in listOf(
+            WindowsPackageOrigin.STORE,
+            WindowsPackageOrigin.LINE_OF_BUSINESS,
+            WindowsPackageOrigin.DEVELOPER_SIGNED,
+        )) {
+            assertIs<WindowsPeerAttestation.Attested>(WindowsPeerDecision.decide(facts(origin = origin), now, policy), "origin $origin")
         }
     }
 

@@ -222,7 +222,7 @@ internal class FileProviderIds(private val journal: File? = null) {
             }
             tmp.writeText(ids + intents)
             // ⚠⚠ Not `File.renameTo`: on Windows it never replaces an existing file, so the journal
-            // was never compacted there — and a torn tail then stayed, gluing the next append onto
+            // would never be compacted there — and a torn tail would stay, gluing the next append onto
             // the fragment (desktop-windows-port.md §7.3; FileProviderIdsTest).
             try {
                 Files.move(tmp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
