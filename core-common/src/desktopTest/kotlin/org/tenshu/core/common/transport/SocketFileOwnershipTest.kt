@@ -62,4 +62,27 @@ class SocketFileOwnershipTest {
         newer.removeSocketFile()
         assertFalse(Files.exists(path), "a server that quits still takes its own socket file with it")
     }
+
+    /**
+     * ⚠⚠ Check-then-delete is one step against a takeover: while a successor holds its claim (between its unlink
+     * and its bind), the old server's removal must not run — it would match, then delete the socket the successor
+     * is about to bind. Contended, the removal gives up and leaves the file, the safe direction.
+     */
+    @Test
+    fun aRemovalDoesNotRunDuringATakeover() {
+        val path = tempDir.resolve("race.sock")
+        Files.writeString(path, "stand-in for a bound socket")
+        val older = BoundSocketFile.claim(path).bound()
+
+        val successor = BoundSocketFile.claim(path) // the takeover is in progress: lock held
+        try {
+            older.removeIfStillOurs()
+            assertTrue(Files.exists(path), "a removal ran while a successor was taking the path over")
+        } finally {
+            successor.release()
+        }
+        // Not asserted here: what the older server may remove afterwards. Where the file system has no file key
+        // (Windows) the successor's claim already replaced the owner token, so the older server rightly leaves the
+        // file; an uncontended removal is pinned by the two tests above.
+    }
 }

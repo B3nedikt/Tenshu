@@ -1,8 +1,11 @@
 package org.tenshu.core.common.transport
 
+import java.nio.channels.FileChannel
+import java.nio.channels.OverlappingFileLockException
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.Path
+import java.nio.file.StandardOpenOption
 import java.nio.file.attribute.BasicFileAttributes
 import java.util.UUID
 
@@ -24,7 +27,13 @@ import java.util.UUID
  *    a deleted file's creation time onto a file re-created under the same name shortly after, which
  *    is exactly the successor-rebinds case (`docs/proposals/desktop-windows-port.md` §3.3).
  *
- * Use: [claim] before unlinking the path, [Claim.bound] after the bind succeeds.
+ * ⚠⚠ **Check and delete are one step against a takeover.** Comparing and then deleting leaves a window: the old
+ * server matches, is descheduled, the successor claims, unlinks and binds, and the old server then deletes the
+ * live socket. So a takeover ([claim] … [Claim.bound]) and a removal ([removeIfStillOurs]) each hold an exclusive
+ * lock on a sidecar `<socket>.lock` (never deleted, like any lock file). A removal that cannot get the lock in
+ * time leaves the file — the safe direction; a claim that cannot proceeds unlocked rather than not start.
+ *
+ * Use: [claim] before unlinking the path, [Claim.bound] after the bind succeeds, [Claim.release] if it fails.
  */
 internal class BoundSocketFile private constructor(
     private val path: Path,
@@ -38,27 +47,49 @@ internal class BoundSocketFile private constructor(
      * every client the daemon.
      */
     fun removeIfStillOurs() {
-        when {
-            key != null -> {
-                if (keyOf(path) != key) return
-                runCatching { Files.deleteIfExists(path) }
+        if (key == null && token == null) return
+        val lock = takeoverLock(path) ?: return // contended: leave the file rather than race a successor
+        try {
+            when {
+                key != null -> {
+                    if (keyOf(path) != key) return
+                    runCatching { Files.deleteIfExists(path) }
+                }
+                token != null -> {
+                    if (readToken(ownerFile(path)) != token) return
+                    runCatching { Files.deleteIfExists(path) }
+                    runCatching { Files.deleteIfExists(ownerFile(path)) }
+                }
             }
-            token != null -> {
-                if (readToken(ownerFile(path)) != token) return
-                runCatching { Files.deleteIfExists(path) }
-                runCatching { Files.deleteIfExists(ownerFile(path)) }
-            }
+        } finally {
+            lock.close()
         }
     }
 
-    /** A server's intent to take [path], recorded before it unlinks whatever is there. */
-    class Claim internal constructor(private val path: Path, private val token: String?) {
+    /**
+     * A server's intent to take [path], recorded before it unlinks whatever is there. Holds the takeover lock until
+     * [bound] or [release].
+     */
+    class Claim internal constructor(
+        private val path: Path,
+        private val token: String?,
+        private val lock: AutoCloseable?,
+    ) {
         /** Call once the bind succeeded. */
         fun bound(): BoundSocketFile {
-            val key = keyOf(path)
-            // A file system that does report keys needs no token; drop the sidecar again.
-            if (key != null && token != null) runCatching { Files.deleteIfExists(ownerFile(path)) }
-            return BoundSocketFile(path, key, if (key == null) token else null)
+            try {
+                val key = keyOf(path)
+                // A file system that does report keys needs no token; drop the sidecar again.
+                if (key != null && token != null) runCatching { Files.deleteIfExists(ownerFile(path)) }
+                return BoundSocketFile(path, key, if (key == null) token else null)
+            } finally {
+                release()
+            }
+        }
+
+        /** Call if the bind failed. Idempotent. */
+        fun release() {
+            runCatching { lock?.close() }
         }
     }
 
@@ -69,15 +100,51 @@ internal class BoundSocketFile private constructor(
          * own token and removes the new socket.
          */
         fun claim(path: Path): Claim {
-            if (!needsToken(path)) return Claim(path, null)
+            runCatching { Files.createDirectories(path.parent) }
+            val lock = takeoverLock(path)
+            if (!needsToken(path)) return Claim(path, null, lock)
             val token = UUID.randomUUID().toString()
-            val written = runCatching {
-                Files.createDirectories(path.parent)
-                Files.writeString(ownerFile(path), token)
-            }.isSuccess
+            val written = runCatching { Files.writeString(ownerFile(path), token) }.isSuccess
             // Unwritable sidecar ⇒ no token ⇒ the file is left on quit, the safe direction.
-            return Claim(path, if (written) token else null)
+            return Claim(path, if (written) token else null, lock)
         }
+
+        internal fun lockFile(path: Path): Path = path.resolveSibling("${path.fileName}.lock")
+
+        /**
+         * The exclusive takeover lock for [path], or null when it cannot be had within [timeoutMillis] (or locking is
+         * unavailable). The OS releases it if the holder dies.
+         */
+        private fun takeoverLock(path: Path, timeoutMillis: Long = LOCK_TIMEOUT_MILLIS): AutoCloseable? {
+            val channel = runCatching {
+                FileChannel.open(lockFile(path), StandardOpenOption.CREATE, StandardOpenOption.WRITE)
+            }.getOrNull() ?: return null
+            val deadline = System.currentTimeMillis() + timeoutMillis
+            while (true) {
+                val lock = try {
+                    channel.tryLock()
+                } catch (_: OverlappingFileLockException) {
+                    null // held by this same JVM (two servers on one path, e.g. in a test)
+                } catch (_: Exception) {
+                    runCatching { channel.close() }
+                    return null
+                }
+                if (lock != null) {
+                    return AutoCloseable {
+                        runCatching { lock.release() }
+                        runCatching { channel.close() }
+                    }
+                }
+                if (System.currentTimeMillis() >= deadline) {
+                    runCatching { channel.close() }
+                    return null
+                }
+                Thread.sleep(LOCK_RETRY_MILLIS)
+            }
+        }
+
+        private const val LOCK_TIMEOUT_MILLIS = 2_000L
+        private const val LOCK_RETRY_MILLIS = 20L
 
         /** Whether this file system gives no file key — probed on the directory, before the bind. */
         private fun needsToken(path: Path): Boolean = path.parent?.let { keyOf(it) } == null
