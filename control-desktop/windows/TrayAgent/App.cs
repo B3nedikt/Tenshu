@@ -64,17 +64,15 @@ public sealed class App : Application, IXamlMetadataProvider
             catch (BridgeException e) { next = TrayState.Unreachable(e.Message); }
             _dispatcher.TryEnqueue(() =>
             {
-                var iconChanged = next.Paused != _state.Paused || next.Reachable != _state.Reachable;
                 _state = next;
                 _flyout.Render(next);
-                if (iconChanged) UpdateIcon(); else UpdateTooltipOnly();
+                // Re-rendered each poll so a taskbar theme switch (light ↔ dark) is picked up within 10 s.
+                UpdateIcon();
             });
         });
     }
 
-    private void UpdateIcon() => _tray.Update(CatIcon.CreateHicon(IconSize(), _state.Paused || !_state.Reachable), Tooltip());
-
-    private void UpdateTooltipOnly() => UpdateIcon();
+    private void UpdateIcon() => _tray.Update(CatIcon.CreateHicon(IconSize()), Tooltip());
 
     private string Tooltip() => _state.Reachable ? $"Tenshu Control — {_state.Headline}" : "Tenshu Control — not running";
 

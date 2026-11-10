@@ -15,6 +15,10 @@ namespace Tenshu.TrayAgent;
 /// Windows tray icons are not template images, so the ink is chosen here: white on a dark taskbar, black on a
 /// light one (<c>SystemUsesLightTheme</c>). The mark is tight-cropped so it fills the icon, as on macOS.
 ///
+/// ⚠ Always full ink, like the macOS template image. A dimmed cat for "paused" or "not running" was tried
+/// and read as a grey blob on a dark taskbar — at 16–24 px the eyes and whiskers vanish. State goes in the
+/// tooltip and the flyout instead.
+///
 /// ⚠ Supports exactly what the vector uses — nested groups with translate/scale, and path commands
 /// M L H V C Q A Z (absolute and relative) — and throws on anything else, so a redrawn mark fails loudly
 /// instead of rendering half a cat.
@@ -35,9 +39,9 @@ internal static class CatIcon
     }
 
     /// <summary>An HICON of <paramref name="size"/> pixels; the caller destroys it with <c>DestroyIcon</c>.</summary>
-    public static IntPtr CreateHicon(int size, bool paused)
+    public static IntPtr CreateHicon(int size)
     {
-        using var bitmap = Render(size, TaskbarIsLight() ? Color.Black : Color.White, paused ? 110 : 255);
+        using var bitmap = Render(size, TaskbarIsLight() ? Color.Black : Color.White, 255);
         return bitmap.GetHicon();
     }
 

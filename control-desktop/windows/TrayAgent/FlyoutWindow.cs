@@ -20,9 +20,10 @@ namespace Tenshu.TrayAgent;
 /// </summary>
 internal sealed class FlyoutWindow
 {
-    private const int WidthDip = 340, HeightDip = 230;
+    private const int WidthDip = 340;
 
     private readonly Window _window = new();
+    private readonly StackPanel _root;
     private readonly TextBlock _state = new() { FontSize = 15 };
     private readonly TextBlock _detail = new() { Opacity = 0.7, TextWrapping = TextWrapping.Wrap };
     private readonly Button _pause = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
@@ -43,7 +44,7 @@ internal sealed class FlyoutWindow
         var quit = new Button { Content = "Quit Tenshu Control", HorizontalAlignment = HorizontalAlignment.Stretch };
         quit.Click += (_, _) => { Hide(); Quit?.Invoke(); };
 
-        _window.Content = new StackPanel
+        _window.Content = _root = new StackPanel
         {
             Padding = new Thickness(20),
             Spacing = 10,
@@ -89,16 +90,29 @@ internal sealed class FlyoutWindow
     public void ShowAt(int x, int y)
     {
         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(_window);
+        Place(hwnd, x, y);
+        _window.AppWindow.Show();
+        _window.Activate();
+        SetForegroundWindow(hwnd);
+        // ⚠ Before the first show the content has no styles applied and measures short; fit again once laid out.
+        _window.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => Place(hwnd, x, y));
+    }
+
+    /// <summary>
+    /// Sizes the window to its content and anchors it beside (<paramref name="x"/>, <paramref name="y"/>) inside the
+    /// work area. ⚠ Sized to the content, never to a guessed constant: a fixed 230 DIP clipped the last button.
+    /// </summary>
+    private void Place(IntPtr hwnd, int x, int y)
+    {
         var scale = GetDpiForWindow(hwnd) / 96.0;
-        int width = (int)(WidthDip * scale), height = (int)(HeightDip * scale), margin = (int)(12 * scale);
+        _root.Measure(new Windows.Foundation.Size(WidthDip, double.PositiveInfinity));
+        var heightDip = Math.Max(_root.DesiredSize.Height, 160) + 2; // + the window border
+        int width = (int)(WidthDip * scale), height = (int)Math.Ceiling(heightDip * scale), margin = (int)(12 * scale);
         var work = DisplayArea.GetFromPoint(new PointInt32(x, y), DisplayAreaFallback.Nearest).WorkArea;
         // Up and to the left of the anchor (the taskbar is usually at the bottom right), clamped inside the work area.
         var left = Math.Clamp(x - width + margin, work.X + margin, work.X + work.Width - width - margin);
         var top = Math.Clamp(y - height - margin, work.Y + margin, work.Y + work.Height - height - margin);
         _window.AppWindow.MoveAndResize(new RectInt32(left, top, width, height));
-        _window.AppWindow.Show();
-        _window.Activate();
-        SetForegroundWindow(hwnd);
     }
 
     public void Hide()
@@ -118,7 +132,14 @@ internal sealed record TrayState(bool Reachable, bool Paused, string Headline, s
 {
     public static readonly TrayState Unknown = new(false, false, "Connecting…", "");
 
-    public static TrayState Unreachable(string why) => new(false, false, "Control is not running", why);
+    /// <summary>
+    /// ⚠ The technical reason (<paramref name="why"/>) is not shown: "connection refused at …\bridge.sock" tells a user
+    /// nothing. It is kept for the debugger.
+    /// </summary>
+    public static TrayState Unreachable(string why) =>
+        new(false, false, "Control is not running", "Open Control to start syncing.") { Reason = why };
+
+    public string Reason { get; init; } = "";
 
     /// <summary>
     /// ⚠ English only in T0. The agent owns its display strings (ADR 0016, as the Swift agent does); localisation
