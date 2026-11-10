@@ -2135,8 +2135,8 @@ throwable, because a catch-all error code hides the one fact that names the bug.
 ### CI blocked by GitHub Actions billing — ⚠⚠⚠ INTERMITTENT since 2026-09-01, not simply dark
 
 ⚠ **Scope (2026-11-09, maintainer):** this is about the **internal** repository only. The public repository,
-where PRs are opened, runs on GitHub's free public-repo runners — Windows included, so the `windows-desktop`
-lane in `android.yml` (`desktop-windows-port.md` W1) does run there.
+where PRs are opened, runs on GitHub's free public-repo runners — Windows included, so the Windows lane
+(`.github/workflows/windows.yml`, `desktop-windows-port.md` W1) does run there.
 
 ⚠⚠ **Originally: no CI lane ran between 2026-06-30 and 2026-08-31.** `CI` (`android.yml`),
 `iOS` (`ios.yml`) and `Web CI` (`web.yml`) all failed within ~10 s carrying the identical GitHub

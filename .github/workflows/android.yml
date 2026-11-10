@@ -75,53 +75,7 @@ jobs:
           name: unit-test-report
           path: "**/build/reports/tests/**"
 
-  # The desktop modules on WINDOWS (docs/proposals/desktop-windows-port.md W1). The ubuntu lane
-  # above runs the same suites, but every Windows difference this port has found so far — path
-  # separators, POSIX-only permissions, mandatory file locks, `fileKey()` always null,
-  # `File.renameTo` refusing to replace — is invisible on Linux and macOS.
-  #
-  # ⚠ Scoped to the desktop modules on purpose, not `check`: Windows runners are slower, and
-  # Android lint / the other KMP targets add nothing a Windows host can see.
-  # ⚠ The whole build still CONFIGURES here (no configure-on-demand), iOS targets included; K/N
-  # skips them on Windows with a warning — measured locally 2026-11-09, not a failure.
-  windows-desktop:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      # Same two-JDK pin as the `test` job above — read its comment before changing either.
-      - name: Set up JDK 25 (desktop FFM toolchain) + JDK 17 (daemon + shared modules)
-        uses: actions/setup-java@v4
-        with:
-          java-version: |
-            25
-            17
-          distribution: 'temurin'
-          cache: gradle
-
-      - name: Register both JDKs with Gradle toolchain detection
-        shell: bash
-        run: |
-          mkdir -p ~/.gradle
-          echo "org.gradle.java.installations.fromEnv=JAVA_HOME_25_X64,JAVA_HOME_17_X64" >> ~/.gradle/gradle.properties
-
-      - name: Desktop tests on Windows
-        run: >-
-          ./gradlew.bat --stacktrace --continue
-          :windows-helpers:test
-          :core-common:desktopTest
-          :control-shared-logic:desktopTest
-          :ui-core:desktopTest
-          :control-shared:desktopTest
-          :control-desktop:jvmTest
-          :drive-shared-ui:desktopTest
-
-      - name: Upload Test Report
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-desktop-test-report
-          path: "**/build/reports/tests/**"
+  # The Windows desktop lane lives in its own workflow, `.github/workflows/windows.yml`.
 
   # iOS K/N build + test now lives in its own lane (`.github/workflows/ios.yml`)
   # on a macOS runner — it compiles the shared surface, runs the simulator

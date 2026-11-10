@@ -2,8 +2,9 @@
 
 **Status:** v0.3, 2026-11-10. The plan (W0–W7, X0–X4) is **agreed with the maintainer**, and the
 distribution decision is taken: **Microsoft Store first** (§0, D1–D4). W0 measured on the maintainer's
-Windows 11 machine; W1 done (socket-directory DACL moved to W2), with the `windows-desktop` CI lane in
-`android.yml`; W2's DPAPI store built (§3.1). No Windows build ships.
+Windows 11 machine; W1 and W2 done (W2's exit gate passed with side-loaded MSIX packages; "pair, restart,
+still paired" not yet run), with the Windows CI lane in `.github/workflows/windows.yml`; W3 in progress
+(tray and probes built). No Windows build ships.
 
 **Scope:** what it takes for a person who is not the maintainer to install Tenshu Control on Windows 11,
 pair it, and have it stay resident and safe — then the other desktop apps over it. Covers the platform
@@ -186,11 +187,26 @@ cannot connect), a dev run admits everyone (`desktop-ipc.md` §3, threat model A
 
 | Item | Today on Windows | Fix |
 |---|---|---|
-| Socket-directory gate (`SocketDirectory`) | silent no-op (no POSIX modes) ⇒ nothing stops a squatter | owner-only DACL check/repair on `%USERPROFILE%\.tenshu` — **still open** |
+| Socket-directory gate (`SocketDirectory`) | silent no-op (no POSIX modes) ⇒ nothing stops a squatter | ✅ **W2:** an NTFS arm over pure-NIO `AclFileAttributeView` (see the note below the table) |
 | `BoundSocketFile` | `fileKey()` is always `null` on Windows ⇒ by its own fail-safe rule the server **never** removes its socket on quit ⇒ stale `ipc.sock` | ✅ **W1:** an owner token in `<socket>.owner`, written **before** the unlink, used only where the directory reports no file key. ⚠⚠ Not creation time: NTFS *tunnels* a deleted file's creation time onto a same-named file re-created soon after — exactly the successor-rebinds case |
 | `SingleInstanceLock` after a crash | a force-killed holder's lock is still reported held immediately after (*measured*); Windows documents lock release on termination as asynchronous | ✅ **W1:** retry for up to 5 s **only while the recorded holder pid is dead**; a live holder is still answered at once, so a second launch hands off without waiting |
 | `SingleInstanceLock` holder text | `"held by null"`: Windows locks are mandatory, so the loser cannot read the locked file | ✅ **W1:** also written to an unlocked `<lock>.holder`, read when the lock file is unreadable |
 | Socket path length | ~108-byte `sun_path` | `~\.tenshu` is fine; never move sockets under a deep `%LOCALAPPDATA%\Packages\…` path |
+
+> **As built (W2, 2026-11-10) — the socket-directory DACL.** `SocketDirectory` gains an NTFS arm over pure-NIO
+> `AclFileAttributeView`. `inspect`: **Squattable** if the owner is not the user/SYSTEM/Administrators, or any ALLOW
+> entry for another principal holds WRITE_DATA, APPEND_DATA, WRITE_ACL, WRITE_OWNER, DELETE_CHILD or DELETE;
+> **Reachable** if others hold only READ_DATA/EXECUTE; DENY and INHERIT_ONLY entries ignored. SYSTEM and
+> Administrators are trusted — they can read and re-own anything, and refusing them would make every stock profile
+> squattable — so a fresh `~\.tenshu` reads Sound with no repair. `prepare` rewrites a non-Sound DACL to user +
+> SYSTEM + Administrators full control `(OI)(CI)` and logs it.
+> - ⚠ The JDK's `setAcl` cannot set `SE_DACL_PROTECTED`: a repair that drops something the parent passes down ends
+>   up protected, but a DACL equal to the parent's inheritable set stays inherited — so a later loosening of
+>   `%USERPROFILE%` propagates in until the next start (repair) or connect (refusal). Closing that needs
+>   `SetSecurityInfo(PROTECTED_DACL_SECURITY_INFORMATION)` over FFM.
+> - ⚠ Principals are resolved by name; a localised "Administrators" fails closed (stricter, still consistent).
+>   Not verified: non-English Windows, a domain-joined machine, an elevated process.
+> - Tests: `SocketDirectoryAclTest` — the decision on every host, real ACLs on Windows only.
 
 ### 3.4 Window, tray and the two live defects
 
@@ -216,6 +232,17 @@ missing `launchctl`; `isAutostartEnabled()` then reads *installed && !disabled* 
 > `DesktopStartAtLoginManager` is inert off macOS (reports `false`, writes no plist). Pinned by
 > `DesktopShellSupportTest`. ⚠ Linux had both defects too, and gets the same fix. When W3 lands a Windows
 > tray or autostart, it flips its flag in `DesktopShellSupport.forOs`.
+
+> **As built (W3, 2026-11-10) — the tray.** Compose `Tray`, composed inside Control's own `application { }`
+> (`control-desktop/.../WindowsControlTray.kt`) — no agent, no bridge. *Open Control* (also the primary click)
+> de-minimises, shows and raises the window; *Pause/Resume sync* toggles the Koin `SyncPauseState` single,
+> persisted through `DesktopControlSettings` like the macOS tray's `setSyncPaused`; *Quit* calls `requestQuit()`,
+> and the icon leaves with the composition. The icon is painted in code (a "T" tile, grey with pause bars and a
+> tooltip while paused). `DesktopShellSupport` gains `inProcessTray` (Windows only — ⚠ never macOS, where the
+> Swift agent owns the icon), and Windows reports `trayAvailable` only when AWT `SystemTray.isSupported()` and the
+> JVM is not headless, so a tray-less host still quits on close; `forOs` stays pure, taking that answer as a
+> parameter. Close-to-tray and its Settings switch ("Close to notification area") follow automatically.
+> ⚠ **The icon's look, HiDPI quality and click behaviour are not verified** — the maintainer's checklist.
 
 **The tray (W3).** Unlike macOS, Windows needs **no separate agent**: the Control process itself can own the
 notification-area icon (`Shell_NotifyIcon`), so it calls `WindowController` / `SyncPauseState` in-process
@@ -253,9 +280,27 @@ alive** — which is why §3.4/§3.5 are the real scheduling work, not a Windows
 | Seam | macOS | Windows today | Windows equivalent |
 |---|---|---|---|
 | Calendar reminders | the Swift tray reads `PendingAlertSchedule` over the bridge and hands each to `UNCalendarNotificationTrigger`, so they fire with Control closed | **never delivered** — nothing reads the set | WinRT `ScheduledToastNotification` via `ToastNotifier.AddToSchedule`; ⚠ needs an AUMID (§3.7) |
-| Indexing conditions (`DesktopIndexingConditions`) | `MacPowerProbe` (IOKit battery, CG idle) | probe null ⇒ scheduled indexing **never runs** | `GetSystemPowerStatus` + `GetLastInputInfo` over FFM |
-| Metered network (`DesktopNetworkStateProvider`) | — (always `UNMETERED`, every OS) | same | `NetworkInformation.GetInternetConnectionProfile().GetConnectionCost()` — the first desktop OS that actually exposes metering well |
+| Indexing conditions (`DesktopIndexingConditions`) | `MacPowerProbe` (IOKit battery, CG idle) | ✅ **W3:** `WindowsPowerProbe` | `GetSystemPowerStatus` + `GetLastInputInfo` over FFM |
+| Metered network (`DesktopNetworkStateProvider`) | — (always `UNMETERED`, every OS) | ✅ **W3:** `WindowsNetworkCost` | `GetNetworkConnectivityHint` (plain C, iphlpapi) — not the WinRT `GetConnectionCost` |
 | Sleep/resume | nothing wired | nothing wired | `WM_POWERBROADCAST`/`PBT_APMRESUMEAUTOMATIC`, or rely on the drain loop's own catch-up (measure first) |
+
+> **As built (W3, 2026-11-10) — indexing conditions.** `WindowsPowerProbe` (`:windows-helpers`) answers
+> `MacPowerProbe`'s three nullable facts from `GetSystemPowerStatus` and `GetLastInputInfo`/`GetTickCount` (idle =
+> unsigned 32-bit tick difference, correct across the 49.7-day wrap; a "future" stamp reads as 0 = in use).
+> Control's desktop DI hands it to `DesktopIndexingConditions` through its existing `Probe` seam
+> (`desktopIndexingConditions()`); the policy is unchanged, and Linux still never schedules. ⚠ `batteryLow` =
+> battery saver on **or** the *critical* bit (< 5 %) — **not** the `BatteryFlag` *low* bit (< 33 %), which would
+> refuse manual indexing for a third of every discharge. A battery-less desktop with AC online (or AC unknown
+> plus the no-battery bit) is on external power. Observed here: AC on, no battery, idle 0–4 s.
+>
+> **As built (W3) — metered.** `WindowsNetworkCost` reads `GetNetworkConnectivityHint` (Windows 10 2004+):
+> approaching/over the data limit, roaming, or cost Fixed/Variable → METERED; Unrestricted → UNMETERED; else
+> UNKNOWN. `DesktopNetworkStateProvider` reads it on every call (no cache, no thread); UNKNOWN and non-Windows
+> hosts keep the old UNMETERED, and it never reports `NONE` (offline is `RelayReachability`'s). Observed here:
+> Unrestricted WLAN, cross-checked against WinRT `GetConnectionCost`. ⚠ The struct's BOOLEAN offsets (8/9/10)
+> are documented but were never exercised with a true value; no real metered link was tested.
+> - Both FFM bindings live in private classes loaded inside `runCatching` (they load on JDK 17), and their
+>   real-call tests hard-assert availability on Windows.
 
 ⚠ **Reminders are the one alarm that must survive a closed Control.** Everything else is "runs while
 resident". Scheduled toasts are held by the OS, which is exactly the property the macOS design chose
@@ -325,7 +370,8 @@ and an MSIX update its package identity. Changing signer later is routine, not a
 - **Side-channel MSI only:** `targetFormats(Msi)` (jpackage + WiX), **per-machine** (D3), a Start-menu
   shortcut (the AUMID, §3.7), an UpgradeCode fixed forever per app. ⚠ The UpgradeCode is the Windows twin of
   a bundle id: change it and the next version installs *beside* the old one.
-- Gate coverage: the `windows-desktop` lane in `android.yml` (W1) runs the desktop suites on Windows.
+- Gate coverage: `.github/workflows/windows.yml` (W1; its own workflow since 2026-11-10) runs the desktop
+  suites on Windows.
 
 ---
 
@@ -431,8 +477,8 @@ What MSIX changes, all *not verified* until the W4 spike:
 |---|---|---|
 | **W0** | Measure: run Control, run the suite (§2) | ✅ done 2026-11-09 |
 | **W1** | Defects §3.4 (close quits, hide autostart switch off macOS); §3.3 transport leftovers; Windows `desktopTest` CI lane; correct `desktop-ipc.md` §4 and the threat model's named-pipe wording | the four red tests green on Windows — ✅ 2026-11-09, plus the lane; socket-directory DACL moved to W2 (it is part of the peer-gate posture) |
-| **W2** | DPAPI key store (§3.1) ✅; Windows peer gate by **package family name**, both halves (§3.2) ✅; socket-directory DACL (§3.3) — open; threat-model amendment (A14/T-C-11) ✅; certificate decision ✅ D1–D4 | ✅ a side-loaded Drive MSIX connects to a strict side-loaded Control MSIX (2026-11-10). ⚠ "pair, restart, still paired" not yet run end to end |
-| **W3** | Tray (§3.4), `StartupTask` autostart (§3.5), toasts + scheduled reminders (§3.7/§3.6), power/idle + metered probes (§3.6) | closed-window Control reachable from the tray; a reminder fires with Control quit — verified from a side-loaded MSIX |
+| **W2** | DPAPI key store (§3.1) ✅; Windows peer gate by **package family name**, both halves (§3.2) ✅; socket-directory DACL (§3.3) ✅; threat-model amendment (A14/T-C-11) ✅; certificate decision ✅ D1–D4 | ✅ a side-loaded Drive MSIX connects to a strict side-loaded Control MSIX (2026-11-10). ⚠ "pair, restart, still paired" not yet run end to end |
+| **W3** | Tray (§3.4) ✅ built, not yet seen; `StartupTask` autostart (§3.5); toasts + scheduled reminders (§3.7/§3.6); power/idle + metered probes (§3.6) ✅ | closed-window Control reachable from the tray; a reminder fires with Control quit — verified from a side-loaded MSIX |
 | **W4** | Microsoft Store: spike, then MSIX per app, lockstep version, ADR 0025 Store row, uninstall (§4.3, §5.2) | the Store build passes certification; `winget install --source msstore` installs it on a clean VM |
 | **W5** | The other desktop apps over the same pipeline | each passes the W4 check |
 | **W6** | Side channel: SignPath-signed per-machine MSI, `releases.tenshu.app`, winget-pkgs manifests + automation (§5.1); the gate's SignPath + `%ProgramFiles%` arm (§3.2) | `winget install Tenshu.Control` (winget-pkgs) on a clean VM; a per-user copy is refused by the gate |

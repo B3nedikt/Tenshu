@@ -5014,7 +5014,10 @@ the gap between its connect and the start of verification remains — that new p
 to be one of our packages to pass. The reverse direction (an app checking that the server is Control,
 T-MD-01's defence) uses the same identity on Windows: the listening process must be the `Tenshu.Control`
 package from an anchored publisher (`ControlServerCheck`). Verified end to end with side-loaded MSIX
-packages on 2026-11-10. Residual risk on Windows: **Low** with a configured anchor; until
+packages on 2026-11-10. The socket directory `%USERPROFILE%\.tenshu` is gated by its DACL on Windows (2026-11-10):
+the daemon repairs it to user + SYSTEM + Administrators and clients refuse one another principal can write to,
+which closes directory squatting by another local user on NTFS; same-user processes remain the peer gate's job.
+Residual risk on Windows: **Low** with a configured anchor; until
 then a strict Control admits no one and a developer-mode run admits everyone, a dev posture since no
 Windows build ships.
 
