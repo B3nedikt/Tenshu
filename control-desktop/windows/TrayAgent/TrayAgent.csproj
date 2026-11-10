@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Control's native Windows tray agent (docs/proposals/desktop-windows-port.md §3.9, D5): the twin of
+    control-desktop/macos/TrayAgent. A second executable inside the Control MSIX, speaking the JSON bridge.
+
+    ⚠ No .xaml files on purpose: the UI is built in code, so `dotnet publish` needs no XAML compiler step.
+    ⚠ The Windows App SDK is self-contained for side-loading (T0); the Store build decides at W4 whether to
+      declare the framework package instead.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <RootNamespace>Tenshu.TrayAgent</RootNamespace>
+    <AssemblyName>tray-agent</AssemblyName>
+    <Platforms>x64</Platforms>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <UseWinUI>true</UseWinUI>
+    <WindowsPackageType>None</WindowsPackageType>
+    <EnableMsixTooling>false</EnableMsixTooling>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <SelfContained>true</SelfContained>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableDefaultPageItems>false</EnableDefaultPageItems>
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Pinned to what T0 first restored (2026-11-10). Bump deliberately; a floating version made builds unreproducible. -->
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260921001" />
+    <PackageReference Include="System.Drawing.Common" Version="10.0.14" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The cat: the very vector Android's themed icon uses — one source of truth, rendered at run time. -->
+    <EmbeddedResource Include="..\..\..\control\src\main\res\drawable\ic_launcher_monochrome.xml" LogicalName="cat.xml" />
+  </ItemGroup>
+
+</Project>

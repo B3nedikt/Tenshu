@@ -34,6 +34,7 @@ Store policy; each names what must be checked, and the phase that checks it.
 | D1 | ✅ **Decided 2026-11-10: the Microsoft Store (MSIX) is the first and, for now, only channel.** | One upload gives both the Store and the command line (`winget install --source msstore …`), Microsoft signs it for free, and it is the only shape that is sealed (§4.1) and carries package identity (§3.5, §3.7). |
 | D2 | ✅ **Decided: the side channel comes later** — a **per-machine** MSI, signed through **SignPath Foundation** (free for OSI-licensed projects; Tenshu is Apache-2.0), on `releases.tenshu.app` and `microsoft/winget-pkgs`. | Free, CI-native signing; per-machine is what makes a shared signer acceptable (§4.2). ⚠ SignPath's acceptance of the project is *not verified*; checked when W6 starts. |
 | D3 | ✅ **Decided: no per-user install, on any channel.** | A per-user install directory is writable by the same user, so a validly signed launcher can be handed someone else's jars — the peer gate cannot hold (§4.1). |
+| D5 | ✅ **Decided 2026-11-10: a native Windows tray agent in C# / WinUI 3** (Windows App SDK), the twin of the macOS Swift agent: a second executable in the Control MSIX, speaking the existing JSON bridge, owning the tray flyout **and** the OS notifications and scheduled reminders. Right-click is a short native menu, left-click the flyout. The Compose tray (§3.4) stays only as the fallback where the agent is absent (a dev `:run`). | A truly native look, the architecture macOS already proves, and in C# toasts and scheduled reminders are first-class APIs — which replaces W3's riskiest item (WinRT from the JVM over FFM). ⚠ Every tray feature now exists in Swift and C#: both agents are kept **thin renderers of bridge-supplied state** (`tech-debt.md` *macOS Tray — Thin the Swift Surface to a Dumb Renderer*). |
 | D4 | ✅ **Decided: no paid certificate.** Microsoft's cloud signing, OV and EV certificates were weighed and set aside. | D1 needs none; D2 is free; EV no longer buys SmartScreen reputation (*not verified*, and moot). |
 
 ---
@@ -244,6 +245,9 @@ missing `launchctl`; `isAutostartEnabled()` then reads *installed && !disabled* 
 > parameter. Close-to-tray and its Settings switch ("Close to notification area") follow automatically.
 > ⚠ **The icon's look, HiDPI quality and click behaviour are not verified** — the maintainer's checklist.
 
+⚠⚠ **Superseded by D5:** the shipped Windows tray is a native C# / WinUI 3 agent (§3.9). The in-process
+Compose tray above remains as the fallback when the agent is absent; the original reasoning follows.
+
 **The tray (W3).** Unlike macOS, Windows needs **no separate agent**: the Control process itself can own the
 notification-area icon (`Shell_NotifyIcon`), so it calls `WindowController` / `SyncPauseState` in-process
 rather than over the bridge. Recommendation: Compose `Tray` (AWT underneath) for v1 — menu-only, but enough
@@ -313,13 +317,39 @@ On macOS the Swift tray polls `pendingRequests` / `pairingApproval` / `calendarR
 `UNUserNotificationCenter`, because the JVM has no bundle identity (`control-central-notifications.md`).
 On Windows there is no tray and nothing posts.
 
-- **Work (W3):** a JVM-side poller over the *same* in-process sources (no bridge needed) posting WinRT
-  toasts; activation → `WindowController.show()`.
+- **Work (W3), per D5:** the native tray agent (§3.9) polls the same bridge methods the macOS agent does
+  (`pendingRequests`, `pairingApproval`, `calendarReminders`, the schema fence) and posts through the Windows
+  App SDK's `AppNotificationManager`, with reminders as scheduled toasts. Activation raises Control through
+  `openControlWindow`. ⚠ *Superseded:* the earlier plan here was a JVM-side poller posting WinRT toasts over
+  FFM.
 - ⚠⚠ **Toasts need an AppUserModelID.** An MSIX has one by construction — one more reason for D1. The
   later side-channel MSI must register one (a Start-menu shortcut carrying the AUMID). Without it toasts
   silently do not show (*not verified*; W3). ⚠ So W3's toasts and reminders can only be verified from a
   packaged MSIX, not a `:control-desktop:run` (no identity) — test through a locally side-loaded MSIX.
   `TrayIcon.displayMessage` is the identity-free fallback but cannot schedule (reminders) or carry actions.
+
+### 3.9 The native tray agent (D5)
+
+The Windows twin of `control-desktop/macos/TrayAgent/` (≈ 1,600 lines of Swift: popover + model, bridge client,
+four notifiers). Lives in `control-desktop/windows/TrayAgent/`.
+
+- **Stack:** C# on .NET 10 (LTS), WinUI 3 (Windows App SDK). UI built **in code**, not XAML, so the build is a
+  plain `dotnet publish` with no XAML compiler step. Tray icon via `Shell_NotifyIcon` (P/Invoke) or H.NotifyIcon
+  (MIT) — the spike decides, and a third-party library lands in `docs/oss-licences.md`.
+- **Packaging:** a second executable inside the Control MSIX, started and supervised by Control (as
+  `ensureTrayRunning` + `TrayLiveness` do on macOS). ⚠ A child of a packaged full-trust process runs with the
+  **same package identity**, so the bridge gate admits it as `Tenshu.Control` (already in
+  `WINDOWS_BRIDGE_PACKAGES`) and its toasts carry the package's AUMID — *not verified* until the spike.
+- **Windows App SDK runtime:** self-contained for the side-load spike; for the Store, a framework-package
+  dependency the Store installs automatically (decide at W4).
+- **Thin renderer:** the agent renders what the bridge returns and owns only OS glue (icon, flyout, toasts,
+  their diffing). New tray content goes into the bridge first, then into both agents.
+- **Phases:** (T0) toolchain spike — the cat in the tray, a flyout showing `getSyncState`, inside the
+  side-loaded Control MSIX; (T1) the full flyout (needs-action, recent notifications, app launcher, open/quit)
+  and the right-click menu; (T2) the four notifiers including scheduled reminders; (T3) lifecycle, tests, CI
+  (`dotnet` in `windows.yml`), and demoting the Compose tray to a fallback.
+- **Estimate (2026-11-10):** ≈ 7.5–9.5 focused days, ≈ 2–4 more than the Compose flyout plus WinRT-over-FFM toasts
+  it replaces.
 
 ### 3.8 Degrades gracefully — no work required to ship
 
@@ -478,7 +508,7 @@ What MSIX changes, all *not verified* until the W4 spike:
 | **W0** | Measure: run Control, run the suite (§2) | ✅ done 2026-11-09 |
 | **W1** | Defects §3.4 (close quits, hide autostart switch off macOS); §3.3 transport leftovers; Windows `desktopTest` CI lane; correct `desktop-ipc.md` §4 and the threat model's named-pipe wording | the four red tests green on Windows — ✅ 2026-11-09, plus the lane; socket-directory DACL moved to W2 (it is part of the peer-gate posture) |
 | **W2** | DPAPI key store (§3.1) ✅; Windows peer gate by **package family name**, both halves (§3.2) ✅; socket-directory DACL (§3.3) ✅; threat-model amendment (A14/T-C-11) ✅; certificate decision ✅ D1–D4 | ✅ a side-loaded Drive MSIX connects to a strict side-loaded Control MSIX (2026-11-10). ⚠ "pair, restart, still paired" not yet run end to end |
-| **W3** | Tray (§3.4) ✅ built, not yet seen; `StartupTask` autostart (§3.5); toasts + scheduled reminders (§3.7/§3.6); power/idle + metered probes (§3.6) ✅ | closed-window Control reachable from the tray; a reminder fires with Control quit — verified from a side-loaded MSIX |
+| **W3** | In-process tray (§3.4) ✅ verified by the maintainer 2026-11-10; native tray agent T0–T3 (§3.9, D5) incl. toasts + scheduled reminders (§3.7/§3.6); `StartupTask` autostart (§3.5); power/idle + metered probes (§3.6) ✅ | closed-window Control reachable from the tray; a reminder fires with Control quit — verified from a side-loaded MSIX |
 | **W4** | Microsoft Store: spike, then MSIX per app, lockstep version, ADR 0025 Store row, uninstall (§4.3, §5.2) | the Store build passes certification; `winget install --source msstore` installs it on a clean VM |
 | **W5** | The other desktop apps over the same pipeline | each passes the W4 check |
 | **W6** | Side channel: SignPath-signed per-machine MSI, `releases.tenshu.app`, winget-pkgs manifests + automation (§5.1); the gate's SignPath + `%ProgramFiles%` arm (§3.2) | `winget install Tenshu.Control` (winget-pkgs) on a clean VM; a per-user copy is refused by the gate |
