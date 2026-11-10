@@ -28,7 +28,7 @@ internal sealed class FlyoutWindow
     private static Strings S => Strings.Current;
 
     private readonly Window _window = new();
-    private readonly StackPanel _root;
+    private readonly Grid _root;
     private readonly StackPanel _body = new() { Spacing = 4 };
     private readonly TextBlock _label = new() { FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Right };
     private readonly Button _pause = ListButton();
@@ -70,12 +70,26 @@ internal sealed class FlyoutWindow
         actions.Children.Add(open);
         actions.Children.Add(quit);
 
-        _window.Content = _root = new StackPanel
+        // Header, a scrolling middle, fixed actions. ⚠ The middle scrolls because the window is clamped to the work
+        // area: with many requests, recent items and apps the content outgrows the screen, and a plain stack would
+        // push Pause / Open Control / Quit out of reach. The star row takes whatever height the window has left.
+        var footer = new StackPanel { Spacing = 8, Children = { Divider(), _pause, actions } };
+        var scroll = new ScrollViewer
         {
-            Padding = new Thickness(16),
-            Spacing = 8,
-            Children = { header, _body, Divider(), _pause, actions },
+            Content = _body,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
         };
+        _root = new Grid { Padding = new Thickness(16), RowSpacing = 8 };
+        _root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        _root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        Grid.SetRow(scroll, 1);
+        Grid.SetRow(footer, 2);
+        _root.Children.Add(header);
+        _root.Children.Add(scroll);
+        _root.Children.Add(footer);
+        _window.Content = _root;
 
         var presenter = OverlappedPresenter.Create();
         presenter.SetBorderAndTitleBar(hasBorder: true, hasTitleBar: false);

@@ -105,9 +105,8 @@ tasks.register("packageMsix") {
     inputs.dir(msixLogos).optional()
 
     inputs.property("identity", "$identityName|$publisher|$version|$appId|$displayName")
-    // ⚠⚠ The app-image is an input too. Without it Gradle called this task UP-TO-DATE after a code change
-    // and kept the old package — a side-loaded Control without its gate log, a Drive without its Windows
-    // server check, and an afternoon spent debugging binaries that were not the source (2026-11-10).
+    // ⚠⚠ The app-image is an input too. Without it Gradle calls this task UP-TO-DATE after a code change and
+    // keeps the old package, so the installed binaries are not the source being debugged.
     inputs.dir(appImage).optional()
     inputs.property("certPfx", certPfx.orEmpty())
     outputs.file(msixFile)
