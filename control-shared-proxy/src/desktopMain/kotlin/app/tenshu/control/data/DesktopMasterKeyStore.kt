@@ -227,17 +227,27 @@ class KeychainWrappingKeyStore(
  * ⚠ Not "keep the blob and run in memory": nothing could then ever be saved, and the device would
  * silently re-pair on every launch. If the blob cannot even be moved, that is still the answer (`null`).
  *
- * [protect] / [unprotect] are seams for tests off Windows; production binds `WindowsDpapi`.
+ * ⚠⚠ Only a blob that DPAPI **refuses** is set aside — never one it could not be asked about. When DPAPI
+ * itself is unavailable (no native binding on this JVM) the blob stays where it is and the store runs in
+ * memory, so the next launch with DPAPI back reads the same key. And the replacement is minted and
+ * protected **before** the old blob moves, so a failure at any step leaves the existing key in place.
+ *
+ * [protect] / [unprotect] / [available] are seams for tests off Windows; production binds `WindowsDpapi`.
  */
 class DpapiWrappingKeyStore(
     private val blobFile: File,
     private val protect: (ByteArray, ByteArray) -> ByteArray? = app.tenshu.windows.WindowsDpapi::protect,
     private val unprotect: (ByteArray, ByteArray) -> ByteArray? = app.tenshu.windows.WindowsDpapi::unprotect,
+    private val available: () -> Boolean = app.tenshu.windows.WindowsDpapi::isAvailable,
 ) : WrappingKeyStore {
 
     override fun loadOrCreate(): ByteArray? {
-        if (blobFile.exists()) {
-            open()?.let { return it }
+        if (!available()) return null // nothing can be judged, and nothing is touched
+        val existing = blobFile.exists()
+        if (existing) open()?.let { return it }
+        val fresh = ByteArray(WRAP_KEY_LEN).also { SecureRandom().nextBytes(it) }
+        val blob = protect(fresh, ENTROPY) ?: return null
+        if (existing) {
             val aside = keepAside(blobFile)
             if (aside == null) {
                 System.err.println("[DpapiWrappingKeyStore] ${blobFile.name} will not open and cannot be moved aside; secrets will not persist")
@@ -245,8 +255,6 @@ class DpapiWrappingKeyStore(
             }
             System.err.println("[DpapiWrappingKeyStore] ${blobFile.name} will not open; kept as ${aside.name}, a new key is made and this device re-pairs once")
         }
-        val fresh = ByteArray(WRAP_KEY_LEN).also { SecureRandom().nextBytes(it) }
-        val blob = protect(fresh, ENTROPY) ?: return null
         return runCatching {
             blobFile.parentFile?.mkdirs()
             val tmp = File(blobFile.parentFile, blobFile.name + ".tmp")
