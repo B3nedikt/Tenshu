@@ -1934,15 +1934,15 @@ for a passphrase only where one exists (failing closed to asking when the status
 
 ## Build & Versioning
 
-### `:control-desktop:run` drops its own JVM flags — developer mode is always off on a dev run (2026-09-09)
+### `:control-desktop:run` drops its own JVM flags — developer mode is always off on a dev run — FIXED (2026-09-09 → 2026-11-10)
 
-⚠ **Fixed for `:control-desktop` (2026-11-10):** the dev flags now go in through a `doFirst` on the run
-task, and `-Dskiko.renderApi=METAL` is macOS-only (it never reached the JVM before, and is no renderer
-on Windows). Found when Control's strict gate rejected the standalone Windows tray agent
-(`desktop-windows-port.md` §3.9) on a dev run. ⚠ **Still affected: the other nine `*-desktop` apps**,
-which set `-Dtenshu.release=false` (and an unconditional METAL) the same broken way — so a dev-run
-app's own `ControlServerCheck` still never gets developer mode. Same fix, one app at a time, each
-checked against its dev-run pairing.
+⚠ **Fixed in all ten `*-desktop` apps (2026-11-10):** each run task builds a local `devArgs`
+(`-Dtenshu.release=false`, plus `-Dskiko.renderApi=METAL` on a macOS host only) and applies it in a
+`doFirst`, after Compose has replaced the list. `PEER_GATE_JVM_ARGS` / `-Dtenshu.qr.impl` reach the
+dev run through `compose.desktop.application.jvmArgs` alone; their dead run-block copies are gone.
+`ControlServerCheckTest.everyDesktopAppPassesThePeerGateJvmArgsAtBothSites` pins the shape and that
+`tenshu.release` never joins the packaged list. Found when Control's strict gate rejected the standalone
+Windows tray agent (`desktop-windows-port.md` §3.9) on a dev run. The history below is the mechanism.
 
 `control-desktop/build.gradle.kts` sets `-Dskiko.renderApi=METAL` and `-Dtenshu.release=false` only in
 a `tasks.withType<JavaExec> { if (name == "run" …) }` block, and they **never reach the JVM** that
