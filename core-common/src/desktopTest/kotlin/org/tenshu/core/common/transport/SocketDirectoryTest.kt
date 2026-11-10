@@ -80,9 +80,8 @@ class SocketDirectoryTest {
     /**
      * Skips a case that sets or reads POSIX modes on a host that has none (Windows/NTFS).
      *
-     * ⚠⚠ A skip, not a pass: on such a host [SocketDirectory] is a deliberate no-op, so there is
-     * **no** socket-directory gate there at all — the ACL equivalent is open work
-     * (`docs/proposals/desktop-windows-port.md` §3.3). The cases that do not need POSIX still run.
+     * ⚠⚠ A skip, not a pass: on such a host the gate is the DACL arm instead, which
+     * [SocketDirectoryAclTest] covers. The cases that do not need POSIX still run.
      */
     private fun posixOnly() = assumeTrue(
         "POSIX file permissions are unsupported on this host",
