@@ -23,7 +23,7 @@ class MsixPublisherIdTest {
         assertEquals(13, id.length)
         assertTrue(id.all { it in "0123456789abcdefghjkmnpqrstvwxyz" }, id)
         val attested = WindowsPeerDecision.decide(
-            WindowsPeerFacts(1, 0, true, "Tenshu.Drive_$id", null),
+            WindowsPeerFacts(1, 0, true, "Tenshu.Drive_$id", null, WindowsPackageOrigin.DEVELOPER_SIGNED),
             1,
         ) { setOf(id) }
         assertEquals(WindowsPeerAttestation.Attested("Tenshu.Drive", id), attested)

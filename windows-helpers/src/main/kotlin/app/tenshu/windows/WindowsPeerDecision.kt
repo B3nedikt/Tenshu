@@ -15,7 +15,43 @@ data class WindowsPeerFacts(
     val packageFamilyName: String?,
     /** The running image's full path, or `null` if it could not be read. Logged; W6 gates on it. */
     val imagePath: String?,
+    /**
+     * How the package was installed (`GetStagedPackageOrigin`, a [WindowsPackageOrigin] value), or `null` without
+     * package identity or when it could not be read.
+     */
+    val packageOrigin: Int?,
 )
+
+/** `PackageOrigin` (appmodel.h): how a package came to be installed. */
+object WindowsPackageOrigin {
+    const val UNKNOWN = 0
+    const val UNSIGNED = 1
+    const val INBOX = 2
+    const val STORE = 3
+    /** A loose layout registered with `Add-AppxPackage -Register` (Developer Mode): anyone can write its manifest. */
+    const val DEVELOPER_UNSIGNED = 4
+    /** A side-loaded package signed by a certificate the machine trusts — our local test build (measured). */
+    const val DEVELOPER_SIGNED = 5
+    const val LINE_OF_BUSINESS = 6
+
+    /**
+     * Origins that required a signature from a certificate the machine trusts. Making a certificate trusted takes
+     * an administrator, which the gate's adversary (the same user) is not.
+     */
+    val SIGNED: Set<Int> = setOf(STORE, DEVELOPER_SIGNED, LINE_OF_BUSINESS)
+
+    fun name(origin: Int?): String = when (origin) {
+        null -> "unreadable"
+        UNKNOWN -> "Unknown"
+        UNSIGNED -> "Unsigned"
+        INBOX -> "Inbox"
+        STORE -> "Store"
+        DEVELOPER_UNSIGNED -> "DeveloperUnsigned"
+        DEVELOPER_SIGNED -> "DeveloperSigned"
+        LINE_OF_BUSINESS -> "LineOfBusiness"
+        else -> "origin $origin"
+    }
+}
 
 /** Which publishers may vouch for a package name — the Windows twin of macOS `PeerTeamPolicy`. */
 fun interface PeerPublisherPolicy {
@@ -40,6 +76,14 @@ sealed interface WindowsPeerAttestation {
  * signature alone is neither (§4.1: a per-user install's jars are user-writable). The side channel's
  * signer + `%ProgramFiles%` arm is W6 and deliberately absent here: until then a process without
  * package identity is unattested, however it is signed.
+ *
+ * ⚠⚠ **…but only for a signed package.** The family name hashes the publisher *string*, which is public, so a
+ * same-user process can register a loose, unsigned manifest under our name and publisher and receive our exact
+ * family name, with its files in a folder it can write. The package's origin is what rules that out: only
+ * [WindowsPackageOrigin.SIGNED] origins are attested.
+ * ⚠ Not a defence against a same-user process acting *through* one of our running packages (injection, a
+ * duplicated socket handle, `JAVA_TOOL_OPTIONS`): a full-trust package is not a protected process. The threat
+ * model's A14 Windows row states that limit.
  *
  * ⚠⚠ **The pid race.** Windows has no audit token: the gate learns a pid and opens it, and a pid is
  * reusable. [WindowsPeerProcess] holds the handle for the whole read, which stops reuse *during* the
@@ -74,6 +118,13 @@ object WindowsPeerDecision {
         if (!PUBLISHER_ID.matches(publisher)) return unattested("malformed publisher id in '$family'", facts)
         if (publisher !in policy.acceptedPublishersFor(name)) {
             return unattested("package '$name' is not one of ours from publisher '$publisher'", facts)
+        }
+        if (facts.packageOrigin !in WindowsPackageOrigin.SIGNED) {
+            return unattested(
+                "package '$name' is not installed from a signed package " +
+                    "(origin ${WindowsPackageOrigin.name(facts.packageOrigin)}) — a loose registration can claim any name",
+                facts,
+            )
         }
         return WindowsPeerAttestation.Attested(packageName = name, publisherId = publisher)
     }

@@ -134,6 +134,13 @@ val clientWindowsPublisherIds: List<String> =
         ?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }?.sorted()
         ?: emptyList()
 
+// ⚠ Checked as in control-desktop: a malformed id would compile into an anchor that silently admits no one.
+clientWindowsPublisherIds.forEach { id ->
+    require(Regex("^[0-9a-hjkmnp-tv-z]{13}$").matches(id)) {
+        "tenshu.windowsPublisherIds: '$id' is not a publisher id (13 characters of 0-9 a-z without i l o u)"
+    }
+}
+
 val clientPeerTrustDir = layout.buildDirectory.dir("generated/clientPeerTrust")
 val generateClientPeerTrust = tasks.register("generateClientPeerTrust") {
     val outDir = clientPeerTrustDir

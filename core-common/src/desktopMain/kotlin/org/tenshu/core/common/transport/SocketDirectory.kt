@@ -313,8 +313,15 @@ object SocketDirectory {
         }
         val user = System.getProperty("user.name")
         val domain = System.getenv("USERDOMAIN")
-        val self = first(if (domain != null && user != null) "$domain\\$user" else null, user)
-            ?.takeIf { it !is GroupPrincipal }
+        // The owner of a file this process just created is its own token's user — no name to resolve, so no
+        // chance of a same-named account elsewhere in the domain. An elevated administrator's new files are
+        // owned by the Administrators group instead; only then fall back to the name.
+        val created = runCatching {
+            val probe = Files.createTempFile("tenshu-owner", ".probe")
+            try { Files.getOwner(probe) } finally { Files.deleteIfExists(probe) }
+        }.getOrNull()?.takeIf { it !is GroupPrincipal }
+        val self = created
+            ?: first(if (domain != null && user != null) "$domain\\$user" else null, user)?.takeIf { it !is GroupPrincipal }
         val trusted = setOfNotNull(
             first("NT AUTHORITY\\SYSTEM", "SYSTEM"),
             first("BUILTIN\\Administrators", "Administrators"),
@@ -362,8 +369,18 @@ object SocketDirectory {
             return
         }
         val acl = runCatching { view.acl }.getOrNull() ?: return
-        val before = aclVerdict(dir, runCatching { view.owner }.getOrNull(), acl, self, aclPrincipals.trusted)
+        val owner = runCatching { view.owner }.getOrNull()
+        val before = aclVerdict(dir, owner, acl, self, aclPrincipals.trusted)
         if (before == Verdict.Sound) return
+        // ⚠ A directory owned by someone else cannot be repaired by rewriting its DACL: the owner keeps the
+        // implicit right to change it back. Say so rather than log a repair that did not happen.
+        if (owner != null && owner != self && owner !in aclPrincipals.trusted) {
+            log(
+                "[ipc] socket directory $dir is owned by ${owner.name}, not this user — not repaired, because its " +
+                    "owner can always change it back. Remove it or point TENSHU_IPC_DIR elsewhere.",
+            )
+            return
+        }
         val reason = when (before) {
             is Verdict.Squattable -> before.reason
             is Verdict.Reachable -> before.reason

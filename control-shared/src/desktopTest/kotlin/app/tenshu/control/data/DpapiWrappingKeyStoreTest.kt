@@ -28,12 +28,20 @@ class DpapiWrappingKeyStoreTest {
     /** A reversible stand-in: "sealed" = entropy-length prefix + XOR. Fails on the wrong entropy. */
     private class FakeDpapi(var available: Boolean = true) {
         var protects = 0
+        private val unopenable = mutableListOf<ByteArray>()
+
+        /** Makes this one blob fail to open, as one from another profile would; new blobs still work. */
+        fun failOpenOf(blob: ByteArray) {
+            unopenable += blob
+        }
+
         fun protect(plain: ByteArray, entropy: ByteArray): ByteArray? {
             if (!available) return null
             protects++
             return byteArrayOf(entropy.size.toByte()) + plain.mapIndexed { i, b -> (b.toInt() xor entropy[i % entropy.size].toInt()).toByte() }
         }
         fun unprotect(blob: ByteArray, entropy: ByteArray): ByteArray? {
+            if (unopenable.any { it.contentEquals(blob) }) return null
             if (!available || blob.isEmpty() || blob[0].toInt() != entropy.size) return null
             return blob.drop(1).mapIndexed { i, b -> (b.toInt() xor entropy[i % entropy.size].toInt()).toByte() }.toByteArray()
         }
@@ -60,26 +68,29 @@ class DpapiWrappingKeyStoreTest {
     }
 
     /**
-     * ⚠⚠ The data-loss case: a blob that will not open must not be replaced by a fresh key, or
-     * `secrets.enc` is orphaned while everything looks fine.
+     * ⚠⚠ A blob that will not open (another user's profile, an admin password reset, corruption) is kept — moved
+     * aside, never deleted — and a new key takes its place, so the device re-pairs **once**, as on macOS. Staying
+     * in-memory instead would mean a silent re-pair on every launch until someone deleted the file by hand.
      */
     @Test
-    fun aBlobThatWillNotOpenIsNeitherReplacedNorGuessed() {
+    fun aBlobThatWillNotOpenIsKeptAside_andANewKeyLastsAcrossRestarts() {
         val dpapi = FakeDpapi()
         store(dpapi).loadOrCreate()
         val original = blobFile.readBytes()
-        dpapi.available = false // e.g. another user's profile, or an admin password reset
+        dpapi.failOpenOf(original) // e.g. another user's profile, or an admin password reset
 
-        assertNull(store(dpapi).loadOrCreate())
-        assertContentEquals(original, blobFile.readBytes(), "the unopenable blob stays for diagnosis")
-        assertEquals(1, dpapi.protects)
+        val fresh = assertNotNull(store(dpapi).loadOrCreate())
+        val aside = assertNotNull(dir.listFiles { f -> f.name.startsWith("${blobFile.name}.unreadable-") }?.singleOrNull())
+        assertContentEquals(original, aside.readBytes(), "the unopenable blob is kept for diagnosis")
+        assertContentEquals(fresh, store(dpapi).loadOrCreate(), "the next start opens the new key: one re-pair, not one per launch")
     }
 
     @Test
-    fun aBlobOfTheWrongSizeIsRefused() {
+    fun aBlobOfTheWrongSizeIsKeptAside_andReplaced() {
         val dpapi = FakeDpapi()
         blobFile.writeBytes(dpapi.protect(ByteArray(16), "app.tenshu.control.master-wrap-key.v1".encodeToByteArray())!!)
-        assertNull(store(dpapi).loadOrCreate())
+        assertEquals(32, assertNotNull(store(dpapi).loadOrCreate()).size)
+        assertEquals(1, dir.listFiles { f -> f.name.startsWith("${blobFile.name}.unreadable-") }?.size)
     }
 
     @Test

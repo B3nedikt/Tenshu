@@ -173,6 +173,16 @@ cannot connect), a dev run admits everyone (`desktop-ipc.md` §3, threat model A
 >   property (`ClientPeerTrust.FIRST_PARTY_WINDOWS_PUBLISHER_IDS`). ⚠ `Tenshu.Control` is spelled in two
 >   places (`ControlServerCheck.WINDOWS_CONTROL_PACKAGE`, `FirstPartyDesktopPeers.WINDOWS_CONTROL_PACKAGES`);
 >   they must move together.
+> - ⚠⚠ **A family name is not enough on its own** (found in review, 2026-11-10). It hashes the publisher *string*,
+>   which is public, so a same-user process can register a loose, unsigned manifest under our name and publisher
+>   (`Add-AppxPackage -Register`, Developer Mode) and get our exact family name. The gate also reads the
+>   package's origin (`GetPackageFullName` → `GetStagedPackageOrigin`, exported by `kernelbase.dll` only) and
+>   attests only **Store, LineOfBusiness and DeveloperSigned** — origins that needed a certificate the machine
+>   trusts, which takes an administrator. Measured: our side-loaded test packages report DeveloperSigned, a
+>   Store app reports Store. ⚠ That makes the local test certificate (its PFX on disk, trusted machine-wide) a
+>   key that passes the gate *on the machines that trust it*: its publisher id must never be in a release
+>   anchor. ⚠ The gate does not stop same-user malware acting *through* a running package of ours (injection,
+>   a duplicated socket, `JAVA_TOOL_OPTIONS`) — threat model A14/T-C-11.
 > - The gate's decisions are also written to `<data dir>/diagnostics/ipc-gate.log`: an MSIX has no stdout,
 >   so without it a refused app is invisible. Its own file, because `FileDiagnosticSink` rewrites its file to
 >   enforce the cap and two sinks on `control.log` would race.
@@ -186,7 +196,7 @@ cannot connect), a dev run admits everyone (`desktop-ipc.md` §3, threat model A
 
 | Item | Today on Windows | Fix |
 |---|---|---|
-| Socket-directory gate (`SocketDirectory`) | silent no-op (no POSIX modes) ⇒ nothing stops a squatter | owner-only DACL check/repair on `%USERPROFILE%\.tenshu` — **still open** |
+| Socket-directory gate (`SocketDirectory`) | silent no-op (no POSIX modes) ⇒ nothing stops a squatter | ✅ **W2:** owner-only DACL check/repair on `%USERPROFILE%\.tenshu`. ⚠ A directory owned by another account is refused, not "repaired": its owner can always change the DACL back |
 | `BoundSocketFile` | `fileKey()` is always `null` on Windows ⇒ by its own fail-safe rule the server **never** removes its socket on quit ⇒ stale `ipc.sock` | ✅ **W1:** an owner token in `<socket>.owner`, written **before** the unlink, used only where the directory reports no file key. ⚠⚠ Not creation time: NTFS *tunnels* a deleted file's creation time onto a same-named file re-created soon after — exactly the successor-rebinds case |
 | `SingleInstanceLock` after a crash | a force-killed holder's lock is still reported held immediately after (*measured*); Windows documents lock release on termination as asynchronous | ✅ **W1:** retry for up to 5 s **only while the recorded holder pid is dead**; a live holder is still answered at once, so a second launch hands off without waiting |
 | `SingleInstanceLock` holder text | `"held by null"`: Windows locks are mandatory, so the loser cannot read the locked file | ✅ **W1:** also written to an unlocked `<lock>.holder`, read when the lock file is unreadable |
@@ -431,7 +441,7 @@ What MSIX changes, all *not verified* until the W4 spike:
 |---|---|---|
 | **W0** | Measure: run Control, run the suite (§2) | ✅ done 2026-11-09 |
 | **W1** | Defects §3.4 (close quits, hide autostart switch off macOS); §3.3 transport leftovers; Windows `desktopTest` CI lane; correct `desktop-ipc.md` §4 and the threat model's named-pipe wording | the four red tests green on Windows — ✅ 2026-11-09, plus the lane; socket-directory DACL moved to W2 (it is part of the peer-gate posture) |
-| **W2** | DPAPI key store (§3.1) ✅; Windows peer gate by **package family name**, both halves (§3.2) ✅; socket-directory DACL (§3.3) — open; threat-model amendment (A14/T-C-11) ✅; certificate decision ✅ D1–D4 | ✅ a side-loaded Drive MSIX connects to a strict side-loaded Control MSIX (2026-11-10). ⚠ "pair, restart, still paired" not yet run end to end |
+| **W2** | DPAPI key store (§3.1) ✅; Windows peer gate by **package family name**, both halves (§3.2) ✅; socket-directory DACL (§3.3) ✅; threat-model amendment (A14/T-C-11) ✅, ⚠ amended after review: the gate also requires a signed package origin (a loose registration can claim our family name), and states that it cannot stop same-user malware borrowing a running package; certificate decision ✅ D1–D4 | ✅ a side-loaded Drive MSIX connects to a strict side-loaded Control MSIX (2026-11-10). ⚠ "pair, restart, still paired" not yet run end to end |
 | **W3** | Tray (§3.4), `StartupTask` autostart (§3.5), toasts + scheduled reminders (§3.7/§3.6), power/idle + metered probes (§3.6) | closed-window Control reachable from the tray; a reminder fires with Control quit — verified from a side-loaded MSIX |
 | **W4** | Microsoft Store: spike, then MSIX per app, lockstep version, ADR 0025 Store row, uninstall (§4.3, §5.2) | the Store build passes certification; `winget install --source msstore` installs it on a clean VM |
 | **W5** | The other desktop apps over the same pipeline | each passes the W4 check |
