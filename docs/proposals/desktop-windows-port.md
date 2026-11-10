@@ -271,6 +271,23 @@ only *start at logon, hidden*. The docs disagree on the mechanism (`tenshu-rei.m
   the LaunchAgent.
 - Task Scheduler only if a measured need appears (e.g. restart-on-failure); it costs a COM/`schtasks` surface.
 
+> **As built (2026-11-10), the MSIX arm.** The startup task (`TaskId="TenshuControl"`) is declared on Control's
+> `Application`, but its `Executable` is the **tray agent** (`tray-agent\tray-agent.exe`), not Control: at login the
+> agent puts the icon up at once, sees `ExtendedActivationKind.StartupTask`, and starts `TenshuControl.exe` as its
+> child with `TENSHU_CONTROL_START_HIDDEN=true` — the variable the macOS login item already uses, so no new flag, and
+> Control's instance guard already makes a second hidden copy exit quietly.
+> - **The switch.** `StartupTask` is WinRT, which the JVM cannot call, so Settings asks the agent:
+>   `tray-agent --startup-task status|enable|disable` prints one word (`WindowsStartupTask`); anything unrecognised
+>   reads as *unavailable*, never on. `DesktopStartAtLoginManager` gains the Windows arm, and
+>   `DesktopShellSupport.startAtLoginAvailable` is true on Windows only inside the package. ⚠ Each fresh read starts
+>   the agent as a process (~a few hundred ms), so only `isAutostartEnabled` re-reads.
+> - ⚠ **`disabledByUser`** — turned off in Settings → Apps → Startup — cannot be undone by the app. It maps to
+>   macOS's "approval required": the switch opens `ms-settings:startupapps` and says why.
+> - ⚠ **Off by default** (`Enabled="false"`, and `ensureStartAtLoginDefault` stays macOS-only): the Store expects
+>   consent, the same call the Mac App Store build makes. A side-channel MSI (D2) may revisit it.
+> - Device-checked: status → enable → disable round-trips inside the package. Tests: `WindowsStartupTaskTest`,
+>   `DesktopShellSupportTest`.
+
 ### 3.6 Scheduling, alarms and background wake
 
 **Already portable (in-process, *read*):** the desktop `PlatformScheduler` is `NoOpPlatformScheduler`; the

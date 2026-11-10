@@ -58,6 +58,8 @@ public sealed class App : Application, IXamlMetadataProvider
         // activation arguments, not through NotificationInvoked.
         _notifier = new Notifier(onActivate: OpenControl);
         if (Notifier.LaunchedByToast()) OpenControl();
+        // At login the icon is already up; Control follows, hidden (LoginStart).
+        if (LoginStart.LaunchedAtLogin()) LoginStart.StartControlHidden();
 
         _poll = _dispatcher.CreateTimer();
         _poll.Interval = Heartbeat.Interval;

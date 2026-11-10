@@ -1,6 +1,7 @@
 package app.tenshu.control
 
 import app.tenshu.control.lifecycle.TrayLiveness
+import app.tenshu.control.lifecycle.WindowsTrayAgentBinary
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -36,8 +37,7 @@ internal object WindowsTrayAgent {
         if (!isWindows) return@lazy null
         System.getenv("TENSHU_TRAY_AGENT")?.takeIf { it.isNotBlank() }?.let { File(it) }?.takeIf { it.isFile }
             ?.let { return@lazy it }
-        val launcher = System.getProperty("jpackage.app-path")?.let { File(it) } ?: return@lazy null
-        File(launcher.parentFile, "tray-agent${File.separator}tray-agent.exe").takeIf { it.isFile }
+        WindowsTrayAgentBinary.packaged()
     }
 
     private val devOverride: Boolean get() = !System.getenv("TENSHU_TRAY_AGENT").isNullOrBlank()

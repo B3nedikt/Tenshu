@@ -20,6 +20,7 @@ import app.tenshu.control.shared.resources.settings_close_to_tray_headline_windo
 import app.tenshu.control.shared.resources.settings_close_to_tray_support
 import app.tenshu.control.shared.resources.settings_close_to_tray_support_windows
 import app.tenshu.control.shared.resources.settings_start_at_login_approval_support
+import app.tenshu.control.shared.resources.settings_start_at_login_approval_support_windows
 import app.tenshu.control.shared.resources.settings_start_at_login_headline
 import app.tenshu.control.shared.resources.settings_start_at_login_support
 import app.tenshu.ui.chrome.AppListItem
@@ -87,7 +88,9 @@ actual fun PlatformSettingsSection() {
         headline = stringResource(Res.string.settings_start_at_login_headline),
         supportingText = stringResource(
             if (startAtLoginApprovalRequired) {
-                Res.string.settings_start_at_login_approval_support
+                // Windows: turned off in its Settings, the one place allowed to turn it back on.
+                if (shell.inProcessTray) Res.string.settings_start_at_login_approval_support_windows
+                else Res.string.settings_start_at_login_approval_support
             } else {
                 Res.string.settings_start_at_login_support
             },

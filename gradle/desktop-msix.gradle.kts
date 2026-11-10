@@ -165,6 +165,9 @@ tasks.register("packageMsix") {
         // the activator declared here, which Windows starts if the agent is not running. ⚠ The CLSID is the
         // package's toast activator identity: never change it, or toasts already in the notification center stop
         // answering clicks.
+        // Start at login (desktop-windows-port.md §3.5) is the package's startup task, also aimed at the agent: it
+        // puts the icon up and starts Control hidden. ⚠ Off until the user turns it on (`Enabled="false"`): the
+        // Store expects consent, as the Mac App Store does. ⚠ TaskId is `LoginStart.TaskId`; never rename it.
         val toastActivator = "6E0B6C0B-3F1D-4C1F-9C61-2F0E7A9B5D41"
         val applicationExtensions = if (trayAgentDir == null) "" else """
                   <Extensions>
@@ -177,6 +180,9 @@ tasks.register("packageMsix") {
                     </com:Extension>
                     <desktop:Extension Category="windows.toastNotificationActivation">
                       <desktop:ToastNotificationActivation ToastActivatorCLSID="$toastActivator" />
+                    </desktop:Extension>
+                    <desktop:Extension Category="windows.startupTask" Executable="tray-agent\tray-agent.exe" EntryPoint="Windows.FullTrustApplication">
+                      <desktop:StartupTask TaskId="TenshuControl" Enabled="false" DisplayName="${xml(displayName)}" />
                     </desktop:Extension>
                   </Extensions>
         """.trimIndent().prependIndent(" ".repeat(18)).trimStart()

@@ -686,6 +686,7 @@
     <string name="settings_start_at_login_headline">Start at login</string>
     <string name="settings_start_at_login_support">Launch Tenshu automatically when you sign in</string>
     <string name="settings_start_at_login_approval_support">Allow Tenshu in System Settings → Login Items</string>
+    <string name="settings_start_at_login_approval_support_windows">Turn Tenshu Control on in Settings → Apps → Startup</string>
 
     <!-- Tenshu Drive in the Android system file dialogs (cross-app-file-access.md P3 / D-D). -->
     <string name="drive_documents_root_title">Tenshu Drive</string>

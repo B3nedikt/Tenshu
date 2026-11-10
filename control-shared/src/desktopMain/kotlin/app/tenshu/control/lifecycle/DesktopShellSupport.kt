@@ -12,9 +12,10 @@ import java.awt.SystemTray
  *    `Tray` in the notification area ([inProcessTray]), so only where AWT reports a system tray.
  *    Linux: none. With close-to-tray on (the default), closing the window where there is no tray
  *    left a resident Control with no window, no tray icon and no taskbar entry.
- *  - **Start at login.** The only mechanisms are a LaunchAgent and `SMAppService` (macOS).
- *    Elsewhere the LaunchAgent path wrote a plist nobody reads and the switch then reported itself
- *    **on**.
+ *  - **Start at login.** macOS: a LaunchAgent or `SMAppService`. Windows: the MSIX startup task,
+ *    toggled through the packaged tray agent ([WindowsStartupTask]), so only inside the package.
+ *    Linux: none. Before either existed, the LaunchAgent path wrote a plist nobody reads and the
+ *    switch then reported itself **on**.
  *
  * This is the one place that says what the shell can do, so the window, the settings screen, the
  * tray and the start-at-login manager cannot disagree.
@@ -35,20 +36,29 @@ data class DesktopShellSupport(
             val osName = System.getProperty("os.name").orEmpty()
             // ⚠ Probed only on Windows: AWT is never touched for the macOS answer, which does not
             // depend on it.
-            forOs(osName, systemTraySupported = isWindows(osName) && awtSystemTraySupported())
+            forOs(
+                osName,
+                systemTraySupported = isWindows(osName) && awtSystemTraySupported(),
+                windowsStartupTask = isWindows(osName) && WindowsTrayAgentBinary.packaged() != null,
+            )
         }
 
         /**
          * Pure, so the decision is testable for every OS from any host. [systemTraySupported] is
          * the host's AWT answer, which only the Windows tray depends on — a headless JVM or a
          * shell with no notification area degrades to "no tray", so close quits.
+         * [windowsStartupTask]: this is the packaged Control, whose agent can toggle the startup task.
          */
-        fun forOs(osName: String, systemTraySupported: Boolean = true): DesktopShellSupport {
+        fun forOs(
+            osName: String,
+            systemTraySupported: Boolean = true,
+            windowsStartupTask: Boolean = false,
+        ): DesktopShellSupport {
             val mac = osName.startsWith("Mac", ignoreCase = true)
             val windowsTray = isWindows(osName) && systemTraySupported
             return DesktopShellSupport(
                 trayAvailable = mac || windowsTray,
-                startAtLoginAvailable = mac,
+                startAtLoginAvailable = mac || (isWindows(osName) && windowsStartupTask),
                 inProcessTray = windowsTray,
             )
         }

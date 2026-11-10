@@ -32,6 +32,13 @@ public static class Program
             return failure == null ? 0 : 1;
         }
 
+        // `tray-agent --startup-task status|enable|disable`: Control's start-at-login switch (LoginStart).
+        if (args.Length >= 2 && args[0] == "--startup-task")
+        {
+            WinRT.ComWrappersSupport.InitializeComWrappers();
+            return LoginStart.RunCli(args[1], Console.Out);
+        }
+
         // One tray per user session: Control may start the agent again while one is already running.
         using var single = new Mutex(initiallyOwned: true, @"Local\Tenshu.TrayAgent", out var first);
         if (!first) return 0;
