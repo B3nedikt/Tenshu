@@ -512,6 +512,8 @@
     <string name="settings_start_at_login_headline">Bei Anmeldung starten</string>
     <string name="settings_start_at_login_support">Tenshu automatisch starten, wenn du dich anmeldest</string>
     <string name="settings_start_at_login_approval_support_windows">Aktiviere Tenshu Control unter Einstellungen → Apps → Autostart</string>
+    <string name="settings_explorer_integration_headline">Drive im Datei-Explorer anzeigen</string>
+    <string name="settings_explorer_integration_support">Ein Ordner „Tenshu Drive“, dessen Dateien beim Öffnen geladen werden. Vorerst schreibgeschützt.</string>
 
     <!-- Tenshu Drive in the Android system file dialogs (cross-app-file-access.md P3 / D-D). -->
     <string name="drive_documents_root_title">Tenshu Drive</string>

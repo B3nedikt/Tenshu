@@ -67,6 +67,7 @@ object WindowsCloudFiles {
     const val PLACEHOLDER_FLAG_SUPERSEDE = 0x4
 
     // File attributes a placeholder carries (GetFileAttributesW).
+    const val FILE_ATTRIBUTE_READONLY = 0x1
     const val FILE_ATTRIBUTE_DIRECTORY = 0x10
     const val FILE_ATTRIBUTE_NORMAL = 0x80
     const val FILE_ATTRIBUTE_SPARSE_FILE = 0x200
@@ -102,6 +103,8 @@ object WindowsCloudFiles {
         val modifiedAtMillis: Long,
         val flags: Int = PLACEHOLDER_FLAG_MARK_IN_SYNC,
         val directory: Boolean = false,
+        /** `FILE_ATTRIBUTE_READONLY`: editors refuse to save over it, Explorer asks before deleting it. */
+        val readOnly: Boolean = false,
     )
 
     /** Who opened the file, when the connection asked for [CONNECT_FLAG_REQUIRE_PROCESS_INFO]. */
@@ -274,7 +277,8 @@ object WindowsCloudFiles {
             info.set(
                 ValueLayout.JAVA_INT,
                 meta + l.off(l.FILE_BASIC_INFO, "FileAttributes"),
-                if (p.directory) FILE_ATTRIBUTE_DIRECTORY else FILE_ATTRIBUTE_NORMAL,
+                (if (p.directory) FILE_ATTRIBUTE_DIRECTORY else FILE_ATTRIBUTE_NORMAL)
+                    .let { if (p.readOnly) (it and FILE_ATTRIBUTE_NORMAL.inv()) or FILE_ATTRIBUTE_READONLY else it },
             )
             info.set(ValueLayout.JAVA_LONG, meta + l.off(l.FS_METADATA, "FileSize"), if (p.directory) 0L else p.size)
             info.set(ValueLayout.ADDRESS, l.off(l.PLACEHOLDER_CREATE_INFO, "FileIdentity"), bytes(arena, p.identity))
