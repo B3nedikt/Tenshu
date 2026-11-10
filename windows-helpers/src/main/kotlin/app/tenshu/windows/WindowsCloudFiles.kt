@@ -215,6 +215,27 @@ object WindowsCloudFiles {
     fun fileAttributes(path: Path): Int? =
         natives?.let { n -> runCatching { n.fileAttributes(path.toString()) }.getOrNull() }
 
+    // CF_PIN_STATE
+    const val PIN_STATE_UNSPECIFIED = 0
+    const val PIN_STATE_PINNED = 1
+    const val PIN_STATE_UNPINNED = 2
+
+    /**
+     * `CfHydratePlaceholder` over the whole file: blocks until this provider's own FETCH_DATA has delivered it,
+     * so call it from a thread the fetch does not need. ⚠ Explicit, so `BLOCK_SELF_IMPLICIT_HYDRATION` does not
+     * stop it. Answers the HRESULT.
+     */
+    fun hydrate(path: Path): Int? = onAttributeHandle(path) { n, h -> n.hydrate(h) }
+
+    /** `CfDehydratePlaceholder` over the whole file: the local copy goes, the placeholder stays online-only. */
+    fun dehydrate(path: Path): Int? = onAttributeHandle(path) { n, h -> n.dehydrate(h) }
+
+    /** `CfSetPinState` ([PIN_STATE_PINNED] = "Always keep on this device"). */
+    fun setPinState(path: Path, state: Int): Int? = onAttributeHandle(path) { n, h -> n.setPinState(h, state) }
+
+    private fun onAttributeHandle(path: Path, op: (Natives, Any) -> Int): Int? =
+        natives?.let { n -> runCatching { n.withAttributeHandle(path.toString()) { op(n, it) } }.getOrElse { CloudFilesHResult.E_FAIL } }
+
     /** Every `java.lang.foreign` reference of [WindowsCloudFiles]. */
     private class Natives private constructor(
         private val register: MethodHandle,
@@ -225,6 +246,12 @@ object WindowsCloudFiles {
         private val execute: MethodHandle,
         private val getSyncRootInfoByPath: MethodHandle,
         private val getFileAttributes: MethodHandle,
+        private val hydratePlaceholder: MethodHandle,
+        private val dehydratePlaceholder: MethodHandle,
+        private val setPin: MethodHandle,
+        /** `CreateFileW` with `GetLastError` captured: its first argument is the capture segment. */
+        private val createFile: MethodHandle,
+        private val closeHandle: MethodHandle,
     ) {
         private val linker = Linker.nativeLinker()
         private val l = CloudFilesLayouts
@@ -265,6 +292,37 @@ object WindowsCloudFiles {
             val attributes = getFileAttributes.invokeExact(wstr(arena, path)) as Int
             if (attributes == -1) null else attributes
         }
+
+        /**
+         * Runs [op] on an attribute-only handle to [path] — enough for the pin and hydration calls, and opening
+         * it does not download anything. Answers `HRESULT_FROM_WIN32(GetLastError())` when the open fails.
+         */
+        fun withAttributeHandle(path: String, op: (Any) -> Int): Int = Arena.ofConfined().use { arena ->
+            val capture = arena.allocate(Linker.Option.captureStateLayout())
+            val handle = createFile.invokeExact(
+                capture, wstr(arena, path), FILE_READ_ATTRIBUTES or FILE_WRITE_ATTRIBUTES,
+                FILE_SHARE_ALL, MemorySegment.NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, MemorySegment.NULL,
+            ) as MemorySegment
+            if (handle.address() == INVALID_HANDLE || handle.address() == 0L) {
+                val error = capture.get(ValueLayout.JAVA_INT, Linker.Option.captureStateLayout().byteOffset(groupElement("GetLastError")))
+                return@use if (error <= 0) error else (error and 0xFFFF) or 0x80070000.toInt()
+            }
+            try {
+                op(handle)
+            } finally {
+                closeHandle.invokeExact(handle) as Int
+            }
+        }
+
+        // LARGE_INTEGER by value is a 64-bit integer on x64; a length of -1 means "to the end of the file".
+        fun hydrate(handle: Any): Int =
+            hydratePlaceholder.invokeExact(handle as MemorySegment, 0L, -1L, 0, MemorySegment.NULL) as Int
+
+        fun dehydrate(handle: Any): Int =
+            dehydratePlaceholder.invokeExact(handle as MemorySegment, 0L, -1L, 0, MemorySegment.NULL) as Int
+
+        fun setPinState(handle: Any, state: Int): Int =
+            setPin.invokeExact(handle as MemorySegment, state, 0, MemorySegment.NULL) as Int
 
         fun createPlaceholder(parent: String, p: Placeholder): Int = Arena.ofConfined().use { arena ->
             val info = arena.allocate(l.PLACEHOLDER_CREATE_INFO)
@@ -349,28 +407,49 @@ object WindowsCloudFiles {
             private val l = CloudFilesLayouts
 
             fun onFetchData(infoPointer: MemorySegment, paramsPointer: MemorySegment) {
-                var request: FetchData? = null
-                try {
+                // ⚠ Failed from the keys alone when the rest cannot be read: an unanswered request leaves the
+                // opener waiting out the ~60 s timeout.
+                var minimal: FetchData? = null
+                val request: FetchData = try {
                     val info = infoPointer.reinterpret(l.CALLBACK_INFO.byteSize())
                     val params = paramsPointer.reinterpret(l.CALLBACK_PARAMETERS_FETCH_DATA.byteSize())
                     val p = l.CALLBACK_PARAMETERS_FETCH_DATA
-                    request = FetchData(
-                        connectionKey = info.get(ValueLayout.JAVA_LONG, l.off(l.CALLBACK_INFO, "ConnectionKey")),
-                        transferKey = info.get(ValueLayout.JAVA_LONG, l.off(l.CALLBACK_INFO, "TransferKey")),
-                        requestKey = info.get(ValueLayout.JAVA_LONG, l.off(l.CALLBACK_INFO, "RequestKey")),
+                    // Only what the OS sent: an older Windows may hand over a shorter CF_CALLBACK_INFO.
+                    val structSize = info.get(ValueLayout.JAVA_INT, l.off(l.CALLBACK_INFO, "StructSize")).toLong()
+                    fun sent(field: String) = structSize >= l.off(l.CALLBACK_INFO, field) + 8
+                    val facts = facts(info, params)
+                    val connectionKey = info.get(ValueLayout.JAVA_LONG, l.off(l.CALLBACK_INFO, "ConnectionKey"))
+                    val transferKey = info.get(ValueLayout.JAVA_LONG, l.off(l.CALLBACK_INFO, "TransferKey"))
+                    val requestKey = if (sent("RequestKey")) info.get(ValueLayout.JAVA_LONG, l.off(l.CALLBACK_INFO, "RequestKey")) else 0L
+                    val fileSize = info.get(ValueLayout.JAVA_LONG, l.off(l.CALLBACK_INFO, "FileSize"))
+                    val requiredOffset = params.get(ValueLayout.JAVA_LONG, l.off(p, "RequiredFileOffset"))
+                    val requiredLength = params.get(ValueLayout.JAVA_LONG, l.off(p, "RequiredLength"))
+                    minimal = FetchData(
+                        connectionKey, transferKey, requestKey, ByteArray(0), null, fileSize,
+                        requiredOffset, requiredLength, requiredOffset, requiredLength, null, facts,
+                    )
+                    FetchData(
+                        connectionKey = connectionKey,
+                        transferKey = transferKey,
+                        requestKey = requestKey,
                         fileIdentity = fileIdentity(info),
                         normalizedPath = readWstr(info.get(ValueLayout.ADDRESS, l.off(l.CALLBACK_INFO, "NormalizedPath"))),
-                        fileSize = info.get(ValueLayout.JAVA_LONG, l.off(l.CALLBACK_INFO, "FileSize")),
-                        requiredOffset = params.get(ValueLayout.JAVA_LONG, l.off(p, "RequiredFileOffset")),
-                        requiredLength = params.get(ValueLayout.JAVA_LONG, l.off(p, "RequiredLength")),
+                        fileSize = fileSize,
+                        requiredOffset = requiredOffset,
+                        requiredLength = requiredLength,
                         optionalOffset = params.get(ValueLayout.JAVA_LONG, l.off(p, "OptionalFileOffset")),
                         optionalLength = params.get(ValueLayout.JAVA_LONG, l.off(p, "OptionalLength")),
-                        process = process(info),
-                        facts = facts(info, params),
+                        process = if (sent("ProcessInfo")) process(info) else null,
+                        facts = facts,
                     )
+                } catch (t: Throwable) {
+                    runCatching { minimal?.fail() }
+                    return
+                }
+                try {
                     handler.fetchData(request)
                 } catch (t: Throwable) {
-                    runCatching { request?.fail() }
+                    runCatching { request.fail() }
                 }
             }
 
@@ -427,6 +506,12 @@ object WindowsCloudFiles {
             private const val CALLBACK_TYPE_CANCEL_FETCH_DATA = 2
             private const val CALLBACK_TYPE_NONE = -1 // 0xFFFFFFFF
             private const val FILETIME_EPOCH_OFFSET = 116_444_736_000_000_000L
+            private const val FILE_READ_ATTRIBUTES = 0x80
+            private const val FILE_WRITE_ATTRIBUTES = 0x100
+            private const val FILE_SHARE_ALL = 0x7 // read | write | delete
+            private const val OPEN_EXISTING = 3
+            private const val FILE_FLAG_BACKUP_SEMANTICS = 0x02000000 // so a folder opens too
+            private const val INVALID_HANDLE = -1L
 
             fun wstr(arena: Arena, s: String): MemorySegment = WindowsCloudFilesStrings.wstr(arena, s)
 
@@ -442,12 +527,13 @@ object WindowsCloudFiles {
             fun loadOrNull(): Natives? {
                 if (ValueLayout.ADDRESS.byteSize() != 8L) return null
                 val linker = Linker.nativeLinker()
-                fun handle(library: String, symbol: String, descriptor: FunctionDescriptor): MethodHandle? {
+                fun handle(library: String, symbol: String, descriptor: FunctionDescriptor, vararg options: Linker.Option): MethodHandle? {
                     val address = SymbolLookup.libraryLookup(library, Arena.global()).find(symbol).orElse(null) ?: return null
-                    return linker.downcallHandle(address, descriptor)
+                    return linker.downcallHandle(address, descriptor, *options)
                 }
                 val i = ValueLayout.JAVA_INT
                 val a = ValueLayout.ADDRESS
+                val j = ValueLayout.JAVA_LONG
                 val cf = "cldapi.dll"
                 return Natives(
                     // HRESULT CfRegisterSyncRoot(PCWSTR, const CF_SYNC_REGISTRATION*, const CF_SYNC_POLICIES*, CF_REGISTER_FLAGS)
@@ -464,6 +550,18 @@ object WindowsCloudFiles {
                     // HRESULT CfGetSyncRootInfoByPath(PCWSTR, CF_SYNC_ROOT_INFO_CLASS, PVOID, DWORD, DWORD*)
                     getSyncRootInfoByPath = handle(cf, "CfGetSyncRootInfoByPath", FunctionDescriptor.of(i, a, i, a, i, a)) ?: return null,
                     getFileAttributes = handle("kernel32.dll", "GetFileAttributesW", FunctionDescriptor.of(i, a)) ?: return null,
+                    // HRESULT CfHydratePlaceholder(HANDLE, LARGE_INTEGER offset, LARGE_INTEGER length, CF_HYDRATE_FLAGS, LPOVERLAPPED)
+                    hydratePlaceholder = handle(cf, "CfHydratePlaceholder", FunctionDescriptor.of(i, a, j, j, i, a)) ?: return null,
+                    // HRESULT CfDehydratePlaceholder(HANDLE, LARGE_INTEGER offset, LARGE_INTEGER length, CF_DEHYDRATE_FLAGS, LPOVERLAPPED)
+                    dehydratePlaceholder = handle(cf, "CfDehydratePlaceholder", FunctionDescriptor.of(i, a, j, j, i, a)) ?: return null,
+                    // HRESULT CfSetPinState(HANDLE, CF_PIN_STATE, CF_SET_PIN_FLAGS, LPOVERLAPPED)
+                    setPin = handle(cf, "CfSetPinState", FunctionDescriptor.of(i, a, i, i, a)) ?: return null,
+                    // HANDLE CreateFileW(LPCWSTR, DWORD access, DWORD share, LPSECURITY_ATTRIBUTES, DWORD disposition, DWORD flags, HANDLE)
+                    createFile = handle(
+                        "kernel32.dll", "CreateFileW", FunctionDescriptor.of(a, a, i, i, a, i, i, a),
+                        Linker.Option.captureCallState("GetLastError"),
+                    ) ?: return null,
+                    closeHandle = handle("kernel32.dll", "CloseHandle", FunctionDescriptor.of(i, a)) ?: return null,
                 )
             }
         }

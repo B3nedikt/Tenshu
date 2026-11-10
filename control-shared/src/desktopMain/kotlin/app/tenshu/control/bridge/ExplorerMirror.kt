@@ -28,7 +28,14 @@ internal object ExplorerMirror {
         val isPlaceholder: Boolean,
         val size: Long,
         val modifiedAtMillis: Long,
+        /** Its own pin mark, as Explorer set it; [Pin.NONE] inherits the nearest marked folder's. */
+        val pin: Pin = Pin.NONE,
+        /** No local copy: opening it downloads (`RECALL_ON_DATA_ACCESS`). */
+        val online: Boolean = false,
     )
+
+    /** "Always keep on this device" ([PINNED]) and "Free up space" ([UNPINNED]). */
+    enum class Pin { NONE, PINNED, UNPINNED }
 
     sealed interface Action {
         val relative: String
@@ -36,8 +43,11 @@ internal object ExplorerMirror {
         /** Remove a placeholder; folders only once everything below them is gone. */
         data class Remove(override val relative: String, val isFolder: Boolean) : Action
 
-        /** Create a placeholder for [remote] at [relative] (its parent exists by then). */
-        data class Create(override val relative: String, val remote: Remote) : Action
+        /**
+         * Create a placeholder for [remote] at [relative] (its parent exists by then). [pinned]: the file it
+         * replaces was marked "Always keep on this device", and the replacement keeps that mark.
+         */
+        data class Create(override val relative: String, val remote: Remote, val pinned: Boolean = false) : Action
     }
 
     /**
@@ -85,7 +95,7 @@ internal object ExplorerMirror {
                 }
                 !row.isFolder && (found.size != row.size || found.modifiedAtMillis != row.modifiedAtMillis) -> {
                     removals[key] = Action.Remove(found.relative, isFolder = false)
-                    creations += Action.Create(relative, row)
+                    creations += Action.Create(relative, row, pinned = found.pin == Pin.PINNED)
                 }
             }
         }
@@ -108,6 +118,35 @@ internal object ExplorerMirror {
         val stuck = removals.keys - removable.keys
         return removable.values.sortedByDescending { depth(it.relative) } +
             creations.filter { key(it.relative) !in stuck }.sortedBy { depth(it.relative) }
+    }
+
+    /** What to do about one file's local copy. */
+    enum class Copy { DOWNLOAD, DROP }
+
+    /**
+     * The placeholder files whose local copy disagrees with their pin: a pinned file still online-only is
+     * downloaded, an unpinned one with a local copy has it dropped. A file without a mark of its own follows the
+     * nearest folder above it that has one (Explorer marks the folder it was used on); with none, it is left as
+     * it is — opened files stay until the user frees them.
+     */
+    fun copies(local: List<Local>): Map<String, Copy> {
+        val folders = local.filter { it.isFolder }.associate { key(it.relative) to it.pin }
+        fun effective(entry: Local): Pin {
+            if (entry.pin != Pin.NONE) return entry.pin
+            var parent = key(entry.relative).substringBeforeLast('/', "")
+            while (parent.isNotEmpty()) {
+                folders[parent]?.takeIf { it != Pin.NONE }?.let { return it }
+                parent = parent.substringBeforeLast('/', "")
+            }
+            return Pin.NONE
+        }
+        return local.filter { it.isPlaceholder && !it.isFolder }.mapNotNull { entry ->
+            when (effective(entry)) {
+                Pin.PINNED -> if (entry.online) entry.relative to Copy.DOWNLOAD else null
+                Pin.UNPINNED -> if (!entry.online) entry.relative to Copy.DROP else null
+                Pin.NONE -> null
+            }
+        }.toMap()
     }
 
     /** Folder rows for any ancestor the listing left out, so every file has a parent to be created in. */

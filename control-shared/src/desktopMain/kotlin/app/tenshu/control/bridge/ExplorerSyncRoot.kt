@@ -30,8 +30,11 @@ import org.tenshu.sync.client.syncService
 import org.tenshu.sync.closeContentStream
 import org.tenshu.sync.openContentStream
 import org.tenshu.sync.readContentRange
+import java.nio.file.ClosedWatchServiceException
 import java.nio.file.Files
 import java.nio.file.LinkOption
+import java.nio.file.StandardWatchEventKinds
+import java.nio.file.WatchService
 import java.nio.file.Path
 import java.nio.file.attribute.DosFileAttributes
 import java.util.UUID
@@ -67,11 +70,15 @@ internal class ExplorerSyncRoot(
     private val cancelled = ConcurrentHashMap.newKeySet<Long>()
 
     @Volatile private var connection: WindowsCloudFiles.Connection? = null
+    @Volatile private var watcher: WatchService? = null
+    private val pins = Channel<Unit>(Channel.CONFLATED)
+    private val pinThread = Executors.newSingleThreadExecutor { r -> Thread(r, "explorer-pin").apply { isDaemon = true } }
     private var jobs: List<Job> = emptyList()
 
     /** Registers (idempotent), connects and starts keeping the folder in step. False when Windows refused. */
     fun start(): Boolean {
         val id = syncRootId() ?: return false.also { log("explorer: no user SID; not registering") }
+        sweepStale(id)
         Files.createDirectories(root)
         val outcome = WindowsSyncRootManager.register(
             WindowsSyncRootManager.Info(
@@ -112,16 +119,29 @@ internal class ExplorerSyncRoot(
             scope.launch {
                 while (isActive) {
                     passes.trySend(Unit)
+                    pins.trySend(Unit)
                     delay(REPAIR_INTERVAL_MILLIS)
                 }
             },
+            scope.launch {
+                while (isActive) {
+                    pins.receive()
+                    delay(PIN_DEBOUNCE_MILLIS)
+                    // One at a time, on the pin thread; a pass already queued absorbs the signals behind it.
+                    runCatching { pinThread.submit { runCatching { pinPass() }.onFailure { log("explorer: pin pass failed: $it") } }.get() }
+                }
+            },
         )
+        Thread({ runCatching { watchFolder() }.onFailure { log("explorer: folder watch stopped: $it") } }, "explorer-watch")
+            .apply { isDaemon = true }.start()
         return true
     }
 
     /** Stops serving; the registration and the placeholders stay (Control quitting). */
     fun stop() {
         scope.cancel()
+        runCatching { watcher?.close() }
+        pinThread.shutdownNow()
         connection?.disconnect()?.let { log("explorer: disconnected -> ${CloudFilesHResult.describe(it)}") }
         connection = null
         fetchers.shutdownNow()
@@ -179,6 +199,7 @@ internal class ExplorerSyncRoot(
             if (!ok) failed++
         }
         log("explorer: pass applied ${actions.size - failed} of ${actions.size} changes")
+        pins.trySend(Unit)
     }
 
     private suspend fun remoteRows(): List<ExplorerMirror.Remote>? =
@@ -205,12 +226,19 @@ internal class ExplorerSyncRoot(
             val attributes = runCatching {
                 Files.readAttributes(path, DosFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
             }.getOrNull() ?: return@mapNotNull null
+            val bits = WindowsCloudFiles.fileAttributes(path) ?: 0
             ExplorerMirror.Local(
                 relative = root.relativize(path).joinToString("/"),
                 isFolder = attributes.isDirectory,
-                isPlaceholder = isPlaceholder(path),
+                isPlaceholder = bits and WindowsCloudFiles.FILE_ATTRIBUTE_REPARSE_POINT != 0,
                 size = if (attributes.isDirectory) 0 else attributes.size(),
                 modifiedAtMillis = attributes.lastModifiedTime().toMillis(),
+                pin = when {
+                    bits and WindowsCloudFiles.FILE_ATTRIBUTE_PINNED != 0 -> ExplorerMirror.Pin.PINNED
+                    bits and WindowsCloudFiles.FILE_ATTRIBUTE_UNPINNED != 0 -> ExplorerMirror.Pin.UNPINNED
+                    else -> ExplorerMirror.Pin.NONE
+                },
+                online = bits and WindowsCloudFiles.FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS != 0,
             )
         }
 
@@ -236,8 +264,66 @@ internal class ExplorerSyncRoot(
                 readOnly = !row.isFolder,
             ),
         ) ?: return false
-        if (!CloudFilesHResult.succeeded(hr)) log("explorer: create '${action.relative}' -> ${CloudFilesHResult.describe(hr)}")
-        return CloudFilesHResult.succeeded(hr)
+        if (!CloudFilesHResult.succeeded(hr)) {
+            log("explorer: create '${action.relative}' -> ${CloudFilesHResult.describe(hr)}")
+            return false
+        }
+        // A replaced file the user kept on this device stays kept; the pin pass downloads the new version.
+        if (action.pinned) {
+            val pin = WindowsCloudFiles.setPinState(root.resolve(action.relative), WindowsCloudFiles.PIN_STATE_PINNED)
+            if (pin != null && !CloudFilesHResult.succeeded(pin)) log("explorer: re-pin '${action.relative}' -> ${CloudFilesHResult.describe(pin)}")
+        }
+        return true
+    }
+
+    /**
+     * "Always keep on this device" / "Free up space": Explorer only marks the files, the provider acts. Runs on
+     * its own thread — a download blocks until our fetch threads have served it.
+     */
+    private fun pinPass() {
+        if (!root.isDirectory()) return
+        val copies = ExplorerMirror.copies(localEntries())
+        for ((relative, copy) in copies) {
+            val path = root.resolve(relative)
+            val hr = when (copy) {
+                ExplorerMirror.Copy.DOWNLOAD -> WindowsCloudFiles.hydrate(path)
+                ExplorerMirror.Copy.DROP -> WindowsCloudFiles.dehydrate(path)
+            } ?: continue
+            // A file open elsewhere cannot be freed; the next pin pass tries again.
+            log("explorer: ${copy.name.lowercase()} '$relative' -> ${CloudFilesHResult.describe(hr)}")
+        }
+    }
+
+    /**
+     * Change notifications for every folder in the tree; any of them asks for a pin pass.
+     * ⚠ One registration per folder, not `ExtendedWatchEventModifier.FILE_TREE`: that lives in `jdk.unsupported`,
+     * which the packaged app's trimmed runtime does not carry (measured: `NoClassDefFoundError` in the MSIX).
+     */
+    private fun watchFolder() {
+        val watcher = root.fileSystem.newWatchService()
+        this.watcher = watcher
+        val watched = HashSet<Path>()
+        fun registerFolders() {
+            Files.walk(root).use { s -> s.filter { Files.isDirectory(it, LinkOption.NOFOLLOW_LINKS) }.toList() }
+                .filter { watched.add(it) }
+                .forEach { dir ->
+                    runCatching {
+                        dir.register(watcher, StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_MODIFY)
+                    }.onFailure { watched.remove(dir) }
+                }
+        }
+        try {
+            registerFolders()
+            while (true) {
+                val key = watcher.take()
+                val created = key.pollEvents().any { it.kind() == StandardWatchEventKinds.ENTRY_CREATE }
+                if (!key.reset()) watched.remove(key.watchable() as Path)
+                if (created) runCatching { registerFolders() }
+                pins.trySend(Unit)
+            }
+        } catch (_: ClosedWatchServiceException) {
+        } catch (_: InterruptedException) {
+        }
     }
 
     private fun deletePlaceholder(path: Path): Boolean = runCatching {
@@ -331,6 +417,17 @@ internal class ExplorerSyncRoot(
         check(CloudFilesHResult.succeeded(hr)) { "CfExecute(TRANSFER_DATA) at $offset -> ${CloudFilesHResult.describe(hr)}" }
     }
 
+    /**
+     * Unregisters this user's other `TenshuDrive!` roots — left by an earlier id scheme or a crashed run — so
+     * Explorer never shows two. ⚠ `GetCurrentSyncRoots` omits roots under `%TEMP%` (§7.7 trap 1); ours never is.
+     */
+    private fun sweepStale(current: String) {
+        val prefix = current.substringBeforeLast('!') + "!"
+        val ids: List<String> = WindowsSyncRootManager.currentSyncRootIds()?.getOrNull() ?: emptyList()
+        ids.filter { id -> id.startsWith(prefix) && id != current }
+            .forEach { log("explorer: stale root $it -> Unregister: ${WindowsSyncRootManager.unregister(it)}") }
+    }
+
     private fun syncRootId(): String? = WindowsAccount.currentUserSid()?.let { "$PROVIDER!$it!$ACCOUNT" }
 
     /** The running launcher's own icon (the packaged `TenshuControl.exe`); Windows' cloud icon in a dev run. */
@@ -351,6 +448,7 @@ internal class ExplorerSyncRoot(
         private const val CHUNK_BYTES = 1L shl 20
         private const val FETCH_THREADS = 4
         private const val DEBOUNCE_MILLIS = 1_000L
+        private const val PIN_DEBOUNCE_MILLIS = 500L
         private const val REPAIR_INTERVAL_MILLIS = 60_000L
         private const val MAX_IDENTITY_BYTES = 4096
 
