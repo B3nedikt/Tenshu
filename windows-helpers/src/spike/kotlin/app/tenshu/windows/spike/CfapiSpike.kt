@@ -33,7 +33,7 @@ private var SPIKE_PARENT: Path = Paths.get(System.getenv("TEMP") ?: System.getPr
 private const val SYNC_ROOT_REGISTRY = "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\SyncRootManager"
 private const val NAV_PANE_REGISTRY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Desktop\\NameSpace"
 
-/** ~10 KB, so a hydration needs more than one aligned `TRANSFER_DATA` chunk. */
+/** ~13 KB, so a hydration needs more than one aligned `TRANSFER_DATA` chunk. */
 private val PAYLOAD: ByteArray = buildString {
     for (n in 1..320) append("Tenshu X0 cfapi spike - payload line %03d\r\n".format(n))
 }.encodeToByteArray()
@@ -351,8 +351,11 @@ private fun removeLeftovers() {
         log("leftover sync root $it -> Unregister: ${WindowsSyncRootManager.unregister(it)}")
     }
     if (Files.isDirectory(SPIKE_PARENT)) {
+        // ⚠ CfGetSyncRootInfoByPath succeeds for any path *inside* a root, so a folder is a leftover root only
+        // when its parent is in none: under a --parent inside OneDrive, nothing here may be unregistered.
+        fun inRoot(p: Path?) = p != null && WindowsCloudFiles.syncRootFileId(p)?.isSuccess == true
         Files.walk(SPIKE_PARENT, 3).use { s -> s.filter { Files.isDirectory(it) }.toList() }.forEach { dir ->
-            if (WindowsCloudFiles.syncRootFileId(dir)?.isSuccess == true) {
+            if (inRoot(dir) && !inRoot(dir.parent)) {
                 log("leftover cf root $dir -> CfUnregisterSyncRoot: ${WindowsCloudFiles.unregisterSyncRoot(dir)?.let(CloudFilesHResult::describe)}")
             }
         }
