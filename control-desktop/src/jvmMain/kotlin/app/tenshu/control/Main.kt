@@ -113,6 +113,8 @@ fun main() {
     // the icon is up in milliseconds and a slow or wedged proxy costs the user visibility of
     // Control, not Control itself.
     ensureTrayRunning()
+    // Windows: the native C# tray agent (desktop-windows-port.md §3.9, D5); a no-op without one.
+    WindowsTrayAgent.startAndSupervise(SocketPathResolver.resolveDir()) { System.err.println(it) }
 
     val koinApp = startKoin {
         modules(dataModule, platformProxyModule, proxyModule, viewModelsModule)
@@ -302,10 +304,11 @@ fun main() {
         // `isVisible` effect below would not raise it from behind other windows.
         val raiseRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
 
-        // Windows: the notification-area icon is this process's own (desktop-windows-port.md
-        // §3.4). ⚠ Never on macOS, where the Swift agent started by ensureTrayRunning owns it.
-        // Composed here, so exitApplication() takes the icon down with the window.
-        if (DesktopShellSupport.current.inProcessTray) {
+        // Windows without the native agent (a plain dev run): the notification-area icon is this
+        // process's own (desktop-windows-port.md §3.4). ⚠ Never on macOS, where the Swift agent
+        // started by ensureTrayRunning owns it, and never alongside the native Windows agent (D5) —
+        // two icons for one app. Composed here, so exitApplication() takes the icon down with the window.
+        if (DesktopShellSupport.current.inProcessTray && WindowsTrayAgent.binary == null) {
             WindowsControlTray(
                 windowController = windowController,
                 syncPauseState = syncPauseState,

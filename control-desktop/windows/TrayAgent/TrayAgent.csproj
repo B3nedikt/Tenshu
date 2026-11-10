@@ -5,8 +5,11 @@
     control-desktop/macos/TrayAgent. A second executable inside the Control MSIX, speaking the JSON bridge.
 
     ⚠ No .xaml files on purpose: the UI is built in code, so `dotnet publish` needs no XAML compiler step.
-    ⚠ The Windows App SDK is self-contained for side-loading (T0); the Store build decides at W4 whether to
-      declare the framework package instead.
+    ⚠⚠ The Windows App SDK is FRAMEWORK-DEPENDENT, not self-contained. Self-contained registers WinRT classes in
+      this exe's own manifest, which Windows ignores once the process runs in a package context — and as a child
+      of the packaged Control it always does: WinUI then died at startup (0xc000027b in Microsoft.UI.Xaml.dll,
+      2026-11-10). Control's AppxManifest declares the Microsoft.WindowsAppRuntime.1.8 dependency instead (the
+      Store installs it); a standalone dev run bootstraps it explicitly (Program.cs).
   -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -19,7 +22,9 @@
     <UseWinUI>true</UseWinUI>
     <WindowsPackageType>None</WindowsPackageType>
     <EnableMsixTooling>false</EnableMsixTooling>
-    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <WindowsAppSDKSelfContained>false</WindowsAppSDKSelfContained>
+    <!-- Bootstrapped by hand, and only without package identity: in a package the graph already has it. -->
+    <WindowsAppSdkBootstrapInitialize>false</WindowsAppSdkBootstrapInitialize>
     <SelfContained>true</SelfContained>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

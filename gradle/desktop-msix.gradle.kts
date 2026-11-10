@@ -39,11 +39,43 @@ import javax.imageio.ImageIO
 //
 // ⚠ Configuration cache: every value `doLast` touches is declared inside the `register` block (the rule
 // gradle/desktop-app-signing.gradle.kts documents).
+//
+// Optional, Control only: extra["tenshu.msix.trayAgentProject"] = <path to TrayAgent.csproj> publishes the
+// native tray agent (desktop-windows-port.md §3.9, D5) with `dotnet publish` and ships it inside the package as
+// `tray-agent\`, where Control looks for it (`WindowsTrayAgent`). `dotnet`: -Ptenshu.dotnet / TENSHU_DOTNET,
+// else `C:\Program Files\dotnet\dotnet.exe`, else `dotnet` on PATH.
+
+val trayAgentProject = (project.extra.properties["tenshu.msix.trayAgentProject"] as String?)?.let { project.file(it) }
+val publishTrayAgent = trayAgentProject?.let { csproj ->
+    tasks.register<Exec>("publishTrayAgent") {
+        group = "windows"
+        description = "Publishes the native Windows tray agent (dotnet publish) for packageMsix."
+        val isWindowsHost = System.getProperty("os.name").orEmpty().startsWith("Windows", ignoreCase = true)
+        onlyIf { isWindowsHost }
+        val outDir = layout.buildDirectory.dir("tray-agent").get().asFile
+        val dotnet = ((project.findProperty("tenshu.dotnet") as String?) ?: System.getenv("TENSHU_DOTNET"))
+            ?: File("C:/Program Files/dotnet/dotnet.exe").takeIf { it.isFile }?.path
+            ?: "dotnet"
+        inputs.files(fileTree(csproj.parentFile) { include("**/*.cs", "**/*.csproj", "**/*.manifest"); exclude("bin/**", "obj/**") })
+        // The cat comes from the Android vector the project embeds; a redrawn mark must republish.
+        inputs.file(project.rootProject.file("control/src/main/res/drawable/ic_launcher_monochrome.xml"))
+        outputs.dir(outDir)
+        commandLine(dotnet, "publish", csproj.path, "-c", "Release", "-o", outDir.path, "-nologo", "-v", "quiet")
+    }
+}
 
 tasks.register("packageMsix") {
     group = "windows"
     description = "Packages this app's jpackage app-image as a (side-loadable) MSIX — Windows hosts only."
     dependsOn("createDistributable")
+    publishTrayAgent?.let { dependsOn(it) }
+    val trayAgentDir = publishTrayAgent?.let { layout.buildDirectory.dir("tray-agent").get().asFile }
+    trayAgentDir?.let { inputs.dir(it).optional() }
+    // The agent is framework-dependent on the Windows App SDK, so the package must declare the runtime
+    // ("Name|MinVersion", from the module; it must match the SDK version the csproj pins).
+    val windowsAppRuntime = (project.extra.properties["tenshu.msix.windowsAppRuntime"] as String?)
+        ?.takeIf { trayAgentDir != null }?.split("|")
+    inputs.property("windowsAppRuntime", windowsAppRuntime?.joinToString("|").orEmpty())
 
     val isWindowsHost = System.getProperty("os.name").orEmpty().startsWith("Windows", ignoreCase = true)
     onlyIf { isWindowsHost }
@@ -101,6 +133,11 @@ tasks.register("packageMsix") {
         // ── Layout: the app-image as-is, plus the manifest and the assets it names ──
         layoutDir.deleteRecursively()
         appImage.copyRecursively(layoutDir)
+        // The native tray agent, beside the launcher, where Control's `WindowsTrayAgent` looks for it.
+        trayAgentDir?.let { dir ->
+            check(File(dir, "tray-agent.exe").isFile) { "publishTrayAgent produced no tray-agent.exe in $dir" }
+            dir.copyRecursively(File(layoutDir, "tray-agent"))
+        }
         val assets = File(layoutDir, "Assets").apply { mkdirs() }
 
         // Placeholder logos: a flat tile with the app's initial. ⚠ The Store build must ship the real
@@ -140,6 +177,7 @@ tasks.register("packageMsix") {
               </Properties>
               <Dependencies>
                 <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
+            ${windowsAppRuntime?.let { (name, min) -> "    <PackageDependency Name=\"$name\" MinVersion=\"$min\" Publisher=\"CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US\" />" }.orEmpty()}
               </Dependencies>
               <Resources>
                 <Resource Language="en-us" />

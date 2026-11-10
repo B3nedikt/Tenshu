@@ -26,6 +26,13 @@ public static class Program
         using var single = new Mutex(initiallyOwned: true, @"Local\Tenshu.TrayAgent", out var first);
         if (!first) return 0;
 
+        // Packaged (a child of the Control MSIX): the Windows App Runtime comes from the package graph, through the
+        // dependency Control's manifest declares. Standalone (a dev run): attach to the installed runtime by hand.
+        if (PeerPackage.OwnFamilyName() == null)
+        {
+            Microsoft.Windows.ApplicationModel.DynamicDependency.Bootstrap.Initialize(0x00010008); // 1.8
+        }
+
         WinRT.ComWrappersSupport.InitializeComWrappers();
         Application.Start(p =>
         {

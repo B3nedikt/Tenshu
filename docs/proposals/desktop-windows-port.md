@@ -340,8 +340,22 @@ four notifiers). Lives in `control-desktop/windows/TrayAgent/`.
   `ensureTrayRunning` + `TrayLiveness` do on macOS). ⚠ A child of a packaged full-trust process runs with the
   **same package identity**, so the bridge gate admits it as `Tenshu.Control` (already in
   `WINDOWS_BRIDGE_PACKAGES`) and its toasts carry the package's AUMID — *not verified* until the spike.
-- **Windows App SDK runtime:** self-contained for the side-load spike; for the Store, a framework-package
-  dependency the Store installs automatically (decide at W4).
+- **Windows App SDK runtime:** ⚠⚠ **framework-dependent, decided by measurement (2026-11-10).** A self-contained
+  agent registers WinRT classes in its own exe manifest, which Windows ignores once the process runs in a package
+  context — and as a child of the packaged Control it always does: WinUI died at startup (`0xc000027b` in
+  `Microsoft.UI.Xaml.dll`). Control's AppxManifest now declares `Microsoft.WindowsAppRuntime.1.8 ≥ 8000.994.2142.0`
+  (`tenshu.msix.windowsAppRuntime`, matching the SDK the csproj pins); the Store installs it, a side-load needs it
+  installed (the MSIX files ship in the `microsoft.windowsappsdk.runtime` NuGet package). A standalone dev agent
+  bootstraps the runtime by hand, and only without package identity.
+
+> **As built (T0, 2026-11-10).** `publishTrayAgent` (`dotnet publish`) feeds `packageMsix`, which ships the agent
+> as `tray-agent\` beside Control's launcher. `WindowsTrayAgent` (`control-desktop`) starts it at launch with
+> `TENSHU_IPC_DIR` handed over, and again every 30 s — the agent's single-instance mutex makes that the whole
+> restart policy. Control draws no Compose tray while an agent binary exists. Measured: the agent runs **in the
+> Control package's context** (the event log's crash record named `Tenshu.Control_…_asmrhn1bb0j6y` as its package,
+> before the runtime fix), Control restarted it every 30 s, and after the fix it stays up. ⚠ The flyout's bridge
+> round trip from inside the package is the maintainer's check.
+> - A dev run uses the agent only when `TENSHU_TRAY_AGENT` names a built `tray-agent.exe`.
 - **Thin renderer:** the agent renders what the bridge returns and owns only OS glue (icon, flyout, toasts,
   their diffing). New tray content goes into the bridge first, then into both agents.
 - **Phases:** (T0) toolchain spike — the cat in the tray, a flyout showing `getSyncState`, inside the

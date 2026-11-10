@@ -203,6 +203,11 @@ extra["tenshu.msix.displayName"] = "Tenshu Control"
 extra["tenshu.msix.appId"] = "Control"
 extra["tenshu.msix.executable"] = "TenshuControl"
 extra["tenshu.msix.version"] = desktopMarketingVersion
+// The native Windows tray agent ships inside Control's package (desktop-windows-port.md §3.9, D5).
+extra["tenshu.msix.trayAgentProject"] = "windows/TrayAgent/TrayAgent.csproj"
+// ⚠ The agent is framework-dependent on the Windows App SDK; this must match the version its csproj pins
+// (Microsoft.WindowsAppSDK 1.8.260921001 → runtime 8000.994.2142.0, from WindowsAppSDK-VersionInfo.h).
+extra["tenshu.msix.windowsAppRuntime"] = "Microsoft.WindowsAppRuntime.1.8|8000.994.2142.0"
 apply(from = rootProject.file("gradle/desktop-msix.gradle.kts"))
 
 // Flags the desktop IPC peer-credential gate needs (desktop-ipc-client-identity.md §6).
