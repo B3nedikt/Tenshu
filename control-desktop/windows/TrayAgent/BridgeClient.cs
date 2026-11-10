@@ -24,6 +24,9 @@ public sealed class BridgeClient
 
     public BridgeClient(string? socketPath = null) => _socketPath = socketPath ?? DefaultSocketPath();
 
+    /// <summary>The process id of the server answering the last call, 0 if unknown.</summary>
+    public int LastServerPid { get; private set; }
+
     /// <summary>Mirrors core-common's SocketPathResolver on Windows: <c>TENSHU_IPC_DIR</c>, else <c>%USERPROFILE%\.tenshu</c>.</summary>
     public static string DefaultSocketDir()
     {
@@ -52,8 +55,9 @@ public sealed class BridgeClient
             throw new BridgeException($"Control is not reachable at {_socketPath} ({e.SocketErrorCode})");
         }
 
-        var refusal = PeerPackage.CheckServer(socket);
+        var refusal = PeerPackage.CheckServer(socket, out var serverPid);
         if (refusal != null) throw new BridgeException($"refusing the bridge server: {refusal}");
+        LastServerPid = serverPid;
 
         var request = new JsonObject
         {

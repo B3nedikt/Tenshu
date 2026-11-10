@@ -23,18 +23,14 @@ internal static class PeerPackage
     private const uint ProcessQueryLimitedInformation = 0x1000;
     private const int ErrorSuccess = 0;
 
-    /// <summary>Returns null when the server is ours, else the reason it is refused.</summary>
-    public static string? CheckServer(Socket socket)
+    /// <summary>
+    /// Returns null when the server is ours, else the reason it is refused. <paramref name="pid"/> is the server's
+    /// process id (0 when unreadable) — the agent hands it the foreground before asking it to show its window.
+    /// </summary>
+    public static string? CheckServer(Socket socket, out int pid)
     {
-        var own = OwnFamilyName();
-        if (own == null)
-        {
-            return Environment.GetEnvironmentVariable("TENSHU_TRAY_DEV") == "1"
-                ? null
-                : "this agent has no package identity (set TENSHU_TRAY_DEV=1 for a dev run)";
-        }
-
-        int pid;
+        pid = 0;
+        string? pidError = null;
         try
         {
             var output = new byte[4];
@@ -43,8 +39,17 @@ internal static class PeerPackage
         }
         catch (Exception e)
         {
-            return $"cannot read the server pid: {e.Message}";
+            pidError = $"cannot read the server pid: {e.Message}";
         }
+
+        var own = OwnFamilyName();
+        if (own == null)
+        {
+            return Environment.GetEnvironmentVariable("TENSHU_TRAY_DEV") == "1"
+                ? null
+                : "this agent has no package identity (set TENSHU_TRAY_DEV=1 for a dev run)";
+        }
+        if (pidError != null) return pidError;
 
         var server = FamilyNameOf(pid);
         if (server == null) return $"server pid {pid} has no package identity";

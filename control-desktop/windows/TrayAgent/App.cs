@@ -76,12 +76,21 @@ public sealed class App : Application, IXamlMetadataProvider
 
     private string Tooltip() => _state.Reachable ? $"Tenshu Control — {_state.Headline}" : "Tenshu Control — not running";
 
+    /// <summary>
+    /// Brings Control's window to the front. ⚠⚠ Windows lets only the process that received the user's last input
+    /// take the foreground — here the agent, whose icon or flyout was just clicked. Without handing that right to
+    /// Control (<c>AllowSetForegroundWindow</c>) Control's raise only flashes its taskbar button and the window
+    /// stays behind others. The server's pid comes from the bridge socket itself, the same peer check that
+    /// authenticated it, so the grant goes to the process that is really serving Control.
+    /// </summary>
     private void OpenControl()
     {
         Task.Run(() =>
         {
             try
             {
+                _bridge.Call("ping");
+                if (_bridge.LastServerPid > 0) AllowSetForegroundWindow((uint)_bridge.LastServerPid);
                 _bridge.Call("openControlWindow");
             }
             catch (BridgeException)
@@ -131,6 +140,7 @@ public sealed class App : Application, IXamlMetadataProvider
         return GetSystemMetricsForDpi(49 /* SM_CXSMICON */, dpi);
     }
 
+    [DllImport("user32.dll")] private static extern bool AllowSetForegroundWindow(uint processId);
     [DllImport("user32.dll")] private static extern int GetSystemMetricsForDpi(int index, uint dpi);
     [DllImport("user32.dll")] private static extern uint GetDpiForSystem();
     [DllImport("user32.dll")] private static extern uint GetDpiForWindow(IntPtr hwnd);

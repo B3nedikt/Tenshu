@@ -54,7 +54,6 @@ import app.tenshu.ui.layout.rememberPersistedWindowState
 import app.tenshu.ui.theme.TenshuTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.swing.Swing
 import kotlinx.coroutines.test.setMain
@@ -300,10 +299,6 @@ fun main() {
             windowController.quitRequested.collect { exitApplication() }
         }
 
-        // *Open Control* on an already-visible window: `show()` changes nothing then, so the
-        // `isVisible` effect below would not raise it from behind other windows.
-        val raiseRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
-
         // Windows without the native agent (a plain dev run): the notification-area icon is this
         // process's own (desktop-windows-port.md §3.4). ⚠ Never on macOS, where the Swift agent
         // started by ensureTrayRunning owns it, and never alongside the native Windows agent (D5) —
@@ -312,11 +307,8 @@ fun main() {
             WindowsControlTray(
                 windowController = windowController,
                 syncPauseState = syncPauseState,
-                onOpen = {
-                    windowState.isMinimized = false
-                    windowController.show()
-                    raiseRequests.tryEmit(Unit)
-                },
+                // `show()` also requests the raise (WindowController.raiseRequested).
+                onOpen = { windowController.show() },
             )
         }
 
@@ -344,8 +336,14 @@ fun main() {
                     window.requestFocus()
                 }
             }
+            // Every show() — the Compose tray, the bridge's openControlWindow (either native tray agent)
+            // — raises, including a window that was already visible behind others. ⚠ On Windows the
+            // foreground lock still applies: the native agent grants this process the foreground
+            // (AllowSetForegroundWindow) before it calls openControlWindow, or toFront() only flashes the
+            // taskbar button.
             LaunchedEffect(Unit) {
-                raiseRequests.collect {
+                windowController.raiseRequested.collect {
+                    windowState.isMinimized = false
                     if (window.isVisible) {
                         window.toFront()
                         window.requestFocus()

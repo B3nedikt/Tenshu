@@ -36,8 +36,12 @@ internal static class CatIcon
 
     private static readonly Lazy<List<Shape>> Shapes = new(Load);
 
-    /// <summary>The square frame's side, relative to the silhouette's larger side: a hair of breathing room.</summary>
-    private const float FrameMargin = 1.06f;
+    /// <summary>
+    /// The square frame's side, relative to the silhouette's larger side. 1.14 ≈ the shape filling 14 of 16 pixels:
+    /// the padding notification-area icons conventionally keep, so the cat sits at the same visual size as its
+    /// neighbours (at 1.06 it read slightly larger). Relative, so it holds at every DPI.
+    /// </summary>
+    private const float FrameMargin = 1.14f;
 
     /// <summary>Whether the taskbar uses the light theme (then the cat is drawn black).</summary>
     public static bool TaskbarIsLight()
