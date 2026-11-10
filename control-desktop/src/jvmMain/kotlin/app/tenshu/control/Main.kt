@@ -68,6 +68,8 @@ import org.tenshu.core.common.transport.UnixSocketServer
 import app.tenshu.control.ipc.AttestedPeerCredentialVerifier
 import app.tenshu.control.ipc.FirstPartyTeamPolicy
 import app.tenshu.control.ipc.PeerTrustAnchor
+import app.tenshu.control.ipc.FirstPartyPublisherPolicy
+import app.tenshu.control.ipc.WindowsPeerCredentialVerifier
 import org.tenshu.core.common.transport.SocketPathResolver
 import org.tenshu.core.common.util.DesktopSavedStateRegistryOwner
 import org.tenshu.core.common.util.DesktopViewModelStoreOwner
@@ -125,17 +127,38 @@ fun main() {
     // opens a fresh connection per call, so a per-connection log there is per-call spam. Its
     // peer is Control's own tray agent, embedded in this bundle and signed with it.
     val peerPolicy = PeerCredentialPolicy(strict = true)
-    val teamPolicy = FirstPartyTeamPolicy(PeerTrustAnchor.FIRST_PARTY_TEAM_IDS)
-    val peerVerifier = AttestedPeerCredentialVerifier(policy = teamPolicy, log = { println(it) })
+    // ⚠⚠ Windows attests by MSIX package identity, not by signature (desktop-windows-port.md §3.2,
+    // D1): a different verifier, the same strict policy and the same chokepoint.
+    val onWindows = System.getProperty("os.name").orEmpty().startsWith("Windows", ignoreCase = true)
+    val peerVerifier = if (onWindows) {
+        WindowsPeerCredentialVerifier(
+            policy = FirstPartyPublisherPolicy(PeerTrustAnchor.FIRST_PARTY_WINDOWS_PUBLISHER_IDS),
+            log = { println(it) },
+        )
+    } else {
+        AttestedPeerCredentialVerifier(
+            policy = FirstPartyTeamPolicy(PeerTrustAnchor.FIRST_PARTY_TEAM_IDS),
+            log = { println(it) },
+        )
+    }
     // ⚠ The bridge also admits Control's own identifier: a second Control refused by the instance
     // guard asks this one to show its window over the bridge. It grants nothing new; that copy
     // could already open the data root. ipc.sock does not admit it (it is not an app).
-    val bridgeVerifier = AttestedPeerCredentialVerifier(
-        policy = FirstPartyTeamPolicy(
-            PeerTrustAnchor.FIRST_PARTY_TEAM_IDS,
-            knownIdentifiers = FirstPartyDesktopPeers.BRIDGE_IDENTIFIERS,
-        ),
-    )
+    val bridgeVerifier = if (onWindows) {
+        WindowsPeerCredentialVerifier(
+            policy = FirstPartyPublisherPolicy(
+                PeerTrustAnchor.FIRST_PARTY_WINDOWS_PUBLISHER_IDS,
+                knownPackages = FirstPartyDesktopPeers.WINDOWS_BRIDGE_PACKAGES,
+            ),
+        )
+    } else {
+        AttestedPeerCredentialVerifier(
+            policy = FirstPartyTeamPolicy(
+                PeerTrustAnchor.FIRST_PARTY_TEAM_IDS,
+                knownIdentifiers = FirstPartyDesktopPeers.BRIDGE_IDENTIFIERS,
+            ),
+        )
+    }
     // A16 developer mode (D5/Q4). Sourced from the **build-type** flag the dev `run` task
     // sets, not from a runtime setting or an env var: a bypass an attacker can turn on is
     // indistinguishable from having no gate, and the packaged app never passes this flag, so

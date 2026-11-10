@@ -34,6 +34,12 @@ dependencies {
     testImplementation(libs.kotlin.test)
 }
 
+// `WindowsPeerProcess` reads a socket's SOCKET handle by reflection, exactly as `:macos-helpers`'
+// `PeerAuditToken` reads its fd — so the test JVM needs the same opens the desktop apps pass.
 tasks.withType<Test>().configureEach {
-    jvmArgs("--enable-native-access=ALL-UNNAMED")
+    jvmArgs(
+        "--add-opens", "java.base/sun.nio.ch=ALL-UNNAMED",
+        "--add-opens", "java.base/java.io=ALL-UNNAMED",
+        "--enable-native-access=ALL-UNNAMED",
+    )
 }

@@ -58,7 +58,29 @@ object FirstPartyDesktopPeers {
 
     /** What `bridge.sock` admits: everything [IDENTIFIERS] does, plus [CONTROL_IDENTIFIERS]. */
     val BRIDGE_IDENTIFIERS: Set<String> get() = IDENTIFIERS + CONTROL_IDENTIFIERS
+
+    /**
+     * Windows: the MSIX package names (`ClientBinding.WindowsPackage`) the gate may admit on
+     * `ipc.sock` — apps only. There are no Windows helpers: the tray lives in Control's own process
+     * (`desktop-windows-port.md` §3.4), so nothing else of ours opens a socket yet.
+     */
+    val WINDOWS_PACKAGES: Set<String> get() = windowsPackagesOf(BundledAppCatalogue.apps)
+
+    /**
+     * Control's own package name, for `bridge.sock` only — a second Control asking the first to show
+     * its window, as on macOS. ⚠ Provisional until the Partner Center reservation.
+     */
+    val WINDOWS_CONTROL_PACKAGES: Set<String> = setOf("Tenshu.Control")
+
+    /** What `bridge.sock` admits on Windows. */
+    val WINDOWS_BRIDGE_PACKAGES: Set<String> get() = WINDOWS_PACKAGES + WINDOWS_CONTROL_PACKAGES
 }
+
+/** The `apps → admissible Windows package names` derivation; see [macIdentifiersOf] for why it takes its input. */
+internal fun windowsPackagesOf(apps: List<FirstPartyApp>): Set<String> =
+    apps.flatMap { app -> app.clients.filterIsInstance<ClientBinding.WindowsPackage>() }
+        .map { it.packageName }
+        .toSet()
 
 /**
  * The `apps → admissible identifiers` derivation, taking its input rather than reading

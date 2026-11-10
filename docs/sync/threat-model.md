@@ -1693,6 +1693,9 @@ Explicitly not trusted:
   The trust anchor (accepted Team IDs) is **compiled into the binary**, deliberately not read
   from a property, environment variable or config file at runtime: the very adversary this
   asset defends against (AD3, a same-user process) could otherwise add its own team.
+  On **Windows** the anchor is the set of **Store publisher ids** our MSIX packages carry
+  (`FIRST_PARTY_WINDOWS_PUBLISHER_IDS`, compiled in by the same rule), and the attested identity is
+  the package name of the process holding the socket — see T-C-11's Windows paragraph.
   Compromise (subverted `Security.framework` verification, a stolen signing key, or a
   developer-mode A16 flip) defeats per-process authentication on the IPC channel.
 - **A15. Desktop Master-Key At-Rest Storage.** Container that persists A1 across Control
@@ -4995,11 +4998,22 @@ peer-credential identity (A14) — discrepancy is a hard reject.
 Residual risk: **Low** with peer-credential checks enforced; **High** without them. Open
 edge cases (cache warmup before publication is observed, signature-change-on-update, the
 Windows peer-PID race where `SIO_AF_UNIX_GETPEERPID` may return a PID whose process
-has exited) tracked in [`tenshu-rei.md`](../proposals/tenshu-rei.md) §5.F.49. ⚠ Only the macOS
-verifier is built (and it uses the audit token, not the pid); on Windows every peer resolves
-unattested, so a strict (packaged) Control admits no one and a developer-mode run admits
-everyone. No Windows build ships, so this is a dev posture, not a shipped exposure, until
-[`desktop-windows-port.md`](../proposals/desktop-windows-port.md) §3.2 lands.
+has exited) tracked in [`tenshu-rei.md`](../proposals/tenshu-rei.md) §5.F.49. ⚠ The macOS
+verifier uses the audit token, not the pid, so the race does not apply there.
+**Windows (2026-11-10, `WindowsPeerCredentialVerifier`;
+[`desktop-windows-port.md`](../proposals/desktop-windows-port.md) §3.2, D1):** the peer is identified by
+the **MSIX package identity of the process holding the socket** — its package family name must be one
+of our package names *and* one of the publisher ids compiled into the binary (empty until the Partner
+Center account exists, so today nothing attests). Not by a signature: a Store package lives in the
+OS-protected `WindowsApps` folder with integrity enforced, whereas a per-user install's jars are
+writable by the very AD3 this threat is about (§4.1 there; per-user installs are ruled out, D3). The
+pid race is narrowed, not closed: the gate holds an open handle to the peer for the whole read (no
+reuse during the check) and rejects a process **created after verification began**, since the real
+peer connected before the accept. A peer that exits, and a pid recycled to a process started, inside
+the gap between its connect and the start of verification remains — that new process would also have
+to be one of our packages to pass. Residual risk on Windows: **Low** with a configured anchor; until
+then a strict Control admits no one and a developer-mode run admits everyone, a dev posture since no
+Windows build ships.
 
 **T-C-12. Developer mode silently enabled by attacker.**
 Actors: AD2 / AD3 with local write access to Control's config. Assets: A16; by extension

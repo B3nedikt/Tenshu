@@ -100,13 +100,24 @@ val generatePeerTrustAnchor by tasks.registering {
             ?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }
             ?.let { addAll(it) }
     }
+    // Windows (desktop-windows-port.md §3.2, D1): the Store publisher ids — the 13-character half of
+    // a package family name after the `_` — that may vouch for our MSIX packages. Same rules as the
+    // Team IDs: compiled in, a set (a publisher change is additive), never read at runtime. Empty
+    // until the Partner Center account exists ⇒ no Windows peer attests and a strict Control admits
+    // only under developer mode. A locally side-loaded test package's publisher id goes here too.
+    val windowsPublisherIds = ((project.findProperty("tenshu.windowsPublisherIds") as String?)
+        ?: System.getenv("TENSHU_WINDOWS_PUBLISHER_IDS"))
+        ?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }?.toSortedSet()
+        ?: sortedSetOf()
     val outputDir = layout.buildDirectory.dir("generated/peerTrust")
     outputs.dir(outputDir)
     inputs.property("teamIds", teamIds.sorted().joinToString(","))
+    inputs.property("windowsPublisherIds", windowsPublisherIds.joinToString(","))
 
     doLast {
         val pkg = outputDir.get().asFile.resolve("app/tenshu/control/ipc").apply { mkdirs() }
         val literal = teamIds.sorted().joinToString(", ") { "\"$it\"" }
+        val windowsLiteral = windowsPublisherIds.joinToString(", ") { "\"$it\"" }
         pkg.resolve("PeerTrustAnchor.kt").writeText(
             """
             package app.tenshu.control.ipc
@@ -121,6 +132,9 @@ val generatePeerTrustAnchor by tasks.registering {
              */
             internal object PeerTrustAnchor {
                 val FIRST_PARTY_TEAM_IDS: Set<String> = setOf($literal)
+
+                /** Store publisher ids for our MSIX packages (Windows); empty ⇒ no Windows peer attests. */
+                val FIRST_PARTY_WINDOWS_PUBLISHER_IDS: Set<String> = setOf($windowsLiteral)
             }
             """.trimIndent() + "\n",
         )
@@ -136,6 +150,7 @@ kotlin {
             kotlin.srcDir(generatePeerTrustAnchor)
             dependencies {
                 implementation(project(":macos-helpers"))
+                implementation(project(":windows-helpers"))
                 implementation(project(":control-shared"))
                 implementation(project(":ui-core"))
                 implementation(project(":core-common"))

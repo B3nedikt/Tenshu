@@ -36,6 +36,21 @@ sealed interface ClientBinding {
         override val clientId: String get() = identifier
     }
 
+    /**
+     * A Windows MSIX package's identity **Name** — the half of its package family name before the
+     * `_`. Resolved by Control's Windows peer gate from the connecting process
+     * (`GetPackageFamilyName`), and admitted only when the other half, the publisher id, is in the
+     * compiled-in anchor (`docs/proposals/desktop-windows-port.md` §3.2, D1).
+     *
+     * ⚠⚠ **The Store assigns these names** when the app name is reserved in Partner Center (they
+     * look like `<publisher>.<App>`). The values in [BundledAppCatalogue] are provisional until that
+     * reservation and must then be replaced by the reserved ones — a mismatch admits nothing, it
+     * does not widen anything.
+     */
+    data class WindowsPackage(val packageName: String) : ClientBinding {
+        override val clientId: String get() = packageName
+    }
+
     // iOS route-1 contributes no binding on purpose: a first-party app there hosts its own
     // in-process proxy, so there is no IPC peer to identify. Third-party iOS rides EPC and will
     // bring its own binding kind when that lands.
@@ -82,6 +97,8 @@ object BundledAppCatalogue {
             clients = listOf(
                 ClientBinding.AndroidPackage("app.tenshu.drive.android"),
                 ClientBinding.MacCodeSignature("app.tenshu.drive.ios"),
+                // ⚠ Provisional until the Partner Center name reservation (WindowsPackage KDoc).
+                ClientBinding.WindowsPackage("Tenshu.Drive"),
             ),
         ),
         FirstPartyApp(

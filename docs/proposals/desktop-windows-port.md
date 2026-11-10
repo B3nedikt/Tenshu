@@ -148,6 +148,27 @@ cannot connect), a dev run admits everyone (`desktop-ipc.md` §3, threat model A
 - Per-method authorization inside the bridge (the 2026-08-21 audit item) is platform-independent and not
   re-opened here.
 
+> **As built (W2, 2026-11-10) — the Store arm.** `WindowsPeerProcess` (`:windows-helpers`) reads the peer's
+> pid with `WSAIoctl(SIO_AF_UNIX_GETPEERPID)`, opens it and **holds the handle** while it reads creation time,
+> liveness, package family name and image path. `WindowsPeerDecision` (pure, tested on every host) attests
+> only a live process created before verification began whose family name is `<one of our package names>_<a
+> publisher id from the anchor>`. `WindowsPeerCredentialVerifier` adapts it to the existing
+> `PeerCredentialVerifier` seam; `Main.kt` selects it on Windows behind the same strict policy.
+> - Package names: `ClientBinding.WindowsPackage` in `BundledAppCatalogue` (Drive) and
+>   `FirstPartyDesktopPeers.WINDOWS_CONTROL_PACKAGES` (bridge only). ⚠⚠ Provisional — the Store assigns them
+>   at the Partner Center name reservation, and they must then be replaced.
+> - Anchor: `-Ptenshu.windowsPublisherIds=<id>[,…]` (or `TENSHU_WINDOWS_PUBLISHER_IDS`) at build time →
+>   `PeerTrustAnchor.FIRST_PARTY_WINDOWS_PUBLISHER_IDS`. **Empty by default: nothing attests**, a strict Control
+>   admits no Windows peer, and a developer-mode `run` admits everyone (as before).
+> - Verified on Windows 11: the real lookup over an AF_UNIX socket returns the peer's pid, a live process
+>   created before the accept, and no family name for an unpackaged `java.exe` — so it is refused.
+>   ⚠ **The positive path (an attested MSIX) is not verified yet**: it needs a side-loaded MSIX, the W2 gate.
+> - Tests: `WindowsPeerDecisionTest` (8), `WindowsPeerProcessTest` (real lookup), `WindowsDesktopPeersTest`,
+>   `FirstPartyPublisherPolicyTest`. Threat model: A14, T-C-11's Windows paragraph.
+> - ⚠ `:control-shared-logic` joined the Windows CI lane: its `DesktopAppLockTest` /
+>   `DesktopBiometricUnlockDelegateTest` faked macOS-only helpers with `#!/bin/sh` scripts, which Windows cannot
+>   run (9 failures, now skipped there — the same class as W1's `AppGroupContainerClaimTest`).
+
 ### 3.3 Transport leftovers (small)
 
 | Item | Today on Windows | Fix |
