@@ -94,11 +94,14 @@ secret.
 ```powershell
 $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'   # any JDK that runs Gradle
 .\gradlew.bat :control-desktop:packageMsix :drive-desktop:packageMsix `
-  -Ptenshu.msix.store=true `
+  "-Ptenshu.msix.store=true" `
   "-Ptenshu.msix.publisher=CN=<GUID from Product identity>" `
   "-Ptenshu.msix.publisherDisplayName=<PublisherDisplayName from Product identity>" `
-  -Ptenshu.windowsPublisherIds=<id from step 1>
+  "-Ptenshu.windowsPublisherIds=<id from step 1>"
 ```
+
+⚠ Quote every `-P…` argument: PowerShell splits an unquoted `-Ptenshu.msix.store=true` at the first dot,
+and Gradle then looks for a task named `.msix.store=true`.
 
 (Env equivalents: `TENSHU_MSIX_STORE`, `TENSHU_MSIX_PUBLISHER`, `TENSHU_MSIX_PUBLISHER_DISPLAY_NAME`,
 `TENSHU_WINDOWS_PUBLISHER_IDS`.)
@@ -196,7 +199,7 @@ publish after certification is the safe choice for the first one.
   (`store-listings.md`), and it must cover the Windows apps — counsel and maintainer confirm before submitting.
 - Website `https://tenshu.app`. Support contact: TODO 🔑 — the existing support URLs are the iOS pages
   (`https://tenshu.app/apps/<app>/support/ios/en`); a Windows support page, or a generic one, is owed.
-- System requirements: Windows 10 2004 or later, x64. Optional.
+- System requirements: Windows 10 version 1809 (build 17763) or later, x64 — the manifest's MinVersion. Optional.
 
 **Age ratings** — the IARC questionnaire. The answers for the other stores are in `store/<app>/age_rating.json`
 (no objectionable content, no ads, no chat, no user-generated content). ❓ IARC's questions differ in wording; answer

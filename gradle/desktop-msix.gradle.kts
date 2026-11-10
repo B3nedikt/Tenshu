@@ -153,7 +153,7 @@ tasks.register("packageMsix") {
 
     if (store) {
         // ⚠⚠ Fail here, at configuration time, so a wrong Store build stops before the long compile — not after.
-        // Only reached when packageMsix is in the task graph, and only with -Ptenshu.msix.store=true.
+        // Runs whenever this task is configured with -Ptenshu.msix.store=true (also by `tasks --all` or an IDE sync).
         val problems = buildList {
             if (publisher.isBlank()) add("-Ptenshu.msix.publisher is required: Partner Center → Product identity → Package/Identity/Publisher (CN=<GUID>)")
             else if (!publisher.startsWith("CN=")) add("tenshu.msix.publisher '$publisher' is not a publisher (it starts with CN=) — is it the PublisherDisplayName?")
@@ -204,7 +204,8 @@ tasks.register("packageMsix") {
     val msixLogos = project.file("icons/windows/msix")
     val priDir = layout.buildDirectory.dir("msix/pri").get().asFile
     inputs.dir(msixLogos).optional()
-    identityPins.forEach { inputs.file(it) }
+    // `files`, not `file`: a missing pin must reach the check below, which says what the file is for.
+    inputs.files(identityPins)
     val pinNames = identityPins.map { it.path }
 
     inputs.property("identity", "$identityName|$publisher|$publisherDisplayName|$version|$appId|$displayName|store=$store")
@@ -217,6 +218,8 @@ tasks.register("packageMsix") {
     doLast {
         // The peer gate admits a package by `<identity name>_<publisher id>`, and the identity name half is
         // spelled in Kotlin. A package whose name no pin file spells is never admitted — fail closed, but loudly.
+        // ⚠ Presence only: the quoted name anywhere in the file passes, so a stale constant beside a mention of
+        // the new name in a comment is not caught.
         val unpinned = pinNames.map(::File).filter { !it.isFile || "\"$identityName\"" !in it.readText() }
         check(unpinned.isEmpty()) {
             "the MSIX identity name \"$identityName\" is not spelled in ${unpinned.joinToString()} — the peer gate would " +
