@@ -39,6 +39,7 @@ import app.tenshu.control.bridge.registerCalendarReminderMethods
 import app.tenshu.control.bridge.registerPendingRequestMethods
 import app.tenshu.control.bridge.registerWindowMethods
 import app.tenshu.control.lifecycle.DesktopControlSettings
+import app.tenshu.control.lifecycle.DesktopShellSupport
 import app.tenshu.control.lifecycle.DesktopStartAtLoginManager
 import app.tenshu.control.lifecycle.LaunchAgentManager
 import app.tenshu.control.lifecycle.TrayLiveness
@@ -264,8 +265,13 @@ fun main() {
         // (which would make application { } exit and kill the daemon).
         Window(
             onCloseRequest = {
-                if (controlSettings.closeToTray()) windowController.hide()
-                else windowController.requestQuit()
+                // ⚠⚠ Hide only where a tray exists to bring the window back. Elsewhere a hidden
+                // window is a resident Control nobody can reach (desktop-windows-port.md §3.4).
+                if (DesktopShellSupport.current.trayAvailable && controlSettings.closeToTray()) {
+                    windowController.hide()
+                } else {
+                    windowController.requestQuit()
+                }
             },
             visible = isVisible,
             title = "Tenshu Control",

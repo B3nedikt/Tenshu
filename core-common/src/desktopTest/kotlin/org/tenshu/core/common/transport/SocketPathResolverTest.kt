@@ -1,5 +1,6 @@
 package org.tenshu.core.common.transport
 
+import java.io.File
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -29,8 +30,8 @@ class SocketPathResolverTest {
         System.setProperty(SocketPathResolver.DIR_PROPERTY, "/tmp/tenshu-test")
 
         assertEquals("/tmp/tenshu-test", SocketPathResolver.resolveDir())
-        assertEquals("/tmp/tenshu-test/ipc.sock", SocketPathResolver.resolve())
-        assertEquals("/tmp/tenshu-test/bridge.sock", SocketPathResolver.resolveBridge())
+        assertEquals("/tmp/tenshu-test${File.separator}ipc.sock", SocketPathResolver.resolve())
+        assertEquals("/tmp/tenshu-test${File.separator}bridge.sock", SocketPathResolver.resolveBridge())
     }
 
     @Test
@@ -38,7 +39,7 @@ class SocketPathResolverTest {
         System.clearProperty(SocketPathResolver.DIR_PROPERTY)
         System.clearProperty(SocketPathResolver.TEAM_ID_PROPERTY)
 
-        val expected = System.getProperty("user.home") + "/.tenshu/ipc.sock"
+        val expected = File(File(System.getProperty("user.home"), ".tenshu"), "ipc.sock").path
         assertEquals(expected, SocketPathResolver.resolve())
     }
 
@@ -56,7 +57,7 @@ class SocketPathResolverTest {
                 "expected App Group container path, got: $dir"
             )
         } else {
-            assertTrue(dir.endsWith("/.tenshu"), "expected dev fallback, got: $dir")
+            assertTrue(dir.endsWith("${File.separator}.tenshu"), "expected dev fallback, got: $dir")
         }
     }
 }

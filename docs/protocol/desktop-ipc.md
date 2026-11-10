@@ -274,8 +274,13 @@ To ensure that only authorized Tenshu apps can talk to the Proxy:
 ## 4. Platform Compatibility
 
 * **macOS/Linux**: Uses standard Unix Domain Sockets.
-* **Windows**: Uses **Named Pipes**, which follow the same stream-based API in Java `nio`, ensuring
-  the Kotlin code remains almost identical.
+* **Windows**: ⚠ **Also Unix Domain Sockets — not named pipes.** The original plan here said named
+  pipes "follow the same stream-based API in Java `nio`"; the JDK has no named-pipe `SocketChannel`,
+  but `StandardProtocolFamily.UNIX` works on Windows 10 1803+, so `UnixSocketServer` /
+  `UnixSocketTaskTransport` run unchanged (measured 2026-11-09: Control binds both sockets and every
+  `UnixSocket*` suite passes). The Windows peer-pid call is therefore `SIO_AF_UNIX_GETPEERPID`, not
+  `GetNamedPipeClientProcessId`. Remaining Windows gaps (socket-directory ACL, socket-file identity,
+  peer gate): [`desktop-windows-port.md`](../proposals/desktop-windows-port.md) §3.2–§3.3.
 
 ## 5. Implementation Strategy (⚠ historical — this shipped)
 
