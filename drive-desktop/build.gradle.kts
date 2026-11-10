@@ -103,6 +103,16 @@ kotlin {
 // explicitly.
 val qrImpl: String? = (project.findProperty("tenshu.qr.impl") as String?)?.takeIf { it.isNotBlank() }
 val desktopMarketingVersion = "1.0.1"
+
+// Windows MSIX (desktop-windows-port.md §5.2, D1): `:drive-desktop:packageMsix`. ⚠ The identity name is
+// provisional until the Partner Center reservation, and must equal Drive's ClientBinding.WindowsPackage
+// in BundledAppCatalogue, or Control's peer gate will not admit this package.
+extra["tenshu.msix.identityName"] = "Tenshu.Drive"
+extra["tenshu.msix.displayName"] = "Tenshu Drive"
+extra["tenshu.msix.appId"] = "Drive"
+extra["tenshu.msix.executable"] = "TenshuDrive"
+extra["tenshu.msix.version"] = desktopMarketingVersion
+apply(from = rootProject.file("gradle/desktop-msix.gradle.kts"))
 // CFBundleVersion for the File Provider extension. The MAS archive script passes one UTC-minute
 // number for host and extension alike (App Store Connect rejects a mismatch); a local build uses a
 // fixed "1" so configuration never reads the clock (that would defeat the configuration cache).
@@ -150,11 +160,16 @@ tasks.withType<JavaExec> {
 // JDK 25, and nothing can be packaged without first being compiled. So a missing 25 still
 // fails any packaging build — at `compileKotlinJvm`, naming the toolchain, instead of taking
 // the whole build's configuration down with it.
-val ffmRuntime: String? = runCatching {
-    javaToolchains
-        .launcherFor { languageVersion.set(JavaLanguageVersion.of(FFM_JDK)) }
-        .get().metadata.installationPath.asFile.absolutePath
-}.getOrNull()
+// ⚠ `-Ptenshu.jpackageJavaHome` overrides the pick for a machine whose only JDK 25 is the JBR, which has
+// no `jpackage` — see the same block in control-desktop/build.gradle.kts.
+val ffmRuntime: String? =
+    ((project.findProperty("tenshu.jpackageJavaHome") as String?) ?: System.getenv("TENSHU_JPACKAGE_JAVA_HOME"))
+        ?.takeIf { it.isNotBlank() }
+        ?: runCatching {
+            javaToolchains
+                .launcherFor { languageVersion.set(JavaLanguageVersion.of(FFM_JDK)) }
+                .get().metadata.installationPath.asFile.absolutePath
+        }.getOrNull()
 
 compose.desktop {
     application {

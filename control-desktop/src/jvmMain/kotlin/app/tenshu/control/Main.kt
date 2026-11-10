@@ -30,6 +30,8 @@ import org.tenshu.sync.proxy.SyncHealthHolder
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.CoroutineScope
 import app.tenshu.control.bridge.SchemaFenceLog
+import app.tenshu.diagnostics.FileDiagnosticSink
+import app.tenshu.diagnostics.LogLevel
 import app.tenshu.control.bridge.registerDataMethods
 import app.tenshu.control.bridge.FileProviderBridgeState
 import app.tenshu.control.bridge.registerFileMethods
@@ -127,18 +129,29 @@ fun main() {
     // opens a fresh connection per call, so a per-connection log there is per-call spam. Its
     // peer is Control's own tray agent, embedded in this bundle and signed with it.
     val peerPolicy = PeerCredentialPolicy(strict = true)
+    // The gate's per-connection decision, also kept in a file: a packaged app's stdout is lost, and an
+    // MSIX has none at all — without this a refused app is invisible (desktop-windows-port.md §3.2).
+    // ⚠ Its own file, not control.log: FileDiagnosticSink rewrites its file to enforce the cap, so two
+    // sinks on one file would race.
+    val gateLog = FileDiagnosticSink(
+        File(DesktopAppPaths.dataDir(koinApp.koin.get<String>(named("platformPackageName"))), "diagnostics/ipc-gate.log"),
+    )
+    val logGate: (String) -> Unit = { line ->
+        println(line)
+        gateLog.append(if ("unattested" in line) LogLevel.WARN else LogLevel.INFO, "ipc", line, null)
+    }
     // ⚠⚠ Windows attests by MSIX package identity, not by signature (desktop-windows-port.md §3.2,
     // D1): a different verifier, the same strict policy and the same chokepoint.
     val onWindows = System.getProperty("os.name").orEmpty().startsWith("Windows", ignoreCase = true)
     val peerVerifier = if (onWindows) {
         WindowsPeerCredentialVerifier(
             policy = FirstPartyPublisherPolicy(PeerTrustAnchor.FIRST_PARTY_WINDOWS_PUBLISHER_IDS),
-            log = { println(it) },
+            log = logGate,
         )
     } else {
         AttestedPeerCredentialVerifier(
             policy = FirstPartyTeamPolicy(PeerTrustAnchor.FIRST_PARTY_TEAM_IDS),
-            log = { println(it) },
+            log = logGate,
         )
     }
     // ⚠ The bridge also admits Control's own identifier: a second Control refused by the instance

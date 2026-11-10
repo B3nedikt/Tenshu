@@ -127,16 +127,26 @@ val clientTeamIds: List<String> = buildSet {
         ?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }?.let { addAll(it) }
 }.sorted()
 
+// Windows (desktop-windows-port.md §3.2, D1): the Store publisher ids that may vouch for the Tenshu.Control
+// package an app connects to — the same property, and the same compiled-in rule, as Control's own anchor.
+val clientWindowsPublisherIds: List<String> =
+    ((findProperty("tenshu.windowsPublisherIds") as String?) ?: System.getenv("TENSHU_WINDOWS_PUBLISHER_IDS"))
+        ?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }?.sorted()
+        ?: emptyList()
+
 val clientPeerTrustDir = layout.buildDirectory.dir("generated/clientPeerTrust")
 val generateClientPeerTrust = tasks.register("generateClientPeerTrust") {
     val outDir = clientPeerTrustDir
     val teams = clientTeamIds
+    val windowsPublishers = clientWindowsPublisherIds
     inputs.property("teamIds", teams.joinToString(","))
+    inputs.property("windowsPublisherIds", windowsPublishers.joinToString(","))
     outputs.dir(outDir)
     doLast {
         val pkgDir = outDir.get().dir("app/tenshu/ui/ipc").asFile
         pkgDir.mkdirs()
         val literal = teams.joinToString(", ") { "\"" + it + "\"" }
+        val windowsLiteral = windowsPublishers.joinToString(", ") { "\"" + it + "\"" }
         pkgDir.resolve("ClientPeerTrust.kt").writeText(
             """
             package app.tenshu.ui.ipc
@@ -148,6 +158,9 @@ val generateClientPeerTrust = tasks.register("generateClientPeerTrust") {
              */
             internal object ClientPeerTrust {
                 val FIRST_PARTY_TEAM_IDS: Set<String> = setOf($literal)
+
+                /** Store publisher ids for Tenshu.Control's MSIX (Windows); empty ⇒ no Control attests. */
+                val FIRST_PARTY_WINDOWS_PUBLISHER_IDS: Set<String> = setOf($windowsLiteral)
             }
 
             """.trimIndent() + "\n"
@@ -259,6 +272,8 @@ kotlin {
                 implementation(libs.lifecycle.viewmodel.compose)
                 // The image-decode helper (`MacImageDecoder`) for `ImageDecode.desktop.kt`.
                 implementation(project(":macos-helpers"))
+                // The Windows half of `ControlServerCheck` (desktop-windows-port.md §3.2).
+                implementation(project(":windows-helpers"))
             }
         }
         getByName("desktopTest") {

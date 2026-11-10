@@ -162,7 +162,20 @@ cannot connect), a dev run admits everyone (`desktop-ipc.md` §3, threat model A
 >   admits no Windows peer, and a developer-mode `run` admits everyone (as before).
 > - Verified on Windows 11: the real lookup over an AF_UNIX socket returns the peer's pid, a live process
 >   created before the accept, and no family name for an unpackaged `java.exe` — so it is refused.
->   ⚠ **The positive path (an attested MSIX) is not verified yet**: it needs a side-loaded MSIX, the W2 gate.
+>   ✅ **The positive path is verified (2026-11-10):** a side-loaded `Tenshu.Drive_asmrhn1bb0j6y` connected to a
+>   strict side-loaded `Tenshu.Control_asmrhn1bb0j6y` and Control's `diagnostics/ipc-gate.log` recorded
+>   `peer attested: Tenshu.Drive (publisher asmrhn1bb0j6y)` — the W2 exit gate.
+> - ⚠⚠ **The gate has two halves, and W2 first built only one.** Every app also checks the *server*
+>   (`ControlServerCheck` in `:ui-core`, `desktop-ipc-client-identity.md` §11) before sending a byte, strictly,
+>   and a packaged app can never use developer mode. That check knew only macOS signatures, so a packaged
+>   Windows app refused the genuine Control. It now has a Windows arm — the listening process must be the
+>   `Tenshu.Control` package from an anchored publisher — fed by the same `tenshu.windowsPublisherIds`
+>   property (`ClientPeerTrust.FIRST_PARTY_WINDOWS_PUBLISHER_IDS`). ⚠ `Tenshu.Control` is spelled in two
+>   places (`ControlServerCheck.WINDOWS_CONTROL_PACKAGE`, `FirstPartyDesktopPeers.WINDOWS_CONTROL_PACKAGES`);
+>   they must move together.
+> - The gate's decisions are also written to `<data dir>/diagnostics/ipc-gate.log`: an MSIX has no stdout,
+>   so without it a refused app is invisible. Its own file, because `FileDiagnosticSink` rewrites its file to
+>   enforce the cap and two sinks on `control.log` would race.
 > - Tests: `WindowsPeerDecisionTest` (8), `WindowsPeerProcessTest` (real lookup), `WindowsDesktopPeersTest`,
 >   `FirstPartyPublisherPolicyTest`. Threat model: A14, T-C-11's Windows paragraph.
 > - ⚠ `:control-shared-logic` joined the Windows CI lane: its `DesktopAppLockTest` /
@@ -365,6 +378,32 @@ package Control from the jpackage app-image, side-load it locally, then submit.
   one-time fee (*not verified*; check the current terms when registering). Which entity publishes decides the
   publisher name users see.
 
+> **As built (W2, 2026-11-10) — the local side-load build.** `gradle/desktop-msix.gradle.kts` adds
+> `packageMsix` to Control and Drive: the jpackage app-image plus a generated `AppxManifest.xml` (full trust,
+> `runFullTrust`) and placeholder logos, packed with `makeappx` and signed with `signtool`. It prints the
+> package family name and the **publisher id** to compile into Control (`-Ptenshu.windowsPublisherIds=…`).
+> `scripts/windows/msix-test-cert.ps1` mints the matching throwaway certificate (`CN=Tenshu Local Test`).
+> - The publisher id is derived exactly as Windows does (`MsixPublisherId`), pinned by a known answer:
+>   Microsoft's publisher gives `8wekyb3d8bbwe`. ⚠ The first attempt was one bit off in the grouping and the
+>   known answer caught it — keep that test; the Gradle script also self-checks against it before use.
+> - Prerequisites on a dev machine, none of them repo state:
+>   - ⚠⚠ **A full JDK 25 with `jpackage`.** Where Android Studio's bundled JBR is the only JDK 25, toolchain
+>     detection picks it, and the JBR has **no `jpackage`** — `checkRuntime` fails. Install one (e.g.
+>     Temurin 25) and pass `-Ptenshu.jpackageJavaHome=<it>`; the override is opt-in so CI and macOS releases
+>     embed what they did (Control and Drive only; the other eight `*-desktop` modules follow in W5).
+>   - `makeappx.exe` / `signtool.exe`: the Windows SDK, or the NuGet package `Microsoft.Windows.SDK.BuildTools`
+>     (`-Ptenshu.windowsSdkBin=<dir>`).
+>   - The test certificate trusted in `LocalMachine\TrustedPeople` — an **elevated** step, so the maintainer's.
+> - ⚠⚠ **`packageMsix` must declare the app-image as an input.** It first declared only the identity
+>   strings, so after a code change Gradle called it UP-TO-DATE and kept the old package: the side-loaded
+>   apps were not the source being debugged. Check the `.msix` timestamp before trusting a side-load test.
+> - Observed in the packaged Control: `wrap-key.dpapi` beside `secrets.enc` (§3.1 works under MSIX),
+>   `~\.tenshu` written un-virtualized by a packaged app (§5.2's assumption holds), and the instance lock's
+>   `.holder` naming `C:\Program Files\WindowsApps\Tenshu.Control_…\TenshuControl.exe`.
+> - ⚠ The MSIX identity names (`tenshu.msix.identityName` in each module) must equal the catalogue's
+>   `ClientBinding.WindowsPackage` / `WINDOWS_CONTROL_PACKAGES`; nothing checks that yet, and a mismatch fails
+>   closed (the package is never admitted).
+
 What MSIX changes, all *not verified* until the W4 spike:
 
 - ⚠⚠ **File-system and registry virtualization.** Writes to `%APPDATA%`/`%LOCALAPPDATA%` and HKCU are
@@ -392,7 +431,7 @@ What MSIX changes, all *not verified* until the W4 spike:
 |---|---|---|
 | **W0** | Measure: run Control, run the suite (§2) | ✅ done 2026-11-09 |
 | **W1** | Defects §3.4 (close quits, hide autostart switch off macOS); §3.3 transport leftovers; Windows `desktopTest` CI lane; correct `desktop-ipc.md` §4 and the threat model's named-pipe wording | the four red tests green on Windows — ✅ 2026-11-09, plus the lane; socket-directory DACL moved to W2 (it is part of the peer-gate posture) |
-| **W2** | DPAPI key store (§3.1) ✅ built; Windows peer gate by **package family name** (§3.2) + socket-directory DACL (§3.3) + threat-model amendment (A14/A20); certificate decision ✅ D1–D4 | pair, restart, still paired; a side-loaded Drive MSIX connects to a strict side-loaded Control MSIX |
+| **W2** | DPAPI key store (§3.1) ✅; Windows peer gate by **package family name**, both halves (§3.2) ✅; socket-directory DACL (§3.3) — open; threat-model amendment (A14/T-C-11) ✅; certificate decision ✅ D1–D4 | ✅ a side-loaded Drive MSIX connects to a strict side-loaded Control MSIX (2026-11-10). ⚠ "pair, restart, still paired" not yet run end to end |
 | **W3** | Tray (§3.4), `StartupTask` autostart (§3.5), toasts + scheduled reminders (§3.7/§3.6), power/idle + metered probes (§3.6) | closed-window Control reachable from the tray; a reminder fires with Control quit — verified from a side-loaded MSIX |
 | **W4** | Microsoft Store: spike, then MSIX per app, lockstep version, ADR 0025 Store row, uninstall (§4.3, §5.2) | the Store build passes certification; `winget install --source msstore` installs it on a clean VM |
 | **W5** | The other desktop apps over the same pipeline | each passes the W4 check |

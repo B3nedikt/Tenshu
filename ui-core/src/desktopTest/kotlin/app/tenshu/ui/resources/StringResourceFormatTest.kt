@@ -41,7 +41,9 @@ class StringResourceFormatTest {
 
     private fun composeCatalogues(): List<File> = repoRoot.walkTopDown()
         .onEnter { it.name !in setOf("build", ".git", "node_modules", ".gradle") }
-        .filter { it.isFile && it.name == "strings.xml" && it.path.contains("/composeResources/") }
+        // `invariantSeparatorsPath`, not `path`: on Windows the separators are `\`, the match found nothing,
+        // and every rule below passed vacuously over an empty set (caught by [theScanFindsTheCatalogues]).
+        .filter { it.isFile && it.name == "strings.xml" && it.invariantSeparatorsPath.contains("/composeResources/") }
         .toList()
 
     /** `<string name="k">text</string>` and every `<item>` of a `<plurals>` / `<string-array>`. */

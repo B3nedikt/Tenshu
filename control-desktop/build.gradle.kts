@@ -151,6 +151,8 @@ kotlin {
             dependencies {
                 implementation(project(":macos-helpers"))
                 implementation(project(":windows-helpers"))
+                // The peer gate's decisions, kept in a file — a packaged app's stdout is lost (an MSIX has none).
+                implementation(project(":diagnostics"))
                 implementation(project(":control-shared"))
                 implementation(project(":ui-core"))
                 implementation(project(":core-common"))
@@ -192,6 +194,16 @@ kotlin {
 // explicitly.
 val qrImpl: String? = (project.findProperty("tenshu.qr.impl") as String?)?.takeIf { it.isNotBlank() }
 val desktopMarketingVersion = "1.0.1"
+
+// Windows MSIX (desktop-windows-port.md §5.2, D1): `:control-desktop:packageMsix`. ⚠ The identity name is
+// provisional until the Partner Center reservation, and must equal
+// FirstPartyDesktopPeers.WINDOWS_CONTROL_PACKAGES, or a second Control cannot reach the first's bridge.
+extra["tenshu.msix.identityName"] = "Tenshu.Control"
+extra["tenshu.msix.displayName"] = "Tenshu Control"
+extra["tenshu.msix.appId"] = "Control"
+extra["tenshu.msix.executable"] = "TenshuControl"
+extra["tenshu.msix.version"] = desktopMarketingVersion
+apply(from = rootProject.file("gradle/desktop-msix.gradle.kts"))
 
 // Flags the desktop IPC peer-credential gate needs (desktop-ipc-client-identity.md §6).
 // `PeerAuditToken` recovers the peer's file descriptor by reflecting into
@@ -239,11 +251,19 @@ tasks.withType<JavaExec> {
 // JDK 25, and nothing can be packaged without first being compiled. So a missing 25 still
 // fails any packaging build — at `compileKotlinJvm`, naming the toolchain, instead of taking
 // the whole build's configuration down with it.
-val ffmRuntime: String? = runCatching {
-    javaToolchains
-        .launcherFor { languageVersion.set(JavaLanguageVersion.of(FFM_JDK)) }
-        .get().metadata.installationPath.asFile.absolutePath
-}.getOrNull()
+//
+// ⚠ `-Ptenshu.jpackageJavaHome=<a full JDK 25>` (or `TENSHU_JPACKAGE_JAVA_HOME`) overrides the toolchain
+// pick, for a machine whose only JDK 25 is Android Studio's bundled JBR: toolchain detection finds it, and
+// the JBR ships WITHOUT `jpackage`, so `checkRuntime` fails (desktop-windows-port.md §5.2). Opt-in, so CI
+// and the macOS release builds keep embedding exactly what they did.
+val ffmRuntime: String? =
+    ((project.findProperty("tenshu.jpackageJavaHome") as String?) ?: System.getenv("TENSHU_JPACKAGE_JAVA_HOME"))
+        ?.takeIf { it.isNotBlank() }
+        ?: runCatching {
+            javaToolchains
+                .launcherFor { languageVersion.set(JavaLanguageVersion.of(FFM_JDK)) }
+                .get().metadata.installationPath.asFile.absolutePath
+        }.getOrNull()
 
 compose.desktop {
     application {

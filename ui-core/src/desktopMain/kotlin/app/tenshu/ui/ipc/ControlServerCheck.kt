@@ -3,6 +3,10 @@ package app.tenshu.ui.ipc
 import app.tenshu.macos.MacPeerAttestation
 import app.tenshu.macos.PeerAttestation
 import app.tenshu.macos.PeerTeamPolicy
+import app.tenshu.windows.PeerPublisherPolicy
+import app.tenshu.windows.WindowsPeerAttestation
+import app.tenshu.windows.WindowsPeerDecision
+import app.tenshu.windows.WindowsPeerProcess
 import org.tenshu.core.common.parser.BinaryParser
 import org.tenshu.core.common.transport.PeerCredential
 import org.tenshu.core.common.transport.PeerCredentialVerifier
@@ -31,8 +35,29 @@ object ControlServerCheck {
     fun policy(teams: Set<String>): PeerTeamPolicy =
         PeerTeamPolicy { identifier -> if (identifier == CONTROL_IDENTIFIER) teams else emptySet() }
 
-    /** The verifier for [UnixSocketTaskTransport]'s `serverVerifier`. */
+    /**
+     * Control's MSIX package name on Windows (`desktop-windows-port.md` §3.2, D1).
+     *
+     * ⚠⚠ Spelled twice on purpose — here and in `FirstPartyDesktopPeers.WINDOWS_CONTROL_PACKAGES`
+     * (`:control-shared-logic`, which this module cannot depend on) — and both are provisional until
+     * the Partner Center reservation. They must move together; a mismatch fails closed.
+     */
+    const val WINDOWS_CONTROL_PACKAGE = "Tenshu.Control"
+
+    /** On Windows: only [WINDOWS_CONTROL_PACKAGE] is vouched for, and only by [publishers]. */
+    fun windowsPolicy(publishers: Set<String>): PeerPublisherPolicy =
+        PeerPublisherPolicy { name -> if (name == WINDOWS_CONTROL_PACKAGE) publishers else emptySet() }
+
+    /**
+     * The verifier for [UnixSocketTaskTransport]'s `serverVerifier`.
+     *
+     * ⚠⚠ Windows checks the server's **package identity**, as Control checks its clients': on a connected
+     * AF_UNIX socket `SIO_AF_UNIX_GETPEERPID` names the process that listened, which for an MSIX Control is
+     * the packaged JVM. Without this arm every packaged Windows app refused every Control (measured
+     * 2026-11-10: a side-loaded Drive never sent a byte to a side-loaded Control).
+     */
     fun verifier(teams: Set<String> = ClientPeerTrust.FIRST_PARTY_TEAM_IDS): PeerCredentialVerifier {
+        if (isWindows()) return windowsVerifier(ClientPeerTrust.FIRST_PARTY_WINDOWS_PUBLISHER_IDS)
         val policy = policy(teams)
         return PeerCredentialVerifier { channel ->
             when (val outcome = MacPeerAttestation.attest(channel, policy)) {
@@ -49,6 +74,33 @@ object ControlServerCheck {
             }
         }
     }
+
+    /** The Windows server check; [publishers] is the compiled-in anchor in production. */
+    fun windowsVerifier(publishers: Set<String>): PeerCredentialVerifier {
+        val policy = windowsPolicy(publishers)
+        return PeerCredentialVerifier { channel ->
+            // ⚠ The clock starts before the read — the decision rejects a process created after it.
+            val startedAt = System.currentTimeMillis()
+            val outcome = when (val read = WindowsPeerProcess.read(channel)) {
+                is WindowsPeerProcess.Result.Unavailable -> WindowsPeerAttestation.Unattested(read.reason)
+                is WindowsPeerProcess.Result.Facts -> WindowsPeerDecision.decide(read.facts, startedAt, policy)
+            }
+            when (outcome) {
+                is WindowsPeerAttestation.Attested -> PeerCredential(
+                    verified = true,
+                    appId = outcome.packageName,
+                    reason = "server attested as ${outcome.packageName} (publisher ${outcome.publisherId})",
+                )
+                is WindowsPeerAttestation.Unattested -> PeerCredential(
+                    verified = false,
+                    appId = null,
+                    reason = "the server is not Tenshu Control: ${outcome.reason}",
+                )
+            }
+        }
+    }
+
+    private fun isWindows(): Boolean = System.getProperty("os.name").orEmpty().startsWith("Windows", ignoreCase = true)
 
     /**
      * A16 developer mode, from the flag each app's dev `run` task sets (`-Dtenshu.release=false`),

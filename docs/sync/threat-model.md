@@ -5011,7 +5011,10 @@ pid race is narrowed, not closed: the gate holds an open handle to the peer for 
 reuse during the check) and rejects a process **created after verification began**, since the real
 peer connected before the accept. A peer that exits, and a pid recycled to a process started, inside
 the gap between its connect and the start of verification remains — that new process would also have
-to be one of our packages to pass. Residual risk on Windows: **Low** with a configured anchor; until
+to be one of our packages to pass. The reverse direction (an app checking that the server is Control,
+T-MD-01's defence) uses the same identity on Windows: the listening process must be the `Tenshu.Control`
+package from an anchored publisher (`ControlServerCheck`). Verified end to end with side-loaded MSIX
+packages on 2026-11-10. Residual risk on Windows: **Low** with a configured anchor; until
 then a strict Control admits no one and a developer-mode run admits everyone, a dev posture since no
 Windows build ships.
 

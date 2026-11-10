@@ -111,6 +111,7 @@ jobs:
           :windows-helpers:test
           :core-common:desktopTest
           :control-shared-logic:desktopTest
+          :ui-core:desktopTest
           :control-shared:desktopTest
           :control-desktop:jvmTest
           :drive-shared-ui:desktopTest
