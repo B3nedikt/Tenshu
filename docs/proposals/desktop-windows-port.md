@@ -721,7 +721,7 @@ The FileIdentity blob and the folder's names are plaintext metadata on disk, as 
 
 | Phase | Content | Gate |
 |---|---|---|
-| **X0** | Spike: register a sync root from the JVM, one placeholder, hydrate it via FFM; answer §7.5 | a placeholder created by Control opens in Notepad — ✅ scripted equivalent 2026-11-10 (another process opens and hashes it, §7.7); Explorer/Notepad by eye still owed |
+| **X0** | Spike: register a sync root from the JVM, one placeholder, hydrate it via FFM; answer §7.5 | a placeholder created by Control opens in Notepad — ✅ scripted equivalent 2026-11-10 (another process opens and hashes it, §7.7); the Explorer entry seen by eye 2026-11-10, Notepad by eye still owed |
 | **X1** | Read path: placeholders from the realm listing, hydration from the content stream, push updates from `FileProviderChangeFeed`, pin/evict | a realm browses in Explorer; open downloads, "Free up space" evicts; hashes match |
 | **X2** | Thumbnail handler DLL over the bridge (§7.3) | a folder of online-only photos shows thumbnails **and stays online-only** |
 | **X3** | Write path: folder watcher → upload, rename/delete callbacks, conflicts | create / edit / rename / delete in Explorer round-trips to another device |
@@ -827,5 +827,5 @@ it), then look at: (1) Explorer's navigation pane shows **Tenshu Drive (spike)**
 "Tenshu X0 cfapi spike - payload line 001…" and its status flips; (4) double-click `fail.txt` → an error,
 not a hang; (5) right-click shows "Always keep on this device" / "Free up space" (not wired: the spike
 has no dehydration path). After Enter, the entry must disappear from the navigation pane (an open Explorer
-window may need F5). If it stays: `cfapiSpike -PspikeArgs=--cleanup`. *None of (1)–(5) has been seen by a
-human yet* — the run here was scripted.
+window may need F5). If it stays: `cfapiSpike -PspikeArgs=--cleanup`. ✅ (1) seen by the maintainer
+2026-11-10 — the entry appears in Explorer's navigation pane; (2)–(5) not yet reported.
