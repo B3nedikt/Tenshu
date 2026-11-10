@@ -11,8 +11,10 @@ namespace Tenshu.TrayAgent;
 /// </summary>
 internal sealed record Strings
 {
-    public static readonly Strings Current =
-        CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "de" ? German() : English();
+    public static readonly Strings Current = ForLanguage(CultureInfo.CurrentUICulture.TwoLetterISOLanguageName);
+
+    /// <summary>The table for a two-letter language code; English for anything without one.</summary>
+    public static Strings ForLanguage(string twoLetterCode) => twoLetterCode == "de" ? German() : English();
 
     public required string Title { get; init; }
     public required string Connecting { get; init; }

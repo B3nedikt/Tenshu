@@ -63,6 +63,12 @@ internal sealed class TrayIcon : IDisposable
         Add();
     }
 
+    /// <summary>
+    /// Whether the shell accepted the icon on the last add or update — the <c>visible</c> half of the heartbeat
+    /// (<see cref="Heartbeat"/>). A running agent with no icon is the failure the heartbeat exists to expose.
+    /// </summary>
+    public bool Placed { get; private set; }
+
     /// <summary>Replaces the icon (the caller's HICON is copied by the shell; this class destroys the previous one).</summary>
     public void Update(IntPtr icon, string tooltip)
     {
@@ -70,14 +76,17 @@ internal sealed class TrayIcon : IDisposable
         _icon = icon;
         _tooltip = tooltip;
         var data = Data(NifIcon | NifTip | NifShowTip);
-        ShellNotifyIcon(NimModify, ref data);
+        Placed = ShellNotifyIcon(NimModify, ref data);
+        // The shell no longer knows the icon (a taskbar that came back without broadcasting TaskbarCreated, or an
+        // add that failed at login because Explorer was not up yet): add it again rather than report it gone.
+        if (!Placed) Add();
         if (previous != IntPtr.Zero) CatIcon.DestroyIcon(previous);
     }
 
     private void Add()
     {
         var data = Data(NifMessage | NifIcon | NifTip | NifShowTip);
-        ShellNotifyIcon(NimAdd, ref data);
+        Placed = ShellNotifyIcon(NimAdd, ref data);
         data.uTimeoutOrVersion = NotifyIconVersion4;
         ShellNotifyIcon(NimSetVersion, ref data);
     }

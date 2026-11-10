@@ -395,6 +395,25 @@ four notifiers). Lives in `control-desktop/windows/TrayAgent/`.
 >   it orphans the toasts already in the notification center.
 > - Gated on package identity, like the Swift agent's bundle-id gate. Test: `scripts/windows/tray-toast-test.ps1`
 >   posts one toast and schedules one 30 s out from inside the installed package.
+
+> **T3 as-built (2026-11-10).** Lifecycle, tests, CI and the fallback.
+> - **Liveness.** The agent writes macOS's heartbeat (`tray-agent.state`, `<epochMillis> visible|hidden`, every 10 s,
+>   atomically) from its **UI thread**, with `visible` = the shell accepted the icon on the last add/update (an update
+>   the shell rejects re-adds it), plus the placement journal on each change. Control's `WindowsTraySupervisor`
+>   judges it every 30 s with the same `TrayLiveness` table and decision log (`tray-agent.log`) as the macOS tray:
+>   SPAWN, SKIP, or kill-and-restart. ⚠⚠ Needed on Windows precisely because of the single-instance mutex: a
+>   wedged or icon-less agent holding it would otherwise make every restart a silent no-op. Healthy rounds are not
+>   logged, only decisions that act and the first healthy one after them.
+> - **Fallback.** After `MAX_UNHEALTHY_ROUNDS` (4) consecutive rounds that had to act — about two minutes with no
+>   healthy agent, e.g. one that crashes at start for want of the Windows App Runtime — Control kills the agent,
+>   stops supervising and draws its own Compose tray (`WindowsTrayAgent.fellBack`). ⚠ One-way within a run, or a
+>   recovered agent would make two icons. A grace-period SKIP neither resets nor advances the count.
+> - **Tests.** `WindowsTraySupervisorTest` (JVM) pins what each verdict does and when it gives up;
+>   `windows/TrayAgent.Tests` (xUnit, plain `net10.0`, the WinUI-free files *linked* in) pins state-code mapping,
+>   the copy and its en/de placeholders, and the heartbeat line `TrayLiveness` parses.
+> - **CI.** `windows.yml` runs those xUnit tests and builds the agent itself — the only compile of the WinUI half.
+>   Icon, flyout and toasts stay device checks.
+> - Device-checked: spawn → healthy at the next round; killed agent → restarted.
 - **Estimate (2026-11-10):** ≈ 7.5–9.5 focused days, ≈ 2–4 more than the Compose flyout plus WinRT-over-FFM toasts
   it replaces.
 

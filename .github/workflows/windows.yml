@@ -13,6 +13,11 @@ name: Windows
 # ⚠ The whole build still CONFIGURES here (no configure-on-demand), iOS targets included; K/N
 # skips them on Windows with a warning — measured locally 2026-11-09, not a failure.
 # ⚠ It needs no Windows SDK: MSIX packaging (`packageMsix`) is not run here.
+#
+# The native tray agent (control-desktop/windows/TrayAgent, desktop-windows-port.md §3.9) is C# and outside
+# Gradle's test graph, so it gets its own two steps: its unit tests, and a build of the agent itself — the only
+# place anything compiles the WinUI half. ⚠ Neither proves the toasts or the icon; those are device checks
+# (scripts/windows/tray-toast-test.ps1).
 
 on:
   push:
@@ -53,6 +58,21 @@ jobs:
           :control-shared:desktopTest
           :control-desktop:jvmTest
           :drive-shared-ui:desktopTest
+
+      - name: Set up .NET (tray agent)
+        if: always()
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # `always()`: a red Gradle step must not hide a red agent, the --continue rule in AGENTS.md.
+      - name: Tray agent unit tests
+        if: always()
+        run: dotnet test control-desktop/windows/TrayAgent.Tests/TrayAgent.Tests.csproj -nologo
+
+      - name: Tray agent build
+        if: always()
+        run: dotnet build control-desktop/windows/TrayAgent/TrayAgent.csproj -c Release -nologo
 
       - name: Upload Test Report
         if: failure()

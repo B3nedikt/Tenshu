@@ -27,6 +27,7 @@ public sealed class App : Application, IXamlMetadataProvider
     private readonly object _notifierLock = new();
     private DispatcherQueueTimer _poll = null!;
     private TrayState _state = TrayState.Unknown;
+    private bool? _lastPlaced;
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
@@ -59,9 +60,10 @@ public sealed class App : Application, IXamlMetadataProvider
         if (Notifier.LaunchedByToast()) OpenControl();
 
         _poll = _dispatcher.CreateTimer();
-        _poll.Interval = TimeSpan.FromSeconds(10);
-        _poll.Tick += (_, _) => Refresh();
+        _poll.Interval = Heartbeat.Interval;
+        _poll.Tick += (_, _) => { PublishHeartbeat(); Refresh(); };
         _poll.Start();
+        PublishHeartbeat();
         Refresh();
     }
 
@@ -105,6 +107,20 @@ public sealed class App : Application, IXamlMetadataProvider
                 UpdateIcon();
             });
         });
+    }
+
+    /// <summary>
+    /// On the UI thread on purpose: the timestamp then proves the thread that owns the icon and the flyout is turning,
+    /// not merely that some thread of this process is.
+    /// </summary>
+    private void PublishHeartbeat()
+    {
+        var now = DateTimeOffset.Now;
+        var placed = _tray.Placed;
+        var dir = BridgeClient.DefaultSocketDir();
+        Heartbeat.Publish(dir, placed, now);
+        if (placed != _lastPlaced) Heartbeat.RecordTransition(dir, placed, now);
+        _lastPlaced = placed;
     }
 
     private System.Text.Json.Nodes.JsonObject? TryCall(string method, IDictionary<string, string>? parameters = null)

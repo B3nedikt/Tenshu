@@ -299,11 +299,13 @@ fun main() {
             windowController.quitRequested.collect { exitApplication() }
         }
 
-        // Windows without the native agent (a plain dev run): the notification-area icon is this
-        // process's own (desktop-windows-port.md §3.4). ⚠ Never on macOS, where the Swift agent
-        // started by ensureTrayRunning owns it, and never alongside the native Windows agent (D5) —
-        // two icons for one app. Composed here, so exitApplication() takes the icon down with the window.
-        if (DesktopShellSupport.current.inProcessTray && WindowsTrayAgent.binary == null) {
+        // Windows without a working native agent — a plain dev run, or an agent the supervisor gave up
+        // on: the notification-area icon is this process's own (desktop-windows-port.md §3.4, §3.9 T3).
+        // ⚠ Never on macOS, where the Swift agent started by ensureTrayRunning owns it, and never
+        // alongside a live native agent (D5) — two icons for one app. Composed here, so
+        // exitApplication() takes the icon down with the window.
+        val agentFellBack by WindowsTrayAgent.fellBack.collectAsState()
+        if (DesktopShellSupport.current.inProcessTray && (WindowsTrayAgent.binary == null || agentFellBack)) {
             WindowsControlTray(
                 windowController = windowController,
                 syncPauseState = syncPauseState,
