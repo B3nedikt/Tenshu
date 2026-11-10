@@ -129,6 +129,46 @@ class ExplorerMirrorTest {
     }
 
     @Test
+    fun aReplacedFileKeepsItsAlwaysKeepMark() {
+        val pinned = placeholder("a.txt").copy(pin = ExplorerMirror.Pin.PINNED)
+        val plan = ExplorerMirror.plan(listOf(file("/a.txt", size = 20)), listOf(pinned))
+        assertEquals(true, (plan.last() as Create).pinned)
+    }
+
+    @Test
+    fun pinnedFilesStillOnlineAreDownloaded_freedFilesWithACopyAreDropped() {
+        val copies = ExplorerMirror.copies(
+            listOf(
+                placeholder("keep.txt").copy(pin = ExplorerMirror.Pin.PINNED, online = true),
+                placeholder("kept.txt").copy(pin = ExplorerMirror.Pin.PINNED, online = false),
+                placeholder("free.txt").copy(pin = ExplorerMirror.Pin.UNPINNED, online = false),
+                placeholder("freed.txt").copy(pin = ExplorerMirror.Pin.UNPINNED, online = true),
+                placeholder("opened.txt").copy(online = false),
+            ),
+        )
+        assertEquals(mapOf("keep.txt" to ExplorerMirror.Copy.DOWNLOAD, "free.txt" to ExplorerMirror.Copy.DROP), copies)
+    }
+
+    @Test
+    fun aFileWithoutAMarkFollowsTheNearestMarkedFolder() {
+        val copies = ExplorerMirror.copies(
+            listOf(
+                placeholderFolder("a").copy(pin = ExplorerMirror.Pin.PINNED),
+                ExplorerMirror.Local("a/b", isFolder = true, isPlaceholder = true, size = 0, modifiedAtMillis = 0),
+                placeholder("a/b/deep.txt").copy(online = true),
+                placeholder("a/b/own.txt").copy(pin = ExplorerMirror.Pin.UNPINNED, online = false),
+            ),
+        )
+        assertEquals(mapOf("a/b/deep.txt" to ExplorerMirror.Copy.DOWNLOAD, "a/b/own.txt" to ExplorerMirror.Copy.DROP), copies)
+    }
+
+    @Test
+    fun theUsersOwnFilesAreNeverDownloadedOrDropped() {
+        val copies = ExplorerMirror.copies(listOf(usersFile("mine.txt").copy(pin = ExplorerMirror.Pin.UNPINNED)))
+        assertEquals(emptyMap(), copies)
+    }
+
+    @Test
     fun windowsNames() {
         assertTrue(ExplorerMirror.isWindowsName("résumé (final).docx"))
         assertTrue(ExplorerMirror.isWindowsName("console.log"))

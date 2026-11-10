@@ -864,6 +864,22 @@ off by default while the folder is read-only. Log: `diagnostics/explorer.log`.
   the folder if it is empty. Quitting Control only disconnects: the entry stays, and opening an online-only file
   says the provider is not running (§7.7).
 
-**Still open in X1:** the packaged measurement (does `Register` from the installed MSIX still give the
-navigation-pane entry — §7.7); pin / "Free up space" (Windows marks the file, a provider must act on it); a
-startup sweep of stale `TenshuDrive!` roots; the hardening list in §7.7; the threat-model amendment (§7.4, §7.7).
+- **Always keep / Free up space**: Explorer only *marks* the file (`FILE_ATTRIBUTE_PINNED` / `UNPINNED`); the
+  provider acts. A pin pass — on any change notification in the folder tree (a `FILE_TREE` watch), after every
+  mirror pass and every 60 s — downloads pinned files still online-only (`CfHydratePlaceholder`) and drops the copy
+  of unpinned ones (`CfDehydratePlaceholder`), both on attribute-only handles that download nothing. A file without
+  a mark of its own follows the nearest marked folder above it (`ExplorerMirror.copies`). A replaced file keeps its
+  pin (`CfSetPinState`). An opened file without a mark keeps its copy until freed.
+- **At start** Control unregisters this user's other `TenshuDrive!` roots, so Explorer never shows two.
+- **Hardened from §7.7**: a `FETCH_DATA` whose details cannot be read is failed from its keys alone (no 60 s wait);
+  `CF_CALLBACK_INFO` fields are read only up to the `StructSize` the OS sent; `register` releases every COM
+  reference on its failure paths; WinRT downcall handles are cached.
+- **Threat model**: T-C-21 and T-C-16's Windows paragraph (`threat-model.md`, the Windows Explorer sub-amendment).
+
+✅ **Device-verified 2026-11-10** (installed MSIX, Windows 11): the switch registers the root from the packaged
+Control and the navigation-pane entry appears — HKCU virtualisation does not hide it, so §7.7's open question is
+closed and no `windows.cloudFiles` manifest extension is needed; the realm's 29 rows appeared; a photo opened from
+Explorer downloaded and showed. Pin and free, by `attrib +P` / `+U` (the marks Explorer's menu sets): an
+online-only photo was downloaded within a second of `+P` and its copy dropped within a second of `+U`.
+⚠ Found only on the device: `ExtendedWatchEventModifier.FILE_TREE` is in `jdk.unsupported`, which the packaged
+runtime does not carry (`NoClassDefFoundError`) — so each folder is watched on its own.

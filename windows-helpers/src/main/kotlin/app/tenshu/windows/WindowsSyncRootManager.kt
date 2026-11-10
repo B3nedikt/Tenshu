@@ -112,12 +112,29 @@ object WindowsSyncRootManager {
         }
 
         fun register(info: Info): Outcome = outcome { arena ->
+            // Each reference is released by its own `finally`, so a step that fails leaks none taken before it.
             val folder = folderFromPath(arena, info.path)
-            val inspectable = arena.allocate(a)
-            check(roActivateInstance.invokeExact(hstring(arena, INFO_CLASS), inspectable) as Int, "RoActivateInstance(StorageProviderSyncRootInfo)")
-            val instance = inspectable.get(a, 0L)
-            val root = queryInterface(arena, instance, IID_INFO)
             try {
+                val inspectable = arena.allocate(a)
+                check(roActivateInstance.invokeExact(hstring(arena, INFO_CLASS), inspectable) as Int, "RoActivateInstance(StorageProviderSyncRootInfo)")
+                val instance = inspectable.get(a, 0L)
+                try {
+                    val root = queryInterface(arena, instance, IID_INFO)
+                    try {
+                        populateAndRegister(arena, info, folder, instance, root)
+                    } finally {
+                        release(root)
+                    }
+                } finally {
+                    release(instance)
+                }
+            } finally {
+                release(folder)
+            }
+        }
+
+        private fun populateAndRegister(arena: Arena, info: Info, folder: MemorySegment, instance: MemorySegment, root: MemorySegment) {
+            run {
                 val s = FunctionDescriptor.of(i, a, a)
                 val n = FunctionDescriptor.of(i, a, i)
                 check(call(root, 7, s, root, hstring(arena, info.id)), "put_Id")
@@ -150,10 +167,6 @@ object WindowsSyncRootManager {
                 } finally {
                     release(statics)
                 }
-            } finally {
-                release(root)
-                release(instance)
-                release(folder)
             }
         }
 
@@ -248,11 +261,15 @@ object WindowsSyncRootManager {
             if (obj.address() != 0L) call(obj, 2, FunctionDescriptor.of(i, a), obj)
         }
 
+        /** Downcall handles by (function address, descriptor): building one per call is the expensive part. */
+        private val handles = java.util.concurrent.ConcurrentHashMap<Pair<Long, FunctionDescriptor>, MethodHandle>()
+
         /** Calls vtable [slot] of COM object [obj]; [args] include `this`. */
         private fun call(obj: MemorySegment, slot: Int, descriptor: FunctionDescriptor, vararg args: Any): Int {
             val vtable = obj.reinterpret(8).get(a, 0L).reinterpret((slot + 1) * 8L)
             val function = vtable.get(a, slot * 8L)
-            return linker.downcallHandle(function, descriptor).invokeWithArguments(*args) as Int
+            val handle = handles.computeIfAbsent(function.address() to descriptor) { linker.downcallHandle(function, descriptor) }
+            return handle.invokeWithArguments(*args) as Int
         }
 
         private fun check(hr: Int, what: String) {

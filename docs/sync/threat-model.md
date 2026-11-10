@@ -43,6 +43,12 @@ Phase 1 items 3/4/9):** adds assets **A43** (the side-channel signing key, a tru
 custody) and **A44** (the release bucket, its publish key and the committed release manifest — an
 **macOS direct-release sub-amendment (2026-11-06, [`desktop-macos-distribution.md`](../proposals/desktop-macos-distribution.md) §2.7):** widens **A44** to the notarized Developer ID `.dmg` of the ten desktop apps and the committed `store/macos-release.json`, in the same bucket under the same publish key, widens attack surface #20, and adds threat group §8.24 (T-MD-01–02). No asset (A1–A4 / A9), relay surface or sync-protocol change: public installers on Cloudflare R2, nothing user-owned (House Rule #1).
 **Client-side gate sub-amendment (2026-11-06, [`desktop-ipc-client-identity.md`](../proposals/desktop-ipc-client-identity.md) §11):** amends **A14** — the binding now runs in both directions: every desktop app attests the process serving `ipc.sock` as Tenshu Control (`app.tenshu.control.ios`, a compiled-in team) before writing to it. **T-MD-01**'s residual drops to Medium. No asset (A1–A4 / A9), relay surface or sync-protocol change; device-local only (House Rule #1).
+**Windows Explorer sub-amendment (2026-11-10, [`desktop-windows-port.md`](../proposals/desktop-windows-port.md) §7.8, X1):**
+adds **T-C-21** and a Windows paragraph to **T-C-16**. With the (off-by-default) *Show Drive in File Explorer*
+switch on, Control hosts a Cloud Files sync root: the OS asks Control to decrypt and serve a file whenever **any**
+same-user process opens its placeholder — a path that does not pass the A14 gate — and downloaded files stay
+plaintext in an ordinary NTFS folder until freed. No asset (A1–A4 / A9), relay surface or sync-protocol change; the
+bytes come through the same file-service path as every other read (House Rule #1).
 **install trust root** for a fresh install), attack surface #20 (app distribution outside Play) and
 threat group §8.23 (T-DA-01–05), and qualifies **TA4** for copies downloaded from tenshu.app. A41/A42
 are left to `sync-push-wake.md`, whose draft appendix holds them. No asset (A1–A4 / A9), relay surface
@@ -5202,6 +5208,16 @@ large file that is seconds to minutes rather than an instant, and a crash can ex
 sweep. The obligations stay checklist items: the final materialisation must remain inside the
 sandbox container (never a world-readable global temp) and be cleaned on eviction (per-platform I8
 client-hardening checklist, §9).
+**Windows (Cloud Files, 2026-11-10, `ExplorerSyncRoot`; `desktop-windows-port.md` §7.8).** There is no extension
+and no staging hand-off: Control writes the decrypted bytes straight into the placeholder through `CfExecute`. But
+the result is **plaintext in an ordinary folder** (`%USERPROFILE%\Tenshu Drive`), readable by every same-user
+process without any gate and **persistent until the user frees it** — a deviation from I8's "only while in active
+use", accepted while the switch is on, exactly as for any synced folder (OneDrive, Dropbox). Defense: the switch is
+off by default; every file starts online-only and is downloaded only when something opens it or the user chooses
+*Always keep on this device*; *Free up space* drops the copy (`CfDehydratePlaceholder`); turning the switch off
+deletes every placeholder, downloaded copies included. Disk encryption is BitLocker's job and out of scope.
+Residual risk while the switch is on: **Medium** (same-user and offline read of whatever has been opened); none
+while it is off.
 
 **T-C-17. Desktop at-rest master-key store exposure.**
 Actors: AD1 (offline disk theft) and AD3 (same-user malware). Assets: A21 (and the A1/A2/A9
@@ -5419,6 +5435,27 @@ catalogue and the release doc. Builds installed through Play's *internal app sha
 with another key and refused. **Third-party apps (Rei) are refused** until they get their own path:
 a package the user granted in Control whose signer matches the digest in its signed Rei publication
 (`tenshu-rei.md` §3.2), never an entry in the first-party table.
+
+**T-C-21. Windows Explorer integration: hydration outside the IPC gate, and a stand-in provider.**
+Actors: AD3 (same-user process). Assets: user file plaintext; the integrity of what the folder shows as Tenshu's.
+Invariants: I1, I8. Applies only while *Show Drive in File Explorer* is on (`desktop-windows-port.md` §7.8).
+- **(a) Any same-user process can have Control decrypt any realm file.** Opening a placeholder under
+  `%USERPROFILE%\Tenshu Drive` makes Windows call Control's `FETCH_DATA`; Control reads the file through the
+  file-service and hands Windows the plaintext. This path does **not** go through the A14 peer gate that keeps a
+  same-user process off `ipc.sock` (T-C-11): `CF_PROCESS_INFO` names the opener, and Control logs it, but does not
+  check it — the opener may be any editor the user runs. So with the switch on, the realm's files are as readable
+  by same-user code as the files of any synced folder; with it off, T-C-11's Low stands.
+  Defense: off by default, opt-in from Control's Settings; only the default file system's realm is shown; the read
+  path is the same as every other (the relay sees ciphertext only).
+- **(b) While Control is not connected, another process can be the provider.** CfAPI lets **one** process connect to
+  a sync root and does not check which (measured in X0: a second process connected as soon as the first
+  disconnected) — so while Control is not running, a same-user process can connect to Tenshu's root, serve
+  arbitrary bytes into online-only files and create placeholders. It could equally write into the folder as
+  files, since it is an ordinary user folder. Defense: nothing the folder holds is uploaded — X1 is read-only, and
+  the mirror only ever removes or replaces placeholders whose bytes it does not trust anyway. ⚠⚠ **X3 (uploading
+  from the folder) must revisit this:** a file planted or a placeholder served by a stand-in would then reach the
+  realm and every device.
+Residual risk while the switch is on: **Medium** for (a), **Low** for (b) until X3; none while it is off.
 
 ### 8.5 Key management and revocation
 
