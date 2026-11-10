@@ -32,18 +32,24 @@ object ExplorerIntegration {
         if (supported && isEnabled()) start()
     }
 
-    /** Turns it on (register, connect, fill the folder) or off (empty the folder of placeholders, unregister). */
+    /**
+     * Turns it on (register, connect, fill the folder) or off (empty the folder of placeholders, unregister).
+     * Answers whether it is now on. ⚠ A start Windows refused leaves the switch off, so Settings never shows a
+     * folder that is not there. Before [install] (Control still starting) it can be turned off, not on.
+     */
     @Synchronized
-    fun setEnabled(enabled: Boolean) {
-        settings.setExplorerIntegration(enabled)
-        if (!supported) return
+    fun setEnabled(enabled: Boolean): Boolean {
+        if (!supported) return false
         if (enabled) {
             if (running == null) start()
+            settings.setExplorerIntegration(running != null)
         } else {
-            val root = running ?: koin?.let { ExplorerSyncRoot(it, ExplorerSyncRoot.defaultRoot(), log) }
+            settings.setExplorerIntegration(false)
+            val root = running
             running = null
-            root?.remove()
+            if (root != null) root.remove() else ExplorerSyncRoot.removeAll(ExplorerSyncRoot.defaultRoot(), log)
         }
+        return running != null
     }
 
     /** Control quitting: stop serving, keep the registration and the folder. */

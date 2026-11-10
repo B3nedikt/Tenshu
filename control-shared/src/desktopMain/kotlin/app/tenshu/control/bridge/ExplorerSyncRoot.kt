@@ -8,7 +8,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -67,7 +69,15 @@ internal class ExplorerSyncRoot(
     private val fetchers = Executors.newFixedThreadPool(FETCH_THREADS) { r ->
         Thread(r, "explorer-fetch").apply { isDaemon = true }
     }
+    /** Transfers being served, and those of them Windows cancelled; only an active one can be cancelled. */
+    private val active = ConcurrentHashMap.newKeySet<Long>()
     private val cancelled = ConcurrentHashMap.newKeySet<Long>()
+
+    /** When a pass first proposed a mass removal that has not been confirmed yet ([MASS_REMOVAL_CONFIRM_MILLIS]). */
+    @Volatile private var massRemovalSince: Long? = null
+
+    /** The effective pin marks the last pin pass saw (pin thread only). */
+    private var previousMarks: Map<String, ExplorerMirror.Pin> = emptyMap()
 
     @Volatile private var connection: WindowsCloudFiles.Connection? = null
     @Volatile private var watcher: WatchService? = null
@@ -132,37 +142,32 @@ internal class ExplorerSyncRoot(
                 }
             },
         )
-        Thread({ runCatching { watchFolder() }.onFailure { log("explorer: folder watch stopped: $it") } }, "explorer-watch")
+        // Made here, not in its thread, so a stop() right after start() always has a watcher to close.
+        val watcher = root.fileSystem.newWatchService().also { this.watcher = it }
+        Thread({ runCatching { watchFolder(watcher) }.onFailure { log("explorer: folder watch stopped: $it") } }, "explorer-watch")
             .apply { isDaemon = true }.start()
         return true
     }
 
-    /** Stops serving; the registration and the placeholders stay (Control quitting). */
+    /**
+     * Stops serving; the registration and the placeholders stay (Control quitting). ⚠ Waits for a pass in flight
+     * (bounded): a pass still creating placeholders after [remove] has deleted them would leave orphans behind.
+     */
     fun stop() {
-        scope.cancel()
+        runBlocking { withTimeoutOrNull(STOP_TIMEOUT_MILLIS) { scope.coroutineContext[Job]?.cancelAndJoin() } }
         runCatching { watcher?.close() }
-        pinThread.shutdownNow()
+        // Disconnecting fails any download a pin pass is still waiting on, so the pin thread can finish.
         connection?.disconnect()?.let { log("explorer: disconnected -> ${CloudFilesHResult.describe(it)}") }
         connection = null
+        pinThread.shutdownNow()
+        pinThread.awaitTermination(STOP_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)
         fetchers.shutdownNow()
     }
 
-    /**
-     * Turns the integration off: stops, deletes every placeholder (never the user's files), unregisters, and
-     * removes the folder if nothing is left in it.
-     */
+    /** Turns the integration off: [stop], then [removeAll]. */
     fun remove() {
         stop()
-        runCatching {
-            if (root.exists()) {
-                Files.walk(root).use { s -> s.filter { it != root }.toList() }
-                    .sortedByDescending { it.nameCount }
-                    .filter { isPlaceholder(it) }
-                    .forEach { deletePlaceholder(it) }
-            }
-        }.onFailure { log("explorer: removing placeholders failed: $it") }
-        syncRootId()?.let { log("explorer: Unregister -> ${WindowsSyncRootManager.unregister(it)}") }
-        runCatching { if (root.isDirectory() && Files.list(root).use { it.findFirst().isEmpty }) Files.delete(root) }
+        removeAll(root, log)
     }
 
     private suspend fun watchRealm() {
@@ -188,10 +193,23 @@ internal class ExplorerSyncRoot(
             return
         }
         val remote = remoteRows() ?: return
-        val actions = ExplorerMirror.plan(remote, localEntries())
+        val local = localEntries()
+        val actions = ExplorerMirror.plan(remote, local)
+        // ⚠ A listing that comes back empty or partial for a moment (a cold store, a reset) would take every
+        // downloaded and pinned copy with it. So a mass removal must be proposed again a while later to be applied.
+        if (ExplorerMirror.isMassRemoval(actions, local)) {
+            val now = System.currentTimeMillis()
+            val since = massRemovalSince ?: now.also { massRemovalSince = it }
+            if (now - since < MASS_REMOVAL_CONFIRM_MILLIS) {
+                log("explorer: the realm listing would remove most of the folder (${remote.size} rows); waiting for it to say so again")
+                return
+            }
+        }
+        massRemovalSince = null
         if (actions.isEmpty()) return
         var failed = 0
         for (action in actions) {
+            if (!scope.isActive) return
             val ok = when (action) {
                 is ExplorerMirror.Action.Remove -> deletePlaceholder(root.resolve(action.relative))
                 is ExplorerMirror.Action.Create -> create(action)
@@ -227,10 +245,12 @@ internal class ExplorerSyncRoot(
                 Files.readAttributes(path, DosFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
             }.getOrNull() ?: return@mapNotNull null
             val bits = WindowsCloudFiles.fileAttributes(path) ?: 0
+            val ours = ourPlaceholder(path)
             ExplorerMirror.Local(
                 relative = root.relativize(path).joinToString("/"),
                 isFolder = attributes.isDirectory,
-                isPlaceholder = bits and WindowsCloudFiles.FILE_ATTRIBUTE_REPARSE_POINT != 0,
+                isPlaceholder = ours != null && (attributes.isDirectory || ours.inSync),
+                contentVersion = ours?.identity?.contentVersion,
                 size = if (attributes.isDirectory) 0 else attributes.size(),
                 modifiedAtMillis = attributes.lastModifiedTime().toMillis(),
                 pin = when {
@@ -282,8 +302,9 @@ internal class ExplorerSyncRoot(
      */
     private fun pinPass() {
         if (!root.isDirectory()) return
-        val copies = ExplorerMirror.copies(localEntries())
-        for ((relative, copy) in copies) {
+        val plan = ExplorerMirror.copies(localEntries(), previousMarks)
+        previousMarks = plan.effective
+        for ((relative, copy) in plan.copies) {
             val path = root.resolve(relative)
             val hr = when (copy) {
                 ExplorerMirror.Copy.DOWNLOAD -> WindowsCloudFiles.hydrate(path)
@@ -299,9 +320,7 @@ internal class ExplorerSyncRoot(
      * ⚠ One registration per folder, not `ExtendedWatchEventModifier.FILE_TREE`: that lives in `jdk.unsupported`,
      * which the packaged app's trimmed runtime does not carry (measured: `NoClassDefFoundError` in the MSIX).
      */
-    private fun watchFolder() {
-        val watcher = root.fileSystem.newWatchService()
-        this.watcher = watcher
+    private fun watchFolder(watcher: WatchService) {
         val watched = HashSet<Path>()
         fun registerFolders() {
             Files.walk(root).use { s -> s.filter { Files.isDirectory(it, LinkOption.NOFOLLOW_LINKS) }.toList() }
@@ -326,24 +345,13 @@ internal class ExplorerSyncRoot(
         }
     }
 
-    private fun deletePlaceholder(path: Path): Boolean = runCatching {
-        if (!path.exists(LinkOption.NOFOLLOW_LINKS)) return true
-        Files.setAttribute(path, "dos:readonly", false, LinkOption.NOFOLLOW_LINKS)
-        Files.delete(path)
-        true
-    }.getOrElse {
-        // An open file cannot be deleted; the next pass tries again.
-        log("explorer: could not remove '${root.relativize(path)}': $it")
-        false
-    }
-
-    private fun isPlaceholder(path: Path): Boolean =
-        (WindowsCloudFiles.fileAttributes(path) ?: 0) and WindowsCloudFiles.FILE_ATTRIBUTE_REPARSE_POINT != 0
+    private fun deletePlaceholder(path: Path): Boolean = deleteIfStillOurs(root, path, log)
 
     private val handler = object : WindowsCloudFiles.Handler {
         // Called on a CfAPI pool thread: hand off at once, answer from our own threads (X0: blocking there works,
         // but the pool is the OS's).
         override fun fetchData(request: WindowsCloudFiles.FetchData) {
+            active += request.transferKey
             fetchers.execute {
                 try {
                     runBlocking { serve(request) }
@@ -351,13 +359,15 @@ internal class ExplorerSyncRoot(
                     log("explorer: fetch failed: $t")
                     request.fail()
                 } finally {
+                    active.remove(request.transferKey)
                     cancelled.remove(request.transferKey)
                 }
             }
         }
 
         override fun cancelFetchData(cancel: WindowsCloudFiles.CancelFetchData) {
-            cancelled += cancel.transferKey
+            // A cancel for a transfer already finished would otherwise stay in the set for good.
+            if (cancel.transferKey in active) cancelled += cancel.transferKey
         }
     }
 
@@ -428,8 +438,6 @@ internal class ExplorerSyncRoot(
             .forEach { log("explorer: stale root $it -> Unregister: ${WindowsSyncRootManager.unregister(it)}") }
     }
 
-    private fun syncRootId(): String? = WindowsAccount.currentUserSid()?.let { "$PROVIDER!$it!$ACCOUNT" }
-
     /** The running launcher's own icon (the packaged `TenshuControl.exe`); Windows' cloud icon in a dev run. */
     private fun iconResource(): String {
         val launcher = ProcessHandle.current().info().command().orElse(null)
@@ -452,8 +460,59 @@ internal class ExplorerSyncRoot(
         private const val REPAIR_INTERVAL_MILLIS = 60_000L
         private const val MAX_IDENTITY_BYTES = 4096
 
+        private const val STOP_TIMEOUT_MILLIS = 10_000L
+        private const val MASS_REMOVAL_CONFIRM_MILLIS = 30_000L
+
         /** `%USERPROFILE%\Tenshu Drive`. */
         fun defaultRoot(): Path = Path.of(System.getProperty("user.home"), DISPLAY_NAME)
+
+        private fun syncRootId(): String? = WindowsAccount.currentUserSid()?.let { "$PROVIDER!$it!$ACCOUNT" }
+
+        /** One of our placeholders: it carries a Tenshu identity. `null` for anything else, links included. */
+        private class Ours(val identity: ExplorerIdentity, val inSync: Boolean)
+
+        private fun ourPlaceholder(path: Path): Ours? {
+            val info = WindowsCloudFiles.placeholderInfo(path) ?: return null
+            val identity = ExplorerIdentity.decode(info.identity) ?: return null
+            return Ours(identity, info.inSync)
+        }
+
+        /**
+         * Deletes [path] only if it is still one of our placeholders that holds what we put there — re-checked right
+         * before deleting, so nothing the user changed since the scan (an edit saved in place, a link put there) goes.
+         */
+        private fun deleteIfStillOurs(root: Path, path: Path, log: (String) -> Unit): Boolean = runCatching {
+            if (!path.exists(LinkOption.NOFOLLOW_LINKS)) return true
+            val ours = ourPlaceholder(path)
+            if (ours == null || (!Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS) && !ours.inSync)) {
+                log("explorer: kept '${root.relativize(path)}': it is not (or no longer) only ours")
+                return false
+            }
+            Files.setAttribute(path, "dos:readonly", false, LinkOption.NOFOLLOW_LINKS)
+            Files.delete(path)
+            true
+        }.getOrElse {
+            // An open file cannot be deleted; the next pass tries again.
+            log("explorer: could not remove '${root.relativize(path)}': $it")
+            false
+        }
+
+        /**
+         * Empties [root] of our placeholders (never the user's files, never a link), unregisters, and removes the
+         * folder if nothing is left. Needs no proxy, so it works before Control has finished starting.
+         */
+        fun removeAll(root: Path, log: (String) -> Unit) {
+            runCatching {
+                if (root.exists()) {
+                    Files.walk(root).use { s -> s.filter { it != root }.toList() }
+                        .sortedByDescending { it.nameCount }
+                        .filter { ourPlaceholder(it) != null }
+                        .forEach { deleteIfStillOurs(root, it, log) }
+                }
+            }.onFailure { log("explorer: removing placeholders failed: $it") }
+            syncRootId()?.let { log("explorer: Unregister -> ${WindowsSyncRootManager.unregister(it)}") }
+            runCatching { if (root.isDirectory() && Files.list(root).use { it.findFirst().isEmpty }) Files.delete(root) }
+        }
     }
 }
 

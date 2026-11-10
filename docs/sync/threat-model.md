@@ -5451,10 +5451,11 @@ Invariants: I1, I8. Applies only while *Show Drive in File Explorer* is on (`des
   a sync root and does not check which (measured in X0: a second process connected as soon as the first
   disconnected) — so while Control is not running, a same-user process can connect to Tenshu's root, serve
   arbitrary bytes into online-only files and create placeholders. It could equally write into the folder as
-  files, since it is an ordinary user folder. Defense: nothing the folder holds is uploaded — X1 is read-only, and
-  the mirror only ever removes or replaces placeholders whose bytes it does not trust anyway. ⚠⚠ **X3 (uploading
-  from the folder) must revisit this:** a file planted or a placeholder served by a stand-in would then reach the
-  realm and every device.
+  files, since it is an ordinary user folder. Defense: nothing the folder holds is uploaded — X1 is read-only.
+  ⚠ Downloaded copies are **not** re-verified: bytes a stand-in served stay in place after Control reconnects as
+  long as size, date and identity match, and read as Tenshu's (a later phase could compare content hashes).
+  ⚠⚠ **X3 (uploading from the folder) must revisit this:** a file planted or a placeholder served by a stand-in
+  would then reach the realm and every device.
 Residual risk while the switch is on: **Medium** for (a), **Low** for (b) until X3; none while it is off.
 
 ### 8.5 Key management and revocation

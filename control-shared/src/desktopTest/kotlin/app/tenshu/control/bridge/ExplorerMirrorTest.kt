@@ -137,35 +137,72 @@ class ExplorerMirrorTest {
 
     @Test
     fun pinnedFilesStillOnlineAreDownloaded_freedFilesWithACopyAreDropped() {
-        val copies = ExplorerMirror.copies(
-            listOf(
-                placeholder("keep.txt").copy(pin = ExplorerMirror.Pin.PINNED, online = true),
-                placeholder("kept.txt").copy(pin = ExplorerMirror.Pin.PINNED, online = false),
-                placeholder("free.txt").copy(pin = ExplorerMirror.Pin.UNPINNED, online = false),
-                placeholder("freed.txt").copy(pin = ExplorerMirror.Pin.UNPINNED, online = true),
-                placeholder("opened.txt").copy(online = false),
-            ),
+        val local = listOf(
+            placeholder("keep.txt").copy(pin = ExplorerMirror.Pin.PINNED, online = true),
+            placeholder("kept.txt").copy(pin = ExplorerMirror.Pin.PINNED, online = false),
+            placeholder("free.txt").copy(pin = ExplorerMirror.Pin.UNPINNED, online = false),
+            placeholder("freed.txt").copy(pin = ExplorerMirror.Pin.UNPINNED, online = true),
+            placeholder("opened.txt").copy(online = false),
         )
-        assertEquals(mapOf("keep.txt" to ExplorerMirror.Copy.DOWNLOAD, "free.txt" to ExplorerMirror.Copy.DROP), copies)
+        val before = local.associate { it.relative to ExplorerMirror.Pin.NONE }
+        assertEquals(
+            mapOf("keep.txt" to ExplorerMirror.Copy.DOWNLOAD, "free.txt" to ExplorerMirror.Copy.DROP),
+            ExplorerMirror.copies(local, before).copies,
+        )
+    }
+
+    @Test
+    fun aFreedFileOpenedAgainKeepsItsCopy_onlyANewFreeMarkDropsIt() {
+        val opened = listOf(placeholder("photo.jpg").copy(pin = ExplorerMirror.Pin.UNPINNED, online = false))
+        // It was already freed last pass; opening it downloaded it again. That copy stays.
+        assertEquals(emptyMap(), ExplorerMirror.copies(opened, mapOf("photo.jpg" to ExplorerMirror.Pin.UNPINNED)).copies)
+        // A file the last pass never saw is not dropped either (the first pass after Control starts).
+        assertEquals(emptyMap(), ExplorerMirror.copies(opened, emptyMap()).copies)
+        assertEquals(
+            mapOf("photo.jpg" to ExplorerMirror.Pin.UNPINNED),
+            ExplorerMirror.copies(opened, emptyMap()).effective,
+        )
     }
 
     @Test
     fun aFileWithoutAMarkFollowsTheNearestMarkedFolder() {
-        val copies = ExplorerMirror.copies(
-            listOf(
-                placeholderFolder("a").copy(pin = ExplorerMirror.Pin.PINNED),
-                ExplorerMirror.Local("a/b", isFolder = true, isPlaceholder = true, size = 0, modifiedAtMillis = 0),
-                placeholder("a/b/deep.txt").copy(online = true),
-                placeholder("a/b/own.txt").copy(pin = ExplorerMirror.Pin.UNPINNED, online = false),
-            ),
+        val local = listOf(
+            placeholderFolder("a").copy(pin = ExplorerMirror.Pin.PINNED),
+            ExplorerMirror.Local("a/b", isFolder = true, isPlaceholder = true, size = 0, modifiedAtMillis = 0),
+            placeholder("a/b/deep.txt").copy(online = true),
+            placeholder("a/b/own.txt").copy(pin = ExplorerMirror.Pin.UNPINNED, online = false),
         )
-        assertEquals(mapOf("a/b/deep.txt" to ExplorerMirror.Copy.DOWNLOAD, "a/b/own.txt" to ExplorerMirror.Copy.DROP), copies)
+        val before = mapOf("a/b/deep.txt" to ExplorerMirror.Pin.NONE, "a/b/own.txt" to ExplorerMirror.Pin.PINNED)
+        assertEquals(
+            mapOf("a/b/deep.txt" to ExplorerMirror.Copy.DOWNLOAD, "a/b/own.txt" to ExplorerMirror.Copy.DROP),
+            ExplorerMirror.copies(local, before).copies,
+        )
     }
 
     @Test
     fun theUsersOwnFilesAreNeverDownloadedOrDropped() {
-        val copies = ExplorerMirror.copies(listOf(usersFile("mine.txt").copy(pin = ExplorerMirror.Pin.UNPINNED)))
-        assertEquals(emptyMap(), copies)
+        val mine = listOf(usersFile("mine.txt").copy(pin = ExplorerMirror.Pin.UNPINNED))
+        assertEquals(emptyMap(), ExplorerMirror.copies(mine, mapOf("mine.txt" to ExplorerMirror.Pin.NONE)).copies)
+    }
+
+    @Test
+    fun aFileOverwrittenWithTheSameSizeAndDateIsStillReplaced_byItsContentVersion() {
+        val stale = placeholder("a.txt").copy(contentVersion = "old")
+        val plan = ExplorerMirror.plan(listOf(file("/a.txt", version = "new")), listOf(stale))
+        assertEquals(listOf(Remove("a.txt", false), Create("a.txt", file("/a.txt", version = "new"))), plan)
+        assertEquals(emptyList(), ExplorerMirror.plan(listOf(file("/a.txt", version = "old")), listOf(stale)))
+    }
+
+    @Test
+    fun removingMostOfTheFolderIsAMassRemoval_replacingItIsNot() {
+        val local = (1..20).map { placeholder("f$it.txt") }
+        assertTrue(ExplorerMirror.isMassRemoval(ExplorerMirror.plan(emptyList(), local), local))
+        // Every file changed: twenty removals, each followed by its replacement.
+        val changed = (1..20).map { file("/f$it.txt", size = 99) }
+        assertFalse(ExplorerMirror.isMassRemoval(ExplorerMirror.plan(changed, local), local))
+        // A few files going is ordinary.
+        val few = (1..3).map { placeholder("g$it.txt") }
+        assertFalse(ExplorerMirror.isMassRemoval(ExplorerMirror.plan(emptyList(), few), few))
     }
 
     @Test

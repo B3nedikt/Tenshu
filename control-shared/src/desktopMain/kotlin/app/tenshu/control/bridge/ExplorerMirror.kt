@@ -21,7 +21,11 @@ internal object ExplorerMirror {
         val contentVersion: String,
     )
 
-    /** One entry found in the folder. [relative] uses `/`, no leading slash, the case found on disk. */
+    /**
+     * One entry found in the folder. [relative] uses `/`, no leading slash, the case found on disk.
+     * [isPlaceholder]: one of ours that still holds what we put there — it carries a Tenshu identity and, for a file,
+     * is in sync. ⚠ A link, a foreign placeholder, or one of ours the user saved an edit into is NOT: it is theirs.
+     */
     data class Local(
         val relative: String,
         val isFolder: Boolean,
@@ -32,6 +36,8 @@ internal object ExplorerMirror {
         val pin: Pin = Pin.NONE,
         /** No local copy: opening it downloads (`RECALL_ON_DATA_ACCESS`). */
         val online: Boolean = false,
+        /** The content version its identity was made for; `null` when unknown. */
+        val contentVersion: String? = null,
     )
 
     /** "Always keep on this device" ([PINNED]) and "Free up space" ([UNPINNED]). */
@@ -93,7 +99,12 @@ internal object ExplorerMirror {
                     removals[key] = Action.Remove(found.relative, found.isFolder)
                     creations += Action.Create(relative, row)
                 }
-                !row.isFolder && (found.size != row.size || found.modifiedAtMillis != row.modifiedAtMillis) -> {
+                // ⚠ The version too: an overwrite can keep both the size and the content date, and a stale
+                // placeholder fails every fetch (its version no longer matches the row's).
+                !row.isFolder && (
+                    found.size != row.size || found.modifiedAtMillis != row.modifiedAtMillis ||
+                        (found.contentVersion != null && found.contentVersion != row.contentVersion)
+                    ) -> {
                     removals[key] = Action.Remove(found.relative, isFolder = false)
                     creations += Action.Create(relative, row, pinned = found.pin == Pin.PINNED)
                 }
@@ -123,13 +134,19 @@ internal object ExplorerMirror {
     /** What to do about one file's local copy. */
     enum class Copy { DOWNLOAD, DROP }
 
+    /** What a pin pass does, and the effective marks it saw — handed back to the next pass as `previous`. */
+    data class CopyPlan(val copies: Map<String, Copy>, val effective: Map<String, Pin>)
+
     /**
-     * The placeholder files whose local copy disagrees with their pin: a pinned file still online-only is
-     * downloaded, an unpinned one with a local copy has it dropped. A file without a mark of its own follows the
-     * nearest folder above it that has one (Explorer marks the folder it was used on); with none, it is left as
-     * it is — opened files stay until the user frees them.
+     * The placeholder files whose local copy disagrees with their pin. A file without a mark of its own follows the
+     * nearest folder above it that has one (Explorer marks the folder it was used on).
+     * - **Pinned** and online-only → downloaded, whenever seen: "always keep" is a standing order.
+     * - **Unpinned** with a local copy → dropped only when the mark is **new since [previous]** ("Free up space" was
+     *   just chosen). ⚠ Opening a freed file downloads it and keeps the mark; dropping on every pass would take the
+     *   copy away half a second after the user opened it. A file [previous] has not seen is not dropped either.
+     * - No mark → left as it is: opened files stay until the user frees them.
      */
-    fun copies(local: List<Local>): Map<String, Copy> {
+    fun copies(local: List<Local>, previous: Map<String, Pin>): CopyPlan {
         val folders = local.filter { it.isFolder }.associate { key(it.relative) to it.pin }
         fun effective(entry: Local): Pin {
             if (entry.pin != Pin.NONE) return entry.pin
@@ -140,14 +157,33 @@ internal object ExplorerMirror {
             }
             return Pin.NONE
         }
-        return local.filter { it.isPlaceholder && !it.isFolder }.mapNotNull { entry ->
-            when (effective(entry)) {
+        val files = local.filter { it.isPlaceholder && !it.isFolder }
+        val marks = files.associate { it.relative to effective(it) }
+        val copies = files.mapNotNull { entry ->
+            when (marks.getValue(entry.relative)) {
                 Pin.PINNED -> if (entry.online) entry.relative to Copy.DOWNLOAD else null
-                Pin.UNPINNED -> if (!entry.online) entry.relative to Copy.DROP else null
+                Pin.UNPINNED -> {
+                    val before = previous[entry.relative]
+                    if (!entry.online && before != null && before != Pin.UNPINNED) entry.relative to Copy.DROP else null
+                }
                 Pin.NONE -> null
             }
         }.toMap()
+        return CopyPlan(copies, marks)
     }
+
+    /**
+     * Whether [actions] would remove so much of what [local] shows that the listing is more likely wrong than the
+     * realm emptied: more than [MASS_REMOVAL_FLOOR] placeholders and more than half of them, not replaced.
+     */
+    fun isMassRemoval(actions: List<Action>, local: List<Local>): Boolean {
+        val created = actions.filterIsInstance<Action.Create>().mapTo(HashSet()) { key(it.relative) }
+        val removed = actions.count { it is Action.Remove && key(it.relative) !in created }
+        val shown = local.count { it.isPlaceholder }
+        return removed > MASS_REMOVAL_FLOOR && removed * 2 > shown
+    }
+
+    private const val MASS_REMOVAL_FLOOR = 10
 
     /** Folder rows for any ancestor the listing left out, so every file has a parent to be created in. */
     private fun withAncestors(remote: List<Remote>): List<Remote> {

@@ -73,7 +73,8 @@ actual fun PlatformSettingsSection() {
         explorer = value
         scope.launch {
             try {
-                withContext(Dispatchers.IO) { ExplorerIntegration.setEnabled(value) }
+                // What it is now, not what was asked: a start Windows refused leaves it off.
+                explorer = withContext(Dispatchers.IO) { ExplorerIntegration.setEnabled(value) }
             } finally {
                 explorerBusy = false
             }

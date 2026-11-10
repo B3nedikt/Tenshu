@@ -234,7 +234,19 @@ object WindowsCloudFiles {
     fun setPinState(path: Path, state: Int): Int? = onAttributeHandle(path) { n, h -> n.setPinState(h, state) }
 
     private fun onAttributeHandle(path: Path, op: (Natives, Any) -> Int): Int? =
-        natives?.let { n -> runCatching { n.withAttributeHandle(path.toString()) { op(n, it) } }.getOrElse { CloudFilesHResult.E_FAIL } }
+        natives?.let { n -> runCatching { n.withAttributeHandle(path.toString(), followLinks = true) { op(n, it) } }.getOrElse { CloudFilesHResult.E_FAIL } }
+
+    /** A placeholder's FileIdentity blob, and whether its local state matches what the provider last set. */
+    class PlaceholderInfo(val identity: ByteArray, val inSync: Boolean)
+
+    /**
+     * `CfGetPlaceholderInfo(BASIC)` for [path], or `null` when it is not a placeholder — an ordinary file, a symlink
+     * or a junction (opened as itself, never followed) — or cannot be read.
+     * ⚠ This, not `FILE_ATTRIBUTE_REPARSE_POINT`, says whether an entry is a placeholder: every link has that bit.
+     * An edit saved into a placeholder leaves it **not in sync**.
+     */
+    fun placeholderInfo(path: Path): PlaceholderInfo? =
+        natives?.let { n -> runCatching { n.placeholderInfo(path.toString()) }.getOrNull() }
 
     /** Every `java.lang.foreign` reference of [WindowsCloudFiles]. */
     private class Natives private constructor(
@@ -252,6 +264,7 @@ object WindowsCloudFiles {
         /** `CreateFileW` with `GetLastError` captured: its first argument is the capture segment. */
         private val createFile: MethodHandle,
         private val closeHandle: MethodHandle,
+        private val getPlaceholderInfo: MethodHandle,
     ) {
         private val linker = Linker.nativeLinker()
         private val l = CloudFilesLayouts
@@ -297,11 +310,12 @@ object WindowsCloudFiles {
          * Runs [op] on an attribute-only handle to [path] — enough for the pin and hydration calls, and opening
          * it does not download anything. Answers `HRESULT_FROM_WIN32(GetLastError())` when the open fails.
          */
-        fun withAttributeHandle(path: String, op: (Any) -> Int): Int = Arena.ofConfined().use { arena ->
+        fun withAttributeHandle(path: String, followLinks: Boolean, op: (Any) -> Int): Int = Arena.ofConfined().use { arena ->
             val capture = arena.allocate(Linker.Option.captureStateLayout())
+            val flags = FILE_FLAG_BACKUP_SEMANTICS or (if (followLinks) 0 else FILE_FLAG_OPEN_REPARSE_POINT)
             val handle = createFile.invokeExact(
                 capture, wstr(arena, path), FILE_READ_ATTRIBUTES or FILE_WRITE_ATTRIBUTES,
-                FILE_SHARE_ALL, MemorySegment.NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, MemorySegment.NULL,
+                FILE_SHARE_ALL, MemorySegment.NULL, OPEN_EXISTING, flags, MemorySegment.NULL,
             ) as MemorySegment
             if (handle.address() == INVALID_HANDLE || handle.address() == 0L) {
                 val error = capture.get(ValueLayout.JAVA_INT, Linker.Option.captureStateLayout().byteOffset(groupElement("GetLastError")))
@@ -312,6 +326,32 @@ object WindowsCloudFiles {
             } finally {
                 closeHandle.invokeExact(handle) as Int
             }
+        }
+
+        /** `CF_PLACEHOLDER_BASIC_INFO`, read on a handle that opens a link as itself. */
+        fun placeholderInfo(path: String): PlaceholderInfo? {
+            var result: PlaceholderInfo? = null
+            val hr = withAttributeHandle(path, followLinks = false) { handle ->
+                Arena.ofConfined().use { arena ->
+                    // { CF_PIN_STATE PinState; CF_IN_SYNC_STATE InSyncState; LARGE_INTEGER FileId;
+                    //   LARGE_INTEGER SyncRootFileId; ULONG FileIdentityLength; BYTE FileIdentity[]; }
+                    val size = PLACEHOLDER_BASIC_INFO_IDENTITY_OFFSET + MAX_FILE_IDENTITY
+                    val info = arena.allocate(size, 8L)
+                    val returned = arena.allocate(ValueLayout.JAVA_INT)
+                    val hr = getPlaceholderInfo.invokeExact(handle as MemorySegment, PLACEHOLDER_INFO_BASIC, info, size.toInt(), returned) as Int
+                    if (CloudFilesHResult.succeeded(hr)) {
+                        val length = info.get(ValueLayout.JAVA_INT, PLACEHOLDER_BASIC_INFO_IDENTITY_OFFSET - 4)
+                        if (length in 0..MAX_FILE_IDENTITY.toInt()) {
+                            result = PlaceholderInfo(
+                                identity = info.asSlice(PLACEHOLDER_BASIC_INFO_IDENTITY_OFFSET, length.toLong()).toArray(ValueLayout.JAVA_BYTE),
+                                inSync = info.get(ValueLayout.JAVA_INT, 4L) == IN_SYNC_STATE_IN_SYNC,
+                            )
+                        }
+                    }
+                    hr
+                }
+            }
+            return if (CloudFilesHResult.succeeded(hr)) result else null
         }
 
         // LARGE_INTEGER by value is a 64-bit integer on x64; a length of -1 means "to the end of the file".
@@ -511,6 +551,11 @@ object WindowsCloudFiles {
             private const val FILE_SHARE_ALL = 0x7 // read | write | delete
             private const val OPEN_EXISTING = 3
             private const val FILE_FLAG_BACKUP_SEMANTICS = 0x02000000 // so a folder opens too
+            private const val FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000 // a link opens as itself
+            private const val PLACEHOLDER_INFO_BASIC = 0
+            private const val IN_SYNC_STATE_IN_SYNC = 1
+            private const val PLACEHOLDER_BASIC_INFO_IDENTITY_OFFSET = 28L
+            private const val MAX_FILE_IDENTITY = 4096L
             private const val INVALID_HANDLE = -1L
 
             fun wstr(arena: Arena, s: String): MemorySegment = WindowsCloudFilesStrings.wstr(arena, s)
@@ -562,6 +607,8 @@ object WindowsCloudFiles {
                         Linker.Option.captureCallState("GetLastError"),
                     ) ?: return null,
                     closeHandle = handle("kernel32.dll", "CloseHandle", FunctionDescriptor.of(i, a)) ?: return null,
+                    // HRESULT CfGetPlaceholderInfo(HANDLE, CF_PLACEHOLDER_INFO_CLASS, PVOID, DWORD, PDWORD)
+                    getPlaceholderInfo = handle(cf, "CfGetPlaceholderInfo", FunctionDescriptor.of(i, a, i, a, i, a)) ?: return null,
                 )
             }
         }
