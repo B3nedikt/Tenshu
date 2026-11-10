@@ -5030,10 +5030,13 @@ connections wait in the listen backlog) and can launch our packages at will, so 
 one of ours is not a meaningful barrier; this residual folds into the borrowing limit above. The reverse direction (an app checking that the server is Control,
 T-MD-01's defence) uses the same identity on Windows: the listening process must be the `Tenshu.Control`
 package from an anchored publisher (`ControlServerCheck`). Verified end to end with side-loaded MSIX
-packages on 2026-11-10. Residual risk on Windows: **Low** against impostor processes with a configured
-anchor; **Medium** against same-user malware borrowing a running package (above), which the gate does not
-address. Until an anchor exists a strict Control admits no one and a developer-mode run admits everyone, a
-dev posture since no Windows build ships.
+packages on 2026-11-10. The socket directory `%USERPROFILE%\.tenshu` is gated by its DACL on Windows (2026-11-10):
+the daemon repairs it to user + SYSTEM + Administrators and clients refuse one another principal can write to,
+which closes directory squatting by another local user on NTFS; same-user processes remain the peer gate's job.
+Residual risk on Windows: **Low** against impostor processes with a configured anchor; **Medium** against
+same-user malware borrowing a running package (above), which the gate does not address. Until an anchor
+exists a strict Control admits no one and a developer-mode run admits everyone, a dev posture since no
+Windows build ships.
 
 **T-C-12. Developer mode silently enabled by attacker.**
 Actors: AD2 / AD3 with local write access to Control's config. Assets: A16; by extension

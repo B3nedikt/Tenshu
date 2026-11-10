@@ -2,8 +2,9 @@
 
 **Status:** v0.3, 2026-11-10. The plan (W0–W7, X0–X4) is **agreed with the maintainer**, and the
 distribution decision is taken: **Microsoft Store first** (§0, D1–D4). W0 measured on the maintainer's
-Windows 11 machine; W1 done (socket-directory DACL moved to W2), with the `windows-desktop` CI lane in
-`android.yml`; W2's DPAPI store built (§3.1). No Windows build ships.
+Windows 11 machine; W1 and W2 done (W2's exit gate passed with side-loaded MSIX packages; "pair, restart,
+still paired" not yet run), with the Windows CI lane in `.github/workflows/windows.yml`; W3 in progress
+(tray and probes built). No Windows build ships.
 
 **Scope:** what it takes for a person who is not the maintainer to install Tenshu Control on Windows 11,
 pair it, and have it stay resident and safe — then the other desktop apps over it. Covers the platform
@@ -33,6 +34,7 @@ Store policy; each names what must be checked, and the phase that checks it.
 | D1 | ✅ **Decided 2026-11-10: the Microsoft Store (MSIX) is the first and, for now, only channel.** | One upload gives both the Store and the command line (`winget install --source msstore …`), Microsoft signs it for free, and it is the only shape that is sealed (§4.1) and carries package identity (§3.5, §3.7). |
 | D2 | ✅ **Decided: the side channel comes later** — a **per-machine** MSI, signed through **SignPath Foundation** (free for OSI-licensed projects; Tenshu is Apache-2.0), on `releases.tenshu.app` and `microsoft/winget-pkgs`. | Free, CI-native signing; per-machine is what makes a shared signer acceptable (§4.2). ⚠ SignPath's acceptance of the project is *not verified*; checked when W6 starts. |
 | D3 | ✅ **Decided: no per-user install, on any channel.** | A per-user install directory is writable by the same user, so a validly signed launcher can be handed someone else's jars — the peer gate cannot hold (§4.1). |
+| D5 | ✅ **Decided 2026-11-10: a native Windows tray agent in C# / WinUI 3** (Windows App SDK), the twin of the macOS Swift agent: a second executable in the Control MSIX, speaking the existing JSON bridge, owning the tray flyout **and** the OS notifications and scheduled reminders. Right-click is a short native menu, left-click the flyout. The Compose tray (§3.4) stays only as the fallback where the agent is absent (a dev `:run`). | A truly native look, the architecture macOS already proves, and in C# toasts and scheduled reminders are first-class APIs — which replaces W3's riskiest item (WinRT from the JVM over FFM). ⚠ Every tray feature now exists in Swift and C#: both agents are kept **thin renderers of bridge-supplied state** (`tech-debt.md` *macOS Tray — Thin the Swift Surface to a Dumb Renderer*). |
 | D4 | ✅ **Decided: no paid certificate.** Microsoft's cloud signing, OV and EV certificates were weighed and set aside. | D1 needs none; D2 is free; EV no longer buys SmartScreen reputation (*not verified*, and moot). |
 
 ---
@@ -196,11 +198,26 @@ cannot connect), a dev run admits everyone (`desktop-ipc.md` §3, threat model A
 
 | Item | Today on Windows | Fix |
 |---|---|---|
-| Socket-directory gate (`SocketDirectory`) | silent no-op (no POSIX modes) ⇒ nothing stops a squatter | ✅ **W2:** owner-only DACL check/repair on `%USERPROFILE%\.tenshu`. ⚠ A directory owned by another account is refused, not "repaired": its owner can always change the DACL back |
+| Socket-directory gate (`SocketDirectory`) | silent no-op (no POSIX modes) ⇒ nothing stops a squatter | ✅ **W2:** an NTFS arm over pure-NIO `AclFileAttributeView` (see the note below the table). ⚠ A directory owned by another account is refused, not "repaired": its owner can always change the DACL back |
 | `BoundSocketFile` | `fileKey()` is always `null` on Windows ⇒ by its own fail-safe rule the server **never** removes its socket on quit ⇒ stale `ipc.sock` | ✅ **W1:** an owner token in `<socket>.owner`, written **before** the unlink, used only where the directory reports no file key. ⚠⚠ Not creation time: NTFS *tunnels* a deleted file's creation time onto a same-named file re-created soon after — exactly the successor-rebinds case |
 | `SingleInstanceLock` after a crash | a force-killed holder's lock is still reported held immediately after (*measured*); Windows documents lock release on termination as asynchronous | ✅ **W1:** retry for up to 5 s **only while the recorded holder pid is dead**; a live holder is still answered at once, so a second launch hands off without waiting |
 | `SingleInstanceLock` holder text | `"held by null"`: Windows locks are mandatory, so the loser cannot read the locked file | ✅ **W1:** also written to an unlocked `<lock>.holder`, read when the lock file is unreadable |
 | Socket path length | ~108-byte `sun_path` | `~\.tenshu` is fine; never move sockets under a deep `%LOCALAPPDATA%\Packages\…` path |
+
+> **As built (W2, 2026-11-10) — the socket-directory DACL.** `SocketDirectory` gains an NTFS arm over pure-NIO
+> `AclFileAttributeView`. `inspect`: **Squattable** if the owner is not the user/SYSTEM/Administrators, or any ALLOW
+> entry for another principal holds WRITE_DATA, APPEND_DATA, WRITE_ACL, WRITE_OWNER, DELETE_CHILD or DELETE;
+> **Reachable** if others hold only READ_DATA/EXECUTE; DENY and INHERIT_ONLY entries ignored. SYSTEM and
+> Administrators are trusted — they can read and re-own anything, and refusing them would make every stock profile
+> squattable — so a fresh `~\.tenshu` reads Sound with no repair. `prepare` rewrites a non-Sound DACL to user +
+> SYSTEM + Administrators full control `(OI)(CI)` and logs it.
+> - ⚠ The JDK's `setAcl` cannot set `SE_DACL_PROTECTED`: a repair that drops something the parent passes down ends
+>   up protected, but a DACL equal to the parent's inheritable set stays inherited — so a later loosening of
+>   `%USERPROFILE%` propagates in until the next start (repair) or connect (refusal). Closing that needs
+>   `SetSecurityInfo(PROTECTED_DACL_SECURITY_INFORMATION)` over FFM.
+> - ⚠ Principals are resolved by name; a localised "Administrators" fails closed (stricter, still consistent).
+>   Not verified: non-English Windows, a domain-joined machine, an elevated process.
+> - Tests: `SocketDirectoryAclTest` — the decision on every host, real ACLs on Windows only.
 
 ### 3.4 Window, tray and the two live defects
 
@@ -227,6 +244,20 @@ missing `launchctl`; `isAutostartEnabled()` then reads *installed && !disabled* 
 > `DesktopShellSupportTest`. ⚠ Linux had both defects too, and gets the same fix. When W3 lands a Windows
 > tray or autostart, it flips its flag in `DesktopShellSupport.forOs`.
 
+> **As built (W3, 2026-11-10) — the tray.** Compose `Tray`, composed inside Control's own `application { }`
+> (`control-desktop/.../WindowsControlTray.kt`) — no agent, no bridge. *Open Control* (also the primary click)
+> de-minimises, shows and raises the window; *Pause/Resume sync* toggles the Koin `SyncPauseState` single,
+> persisted through `DesktopControlSettings` like the macOS tray's `setSyncPaused`; *Quit* calls `requestQuit()`,
+> and the icon leaves with the composition. The icon is painted in code (a "T" tile, grey with pause bars and a
+> tooltip while paused). `DesktopShellSupport` gains `inProcessTray` (Windows only — ⚠ never macOS, where the
+> Swift agent owns the icon), and Windows reports `trayAvailable` only when AWT `SystemTray.isSupported()` and the
+> JVM is not headless, so a tray-less host still quits on close; `forOs` stays pure, taking that answer as a
+> parameter. Close-to-tray and its Settings switch ("Close to notification area") follow automatically.
+> ⚠ **The icon's look, HiDPI quality and click behaviour are not verified** — the maintainer's checklist.
+
+⚠⚠ **Superseded by D5:** the shipped Windows tray is a native C# / WinUI 3 agent (§3.9). The in-process
+Compose tray above remains as the fallback when the agent is absent; the original reasoning follows.
+
 **The tray (W3).** Unlike macOS, Windows needs **no separate agent**: the Control process itself can own the
 notification-area icon (`Shell_NotifyIcon`), so it calls `WindowController` / `SyncPauseState` in-process
 rather than over the bridge. Recommendation: Compose `Tray` (AWT underneath) for v1 — menu-only, but enough
@@ -250,6 +281,30 @@ only *start at logon, hidden*. The docs disagree on the mechanism (`tenshu-rei.m
   the LaunchAgent.
 - Task Scheduler only if a measured need appears (e.g. restart-on-failure); it costs a COM/`schtasks` surface.
 
+> **As built (2026-11-10), the MSIX arm.** The startup task (`TaskId="TenshuControl"`) is declared on Control's
+> `Application`, but its `Executable` is the **tray agent** (`tray-agent\tray-agent.exe`), not Control: at login the
+> agent puts the icon up at once, sees `ExtendedActivationKind.StartupTask`, and starts `TenshuControl.exe` as its
+> child with `TENSHU_CONTROL_START_HIDDEN=true` — the variable the macOS login item already uses, so no new flag, and
+> Control's instance guard already makes a second hidden copy exit quietly.
+> - **The switch.** `StartupTask` is WinRT, which the JVM cannot call, so Settings asks the agent:
+>   `tray-agent --startup-task status|enable|disable` prints one word (`WindowsStartupTask`); anything unrecognised
+>   reads as *unavailable*, never on. `DesktopStartAtLoginManager` gains the Windows arm, and
+>   `DesktopShellSupport.startAtLoginAvailable` is true on Windows only inside the package. ⚠ Each fresh read starts
+>   the agent as a process (~a few hundred ms), so only `isAutostartEnabled` re-reads.
+> - ⚠ **`disabledByUser`** — turned off in Settings → Apps → Startup — cannot be undone by the app. It maps to
+>   macOS's "approval required": the switch opens `ms-settings:startupapps` and says why.
+> - ⚠ **Every call starts a process**, so Settings makes them on `Dispatchers.IO` with the switch disabled
+>   meanwhile, and `runAgent` waits for the exit (15 s bound) before reading the one-word answer. A failed agent
+>   reads as *unavailable*, and a disable that ends there is reported as failed, not done.
+> - ⚠ **Login start depends on the agent.** Control is started by the agent's `OnLaunched`; an agent that cannot
+>   start at all (e.g. the Windows App Runtime missing) means no Control at login although the switch reads on.
+>   Accepted for the Store build, where the runtime is a declared dependency the Store installs; a side-channel MSI
+>   (D2) would want its own Run value for Control.
+> - ⚠ **Off by default** (`Enabled="false"`, and `ensureStartAtLoginDefault` stays macOS-only): the Store expects
+>   consent, the same call the Mac App Store build makes. A side-channel MSI (D2) may revisit it.
+> - Device-checked: status → enable → disable round-trips inside the package. Tests: `WindowsStartupTaskTest`,
+>   `DesktopShellSupportTest`.
+
 ### 3.6 Scheduling, alarms and background wake
 
 **Already portable (in-process, *read*):** the desktop `PlatformScheduler` is `NoOpPlatformScheduler`; the
@@ -263,9 +318,27 @@ alive** — which is why §3.4/§3.5 are the real scheduling work, not a Windows
 | Seam | macOS | Windows today | Windows equivalent |
 |---|---|---|---|
 | Calendar reminders | the Swift tray reads `PendingAlertSchedule` over the bridge and hands each to `UNCalendarNotificationTrigger`, so they fire with Control closed | **never delivered** — nothing reads the set | WinRT `ScheduledToastNotification` via `ToastNotifier.AddToSchedule`; ⚠ needs an AUMID (§3.7) |
-| Indexing conditions (`DesktopIndexingConditions`) | `MacPowerProbe` (IOKit battery, CG idle) | probe null ⇒ scheduled indexing **never runs** | `GetSystemPowerStatus` + `GetLastInputInfo` over FFM |
-| Metered network (`DesktopNetworkStateProvider`) | — (always `UNMETERED`, every OS) | same | `NetworkInformation.GetInternetConnectionProfile().GetConnectionCost()` — the first desktop OS that actually exposes metering well |
+| Indexing conditions (`DesktopIndexingConditions`) | `MacPowerProbe` (IOKit battery, CG idle) | ✅ **W3:** `WindowsPowerProbe` | `GetSystemPowerStatus` + `GetLastInputInfo` over FFM |
+| Metered network (`DesktopNetworkStateProvider`) | — (always `UNMETERED`, every OS) | ✅ **W3:** `WindowsNetworkCost` | `GetNetworkConnectivityHint` (plain C, iphlpapi) — not the WinRT `GetConnectionCost` |
 | Sleep/resume | nothing wired | nothing wired | `WM_POWERBROADCAST`/`PBT_APMRESUMEAUTOMATIC`, or rely on the drain loop's own catch-up (measure first) |
+
+> **As built (W3, 2026-11-10) — indexing conditions.** `WindowsPowerProbe` (`:windows-helpers`) answers
+> `MacPowerProbe`'s three nullable facts from `GetSystemPowerStatus` and `GetLastInputInfo`/`GetTickCount` (idle =
+> unsigned 32-bit tick difference, correct across the 49.7-day wrap; a "future" stamp reads as 0 = in use).
+> Control's desktop DI hands it to `DesktopIndexingConditions` through its existing `Probe` seam
+> (`desktopIndexingConditions()`); the policy is unchanged, and Linux still never schedules. ⚠ `batteryLow` =
+> battery saver on **or** the *critical* bit (< 5 %) — **not** the `BatteryFlag` *low* bit (< 33 %), which would
+> refuse manual indexing for a third of every discharge. A battery-less desktop with AC online (or AC unknown
+> plus the no-battery bit) is on external power. Observed here: AC on, no battery, idle 0–4 s.
+>
+> **As built (W3) — metered.** `WindowsNetworkCost` reads `GetNetworkConnectivityHint` (Windows 10 2004+):
+> approaching/over the data limit, roaming, or cost Fixed/Variable → METERED; Unrestricted → UNMETERED; else
+> UNKNOWN. `DesktopNetworkStateProvider` reads it on every call (no cache, no thread); UNKNOWN and non-Windows
+> hosts keep the old UNMETERED, and it never reports `NONE` (offline is `RelayReachability`'s). Observed here:
+> Unrestricted WLAN, cross-checked against WinRT `GetConnectionCost`. ⚠ The struct's BOOLEAN offsets (8/9/10)
+> are documented but were never exercised with a true value; no real metered link was tested.
+> - Both FFM bindings live in private classes loaded inside `runCatching` (they load on JDK 17), and their
+>   real-call tests hard-assert availability on Windows.
 
 ⚠ **Reminders are the one alarm that must survive a closed Control.** Everything else is "runs while
 resident". Scheduled toasts are held by the OS, which is exactly the property the macOS design chose
@@ -278,13 +351,123 @@ On macOS the Swift tray polls `pendingRequests` / `pairingApproval` / `calendarR
 `UNUserNotificationCenter`, because the JVM has no bundle identity (`control-central-notifications.md`).
 On Windows there is no tray and nothing posts.
 
-- **Work (W3):** a JVM-side poller over the *same* in-process sources (no bridge needed) posting WinRT
-  toasts; activation → `WindowController.show()`.
+- **Work (W3), per D5:** the native tray agent (§3.9) polls the same bridge methods the macOS agent does
+  (`pendingRequests`, `pairingApproval`, `calendarReminders`, the schema fence) and posts through the Windows
+  App SDK's `AppNotificationManager`, with reminders as scheduled toasts. Activation raises Control through
+  `openControlWindow`. ⚠ *Superseded:* the earlier plan here was a JVM-side poller posting WinRT toasts over
+  FFM.
 - ⚠⚠ **Toasts need an AppUserModelID.** An MSIX has one by construction — one more reason for D1. The
   later side-channel MSI must register one (a Start-menu shortcut carrying the AUMID). Without it toasts
   silently do not show (*not verified*; W3). ⚠ So W3's toasts and reminders can only be verified from a
   packaged MSIX, not a `:control-desktop:run` (no identity) — test through a locally side-loaded MSIX.
   `TrayIcon.displayMessage` is the identity-free fallback but cannot schedule (reminders) or carry actions.
+
+### 3.9 The native tray agent (D5)
+
+The Windows twin of `control-desktop/macos/TrayAgent/` (≈ 1,600 lines of Swift: popover + model, bridge client,
+four notifiers). Lives in `control-desktop/windows/TrayAgent/`.
+
+- **Stack:** C# on .NET 10 (LTS), WinUI 3 (Windows App SDK). UI built **in code**, not XAML, so the build is a
+  plain `dotnet publish` with no XAML compiler step. Tray icon via `Shell_NotifyIcon` (P/Invoke) or H.NotifyIcon
+  (MIT) — the spike decides, and a third-party library lands in `docs/oss-licences.md`.
+- **Packaging:** a second executable inside the Control MSIX, started and supervised by Control (as
+  `ensureTrayRunning` + `TrayLiveness` do on macOS). ⚠ A child of a packaged full-trust process runs with the
+  **same package identity**, so the bridge gate admits it as `Tenshu.Control` (already in
+  `WINDOWS_BRIDGE_PACKAGES`) and its toasts carry the package's AUMID — *not verified* until the spike.
+- **Windows App SDK runtime:** ⚠⚠ **framework-dependent, decided by measurement (2026-11-10).** A self-contained
+  agent registers WinRT classes in its own exe manifest, which Windows ignores once the process runs in a package
+  context — and as a child of the packaged Control it always does: WinUI died at startup (`0xc000027b` in
+  `Microsoft.UI.Xaml.dll`). Control's AppxManifest now declares `Microsoft.WindowsAppRuntime.1.8 ≥ 8000.994.2142.0`
+  (`tenshu.msix.windowsAppRuntime`, matching the SDK the csproj pins); the Store installs it, a side-load needs it
+  installed (the MSIX files ship in the `microsoft.windowsappsdk.runtime` NuGet package). A standalone dev agent
+  bootstraps the runtime by hand, and only without package identity.
+
+> **As built (T0, 2026-11-10).** `publishTrayAgent` (`dotnet publish`) feeds `packageMsix`, which ships the agent
+> as `tray-agent\` beside Control's launcher. `WindowsTrayAgent` (`control-desktop`) starts it at launch with
+> `TENSHU_IPC_DIR` handed over, and again every 30 s — the agent's single-instance mutex makes that the whole
+> restart policy. Control draws no Compose tray while an agent binary exists. Measured: the agent runs **in the
+> Control package's context** (the event log's crash record named `Tenshu.Control_…_asmrhn1bb0j6y` as its package,
+> before the runtime fix), Control restarted it every 30 s, and after the fix it stays up. ⚠ The flyout's bridge
+> round trip from inside the package is the maintainer's check.
+> - A dev run uses the agent only when `TENSHU_TRAY_AGENT` names a built `tray-agent.exe`.
+- **Thin renderer:** the agent renders what the bridge returns and owns only OS glue (icon, flyout, toasts,
+  their diffing). New tray content goes into the bridge first, then into both agents.
+- **Phases:** (T0) toolchain spike — the cat in the tray, a flyout showing `getSyncState`, inside the
+  side-loaded Control MSIX; (T1) the full flyout (needs-action, recent notifications, app launcher, open/quit)
+  and the right-click menu; (T2) the four notifiers including scheduled reminders; (T3) lifecycle, tests, CI
+  (`dotnet` in `windows.yml`), and demoting the Compose tray to a fallback.
+
+> **T1 as-built (2026-11-10).** The flyout carries the macOS popover's content: the state headline (from the
+> daemon's bgproc §5.3 code, never re-derived) with the divergence detail, then *Needs action* (`pendingRequests`),
+> *Recent* (`recentNotifications`, limit 4) and *Apps* (`listApps`), each only when non-empty; Pause/Resume (only
+> when sync is enabled), Open Control, Quit. Strings are the agent's own, English and German (`Strings.cs`,
+> ADR 0016). Only `getSyncState` decides reachability; the three section calls each fall back to empty.
+> - **App launcher.** `listApps` rows now carry `windowsPackage` from the catalogue's `ClientBinding.WindowsPackage`,
+>   and never-connected candidates include apps with a Windows binding as well as a Mac one (the macOS agent
+>   already filters candidates by what LaunchServices resolves, so its menu is unchanged). The agent completes the
+>   name to a family with **its own** publisher id — so only a package by Control's publisher can ever match — and
+>   offers it iff `GetPackagesByPackageFamily` finds it installed for this user; it launches the manifest's
+>   `Application/@Id` through `IApplicationActivationManager`. ⚠ An installed package counts on its own, registered
+>   or not: MSIX has no stray-bundle problem, unlike LaunchServices. ⚠ Plain Win32 on purpose — `PackageManager`'s
+>   query methods are capability-gated in a package context. The bridge's `launchApp` stays macOS-only.
+> - An agent without package identity (a dev run) offers no apps: it has no publisher id to complete a family with.
+
+> **T2 as-built (2026-11-10).** The four macOS notifiers, in one class (`Notifier.cs`), fed by the same 10 s poll:
+> pending requests (`pendingRequests`), the pairing alert (`pairingApproval`), *Update Control* (`getSyncState.
+> schemaFenced`, tri-state, posted once per engagement) and calendar reminders (`calendarReminders`). Copy is the
+> agent's own (en/de) and as PII-free as macOS's; reminder text arrives redacted and is never enriched.
+> - **Immediate toasts** go through the Windows App SDK `AppNotificationManager`, tag + group per alert, so a re-post
+>   replaces and a withdrawal removes exactly one. A restarted agent seeds its request set from the toasts already
+>   on screen rather than re-alerting them.
+> - **Reminders** are handed to Windows' own scheduler (`ToastNotifier.AddToSchedule`), so they fire with Control
+>   and the agent both quit. ⚠⚠ Diffed against the OS's schedule, not process memory: a scheduled toast with a
+>   reused tag is *not* replaced, so a memory diff would double-arm after every agent restart. The tag is a hash of
+>   the reminder's content; ⚠ `ScheduledToastNotification.Id` cannot be set (0x803E0120).
+>   ⚠⚠ Removal only against an **authoritative** plan: the daemon plans when calendar data changes, so after a
+>   restart its list is empty until the first change while Windows still holds every armed reminder.
+>   `calendarReminders` carries `planned` (`PendingAlertSchedule.isPlanned`); until it is true the agent only adds.
+>   The desktop host also plans once at session start (`initCalendarService(planRemindersOnStart = true)`), so the
+>   window is the debounce, not "until the next calendar change". ⚠ Opt-in: on Android a plan also *posts* due
+>   reminders, and a startup run could repeat one the alarm already showed.
+>   A reminder first seen when already due is shown at once, once.
+> - **Clicks** all raise Control. The toast activator is a COM server in Control's AppxManifest
+>   (`windows.toastNotificationActivation` → `tray-agent\tray-agent.exe`), emitted only when the package ships the
+>   agent, so a click on a toast also works when the agent is not running. ⚠ Its CLSID is fixed forever: changing
+>   it orphans the toasts already in the notification center.
+> - Gated on package identity, like the Swift agent's bundle-id gate. Test: `scripts/windows/tray-toast-test.ps1`
+>   posts one toast and schedules one 30 s out from inside the installed package.
+
+> **T3 as-built (2026-11-10).** Lifecycle, tests, CI and the fallback.
+> - **Liveness.** The agent writes macOS's heartbeat (`tray-agent.state`, `<epochMillis> visible|hidden`, every 10 s,
+>   atomically) from its **UI thread**, with `visible` = the shell accepted the icon on the last add/update (an update
+>   the shell rejects re-adds it), plus the placement journal on each change. Control's `WindowsTraySupervisor`
+>   judges it every 30 s with the same `TrayLiveness` table and decision log (`tray-agent.log`) as the macOS tray:
+>   SPAWN, SKIP, or kill-and-restart. ⚠⚠ Needed on Windows precisely because of the single-instance mutex: a
+>   wedged or icon-less agent holding it would otherwise make every restart a silent no-op. Healthy rounds are not
+>   logged, only decisions that act and the first healthy one after them.
+> - **Fallback.** After `MAX_UNHEALTHY_ROUNDS` (4) consecutive rounds that had to act — two to four minutes with no
+>   healthy agent (each start of an agent that lives but never gets healthy is followed by a grace round), e.g.
+>   one that crashes at start for want of the Windows App Runtime — Control kills the agent, stops starting agents
+>   and draws its own Compose tray (`WindowsTrayAgent.fellBack`), showing Control's real icon. ⚠ It keeps
+>   watching: Windows can start the agent by itself (a toast click via the COM activator, the startup task), and a
+>   *healthy* one ends the fallback so the Compose tray steps aside — never two icons. A grace-period SKIP neither
+>   resets nor advances the count, nor ends a fallback.
+> - ⚠ **Sleep.** After a resume the agent's heartbeat is as old as the sleep until its own timer catches up; the
+>   first round after a gap longer than three intervals judges nothing (`RESUMED`), or every resume would kill a
+>   healthy agent.
+> - ⚠ **`Placed` tolerates blips.** `Shell_NotifyIcon` returns FALSE when a busy Explorer times out on a call it
+>   then applies, so the heartbeat says `hidden` only after three failures in a row.
+> - The agent bounds every bridge call (15 s), runs one refresh at a time (overlapping rounds applied snapshots out
+>   of order and could re-post a resolved request's toast), resolves installed apps only while the flyout is open,
+>   and re-renders the cat only when size or ink changes.
+> - **Tests.** `WindowsTraySupervisorTest` (JVM) pins what each verdict does and when it gives up;
+>   `windows/TrayAgent.Tests` (xUnit, plain `net10.0`, the WinUI-free files *linked* in) pins state-code mapping,
+>   the copy and its en/de placeholders, and the heartbeat line `TrayLiveness` parses.
+> - **CI.** `windows.yml` runs those xUnit tests and builds the agent itself — the only compile of the WinUI half.
+>   Icon, flyout and toasts stay device checks.
+> - Device-checked: spawn → healthy at the next round; killed agent → restarted.
+- **Estimate (2026-11-10):** ≈ 7.5–9.5 focused days, ≈ 2–4 more than the Compose flyout plus WinRT-over-FFM toasts
+  it replaces.
 
 ### 3.8 Degrades gracefully — no work required to ship
 
@@ -335,7 +518,8 @@ and an MSIX update its package identity. Changing signer later is routine, not a
 - **Side-channel MSI only:** `targetFormats(Msi)` (jpackage + WiX), **per-machine** (D3), a Start-menu
   shortcut (the AUMID, §3.7), an UpgradeCode fixed forever per app. ⚠ The UpgradeCode is the Windows twin of
   a bundle id: change it and the next version installs *beside* the old one.
-- Gate coverage: the `windows-desktop` lane in `android.yml` (W1) runs the desktop suites on Windows.
+- Gate coverage: `.github/workflows/windows.yml` (W1; its own workflow since 2026-11-10) runs the desktop
+  suites on Windows.
 
 ---
 
@@ -390,7 +574,8 @@ package Control from the jpackage app-image, side-load it locally, then submit.
 
 > **As built (W2, 2026-11-10) — the local side-load build.** `gradle/desktop-msix.gradle.kts` adds
 > `packageMsix` to Control and Drive: the jpackage app-image plus a generated `AppxManifest.xml` (full trust,
-> `runFullTrust`) and placeholder logos, packed with `makeappx` and signed with `signtool`. It prints the
+> `runFullTrust`) and the app's logos (since 2026-11-10 the real ones — ADR 0026 §6b, with a `makepri`-built
+> `resources.pri`; before, placeholder letter tiles), packed with `makeappx` and signed with `signtool`. It prints the
 > package family name and the **publisher id** to compile into Control (`-Ptenshu.windowsPublisherIds=…`).
 > `scripts/windows/msix-test-cert.ps1` mints the matching throwaway certificate (`CN=Tenshu Local Test`).
 > - The publisher id is derived exactly as Windows does (`MsixPublisherId`), pinned by a known answer:
@@ -442,7 +627,7 @@ What MSIX changes, all *not verified* until the W4 spike:
 | **W0** | Measure: run Control, run the suite (§2) | ✅ done 2026-11-09 |
 | **W1** | Defects §3.4 (close quits, hide autostart switch off macOS); §3.3 transport leftovers; Windows `desktopTest` CI lane; correct `desktop-ipc.md` §4 and the threat model's named-pipe wording | the four red tests green on Windows — ✅ 2026-11-09, plus the lane; socket-directory DACL moved to W2 (it is part of the peer-gate posture) |
 | **W2** | DPAPI key store (§3.1) ✅; Windows peer gate by **package family name**, both halves (§3.2) ✅; socket-directory DACL (§3.3) ✅; threat-model amendment (A14/T-C-11) ✅, ⚠ amended after review: the gate also requires a signed package origin (a loose registration can claim our family name), and states that it cannot stop same-user malware borrowing a running package; certificate decision ✅ D1–D4 | ✅ a side-loaded Drive MSIX connects to a strict side-loaded Control MSIX (2026-11-10). ⚠ "pair, restart, still paired" not yet run end to end |
-| **W3** | Tray (§3.4), `StartupTask` autostart (§3.5), toasts + scheduled reminders (§3.7/§3.6), power/idle + metered probes (§3.6) | closed-window Control reachable from the tray; a reminder fires with Control quit — verified from a side-loaded MSIX |
+| **W3** | In-process tray (§3.4) ✅ verified by the maintainer 2026-11-10; native tray agent T0–T3 (§3.9, D5) incl. toasts + scheduled reminders (§3.7/§3.6); `StartupTask` autostart (§3.5); power/idle + metered probes (§3.6) ✅ | closed-window Control reachable from the tray; a reminder fires with Control quit — verified from a side-loaded MSIX |
 | **W4** | Microsoft Store: spike, then MSIX per app, lockstep version, ADR 0025 Store row, uninstall (§4.3, §5.2) | the Store build passes certification; `winget install --source msstore` installs it on a clean VM |
 | **W5** | The other desktop apps over the same pipeline | each passes the W4 check |
 | **W6** | Side channel: SignPath-signed per-machine MSI, `releases.tenshu.app`, winget-pkgs manifests + automation (§5.1); the gate's SignPath + `%ProgramFiles%` arm (§3.2) | `winget install Tenshu.Control` (winget-pkgs) on a clean VM; a per-user copy is refused by the gate |

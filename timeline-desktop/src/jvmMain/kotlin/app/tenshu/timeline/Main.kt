@@ -18,6 +18,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import app.tenshu.ui.layout.LocalNavRailPreference
 import app.tenshu.ui.layout.filePersistedNavRailPreference
+import app.tenshu.ui.layout.TenshuWindowIcon
 import app.tenshu.ui.layout.rememberPersistedWindowState
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
@@ -93,6 +94,7 @@ fun main() {
             title = "Tenshu Timeline",
             state = windowState,
         ) {
+            TenshuWindowIcon()
             val awtWindow = window
             val viewModelStoreOwner = remember { DesktopViewModelStoreOwner() }
             val savedStateRegistryOwner = remember { DesktopSavedStateRegistryOwner() }

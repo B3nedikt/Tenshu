@@ -13,6 +13,7 @@ import app.tenshu.calendar.di.platformClientModule
 import app.tenshu.calendar.data.external.MirrorBackgroundScheduler
 import app.tenshu.calendar.ui.App
 import app.tenshu.calendar.ui.external.desktopDeviceCalendarModule
+import app.tenshu.ui.layout.TenshuWindowIcon
 import app.tenshu.ui.layout.rememberPersistedWindowState
 import app.tenshu.ui.theme.TenshuTheme
 import kotlinx.coroutines.CoroutineScope
@@ -72,6 +73,7 @@ fun main(args: Array<String>) {
             title = "Tenshu Calendar",
             state = windowState,
         ) {
+            TenshuWindowIcon()
             val viewModelStoreOwner = remember { DesktopViewModelStoreOwner() }
             val savedStateRegistryOwner = remember { DesktopSavedStateRegistryOwner() }
 

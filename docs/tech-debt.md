@@ -1934,7 +1934,15 @@ for a passphrase only where one exists (failing closed to asking when the status
 
 ## Build & Versioning
 
-### `:control-desktop:run` drops its own JVM flags — developer mode is always off on a dev run (2026-09-09)
+### `:control-desktop:run` drops its own JVM flags — developer mode is always off on a dev run — FIXED (2026-09-09 → 2026-11-10)
+
+⚠ **Fixed in all ten `*-desktop` apps (2026-11-10):** each run task builds a local `devArgs`
+(`-Dtenshu.release=false`, plus `-Dskiko.renderApi=METAL` on a macOS host only) and applies it in a
+`doFirst`, after Compose has replaced the list. `PEER_GATE_JVM_ARGS` / `-Dtenshu.qr.impl` reach the
+dev run through `compose.desktop.application.jvmArgs` alone; their dead run-block copies are gone.
+`ControlServerCheckTest.everyDesktopAppPassesThePeerGateJvmArgsAtBothSites` pins the shape and that
+`tenshu.release` never joins the packaged list. Found when Control's strict gate rejected the standalone
+Windows tray agent (`desktop-windows-port.md` §3.9) on a dev run. The history below is the mechanism.
 
 `control-desktop/build.gradle.kts` sets `-Dskiko.renderApi=METAL` and `-Dtenshu.release=false` only in
 a `tasks.withType<JavaExec> { if (name == "run" …) }` block, and they **never reach the JVM** that
@@ -2135,8 +2143,8 @@ throwable, because a catch-all error code hides the one fact that names the bug.
 ### CI blocked by GitHub Actions billing — ⚠⚠⚠ INTERMITTENT since 2026-09-01, not simply dark
 
 ⚠ **Scope (2026-11-09, maintainer):** this is about the **internal** repository only. The public repository,
-where PRs are opened, runs on GitHub's free public-repo runners — Windows included, so the `windows-desktop`
-lane in `android.yml` (`desktop-windows-port.md` W1) does run there.
+where PRs are opened, runs on GitHub's free public-repo runners — Windows included, so the Windows lane
+(`.github/workflows/windows.yml`, `desktop-windows-port.md` W1) does run there.
 
 ⚠⚠ **Originally: no CI lane ran between 2026-06-30 and 2026-08-31.** `CI` (`android.yml`),
 `iOS` (`ios.yml`) and `Web CI` (`web.yml`) all failed within ~10 s carrying the identical GitHub

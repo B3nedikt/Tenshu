@@ -507,8 +507,11 @@
 
     <string name="settings_close_to_tray_headline">In die Menüleiste schließen</string>
     <string name="settings_close_to_tray_support">Tenshu beim Schließen des Fensters in der Menüleiste weiterlaufen lassen</string>
+    <string name="settings_close_to_tray_headline_windows">In den Infobereich schließen</string>
+    <string name="settings_close_to_tray_support_windows">Tenshu beim Schließen des Fensters im Infobereich weiterlaufen lassen</string>
     <string name="settings_start_at_login_headline">Bei Anmeldung starten</string>
     <string name="settings_start_at_login_support">Tenshu automatisch starten, wenn du dich anmeldest</string>
+    <string name="settings_start_at_login_approval_support_windows">Aktiviere Tenshu Control unter Einstellungen → Apps → Autostart</string>
 
     <!-- Tenshu Drive in the Android system file dialogs (cross-app-file-access.md P3 / D-D). -->
     <string name="drive_documents_root_title">Tenshu Drive</string>

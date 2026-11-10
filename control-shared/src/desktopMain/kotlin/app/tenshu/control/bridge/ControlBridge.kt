@@ -150,13 +150,17 @@ fun NativeBridgeServer.registerControlMethods(
     // instance the proxy's syncGate reads, so a tray toggle gates the scheduler.
     // getOrNull: a bridge wired without the desktop app-layer registration just
     // reports never-paused.
-    val pauseState = koin.getOrNull<SyncPauseState>()
+    // ⚠⚠ Resolved on EVERY call, never once here: Main.kt registers these methods before it loads the
+    // SyncPauseState single, so a lookup at registration time would be null for the whole run —
+    // setSyncPaused would do nothing and getSyncState would always say "not paused", on both trays.
+    // Pinned by ControlBridgePauseTest.
+    fun pauseState(): SyncPauseState? = koin.getOrNull<SyncPauseState>()
 
     register("getSyncState") { _ ->
         val unlock = syncManager.getUnlockStatus()
         val enabled = syncManager.isEnabled()
         val health = syncHealthHolder.current()
-        val paused = pauseState?.isPaused() ?: false
+        val paused = pauseState()?.isPaused() ?: false
         // divergenceWarning is a StateFlow<Any?>; non-null == the relay may be
         // misreporting HLC (threat-model T-T-04). The concrete type is proxy-side, which this
         // module can see — `:core-common` deliberately cannot, which is why the flow is `Any?`.
@@ -222,8 +226,9 @@ fun NativeBridgeServer.registerControlMethods(
     // tick. `paused` param defaults to true so a bare call pauses.
     register("setSyncPaused") { params ->
         val paused = params["paused"]?.toBooleanStrictOrNull() ?: true
-        pauseState?.setPaused(paused)
-        mapOf("ok" to true, "paused" to (pauseState?.isPaused() ?: false))
+        val state = pauseState()
+        state?.setPaused(paused)
+        mapOf("ok" to true, "paused" to (state?.isPaused() ?: false))
     }
 }
 

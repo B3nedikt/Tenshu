@@ -67,8 +67,16 @@ class ControlServerCheckTest {
         for (app in apps) {
             val gradle = File(app, "build.gradle.kts").readText()
             assertTrue("java.base/sun.nio.ch=ALL-UNNAMED" in gradle && "java.base/java.io=ALL-UNNAMED" in gradle, "${app.name}: the two --add-opens")
-            assertTrue(Regex("""name == "run"[\s\S]*?jvmArgs\(PEER_GATE_JVM_ARGS\)""").containsMatchIn(gradle), "${app.name}: on the dev run")
-            assertTrue("jvmArgs += PEER_GATE_JVM_ARGS" in gradle, "${app.name}: on the packaged app")
+            // One list feeds both JVMs: Compose's run task takes `application.jvmArgs` and REPLACES
+            // whatever the build script set on it at configuration time.
+            assertTrue("jvmArgs += PEER_GATE_JVM_ARGS" in gradle, "${app.name}: on the packaged app and the dev run")
+            // ⚠⚠ So the dev-only flag must go in at execution time, never on that shared list.
+            assertTrue(
+                Regex("""name == "run"[\s\S]*?add\("-Dtenshu\.release=false"\)[\s\S]*?doFirst \{ \(this as JavaExec\)\.jvmArgs\(devArgs\) \}""")
+                    .containsMatchIn(gradle),
+                "${app.name}: tenshu.release=false on the dev run, via doFirst",
+            )
+            assertTrue(!Regex("""jvmArgs\s*\+=\s*"-Dtenshu\.release"""").containsMatchIn(gradle), "${app.name}: tenshu.release in a packaged app")
             // ⚠⚠ And a bundled runtime with final FFM (22+): on the daemon's 21 every attestation is a
             // NoSuchMethodError, found only by running a packaged app (2026-11-06).
             val jdk = Regex("""val FFM_JDK = (\d+)""").find(gradle)?.groupValues?.get(1)?.toInt()

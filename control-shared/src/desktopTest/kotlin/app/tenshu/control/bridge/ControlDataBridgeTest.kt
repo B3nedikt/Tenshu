@@ -118,6 +118,39 @@ class ControlDataBridgeTest {
         assertEquals(false, rows.single()["registered"])
     }
 
+    /**
+     * The Windows tray agent launches by MSIX package name (desktop-windows-port.md §3.9), so every row —
+     * registered or candidate — carries it from the catalogue, and an app with only a Windows build is still a
+     * candidate. A row without a Windows build carries `null`, which the agent reads as "not launchable here".
+     */
+    @Test
+    fun appsResultCarriesTheWindowsPackageAndOffersWindowsOnlyCandidates() {
+        val drive = BundledAppManifestSource.DRIVE_MANIFEST
+        val fit = BundledAppManifestSource.FIT_MANIFEST
+        val maps = BundledAppManifestSource.MAPS_MANIFEST
+        val catalogue = listOf(
+            FirstPartyApp(
+                drive,
+                listOf(ClientBinding.MacCodeSignature(drive.appId), ClientBinding.WindowsPackage("Tenshu.Drive")),
+            ),
+            FirstPartyApp(fit, listOf(ClientBinding.WindowsPackage("Tenshu.Fit"))),
+            FirstPartyApp(maps, listOf(ClientBinding.MacCodeSignature(maps.appId))),
+        )
+        val registered = listOf(
+            InstalledApp(drive.appId, "Drive", "drive", "1.0.0", "Files", 100L, verified = true, deviceCount = 1),
+        )
+
+        @Suppress("UNCHECKED_CAST")
+        val rows = appsResult(registered, catalogue)["apps"] as List<Map<String, Any?>>
+
+        assertEquals(listOf(drive.appId, fit.appId, maps.appId), rows.map { it["appId"] })
+        assertEquals("Tenshu.Drive", rows[0]["windowsPackage"])
+        assertEquals("Tenshu.Fit", rows[1]["windowsPackage"])
+        assertEquals(false, rows[1]["registered"])
+        assertEquals(null, rows[2]["windowsPackage"])
+        assertTrue(rows.all { it.containsKey("windowsPackage") })
+    }
+
     @Test
     fun notificationsResultEncodesEachEventKind() {
         val t = Instant.fromEpochMilliseconds(42L)

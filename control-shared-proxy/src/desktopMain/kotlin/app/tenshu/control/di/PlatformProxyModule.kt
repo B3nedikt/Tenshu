@@ -56,7 +56,6 @@ import org.tenshu.core.common.proxy.ClientConnection
 import org.tenshu.core.common.proxy.ExecutionContext
 import org.tenshu.core.common.proxy.FileDatabase
 import org.tenshu.core.common.proxy.JvmFileDatabase
-import org.tenshu.inference.proxy.DesktopIndexingConditions
 import org.tenshu.inference.proxy.IndexingConditions
 import org.tenshu.inference.proxy.InferenceBackend
 import org.tenshu.inference.proxy.onnx.AwtImageDecoder
@@ -714,9 +713,9 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
     // checkpoint — and says so HERE rather than letting a `commonMain` constant claim it on
     // every platform. iOS and web contribute nothing and therefore download nothing.
     single<Set<String>>(named("supportedModelRuntimes")) { SUPPORTED_RUNTIMES }
-    // §32 — on AC power, no low-battery warning, five minutes without input. ⚠ macOS only: other
-    // desktops cannot tell, and so never index.
-    single<IndexingConditions>(named("indexingConditions")) { DesktopIndexingConditions() }
+    // §32 — on AC power, no low-battery warning, five minutes without input. macOS and Windows read
+    // the machine (`desktopIndexingConditions`); ⚠ Linux cannot tell, and so never indexes.
+    single<IndexingConditions>(named("indexingConditions")) { desktopIndexingConditions() }
 
     single<List<InferenceBackend>>(named("inferenceBackends")) {
         val contentRoot = desktopContentRoot(get(named("platformPackageName")))
@@ -916,7 +915,9 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
             // ⚠⚠ Without it a calendar row arriving via
             // sync lands in the store but stays invisible to
             // `CalendarService.events` — present but unfindable.
-            initCalendarService(implementationFactory)
+            // ⚠ Plans once at start: the presenter is PendingAlertSchedule, which only hands the plan to the
+            // tray, so without this the tray sees no reminders after a restart until a calendar change.
+            initCalendarService(implementationFactory, planRemindersOnStart = true)
             // storage-capacity-gating.md: derive StorageStatus from the
             // bound StorageProvider on this session's scope.
             initStorageService(sessionScope, get<StorageProvider>(), get<StorageCapacityHolder>())
@@ -978,9 +979,9 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
             // RegisterApp / SetAppGrant write (control-app-registration.md).
             initAppService()
             // Path A (bgproc-scheduling-roles.md): gate the in-process scheduler
-            // on the realm's WifiOnly preference. Desktop is assumed unmetered,
-            // so this never blocks here — it's the wiring the Android provider
-            // (real ConnectivityManager) plugs into.
+            // on the realm's WifiOnly preference. Windows reports its metered
+            // connections; macOS and Linux are assumed unmetered, so this never
+            // blocks there (`DesktopNetworkStateProvider`).
             val constraintGate = ConstraintSyncGate(
                 preferenceService = get<TenshuClient>().preferenceService,
                 networkState = DesktopNetworkStateProvider(),
@@ -1271,9 +1272,9 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
                     // wanted-classes row from the store. ⚠ Null makes the pass a silent no-op.
                     objectStore = get<ObjectStore>(),
                     // `drive-xxlarge-thumbnail-rung.md` §4.6: mint-on-view's metered refusal.
-                    // ⚠ `DesktopNetworkStateProvider` reports UNMETERED unconditionally, so this is
-                    // wired for the contract rather than for an effect it can have here — a desktop
-                    // on a phone hotspot is exactly the case it cannot see.
+                    // ⚠ Only Windows can answer METERED here (a hotspot, a connection marked metered);
+                    // macOS and Linux report UNMETERED, so on those this is wired for the contract
+                    // rather than for an effect.
                     meteredNetwork = {
                         DesktopNetworkStateProvider().current() == app.tenshu.control.data.NetworkStatus.METERED
                     },

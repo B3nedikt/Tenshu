@@ -50,6 +50,7 @@ import app.tenshu.control.ui.App
 import app.tenshu.control.ui.LocalWindowVisible
 import app.tenshu.ui.layout.LocalNavRailPreference
 import app.tenshu.ui.layout.filePersistedNavRailPreference
+import app.tenshu.ui.layout.TenshuWindowIcon
 import app.tenshu.ui.layout.rememberPersistedWindowState
 import app.tenshu.ui.theme.TenshuTheme
 import kotlinx.coroutines.Dispatchers
@@ -112,6 +113,8 @@ fun main() {
     // the icon is up in milliseconds and a slow or wedged proxy costs the user visibility of
     // Control, not Control itself.
     ensureTrayRunning()
+    // Windows: the native C# tray agent (desktop-windows-port.md §3.9, D5); a no-op without one.
+    WindowsTrayAgent.startAndSupervise(SocketPathResolver.resolveDir()) { System.err.println(it) }
 
     val koinApp = startKoin {
         modules(dataModule, platformProxyModule, proxyModule, viewModelsModule)
@@ -267,6 +270,7 @@ fun main() {
             )
         }
     }))
+    val syncPauseState = koinApp.koin.get<SyncPauseState>()
 
     // The schema pull fence's transitions, kept in a file — the only log line that names
     // why a fenced Control stopped pulling, which a packaged app's stdout would otherwise lose.
@@ -290,10 +294,25 @@ fun main() {
             storageDir = DesktopAppPaths.root()
         )
 
-        // Quit is explicit (tray Quit → bridge quitApp → requestQuit, or Cmd+Q):
-        // only then does application { } return and the proxy quiesce below.
+        // Quit is explicit (tray Quit → bridge quitApp / the Windows tray → requestQuit, or
+        // Cmd+Q): only then does application { } return and the proxy quiesce below.
         LaunchedEffect(Unit) {
             windowController.quitRequested.collect { exitApplication() }
+        }
+
+        // Windows without a working native agent — a plain dev run, or an agent the supervisor gave up
+        // on: the notification-area icon is this process's own (desktop-windows-port.md §3.4, §3.9 T3).
+        // ⚠ Never on macOS, where the Swift agent started by ensureTrayRunning owns it, and never
+        // alongside a live native agent (D5) — two icons for one app. Composed here, so
+        // exitApplication() takes the icon down with the window.
+        val agentFellBack by WindowsTrayAgent.fellBack.collectAsState()
+        if (DesktopShellSupport.current.inProcessTray && (WindowsTrayAgent.binary == null || agentFellBack)) {
+            WindowsControlTray(
+                windowController = windowController,
+                syncPauseState = syncPauseState,
+                // `show()` also requests the raise (WindowController.raiseRequested).
+                onOpen = { windowController.show() },
+            )
         }
 
         // Always emit the Window — never conditionally removed — so toggling
@@ -313,11 +332,26 @@ fun main() {
             title = "Tenshu Control",
             state = windowState
         ) {
+            TenshuWindowIcon()
             // Raise + focus when (re)shown — e.g. the tray's Open Control.
             LaunchedEffect(isVisible) {
                 if (isVisible) {
                     window.toFront()
                     window.requestFocus()
+                }
+            }
+            // Every show() — the Compose tray, the bridge's openControlWindow (either native tray agent)
+            // — raises, including a window that was already visible behind others. ⚠ On Windows the
+            // foreground lock still applies: the native agent grants this process the foreground
+            // (AllowSetForegroundWindow) before it calls openControlWindow, or toFront() only flashes the
+            // taskbar button.
+            LaunchedEffect(Unit) {
+                windowController.raiseRequested.collect {
+                    windowState.isMinimized = false
+                    if (window.isVisible) {
+                        window.toFront()
+                        window.requestFocus()
+                    }
                 }
             }
 

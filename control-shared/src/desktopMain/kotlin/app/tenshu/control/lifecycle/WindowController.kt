@@ -40,8 +40,17 @@ class WindowController(initiallyVisible: Boolean = true) {
     )
     val quitRequested: SharedFlow<Unit> = _quitRequested.asSharedFlow()
 
+    // ⚠ A raise is its own event, not part of [visible]: on an already-visible window behind others,
+    // `show()` changes no state, so a window that raised only on a visibility change stayed buried when
+    // the tray's Open Control was used (Windows, 2026-11-10). `Main.kt` collects this, de-minimises and
+    // brings the window to the front.
+    private val _raiseRequested = MutableSharedFlow<Unit>(replay = 0, extraBufferCapacity = 1)
+    val raiseRequested: SharedFlow<Unit> = _raiseRequested.asSharedFlow()
+
+    /** Shows the window and asks for it to be raised, whether or not it was already visible. */
     fun show() {
         _visible.value = true
+        _raiseRequested.tryEmit(Unit)
     }
 
     fun hide() {

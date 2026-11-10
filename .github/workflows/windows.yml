@@ -1,0 +1,82 @@
+name: Windows
+
+# The desktop modules on WINDOWS (docs/proposals/desktop-windows-port.md W1). The ubuntu lane in
+# `android.yml` runs the same suites, but every Windows difference this port has found so far — path
+# separators, POSIX-only permissions and ACLs, mandatory file locks, `fileKey()` always null,
+# `File.renameTo` refusing to replace, `#!/bin/sh` fake helpers — is invisible on Linux and macOS.
+#
+# Its own workflow, like `ios.yml`: nothing here is Android, and a separate check makes a
+# Windows-only red visible as one.
+#
+# ⚠ Scoped to the desktop modules on purpose, not `check`: Windows runners are slower, and
+# Android lint / the other KMP targets add nothing a Windows host can see.
+# ⚠ The whole build still CONFIGURES here (no configure-on-demand), iOS targets included; K/N
+# skips them on Windows with a warning — measured locally 2026-11-09, not a failure.
+# ⚠ It needs no Windows SDK: MSIX packaging (`packageMsix`) is not run here.
+#
+# The native tray agent (control-desktop/windows/TrayAgent, desktop-windows-port.md §3.9) is C# and outside
+# Gradle's test graph, so it gets its own two steps: its unit tests, and a build of the agent itself — the only
+# place anything compiles the WinUI half. ⚠ Neither proves the toasts or the icon; those are device checks
+# (scripts/windows/tray-toast-test.ps1).
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  windows-desktop:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Same two-JDK pin as android.yml's `test` job — read its comment before changing either.
+      - name: Set up JDK 25 (desktop FFM toolchain) + JDK 17 (daemon + shared modules)
+        uses: actions/setup-java@v4
+        with:
+          java-version: |
+            25
+            17
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Register both JDKs with Gradle toolchain detection
+        shell: bash
+        run: |
+          mkdir -p ~/.gradle
+          echo "org.gradle.java.installations.fromEnv=JAVA_HOME_25_X64,JAVA_HOME_17_X64" >> ~/.gradle/gradle.properties
+
+      - name: Desktop tests on Windows
+        run: >-
+          ./gradlew.bat --stacktrace --continue
+          :windows-helpers:test
+          :core-common:desktopTest
+          :control-shared-logic:desktopTest
+          :ui-core:desktopTest
+          :control-shared-proxy:desktopTest
+          :control-shared:desktopTest
+          :control-desktop:jvmTest
+          :drive-shared-ui:desktopTest
+
+      - name: Set up .NET (tray agent)
+        if: always()
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # `always()`: a red Gradle step must not hide a red agent, the --continue rule in AGENTS.md.
+      - name: Tray agent unit tests
+        if: always()
+        run: dotnet test control-desktop/windows/TrayAgent.Tests/TrayAgent.Tests.csproj -nologo
+
+      - name: Tray agent build
+        if: always()
+        run: dotnet build control-desktop/windows/TrayAgent/TrayAgent.csproj -c Release -nologo
+
+      - name: Upload Test Report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-desktop-test-report
+          path: "**/build/reports/tests/**"

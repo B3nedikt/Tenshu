@@ -36,6 +36,15 @@ import org.tenshu.core.entity.Entity
 internal class ReminderRearmObserver(
     scope: CoroutineScope,
     private val debounceMs: Long = DEFAULT_DEBOUNCE_MS,
+    /**
+     * Plan once as soon as the session starts, before any calendar data changes.
+     *
+     * ⚠ Opt-in, for hosts whose presenter only hands the plan over (`SchedulingNotificationPresenter`, desktop):
+     * otherwise their plan stays empty after a restart until the first calendar change. Not for hosts whose
+     * presenter *posts* due reminders (Android): a plan there also delivers, and a startup run could repeat an
+     * alert the alarm already showed.
+     */
+    planOnStart: Boolean = false,
     private val rearm: () -> Unit,
 ) : DataObserver {
 
@@ -45,6 +54,7 @@ internal class ReminderRearmObserver(
     private val signals = Channel<Unit>(Channel.CONFLATED)
 
     init {
+        if (planOnStart) signals.trySend(Unit)
         scope.launch {
             for (ignored in signals) {
                 delay(debounceMs)
