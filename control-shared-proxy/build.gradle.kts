@@ -333,6 +333,8 @@ kotlin {
             dependencies {
                 implementation(libs.kotlinx.coroutines.swing)
                 implementation(project(":macos-helpers"))
+                // DPAPI for the Windows master-key store (desktop-windows-port.md §3.1).
+                implementation(project(":windows-helpers"))
                 api(project(":file-service-common"))
                 api(project(":file-service-client"))
                 api(project(":file-service-proxy"))

@@ -1,8 +1,9 @@
 # Porting Control (and the desktop suite) to Windows
 
-**Status:** v0.2, 2026-11-09. The plan (W0–W7, X0–X4) is **agreed with the maintainer**. W0 measured on
-the maintainer's Windows 11 machine; W1 is done except the socket-directory DACL (§3.3), with the
-`windows-desktop` CI lane in `android.yml`. No Windows build ships.
+**Status:** v0.3, 2026-11-10. The plan (W0–W7, X0–X4) is **agreed with the maintainer**, and the
+distribution decision is taken: **Microsoft Store first** (§0, D1–D4). W0 measured on the maintainer's
+Windows 11 machine; W1 done (socket-directory DACL moved to W2), with the `windows-desktop` CI lane in
+`android.yml`; W2's DPAPI store built (§3.1). No Windows build ships.
 
 **Scope:** what it takes for a person who is not the maintainer to install Tenshu Control on Windows 11,
 pair it, and have it stay resident and safe — then the other desktop apps over it. Covers the platform
@@ -22,6 +23,17 @@ lockstep, `releases.tenshu.app`, version numbers); [`core-background-processing.
 **How to read the evidence.** *Measured*: observed on Windows 11 Pro 10.0.26200 on 2026-11-09.
 *Read*: taken from the cited file. *Not verified*: inference or general knowledge about Windows / Microsoft
 Store policy; each names what must be checked, and the phase that checks it.
+
+---
+
+## 0. Decisions
+
+| # | Decision | Why, in one line |
+|---|---|---|
+| D1 | ✅ **Decided 2026-11-10: the Microsoft Store (MSIX) is the first and, for now, only channel.** | One upload gives both the Store and the command line (`winget install --source msstore …`), Microsoft signs it for free, and it is the only shape that is sealed (§4.1) and carries package identity (§3.5, §3.7). |
+| D2 | ✅ **Decided: the side channel comes later** — a **per-machine** MSI, signed through **SignPath Foundation** (free for OSI-licensed projects; Tenshu is Apache-2.0), on `releases.tenshu.app` and `microsoft/winget-pkgs`. | Free, CI-native signing; per-machine is what makes a shared signer acceptable (§4.2). ⚠ SignPath's acceptance of the project is *not verified*; checked when W6 starts. |
+| D3 | ✅ **Decided: no per-user install, on any channel.** | A per-user install directory is writable by the same user, so a validly signed launcher can be handed someone else's jars — the peer gate cannot hold (§4.1). |
+| D4 | ✅ **Decided: no paid certificate.** Microsoft's cloud signing, OV and EV certificates were weighed and set aside. | D1 needs none; D2 is free; EV no longer buys SmartScreen reputation (*not verified*, and moot). |
 
 ---
 
@@ -90,6 +102,27 @@ restart**. Threat model A15 says Windows DPAPI is *required*.
   loses the key ⇒ re-pair. Same failure class as A21's "Keychain unavailable"; document, don't engineer.
 - Threat-model amendment: A15/A21 gain a Windows row (HR #2).
 
+> **As built (W2, 2026-11-10).** `WindowsDpapi` (new module `:windows-helpers`, the Win32-over-FFM twin of
+> `:macos-helpers`, same JDK-25-compile / JVM-17-emit split) wraps `CryptProtectData` /
+> `CryptUnprotectData`, user scope, `CRYPTPROTECT_UI_FORBIDDEN`, with a fixed app entropy; it answers
+> `null` for anything it cannot do, and wipes the native copies of key material. `DpapiWrappingKeyStore`
+> (`control-shared-proxy`) seals the 32-byte wrapping key into `wrap-key.dpapi` beside `secrets.enc`
+> (atomic replace), and `PlatformProxyModule` selects it on Windows.
+> - ⚠⚠ **A blob that will not open is never replaced** (wrong user, admin password reset, corruption):
+>   minting a fresh key would orphan `secrets.enc` while looking healthy. It falls back to in-memory
+>   secrets — a re-pair, the same outcome as an unreadable `secrets.enc` — and leaves the blob on disk.
+> - ⚠ DPAPI keeps no store, unlike the Keychain: the sealed key is a file, so "Remove Tenshu from this PC"
+>   (§4) must delete `wrap-key.dpapi` with `secrets.enc`.
+> - ⚠ A15 says DPAPI is *required*; nothing enforces that yet — without DPAPI, Windows falls back to
+>   in-memory secrets like Linux.
+> - ⚠⚠ **Every `:windows-helpers` binding must load on a JVM without `java.lang.foreign`.** The shared
+>   modules' tests run on JDK 17, and the Control DI graph builds the key store on any Windows host: a
+>   struct layout in `WindowsDpapi`'s initialiser failed class-init (`NoClassDefFoundError`) and took down
+>   all 12 Control integration suites. FFM types now live in a private `Bindings` class loaded inside
+>   `runCatching`; follow the same shape for the next binding.
+> - Tests: `WindowsDpapiTest` (real DPAPI, hard-fails if the binding does not resolve on Windows) and
+>   `DpapiWrappingKeyStoreTest` (fake DPAPI, every host). Threat model: A15, A21, T-C-17's Windows paragraph.
+
 ### 3.2 IPC peer gate (ship-blocking)
 
 Off macOS every peer resolves `Unattested`; with `strict = true` a packaged build admits **no one** (Drive
@@ -101,10 +134,17 @@ cannot connect), a dev run admits everyone (`desktop-ipc.md` §3, threat model A
 - ⚠⚠ **The pid race has no audit-token answer on Windows** (`tenshu-rei.md` §5.F.49). Holding a process
   handle opened *before* the check narrows it (a held handle keeps the pid from being reused) but does not
   bind the handle to the connecting socket. Needs a design answer and a threat-model entry, not a shrug.
-- ⚠⚠ **The signer differs per channel** (§5.2): a Store-distributed MSIX is re-signed by Microsoft. If the
-  gate pins only our Authenticode certificate, a Store Drive cannot reach a Store Control. Pin by
-  **package family name** when the peer has package identity (`GetPackageFamilyName` on the peer process),
-  by Authenticode signer otherwise. Decide in W2, before W5.
+- ⚠⚠ **What the gate pins follows D1–D3 — and it is never a signer alone** (§4.1):
+  - **Store (MSIX), first:** the peer process's **package family name** (`GetPackageFamilyName` on the peer
+    process) must be one of ours. It is derived from our Partner Center publisher, not from Microsoft's
+    re-signing certificate, and the package's files sit in the OS-protected `WindowsApps` folder with
+    integrity enforced — so identity and integrity come together.
+  - **Side channel (later, D2):** the running image's Authenticode signer must be SignPath Foundation's
+    **and** the image must live under `%ProgramFiles%` (admin-writable only). ⚠⚠ The signer alone proves
+    nothing: SignPath signs many projects with the same certificate. Pin subject + issuer, never a
+    thumbprint (certificates renew).
+  - A peer that is neither is unattested. Mixed installs (a Store Control, a side-channel Drive) are allowed,
+    as on macOS (`desktop-macos-distribution.md` §2.12).
 - Per-method authorization inside the bridge (the 2026-08-21 audit item) is platform-independent and not
   re-opened here.
 
@@ -156,13 +196,14 @@ The daemon contract (`core-background-processing.md` §5.3) is "one resident pro
 only *start at logon, hidden*. The docs disagree on the mechanism (`tenshu-rei.md`: Run key;
 `core-background-processing.md`: Task Scheduler).
 
-- **Recommendation:** an `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` value launching
-  `TenshuControl.exe` with `TENSHU_CONTROL_START_HIDDEN=true` semantics (a `--hidden` argument, since a Run
-  value cannot set the environment). No admin, no XML, user-visible in Task Manager → Startup.
-- ⚠⚠ **Not under MSIX.** A packaged app's HKCU writes are virtualized into the package, so a Run value it
-  writes is invisible to Explorer. MSIX builds declare `windows.startupTask` in the manifest instead and toggle
-  it through `StartupTask` (WinRT). So `WindowsStartAtLoginManager` has two arms, selected by "has package
-  identity" — the same split macOS has between LaunchAgent and `SMAppService` (*not verified*; W5).
+- **First (D1, Store/MSIX):** declare `windows.startupTask` in the package manifest and toggle it through
+  `StartupTask` (WinRT) — the `SMAppService` analogue: the OS owns the entry and the user sees it in
+  Settings → Startup. ⚠⚠ Not a Run value: a packaged app's HKCU writes are virtualized into the package, so
+  a Run value it writes is invisible to Explorer (*not verified*; W4 spike).
+- **Later (D2, side-channel MSI):** an `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` value launching
+  `TenshuControl.exe --hidden` (a Run value cannot set the environment). So `WindowsStartAtLoginManager`
+  grows two arms, selected by "has package identity" — the same split macOS has between `SMAppService` and
+  the LaunchAgent.
 - Task Scheduler only if a measured need appears (e.g. restart-on-failure); it costs a COM/`schtasks` surface.
 
 ### 3.6 Scheduling, alarms and background wake
@@ -195,10 +236,11 @@ On Windows there is no tray and nothing posts.
 
 - **Work (W3):** a JVM-side poller over the *same* in-process sources (no bridge needed) posting WinRT
   toasts; activation → `WindowController.show()`.
-- ⚠⚠ **Toasts need an AppUserModelID.** An unpackaged app must register one (a Start-menu shortcut carrying
-  the AUMID, which the MSI creates); an MSIX has one by construction. Without it toasts silently do not show
-  (*not verified*; W3). `TrayIcon.displayMessage` is the identity-free fallback but cannot schedule
-  (reminders) or carry actions.
+- ⚠⚠ **Toasts need an AppUserModelID.** An MSIX has one by construction — one more reason for D1. The
+  later side-channel MSI must register one (a Start-menu shortcut carrying the AUMID). Without it toasts
+  silently do not show (*not verified*; W3). ⚠ So W3's toasts and reminders can only be verified from a
+  packaged MSIX, not a `:control-desktop:run` (no identity) — test through a locally side-loaded MSIX.
+  `TrayIcon.displayMessage` is the identity-free fallback but cannot schedule (reminders) or carry actions.
 
 ### 3.8 Degrades gracefully — no work required to ship
 
@@ -210,34 +252,63 @@ default-app hand-off; the app lock (`DesktopAppLock`) is a pass-through (Windows
 
 ---
 
-## 4. Packaging and signing (W4 — direct download)
+## 4. Signing and install location — why D1–D3
 
-- **Format:** `targetFormats(Msi)` from the Compose plugin (jpackage + WiX). Per-user install
-  (`perUserInstall`, no UAC), a Start-menu shortcut (needed for the AUMID, §3.7), an upgrade code fixed
-  forever per app. ⚠ The upgrade code is the Windows twin of a bundle id: change it and the next version
-  installs *beside* the old one.
-- **Lockstep:** the suite moves together (HR #9; `desktop-macos-distribution.md` D8/D9). Mirror macOS's
-  as-built answer: one MSI per app, one suite version, published to `releases.tenshu.app`
-  content-addressed, with Control's update check naming the suite version.
-- **Signing:** Authenticode on the MSI **and** every `.exe`/`.dll` inside it (the bundled runtime included —
-  the macOS lesson "every Mach-O is re-signed by our team" applies). Since 2023 code-signing keys must live in
-  an HSM; the cheap route is Microsoft's cloud signing service (Trusted/Artifact Signing) — *not verified*
-  for eligibility of our entity; W4. ⚠ SmartScreen warns on a new certificate until it earns reputation; the
-  Store (§5.2) is the route that avoids that.
-- The peer gate's compiled trust anchor (§3.2) pins this signer — so the certificate decision is made
-  before W2's gate ships, not after.
-- **Uninstall:** the MSI removes the binaries; Control needs "Remove Tenshu from this PC" for what it created
-  (`~\.tenshu`, the DPAPI blob, the Run value, scheduled toasts) — the twin of macOS D13.
-- ⚠ Gate coverage: `run-gate.sh` and the smoke scripts are bash; no CI lane runs a Windows JVM. Add a
-  Windows `desktopTest` lane for `:core-common` + `:control-*` at W1 — it is what keeps §3.3 fixed.
+### 4.1 The certificate is not what protects the peer gate; the install directory is
+
+On macOS `codesign` seals the **whole bundle**, and the audit-token check verifies the running code against
+it. On Windows an Authenticode signature covers **one file**. Our apps are a jpackage launcher `.exe` plus
+jars, a `.cfg` and a bundled runtime — and the launcher's signature says nothing about the jars it loads.
+
+- ⚠⚠ **Per-user install (`%LOCALAPPDATA%`): unsafe under any certificate.** The same user — AD3, the very
+  adversary the peer gate exists for — can replace the jars or the `.cfg` under a validly signed launcher.
+  Hence D3.
+- **MSIX (`WindowsApps`): sealed.** The folder is OS-protected and package integrity is enforced; the identity
+  is our package family name. The strongest posture available, and free (D1).
+- **Per-machine MSI (`%ProgramFiles%`): acceptable.** Only an administrator can write there, so "signed by the
+  expected signer **and** running from under `%ProgramFiles%`" holds against a same-user adversary — which is
+  also what makes a *shared* signer such as SignPath Foundation usable (D2).
+
+### 4.2 How each channel is signed
+
+| Channel | Signed by | Android analogue |
+|---|---|---|
+| **Microsoft Store, MSIX** (D1) | **Microsoft re-signs** the uploaded package; we hold no key. The Partner Center account is the upload credential. | Play App Signing |
+| Store CLI (`winget --source msstore`) | the same Store package — nothing extra to build or sign | — |
+| Side-channel MSI + `winget-pkgs` (D2, later) | **SignPath Foundation**, from public CI, on every `.exe`/`.dll` and the MSI (the macOS lesson "every Mach-O is re-signed" applies to the bundled runtime too) | the side-channel key |
+
+⚠ Unlike Android, a Windows certificate is **not** update continuity: an MSI upgrade follows its UpgradeCode
+and an MSIX update its package identity. Changing signer later is routine, not a key-loss event.
+
+### 4.3 Packaging common to both
+
+- **Lockstep:** the suite moves together (HR #9; `desktop-macos-distribution.md` D8/D9): one version for every
+  app. On the Store, each app is its own package; Control's update prompt and the schema-skew surface
+  (`core-schema-skew-surface.md`) cover an app the Store has not updated yet.
+- **Uninstall:** Control needs "Remove Tenshu from this PC" for what it created (`~\.tenshu`, `secrets.enc`
+  **and** `wrap-key.dpapi`, the startup entry, scheduled toasts) — the twin of macOS D13. An MSIX uninstall
+  removes only the package's own files.
+- **Side-channel MSI only:** `targetFormats(Msi)` (jpackage + WiX), **per-machine** (D3), a Start-menu
+  shortcut (the AUMID, §3.7), an UpgradeCode fixed forever per app. ⚠ The UpgradeCode is the Windows twin of
+  a bundle id: change it and the next version installs *beside* the old one.
+- Gate coverage: the `windows-desktop` lane in `android.yml` (W1) runs the desktop suites on Windows.
 
 ---
 
-## 5. Later phases — winget and the Microsoft Store
+## 5. Distribution — the Store first, the side channel later
 
-### 5.1 winget (W6 — cheap, after W4)
+Order per D1/D2: **§5.2 (Store) is W4**, the first channel; **§5.1 (side-channel MSI + winget-pkgs) is W6**.
 
-winget is the Homebrew-cask analogue: a manifest pointing at **our** signed MSI by URL + SHA-256.
+### 5.1 Side channel: SignPath-signed MSI + winget-pkgs (W6 — later, D2)
+
+The Store package is already reachable from the command line (`winget install --source msstore`), so this
+channel is for people who will not, or cannot, use the Store. winget-pkgs is the Homebrew-cask analogue: a
+manifest pointing at **our** per-machine MSI by URL + SHA-256.
+
+- **Signing (D2):** SignPath Foundation, from GitHub Actions on the public repo. ⚠ Their acceptance criteria
+  (OSI licence, public CI build, active maintenance, a review of the project) are *not verified* against
+  Tenshu; apply when W6 starts. ⚠ The certificate is issued to SignPath Foundation, so the publisher users see
+  is theirs, and the peer gate must not trust the signer alone (§3.2, §4.1).
 
 - One manifest set per app (`Tenshu.Control`, `Tenshu.Drive`, …) submitted as PRs to
   `microsoft/winget-pkgs`, which runs automated validation (installs the MSI in a sandbox, checks silent
@@ -246,15 +317,16 @@ winget is the Homebrew-cask analogue: a manifest pointing at **our** signed MSI 
   (MSI gives `/quiet` for free), the MSI's ProductCode/UpgradeCode in the manifest so `winget upgrade` works.
 - Automate the bump PR from the release script (`wingetcreate update`), as `desktop-macos-distribution.md`'s
   H-steps do for the cask.
-- ⚠ winget installs the **same artifact** as direct download, so it is the same channel for ADR 0025
-  (`SameChannelAsThisApp`) and the same signer for the peer gate. Nothing new in either.
+- ⚠ winget-pkgs installs the **same artifact** as the direct download, so it is the same channel for ADR 0025
+  (`SameChannelAsThisApp`) and the same identity for the peer gate. Nothing new in either.
 - ⚠ Lockstep: winget upgrades packages independently (`winget upgrade Tenshu.Drive` alone is possible). A
   `Tenshu.Suite` meta-package with dependencies, or Control's own update prompt, must cover skew — the
   schema-skew surface (`core-schema-skew-surface.md`) is the backstop either way.
 
-### 5.2 Microsoft Store (W7 — a different build, like the MAS)
+### 5.2 Microsoft Store, MSIX (W4 — the first channel, D1)
 
-Two submission shapes exist (*not verified* against current Partner Center rules; W7 starts by checking):
+Two submission shapes exist (*not verified* against current Partner Center rules; W4 starts by checking).
+**D1 chose MSIX**; the MSI/EXE listing is recorded for completeness, and would reintroduce our own signing:
 
 | | MSI/EXE listing (unpackaged) | MSIX package |
 |---|---|---|
@@ -264,10 +336,15 @@ Two submission shapes exist (*not verified* against current Partner Center rules
 | Updates | ours | Store-managed |
 | Cost | near zero once W4 exists | the second build variant |
 
-Recommendation: **MSIX**, because package identity is what §3.5 (autostart), §3.7 (toasts/reminders) and
-§3.2 (pin by package family) want anyway — but only after a submission spike, mirroring macOS D11.
+MSIX, because package identity is what §3.5 (autostart), §3.7 (toasts/reminders) and §3.2 (pin by package
+family) want anyway, and because it is the sealed shape (§4.1). Still **spike first**, mirroring macOS D11:
+package Control from the jpackage app-image, side-load it locally, then submit.
 
-What MSIX changes, all *not verified* until the W7 spike:
+- **Partner Center account:** individual registration has been free since 2024 and a company account is a
+  one-time fee (*not verified*; check the current terms when registering). Which entity publishes decides the
+  publisher name users see.
+
+What MSIX changes, all *not verified* until the W4 spike:
 
 - ⚠⚠ **File-system and registry virtualization.** Writes to `%APPDATA%`/`%LOCALAPPDATA%` and HKCU are
   redirected per package. Control and Drive are **separate packages**, so anything they must both see — the
@@ -294,12 +371,12 @@ What MSIX changes, all *not verified* until the W7 spike:
 |---|---|---|
 | **W0** | Measure: run Control, run the suite (§2) | ✅ done 2026-11-09 |
 | **W1** | Defects §3.4 (close quits, hide autostart switch off macOS); §3.3 transport leftovers; Windows `desktopTest` CI lane; correct `desktop-ipc.md` §4 and the threat model's named-pipe wording | the four red tests green on Windows — ✅ 2026-11-09, plus the lane; socket-directory DACL moved to W2 (it is part of the peer-gate posture) |
-| **W2** | DPAPI key store (§3.1); Windows peer gate (§3.2) + socket-directory DACL (§3.3) + threat-model amendment (A14/A15/A20/A21); certificate decision (§4) | pair, restart, still paired; Drive-desktop connects to a strict Control |
-| **W3** | Tray (§3.4), Run-key autostart (§3.5), toasts + scheduled reminders (§3.7/§3.6), power/idle + metered probes (§3.6) | closed-window Control reachable from the tray; a reminder fires with Control quit |
-| **W4** | Signed per-user MSI per app, lockstep version, `releases.tenshu.app`, uninstall (§4) | a clean Windows VM installs, pairs, upgrades |
-| **W5** | The other desktop apps over the same pipeline | each passes the W4 VM check |
-| **W6** | winget manifests + release automation (§5.1) | `winget install Tenshu.Control` on a clean VM |
-| **W7** | Microsoft Store: spike first, then MSIX variant (§5.2) | Store build passes certification; Drive-MSIX ↔ Control-MSIX IPC verified |
+| **W2** | DPAPI key store (§3.1) ✅ built; Windows peer gate by **package family name** (§3.2) + socket-directory DACL (§3.3) + threat-model amendment (A14/A20); certificate decision ✅ D1–D4 | pair, restart, still paired; a side-loaded Drive MSIX connects to a strict side-loaded Control MSIX |
+| **W3** | Tray (§3.4), `StartupTask` autostart (§3.5), toasts + scheduled reminders (§3.7/§3.6), power/idle + metered probes (§3.6) | closed-window Control reachable from the tray; a reminder fires with Control quit — verified from a side-loaded MSIX |
+| **W4** | Microsoft Store: spike, then MSIX per app, lockstep version, ADR 0025 Store row, uninstall (§4.3, §5.2) | the Store build passes certification; `winget install --source msstore` installs it on a clean VM |
+| **W5** | The other desktop apps over the same pipeline | each passes the W4 check |
+| **W6** | Side channel: SignPath-signed per-machine MSI, `releases.tenshu.app`, winget-pkgs manifests + automation (§5.1); the gate's SignPath + `%ProgramFiles%` arm (§3.2) | `winget install Tenshu.Control` (winget-pkgs) on a clean VM; a per-user copy is refused by the gate |
+| **W7** | (merged into W4 — kept so phase numbers in other docs stay valid) | — |
 
 Out of scope here: Windows Hello app lock (masterkeystore Phase 3), ARM64 Windows (decide at W4, like
 macOS D2). Explorer integration is sketched in §7 and phased separately (X0–X4).

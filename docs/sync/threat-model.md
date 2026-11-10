@@ -1699,7 +1699,11 @@ Explicitly not trusted:
   sessions on desktop. Choice depends on platform + environment per
   [`tenshu-rei.md`](../proposals/tenshu-rei.md) §3.6:
   - **macOS:** native Keychain (TA2). Required — Control refuses to start without it.
-  - **Windows:** native DPAPI (TA2). Required.
+  - **Windows:** native DPAPI (TA2), user scope. Required. ⚠ As built (2026-11-10,
+    `DpapiWrappingKeyStore`): DPAPI seals A21's wrapping key into `wrap-key.dpapi`; there is no
+    Windows biometric gate yet, so this is the baseline of T-C-17 only.
+    ⚠ "Required" is not yet enforced: a Windows Control without DPAPI falls back to in-memory
+    secrets like every other desktop, rather than refusing to start.
   - **Linux + Secret Service:** gnome-keyring / KWallet via dbus (TA2). Preferred.
   - **Linux without Secret Service:** Argon2id-derived encrypted file on disk, two
     user-selected modes (`tenshu-rei.md` §5.F.50):
@@ -1813,8 +1817,11 @@ Explicitly not trusted:
   key lives in the **macOS login Keychain** (a generic-password item). This **changes the desktop
   at-rest exposure**: previously these secrets were in-memory-only and lost on restart (the device
   re-paired); now A1/A2/A9-derived material persists as ciphertext on disk so the device resumes
-  its realm. Where no OS credential store is wired (Windows/Linux today, or `security` unavailable)
-  the store falls back to in-memory and the old re-pair-on-restart behaviour. The wrapping key is
+  its realm. On **Windows** (since 2026-11-10) the wrapping key is instead sealed with **DPAPI, user
+  scope**, in `wrap-key.dpapi` beside `secrets.enc` (`DpapiWrappingKeyStore`; `WindowsDpapi` in
+  `:windows-helpers`) — DPAPI keeps no store of its own, so the sealed key is a file. Where no OS
+  credential store is wired (Linux today, DPAPI unavailable, or `security` unavailable) the store
+  falls back to in-memory and the old re-pair-on-restart behaviour. The wrapping key is
   the same indirection the biometric path reuses (A1/A2 wrappers, Phase 2). **Relay exposure is
   unchanged** — purely device-local at rest (House Rule #1 unaffected). The Android twin is
   `EncryptedSharedPreferences` (AndroidKeyStore-backed). Threats: T-C-17.
@@ -5181,8 +5188,26 @@ Three sub-threats:
   keychain item is bound to the signing identity; a signature change can orphan it, so `secrets.enc`
   becomes undecryptable. The store treats an undecryptable blob as an empty bucket → the device
   re-pairs (mirrors Android `KeyInvalidated`). No secret is disclosed.
+**Windows (DPAPI baseline, 2026-11-10).** The same three sub-threats, with these differences:
+- *Offline disk theft / another OS user (AD1):* mitigated — `wrap-key.dpapi` opens only for the same
+  Windows user on the same machine (the DPAPI master key derives from the logon credential). ⚠ A
+  domain-joined machine's DPAPI master keys are also recoverable by a domain administrator via the
+  domain backup key; that admin is outside this threat model's adversaries, and is recorded here so
+  nobody claims otherwise.
+- *Same-user malware (AD3):* exposed, as on macOS — any process running as the user can call
+  `CryptUnprotectData` on the blob. The fixed entropy (`…master-wrap-key.v1`) is in our binary and does
+  not change that; it only stops a blob being opened by code that merely calls DPAPI on files it finds.
+  No `argv` exposure: the key never leaves the process (an improvement on the macOS `security` CLI).
+  The Windows Hello gate (masterkeystore Phase 3) is not built.
+- *Orphaning:* an administrator **password reset** (not a change) discards the user's DPAPI master key,
+  and a profile copied to another user or machine cannot open the blob. `DpapiWrappingKeyStore` then
+  answers "no key" and keeps the blob — it does **not** mint a replacement, which would orphan
+  `secrets.enc` while looking healthy — so the outcome is the same re-pair as above. No secret is
+  disclosed.
+
 Residual risk: **Low–Medium** at the baseline (same-user malware exposed, by design for the §3
-"saved-password" baseline), reduced to **Low** once the Phase-2 gate is active. House Rule #1 unaffected:
+"saved-password" baseline), reduced to **Low** once the Phase-2 gate is active (macOS; no Windows
+gate yet). House Rule #1 unaffected:
 the relay never sees any of this — it is device-local at rest.
 
 **Phase 2 update (the per-access gate is now built).** The biometric path (proposal §4) is

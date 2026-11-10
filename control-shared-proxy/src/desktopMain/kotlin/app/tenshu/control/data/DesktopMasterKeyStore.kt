@@ -205,6 +205,59 @@ class KeychainWrappingKeyStore(
     }
 }
 
+/**
+ * Windows [WrappingKeyStore]: the 32-byte wrapping key sealed with DPAPI (user scope) in
+ * [blobFile] — `wrap-key.dpapi` beside `secrets.enc` — so only this Windows user on this machine can
+ * open it (`docs/proposals/desktop-windows-port.md` §3.1; threat model A15/A21, T-C-17).
+ *
+ * ⚠ Unlike the Keychain, DPAPI stores nothing itself: it turns the key into a blob and back. So the
+ * blob is a file, written atomically, and [clear] deletes it.
+ *
+ * ⚠⚠ A blob that exists but will not open (another user's profile copied in, an admin password
+ * *reset* — not a change — which discards the DPAPI master key, or a corrupt file) is NOT silently
+ * replaced: that would orphan `secrets.enc` while looking like success. It answers `null` ⇒ the
+ * in-memory fallback, the same "re-pair required" outcome `DesktopMasterKeyStore` gives an unreadable
+ * `secrets.enc`, and the old blob stays on disk for diagnosis.
+ *
+ * [protect] / [unprotect] are seams for tests off Windows; production binds `WindowsDpapi`.
+ */
+class DpapiWrappingKeyStore(
+    private val blobFile: File,
+    private val protect: (ByteArray, ByteArray) -> ByteArray? = app.tenshu.windows.WindowsDpapi::protect,
+    private val unprotect: (ByteArray, ByteArray) -> ByteArray? = app.tenshu.windows.WindowsDpapi::unprotect,
+) : WrappingKeyStore {
+
+    override fun loadOrCreate(): ByteArray? {
+        if (blobFile.exists()) {
+            val key = runCatching { unprotect(blobFile.readBytes(), ENTROPY) }.getOrNull()
+            return key?.takeIf { it.size == WRAP_KEY_LEN }.also {
+                if (it == null) System.err.println("[DpapiWrappingKeyStore] ${blobFile.name} will not open; secrets will not persist")
+            }
+        }
+        val fresh = ByteArray(WRAP_KEY_LEN).also { SecureRandom().nextBytes(it) }
+        val blob = protect(fresh, ENTROPY) ?: return null
+        return runCatching {
+            blobFile.parentFile?.mkdirs()
+            val tmp = File(blobFile.parentFile, blobFile.name + ".tmp")
+            tmp.writeBytes(blob)
+            Files.move(tmp.toPath(), blobFile.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+            fresh
+        }.getOrNull()
+    }
+
+    override fun clear() {
+        blobFile.delete()
+    }
+
+    companion object {
+        const val FILE_NAME = "wrap-key.dpapi"
+        private const val WRAP_KEY_LEN = 32
+
+        /** DPAPI's optional entropy — see `WindowsDpapi` for what it does and does not protect. */
+        private val ENTROPY = "app.tenshu.control.master-wrap-key.v1".encodeToByteArray()
+    }
+}
+
 /** [WrappingKeyStore] that never persists — forces [DesktopMasterKeyStore] into its in-memory fallback. */
 object NoWrappingKeyStore : WrappingKeyStore {
     override fun loadOrCreate(): ByteArray? = null

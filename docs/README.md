@@ -83,7 +83,7 @@ Always-relevant guidance for writing platform-shaped code.
 - [`oss-licences.md`](oss-licences.md) — the open-source notices every app and the web ship (AboutLibraries, generated per binary), the map-data credits, and the licence audit. ⚠⚠ The basemap chip is a map's only OSM credit.
 - [`proposals/store-presence-and-support-pages.md`](proposals/store-presence-and-support-pages.md) — everything a store listing needs, listing text as files, generated screenshots, and the public support page per app, platform and language.
 - [`proposals/desktop-macos-distribution.md`](proposals/desktop-macos-distribution.md) — getting the macOS apps to users: Developer ID + notarization first, one suite `.pkg`, lockstep updates; the Mac App Store assessed and deferred. ⚠ Every Mach-O must be re-signed by our team, including dylibs inside jars.
-- [`proposals/desktop-windows-port.md`](proposals/desktop-windows-port.md) — Control on Windows: DPAPI key store, peer gate, tray, autostart, toasts/reminders, MSI, then winget and the Microsoft Store. ⚠⚠ The transport is AF_UNIX, not named pipes; a Store MSIX is re-signed by Microsoft, so the peer gate cannot pin our certificate alone.
+- [`proposals/desktop-windows-port.md`](proposals/desktop-windows-port.md) — Control on Windows: DPAPI key store, peer gate, tray, autostart, toasts/reminders; the Microsoft Store (MSIX) first, which also serves `winget --source msstore`, and a SignPath-signed per-machine MSI later. ⚠⚠ The transport is AF_UNIX, not named pipes. ⚠⚠ A per-user install cannot be protected by any certificate — the gate pins package identity or signer + `%ProgramFiles%`, never a signer alone.
 
 *Deploy & operate*
 

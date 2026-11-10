@@ -108,6 +108,7 @@ jobs:
       - name: Desktop tests on Windows
         run: >-
           ./gradlew.bat --stacktrace --continue
+          :windows-helpers:test
           :core-common:desktopTest
           :control-shared:desktopTest
           :control-desktop:jvmTest
