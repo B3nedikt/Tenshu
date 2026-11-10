@@ -4,7 +4,7 @@
 distribution decision is taken: **Microsoft Store first** (§0, D1–D4). W0 measured on the maintainer's
 Windows 11 machine; W1 and W2 done (W2's exit gate passed with side-loaded MSIX packages; "pair, restart,
 still paired" not yet run), with the Windows CI lane in `.github/workflows/windows.yml`; W3 in progress
-(tray and probes built). No Windows build ships.
+(tray and probes built); W4's Store build exists, unsubmitted (§5.2). No Windows build ships.
 
 **Scope:** what it takes for a person who is not the maintainer to install Tenshu Control on Windows 11,
 pair it, and have it stay resident and safe — then the other desktop apps over it. Covers the platform
@@ -593,8 +593,30 @@ package Control from the jpackage app-image, side-load it locally, then submit.
 >   `~\.tenshu` written un-virtualized by a packaged app (§5.2's assumption holds), and the instance lock's
 >   `.holder` naming `C:\Program Files\WindowsApps\Tenshu.Control_…\TenshuControl.exe`.
 > - ⚠ The MSIX identity names (`tenshu.msix.identityName` in each module) must equal the catalogue's
->   `ClientBinding.WindowsPackage` / `WINDOWS_CONTROL_PACKAGES`; nothing checks that yet, and a mismatch fails
->   closed (the package is never admitted).
+>   `ClientBinding.WindowsPackage` / `WINDOWS_CONTROL_PACKAGES`; a mismatch fails closed (the package is never
+>   admitted). Since W4 `packageMsix` checks it against each module's `tenshu.msix.identityPins` files.
+
+> **As built (W4, 2026-11-10) — the Store build; nothing submitted yet.** The maintainer's runbook is
+> [`how-to/windows-store-submission.md`](../how-to/windows-store-submission.md). `packageMsix -Ptenshu.msix.store=true`
+> with Partner Center's `tenshu.msix.publisher` (`CN=<GUID>`) and `tenshu.msix.publisherDisplayName` builds
+> `build/msix/store/<exe>_<version>_x64.msix`: the side-load manifest with those values, **unsigned** (the Store
+> re-signs), a plain `.msix` (an `.msixupload` only adds native symbols a JVM app has none of). Side-load builds are
+> unchanged.
+> - ⚠⚠ **The peer gates are compiled from the same `tenshu.windowsPublisherIds` as the package's publisher**, so
+>   Store mode refuses at configuration time unless that set is **exactly** the Store publisher's id — a Store Control
+>   without it refuses the Store Drive (and the reverse), and the local test id (`asmrhn1bb0j6y`) passes the gate on
+>   every machine that trusts the test certificate. Build both apps in one invocation; one Partner Center account,
+>   one publisher (the tray agent's app launcher assumes Control's own publisher, too).
+> - It also refuses the local test publisher, a version that is not Store-valid (4 parts, first ≠ 0, last = 0;
+>   `1.0.1` → `1.0.1.0`), and a module whose identity name is still provisional (`tenshu.msix.identityReserved =
+>   false` until Partner Center's reserved Package/Identity/Name is in the module and its pin files).
+>   `-Ptenshu.msix.storeDryRun=true` builds anyway, as `…-DRYRUN.msix`, never to be uploaded.
+> - Manifest for both modes: languages `en-us` + `de-de` (the apps ship German), MinVersion 10.0.17763.0 =
+>   `TrayAgent.csproj`'s `TargetPlatformMinVersion`, the tray agent shipped without `.pdb`s.
+> - Verified: dry-run Store packages of both apps pack without `makeappx` warnings, are `NotSigned`, carry the
+>   Partner Center values, and their generated anchors hold only the Store id; the side-load build still signs.
+>   ⚠ **Not run:** the Windows App Certification Kit (not installed here — it needs the full Windows SDK, an
+>   elevated install), and nothing has run on Windows 10. Both are in the runbook.
 
 What MSIX changes, all *not verified* until the W4 spike:
 
@@ -625,7 +647,7 @@ What MSIX changes, all *not verified* until the W4 spike:
 | **W1** | Defects §3.4 (close quits, hide autostart switch off macOS); §3.3 transport leftovers; Windows `desktopTest` CI lane; correct `desktop-ipc.md` §4 and the threat model's named-pipe wording | the four red tests green on Windows — ✅ 2026-11-09, plus the lane; socket-directory DACL moved to W2 (it is part of the peer-gate posture) |
 | **W2** | DPAPI key store (§3.1) ✅; Windows peer gate by **package family name**, both halves (§3.2) ✅; socket-directory DACL (§3.3) ✅; threat-model amendment (A14/T-C-11) ✅, ⚠ amended after review: the gate also requires a signed package origin (a loose registration can claim our family name), and states that it cannot stop same-user malware borrowing a running package; certificate decision ✅ D1–D4 | ✅ a side-loaded Drive MSIX connects to a strict side-loaded Control MSIX (2026-11-10). ⚠ "pair, restart, still paired" not yet run end to end |
 | **W3** | In-process tray (§3.4) ✅ verified by the maintainer 2026-11-10; native tray agent T0–T3 (§3.9, D5) incl. toasts + scheduled reminders (§3.7/§3.6); `StartupTask` autostart (§3.5); power/idle + metered probes (§3.6) ✅ | closed-window Control reachable from the tray; a reminder fires with Control quit — verified from a side-loaded MSIX |
-| **W4** | Microsoft Store: spike, then MSIX per app, lockstep version, ADR 0025 Store row, uninstall (§4.3, §5.2) | the Store build passes certification; `winget install --source msstore` installs it on a clean VM |
+| **W4** | Microsoft Store: spike, then MSIX per app, lockstep version, ADR 0025 Store row, uninstall (§4.3, §5.2). Store-mode `packageMsix` + runbook ✅ (§5.2 as-built); Partner Center, WACK, submission owed by the maintainer; ADR 0025 row and uninstall still open | the Store build passes certification; `winget install --source msstore` installs it on a clean VM |
 | **W5** | The other desktop apps over the same pipeline | each passes the W4 check |
 | **W6** | Side channel: SignPath-signed per-machine MSI, `releases.tenshu.app`, winget-pkgs manifests + automation (§5.1); the gate's SignPath + `%ProgramFiles%` arm (§3.2) | `winget install Tenshu.Control` (winget-pkgs) on a clean VM; a per-user copy is refused by the gate |
 | **W7** | (merged into W4 — kept so phase numbers in other docs stay valid) | — |
