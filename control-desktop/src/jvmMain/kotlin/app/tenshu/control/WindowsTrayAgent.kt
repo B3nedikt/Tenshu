@@ -83,17 +83,23 @@ internal object WindowsTrayAgent {
     }
 
     /**
-     * The running agent, by image name. ⚠ Any `tray-agent.exe` counts, not only ours: the single-instance mutex is
-     * per session, so whichever copy holds it decides whether ours can start.
+     * The running agent: **our** `tray-agent.exe` (this exact file) run by **this** user. ⚠ Never another user's —
+     * other login sessions have their own agents, judged against their own heartbeats, and this supervisor would
+     * otherwise kill them on the strength of ours. (Another session of the same user is not told apart: Windows does
+     * not expose a process's session through `ProcessHandle`; that case is rare and only costs one restart.)
      *
      * ⚠ The **oldest** match. Settings' start-at-login switch runs the same exe for a moment
      * (`tray-agent --startup-task …`), and Windows does not expose a process's arguments to tell it apart; those
      * runs last well under a second, so the long-lived agent is the oldest.
      */
-    private fun findAgent(agent: File): WindowsTraySupervisor.Running? =
-        ProcessHandle.allProcesses()
+    private fun findAgent(agent: File): WindowsTraySupervisor.Running? {
+        val me = ProcessHandle.current().info().user().orElse(null)
+        return ProcessHandle.allProcesses()
             .filter { handle ->
-                handle.info().command().orElse(null)?.let { File(it).name.equals(agent.name, ignoreCase = true) } == true
+                val info = handle.info()
+                val command = info.command().orElse(null)
+                command != null && File(command).absolutePath.equals(agent.absolutePath, ignoreCase = true) &&
+                    me != null && info.user().orElse(null).equals(me, ignoreCase = true)
             }
             .min(compareBy { it.info().startInstant().orElse(Instant.MAX) })
             .map { handle ->
@@ -104,6 +110,7 @@ internal object WindowsTrayAgent {
                 )
             }
             .orElse(null)
+    }
 
     private fun stopAndAwait(pid: Long) {
         ProcessHandle.of(pid).ifPresent { handle ->
