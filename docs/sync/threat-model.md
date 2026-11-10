@@ -1693,13 +1693,20 @@ Explicitly not trusted:
   The trust anchor (accepted Team IDs) is **compiled into the binary**, deliberately not read
   from a property, environment variable or config file at runtime: the very adversary this
   asset defends against (AD3, a same-user process) could otherwise add its own team.
+  On **Windows** the anchor is the set of **Store publisher ids** our MSIX packages carry
+  (`FIRST_PARTY_WINDOWS_PUBLISHER_IDS`, compiled in by the same rule), and the attested identity is
+  the package name of the process holding the socket — see T-C-11's Windows paragraph.
   Compromise (subverted `Security.framework` verification, a stolen signing key, or a
   developer-mode A16 flip) defeats per-process authentication on the IPC channel.
 - **A15. Desktop Master-Key At-Rest Storage.** Container that persists A1 across Control
   sessions on desktop. Choice depends on platform + environment per
   [`tenshu-rei.md`](../proposals/tenshu-rei.md) §3.6:
   - **macOS:** native Keychain (TA2). Required — Control refuses to start without it.
-  - **Windows:** native DPAPI (TA2). Required.
+  - **Windows:** native DPAPI (TA2), user scope. Required. ⚠ As built (2026-11-10,
+    `DpapiWrappingKeyStore`): DPAPI seals A21's wrapping key into `wrap-key.dpapi`; there is no
+    Windows biometric gate yet, so this is the baseline of T-C-17 only.
+    ⚠ "Required" is not yet enforced: a Windows Control without DPAPI falls back to in-memory
+    secrets like every other desktop, rather than refusing to start.
   - **Linux + Secret Service:** gnome-keyring / KWallet via dbus (TA2). Preferred.
   - **Linux without Secret Service:** Argon2id-derived encrypted file on disk, two
     user-selected modes (`tenshu-rei.md` §5.F.50):
@@ -1813,8 +1820,11 @@ Explicitly not trusted:
   key lives in the **macOS login Keychain** (a generic-password item). This **changes the desktop
   at-rest exposure**: previously these secrets were in-memory-only and lost on restart (the device
   re-paired); now A1/A2/A9-derived material persists as ciphertext on disk so the device resumes
-  its realm. Where no OS credential store is wired (Windows/Linux today, or `security` unavailable)
-  the store falls back to in-memory and the old re-pair-on-restart behaviour. The wrapping key is
+  its realm. On **Windows** (since 2026-11-10) the wrapping key is instead sealed with **DPAPI, user
+  scope**, in `wrap-key.dpapi` beside `secrets.enc` (`DpapiWrappingKeyStore`; `WindowsDpapi` in
+  `:windows-helpers`) — DPAPI keeps no store of its own, so the sealed key is a file. Where no OS
+  credential store is wired (Linux today, DPAPI unavailable, or `security` unavailable) the store
+  falls back to in-memory and the old re-pair-on-restart behaviour. The wrapping key is
   the same indirection the biometric path reuses (A1/A2 wrappers, Phase 2). **Relay exposure is
   unchanged** — purely device-local at rest (House Rule #1 unaffected). The Android twin is
   `EncryptedSharedPreferences` (AndroidKeyStore-backed). Threats: T-C-17.
@@ -4975,7 +4985,8 @@ extension), A14. Invariants: I1, I3.
 A non-Tenshu binary opens a connection to `~/.tenshu/ipc.sock` (on Windows the same AF_UNIX
 socket under `%USERPROFILE%\.tenshu` — there is no named pipe, `desktop-ipc.md` §4)
 and sends a forged `Hello` block claiming to be a known Tenshu `AppId`. The
-filesystem-permission posture (`700` on `~/.tenshu/`) blocks cross-user but not same-user
+filesystem-permission posture (`700` on `~/.tenshu/`; on NTFS an owner-only DACL — user, SYSTEM,
+Administrators — checked and repaired by `SocketDirectory`) blocks cross-user but not same-user
 processes. On a signed macOS install the socket is in the App Group container instead; the
 cross-user posture is unchanged there (`~/Library/Group Containers` is `700`, and the container
 itself is `700` once `containermanagerd` owns it), and same-user reachability is unchanged too.
@@ -4988,11 +4999,41 @@ peer-credential identity (A14) — discrepancy is a hard reject.
 Residual risk: **Low** with peer-credential checks enforced; **High** without them. Open
 edge cases (cache warmup before publication is observed, signature-change-on-update, the
 Windows peer-PID race where `SIO_AF_UNIX_GETPEERPID` may return a PID whose process
-has exited) tracked in [`tenshu-rei.md`](../proposals/tenshu-rei.md) §5.F.49. ⚠ Only the macOS
-verifier is built (and it uses the audit token, not the pid); on Windows every peer resolves
-unattested, so a strict (packaged) Control admits no one and a developer-mode run admits
-everyone. No Windows build ships, so this is a dev posture, not a shipped exposure, until
-[`desktop-windows-port.md`](../proposals/desktop-windows-port.md) §3.2 lands.
+has exited) tracked in [`tenshu-rei.md`](../proposals/tenshu-rei.md) §5.F.49. ⚠ The macOS
+verifier uses the audit token, not the pid, so the race does not apply there.
+**Windows (2026-11-10, `WindowsPeerCredentialVerifier`;
+[`desktop-windows-port.md`](../proposals/desktop-windows-port.md) §3.2, D1):** the peer is identified by
+the **MSIX package identity of the process holding the socket** — its package family name must be one
+of our package names *and* one of the publisher ids compiled into the binary (empty until the Partner
+Center account exists, so today nothing attests). Not by a signature: a Store package lives in the
+OS-protected `WindowsApps` folder with integrity enforced, whereas a per-user install's jars are
+writable by the very AD3 this threat is about (§4.1 there; per-user installs are ruled out, D3).
+⚠⚠ **The family name alone is forgeable.** It hashes the publisher *string*, which is public, so AD3 can
+register a loose, unsigned manifest under our name and publisher (`Add-AppxPackage -Register`, Developer
+Mode) and receive our exact family name, with its files in a folder AD3 writes. The gate therefore also
+requires the package's **origin** (`GetStagedPackageOrigin`) to be one that needed a signature from a
+certificate the machine trusts — Store, line-of-business, or developer-signed (our local test build) — and
+refuses loose, unsigned and unreadable origins (amended 2026-11-10). Trusting a new certificate takes an
+administrator, which AD3 is not. ⚠ Developer machines carrying the local test certificate
+(`scripts/windows/msix-test-cert.ps1`, its PFX on disk, trusted machine-wide) let AD3 *there* sign a package
+that passes; the test publisher id must never be in a release anchor.
+⚠⚠ **Not covered: AD3 acting through one of our running packages.** A full-trust MSIX process runs at the
+user's integrity, not as a protected process: AD3 can inject into a running `Tenshu.Drive`, duplicate its
+attested socket handle, or plant `JAVA_TOOL_OPTIONS` (`-javaagent:…`) in the user environment before the
+next launch. The gate stops impostor *processes*; it cannot stop the user's own malware from borrowing a
+genuine one — the same limit as macOS without the hardened runtime's injection protections.
+The pid race is narrowed, not closed: the gate holds an open handle to the peer for the whole read (no
+reuse during the check) and rejects a process **created after verification began**, since the real
+peer connected before the accept. A peer that exits, and a pid recycled to a process started, inside
+the gap between its connect and the start of verification remains. ⚠ AD3 can widen that gap (queued
+connections wait in the listen backlog) and can launch our packages at will, so a recycled pid landing on
+one of ours is not a meaningful barrier; this residual folds into the borrowing limit above. The reverse direction (an app checking that the server is Control,
+T-MD-01's defence) uses the same identity on Windows: the listening process must be the `Tenshu.Control`
+package from an anchored publisher (`ControlServerCheck`). Verified end to end with side-loaded MSIX
+packages on 2026-11-10. Residual risk on Windows: **Low** against impostor processes with a configured
+anchor; **Medium** against same-user malware borrowing a running package (above), which the gate does not
+address. Until an anchor exists a strict Control admits no one and a developer-mode run admits everyone, a
+dev posture since no Windows build ships.
 
 **T-C-12. Developer mode silently enabled by attacker.**
 Actors: AD2 / AD3 with local write access to Control's config. Assets: A16; by extension
@@ -5181,8 +5222,33 @@ Three sub-threats:
   keychain item is bound to the signing identity; a signature change can orphan it, so `secrets.enc`
   becomes undecryptable. The store treats an undecryptable blob as an empty bucket → the device
   re-pairs (mirrors Android `KeyInvalidated`). No secret is disclosed.
+**Windows (DPAPI baseline, 2026-11-10).** The same three sub-threats, with these differences:
+- *Offline disk theft / another OS user (AD1):* mitigated — `wrap-key.dpapi` opens only for the same
+  Windows user on the same machine (the DPAPI master key derives from the logon credential). ⚠ A
+  domain-joined machine's DPAPI master keys are also recoverable by a domain administrator via the
+  domain backup key; that admin is outside this threat model's adversaries, and is recorded here so
+  nobody claims otherwise.
+- *Same-user malware (AD3):* exposed, as on macOS — any process running as the user can call
+  `CryptUnprotectData` on the blob. The fixed entropy (`…master-wrap-key.v1`) is in our binary and does
+  not change that; it only stops a blob being opened by code that merely calls DPAPI on files it finds.
+  No `argv` exposure: the key never leaves the process (an improvement on the macOS `security` CLI).
+  The Windows Hello gate (masterkeystore Phase 3) is not built.
+- *Orphaning:* an administrator **password reset** (not a change) discards the user's DPAPI master key,
+  and a profile copied to another user or machine cannot open the blob. `DpapiWrappingKeyStore` retries
+  briefly, then mints a new key and only once that is protected moves the old blob **aside**
+  (`wrap-key.dpapi.unreadable-<time>`, never deleted). ⚠ Only a blob DPAPI *refuses*: with DPAPI unavailable
+  (no native binding) nothing is touched and the store runs in memory until it is back; `DesktopMasterKeyStore` cannot read `secrets.enc` either and keeps it aside the same way. The outcome
+  is one re-pair, as on macOS, with both old files on disk for diagnosis or a manual restore. No secret is
+  disclosed. (Amended 2026-11-10: keeping the blob in place and running in memory meant nothing could ever
+  be saved again — a silent re-pair on every launch.)
+- ⚠ *Roaming profiles:* with a domain roaming profile both `~\.tenshu` and the DPAPI master keys
+  (`AppData\Roaming\Microsoft\Protect`) roam, so the blob **does** open on another machine of the same
+  user, and two machines would run as one device identity. Not addressed; out of scope until a Windows
+  build targets managed environments.
+
 Residual risk: **Low–Medium** at the baseline (same-user malware exposed, by design for the §3
-"saved-password" baseline), reduced to **Low** once the Phase-2 gate is active. House Rule #1 unaffected:
+"saved-password" baseline), reduced to **Low** once the Phase-2 gate is active (macOS; no Windows
+gate yet). House Rule #1 unaffected:
 the relay never sees any of this — it is device-local at rest.
 
 **Phase 2 update (the per-access gate is now built).** The biometric path (proposal §4) is

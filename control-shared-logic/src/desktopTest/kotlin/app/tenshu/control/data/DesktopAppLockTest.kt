@@ -1,5 +1,6 @@
 package app.tenshu.control.data
 
+import org.junit.Assume.assumeFalse
 import java.io.File
 import java.nio.file.Files
 import kotlin.test.AfterTest
@@ -32,6 +33,9 @@ class DesktopAppLockTest {
 
     /** Writes an executable fake helper that prints [line] for every command (after draining stdin). */
     private fun fakeHelper(line: String): String {
+        // A `#!/bin/sh` helper cannot run on Windows (`CreateProcess error=193`); the helper it
+        // stands in for is macOS-only anyway (desktop-windows-port.md §3.8). Skips the calling test.
+        assumeFalse("shell-script helpers cannot run on Windows", System.getProperty("os.name").orEmpty().startsWith("Windows", ignoreCase = true))
         val script = File(dir, "helper-${line.hashCode()}.sh")
         script.writeText("#!/bin/sh\ncat >/dev/null 2>&1\necho '$line'\n")
         script.setExecutable(true)

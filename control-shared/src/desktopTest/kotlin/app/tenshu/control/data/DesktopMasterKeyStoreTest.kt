@@ -87,5 +87,10 @@ class DesktopMasterKeyStoreTest {
         // crash — the blob is undecryptable, so the bucket reads as empty (re-pair).
         val rekeyed = DesktopMasterKeyStore(dir, FixedWrappingKeyStore(keyOf(9)))
         assertNull(rekeyed.getSecret("sync_owner_id"))
+
+        // The unreadable file is kept aside, so the next write cannot destroy the only copy.
+        rekeyed.storeSecret("sync_owner_id", "owner-8")
+        val aside = dir.listFiles { f -> f.name.contains(".unreadable-") }.orEmpty()
+        assertEquals(1, aside.size, "the unreadable secrets file is kept, not overwritten")
     }
 }

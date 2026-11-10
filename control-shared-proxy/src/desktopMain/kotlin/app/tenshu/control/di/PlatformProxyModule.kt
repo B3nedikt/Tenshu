@@ -28,6 +28,7 @@ import app.tenshu.control.data.DesktopBiometricUnlockDelegate
 import app.tenshu.control.data.DesktopMasterKeyStore
 import app.tenshu.control.data.DesktopNetworkStateProvider
 import app.tenshu.control.data.DesktopSecureStorageDelegate
+import app.tenshu.control.data.DpapiWrappingKeyStore
 import app.tenshu.control.data.KeychainWrappingKeyStore
 import app.tenshu.control.data.NoWrappingKeyStore
 import app.tenshu.control.proxy.RelayConfig
@@ -320,19 +321,21 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
         get<ModelStoreOwnership>()
         // Non-secret DEVICE_ID etc. → plaintext properties (stable identity, no
         // duplicate Device per launch). Master-key secrets → DesktopMasterKeyStore,
-        // encrypted at rest under a wrapping key in the macOS login Keychain so the
-        // device resumes its realm across restarts. On non-macOS (no credential
-        // store wired) the key store is the no-op fallback ⇒ in-memory secrets, so the
-        // device re-pairs after a restart. See the delegate KDoc and
-        // docs/proposals/desktop-masterkeystore.md §3.
+        // encrypted at rest under a wrapping key in the macOS login Keychain, or sealed with
+        // DPAPI on Windows, so the device resumes its realm across restarts. Elsewhere (Linux:
+        // no credential store wired) the key store is the no-op fallback ⇒ in-memory secrets,
+        // so the device re-pairs after a restart. See the delegate KDoc,
+        // docs/proposals/desktop-masterkeystore.md §3 and desktop-windows-port.md §3.1.
         val packageName = get<String>(named("platformPackageName"))
         val storageDir = DesktopAppPaths.dataDir(packageName)
-        val wrappingKeyStore =
-            if (System.getProperty("os.name").orEmpty().contains("mac", ignoreCase = true)) {
+        val osName = System.getProperty("os.name").orEmpty()
+        val wrappingKeyStore = when {
+            osName.contains("mac", ignoreCase = true) ->
                 KeychainWrappingKeyStore(service = "$packageName.master-key-store")
-            } else {
-                NoWrappingKeyStore
-            }
+            osName.startsWith("Windows", ignoreCase = true) ->
+                DpapiWrappingKeyStore(java.io.File(storageDir, DpapiWrappingKeyStore.FILE_NAME))
+            else -> NoWrappingKeyStore
+        }
         DesktopSecureStorageDelegate(
             storageDir = storageDir,
             masterKeyStore = DesktopMasterKeyStore(storageDir, wrappingKeyStore),
