@@ -362,6 +362,21 @@ four notifiers). Lives in `control-desktop/windows/TrayAgent/`.
   side-loaded Control MSIX; (T1) the full flyout (needs-action, recent notifications, app launcher, open/quit)
   and the right-click menu; (T2) the four notifiers including scheduled reminders; (T3) lifecycle, tests, CI
   (`dotnet` in `windows.yml`), and demoting the Compose tray to a fallback.
+
+> **T1 as-built (2026-11-10).** The flyout carries the macOS popover's content: the state headline (from the
+> daemon's bgproc §5.3 code, never re-derived) with the divergence detail, then *Needs action* (`pendingRequests`),
+> *Recent* (`recentNotifications`, limit 4) and *Apps* (`listApps`), each only when non-empty; Pause/Resume (only
+> when sync is enabled), Open Control, Quit. Strings are the agent's own, English and German (`Strings.cs`,
+> ADR 0016). Only `getSyncState` decides reachability; the three section calls each fall back to empty.
+> - **App launcher.** `listApps` rows now carry `windowsPackage` from the catalogue's `ClientBinding.WindowsPackage`,
+>   and never-connected candidates include apps with a Windows binding as well as a Mac one (the macOS agent
+>   already filters candidates by what LaunchServices resolves, so its menu is unchanged). The agent completes the
+>   name to a family with **its own** publisher id — so only a package by Control's publisher can ever match — and
+>   offers it iff `GetPackagesByPackageFamily` finds it installed for this user; it launches the manifest's
+>   `Application/@Id` through `IApplicationActivationManager`. ⚠ An installed package counts on its own, registered
+>   or not: MSIX has no stray-bundle problem, unlike LaunchServices. ⚠ Plain Win32 on purpose — `PackageManager`'s
+>   query methods are capability-gated in a package context. The bridge's `launchApp` stays macOS-only.
+> - An agent without package identity (a dev run) offers no apps: it has no publisher id to complete a family with.
 - **Estimate (2026-11-10):** ≈ 7.5–9.5 focused days, ≈ 2–4 more than the Compose flyout plus WinRT-over-FFM toasts
   it replaces.
 

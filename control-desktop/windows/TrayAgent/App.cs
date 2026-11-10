@@ -34,16 +34,20 @@ public sealed class App : Application, IXamlMetadataProvider
         _flyout = new FlyoutWindow();
         _flyout.OpenControl += OpenControl;
         _flyout.SetPaused += SetPaused;
+        _flyout.LaunchApp += LaunchApp;
         _flyout.Quit += QuitControl;
 
         _tray = new TrayIcon(
             onSelect: (x, y) => { if (_flyout.IsVisible) _flyout.Hide(); else { _flyout.ShowAt(x, y); Refresh(); } },
             menu: () =>
             [
-                new TrayIcon.MenuItem("Open Control", OpenControl),
-                new TrayIcon.MenuItem(_state.Paused ? "Resume sync" : "Pause sync", () => SetPaused(!_state.Paused), _state.Reachable),
+                new TrayIcon.MenuItem(Strings.Current.OpenControl, OpenControl),
+                new TrayIcon.MenuItem(
+                    _state.Paused ? Strings.Current.ResumeSync : Strings.Current.PauseSync,
+                    () => SetPaused(!_state.Paused),
+                    _state.Reachable && _state.Enabled),
                 null,
-                new TrayIcon.MenuItem("Quit Tenshu Control", QuitControl),
+                new TrayIcon.MenuItem(Strings.Current.QuitMenu, QuitControl),
             ]);
         UpdateIcon();
 
@@ -54,13 +58,25 @@ public sealed class App : Application, IXamlMetadataProvider
         Refresh();
     }
 
-    /// <summary>Reads the sync state off the UI thread, then renders it on the UI thread.</summary>
+    /// <summary>
+    /// Reads the bridge off the UI thread, then renders on the UI thread. Only <c>getSyncState</c> decides whether
+    /// Control is reachable; the three section calls each fall back to empty, so a daemon without one of them
+    /// still gets the rest of the flyout.
+    /// </summary>
     private void Refresh()
     {
         Task.Run(() =>
         {
             TrayState next;
-            try { next = TrayState.From(_bridge.Call("getSyncState")); }
+            try
+            {
+                var sync = _bridge.Call("getSyncState");
+                next = TrayState.From(
+                    sync,
+                    TryCall("pendingRequests"),
+                    TryCall("recentNotifications", new Dictionary<string, string> { ["limit"] = "4" }),
+                    AppLauncher.Launchable(TryCall("listApps")));
+            }
             catch (BridgeException e) { next = TrayState.Unreachable(e.Message); }
             _dispatcher.TryEnqueue(() =>
             {
@@ -72,9 +88,26 @@ public sealed class App : Application, IXamlMetadataProvider
         });
     }
 
+    private System.Text.Json.Nodes.JsonObject? TryCall(string method, IDictionary<string, string>? parameters = null)
+    {
+        try { return _bridge.Call(method, parameters); }
+        catch (BridgeException) { return null; }
+    }
+
+    /// <summary>Launches off the UI thread; a refusal marks the row and re-polls, since it usually means the row is stale.</summary>
+    private void LaunchApp(AppRow app)
+    {
+        Task.Run(() =>
+        {
+            if (AppLauncher.Launch(app.Aumid)) return;
+            _dispatcher.TryEnqueue(() => _flyout.MarkLaunchFailed(app.AppId));
+            Refresh();
+        });
+    }
+
     private void UpdateIcon() => _tray.Update(CatIcon.CreateHicon(IconSize()), Tooltip());
 
-    private string Tooltip() => _state.Reachable ? $"Tenshu Control — {_state.Headline}" : "Tenshu Control — not running";
+    private string Tooltip() => $"{Strings.Current.Title} — {_state.Label}";
 
     /// <summary>
     /// Brings Control's window to the front. ⚠⚠ Windows lets only the process that received the user's last input
