@@ -507,6 +507,8 @@
 
     <string name="settings_close_to_tray_headline">In die Menüleiste schließen</string>
     <string name="settings_close_to_tray_support">Tenshu beim Schließen des Fensters in der Menüleiste weiterlaufen lassen</string>
+    <string name="settings_close_to_tray_headline_windows">In den Infobereich schließen</string>
+    <string name="settings_close_to_tray_support_windows">Tenshu beim Schließen des Fensters im Infobereich weiterlaufen lassen</string>
     <string name="settings_start_at_login_headline">Bei Anmeldung starten</string>
     <string name="settings_start_at_login_support">Tenshu automatisch starten, wenn du dich anmeldest</string>
 

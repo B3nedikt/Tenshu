@@ -2,6 +2,7 @@ package app.tenshu.control.ui.screens.settings
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DesktopMac
+import androidx.compose.material.icons.filled.DesktopWindows
 import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
@@ -15,7 +16,9 @@ import app.tenshu.control.lifecycle.DesktopShellSupport
 import app.tenshu.control.lifecycle.DesktopStartAtLoginManager
 import app.tenshu.control.shared.resources.Res
 import app.tenshu.control.shared.resources.settings_close_to_tray_headline
+import app.tenshu.control.shared.resources.settings_close_to_tray_headline_windows
 import app.tenshu.control.shared.resources.settings_close_to_tray_support
+import app.tenshu.control.shared.resources.settings_close_to_tray_support_windows
 import app.tenshu.control.shared.resources.settings_start_at_login_approval_support
 import app.tenshu.control.shared.resources.settings_start_at_login_headline
 import app.tenshu.control.shared.resources.settings_start_at_login_support
@@ -66,10 +69,17 @@ actual fun PlatformSettingsSection() {
 
     val shell = DesktopShellSupport.current
 
+    // The Windows tray lives in the notification area, not a menu bar; the wording follows it.
     if (shell.trayAvailable) AppListItem(
-        headline = stringResource(Res.string.settings_close_to_tray_headline),
-        supportingText = stringResource(Res.string.settings_close_to_tray_support),
-        leadingContent = { Icon(Icons.Default.DesktopMac, contentDescription = null) },
+        headline = stringResource(
+            if (shell.inProcessTray) Res.string.settings_close_to_tray_headline_windows else Res.string.settings_close_to_tray_headline,
+        ),
+        supportingText = stringResource(
+            if (shell.inProcessTray) Res.string.settings_close_to_tray_support_windows else Res.string.settings_close_to_tray_support,
+        ),
+        leadingContent = {
+            Icon(if (shell.inProcessTray) Icons.Default.DesktopWindows else Icons.Default.DesktopMac, contentDescription = null)
+        },
         trailingContent = { Switch(checked = closeToTray, onCheckedChange = ::setCloseToTray) },
         onClick = { setCloseToTray(!closeToTray) },
     )

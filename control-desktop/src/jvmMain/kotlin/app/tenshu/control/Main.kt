@@ -54,6 +54,7 @@ import app.tenshu.ui.layout.rememberPersistedWindowState
 import app.tenshu.ui.theme.TenshuTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.swing.Swing
 import kotlinx.coroutines.test.setMain
@@ -267,6 +268,7 @@ fun main() {
             )
         }
     }))
+    val syncPauseState = koinApp.koin.get<SyncPauseState>()
 
     // The schema pull fence's transitions, kept in a file — the only log line that names
     // why a fenced Control stopped pulling, which a packaged app's stdout would otherwise lose.
@@ -290,10 +292,29 @@ fun main() {
             storageDir = DesktopAppPaths.root()
         )
 
-        // Quit is explicit (tray Quit → bridge quitApp → requestQuit, or Cmd+Q):
-        // only then does application { } return and the proxy quiesce below.
+        // Quit is explicit (tray Quit → bridge quitApp / the Windows tray → requestQuit, or
+        // Cmd+Q): only then does application { } return and the proxy quiesce below.
         LaunchedEffect(Unit) {
             windowController.quitRequested.collect { exitApplication() }
+        }
+
+        // *Open Control* on an already-visible window: `show()` changes nothing then, so the
+        // `isVisible` effect below would not raise it from behind other windows.
+        val raiseRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
+
+        // Windows: the notification-area icon is this process's own (desktop-windows-port.md
+        // §3.4). ⚠ Never on macOS, where the Swift agent started by ensureTrayRunning owns it.
+        // Composed here, so exitApplication() takes the icon down with the window.
+        if (DesktopShellSupport.current.inProcessTray) {
+            WindowsControlTray(
+                windowController = windowController,
+                syncPauseState = syncPauseState,
+                onOpen = {
+                    windowState.isMinimized = false
+                    windowController.show()
+                    raiseRequests.tryEmit(Unit)
+                },
+            )
         }
 
         // Always emit the Window — never conditionally removed — so toggling
@@ -318,6 +339,14 @@ fun main() {
                 if (isVisible) {
                     window.toFront()
                     window.requestFocus()
+                }
+            }
+            LaunchedEffect(Unit) {
+                raiseRequests.collect {
+                    if (window.isVisible) {
+                        window.toFront()
+                        window.requestFocus()
+                    }
                 }
             }
 

@@ -20,11 +20,37 @@ class DesktopShellSupportTest {
     }
 
     @Test
-    fun onlyMacOsHasATrayAndAStartAtLoginMechanism() {
-        assertEquals(DesktopShellSupport(true, true), DesktopShellSupport.forOs("Mac OS X"))
-        assertEquals(DesktopShellSupport(false, false), DesktopShellSupport.forOs("Windows 11"))
-        assertEquals(DesktopShellSupport(false, false), DesktopShellSupport.forOs("Linux"))
-        assertEquals(DesktopShellSupport(false, false), DesktopShellSupport.forOs(""))
+    fun macOsHasTheAgentTrayAndTheOnlyStartAtLoginMechanism() {
+        assertEquals(
+            DesktopShellSupport(trayAvailable = true, startAtLoginAvailable = true, inProcessTray = false),
+            DesktopShellSupport.forOs("Mac OS X"),
+        )
+        // The Swift agent does not depend on AWT's answer.
+        assertEquals(
+            DesktopShellSupport(trayAvailable = true, startAtLoginAvailable = true, inProcessTray = false),
+            DesktopShellSupport.forOs("Mac OS X", systemTraySupported = false),
+        )
+    }
+
+    /** ⚠⚠ Never `inProcessTray` on macOS, or a second icon joins the Swift agent's. */
+    @Test
+    fun windowsDrawsItsOwnTrayButHasNoStartAtLoginYet() {
+        assertEquals(
+            DesktopShellSupport(trayAvailable = true, startAtLoginAvailable = false, inProcessTray = true),
+            DesktopShellSupport.forOs("Windows 11", systemTraySupported = true),
+        )
+    }
+
+    /** A headless JVM or a shell without a notification area: no tray, so close must quit. */
+    @Test
+    fun windowsWithoutASystemTrayHasNoTray() {
+        assertEquals(DesktopShellSupport(false, false, false), DesktopShellSupport.forOs("Windows 11", systemTraySupported = false))
+    }
+
+    @Test
+    fun linuxAndUnknownOsesHaveNeither() {
+        assertEquals(DesktopShellSupport(false, false, false), DesktopShellSupport.forOs("Linux"))
+        assertEquals(DesktopShellSupport(false, false, false), DesktopShellSupport.forOs(""))
     }
 
     /** ⚠⚠ The lie itself: before, `enable()` wrote a plist and `isAutostartEnabled()` then said yes. */

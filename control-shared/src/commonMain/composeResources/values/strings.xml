@@ -681,6 +681,8 @@
     <!-- Desktop-only settings (Phase 1E) — menu-bar agent + start at login. -->
     <string name="settings_close_to_tray_headline">Close to menu bar</string>
     <string name="settings_close_to_tray_support">Keep Tenshu running in the menu bar when you close the window</string>
+    <string name="settings_close_to_tray_headline_windows">Close to notification area</string>
+    <string name="settings_close_to_tray_support_windows">Keep Tenshu running in the notification area when you close the window</string>
     <string name="settings_start_at_login_headline">Start at login</string>
     <string name="settings_start_at_login_support">Launch Tenshu automatically when you sign in</string>
     <string name="settings_start_at_login_approval_support">Allow Tenshu in System Settings → Login Items</string>
