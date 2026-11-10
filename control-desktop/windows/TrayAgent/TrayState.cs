@@ -80,7 +80,7 @@ internal sealed record TrayState(
         string.IsNullOrEmpty(id) ? null : id.Length > 8 ? id[..8] + "…" : id;
 
     /// <summary>A PII-free title per request kind; the request id is a diff key, never copy.</summary>
-    private static string RequestTitle(string? kind) => kind switch
+    internal static string RequestTitle(string? kind) => kind switch
     {
         "membership_grant" => S.RequestMembershipGrant,
         "contact_invite" => S.RequestContactInvite,

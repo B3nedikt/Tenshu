@@ -22,6 +22,16 @@ public static class Program
             return 0;
         }
 
+        // Developer aid: `tray-agent --test-notifications [out.txt]`, run inside the Control package
+        // (Invoke-CommandInDesktopPackage), posts a toast now and schedules one 30 s out.
+        if (args.Length >= 1 && args[0] == "--test-notifications")
+        {
+            WinRT.ComWrappersSupport.InitializeComWrappers();
+            var failure = Notifier.SelfTest();
+            if (args.Length >= 2) File.WriteAllText(args[1], failure ?? "ok");
+            return failure == null ? 0 : 1;
+        }
+
         // One tray per user session: Control may start the agent again while one is already running.
         using var single = new Mutex(initiallyOwned: true, @"Local\Tenshu.TrayAgent", out var first);
         if (!first) return 0;

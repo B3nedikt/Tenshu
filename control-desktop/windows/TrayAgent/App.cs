@@ -23,6 +23,8 @@ public sealed class App : Application, IXamlMetadataProvider
     private DispatcherQueue _dispatcher = null!;
     private TrayIcon _tray = null!;
     private FlyoutWindow _flyout = null!;
+    private Notifier _notifier = null!;
+    private readonly object _notifierLock = new();
     private DispatcherQueueTimer _poll = null!;
     private TrayState _state = TrayState.Unknown;
 
@@ -51,6 +53,11 @@ public sealed class App : Application, IXamlMetadataProvider
             ]);
         UpdateIcon();
 
+        // ⚠ Registered before the activation check: Windows delivers a click that started this process through the
+        // activation arguments, not through NotificationInvoked.
+        _notifier = new Notifier(onActivate: OpenControl);
+        if (Notifier.LaunchedByToast()) OpenControl();
+
         _poll = _dispatcher.CreateTimer();
         _poll.Interval = TimeSpan.FromSeconds(10);
         _poll.Tick += (_, _) => Refresh();
@@ -71,11 +78,23 @@ public sealed class App : Application, IXamlMetadataProvider
             try
             {
                 var sync = _bridge.Call("getSyncState");
+                var requests = TryCall("pendingRequests");
                 next = TrayState.From(
                     sync,
-                    TryCall("pendingRequests"),
+                    requests,
                     TryCall("recentNotifications", new Dictionary<string, string> { ["limit"] = "4" }),
                     AppLauncher.Launchable(TryCall("listApps")));
+                // The notifiers ride the same poll, so they alert with the flyout and Control's window closed. A
+                // failed call feeds nothing — never an empty list (see Notifier).
+                var pairing = TryCall("pairingApproval");
+                var reminders = TryCall("calendarReminders");
+                lock (_notifierLock)
+                {
+                    _notifier.ReconcileFence(sync);
+                    if (requests != null) _notifier.ReconcileRequests(requests);
+                    if (pairing != null) _notifier.ReconcilePairing(pairing);
+                    if (reminders != null) _notifier.ReconcileReminders(reminders);
+                }
             }
             catch (BridgeException e) { next = TrayState.Unreachable(e.Message); }
             _dispatcher.TryEnqueue(() =>
@@ -155,6 +174,7 @@ public sealed class App : Application, IXamlMetadataProvider
             try { _bridge.Call("quitApp"); } catch (BridgeException) { }
             _dispatcher.TryEnqueue(() =>
             {
+                _notifier.Unregister();
                 _tray.Dispose();
                 Exit();
             });

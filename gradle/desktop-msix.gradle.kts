@@ -161,6 +161,28 @@ tasks.register("packageMsix") {
         logo("Square150x150Logo.png", 150)
 
         fun xml(s: String) = s.replace("&", "&amp;").replace("\"", "&quot;").replace("<", "&lt;")
+        // The tray agent posts Control's toasts (desktop-windows-port.md §3.9 T2). A click is delivered over COM to
+        // the activator declared here, which Windows starts if the agent is not running. ⚠ The CLSID is the
+        // package's toast activator identity: never change it, or toasts already in the notification center stop
+        // answering clicks.
+        val toastActivator = "6E0B6C0B-3F1D-4C1F-9C61-2F0E7A9B5D41"
+        val applicationExtensions = if (trayAgentDir == null) "" else """
+                  <Extensions>
+                    <com:Extension Category="windows.comServer">
+                      <com:ComServer>
+                        <com:ExeServer Executable="tray-agent\tray-agent.exe" DisplayName="${xml(displayName)}" Arguments="----AppNotificationActivated:">
+                          <com:Class Id="$toastActivator" />
+                        </com:ExeServer>
+                      </com:ComServer>
+                    </com:Extension>
+                    <desktop:Extension Category="windows.toastNotificationActivation">
+                      <desktop:ToastNotificationActivation ToastActivatorCLSID="$toastActivator" />
+                    </desktop:Extension>
+                  </Extensions>
+        """.trimIndent().prependIndent(" ".repeat(18)).trimStart()
+        // ⚠ Indented deeper than the manifest template below: that template is trimIndent()-ed AFTER this is
+        // interpolated, so a shallower line here would lower its margin and push `<?xml` off column 0 — which
+        // makes the manifest invalid XML.
         File(layoutDir, "AppxManifest.xml").writeText(
             """
             <?xml version="1.0" encoding="utf-8"?>
@@ -168,7 +190,9 @@ tasks.register("packageMsix") {
               xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
               xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
               xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-              IgnorableNamespaces="uap rescap">
+              xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
+              xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+              IgnorableNamespaces="uap rescap com desktop">
               <Identity Name="${xml(identityName)}" Publisher="${xml(publisher)}" Version="$version" ProcessorArchitecture="x64" />
               <Properties>
                 <DisplayName>${xml(displayName)}</DisplayName>
@@ -186,6 +210,7 @@ tasks.register("packageMsix") {
                 <Application Id="${xml(appId)}" Executable="${xml(executable)}.exe" EntryPoint="Windows.FullTrustApplication">
                   <uap:VisualElements DisplayName="${xml(displayName)}" Description="${xml(displayName)}"
                     BackgroundColor="transparent" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png" />
+            $applicationExtensions
                 </Application>
               </Applications>
               <Capabilities>

@@ -377,6 +377,24 @@ four notifiers). Lives in `control-desktop/windows/TrayAgent/`.
 >   or not: MSIX has no stray-bundle problem, unlike LaunchServices. ⚠ Plain Win32 on purpose — `PackageManager`'s
 >   query methods are capability-gated in a package context. The bridge's `launchApp` stays macOS-only.
 > - An agent without package identity (a dev run) offers no apps: it has no publisher id to complete a family with.
+
+> **T2 as-built (2026-11-10).** The four macOS notifiers, in one class (`Notifier.cs`), fed by the same 10 s poll:
+> pending requests (`pendingRequests`), the pairing alert (`pairingApproval`), *Update Control* (`getSyncState.
+> schemaFenced`, tri-state, posted once per engagement) and calendar reminders (`calendarReminders`). Copy is the
+> agent's own (en/de) and as PII-free as macOS's; reminder text arrives redacted and is never enriched.
+> - **Immediate toasts** go through the Windows App SDK `AppNotificationManager`, tag + group per alert, so a re-post
+>   replaces and a withdrawal removes exactly one. A restarted agent seeds its request set from the toasts already
+>   on screen rather than re-alerting them.
+> - **Reminders** are handed to Windows' own scheduler (`ToastNotifier.AddToSchedule`), so they fire with Control
+>   and the agent both quit. ⚠⚠ Diffed against the OS's schedule, not process memory: a scheduled toast with a
+>   reused tag is *not* replaced, so a memory diff would double-arm after every agent restart. The tag is a hash of
+>   the reminder's content; ⚠ `ScheduledToastNotification.Id` cannot be set (0x803E0120).
+> - **Clicks** all raise Control. The toast activator is a COM server in Control's AppxManifest
+>   (`windows.toastNotificationActivation` → `tray-agent\tray-agent.exe`), emitted only when the package ships the
+>   agent, so a click on a toast also works when the agent is not running. ⚠ Its CLSID is fixed forever: changing
+>   it orphans the toasts already in the notification center.
+> - Gated on package identity, like the Swift agent's bundle-id gate. Test: `scripts/windows/tray-toast-test.ps1`
+>   posts one toast and schedules one 30 s out from inside the installed package.
 - **Estimate (2026-11-10):** ≈ 7.5–9.5 focused days, ≈ 2–4 more than the Compose flyout plus WinRT-over-FFM toasts
   it replaces.
 

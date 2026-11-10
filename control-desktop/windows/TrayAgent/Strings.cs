@@ -44,6 +44,10 @@ internal sealed record Strings
     public required string RequestMembershipGrant { get; init; }
     public required string RequestContactInvite { get; init; }
     public required string RequestDefault { get; init; }
+    public required string RequestBody { get; init; }
+    public required string PairingTitle { get; init; }
+    public required string PairingBody { get; init; }
+    public required string FenceBody { get; init; }
 
     public required string FileAdded { get; init; }
     public required string FolderAdded { get; init; }
@@ -93,6 +97,11 @@ internal sealed record Strings
         RequestMembershipGrant = "Someone wants to share a folder with you",
         RequestContactInvite = "A contact accepted your invite",
         RequestDefault = "A request needs your review",
+        RequestBody = "Open Control to review.",
+        // No device name and no SAS: the toast can never approve; Control's modal shows the code to compare.
+        PairingTitle = "A device wants to join",
+        PairingBody = "Open Control to review and approve.",
+        FenceBody = "Tenshu Control on this PC is older than on your other devices, so new changes aren't arriving. Your files here are safe.",
 
         FileAdded = "Added {0}",
         FolderAdded = "Added folder {0}",
@@ -141,6 +150,10 @@ internal sealed record Strings
         RequestMembershipGrant = "Jemand möchte einen Ordner mit dir teilen",
         RequestContactInvite = "Ein Kontakt hat deine Einladung angenommen",
         RequestDefault = "Eine Anfrage wartet auf dich",
+        RequestBody = "Öffne Control, um sie zu prüfen.",
+        PairingTitle = "Ein Gerät möchte beitreten",
+        PairingBody = "Öffne Control, um es zu prüfen und zu bestätigen.",
+        FenceBody = "Tenshu Control auf diesem PC ist älter als auf deinen anderen Geräten, deshalb kommen neue Änderungen nicht an. Deine Dateien hier sind sicher.",
 
         FileAdded = "{0} hinzugefügt",
         FolderAdded = "Ordner {0} hinzugefügt",
