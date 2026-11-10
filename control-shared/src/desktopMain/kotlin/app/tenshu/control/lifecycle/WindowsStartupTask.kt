@@ -47,15 +47,23 @@ class WindowsStartupTask(
         /** The task for this process, or null off Windows or without the packaged agent. */
         fun forThisProcess(): WindowsStartupTask? = WindowsTrayAgentBinary.packaged()?.let(::WindowsStartupTask)
 
+        /**
+         * ⚠ Waits for the exit first, then reads: the answer is one word, far below any pipe buffer. Reading first
+         * would block on an agent that hangs without printing, and the timeout would never apply.
+         */
         private fun runAgent(agent: File, args: List<String>): String? = runCatching {
             val process = ProcessBuilder(listOf(agent.absolutePath) + args)
                 .directory(agent.parentFile)
                 .redirectErrorStream(true)
                 .start()
-            val line = process.inputStream.bufferedReader().use { it.readLine() }
-            if (!process.waitFor(15, TimeUnit.SECONDS)) process.destroyForcibly()
-            line
+            if (!process.waitFor(AGENT_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                process.destroyForcibly()
+                return@runCatching null
+            }
+            process.inputStream.bufferedReader().use { it.readLine() }
         }.getOrNull()
+
+        private const val AGENT_TIMEOUT_SECONDS = 15L
     }
 }
 

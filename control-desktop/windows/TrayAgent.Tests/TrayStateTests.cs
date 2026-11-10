@@ -36,7 +36,7 @@ public class TrayStateTests
         Assert.Equal(warning, state.Warning);
     }
 
-    /// <summary>T0 mapped a state ("ACTIVE") the daemon never sends; an unknown code must say so, not pass through.</summary>
+    /// <summary>A code the daemon does not send ("ACTIVE") must read as Unknown, not pass through as raw text.</summary>
     [Fact]
     public void AnUnknownCodeIsNotShownRaw()
     {

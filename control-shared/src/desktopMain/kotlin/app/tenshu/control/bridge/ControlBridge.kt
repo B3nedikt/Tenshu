@@ -151,9 +151,9 @@ fun NativeBridgeServer.registerControlMethods(
     // getOrNull: a bridge wired without the desktop app-layer registration just
     // reports never-paused.
     // ⚠⚠ Resolved on EVERY call, never once here: Main.kt registers these methods before it loads the
-    // SyncPauseState single, so a lookup at registration time was null forever — setSyncPaused did
-    // nothing and getSyncState always said "not paused" (found on Windows, 2026-11-10; the macOS tray
-    // shares the path). Pinned by ControlBridgePauseTest.
+    // SyncPauseState single, so a lookup at registration time would be null for the whole run —
+    // setSyncPaused would do nothing and getSyncState would always say "not paused", on both trays.
+    // Pinned by ControlBridgePauseTest.
     fun pauseState(): SyncPauseState? = koin.getOrNull<SyncPauseState>()
 
     register("getSyncState") { _ ->

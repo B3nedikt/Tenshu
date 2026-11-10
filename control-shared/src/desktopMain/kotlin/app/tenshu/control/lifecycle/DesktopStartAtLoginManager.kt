@@ -71,7 +71,11 @@ class DesktopStartAtLoginManager(
 
     fun disable(): Boolean = when {
         !supported -> false
-        windowsTask != null -> !windowsTask.disable().also { windowsState = it }.isOn()
+        // ⚠ Success means the task is now off — not merely "not on": an agent that failed answers UNAVAILABLE,
+        // and reporting that as a successful disable would hide a task still enabled at login.
+        windowsTask != null -> windowsTask.disable().also { windowsState = it }.let {
+            it == WindowsStartupTask.State.DISABLED || it == WindowsStartupTask.State.DISABLED_BY_USER
+        }
         macLoginItem.isAvailable() -> macLoginItem.disable()
         else -> {
             daemonAgent.uninstall()

@@ -81,6 +81,13 @@ class WindowsStartupTaskTest {
         assertFalse(manager.enable())
     }
 
+    /** A crashed or silent agent must not read as a successful disable: the task may still start at login. */
+    @Test
+    fun aFailedDisableIsNotASuccess() {
+        val manager = manager { _, args -> if (args[1] == "disable") null else "enabled" }
+        assertFalse(manager.disable())
+    }
+
     @Test
     fun policyCanHoldItOn() {
         val manager = manager { _, _ -> "enabledByPolicy" }

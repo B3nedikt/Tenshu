@@ -64,10 +64,17 @@ internal sealed class TrayIcon : IDisposable
     }
 
     /// <summary>
-    /// Whether the shell accepted the icon on the last add or update — the <c>visible</c> half of the heartbeat
-    /// (<see cref="Heartbeat"/>). A running agent with no icon is the failure the heartbeat exists to expose.
+    /// Whether the shell has the icon — the <c>visible</c> half of the heartbeat (<see cref="Heartbeat"/>). A running
+    /// agent with no icon is the failure the heartbeat exists to expose.
+    ///
+    /// ⚠ Only after <see cref="FailuresBeforeHidden"/> failures in a row: <c>Shell_NotifyIcon</c> also returns FALSE
+    /// when a busy Explorer times out on a call it then applies, and one such blip must not get a healthy agent
+    /// replaced.
     /// </summary>
-    public bool Placed { get; private set; }
+    public bool Placed => _failures < FailuresBeforeHidden;
+
+    private const int FailuresBeforeHidden = 3;
+    private int _failures = FailuresBeforeHidden; // not placed until the first add succeeds
 
     /// <summary>Replaces the icon (the caller's HICON is copied by the shell; this class destroys the previous one).</summary>
     public void Update(IntPtr icon, string tooltip)
@@ -75,18 +82,31 @@ internal sealed class TrayIcon : IDisposable
         var previous = _icon;
         _icon = icon;
         _tooltip = tooltip;
-        var data = Data(NifIcon | NifTip | NifShowTip);
-        Placed = ShellNotifyIcon(NimModify, ref data);
+        Modify(NifIcon | NifTip | NifShowTip);
+        if (previous != IntPtr.Zero) CatIcon.DestroyIcon(previous);
+    }
+
+    /// <summary>Refreshes only the tooltip; the icon stays as it is.</summary>
+    public void UpdateTooltip(string tooltip)
+    {
+        _tooltip = tooltip;
+        Modify(NifTip | NifShowTip);
+    }
+
+    private void Modify(uint flags)
+    {
+        var data = Data(flags);
+        if (ShellNotifyIcon(NimModify, ref data)) { _failures = 0; return; }
         // The shell no longer knows the icon (a taskbar that came back without broadcasting TaskbarCreated, or an
         // add that failed at login because Explorer was not up yet): add it again rather than report it gone.
-        if (!Placed) Add();
-        if (previous != IntPtr.Zero) CatIcon.DestroyIcon(previous);
+        Add();
     }
 
     private void Add()
     {
         var data = Data(NifMessage | NifIcon | NifTip | NifShowTip);
-        Placed = ShellNotifyIcon(NimAdd, ref data);
+        if (ShellNotifyIcon(NimAdd, ref data)) _failures = 0;
+        else _failures = Math.Min(_failures + 1, FailuresBeforeHidden);
         data.uTimeoutOrVersion = NotifyIconVersion4;
         ShellNotifyIcon(NimSetVersion, ref data);
     }
@@ -142,6 +162,9 @@ internal sealed class TrayIcon : IDisposable
             // ⚠ Without this the menu does not close when the user clicks elsewhere (a documented quirk).
             SetForegroundWindow(_hwnd);
             TrackPopupMenuEx(menu, TpmRightButton | TpmBottomAlign | TpmRightAlign, x, y, _hwnd, IntPtr.Zero);
+            // The other half of the same workaround: without a message after the menu, the next one may not open
+            // or close properly.
+            PostMessage(_hwnd, WmNull, IntPtr.Zero, IntPtr.Zero);
         }
         finally
         {
@@ -208,5 +231,7 @@ internal sealed class TrayIcon : IDisposable
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern bool AppendMenu(IntPtr menu, uint flags, UIntPtr id, string? text);
     [DllImport("user32.dll")] private static extern bool TrackPopupMenuEx(IntPtr menu, uint flags, int x, int y, IntPtr hwnd, IntPtr tpm);
     [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hwnd);
+    [DllImport("user32.dll")] private static extern bool PostMessage(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam);
+    private const uint WmNull = 0x0000;
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr GetModuleHandle(string? name);
 }

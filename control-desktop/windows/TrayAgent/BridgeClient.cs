@@ -20,6 +20,12 @@ public sealed class BridgeClient
     private const byte TypeRequest = 0;
     private const int MaxFrame = 16 * 1024 * 1024;
 
+    /// <summary>
+    /// ⚠ Every call is bounded. A daemon whose proxy is still opening can hold a handler for minutes; unbounded, each
+    /// 10 s poll would park one more thread on it while the heartbeat (UI thread) kept reporting healthy.
+    /// </summary>
+    private const int TimeoutMs = 15_000;
+
     private readonly string _socketPath;
 
     public BridgeClient(string? socketPath = null) => _socketPath = socketPath ?? DefaultSocketPath();
@@ -45,7 +51,11 @@ public sealed class BridgeClient
     /// <summary>Sends <paramref name="method"/>; returns the reply's <c>result</c> object. Throws <see cref="BridgeException"/>.</summary>
     public JsonObject Call(string method, IDictionary<string, string>? parameters = null)
     {
-        using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+        using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified)
+        {
+            SendTimeout = TimeoutMs,
+            ReceiveTimeout = TimeoutMs,
+        };
         try
         {
             socket.Connect(new UnixDomainSocketEndPoint(_socketPath));
@@ -66,9 +76,17 @@ public sealed class BridgeClient
             ["method"] = method,
             ["params"] = ToJson(parameters),
         };
-        WriteFrame(socket, Encoding.UTF8.GetBytes(request.ToJsonString()));
-
-        var reply = JsonNode.Parse(ReadFrame(socket)) as JsonObject
+        byte[] frame;
+        try
+        {
+            WriteFrame(socket, Encoding.UTF8.GetBytes(request.ToJsonString()));
+            frame = ReadFrame(socket);
+        }
+        catch (SocketException e)
+        {
+            throw new BridgeException($"bridge call '{method}' failed ({e.SocketErrorCode})");
+        }
+        var reply = JsonNode.Parse(frame) as JsonObject
             ?? throw new BridgeException("malformed bridge response");
         if (reply["error"] is JsonObject error)
         {

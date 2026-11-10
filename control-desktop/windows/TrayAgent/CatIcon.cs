@@ -15,14 +15,12 @@ namespace Tenshu.TrayAgent;
 /// Windows tray icons are not template images, so the ink is chosen here: white on a dark taskbar, black on a
 /// light one (<c>SystemUsesLightTheme</c>). The mark is tight-cropped so it fills the icon, as on macOS.
 ///
-/// ⚠ A <b>silhouette</b>: head and ears only — no whiskers, no eyes, no mouth (the maintainer's call, 2026-11-10,
-/// after both the full mark and a whisker-stub crop read as busy at 16–24 px). The vector's strokes (whiskers)
-/// are skipped and each filled path keeps only its first figure (the outline; the eyes and mouth are later
-/// figures of the head path).
+/// ⚠ A <b>silhouette</b>: head and ears only — no whiskers, no eyes, no mouth, which read as busy at 16–24 px
+/// (desktop-windows-port.md §3.9). The vector's strokes (whiskers) are skipped and each filled path keeps only
+/// its first figure (the outline; the eyes and mouth are later figures of the head path).
 ///
-/// ⚠ Always full ink, like the macOS template image. A dimmed cat for "paused" or "not running" was tried
-/// and read as a grey blob on a dark taskbar — at 16–24 px the eyes and whiskers vanish. State goes in the
-/// tooltip and the flyout instead.
+/// ⚠ Always full ink, like the macOS template image: a dimmed cat for "paused" or "not running" reads as a grey
+/// blob on a dark taskbar. State goes in the tooltip and the flyout instead.
 ///
 /// ⚠ Supports exactly what the vector uses — nested groups with translate/scale, and path commands
 /// M L H V C Q A Z (absolute and relative) — and throws on anything else, so a redrawn mark fails loudly

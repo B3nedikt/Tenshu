@@ -19,8 +19,8 @@ import kotlin.test.assertTrue
 
 /**
  * The tray's Pause/Resume over the bridge, in the order `Main.kt` wires it: the bridge methods are registered
- * **before** the `SyncPauseState` single joins Koin. A lookup made at registration time was null forever, so
- * `setSyncPaused` did nothing and `getSyncState` always said "not paused" (found on Windows, 2026-11-10).
+ * **before** the `SyncPauseState` single joins Koin. A lookup made at registration time would be null for the
+ * whole run, so `setSyncPaused` would do nothing and `getSyncState` would always say "not paused".
  */
 class ControlBridgePauseTest {
 

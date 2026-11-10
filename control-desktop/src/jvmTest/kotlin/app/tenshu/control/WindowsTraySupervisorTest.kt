@@ -91,4 +91,53 @@ class WindowsTraySupervisorTest {
         running = null
         assertEquals(Outcome.FELL_BACK, supervisor.tick(now))
     }
+
+    /**
+     * Fallen back, Control draws its own tray, but Windows can still start the agent itself (a toast click, the
+     * startup task). Nothing is started while fallen back; a healthy agent ends the fallback, so there is one icon.
+     */
+    @Test
+    fun aHealthyAgentAfterTheFallbackEndsIt() {
+        repeat(WindowsTraySupervisor.MAX_UNHEALTHY_ROUNDS + 1) { supervisor.tick(now) }
+        val startsBefore = started.size
+        assertEquals(Outcome.WAITING, supervisor.tick(now))
+        running = Running(pid = 9, ageSeconds = 5)
+        assertEquals(Outcome.WAITING, supervisor.tick(now), "an agent in its grace period proves nothing yet")
+        running = old
+        heartbeat = fresh
+        assertEquals(Outcome.RECOVERED, supervisor.tick(now))
+        assertEquals(Outcome.HEALTHY, supervisor.tick(now))
+        assertEquals(startsBefore, started.size)
+    }
+
+    /** After a sleep the heartbeat is as old as the sleep; judging it then would kill a healthy agent. */
+    @Test
+    fun theFirstRoundAfterASleepJudgesNothing() {
+        running = old
+        heartbeat = fresh
+        supervisor.tick(now)
+        val afterSleep = now + 3_600_000
+        assertEquals(Outcome.RESUMED, supervisor.tick(afterSleep))
+        assertEquals(emptyList(), stopped)
+        heartbeat = TrayLiveness.Heartbeat(afterSleep + 25_000, visible = true)
+        assertEquals(Outcome.HEALTHY, supervisor.tick(afterSleep + 30_000))
+        assertEquals(emptyList(), stopped)
+    }
+
+    /** The log must show whether an agent it started ever became healthy, not stop at its grace period. */
+    @Test
+    fun theLogShowsTheAgentBecomingHealthyAfterItsGracePeriod() {
+        supervisor.tick(now) // spawn
+        running = Running(pid = 8, ageSeconds = 5)
+        supervisor.tick(now) // grace
+        supervisor.tick(now) // grace again: not logged
+        running = old
+        heartbeat = fresh
+        supervisor.tick(now) // healthy: logged
+        supervisor.tick(now) // healthy again: not logged
+        assertEquals(
+            listOf(TrayLiveness.Action.SPAWN, TrayLiveness.Action.SKIP, TrayLiveness.Action.SKIP),
+            recorded,
+        )
+    }
 }

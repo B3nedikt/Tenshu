@@ -283,6 +283,13 @@ only *start at logon, hidden*. The docs disagree on the mechanism (`tenshu-rei.m
 >   the agent as a process (~a few hundred ms), so only `isAutostartEnabled` re-reads.
 > - ⚠ **`disabledByUser`** — turned off in Settings → Apps → Startup — cannot be undone by the app. It maps to
 >   macOS's "approval required": the switch opens `ms-settings:startupapps` and says why.
+> - ⚠ **Every call starts a process**, so Settings makes them on `Dispatchers.IO` with the switch disabled
+>   meanwhile, and `runAgent` waits for the exit (15 s bound) before reading the one-word answer. A failed agent
+>   reads as *unavailable*, and a disable that ends there is reported as failed, not done.
+> - ⚠ **Login start depends on the agent.** Control is started by the agent's `OnLaunched`; an agent that cannot
+>   start at all (e.g. the Windows App Runtime missing) means no Control at login although the switch reads on.
+>   Accepted for the Store build, where the runtime is a declared dependency the Store installs; a side-channel MSI
+>   (D2) would want its own Run value for Control.
 > - ⚠ **Off by default** (`Enabled="false"`, and `ensureStartAtLoginDefault` stays macOS-only): the Store expects
 >   consent, the same call the Mac App Store build makes. A side-channel MSI (D2) may revisit it.
 > - Device-checked: status → enable → disable round-trips inside the package. Tests: `WindowsStartupTaskTest`,
@@ -421,10 +428,21 @@ four notifiers). Lives in `control-desktop/windows/TrayAgent/`.
 >   SPAWN, SKIP, or kill-and-restart. ⚠⚠ Needed on Windows precisely because of the single-instance mutex: a
 >   wedged or icon-less agent holding it would otherwise make every restart a silent no-op. Healthy rounds are not
 >   logged, only decisions that act and the first healthy one after them.
-> - **Fallback.** After `MAX_UNHEALTHY_ROUNDS` (4) consecutive rounds that had to act — about two minutes with no
->   healthy agent, e.g. one that crashes at start for want of the Windows App Runtime — Control kills the agent,
->   stops supervising and draws its own Compose tray (`WindowsTrayAgent.fellBack`). ⚠ One-way within a run, or a
->   recovered agent would make two icons. A grace-period SKIP neither resets nor advances the count.
+> - **Fallback.** After `MAX_UNHEALTHY_ROUNDS` (4) consecutive rounds that had to act — two to four minutes with no
+>   healthy agent (each start of an agent that lives but never gets healthy is followed by a grace round), e.g.
+>   one that crashes at start for want of the Windows App Runtime — Control kills the agent, stops starting agents
+>   and draws its own Compose tray (`WindowsTrayAgent.fellBack`), showing Control's real icon. ⚠ It keeps
+>   watching: Windows can start the agent by itself (a toast click via the COM activator, the startup task), and a
+>   *healthy* one ends the fallback so the Compose tray steps aside — never two icons. A grace-period SKIP neither
+>   resets nor advances the count, nor ends a fallback.
+> - ⚠ **Sleep.** After a resume the agent's heartbeat is as old as the sleep until its own timer catches up; the
+>   first round after a gap longer than three intervals judges nothing (`RESUMED`), or every resume would kill a
+>   healthy agent.
+> - ⚠ **`Placed` tolerates blips.** `Shell_NotifyIcon` returns FALSE when a busy Explorer times out on a call it
+>   then applies, so the heartbeat says `hidden` only after three failures in a row.
+> - The agent bounds every bridge call (15 s), runs one refresh at a time (overlapping rounds applied snapshots out
+>   of order and could re-post a resolved request's toast), resolves installed apps only while the flyout is open,
+>   and re-renders the cat only when size or ink changes.
 > - **Tests.** `WindowsTraySupervisorTest` (JVM) pins what each verdict does and when it gives up;
 >   `windows/TrayAgent.Tests` (xUnit, plain `net10.0`, the WinUI-free files *linked* in) pins state-code mapping,
 >   the copy and its en/de placeholders, and the heartbeat line `TrayLiveness` parses.

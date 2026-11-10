@@ -35,6 +35,8 @@ internal sealed class FlyoutWindow
     private TrayState _current = TrayState.Unknown;
     private string? _launchFailure;
     private (int X, int Y)? _anchor;
+    private long _hiddenAt;
+    private volatile bool _open;
 
     public event Action? OpenControl;
     public event Action<bool>? SetPaused;
@@ -88,10 +90,26 @@ internal sealed class FlyoutWindow
         {
             if (e.WindowActivationState == WindowActivationState.Deactivated) Hide();
         };
+        // ⚠⚠ Never close, only hide: this is the agent's one WinUI window, and closing it (Alt+F4) would end the
+        // dispatcher loop — the icon vanishes — or leave a closed window for the next click to Show().
+        _window.AppWindow.Closing += (_, e) =>
+        {
+            e.Cancel = true;
+            Hide();
+        };
         Render(_current);
     }
 
     public bool IsVisible => _window.AppWindow.IsVisible;
+
+    /// <summary>Whether the flyout is showing — safe to read from any thread, unlike <see cref="IsVisible"/>.</summary>
+    public bool IsOpen => _open;
+
+    /// <summary>
+    /// True just after the flyout hid itself. A click on the tray icon first deactivates the open flyout (which hides
+    /// it) and only then arrives as a select; without this the second click would reopen what the user closed.
+    /// </summary>
+    public bool JustHidden => Environment.TickCount64 - _hiddenAt < 400;
 
     public void Render(TrayState state)
     {
@@ -178,6 +196,7 @@ internal sealed class FlyoutWindow
     public void ShowAt(int x, int y)
     {
         _anchor = (x, y);
+        _open = true;
         if (_launchFailure != null)
         {
             _launchFailure = null;
@@ -214,7 +233,10 @@ internal sealed class FlyoutWindow
 
     public void Hide()
     {
-        if (_window.AppWindow.IsVisible) _window.AppWindow.Hide();
+        _open = false;
+        if (!_window.AppWindow.IsVisible) return;
+        _window.AppWindow.Hide();
+        _hiddenAt = Environment.TickCount64;
     }
 
     // ── building blocks ──

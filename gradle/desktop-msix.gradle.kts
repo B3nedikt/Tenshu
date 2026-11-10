@@ -21,7 +21,7 @@ import java.security.MessageDigest
 //
 // Logos: `<module>/icons/windows/msix/`, committed, from scripts/windows-app-icons.py (ADR 0026 §6b). Packed with a
 // `resources.pri` so Windows picks the right size per place and DPI. ⚠ No fallback: a module without them fails
-// here rather than shipping the placeholder letter tiles this once drew.
+// here rather than shipping without logos.
 //
 // Inputs, each `-P<name>` → `$ENV`:
 //  - tenshu.msix.publisher / TENSHU_MSIX_PUBLISHER — the manifest Publisher, which MUST equal the signing
@@ -58,6 +58,9 @@ val publishTrayAgent = trayAgentProject?.let { csproj ->
         // The cat comes from the Android vector the project embeds; a redrawn mark must republish.
         inputs.file(project.rootProject.file("control/src/main/res/drawable/ic_launcher_monochrome.xml"))
         outputs.dir(outDir)
+        // ⚠ From empty: `dotnet publish -o` adds to the folder, and packageMsix ships the whole folder, so a DLL a
+        // previous publish left behind would go into the package.
+        doFirst { outDir.deleteRecursively() }
         commandLine(dotnet, "publish", csproj.path, "-c", "Release", "-o", outDir.path, "-nologo", "-v", "quiet")
     }
 }
@@ -218,18 +221,21 @@ tasks.register("packageMsix") {
         )
 
         // ── Tools ──
+        // A tools directory must hold makeappx and makepri (signtool only when signing).
+        fun hasTools(dir: File) = File(dir, "makeappx.exe").isFile && File(dir, "makepri.exe").isFile
         fun sdkBin(): File? {
-            sdkBinOverride?.let { return File(it).takeIf { d -> File(d, "makeappx.exe").isFile } }
+            sdkBinOverride?.let { return File(it).takeIf(::hasTools) }
             val kits = File("C:/Program Files (x86)/Windows Kits/10/bin")
-            kits.listFiles()?.filter { File(it, "x64/makeappx.exe").isFile }?.maxByOrNull { it.name }?.let { return File(it, "x64") }
+            kits.listFiles()?.map { File(it, "x64") }?.filter(::hasTools)?.maxByOrNull { it.path }?.let { return it }
             val nuget = File(userHome, ".nuget/packages/microsoft.windows.sdk.buildtools")
             return nuget.walkTopDown().maxDepth(5)
-                .filter { it.isFile && it.name.equals("makeappx.exe", true) && it.parentFile.name == "x64" }
-                .maxByOrNull { it.path }?.parentFile
+                .filter { it.isDirectory && it.name == "x64" && hasTools(it) }
+                .maxByOrNull { it.path }
         }
         val bin = sdkBin() ?: error(
-            "makeappx.exe not found. Install the Windows SDK (or the NuGet package Microsoft.Windows.SDK.BuildTools) " +
-                "or pass -Ptenshu.windowsSdkBin=<dir with makeappx.exe and signtool.exe>. Layout left at $layoutDir",
+            "makeappx.exe + makepri.exe not found. Install the Windows SDK (or the NuGet package " +
+                "Microsoft.Windows.SDK.BuildTools) or pass -Ptenshu.windowsSdkBin=<dir with makeappx.exe, makepri.exe " +
+                "and signtool.exe>. Layout left at $layoutDir",
         )
         fun run(vararg command: String) {
             val process = ProcessBuilder(*command).redirectErrorStream(true).start()

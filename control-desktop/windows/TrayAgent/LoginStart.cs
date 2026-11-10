@@ -89,8 +89,10 @@ internal static class LoginStart
     {
         try
         {
-            var control = Path.Combine(Package.Current.InstalledPath, ControlExecutable);
-            var start = new ProcessStartInfo(control) { UseShellExecute = false, WorkingDirectory = Package.Current.InstalledPath };
+            // InstalledLocation, not InstalledPath: the latter needs Windows 10 2004, below the package's minimum.
+            var root = Package.Current.InstalledLocation.Path;
+            var control = Path.Combine(root, ControlExecutable);
+            var start = new ProcessStartInfo(control) { UseShellExecute = false, WorkingDirectory = root };
             start.Environment["TENSHU_CONTROL_START_HIDDEN"] = "true";
             Process.Start(start);
         }

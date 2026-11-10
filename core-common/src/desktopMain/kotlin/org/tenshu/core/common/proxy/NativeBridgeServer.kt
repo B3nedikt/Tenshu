@@ -129,11 +129,27 @@ class NativeBridgeServer(
     @Volatile
     private var boundFile: BoundSocketFile? = null
 
-    /** The last gate message logged, so a repeat of the same reason stays quiet. */
-    private val lastGateLog = java.util.concurrent.atomic.AtomicReference<String?>(null)
+    /** How often each distinct gate message has been seen, so repeats stay quiet but never invisible. */
+    private val gateLogCounts = java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.AtomicLong>()
 
+    /**
+     * Logs a gate message the first time, then again at the 10th, 100th, 1000th… repeat with its count. Per distinct
+     * message, not "last message": two peers alternating no longer log every connection, and a rejected peer
+     * retrying in a loop still shows up as a growing count.
+     */
     private fun logGateOnce(message: String) {
-        if (lastGateLog.getAndSet(message) != message) System.err.println(message)
+        if (gateLogCounts.size > GATE_LOG_MAX_REASONS) gateLogCounts.clear()
+        val n = gateLogCounts.computeIfAbsent(message) { java.util.concurrent.atomic.AtomicLong() }.incrementAndGet()
+        when {
+            n == 1L -> System.err.println(message)
+            isPowerOfTen(n) -> System.err.println("$message (seen $n times)")
+        }
+    }
+
+    private fun isPowerOfTen(n: Long): Boolean {
+        var v = n
+        while (v >= 10 && v % 10 == 0L) v /= 10
+        return v == 1L && n >= 10
     }
 
     fun start() {
@@ -313,6 +329,9 @@ class NativeBridgeServer(
 
         /** Concurrent blocking handlers per server; generous, since each is bounded by its own work. */
         const val DEFAULT_HANDLER_PARALLELISM = 64
+
+        /** Distinct gate messages counted before the counts start over (a bound, not a tuning knob). */
+        private const val GATE_LOG_MAX_REASONS = 256
 
         /** Converts a handler's plain-Kotlin result value into a [JsonElement]. */
         private fun toJsonElement(value: Any?): JsonElement = when (value) {
