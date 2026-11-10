@@ -808,6 +808,11 @@ RECALL_ON_DATA_ACCESS` (`0x401620`), hydrated `REPARSE_POINT` (`0x420`) — the 
   route (from Microsoft's CloudMirror sample — *not verified here*). Then: `Register` only (no
   `CfRegisterSyncRoot`), the self-hydration flag, idempotent FETCH_DATA, a startup sweep of stale
   `Tenshu…!` roots from the registry.
+- **X1 hardening the spike's bindings skip** (fine at spike scale, not for a product path): a FETCH_DATA
+  whose callback info cannot be read must still be failed from the raw keys, or the opener waits out the
+  ~60 s timeout; read `CF_CALLBACK_INFO` fields only up to the `StructSize` the OS sent (the Store floor
+  is 1809); release the COM references `register` acquires on its early-failure paths; connect once per
+  process (each `connect` leaks its upcall stubs) and cache the WinRT downcall handles.
 - **X1 threat-model amendment (HR #2)** — owed with X1's code, not with this spike. New trust boundary:
   the OS invokes Control's FETCH_DATA **on behalf of any same-user process**, outside the IPC peer gate
   (§3.2) — hydration is a same-user-reachable "decrypt and fetch this item" path; `CF_PROCESS_INFO`
