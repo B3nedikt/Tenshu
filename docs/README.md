@@ -78,6 +78,7 @@ Always-relevant guidance for writing platform-shaped code.
 - [`how-to/macos-signing.md`](how-to/macos-signing.md) — macOS code signing for Control + Drive.
 - [`how-to/macos-release.md`](how-to/macos-release.md) — notarized Developer ID `.dmg` per desktop app (`scripts/macos-release.sh`); `--pipeline-test` without the certificate.
 - [`how-to/android-release.md`](how-to/android-release.md) — building Play-uploadable bundles; where the signing key lives and which key signs what.
+- [`how-to/windows-store-submission.md`](how-to/windows-store-submission.md) — Control + Drive to the Microsoft Store: Partner Center, the Store-mode `packageMsix` (unsigned, Store publisher compiled into the peer gate), the listing, `winget --source msstore`.
 - [`how-to/play-store-declarations.md`](how-to/play-store-declarations.md) — Play Console declarations owed before any listing.
 - [`how-to/play-console-answers.md`](how-to/play-console-answers.md) — the Play Console answers per app, task by task, and the Data safety CSVs.
 - [`oss-licences.md`](oss-licences.md) — the open-source notices every app and the web ship (AboutLibraries, generated per binary), the map-data credits, and the licence audit. ⚠⚠ The basemap chip is a map's only OSM credit.
