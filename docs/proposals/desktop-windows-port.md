@@ -423,6 +423,10 @@ four notifiers). Lives in `control-desktop/windows/TrayAgent/`.
 >   and the agent both quit. ⚠⚠ Diffed against the OS's schedule, not process memory: a scheduled toast with a
 >   reused tag is *not* replaced, so a memory diff would double-arm after every agent restart. The tag is a hash of
 >   the reminder's content; ⚠ `ScheduledToastNotification.Id` cannot be set (0x803E0120).
+>   ⚠⚠ Removal only against an **authoritative** plan: the daemon plans when calendar data changes, so after a
+>   restart its list is empty until the first change while Windows still holds every armed reminder.
+>   `calendarReminders` carries `planned` (`PendingAlertSchedule.isPlanned`); until it is true the agent only adds.
+>   A reminder first seen when already due is shown at once, once.
 > - **Clicks** all raise Control. The toast activator is a COM server in Control's AppxManifest
 >   (`windows.toastNotificationActivation` → `tray-agent\tray-agent.exe`), emitted only when the package ships the
 >   agent, so a click on a toast also works when the agent is not running. ⚠ Its CLSID is fixed forever: changing

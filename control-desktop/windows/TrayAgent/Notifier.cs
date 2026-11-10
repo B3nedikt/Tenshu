@@ -187,7 +187,13 @@ internal sealed class Notifier
             var desiredKeys = desired.Select(d => d.ContentKey).ToHashSet();
 
             var scheduled = notifier.GetScheduledToastNotifications().Where(t => t.Group == ReminderGroup).ToList();
-            foreach (var stale in scheduled.Where(t => !desiredKeys.Contains(t.Tag))) notifier.RemoveFromSchedule(stale);
+            // ⚠⚠ Only an authoritative plan may cancel. Until the daemon has planned since it started (`planned`
+            // false, or absent from an older daemon), an empty list means "unknown": cancelling against it would
+            // delete every reminder armed before a reboot.
+            if (TrayState.Bool(result, "planned"))
+            {
+                foreach (var stale in scheduled.Where(t => !desiredKeys.Contains(t.Tag))) notifier.RemoveFromSchedule(stale);
+            }
             var armed = scheduled.Select(t => t.Tag).ToHashSet();
             _everArmed.UnionWith(armed);
 
