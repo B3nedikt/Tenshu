@@ -47,7 +47,8 @@ class DpapiWrappingKeyStoreTest {
         }
     }
 
-    private fun store(dpapi: FakeDpapi) = DpapiWrappingKeyStore(blobFile, dpapi::protect, dpapi::unprotect)
+    private fun store(dpapi: FakeDpapi) =
+        DpapiWrappingKeyStore(blobFile, dpapi::protect, dpapi::unprotect, available = { dpapi.available })
 
     @Test
     fun theKeyIsCreatedOnce_andSurvivesARestart() {
@@ -83,6 +84,25 @@ class DpapiWrappingKeyStoreTest {
         val aside = assertNotNull(dir.listFiles { f -> f.name.startsWith("${blobFile.name}.unreadable-") }?.singleOrNull())
         assertContentEquals(original, aside.readBytes(), "the unopenable blob is kept for diagnosis")
         assertContentEquals(fresh, store(dpapi).loadOrCreate(), "the next start opens the new key: one re-pair, not one per launch")
+    }
+
+    /**
+     * ⚠⚠ DPAPI unavailable is not DPAPI refusing: nothing can be judged, so a good blob must stay exactly where it is
+     * — moved aside, the next launch with DPAPI back would mint a new key and orphan a readable `secrets.enc`.
+     */
+    @Test
+    fun withDpapiUnavailableAnExistingBlobIsLeftAlone() {
+        val dpapi = FakeDpapi()
+        val key = assertNotNull(store(dpapi).loadOrCreate())
+        val original = blobFile.readBytes()
+        dpapi.available = false
+
+        assertNull(store(dpapi).loadOrCreate())
+        assertContentEquals(original, blobFile.readBytes())
+        assertEquals(0, dir.listFiles { f -> f.name.contains(".unreadable-") }?.size)
+
+        dpapi.available = true
+        assertContentEquals(key, store(dpapi).loadOrCreate(), "DPAPI back: the same key opens")
     }
 
     @Test

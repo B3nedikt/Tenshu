@@ -5238,8 +5238,9 @@ Three sub-threats:
   The Windows Hello gate (masterkeystore Phase 3) is not built.
 - *Orphaning:* an administrator **password reset** (not a change) discards the user's DPAPI master key,
   and a profile copied to another user or machine cannot open the blob. `DpapiWrappingKeyStore` retries
-  briefly, then moves the blob **aside** (`wrap-key.dpapi.unreadable-<time>`, never deleted) and mints a new
-  key; `DesktopMasterKeyStore` cannot read `secrets.enc` either and keeps it aside the same way. The outcome
+  briefly, then mints a new key and only once that is protected moves the old blob **aside**
+  (`wrap-key.dpapi.unreadable-<time>`, never deleted). ⚠ Only a blob DPAPI *refuses*: with DPAPI unavailable
+  (no native binding) nothing is touched and the store runs in memory until it is back; `DesktopMasterKeyStore` cannot read `secrets.enc` either and keeps it aside the same way. The outcome
   is one re-pair, as on macOS, with both old files on disk for diagnosis or a manual restore. No secret is
   disclosed. (Amended 2026-11-10: keeping the blob in place and running in memory meant nothing could ever
   be saved again — a silent re-pair on every launch.)
