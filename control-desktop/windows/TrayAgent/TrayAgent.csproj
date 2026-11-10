@@ -25,6 +25,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <EnableDefaultPageItems>false</EnableDefaultPageItems>
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+    <!-- PerMonitorV2 DPI awareness; without it the tray icon and menu were bitmap-stretched (see the file). -->
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
   <ItemGroup>

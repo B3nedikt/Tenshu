@@ -119,10 +119,22 @@ public sealed class App : Application, IXamlMetadataProvider
         });
     }
 
-    private static int IconSize() => GetSystemMetricsForDpi(49 /* SM_CXSMICON */, GetDpiForSystem());
+    /// <summary>
+    /// The small-icon size at the DPI of the monitor the taskbar is on, so Windows draws the icon 1:1 instead of
+    /// rescaling it. ⚠ Needs the PerMonitorV2 manifest: a DPI-unaware process is told 96 everywhere.
+    /// </summary>
+    private static int IconSize()
+    {
+        var taskbar = FindWindow("Shell_TrayWnd", null);
+        var dpi = taskbar != IntPtr.Zero ? GetDpiForWindow(taskbar) : 0;
+        if (dpi == 0) dpi = GetDpiForSystem();
+        return GetSystemMetricsForDpi(49 /* SM_CXSMICON */, dpi);
+    }
 
     [DllImport("user32.dll")] private static extern int GetSystemMetricsForDpi(int index, uint dpi);
     [DllImport("user32.dll")] private static extern uint GetDpiForSystem();
+    [DllImport("user32.dll")] private static extern uint GetDpiForWindow(IntPtr hwnd);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr FindWindow(string className, string? windowName);
 
     // ── IXamlMetadataProvider: WinUI's own control metadata, since there is no App.xaml ──
     public IXamlType GetXamlType(Type type) => _metadata.GetXamlType(type);

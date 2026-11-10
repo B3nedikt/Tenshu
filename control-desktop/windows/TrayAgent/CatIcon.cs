@@ -15,6 +15,11 @@ namespace Tenshu.TrayAgent;
 /// Windows tray icons are not template images, so the ink is chosen here: white on a dark taskbar, black on a
 /// light one (<c>SystemUsesLightTheme</c>). The mark is tight-cropped so it fills the icon, as on macOS.
 ///
+/// ⚠ A <b>silhouette</b>: head and ears only — no whiskers, no eyes, no mouth (the maintainer's call, 2026-11-10,
+/// after both the full mark and a whisker-stub crop read as busy at 16–24 px). The vector's strokes (whiskers)
+/// are skipped and each filled path keeps only its first figure (the outline; the eyes and mouth are later
+/// figures of the head path).
+///
 /// ⚠ Always full ink, like the macOS template image. A dimmed cat for "paused" or "not running" was tried
 /// and read as a grey blob on a dark taskbar — at 16–24 px the eyes and whiskers vanish. State goes in the
 /// tooltip and the flyout instead.
@@ -31,8 +36,8 @@ internal static class CatIcon
 
     private static readonly Lazy<List<Shape>> Shapes = new(Load);
 
-    /// <summary>The square frame's side, relative to the face's larger side: room for short whisker stubs.</summary>
-    private const float FrameMargin = 1.18f;
+    /// <summary>The square frame's side, relative to the silhouette's larger side: a hair of breathing room.</summary>
+    private const float FrameMargin = 1.06f;
 
     /// <summary>Whether the taskbar uses the light theme (then the cat is drawn black).</summary>
     public static bool TaskbarIsLight()
@@ -126,16 +131,25 @@ internal static class CatIcon
                 {
                     var data = (string?)child.Attribute(XName.Get("pathData", Android))
                         ?? throw new InvalidOperationException("path without pathData");
-                    var fill = child.Attribute(XName.Get("fillColor", Android)) != null;
-                    var evenOdd = (string?)child.Attribute(XName.Get("fillType", Android)) == "evenOdd";
-                    var path = SvgPath.Parse(data, evenOdd ? FillMode.Alternate : FillMode.Winding);
-                    var scale = MathF.Sqrt(MathF.Abs(parent.Elements[0] * parent.Elements[3]));
+                    // The silhouette: whiskers (stroked paths) are skipped entirely.
+                    if (child.Attribute(XName.Get("fillColor", Android)) == null) break;
+                    var path = FirstFigure(SvgPath.Parse(data, FillMode.Winding));
                     path.Transform(parent);
-                    shapes.Add(new Shape(path, fill, Attr(child, "strokeWidth", 0f) * scale));
+                    shapes.Add(new Shape(path, Fill: true, StrokeWidth: 0f));
                     break;
                 }
             }
         }
+    }
+
+    /// <summary>The first closed figure of <paramref name="path"/> — a shape's outline without the holes cut into it.</summary>
+    private static GraphicsPath FirstFigure(GraphicsPath path)
+    {
+        using var iterator = new GraphicsPathIterator(path);
+        var first = new GraphicsPath(FillMode.Winding);
+        iterator.NextSubpath(first, out _);
+        path.Dispose();
+        return first;
     }
 
     private static float Attr(XElement e, string name, float fallback = 0f) =>
