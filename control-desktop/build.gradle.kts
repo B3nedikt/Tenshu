@@ -109,6 +109,13 @@ val generatePeerTrustAnchor by tasks.registering {
         ?: System.getenv("TENSHU_WINDOWS_PUBLISHER_IDS"))
         ?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }?.toSortedSet()
         ?: sortedSetOf()
+    // ⚠ Checked here: a typo or an uppercase id would compile into an anchor that silently admits no one, and
+    // the value is pasted into Kotlin source unescaped. 13 characters of the publisher-id alphabet.
+    windowsPublisherIds.forEach { id ->
+        require(Regex("^[0-9a-hjkmnp-tv-z]{13}$").matches(id)) {
+            "tenshu.windowsPublisherIds: '$id' is not a publisher id (13 characters of 0-9 a-z without i l o u)"
+        }
+    }
     val outputDir = layout.buildDirectory.dir("generated/peerTrust")
     outputs.dir(outputDir)
     inputs.property("teamIds", teamIds.sorted().joinToString(","))

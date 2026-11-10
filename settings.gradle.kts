@@ -24,10 +24,7 @@ include(":ui-qr-scanner")
 // Compose-free home for the swiftc-built macOS helper binaries (ImageIO decode bridge),
 // shared by the Compose viewer and the proxy-side thumbnail generator.
 include(":macos-helpers")
-// Its Windows twin: Win32 over FFM (DPAPI, later peer pid, tray, power, Cloud Files) —
-// docs/proposals/desktop-windows-port.md.
-include(":windows-helpers")
-// Its Windows twin: Win32 over FFM (DPAPI, later peer pid / tray / power / Cloud Files) —
+// Its Windows twin: Win32 over FFM (DPAPI, the peer gate, power and network probes, Cloud Files) —
 // docs/proposals/desktop-windows-port.md.
 include(":windows-helpers")
 // Reusable offline MapLibre basemap surface (extracted from Maps Ph7b; used by Maps, later Timeline).

@@ -163,8 +163,12 @@ class NativeBridgeServer(
         val claim = BoundSocketFile.claim(path)
         Files.deleteIfExists(path)
 
-        val channel = ServerSocketChannel.open(StandardProtocolFamily.UNIX)
-        channel.bind(UnixDomainSocketAddress.of(socketPath))
+        val channel = try {
+            ServerSocketChannel.open(StandardProtocolFamily.UNIX).also { it.bind(UnixDomainSocketAddress.of(socketPath)) }
+        } catch (e: Exception) {
+            claim.release() // frees the takeover lock; the caller sees the bind failure
+            throw e
+        }
         boundFile = claim.bound()
         serverChannel = channel
 

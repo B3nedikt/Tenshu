@@ -4985,7 +4985,8 @@ extension), A14. Invariants: I1, I3.
 A non-Tenshu binary opens a connection to `~/.tenshu/ipc.sock` (on Windows the same AF_UNIX
 socket under `%USERPROFILE%\.tenshu` — there is no named pipe, `desktop-ipc.md` §4)
 and sends a forged `Hello` block claiming to be a known Tenshu `AppId`. The
-filesystem-permission posture (`700` on `~/.tenshu/`) blocks cross-user but not same-user
+filesystem-permission posture (`700` on `~/.tenshu/`; on NTFS an owner-only DACL — user, SYSTEM,
+Administrators — checked and repaired by `SocketDirectory`) blocks cross-user but not same-user
 processes. On a signed macOS install the socket is in the App Group container instead; the
 cross-user posture is unchanged there (`~/Library/Group Containers` is `700`, and the container
 itself is `700` once `containermanagerd` owns it), and same-user reachability is unchanged too.
@@ -5006,19 +5007,35 @@ the **MSIX package identity of the process holding the socket** — its package 
 of our package names *and* one of the publisher ids compiled into the binary (empty until the Partner
 Center account exists, so today nothing attests). Not by a signature: a Store package lives in the
 OS-protected `WindowsApps` folder with integrity enforced, whereas a per-user install's jars are
-writable by the very AD3 this threat is about (§4.1 there; per-user installs are ruled out, D3). The
-pid race is narrowed, not closed: the gate holds an open handle to the peer for the whole read (no
+writable by the very AD3 this threat is about (§4.1 there; per-user installs are ruled out, D3).
+⚠⚠ **The family name alone is forgeable.** It hashes the publisher *string*, which is public, so AD3 can
+register a loose, unsigned manifest under our name and publisher (`Add-AppxPackage -Register`, Developer
+Mode) and receive our exact family name, with its files in a folder AD3 writes. The gate therefore also
+requires the package's **origin** (`GetStagedPackageOrigin`) to be one that needed a signature from a
+certificate the machine trusts — Store, line-of-business, or developer-signed (our local test build) — and
+refuses loose, unsigned and unreadable origins (amended 2026-11-10). Trusting a new certificate takes an
+administrator, which AD3 is not. ⚠ Developer machines carrying the local test certificate
+(`scripts/windows/msix-test-cert.ps1`, its PFX on disk, trusted machine-wide) let AD3 *there* sign a package
+that passes; the test publisher id must never be in a release anchor.
+⚠⚠ **Not covered: AD3 acting through one of our running packages.** A full-trust MSIX process runs at the
+user's integrity, not as a protected process: AD3 can inject into a running `Tenshu.Drive`, duplicate its
+attested socket handle, or plant `JAVA_TOOL_OPTIONS` (`-javaagent:…`) in the user environment before the
+next launch. The gate stops impostor *processes*; it cannot stop the user's own malware from borrowing a
+genuine one — the same limit as macOS without the hardened runtime's injection protections.
+The pid race is narrowed, not closed: the gate holds an open handle to the peer for the whole read (no
 reuse during the check) and rejects a process **created after verification began**, since the real
 peer connected before the accept. A peer that exits, and a pid recycled to a process started, inside
-the gap between its connect and the start of verification remains — that new process would also have
-to be one of our packages to pass. The reverse direction (an app checking that the server is Control,
+the gap between its connect and the start of verification remains. ⚠ AD3 can widen that gap (queued
+connections wait in the listen backlog) and can launch our packages at will, so a recycled pid landing on
+one of ours is not a meaningful barrier; this residual folds into the borrowing limit above. The reverse direction (an app checking that the server is Control,
 T-MD-01's defence) uses the same identity on Windows: the listening process must be the `Tenshu.Control`
 package from an anchored publisher (`ControlServerCheck`). Verified end to end with side-loaded MSIX
 packages on 2026-11-10. The socket directory `%USERPROFILE%\.tenshu` is gated by its DACL on Windows (2026-11-10):
 the daemon repairs it to user + SYSTEM + Administrators and clients refuse one another principal can write to,
 which closes directory squatting by another local user on NTFS; same-user processes remain the peer gate's job.
-Residual risk on Windows: **Low** with a configured anchor; until
-then a strict Control admits no one and a developer-mode run admits everyone, a dev posture since no
+Residual risk on Windows: **Low** against impostor processes with a configured anchor; **Medium** against
+same-user malware borrowing a running package (above), which the gate does not address. Until an anchor
+exists a strict Control admits no one and a developer-mode run admits everyone, a dev posture since no
 Windows build ships.
 
 **T-C-12. Developer mode silently enabled by attacker.**
@@ -5220,10 +5237,16 @@ Three sub-threats:
   No `argv` exposure: the key never leaves the process (an improvement on the macOS `security` CLI).
   The Windows Hello gate (masterkeystore Phase 3) is not built.
 - *Orphaning:* an administrator **password reset** (not a change) discards the user's DPAPI master key,
-  and a profile copied to another user or machine cannot open the blob. `DpapiWrappingKeyStore` then
-  answers "no key" and keeps the blob — it does **not** mint a replacement, which would orphan
-  `secrets.enc` while looking healthy — so the outcome is the same re-pair as above. No secret is
-  disclosed.
+  and a profile copied to another user or machine cannot open the blob. `DpapiWrappingKeyStore` retries
+  briefly, then moves the blob **aside** (`wrap-key.dpapi.unreadable-<time>`, never deleted) and mints a new
+  key; `DesktopMasterKeyStore` cannot read `secrets.enc` either and keeps it aside the same way. The outcome
+  is one re-pair, as on macOS, with both old files on disk for diagnosis or a manual restore. No secret is
+  disclosed. (Amended 2026-11-10: keeping the blob in place and running in memory meant nothing could ever
+  be saved again — a silent re-pair on every launch.)
+- ⚠ *Roaming profiles:* with a domain roaming profile both `~\.tenshu` and the DPAPI master keys
+  (`AppData\Roaming\Microsoft\Protect`) roam, so the blob **does** open on another machine of the same
+  user, and two machines would run as one device identity. Not addressed; out of scope until a Windows
+  build targets managed environments.
 
 Residual risk: **Low–Medium** at the baseline (same-user malware exposed, by design for the §3
 "saved-password" baseline), reduced to **Low** once the Phase-2 gate is active (macOS; no Windows
