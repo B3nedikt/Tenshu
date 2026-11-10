@@ -426,6 +426,9 @@ four notifiers). Lives in `control-desktop/windows/TrayAgent/`.
 >   ⚠⚠ Removal only against an **authoritative** plan: the daemon plans when calendar data changes, so after a
 >   restart its list is empty until the first change while Windows still holds every armed reminder.
 >   `calendarReminders` carries `planned` (`PendingAlertSchedule.isPlanned`); until it is true the agent only adds.
+>   The desktop host also plans once at session start (`initCalendarService(planRemindersOnStart = true)`), so the
+>   window is the debounce, not "until the next calendar change". ⚠ Opt-in: on Android a plan also *posts* due
+>   reminders, and a startup run could repeat one the alarm already showed.
 >   A reminder first seen when already due is shown at once, once.
 > - **Clicks** all raise Control. The toast activator is a COM server in Control's AppxManifest
 >   (`windows.toastNotificationActivation` → `tray-agent\tray-agent.exe`), emitted only when the package ships the

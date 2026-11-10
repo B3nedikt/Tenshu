@@ -175,11 +175,16 @@ internal sealed class FlyoutWindow
         if (IsVisible && _anchor is { } anchor) Place(Hwnd, anchor.X, anchor.Y);
     }
 
-    /// <summary>Marks a launch that Windows refused, shown on the row until the flyout is next opened.</summary>
+    /// <summary>
+    /// Marks a launch that Windows refused and reopens the flyout where it was, so the refusal is seen: the row's
+    /// button hid the flyout before launching, and a mark on a hidden flyout would be cleared by the next opening
+    /// unread. The mark lasts until the flyout is next opened from the tray.
+    /// </summary>
     public void MarkLaunchFailed(string appId)
     {
         _launchFailure = appId;
         Render(_current);
+        if (!IsVisible && _anchor is { } anchor) Present(anchor.X, anchor.Y);
     }
 
     private Button AppButton(AppRow app)
@@ -209,13 +214,18 @@ internal sealed class FlyoutWindow
     /// <summary>Shows the flyout beside the tray anchor at screen point (<paramref name="x"/>, <paramref name="y"/>).</summary>
     public void ShowAt(int x, int y)
     {
-        _anchor = (x, y);
-        _open = true;
         if (_launchFailure != null)
         {
             _launchFailure = null;
             Render(_current);
         }
+        Present(x, y);
+    }
+
+    private void Present(int x, int y)
+    {
+        _anchor = (x, y);
+        _open = true;
         var hwnd = Hwnd;
         Place(hwnd, x, y);
         _window.AppWindow.Show();
