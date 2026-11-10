@@ -219,18 +219,26 @@ val PEER_GATE_JVM_ARGS = listOf(
 tasks.withType<JavaExec> {
     if (name == "run" || name == "jvmRun") {
         mainClass.set("app.tenshu.control.MainKt")
-        // Fix for Skiko UnsatisfiedLinkError on macOS
-        jvmArgs("-Dskiko.renderApi=METAL")
-        qrImpl?.let { jvmArgs("-Dtenshu.qr.impl=$it") }
-        // Desktop IPC peer-credential gate (desktop-ipc-client-identity.md §6).
-        // ⚠ Must stay in step with the `nativeDistributions` jvmArgs below — the packaged
-        // app is a different JVM invocation, and a flag set only here yields a verifier that
-        // works under `:run` and throws in the shipped bundle.
-        jvmArgs(PEER_GATE_JVM_ARGS)
-        // Dev run is NOT a release build: keep the dev-seed entitlement minter so storage works
-        // without a commerce service standing (the dev-key release guard, §9.3, defaults
-        // release-safe for packaged builds). Override with -Dtenshu.release=true to exercise it.
-        jvmArgs("-Dtenshu.release=false")
+        // ⚠⚠ The dev-run flags go in `doFirst`, not here. Compose's `configureRunTask` calls
+        // `setJvmArgs(app.jvmArgs)` AFTER this block and REPLACES the list, so anything set at
+        // configuration time never reached the JVM — developer mode was always off on a dev run
+        // (tech-debt.md "`:control-desktop:run` drops its own JVM flags"). `doFirst` runs after
+        // Compose has configured the task. ⚠ Never move them onto
+        // `compose.desktop.application.jvmArgs`: that also feeds the packaged app, which must never
+        // carry `tenshu.release=false`. (`PEER_GATE_JVM_ARGS` and `-Dtenshu.qr.impl` already reach
+        // both JVMs through that list, below.)
+        val devArgs = buildList {
+            // Dev run is NOT a release build: the dev-seed entitlement minter stays on so storage
+            // works without a commerce service, and developer mode (A16) admits unsigned or
+            // unpackaged local peers — a dev Drive, or the standalone Windows tray agent.
+            // Override with -Dtenshu.release=true to exercise the release posture.
+            add("-Dtenshu.release=false")
+            // A Skiko UnsatisfiedLinkError fix on macOS only: METAL is not a Windows/Linux renderer.
+            if (System.getProperty("os.name").orEmpty().startsWith("Mac", ignoreCase = true)) {
+                add("-Dskiko.renderApi=METAL")
+            }
+        }
+        doFirst { (this as JavaExec).jvmArgs(devArgs) }
     }
 }
 

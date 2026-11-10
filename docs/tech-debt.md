@@ -1936,6 +1936,14 @@ for a passphrase only where one exists (failing closed to asking when the status
 
 ### `:control-desktop:run` drops its own JVM flags — developer mode is always off on a dev run (2026-09-09)
 
+⚠ **Fixed for `:control-desktop` (2026-11-10):** the dev flags now go in through a `doFirst` on the run
+task, and `-Dskiko.renderApi=METAL` is macOS-only (it never reached the JVM before, and is no renderer
+on Windows). Found when Control's strict gate rejected the standalone Windows tray agent
+(`desktop-windows-port.md` §3.9) on a dev run. ⚠ **Still affected: the other nine `*-desktop` apps**,
+which set `-Dtenshu.release=false` (and an unconditional METAL) the same broken way — so a dev-run
+app's own `ControlServerCheck` still never gets developer mode. Same fix, one app at a time, each
+checked against its dev-run pairing.
+
 `control-desktop/build.gradle.kts` sets `-Dskiko.renderApi=METAL` and `-Dtenshu.release=false` only in
 a `tasks.withType<JavaExec> { if (name == "run" …) }` block, and they **never reach the JVM** that
 `./gradlew :control-desktop:run` starts (`ps -ww -o command=`). `PEER_GATE_JVM_ARGS` and
