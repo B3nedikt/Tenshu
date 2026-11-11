@@ -393,12 +393,20 @@ internal class ExplorerSyncRoot(
      * Delivers the requested range of the file the placeholder names. ⚠ The placeholder carries the content
      * version it was made for: bytes of a newer version would not match the size Windows already has, so a stale
      * placeholder is failed and the next pass replaces it.
+     *
+     * ⚠⚠ Checked again **after** the bytes are opened, before any is delivered: the stream resolves the path's content
+     * on its own, so an overwrite that syncs in between would otherwise pour the new version into the old placeholder
+     * (truncated if larger, or silently different if the same size). Unchanged before and after means the bytes opened
+     * are the identity's: a content version names its bytes.
      */
     private suspend fun serve(request: WindowsCloudFiles.FetchData) {
         val identity = ExplorerIdentity.decode(request.fileIdentity) ?: error("not a Tenshu placeholder")
-        val current = koin.fileSystem().readEntityItem(identity.path)
-        check(current.contentVersion == identity.contentVersion) { "'${identity.path}' changed since its placeholder was made" }
-        check(current.size == request.fileSize) { "'${identity.path}' is ${current.size} bytes, the placeholder says ${request.fileSize}" }
+        suspend fun checkStillTheSame() {
+            val current = koin.fileSystem().readEntityItem(identity.path)
+            check(current.contentVersion == identity.contentVersion) { "'${identity.path}' changed since its placeholder was made" }
+            check(current.size == request.fileSize) { "'${identity.path}' is ${current.size} bytes, the placeholder says ${request.fileSize}" }
+        }
+        checkStillTheSame()
         val end = minOf(request.requiredOffset + request.requiredLength, request.fileSize)
         val who = request.process?.imagePath?.substringAfterLast('\\') ?: "?"
         log("explorer: fetch '${identity.path}' ${request.requiredOffset}+${end - request.requiredOffset} for $who")
@@ -409,6 +417,8 @@ internal class ExplorerSyncRoot(
         if (opening == null) {
             // No stream: the bytes are only local (not synced yet), so they are already here.
             val bytes = client.fileService.defaultFileSystem.readBytes(identity.path)
+            checkStillTheSame()
+            check(bytes.size.toLong() == request.fileSize) { "'${identity.path}' read ${bytes.size} bytes, the placeholder says ${request.fileSize}" }
             var offset = request.requiredOffset
             while (offset < end) {
                 val next = minOf(offset + CHUNK_BYTES, end)
@@ -419,6 +429,10 @@ internal class ExplorerSyncRoot(
         }
         val handle = opening.handle.get()
         try {
+            checkStillTheSame()
+            check(opening.totalSize.get() == request.fileSize) {
+                "'${identity.path}' opened ${opening.totalSize.get()} bytes, the placeholder says ${request.fileSize}"
+            }
             var offset = request.requiredOffset
             while (offset < end) {
                 val next = minOf(offset + CHUNK_BYTES, end)
