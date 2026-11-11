@@ -879,7 +879,10 @@ off by default while the folder is read-only. Log: `diagnostics/explorer.log`.
   (`CfSetPinState(UNSPECIFIED)`): "Free up space" is a one-off request. ⚠ Left on, the mark outlives the request —
   opening the freed file downloads it with the mark still set, the next pass would drop it half a second later, and
   a second "Free up space" would set nothing new. A mark is cleared only once every drop it asked for succeeded (a
-  file open elsewhere fails with `ERROR_CLOUD_FILE_IN_USE`), so that file is tried again. All of these run on
+  file open elsewhere fails with `ERROR_CLOUD_FILE_IN_USE`), so that file is tried again. ⚠ Except under a folder
+  marked "Always keep": there the free mark is the only thing between the file and the folder's mark, so it stays as
+  a standing exception (cleared, the file would download straight back) — and such a file, if opened, is dropped
+  again by the next pass. All of these run on
   attribute-only handles that download nothing. A file without a mark of its own
   follows the nearest marked folder above it (`ExplorerMirror.copies`), and finally the Tenshu Drive folder's own mark
   ("Always keep" on the whole folder covers files that arrive later). ⚠ A mark on the folder itself is not a change
