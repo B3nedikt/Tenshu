@@ -23,6 +23,7 @@ object ExplorerIntegration {
         Thread(r, "explorer-cleanup").apply { isDaemon = true }
     }
     private var cleanup: ScheduledFuture<*>? = null
+    private var restart: ScheduledFuture<*>? = null
 
     /** Windows with a usable Cloud Files API; false elsewhere, where the switch is not shown. */
     val supported: Boolean by lazy {
@@ -37,7 +38,12 @@ object ExplorerIntegration {
         this.koin = koin
         this.log = log
         if (!supported) return
-        if (isEnabled()) start()
+        if (isEnabled()) {
+            start()
+            // ⚠ Switched on, but Windows refused at this start (often just not ready yet at login): the user's choice
+            // stands and the start is retried, rather than a switch that reads on while nothing is served.
+            if (running == null) retryStart()
+        }
         // Switched off while a downloaded copy was open: finish emptying the folder, now or as soon as it can be.
         else if (settings.explorerCleanupPending()) cleanUp()
     }
@@ -60,6 +66,7 @@ object ExplorerIntegration {
             if (running == null) start()
             settings.setExplorerIntegration(running != null)
         } else {
+            stopRestart()
             settings.setExplorerIntegration(false)
             val root = running
             running = null
@@ -75,6 +82,26 @@ object ExplorerIntegration {
         running?.stop()
         running = null
         stopCleanup()
+        stopRestart()
+    }
+
+    private fun retryStart() {
+        if (restart != null) return
+        restart = retries.scheduleWithFixedDelay({
+            synchronized(this) {
+                if (!isEnabled() || running != null) {
+                    stopRestart()
+                } else {
+                    runCatching { start() }.onFailure { log("explorer: start retry failed: $it") }
+                    if (running != null) stopRestart()
+                }
+            }
+        }, CLEANUP_RETRY_SECONDS, CLEANUP_RETRY_SECONDS, TimeUnit.SECONDS)
+    }
+
+    private fun stopRestart() {
+        restart?.cancel(false)
+        restart = null
     }
 
     @Synchronized
