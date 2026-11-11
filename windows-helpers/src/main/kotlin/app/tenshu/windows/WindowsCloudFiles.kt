@@ -227,8 +227,14 @@ object WindowsCloudFiles {
      */
     fun hydrate(path: Path): Int? = onAttributeHandle(path) { n, h -> n.hydrate(h) }
 
-    /** `CfDehydratePlaceholder` over the whole file: the local copy goes, the placeholder stays online-only. */
-    fun dehydrate(path: Path): Int? = onAttributeHandle(path) { n, h -> n.dehydrate(h) }
+    /**
+     * `CfDehydratePlaceholder` over the whole file: the local copy goes, the placeholder stays online-only.
+     * ⚠⚠ On an **exclusive** handle (`CfOpenFileWithOplock(EXCLUSIVE)`): the contract says the caller must hold the
+     * file exclusively "or data corruption can occur" — an attribute handle shared with a reader is not enough. A file
+     * open elsewhere fails the open, and the caller tries again later.
+     */
+    fun dehydrate(path: Path): Int? =
+        natives?.let { n -> runCatching { n.dehydrateExclusively(path.toString()) }.getOrElse { CloudFilesHResult.E_FAIL } }
 
     /** `CfSetPinState` ([PIN_STATE_PINNED] = "Always keep on this device"). */
     fun setPinState(path: Path, state: Int): Int? = onAttributeHandle(path) { n, h -> n.setPinState(h, state) }
@@ -265,6 +271,11 @@ object WindowsCloudFiles {
         private val createFile: MethodHandle,
         private val closeHandle: MethodHandle,
         private val getPlaceholderInfo: MethodHandle,
+        private val openWithOplock: MethodHandle,
+        private val referenceProtected: MethodHandle,
+        private val releaseProtected: MethodHandle,
+        private val win32FromProtected: MethodHandle,
+        private val closeProtected: MethodHandle,
     ) {
         private val linker = Linker.nativeLinker()
         private val l = CloudFilesLayouts
@@ -358,8 +369,24 @@ object WindowsCloudFiles {
         fun hydrate(handle: Any): Int =
             hydratePlaceholder.invokeExact(handle as MemorySegment, 0L, -1L, 0, MemorySegment.NULL) as Int
 
-        fun dehydrate(handle: Any): Int =
-            dehydratePlaceholder.invokeExact(handle as MemorySegment, 0L, -1L, 0, MemorySegment.NULL) as Int
+        fun dehydrateExclusively(path: String): Int = Arena.ofConfined().use { arena ->
+            val protectedHandle = arena.allocate(ValueLayout.ADDRESS)
+            val opened = openWithOplock.invokeExact(wstr(arena, path), CF_OPEN_FILE_FLAG_EXCLUSIVE, protectedHandle) as Int
+            if (!CloudFilesHResult.succeeded(opened)) return@use opened
+            val handle = protectedHandle.get(ValueLayout.ADDRESS, 0L)
+            try {
+                // The Win32 handle stays valid only while the protected handle is referenced (the oplock may break).
+                if ((referenceProtected.invokeExact(handle) as Byte).toInt() == 0) return@use CloudFilesHResult.E_FAIL
+                try {
+                    val win32 = win32FromProtected.invokeExact(handle) as MemorySegment
+                    dehydratePlaceholder.invokeExact(win32, 0L, -1L, 0, MemorySegment.NULL) as Int
+                } finally {
+                    releaseProtected.invokeExact(handle)
+                }
+            } finally {
+                closeProtected.invokeExact(handle)
+            }
+        }
 
         fun setPinState(handle: Any, state: Int): Int =
             setPin.invokeExact(handle as MemorySegment, state, 0, MemorySegment.NULL) as Int
@@ -553,6 +580,7 @@ object WindowsCloudFiles {
             private const val FILE_FLAG_BACKUP_SEMANTICS = 0x02000000 // so a folder opens too
             private const val FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000 // a link opens as itself
             private const val PLACEHOLDER_INFO_BASIC = 0
+            private const val CF_OPEN_FILE_FLAG_EXCLUSIVE = 0x1
             private const val IN_SYNC_STATE_IN_SYNC = 1
             private const val PLACEHOLDER_BASIC_INFO_IDENTITY_OFFSET = 28L
             private const val MAX_FILE_IDENTITY = 4096L
@@ -609,6 +637,16 @@ object WindowsCloudFiles {
                     closeHandle = handle("kernel32.dll", "CloseHandle", FunctionDescriptor.of(i, a)) ?: return null,
                     // HRESULT CfGetPlaceholderInfo(HANDLE, CF_PLACEHOLDER_INFO_CLASS, PVOID, DWORD, PDWORD)
                     getPlaceholderInfo = handle(cf, "CfGetPlaceholderInfo", FunctionDescriptor.of(i, a, i, a, i, a)) ?: return null,
+                    // HRESULT CfOpenFileWithOplock(LPCWSTR, CF_OPEN_FILE_FLAGS, HANDLE* ProtectedHandle)
+                    openWithOplock = handle(cf, "CfOpenFileWithOplock", FunctionDescriptor.of(i, a, i, a)) ?: return null,
+                    // BOOLEAN CfReferenceProtectedHandle(HANDLE) — a 1-byte BOOLEAN
+                    referenceProtected = handle(cf, "CfReferenceProtectedHandle", FunctionDescriptor.of(ValueLayout.JAVA_BYTE, a)) ?: return null,
+                    // void CfReleaseProtectedHandle(HANDLE)
+                    releaseProtected = handle(cf, "CfReleaseProtectedHandle", FunctionDescriptor.ofVoid(a)) ?: return null,
+                    // HANDLE CfGetWin32HandleFromProtectedHandle(HANDLE)
+                    win32FromProtected = handle(cf, "CfGetWin32HandleFromProtectedHandle", FunctionDescriptor.of(a, a)) ?: return null,
+                    // void CfCloseHandle(HANDLE)
+                    closeProtected = handle(cf, "CfCloseHandle", FunctionDescriptor.ofVoid(a)) ?: return null,
                 )
             }
         }
