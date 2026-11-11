@@ -162,10 +162,10 @@ internal class ExplorerSyncRoot(
         fetchers.shutdownNow()
     }
 
-    /** Turns the integration off: [stop], then [removeAll]. */
-    fun remove() {
+    /** Turns the integration off: [stop], then [removeAll]. Answers whether the folder is clean. */
+    fun remove(): Boolean {
         stop()
-        removeAll(root, log)
+        return removeAll(root, log)
     }
 
     private suspend fun watchRealm() {
@@ -363,7 +363,7 @@ internal class ExplorerSyncRoot(
         }
     }
 
-    private fun deletePlaceholder(path: Path): Boolean = deleteIfStillOurs(root, path, log)
+    private fun deletePlaceholder(path: Path): Boolean = deleteIfStillOurs(root, path, log) == Deletion.DELETED
 
     private val handler = object : WindowsCloudFiles.Handler {
         // Called on a CfAPI pool thread: hand off at once, answer from our own threads (X0: blocking there works,
@@ -524,41 +524,58 @@ internal class ExplorerSyncRoot(
             return Ours(identity, info.inSync)
         }
 
+        /** What [deleteIfStillOurs] did. */
+        private enum class Deletion { DELETED, KEPT_NOT_OURS, FAILED }
+
         /**
          * Deletes [path] only if it is still one of our placeholders that holds what we put there — re-checked right
          * before deleting, so nothing the user changed since the scan (an edit saved in place, a link put there) goes.
          */
-        private fun deleteIfStillOurs(root: Path, path: Path, log: (String) -> Unit): Boolean = runCatching {
-            if (!path.exists(LinkOption.NOFOLLOW_LINKS)) return true
+        private fun deleteIfStillOurs(root: Path, path: Path, log: (String) -> Unit): Deletion = runCatching {
+            if (!path.exists(LinkOption.NOFOLLOW_LINKS)) return Deletion.DELETED
             val ours = ourPlaceholder(path)
             if (ours == null || (!Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS) && !ours.inSync)) {
                 log("explorer: kept '${root.relativize(path)}': it is not (or no longer) only ours")
-                return false
+                return Deletion.KEPT_NOT_OURS
             }
             Files.setAttribute(path, "dos:readonly", false, LinkOption.NOFOLLOW_LINKS)
             Files.delete(path)
-            true
+            Deletion.DELETED
         }.getOrElse {
-            // An open file cannot be deleted; the next pass tries again.
+            // An open file cannot be deleted; it is tried again (the next pass, or the cleanup retry).
             log("explorer: could not remove '${root.relativize(path)}': $it")
-            false
+            Deletion.FAILED
         }
 
         /**
          * Empties [root] of our placeholders (never the user's files, never a link), unregisters, and removes the
-         * folder if nothing is left. Needs no proxy, so it works before Control has finished starting.
+         * folder if nothing is left. Needs no proxy, so it works before Control has finished starting. Answers whether
+         * it finished.
+         *
+         * ⚠⚠ A placeholder it could not delete (open in an app that shares no delete access) keeps the root
+         * **registered**: once unregistered, what is left turns into ordinary files (measured on uninstall, §7.9) that
+         * [ourPlaceholder] no longer recognises — a decrypted copy nothing would ever remove. The caller retries.
          */
-        fun removeAll(root: Path, log: (String) -> Unit) {
+        fun removeAll(root: Path, log: (String) -> Unit): Boolean {
+            var failed = 0
             runCatching {
                 if (root.exists()) {
                     Files.walk(root).use { s -> s.filter { it != root }.toList() }
                         .sortedByDescending { it.nameCount }
                         .filter { ourPlaceholder(it) != null }
-                        .forEach { deleteIfStillOurs(root, it, log) }
+                        .forEach { if (deleteIfStillOurs(root, it, log) == Deletion.FAILED) failed++ }
                 }
-            }.onFailure { log("explorer: removing placeholders failed: $it") }
+            }.onFailure {
+                log("explorer: removing placeholders failed: $it")
+                failed++
+            }
+            if (failed > 0) {
+                log("explorer: $failed placeholder(s) could not be removed yet; the folder stays registered and is tried again")
+                return false
+            }
             syncRootId()?.let { log("explorer: Unregister -> ${WindowsSyncRootManager.unregister(it)}") }
             runCatching { if (root.isDirectory() && Files.list(root).use { it.findFirst().isEmpty }) Files.delete(root) }
+            return true
         }
     }
 }

@@ -869,7 +869,9 @@ off by default while the folder is read-only. Log: `diagnostics/explorer.log`.
 - **Names**: a row Windows cannot hold (`:`, `CON`, a trailing dot…) is not shown, nor anything below it. NTFS is
   case-insensitive: of two rows differing only in case, the first in path order is shown.
 - **Turning it off** stops serving, deletes every placeholder (never the user's files), unregisters, and removes
-  the folder if it is empty. Quitting Control only disconnects: the entry stays, and opening an online-only file
+  the folder if it is empty. ⚠⚠ A downloaded copy open in an app that shares no delete access cannot go yet: the
+  root then stays **registered** (unregistered, the leftover turns into an ordinary file nothing recognises as ours,
+  §7.9) and the cleanup is retried every minute, across restarts (`explorerCleanupPending`), until the folder is clean. Quitting Control only disconnects: the entry stays, and opening an online-only file
   says the provider is not running (§7.7).
 
 - **Always keep / Free up space**: Explorer only *marks* the file (`FILE_ATTRIBUTE_PINNED` / `UNPINNED`); the
