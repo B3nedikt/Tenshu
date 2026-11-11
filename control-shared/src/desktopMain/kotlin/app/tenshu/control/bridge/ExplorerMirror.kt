@@ -140,19 +140,24 @@ internal object ExplorerMirror {
     /** What to do about one file's local copy. */
     enum class Copy { DOWNLOAD, DROP }
 
-    /** What a pin pass does, and the effective marks it saw — handed back to the next pass as `previous`. */
-    data class CopyPlan(val copies: Map<String, Copy>, val effective: Map<String, Pin>)
+    /**
+     * What a pin pass does. [cleared]: the entries whose own "Free up space" mark is carried out by this pass and is
+     * then cleared — each with the files whose drop must succeed first (itself, or everything below a folder).
+     */
+    data class CopyPlan(val copies: Map<String, Copy>, val cleared: Map<String, Set<String>>)
 
     /**
      * The placeholder files whose local copy disagrees with their pin. A file without a mark of its own follows the
      * nearest folder above it that has one (Explorer marks the folder it was used on).
      * - **Pinned** and online-only → downloaded, whenever seen: "always keep" is a standing order.
-     * - **Unpinned** with a local copy → dropped only when the mark is **new since [previous]** ("Free up space" was
-     *   just chosen). ⚠ Opening a freed file downloads it and keeps the mark; dropping on every pass would take the
-     *   copy away half a second after the user opened it. A file [previous] has not seen is not dropped either.
+     * - **Unpinned** with a local copy → dropped. "Free up space" is a one-off request, not a standing order, so once
+     *   it is carried out the mark is **cleared** ([CopyPlan.cleared]). ⚠ Otherwise the mark outlives the request:
+     *   opening the freed file downloads it with the mark still on, and the next pass would take the copy away half a
+     *   second later — while a second "Free up space" would set nothing new to notice. A mark is cleared only once
+     *   every drop it asked for succeeded, so a file that was open is tried again.
      * - No mark → left as it is: opened files stay until the user frees them.
      */
-    fun copies(local: List<Local>, previous: Map<String, Pin>): CopyPlan {
+    fun copies(local: List<Local>): CopyPlan {
         val folders = local.filter { it.isFolder }.associate { key(it.relative) to it.pin }
         fun effective(entry: Local): Pin {
             if (entry.pin != Pin.NONE) return entry.pin
@@ -164,18 +169,23 @@ internal object ExplorerMirror {
             return Pin.NONE
         }
         val files = local.filter { it.isPlaceholder && !it.isFolder }
-        val marks = files.associate { it.relative to effective(it) }
         val copies = files.mapNotNull { entry ->
-            when (marks.getValue(entry.relative)) {
+            when (effective(entry)) {
                 Pin.PINNED -> if (entry.online) entry.relative to Copy.DOWNLOAD else null
-                Pin.UNPINNED -> {
-                    val before = previous[entry.relative]
-                    if (!entry.online && before != null && before != Pin.UNPINNED) entry.relative to Copy.DROP else null
-                }
+                Pin.UNPINNED -> if (!entry.online) entry.relative to Copy.DROP else null
                 Pin.NONE -> null
             }
         }.toMap()
-        return CopyPlan(copies, marks)
+        val drops = copies.filterValues { it == Copy.DROP }.keys
+        val cleared = local.filter { it.isPlaceholder && it.pin == Pin.UNPINNED }.associate { marked ->
+            val prefix = key(marked.relative) + "/"
+            marked.relative to if (marked.isFolder) {
+                drops.filterTo(HashSet()) { key(it).startsWith(prefix) }
+            } else {
+                drops.filterTo(HashSet()) { it == marked.relative }
+            }
+        }
+        return CopyPlan(copies, cleared)
     }
 
     /**
