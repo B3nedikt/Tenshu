@@ -30,6 +30,9 @@ internal object WindowsTrayAgent {
 
     private const val SUPERVISE_SECONDS = 30L
 
+    /** The thumbnail server's pid, in the socket directory (`ThumbnailServer.PidFile` in the agent). */
+    private const val THUMBNAIL_SERVER_PID = "thumbnail-server.pid"
+
     private val isWindows = System.getProperty("os.name").orEmpty().startsWith("Windows", ignoreCase = true)
 
     /** The agent to run, or `null` when there is none (not Windows, not packaged and no dev override). */
@@ -59,7 +62,7 @@ internal object WindowsTrayAgent {
             Thread(r, "WindowsTrayAgent").apply { isDaemon = true }
         }
         val supervisor = WindowsTraySupervisor(
-            find = { findAgent(agent) },
+            find = { findAgent(agent, dir) },
             start = { start(agent, socketDir, log) },
             stop = ::stopAndAwait,
             heartbeat = { TrayLiveness.readHeartbeat(dir) },
@@ -91,14 +94,21 @@ internal object WindowsTrayAgent {
      * ⚠ The **oldest** match. Settings' start-at-login switch runs the same exe for a moment
      * (`tray-agent --startup-task …`), and Windows does not expose a process's arguments to tell it apart; those
      * runs last well under a second, so the long-lived agent is the oldest.
+     *
+     * ⚠⚠ Never the **thumbnail server**: Windows starts the same exe (`--thumbnail-server`) to draw Explorer's thumbnails
+     * when no tray is running, and it may outlive Control's start by minutes. It has no icon and no heartbeat; taken
+     * for the agent, it would hold the tray back until the grace period ran out. It names its pid in [THUMBNAIL_SERVER_PID]
+     * (`ThumbnailServer.RunUntilIdle`).
      */
-    private fun findAgent(agent: File): WindowsTraySupervisor.Running? {
+    private fun findAgent(agent: File, dir: File): WindowsTraySupervisor.Running? {
         val me = ProcessHandle.current().info().user().orElse(null)
+        val thumbnailServer = runCatching { File(dir, THUMBNAIL_SERVER_PID).readText().trim().toLong() }.getOrNull()
         return ProcessHandle.allProcesses()
             .filter { handle ->
                 val info = handle.info()
                 val command = info.command().orElse(null)
-                command != null && File(command).absolutePath.equals(agent.absolutePath, ignoreCase = true) &&
+                handle.pid() != thumbnailServer &&
+                    command != null && File(command).absolutePath.equals(agent.absolutePath, ignoreCase = true) &&
                     me != null && info.user().orElse(null).equals(me, ignoreCase = true)
             }
             .min(compareBy { it.info().startInstant().orElse(Instant.MAX) })

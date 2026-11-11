@@ -891,7 +891,8 @@ off by default while the folder is read-only. Log: `diagnostics/explorer.log`.
 
 ✅ **Device-verified 2026-11-10** (installed MSIX, Windows 11): the switch registers the root from the packaged
 Control and the navigation-pane entry appears — HKCU virtualisation does not hide it, so §7.7's open question is
-closed and no `windows.cloudFiles` manifest extension is needed; the realm's 29 rows appeared; a photo opened from
+closed and the root itself needs no `windows.cloudFiles` manifest extension (X2 adds one, for the thumbnail handler
+only, §7.9); the realm's 29 rows appeared; a photo opened from
 Explorer downloaded and showed. Pin and free, by `attrib +P` / `+U` (the marks Explorer's menu sets): an
 online-only photo was downloaded within a second of `+P` and its copy dropped within a second of `+U`.
 ⚠ Found only on the device: `ExtendedWatchEventModifier.FILE_TREE` is in `jdk.unsupported`, which the packaged
@@ -901,3 +902,42 @@ still downloads); a freed photo opened again keeps its new copy; a junction put 
 photo edited in place (read-only cleared, a byte appended) both survived a repair pass untouched. The free
 cycle (2026-11-11): free → copy dropped and mark cleared; reopen → copy kept; free again → dropped; free while
 another process holds the file exclusively → `ERROR_CLOUD_FILE_IN_USE`, mark kept, freed by the pass after closing.
+
+### 7.9 X2 as built — thumbnails
+
+Without a handler, Explorer downloads an online-only photo to draw its icon (seen in the log before X2: a
+`FETCH_DATA` for `explorer.exe` on a file nobody opened). The handler is **not a native DLL**, as §7.1 assumed:
+
+- **Where it runs**: the C# tray agent (`ThumbnailProvider.cs`), as an **out-of-process COM server** — the agent
+  already is one, for toast clicks. Control's AppxManifest declares it twice: a second `com:ExeServer` for the
+  agent with `--thumbnail-server`, and `desktop3:CloudFiles/ThumbnailProviderHandler` naming its CLSID. Windows applies a
+  package's cloud-files handlers to the sync roots that package registers, so it covers Tenshu Drive. ⚠ The schema
+  will not take the thumbnail handler alone: `CustomStateHandler`, `ExtendedPropertyHandler` and `BannersHandler` must
+  be present (we name the null CLSID, which COM cannot create) and `CloudFilesContextMenus` too (empty).
+- **Where the picture comes from**: the agent asks Control over the bridge, `explorer.v1.thumbnail(path, size)`.
+  Control reads the **realm path from the placeholder's identity** (never from the path's text) and answers with the
+  stored thumbnail class by Finder's rule (`storedThumbnail`): `LIST` or `LARGE`, pulled once if not on this device yet.
+  ⚠⚠ Never the file's bytes and never `File.Preview`. The agent decodes it with the OS's codecs
+  (`BitmapDecoder`: JPEG, PNG and Android's WebP), scaled down to fit, into a 32-bpp DIB.
+- **When no tray is running**, Windows starts the agent itself (`tray-agent --thumbnail-server -Embedding`); it serves
+  with no icon and exits after two idle minutes. It writes its pid to `thumbnail-server.pid` in the socket directory,
+  and Control's tray supervisor passes over that process — ⚠ otherwise, found by path, it would be taken for the
+  tray (no heartbeat) and hold the real one back for the grace period.
+- ⚠ Source-generated COM (`StrategyBasedComWrappers`), not classic interop: CsWinRT installs its global ComWrappers
+  for WinUI.
+
+✅ **Device-verified 2026-11-11** with a Shell probe (`IShellItemImageFactory.GetImage`, thumbnail only — Explorer's
+pipeline): a never-downloaded photo got a 144×256 thumbnail and **stayed online-only**; with Control stopped,
+Windows started the agent as `--thumbnail-server -Embedding`, the request failed (`WTS_E_FAILEDEXTRACTION`) and the
+photo **still stayed online-only** — a failed thumbnail does not fall back to downloading. ⚠ A probe of a file that
+was once downloaded proves nothing: Windows' thumbnail cache answers.
+
+**Uninstall (measured 2026-11-11, answers X4's question).** Once the package declares `windows.cloudFiles`, removing
+it **unregisters the sync root and deletes every online-only placeholder** — 37 entries became 9: the folders, the one
+downloaded photo and the user's own file stayed. So an uninstall leaves no orphaned Explorer entry, and nothing of
+the user's goes. ⚠ What survives changes kind: the folders and the downloaded copy become **ordinary** files and
+folders (no reparse point; the copy keeps `READONLY`). After a reinstall Control re-registers and refills the folder,
+but by the "only ours" rule (§7.8) it treats those survivors as the user's: the copy is never updated or removed again,
+and turning the switch off leaves those folders behind. Reinstalling is also what every side-load update does
+(`install.ps1` removes the old package first) — a Store update is an in-place upgrade and is not expected to do this
+(*not measured*).

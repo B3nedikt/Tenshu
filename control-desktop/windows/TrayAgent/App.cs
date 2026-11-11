@@ -67,6 +67,8 @@ public sealed class App : Application, IXamlMetadataProvider
         // ⚠ Registered before the activation check: Windows delivers a click that started this process through the
         // activation arguments, not through NotificationInvoked.
         _notifier = new Notifier(onActivate: OpenControl);
+        // Explorer's thumbnails for the Tenshu Drive folder come from this process while it runs (ThumbnailProvider).
+        ThumbnailServer.Start();
         if (Notifier.LaunchedByToast()) OpenControl();
         // At login the icon is already up; Control follows, hidden (LoginStart).
         if (LoginStart.LaunchedAtLogin()) LoginStart.StartControlHidden();

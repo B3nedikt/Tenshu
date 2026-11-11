@@ -474,6 +474,18 @@ internal class ExplorerSyncRoot(
 
         private fun syncRootId(): String? = WindowsAccount.currentUserSid()?.let { "$PROVIDER!$it!$ACCOUNT" }
 
+        /**
+         * The realm path of the file placeholder at [windowsPath] in [root], read from its identity — or `null` for
+         * anything that is not one of our file placeholders under the root (a folder, the user's own file, a link,
+         * a path elsewhere). ⚠ Reads the placeholder's info only; nothing is opened for data, so nothing downloads.
+         */
+        fun realmPathOf(windowsPath: Path, root: Path = defaultRoot()): String? {
+            val path = windowsPath.toAbsolutePath().normalize()
+            if (!path.startsWith(root.toAbsolutePath().normalize()) || path == root) return null
+            if (Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) return null
+            return ourPlaceholder(path)?.identity?.path
+        }
+
         /** One of our placeholders: it carries a Tenshu identity. `null` for anything else, links included. */
         private class Ours(val identity: ExplorerIdentity, val inSync: Boolean)
 

@@ -5447,6 +5447,10 @@ Invariants: I1, I8. Applies only while *Show Drive in File Explorer* is on (`des
   by same-user code as the files of any synced folder; with it off, T-C-11's Low stands.
   Defense: off by default, opt-in from Control's Settings; only the default file system's realm is shown; the read
   path is the same as every other (the relay sees ciphertext only).
+  *X2 (2026-11-11):* the thumbnail handler is a COM class any same-user process can create, and it answers with a
+  file's stored thumbnail (`explorer.v1.thumbnail`, served to the tray agent over the gated bridge). That is a
+  strictly smaller read than (a) already grants — a small picture of a file the process could open whole — and it
+  answers only for our placeholders under the folder (the realm path comes from the placeholder's identity).
 - **(b) While Control is not connected, another process can be the provider.** CfAPI lets **one** process connect to
   a sync root and does not check which (measured in X0: a second process connected as soon as the first
   disconnected) — so while Control is not running, a same-user process can connect to Tenshu's root, serve
