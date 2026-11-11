@@ -872,10 +872,13 @@ off by default while the folder is read-only. Log: `diagnostics/explorer.log`.
 
 - **Always keep / Free up space**: Explorer only *marks* the file (`FILE_ATTRIBUTE_PINNED` / `UNPINNED`); the
   provider acts. A pin pass — on any change notification in the folder tree, after every mirror pass and every
-  60 s — downloads pinned files still online-only (`CfHydratePlaceholder`) whenever it sees them, and drops the copy
-  of an unpinned one (`CfDehydratePlaceholder`) only when the mark is **new since the last pass**: ⚠ opening a
-  freed file downloads it and keeps the mark, and dropping on every pass would take the copy away half a second
-  after it was opened. Both run on attribute-only handles that download nothing. A file without a mark of its own
+  60 s — downloads pinned files still online-only (`CfHydratePlaceholder`) whenever it sees them: "always keep" is a
+  standing order. It drops the copy of an unpinned one (`CfDehydratePlaceholder`) and then **clears the mark**
+  (`CfSetPinState(UNSPECIFIED)`): "Free up space" is a one-off request. ⚠ Left on, the mark outlives the request —
+  opening the freed file downloads it with the mark still set, the next pass would drop it half a second later, and
+  a second "Free up space" would set nothing new. A mark is cleared only once every drop it asked for succeeded (a
+  file open elsewhere fails with `ERROR_CLOUD_FILE_IN_USE`), so that file is tried again. All of these run on
+  attribute-only handles that download nothing. A file without a mark of its own
   follows the nearest marked folder above it (`ExplorerMirror.copies`). A replaced file keeps its pin
   (`CfSetPinState`). An opened file without a mark keeps its copy until freed.
 - **Stopping** (quit, or the switch going off) waits up to 10 s for a pass in flight, so a pass still creating
@@ -895,4 +898,6 @@ online-only photo was downloaded within a second of `+P` and its copy dropped wi
 runtime does not carry (`NoClassDefFoundError`) — so each folder is watched on its own.
 After the review fixes, also on the device: our placeholders are recognised by `CfGetPlaceholderInfo` (pinning
 still downloads); a freed photo opened again keeps its new copy; a junction put in the folder and a hydrated
-photo edited in place (read-only cleared, a byte appended) both survived a repair pass untouched.
+photo edited in place (read-only cleared, a byte appended) both survived a repair pass untouched. The free
+cycle (2026-11-11): free → copy dropped and mark cleared; reopen → copy kept; free again → dropped; free while
+another process holds the file exclusively → `ERROR_CLOUD_FILE_IN_USE`, mark kept, freed by the pass after closing.

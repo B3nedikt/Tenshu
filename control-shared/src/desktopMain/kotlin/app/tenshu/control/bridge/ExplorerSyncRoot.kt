@@ -76,8 +76,6 @@ internal class ExplorerSyncRoot(
     /** When a pass first proposed a mass removal that has not been confirmed yet ([MASS_REMOVAL_CONFIRM_MILLIS]). */
     @Volatile private var massRemovalSince: Long? = null
 
-    /** The effective pin marks the last pin pass saw (pin thread only). */
-    private var previousMarks: Map<String, ExplorerMirror.Pin> = emptyMap()
 
     @Volatile private var connection: WindowsCloudFiles.Connection? = null
     @Volatile private var watcher: WatchService? = null
@@ -303,21 +301,24 @@ internal class ExplorerSyncRoot(
      */
     private fun pinPass() {
         if (!root.isDirectory()) return
-        val previous = previousMarks
-        val plan = ExplorerMirror.copies(localEntries(), previous)
-        val marks = plan.effective.toMutableMap()
+        val plan = ExplorerMirror.copies(localEntries())
+        val failedDrops = HashSet<String>()
         for ((relative, copy) in plan.copies) {
             val path = root.resolve(relative)
             val hr = when (copy) {
                 ExplorerMirror.Copy.DOWNLOAD -> WindowsCloudFiles.hydrate(path)
                 ExplorerMirror.Copy.DROP -> WindowsCloudFiles.dehydrate(path)
             } ?: continue
-            // ⚠ A file open elsewhere cannot be freed. Its mark is remembered as it was before, so the free request
-            // still reads as new to the next pin pass and is tried again — not forgotten after one failure.
-            if (copy == ExplorerMirror.Copy.DROP && !CloudFilesHResult.succeeded(hr)) previous[relative]?.let { marks[relative] = it }
+            if (copy == ExplorerMirror.Copy.DROP && !CloudFilesHResult.succeeded(hr)) failedDrops += relative
             log("explorer: ${copy.name.lowercase()} '$relative' -> ${CloudFilesHResult.describe(hr)}")
         }
-        previousMarks = marks
+        // "Free up space" carried out: its mark goes, so a reopened file keeps its copy and a second request is new.
+        // ⚠ Not while a drop it asked for failed (a file open elsewhere): the mark stays and the next pass retries.
+        for ((relative, needed) in plan.cleared) {
+            if (needed.any { it in failedDrops }) continue
+            val hr = WindowsCloudFiles.setPinState(root.resolve(relative), WindowsCloudFiles.PIN_STATE_UNSPECIFIED) ?: continue
+            if (!CloudFilesHResult.succeeded(hr)) log("explorer: clear free mark '$relative' -> ${CloudFilesHResult.describe(hr)}")
+        }
     }
 
     /**

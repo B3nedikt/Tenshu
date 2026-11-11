@@ -144,24 +144,37 @@ class ExplorerMirrorTest {
             placeholder("freed.txt").copy(pin = ExplorerMirror.Pin.UNPINNED, online = true),
             placeholder("opened.txt").copy(online = false),
         )
-        val before = local.associate { it.relative to ExplorerMirror.Pin.NONE }
         assertEquals(
             mapOf("keep.txt" to ExplorerMirror.Copy.DOWNLOAD, "free.txt" to ExplorerMirror.Copy.DROP),
-            ExplorerMirror.copies(local, before).copies,
+            ExplorerMirror.copies(local).copies,
         )
     }
 
     @Test
-    fun aFreedFileOpenedAgainKeepsItsCopy_onlyANewFreeMarkDropsIt() {
-        val opened = listOf(placeholder("photo.jpg").copy(pin = ExplorerMirror.Pin.UNPINNED, online = false))
-        // It was already freed last pass; opening it downloaded it again. That copy stays.
-        assertEquals(emptyMap(), ExplorerMirror.copies(opened, mapOf("photo.jpg" to ExplorerMirror.Pin.UNPINNED)).copies)
-        // A file the last pass never saw is not dropped either (the first pass after Control starts).
-        assertEquals(emptyMap(), ExplorerMirror.copies(opened, emptyMap()).copies)
-        assertEquals(
-            mapOf("photo.jpg" to ExplorerMirror.Pin.UNPINNED),
-            ExplorerMirror.copies(opened, emptyMap()).effective,
+    fun aFreeMarkIsClearedOnceCarriedOut_soAReopenedFileKeepsItsCopyAndASecondRequestIsNew() {
+        val freed = listOf(
+            placeholder("photo.jpg").copy(pin = ExplorerMirror.Pin.UNPINNED, online = false),
+            placeholder("already.jpg").copy(pin = ExplorerMirror.Pin.UNPINNED, online = true),
         )
+        val plan = ExplorerMirror.copies(freed)
+        assertEquals(mapOf("photo.jpg" to ExplorerMirror.Copy.DROP), plan.copies)
+        // Each mark goes once its own drop (if any) has succeeded.
+        assertEquals(mapOf("photo.jpg" to setOf("photo.jpg"), "already.jpg" to emptySet()), plan.cleared)
+        // Reopened after the mark was cleared: no mark, so the copy stays.
+        val reopened = listOf(placeholder("photo.jpg").copy(online = false))
+        assertEquals(emptyMap(), ExplorerMirror.copies(reopened).copies)
+    }
+
+    @Test
+    fun aFreedFolderIsClearedOnlyOnceEveryDropBelowItIsDone() {
+        val local = listOf(
+            placeholderFolder("a").copy(pin = ExplorerMirror.Pin.UNPINNED),
+            placeholder("a/x.jpg").copy(online = false),
+            placeholder("a/y.jpg").copy(online = true),
+        )
+        val plan = ExplorerMirror.copies(local)
+        assertEquals(mapOf("a/x.jpg" to ExplorerMirror.Copy.DROP), plan.copies)
+        assertEquals(mapOf("a" to setOf("a/x.jpg")), plan.cleared)
     }
 
     @Test
@@ -172,17 +185,17 @@ class ExplorerMirrorTest {
             placeholder("a/b/deep.txt").copy(online = true),
             placeholder("a/b/own.txt").copy(pin = ExplorerMirror.Pin.UNPINNED, online = false),
         )
-        val before = mapOf("a/b/deep.txt" to ExplorerMirror.Pin.NONE, "a/b/own.txt" to ExplorerMirror.Pin.PINNED)
         assertEquals(
             mapOf("a/b/deep.txt" to ExplorerMirror.Copy.DOWNLOAD, "a/b/own.txt" to ExplorerMirror.Copy.DROP),
-            ExplorerMirror.copies(local, before).copies,
+            ExplorerMirror.copies(local).copies,
         )
     }
 
     @Test
-    fun theUsersOwnFilesAreNeverDownloadedOrDropped() {
+    fun theUsersOwnFilesAreNeverDownloadedOrDropped_norTheirMarksCleared() {
         val mine = listOf(usersFile("mine.txt").copy(pin = ExplorerMirror.Pin.UNPINNED))
-        assertEquals(emptyMap(), ExplorerMirror.copies(mine, mapOf("mine.txt" to ExplorerMirror.Pin.NONE)).copies)
+        assertEquals(emptyMap(), ExplorerMirror.copies(mine).copies)
+        assertEquals(emptyMap(), ExplorerMirror.copies(mine).cleared)
     }
 
     @Test
