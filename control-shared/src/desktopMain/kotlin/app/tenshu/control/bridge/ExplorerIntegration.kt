@@ -4,6 +4,9 @@ import app.tenshu.control.lifecycle.DesktopControlSettings
 import app.tenshu.windows.WindowsCloudFiles
 import app.tenshu.windows.WindowsSyncRootManager
 import org.koin.core.Koin
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledFuture
+import java.util.concurrent.TimeUnit
 
 /**
  * The one [ExplorerSyncRoot] of this Control, behind the Settings switch (desktop-windows-port.md §7.8).
@@ -16,6 +19,10 @@ object ExplorerIntegration {
     private var log: (String) -> Unit = ::println
     private var running: ExplorerSyncRoot? = null
     private val settings = DesktopControlSettings()
+    private val retries = Executors.newSingleThreadScheduledExecutor { r ->
+        Thread(r, "explorer-cleanup").apply { isDaemon = true }
+    }
+    private var cleanup: ScheduledFuture<*>? = null
 
     /** Windows with a usable Cloud Files API; false elsewhere, where the switch is not shown. */
     val supported: Boolean by lazy {
@@ -29,25 +36,35 @@ object ExplorerIntegration {
     fun install(koin: Koin, log: (String) -> Unit) {
         this.koin = koin
         this.log = log
-        if (supported && isEnabled()) start()
+        if (!supported) return
+        if (isEnabled()) start()
+        // Switched off while a downloaded copy was open: finish emptying the folder, now or as soon as it can be.
+        else if (settings.explorerCleanupPending()) cleanUp()
     }
 
     /**
      * Turns it on (register, connect, fill the folder) or off (empty the folder of placeholders, unregister).
      * Answers whether it is now on. ⚠ A start Windows refused leaves the switch off, so Settings never shows a
      * folder that is not there. Before [install] (Control still starting) it can be turned off, not on.
+     *
+     * ⚠⚠ Off is not done until the folder is empty of our placeholders: one open in an app that shares no delete
+     * access is a decrypted copy that must still go. Until then the cleanup is retried every minute, across
+     * restarts ([DesktopControlSettings.explorerCleanupPending]), with the root left registered so the leftovers
+     * are still recognisable as ours.
      */
     @Synchronized
     fun setEnabled(enabled: Boolean): Boolean {
         if (!supported) return false
         if (enabled) {
+            stopCleanup()
             if (running == null) start()
             settings.setExplorerIntegration(running != null)
         } else {
             settings.setExplorerIntegration(false)
             val root = running
             running = null
-            if (root != null) root.remove() else ExplorerSyncRoot.removeAll(ExplorerSyncRoot.defaultRoot(), log)
+            root?.stop()
+            cleanUp()
         }
         return running != null
     }
@@ -57,16 +74,41 @@ object ExplorerIntegration {
     fun shutdown() {
         running?.stop()
         running = null
+        stopCleanup()
+    }
+
+    @Synchronized
+    private fun cleanUp() {
+        if (ExplorerSyncRoot.removeAll(ExplorerSyncRoot.defaultRoot(), log)) {
+            settings.setExplorerCleanupPending(false)
+            stopCleanup()
+            return
+        }
+        settings.setExplorerCleanupPending(true)
+        if (cleanup == null) {
+            cleanup = retries.scheduleWithFixedDelay(
+                { runCatching { cleanUp() }.onFailure { log("explorer: cleanup retry failed: $it") } },
+                CLEANUP_RETRY_SECONDS, CLEANUP_RETRY_SECONDS, TimeUnit.SECONDS,
+            )
+        }
+    }
+
+    private fun stopCleanup() {
+        cleanup?.cancel(false)
+        cleanup = null
     }
 
     private fun start() {
         val koin = koin ?: return
         val root = ExplorerSyncRoot(koin, ExplorerSyncRoot.defaultRoot(), log)
         running = if (runCatching { root.start() }.onFailure { log("explorer: start failed: $it") }.getOrDefault(false)) {
+            settings.setExplorerCleanupPending(false)
             root
         } else {
             root.stop()
             null
         }
     }
+
+    private const val CLEANUP_RETRY_SECONDS = 60L
 }
