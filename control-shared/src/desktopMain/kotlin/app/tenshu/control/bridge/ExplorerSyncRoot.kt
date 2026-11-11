@@ -301,7 +301,13 @@ internal class ExplorerSyncRoot(
      */
     private fun pinPass() {
         if (!root.isDirectory()) return
-        val plan = ExplorerMirror.copies(localEntries())
+        val rootBits = WindowsCloudFiles.fileAttributes(root) ?: 0
+        val rootPin = when {
+            rootBits and WindowsCloudFiles.FILE_ATTRIBUTE_PINNED != 0 -> ExplorerMirror.Pin.PINNED
+            rootBits and WindowsCloudFiles.FILE_ATTRIBUTE_UNPINNED != 0 -> ExplorerMirror.Pin.UNPINNED
+            else -> ExplorerMirror.Pin.NONE
+        }
+        val plan = ExplorerMirror.copies(localEntries(), rootPin)
         val failedDrops = HashSet<String>()
         for ((relative, copy) in plan.copies) {
             val path = root.resolve(relative)

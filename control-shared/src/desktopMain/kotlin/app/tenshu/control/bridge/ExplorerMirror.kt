@@ -157,7 +157,7 @@ internal object ExplorerMirror {
      *   every drop it asked for succeeded, so a file that was open is tried again.
      * - No mark → left as it is: opened files stay until the user frees them.
      */
-    fun copies(local: List<Local>): CopyPlan {
+    fun copies(local: List<Local>, rootPin: Pin = Pin.NONE): CopyPlan {
         val folders = local.filter { it.isFolder }.associate { key(it.relative) to it.pin }
         fun effective(entry: Local): Pin {
             if (entry.pin != Pin.NONE) return entry.pin
@@ -166,7 +166,9 @@ internal object ExplorerMirror {
                 folders[parent]?.takeIf { it != Pin.NONE }?.let { return it }
                 parent = parent.substringBeforeLast('/', "")
             }
-            return Pin.NONE
+            // ⚠ The Tenshu Drive folder itself is not among [local]: its mark ("Always keep" on the whole folder) is
+            // the last fallback, so files that arrive later follow it too.
+            return rootPin
         }
         val files = local.filter { it.isPlaceholder && !it.isFolder }
         val copies = files.mapNotNull { entry ->
@@ -177,7 +179,7 @@ internal object ExplorerMirror {
             }
         }.toMap()
         val drops = copies.filterValues { it == Copy.DROP }.keys
-        val cleared = local.filter { it.isPlaceholder && it.pin == Pin.UNPINNED }.associate { marked ->
+        val cleared: MutableMap<String, Set<String>> = local.filter { it.isPlaceholder && it.pin == Pin.UNPINNED }.associateTo(HashMap()) { marked ->
             val prefix = key(marked.relative) + "/"
             marked.relative to if (marked.isFolder) {
                 drops.filterTo(HashSet()) { key(it).startsWith(prefix) }
@@ -185,6 +187,8 @@ internal object ExplorerMirror {
                 drops.filterTo(HashSet()) { it == marked.relative }
             }
         }
+        // The whole folder freed: its mark goes once every drop in it succeeded. "" names the folder itself.
+        if (rootPin == Pin.UNPINNED) cleared[ROOT] = drops.toSet()
         return CopyPlan(copies, cleared)
     }
 
@@ -200,6 +204,9 @@ internal object ExplorerMirror {
     }
 
     private const val MASS_REMOVAL_FLOOR = 10
+
+    /** How [CopyPlan.cleared] names the Tenshu Drive folder itself. */
+    const val ROOT = ""
 
     /** Folder rows for any ancestor the listing left out, so every file has a parent to be created in. */
     private fun withAncestors(remote: List<Remote>): List<Remote> {
