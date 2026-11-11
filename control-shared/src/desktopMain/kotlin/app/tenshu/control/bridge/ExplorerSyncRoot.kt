@@ -69,9 +69,13 @@ internal class ExplorerSyncRoot(
     private val fetchers = Executors.newFixedThreadPool(FETCH_THREADS) { r ->
         Thread(r, "explorer-fetch").apply { isDaemon = true }
     }
-    /** Transfers being served, and those of them Windows cancelled; only an active one can be cancelled. */
+    /**
+     * Transfers being served, and the byte ranges of them Windows cancelled; only an active one can be cancelled.
+     * ⚠ A cancel may name only part of a request — the rest is still wanted by other readers — so it is a range, not a
+     * flag on the whole transfer.
+     */
     private val active = ConcurrentHashMap.newKeySet<Long>()
-    private val cancelled = ConcurrentHashMap.newKeySet<Long>()
+    private val cancelled = ConcurrentHashMap<Long, MutableList<LongRange>>()
 
     /** When a pass first proposed a mass removal that has not been confirmed yet ([MASS_REMOVAL_CONFIRM_MILLIS]). */
     @Volatile private var massRemovalSince: Long? = null
@@ -384,8 +388,10 @@ internal class ExplorerSyncRoot(
         }
 
         override fun cancelFetchData(cancel: WindowsCloudFiles.CancelFetchData) {
-            // A cancel for a transfer already finished would otherwise stay in the set for good.
-            if (cancel.transferKey in active) cancelled += cancel.transferKey
+            // A cancel for a transfer already finished would otherwise stay in the map for good.
+            if (cancel.transferKey !in active || cancel.length <= 0) return
+            cancelled.computeIfAbsent(cancel.transferKey) { java.util.Collections.synchronizedList(ArrayList()) }
+                .add(cancel.offset until cancel.offset + cancel.length)
         }
     }
 
@@ -454,7 +460,11 @@ internal class ExplorerSyncRoot(
     }
 
     private fun deliver(request: WindowsCloudFiles.FetchData, offset: Long, bytes: ByteArray) {
-        check(request.transferKey !in cancelled) { "cancelled" }
+        // A chunk wholly inside a cancelled range is no longer wanted: skipped, not failed — failing would fail the
+        // whole request, bytes other readers still wait for included.
+        val end = offset + bytes.size
+        val ranges = cancelled[request.transferKey]?.let { synchronized(it) { it.toList() } }.orEmpty()
+        if (ranges.any { offset >= it.first && end - 1 <= it.last }) return
         val hr = request.transfer(offset, bytes) ?: error("CfAPI unavailable")
         check(CloudFilesHResult.succeeded(hr)) { "CfExecute(TRANSFER_DATA) at $offset -> ${CloudFilesHResult.describe(hr)}" }
     }
