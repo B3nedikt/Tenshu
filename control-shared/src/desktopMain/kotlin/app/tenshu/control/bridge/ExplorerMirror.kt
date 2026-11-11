@@ -38,6 +38,8 @@ internal object ExplorerMirror {
         val online: Boolean = false,
         /** The content version its identity was made for; `null` when unknown. */
         val contentVersion: String? = null,
+        /** The realm path its identity names — what a fetch reads; `null` when unknown. */
+        val identityPath: String? = null,
     )
 
     /** "Always keep on this device" ([PINNED]) and "Free up space" ([UNPINNED]). */
@@ -101,9 +103,13 @@ internal object ExplorerMirror {
                 }
                 // ⚠ The version too: an overwrite can keep both the size and the content date, and a stale
                 // placeholder fails every fetch (its version no longer matches the row's).
+                // ⚠ And the path: NTFS matches a case-only rename (`photo.jpg` → `Photo.jpg`) to the old placeholder,
+                // whose identity still names the old path, which no longer exists — every fetch would fail. Folders
+                // are never fetched, so theirs does not matter.
                 !row.isFolder && (
                     found.size != row.size || found.modifiedAtMillis != row.modifiedAtMillis ||
-                        (found.contentVersion != null && found.contentVersion != row.contentVersion)
+                        (found.contentVersion != null && found.contentVersion != row.contentVersion) ||
+                        (found.identityPath != null && found.identityPath != row.path)
                     ) -> {
                     removals[key] = Action.Remove(found.relative, isFolder = false)
                     creations += Action.Create(relative, row, pinned = found.pin == Pin.PINNED)
