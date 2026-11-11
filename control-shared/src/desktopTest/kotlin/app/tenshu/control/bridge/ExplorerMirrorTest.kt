@@ -192,6 +192,30 @@ class ExplorerMirrorTest {
     }
 
     @Test
+    fun theWholeFolderKeptOnThisDevice_downloadsEveryUnmarkedFile_includingNewOnes() {
+        val local = listOf(
+            placeholderFolder("a"),
+            placeholder("a/new.jpg").copy(online = true),
+            placeholder("top.jpg").copy(online = true),
+            placeholder("freed.jpg").copy(pin = ExplorerMirror.Pin.UNPINNED, online = true),
+        )
+        val plan = ExplorerMirror.copies(local, rootPin = ExplorerMirror.Pin.PINNED)
+        assertEquals(mapOf("a/new.jpg" to ExplorerMirror.Copy.DOWNLOAD, "top.jpg" to ExplorerMirror.Copy.DOWNLOAD), plan.copies)
+    }
+
+    @Test
+    fun theWholeFolderFreed_dropsEveryCopy_andItsMarkWaitsForAllOfThem() {
+        val local = listOf(
+            placeholderFolder("a"),
+            placeholder("a/x.jpg").copy(online = false),
+            placeholder("y.jpg").copy(online = false),
+        )
+        val plan = ExplorerMirror.copies(local, rootPin = ExplorerMirror.Pin.UNPINNED)
+        assertEquals(setOf("a/x.jpg", "y.jpg"), plan.copies.keys)
+        assertEquals(setOf("a/x.jpg", "y.jpg"), plan.cleared[ExplorerMirror.ROOT])
+    }
+
+    @Test
     fun theUsersOwnFilesAreNeverDownloadedOrDropped_norTheirMarksCleared() {
         val mine = listOf(usersFile("mine.txt").copy(pin = ExplorerMirror.Pin.UNPINNED))
         assertEquals(emptyMap(), ExplorerMirror.copies(mine).copies)

@@ -881,7 +881,10 @@ off by default while the folder is read-only. Log: `diagnostics/explorer.log`.
   a second "Free up space" would set nothing new. A mark is cleared only once every drop it asked for succeeded (a
   file open elsewhere fails with `ERROR_CLOUD_FILE_IN_USE`), so that file is tried again. All of these run on
   attribute-only handles that download nothing. A file without a mark of its own
-  follows the nearest marked folder above it (`ExplorerMirror.copies`). A replaced file keeps its pin
+  follows the nearest marked folder above it (`ExplorerMirror.copies`), and finally the Tenshu Drive folder's own mark
+  ("Always keep" on the whole folder covers files that arrive later). ⚠ A mark on the folder itself is not a change
+  *inside* it, so no watch reports it: the 60 s pass picks it up (measured: all 28 photos downloaded one by one, ~1 s
+  each, then all dropped and the mark cleared). A replaced file keeps its pin
   (`CfSetPinState`). An opened file without a mark keeps its copy until freed.
 - **Stopping** (quit, or the switch going off) waits up to 10 s for a pass in flight, so a pass still creating
   placeholders cannot outlive their deletion. A start Windows refuses leaves the switch off.
