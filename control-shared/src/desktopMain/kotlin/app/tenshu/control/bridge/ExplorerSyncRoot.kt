@@ -563,7 +563,16 @@ internal class ExplorerSyncRoot(
                     Files.walk(root).use { s -> s.filter { it != root }.toList() }
                         .sortedByDescending { it.nameCount }
                         .filter { ourPlaceholder(it) != null }
-                        .forEach { if (deleteIfStillOurs(root, it, log) == Deletion.FAILED) failed++ }
+                        .forEach { entry ->
+                            // ⚠ A folder of ours still holding the user's files stays, and is not a failure: it is
+                            // done. Counted as one, the cleanup would never finish and never unregister.
+                            if (Files.isDirectory(entry, LinkOption.NOFOLLOW_LINKS) &&
+                                Files.list(entry).use { it.findFirst().isPresent }
+                            ) {
+                                return@forEach
+                            }
+                            if (deleteIfStillOurs(root, entry, log) == Deletion.FAILED) failed++
+                        }
                 }
             }.onFailure {
                 log("explorer: removing placeholders failed: $it")
