@@ -9,6 +9,9 @@ namespace Tenshu.TrayAgent;
 /// </summary>
 public static class Program
 {
+    /// <summary>The argument Control's AppxManifest gives the thumbnail ExeServer (desktop-msix.gradle.kts).</summary>
+    public const string ThumbnailServerArgument = "--thumbnail-server";
+
     [STAThread]
     public static int Main(string[] args)
     {
@@ -39,9 +42,21 @@ public static class Program
             return LoginStart.RunCli(args[1], Console.Out);
         }
 
+        // Started by COM to draw Explorer thumbnails (the manifest's ExeServer for ThumbnailProvider) while no tray is
+        // running: serve them, show nothing, exit once idle. A running tray serves them itself (App.OnLaunched).
+        if (args.Contains(ThumbnailServerArgument))
+        {
+            WinRT.ComWrappersSupport.InitializeComWrappers();
+            ThumbnailServer.RunUntilIdle(TimeSpan.FromMinutes(2));
+            return 0;
+        }
+
         // One tray per user session: Control may start the agent again while one is already running.
         using var single = new Mutex(initiallyOwned: true, @"Local\Tenshu.TrayAgent", out var first);
         if (!first) return 0;
+        // A thumbnail server that died left its pid behind; were it this process's pid now, Control's supervisor would
+        // pass over the real tray (ThumbnailServer.PidFile).
+        ThumbnailServer.ForgetStalePid();
 
         // Packaged (a child of the Control MSIX): the Windows App Runtime comes from the package graph, through the
         // dependency Control's manifest declares. Standalone (a dev run): attach to the installed runtime by hand.

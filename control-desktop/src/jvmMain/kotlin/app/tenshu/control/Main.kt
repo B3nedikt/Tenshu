@@ -34,6 +34,7 @@ import app.tenshu.diagnostics.FileDiagnosticSink
 import app.tenshu.diagnostics.LogLevel
 import app.tenshu.control.bridge.registerDataMethods
 import app.tenshu.control.bridge.ExplorerIntegration
+import app.tenshu.control.bridge.registerExplorerMethods
 import app.tenshu.control.bridge.FileProviderBridgeState
 import app.tenshu.control.bridge.registerFileMethods
 import app.tenshu.control.bridge.registerFileWriteMethods
@@ -253,6 +254,8 @@ fun main() {
     // to join (HostPairingMonitor.activeRequest) so the tray can alert on the
     // close-to-tray case; tap → focus Control → the in-app approval modal. SAS-free.
     nativeBridgeServer.registerPairingApprovalMethod(koinApp.koin)
+    // Windows: Explorer's thumbnails for the Tenshu Drive folder, asked for by the tray agent (desktop-windows-port.md §7.9).
+    if (onWindows) nativeBridgeServer.registerExplorerMethods(koinApp.koin)
     nativeBridgeServer.start()
 
     // Windows: Drive in File Explorer, when switched on (desktop-windows-port.md §7.8). Off the main thread —

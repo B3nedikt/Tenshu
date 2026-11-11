@@ -281,6 +281,40 @@ fun NativeBridgeServer.registerFileMethods(koin: Koin, state: FileProviderBridge
 }
 
 /**
+ * Registers the bridge method behind Explorer's thumbnails for the Tenshu Drive folder (desktop-windows-port.md §7.9,
+ * X2), called by the tray agent's `ThumbnailProvider`:
+ *
+ *  - `explorer.v1.thumbnail(path, size)` — [path] is the Windows path Explorer asked about; the answer is
+ *    [thumbnailResult] of the file's stored thumbnail class, by the same rule as Finder's ([storedThumbnail]).
+ *
+ * ⚠⚠ The realm path comes from the placeholder's own identity ([ExplorerSyncRoot.realmPathOf]), never from the Windows
+ * path's text, and nothing reads the file: a thumbnail must not download what it shows.
+ */
+fun NativeBridgeServer.registerExplorerMethods(koin: Koin) {
+    val gate = Semaphore(THUMBNAIL_CONCURRENCY)
+    register("explorer.v1.thumbnail") { params ->
+        val windowsPath = try {
+            java.nio.file.Path.of(params.require("path"))
+        } catch (e: java.nio.file.InvalidPathException) {
+            throw BridgeException("invalid_request", "'path' is not a path")
+        }
+        val maxEdge = params.requireEdge("size")
+        val realmPath = ExplorerSyncRoot.realmPathOf(windowsPath)
+            ?: throw BridgeException("not_found", "not a Tenshu Drive file")
+        val bytes = runBlocking {
+            try {
+                withTimeout(THUMBNAIL_TIMEOUT) {
+                    gate.withPermit { koin.fileSystem().storedThumbnail(realmPath, maxEdge) }
+                }
+            } catch (e: TimeoutCancellationException) {
+                throw BridgeException("unavailable", "thumbnail for '$realmPath' timed out")
+            }
+        }
+        thumbnailResult(bytes)
+    }
+}
+
+/**
  * Registers the native-bridge **file-write** methods that back the macOS Drive
  * File Provider's write path (docs/proposals/desktop-macos-integration.md §6):
  *
