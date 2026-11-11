@@ -303,17 +303,21 @@ internal class ExplorerSyncRoot(
      */
     private fun pinPass() {
         if (!root.isDirectory()) return
-        val plan = ExplorerMirror.copies(localEntries(), previousMarks)
-        previousMarks = plan.effective
+        val previous = previousMarks
+        val plan = ExplorerMirror.copies(localEntries(), previous)
+        val marks = plan.effective.toMutableMap()
         for ((relative, copy) in plan.copies) {
             val path = root.resolve(relative)
             val hr = when (copy) {
                 ExplorerMirror.Copy.DOWNLOAD -> WindowsCloudFiles.hydrate(path)
                 ExplorerMirror.Copy.DROP -> WindowsCloudFiles.dehydrate(path)
             } ?: continue
-            // A file open elsewhere cannot be freed; the next pin pass tries again.
+            // ⚠ A file open elsewhere cannot be freed. Its mark is remembered as it was before, so the free request
+            // still reads as new to the next pin pass and is tried again — not forgotten after one failure.
+            if (copy == ExplorerMirror.Copy.DROP && !CloudFilesHResult.succeeded(hr)) previous[relative]?.let { marks[relative] = it }
             log("explorer: ${copy.name.lowercase()} '$relative' -> ${CloudFilesHResult.describe(hr)}")
         }
+        previousMarks = marks
     }
 
     /**
