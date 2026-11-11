@@ -132,7 +132,17 @@ class ExplorerMirrorTest {
     fun aReplacedFileKeepsItsAlwaysKeepMark() {
         val pinned = placeholder("a.txt").copy(pin = ExplorerMirror.Pin.PINNED)
         val plan = ExplorerMirror.plan(listOf(file("/a.txt", size = 20)), listOf(pinned))
-        assertEquals(true, (plan.last() as Create).pinned)
+        assertEquals(ExplorerMirror.Pin.PINNED, (plan.last() as Create).pin)
+    }
+
+    @Test
+    fun aReplacedFileKeepsItsFreeMark_tooSoItDoesNotFollowAKeptFolderBackDown() {
+        val freed = placeholder("a/big.mov").copy(pin = ExplorerMirror.Pin.UNPINNED)
+        val plan = ExplorerMirror.plan(
+            listOf(folder("/a"), file("/a/big.mov", size = 20)),
+            listOf(placeholderFolder("a").copy(pin = ExplorerMirror.Pin.PINNED), freed),
+        )
+        assertEquals(ExplorerMirror.Pin.UNPINNED, (plan.last() as Create).pin)
     }
 
     @Test

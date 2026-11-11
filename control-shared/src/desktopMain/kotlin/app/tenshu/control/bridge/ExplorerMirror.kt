@@ -52,10 +52,11 @@ internal object ExplorerMirror {
         data class Remove(override val relative: String, val isFolder: Boolean) : Action
 
         /**
-         * Create a placeholder for [remote] at [relative] (its parent exists by then). [pinned]: the file it
-         * replaces was marked "Always keep on this device", and the replacement keeps that mark.
+         * Create a placeholder for [remote] at [relative] (its parent exists by then). [pin]: the mark of the file it
+         * replaces, which the replacement keeps — "Always keep", or a free mark standing as an exception inside a kept
+         * folder (lost, the new version would follow the folder and download).
          */
-        data class Create(override val relative: String, val remote: Remote, val pinned: Boolean = false) : Action
+        data class Create(override val relative: String, val remote: Remote, val pin: Pin = Pin.NONE) : Action
     }
 
     /**
@@ -112,7 +113,7 @@ internal object ExplorerMirror {
                         (found.identityPath != null && found.identityPath != row.path)
                     ) -> {
                     removals[key] = Action.Remove(found.relative, isFolder = false)
-                    creations += Action.Create(relative, row, pinned = found.pin == Pin.PINNED)
+                    creations += Action.Create(relative, row, pin = found.pin)
                 }
             }
         }
