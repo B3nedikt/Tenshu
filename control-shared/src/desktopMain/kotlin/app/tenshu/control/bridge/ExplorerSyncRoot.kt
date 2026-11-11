@@ -480,8 +480,11 @@ internal class ExplorerSyncRoot(
          * a path elsewhere). ⚠ Reads the placeholder's info only; nothing is opened for data, so nothing downloads.
          */
         fun realmPathOf(windowsPath: Path, root: Path = defaultRoot()): String? {
-            val path = windowsPath.toAbsolutePath().normalize()
-            if (!path.startsWith(root.toAbsolutePath().normalize()) || path == root) return null
+            // Real paths, not the text: a junction inside the folder must not lead the identity read outside it.
+            // ⚠ Resolving links reads no file's data.
+            val path = runCatching { windowsPath.toRealPath() }.getOrNull() ?: return null
+            val realRoot = runCatching { root.toRealPath() }.getOrNull() ?: return null
+            if (!path.startsWith(realRoot) || path == realRoot) return null
             if (Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) return null
             return ourPlaceholder(path)?.identity?.path
         }

@@ -81,7 +81,9 @@ public sealed partial class ThumbnailProvider : IInitializeWithItem, IThumbnailP
         }
         stream.Seek(0);
         var decoder = BitmapDecoder.CreateAsync(stream).AsTask().GetAwaiter().GetResult();
+        // The transform scales the stored pixels, then the EXIF rotation turns them: a quarter turn swaps the sides.
         var (width, height) = Fit(decoder.PixelWidth, decoder.PixelHeight, maxEdge);
+        var turned = decoder.OrientedPixelWidth != decoder.PixelWidth;
         var transform = new BitmapTransform
         {
             ScaledWidth = width,
@@ -92,9 +94,7 @@ public sealed partial class ThumbnailProvider : IInitializeWithItem, IThumbnailP
             BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied, transform,
             ExifOrientationMode.RespectExifOrientation, ColorManagementMode.DoNotColorManage).AsTask().GetAwaiter().GetResult();
         var data = pixels.DetachPixelData();
-        // RespectExifOrientation may swap the sides; the pixel count says which way round they came out.
-        if (data.Length != width * height * 4) (width, height) = (height, width);
-        return Dib.Create((int)width, (int)height, data);
+        return turned ? Dib.Create((int)height, (int)width, data) : Dib.Create((int)width, (int)height, data);
     }
 
     /// <summary>Scaled down to fit <paramref name="maxEdge"/>, never up: Explorer scales a small picture itself.</summary>
@@ -199,7 +199,8 @@ public static partial class ThumbnailServer
         }
         finally
         {
-            try { File.Delete(pidFile); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            // Only while it still names this process: a second server may have written its own pid since.
+            ForgetStalePid();
         }
     }
 
@@ -231,8 +232,12 @@ public static partial class ThumbnailServer
             CoInitializeEx(IntPtr.Zero, CoinitMultithreaded);
             var factory = Wrappers.GetOrCreateComInterfaceForObject(new ClassFactory(), CreateComInterfaceFlags.None);
             var clsid = ThumbnailProvider.Clsid;
-            var hr = CoRegisterClassObject(ref clsid, factory, ClsctxLocalServer, RegclsMultipleUse, out _);
-            if (hr < 0) return;
+            // ⚠ Retried: a thumbnail server Windows started while no tray ran may still hold the class when the tray
+            // starts. Giving up would leave the tray serving nothing, and every later burst start a new server.
+            while (CoRegisterClassObject(ref clsid, factory, ClsctxLocalServer, RegclsMultipleUse, out _) < 0)
+            {
+                Thread.Sleep(5000);
+            }
             Thread.Sleep(Timeout.Infinite); // the registration lives as long as the process
         }
         catch (Exception)
