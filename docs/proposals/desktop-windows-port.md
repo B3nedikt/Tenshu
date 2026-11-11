@@ -928,7 +928,9 @@ Without a handler, Explorer downloads an online-only photo to draw its icon (see
   Control reads the **realm path from the placeholder's identity** (never from the path's text) and answers with the
   stored thumbnail class by Finder's rule (`storedThumbnail`): `LIST` or `LARGE`, pulled once if not on this device yet.
   ⚠⚠ Never the file's bytes and never `File.Preview`. The agent decodes it with the OS's codecs
-  (`BitmapDecoder`: JPEG, PNG and Android's WebP), scaled down to fit, into a 32-bpp DIB.
+  (`BitmapDecoder`: JPEG, PNG and Android's WebP) into a 32-bpp DIB, scaled to the size Explorer asked for — ⚠ up
+  as well as down: Explorer does not enlarge a smaller one, so at Large icons the 256 px class drew visibly smaller
+  than downloaded photos, which Windows draws from the full image (seen by the maintainer).
 - **When no tray is running**, Windows starts the agent itself (`tray-agent --thumbnail-server -Embedding`); it serves
   with no icon and exits after two idle minutes. It writes its pid to `thumbnail-server.pid` in the socket directory,
   and Control's tray supervisor passes over that process — ⚠ otherwise, found by path, it would be taken for the
@@ -948,8 +950,14 @@ was once downloaded proves nothing: Windows' thumbnail cache answers.
 it **unregisters the sync root and deletes every online-only placeholder** — 37 entries became 9: the folders, the one
 downloaded photo and the user's own file stayed. So an uninstall leaves no orphaned Explorer entry, and nothing of
 the user's goes. ⚠ What survives changes kind: the folders and the downloaded copy become **ordinary** files and
-folders (no reparse point; the copy keeps `READONLY`). After a reinstall Control re-registers and refills the folder,
-but by the "only ours" rule (§7.8) it treats those survivors as the user's: the copy is never updated or removed again,
-and turning the switch off leaves those folders behind. Reinstalling is also what every side-load update does
+folders (no reparse point; the copy keeps `READONLY`), which Explorer then shows as **"Sync pending"** — the arrows
+of a download that never ends (seen by the maintainer). So Control **adopts** them back (`ExplorerMirror.Action.Adopt`,
+`CfConvertToPlaceholder`): ⚠⚠ a file only once its bytes hash — `wholeFileHashOf`'s 2 MiB fold — to exactly the row's
+`File.ContentHash`, on an exclusive handle; a folder at a realm folder's path on a shared one (Explorer always has a
+folder open, so an exclusive open fails). Anything that does not match is the user's and stays untouched; a
+mismatch is not hashed again until the file changes, and a failed conversion waits 10 min. Measured: all five
+leftover photos read "Available on this device" again. ⚠ *Open:* an adopted **folder** still reads "Sync pending"
+(the same folder created as a placeholder reads "Available when online"); neither `CfSetInSyncState` nor
+`CfUpdatePlaceholder(DISABLE_ON_DEMAND_POPULATION)` changed it. Cosmetic, and only after a side-load reinstall. Reinstalling is also what every side-load update does
 (`install.ps1` removes the old package first) — a Store update is an in-place upgrade and is not expected to do this
 (*not measured*).

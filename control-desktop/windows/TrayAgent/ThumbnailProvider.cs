@@ -97,12 +97,16 @@ public sealed partial class ThumbnailProvider : IInitializeWithItem, IThumbnailP
         return turned ? Dib.Create((int)height, (int)width, data) : Dib.Create((int)width, (int)height, data);
     }
 
-    /// <summary>Scaled down to fit <paramref name="maxEdge"/>, never up: Explorer scales a small picture itself.</summary>
+    /// <summary>
+    /// Scaled to fit <paramref name="maxEdge"/> — up as well as down. ⚠ Explorer does not enlarge a thumbnail smaller
+    /// than it asked for: at Large icons a stored 256-pixel class came out visibly smaller than the tiles of downloaded
+    /// photos beside it, which Windows draws from the full image. A little soft at the largest views, but even.
+    /// </summary>
     internal static (uint Width, uint Height) Fit(uint width, uint height, uint maxEdge)
     {
         if (width == 0 || height == 0) return (1, 1);
         var longest = Math.Max(width, height);
-        if (maxEdge == 0 || longest <= maxEdge) return (width, height);
+        if (maxEdge == 0 || longest == maxEdge) return (width, height);
         var scale = (double)maxEdge / longest;
         return (Math.Max(1, (uint)Math.Round(width * scale)), Math.Max(1, (uint)Math.Round(height * scale)));
     }

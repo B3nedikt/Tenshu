@@ -23,6 +23,9 @@ import org.tenshu.core.collection.list.select
 import org.tenshu.core.collection.list.toList
 import org.tenshu.core.collection.list.traverse
 import org.tenshu.core.common.TenshuClient
+import org.tenshu.core.common.util.FileContentChunkSizeBytes
+import org.tenshu.core.common.util.IncrementalSha256
+import org.tenshu.core.common.util.toHexLower
 import org.tenshu.core.file.File
 import org.tenshu.core.file.files
 import org.tenshu.core.file.Data
@@ -176,7 +179,11 @@ internal class ExplorerSyncRoot(
         while (scope.isActive) {
             runCatching {
                 koin.fileSystem().root.files.traverse().select { itemProjection() }.flow().collect { passes.trySend(Unit) }
-            }.onFailure { log("explorer: realm listing stopped ($it); retrying") }
+            }.onFailure {
+                // Stopping cancels the listing: that is not a failure to report.
+                if (it is kotlinx.coroutines.CancellationException) throw it
+                log("explorer: realm listing stopped ($it); retrying")
+            }
             delay(REPAIR_INTERVAL_MILLIS)
         }
     }
@@ -215,6 +222,7 @@ internal class ExplorerSyncRoot(
             val ok = when (action) {
                 is ExplorerMirror.Action.Remove -> deletePlaceholder(root.resolve(action.relative))
                 is ExplorerMirror.Action.Create -> create(action)
+                is ExplorerMirror.Action.Adopt -> adopt(action)
             }
             if (!ok) failed++
         }
@@ -232,6 +240,7 @@ internal class ExplorerSyncRoot(
                         size = if (it.isFolder) 0 else it.size,
                         modifiedAtMillis = it.modifiedAtMillis ?: it.createdAtMillis ?: 0L,
                         contentVersion = it.contentVersion,
+                        contentHash = it.contentHash,
                     )
                 }
             },
@@ -303,6 +312,67 @@ internal class ExplorerSyncRoot(
             if (pin != null && !CloudFilesHResult.succeeded(pin)) log("explorer: re-mark '${action.relative}' -> ${CloudFilesHResult.describe(pin)}")
         }
         return true
+    }
+
+    /** Entries whose bytes were found not to be the realm's, by (size, modified): not hashed again until they change. */
+    private val notAdoptable = ConcurrentHashMap<String, Pair<Long, Long>>()
+
+    /** When converting an entry last failed (a file open elsewhere): not tried again for [ADOPT_RETRY_MILLIS]. */
+    private val adoptFailedAt = ConcurrentHashMap<String, Long>()
+
+    /**
+     * Makes an ordinary entry ours again ([ExplorerMirror.Action.Adopt]). ⚠⚠ A file only when its bytes hash — the realm's
+     * own construction, `wholeFileHashOf`'s 2 MiB fold — to exactly the row's content hash: then they *are* the realm's
+     * bytes and converting loses nothing. Otherwise it is the user's, and stays untouched. Reading an ordinary file
+     * downloads nothing.
+     */
+    private fun adopt(action: ExplorerMirror.Action.Adopt): Boolean {
+        val row = action.remote
+        val path = root.resolve(action.relative)
+        adoptFailedAt[action.relative]?.let { if (System.currentTimeMillis() - it < ADOPT_RETRY_MILLIS) return false }
+        if (!row.isFolder) {
+            val before = Files.readAttributes(path, DosFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+            val stamp = before.size() to before.lastModifiedTime().toMillis()
+            if (notAdoptable[action.relative] == stamp) return false
+            val matches = runCatching { localContentHash(path) == row.contentHash }.getOrDefault(false)
+            val after = Files.readAttributes(path, DosFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+            if (!matches || after.size() to after.lastModifiedTime().toMillis() != stamp) {
+                notAdoptable[action.relative] = stamp
+                return false
+            }
+            // Read-only refuses the write access the conversion needs; it is put back, as on every placeholder.
+            Files.setAttribute(path, "dos:readonly", false, LinkOption.NOFOLLOW_LINKS)
+        }
+        val hr = WindowsCloudFiles.convertToPlaceholder(
+            path, ExplorerIdentity(row.path, row.contentVersion).encode(), directory = row.isFolder,
+        ) ?: return false
+        if (!row.isFolder) runCatching { Files.setAttribute(path, "dos:readonly", true, LinkOption.NOFOLLOW_LINKS) }
+        log("explorer: adopt '${action.relative}' -> ${CloudFilesHResult.describe(hr)}")
+        if (CloudFilesHResult.succeeded(hr)) {
+            notAdoptable.remove(action.relative)
+            adoptFailedAt.remove(action.relative)
+        } else {
+            adoptFailedAt[action.relative] = System.currentTimeMillis()
+        }
+        return CloudFilesHResult.succeeded(hr)
+    }
+
+    /** `File.ContentHash` of a local file, folded exactly as `wholeFileHashOf` does, one 2 MiB chunk in memory. */
+    private fun localContentHash(path: Path): String {
+        val hasher = IncrementalSha256()
+        var folded = false
+        Files.newInputStream(path).use { input ->
+            val chunk = ByteArray(FileContentChunkSizeBytes)
+            while (true) {
+                val filled = input.readNBytes(chunk, 0, chunk.size)
+                if (filled <= 0) break
+                hasher.update(if (filled == chunk.size) chunk.copyOf() else chunk.copyOf(filled))
+                folded = true
+                if (filled < chunk.size) break
+            }
+        }
+        if (!folded) hasher.update(ByteArray(0))
+        return hasher.digest().toHexLower()
     }
 
     /**
@@ -503,6 +573,7 @@ internal class ExplorerSyncRoot(
         private const val MAX_IDENTITY_BYTES = 4096
 
         private const val STOP_TIMEOUT_MILLIS = 10_000L
+        private const val ADOPT_RETRY_MILLIS = 10 * 60_000L
         private const val MASS_REMOVAL_CONFIRM_MILLIS = 30_000L
 
         /** `%USERPROFILE%\Tenshu Drive`. */
