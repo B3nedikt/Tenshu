@@ -19,6 +19,8 @@ internal object ExplorerMirror {
         val size: Long,
         val modifiedAtMillis: Long,
         val contentVersion: String,
+        /** The realm's whole-file hash of the bytes (`File.ContentHash`); `null` for rows older than it. */
+        val contentHash: String? = null,
     )
 
     /**
@@ -57,6 +59,14 @@ internal object ExplorerMirror {
          * folder (lost, the new version would follow the folder and download).
          */
         data class Create(override val relative: String, val remote: Remote, val pin: Pin = Pin.NONE) : Action
+
+        /**
+         * Make the ordinary entry at [relative] one of ours again, bytes kept — what a reinstall leaves behind (§7.9):
+         * Windows turns our downloaded copies and folders into ordinary ones, which then read "Sync pending" for good.
+         * ⚠⚠ A **candidate** only: a file is adopted only once its bytes are proven to hash to [remote]'s content
+         * hash. Anything else is the user's and stays exactly as it is.
+         */
+        data class Adopt(override val relative: String, val remote: Remote) : Action
     }
 
     /**
@@ -89,6 +99,7 @@ internal object ExplorerMirror {
         val localByKey = local.associateBy { key(it.relative) }
         val removals = HashMap<String, Action.Remove>()
         val creations = ArrayList<Action.Create>()
+        val adoptions = ArrayList<Action.Adopt>()
         val blocked = HashSet<String>() // keys whose row cannot be shown: something of the user's is there
 
         for ((key, entry) in wanted) {
@@ -97,7 +108,15 @@ internal object ExplorerMirror {
             val found = localByKey[key]
             when {
                 found == null -> creations += Action.Create(relative, row)
-                !found.isPlaceholder -> if (found.isFolder != row.isFolder || !row.isFolder) blocked += key
+                !found.isPlaceholder -> {
+                    if (found.isFolder != row.isFolder || !row.isFolder) blocked += key
+                    // Same kind and, for a file, the same size and a hash to prove it by: worth a look.
+                    if (found.isFolder == row.isFolder &&
+                        (row.isFolder || (found.size == row.size && row.contentHash != null))
+                    ) {
+                        adoptions += Action.Adopt(relative, row)
+                    }
+                }
                 found.isFolder != row.isFolder -> {
                     removals[key] = Action.Remove(found.relative, found.isFolder)
                     creations += Action.Create(relative, row)
@@ -135,7 +154,7 @@ internal object ExplorerMirror {
         // A folder that must stay cannot be replaced by the file the realm now has there.
         val stuck = removals.keys - removable.keys
         return removable.values.sortedByDescending { depth(it.relative) } +
-            creations.filter { key(it.relative) !in stuck }.sortedBy { depth(it.relative) }
+            (adoptions + creations.filter { key(it.relative) !in stuck }).sortedBy { depth(it.relative) }
     }
 
     /** What to do about one file's local copy. */

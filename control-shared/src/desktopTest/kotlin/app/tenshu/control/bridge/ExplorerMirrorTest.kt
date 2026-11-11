@@ -1,5 +1,6 @@
 package app.tenshu.control.bridge
 
+import app.tenshu.control.bridge.ExplorerMirror.Action.Adopt
 import app.tenshu.control.bridge.ExplorerMirror.Action.Create
 import app.tenshu.control.bridge.ExplorerMirror.Action.Remove
 import kotlin.test.Test
@@ -87,9 +88,19 @@ class ExplorerMirrorTest {
     }
 
     @Test
-    fun realmChildrenAreShownInsideAFolderTheUserMade() {
+    fun realmChildrenAreShownInsideAnOrdinaryFolder_whichIsAdoptedAsOurs() {
         val plan = ExplorerMirror.plan(listOf(folder("/a"), file("/a/b.txt")), listOf(usersFolder("a")))
-        assertEquals(listOf(Create("a/b.txt", file("/a/b.txt"))), plan)
+        assertEquals(listOf(Adopt("a", folder("/a")), Create("a/b.txt", file("/a/b.txt"))), plan)
+    }
+
+    @Test
+    fun anOrdinaryFileOfTheRowsSizeIsACandidateForAdoption_onlyWithAHashToProveIt() {
+        val leftover = ExplorerMirror.Local("a.jpg", isFolder = false, isPlaceholder = false, size = 10, modifiedAtMillis = 1_000)
+        val hashed = file("/a.jpg").copy(contentHash = "abc")
+        assertEquals(listOf(Adopt("a.jpg", hashed)), ExplorerMirror.plan(listOf(hashed), listOf(leftover)))
+        // No hash to compare with, or another size: it is the user's, nothing to do.
+        assertEquals(emptyList(), ExplorerMirror.plan(listOf(file("/a.jpg")), listOf(leftover)))
+        assertEquals(emptyList(), ExplorerMirror.plan(listOf(hashed.copy(size = 11)), listOf(leftover)))
     }
 
     @Test
