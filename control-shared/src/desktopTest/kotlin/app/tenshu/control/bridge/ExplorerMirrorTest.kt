@@ -194,6 +194,16 @@ class ExplorerMirrorTest {
     }
 
     @Test
+    fun aCaseOnlyRenameReplacesTheFile_soItsIdentityNamesThePathThatExists() {
+        val old = placeholder("photo.jpg").copy(contentVersion = "v1", identityPath = "/photo.jpg")
+        val plan = ExplorerMirror.plan(listOf(file("/Photo.jpg")), listOf(old))
+        assertEquals(listOf(Remove("photo.jpg", false), Create("Photo.jpg", file("/Photo.jpg"))), plan)
+        // A file whose identity names its own path needs nothing.
+        val same = old.copy(relative = "Photo.jpg", identityPath = "/Photo.jpg")
+        assertEquals(emptyList(), ExplorerMirror.plan(listOf(file("/Photo.jpg")), listOf(same)))
+    }
+
+    @Test
     fun removingMostOfTheFolderIsAMassRemoval_replacingItIsNot() {
         val local = (1..20).map { placeholder("f$it.txt") }
         assertTrue(ExplorerMirror.isMassRemoval(ExplorerMirror.plan(emptyList(), local), local))

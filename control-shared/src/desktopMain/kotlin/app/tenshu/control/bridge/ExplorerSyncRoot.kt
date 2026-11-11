@@ -251,6 +251,7 @@ internal class ExplorerSyncRoot(
                 isFolder = attributes.isDirectory,
                 isPlaceholder = ours != null && (attributes.isDirectory || ours.inSync),
                 contentVersion = ours?.identity?.contentVersion,
+                identityPath = ours?.identity?.path,
                 size = if (attributes.isDirectory) 0 else attributes.size(),
                 modifiedAtMillis = attributes.lastModifiedTime().toMillis(),
                 pin = when {
