@@ -287,10 +287,16 @@ internal class ExplorerSyncRoot(
             log("explorer: create '${action.relative}' -> ${CloudFilesHResult.describe(hr)}")
             return false
         }
-        // A replaced file the user kept on this device stays kept; the pin pass downloads the new version.
-        if (action.pinned) {
-            val pin = WindowsCloudFiles.setPinState(root.resolve(action.relative), WindowsCloudFiles.PIN_STATE_PINNED)
-            if (pin != null && !CloudFilesHResult.succeeded(pin)) log("explorer: re-pin '${action.relative}' -> ${CloudFilesHResult.describe(pin)}")
+        // A replaced file keeps its mark: kept stays kept (the pin pass downloads the new version), and a free mark
+        // standing inside a kept folder stays, or the new version would follow the folder and download.
+        val state = when (action.pin) {
+            ExplorerMirror.Pin.PINNED -> WindowsCloudFiles.PIN_STATE_PINNED
+            ExplorerMirror.Pin.UNPINNED -> WindowsCloudFiles.PIN_STATE_UNPINNED
+            ExplorerMirror.Pin.NONE -> null
+        }
+        if (state != null) {
+            val pin = WindowsCloudFiles.setPinState(root.resolve(action.relative), state)
+            if (pin != null && !CloudFilesHResult.succeeded(pin)) log("explorer: re-mark '${action.relative}' -> ${CloudFilesHResult.describe(pin)}")
         }
         return true
     }
