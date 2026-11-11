@@ -216,6 +216,22 @@ class ExplorerMirrorTest {
     }
 
     @Test
+    fun aFileFreedInsideAKeptFolderKeepsItsFreeMark_soItIsNotDownloadedStraightBack() {
+        val local = listOf(
+            placeholderFolder("a").copy(pin = ExplorerMirror.Pin.PINNED),
+            placeholder("a/big.mov").copy(pin = ExplorerMirror.Pin.UNPINNED, online = false),
+            placeholder("loose.jpg").copy(pin = ExplorerMirror.Pin.UNPINNED, online = false),
+            placeholder("kept-root.jpg").copy(pin = ExplorerMirror.Pin.UNPINNED, online = false),
+        )
+        val plan = ExplorerMirror.copies(local)
+        assertEquals(setOf("a/big.mov", "loose.jpg", "kept-root.jpg"), plan.copies.keys)
+        // Only the free mark with no kept folder above it is cleared.
+        assertEquals(setOf("loose.jpg", "kept-root.jpg"), plan.cleared.keys)
+        // And with the whole folder kept, none is.
+        assertEquals(emptySet(), ExplorerMirror.copies(local, rootPin = ExplorerMirror.Pin.PINNED).cleared.keys)
+    }
+
+    @Test
     fun theUsersOwnFilesAreNeverDownloadedOrDropped_norTheirMarksCleared() {
         val mine = listOf(usersFile("mine.txt").copy(pin = ExplorerMirror.Pin.UNPINNED))
         assertEquals(emptyMap(), ExplorerMirror.copies(mine).copies)

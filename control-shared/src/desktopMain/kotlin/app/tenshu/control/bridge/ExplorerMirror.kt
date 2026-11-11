@@ -159,8 +159,8 @@ internal object ExplorerMirror {
      */
     fun copies(local: List<Local>, rootPin: Pin = Pin.NONE): CopyPlan {
         val folders = local.filter { it.isFolder }.associate { key(it.relative) to it.pin }
-        fun effective(entry: Local): Pin {
-            if (entry.pin != Pin.NONE) return entry.pin
+        /** The mark [entry] would follow without one of its own. */
+        fun inherited(entry: Local): Pin {
             var parent = key(entry.relative).substringBeforeLast('/', "")
             while (parent.isNotEmpty()) {
                 folders[parent]?.takeIf { it != Pin.NONE }?.let { return it }
@@ -170,6 +170,8 @@ internal object ExplorerMirror {
             // the last fallback, so files that arrive later follow it too.
             return rootPin
         }
+
+        fun effective(entry: Local): Pin = if (entry.pin != Pin.NONE) entry.pin else inherited(entry)
         val files = local.filter { it.isPlaceholder && !it.isFolder }
         val copies = files.mapNotNull { entry ->
             when (effective(entry)) {
@@ -179,7 +181,11 @@ internal object ExplorerMirror {
             }
         }.toMap()
         val drops = copies.filterValues { it == Copy.DROP }.keys
-        val cleared: MutableMap<String, Set<String>> = local.filter { it.isPlaceholder && it.pin == Pin.UNPINNED }.associateTo(HashMap()) { marked ->
+        // ⚠ Not under a kept folder: there the free mark is the only thing between the file and the folder's "always
+        // keep", and clearing it would download the file straight back. It stays as a standing exception.
+        val cleared: MutableMap<String, Set<String>> = local
+            .filter { it.isPlaceholder && it.pin == Pin.UNPINNED && inherited(it) != Pin.PINNED }
+            .associateTo(HashMap()) { marked ->
             val prefix = key(marked.relative) + "/"
             marked.relative to if (marked.isFolder) {
                 drops.filterTo(HashSet()) { key(it).startsWith(prefix) }
