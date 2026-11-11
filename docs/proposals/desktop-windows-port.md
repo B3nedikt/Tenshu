@@ -681,6 +681,8 @@ and `FileProviderChangeFeed` — with no bridge on the content path at all.
 
 The bridge stays the seam for the **COM handlers** only (thumbnails, later badges/menu items): a small native
 DLL that Explorer loads, which asks Control over `bridge.sock` — so §3.2's peer gate must admit it.
+*As built (X2, §7.9): not a DLL — the tray agent serves the thumbnail handler as an out-of-process COM server, and is
+already admitted by the bridge's gate.*
 
 ### 7.3 What carries over unchanged
 
@@ -929,7 +931,9 @@ Without a handler, Explorer downloads an online-only photo to draw its icon (see
 ✅ **Device-verified 2026-11-11** with a Shell probe (`IShellItemImageFactory.GetImage`, thumbnail only — Explorer's
 pipeline): a never-downloaded photo got a 144×256 thumbnail and **stayed online-only**; with Control stopped,
 Windows started the agent as `--thumbnail-server -Embedding`, the request failed (`WTS_E_FAILEDEXTRACTION`) and the
-photo **still stayed online-only** — a failed thumbnail does not fall back to downloading. ⚠ A probe of a file that
+photo **still stayed online-only** — a failed thumbnail does not fall back to downloading. An iPhone HEIC got its
+thumbnail too (the stored class is not HEIC, so Windows' optional HEIF codec is not needed). With the thumbnail server
+alive when Control started, the real tray was up 15 s later beside it, and the server left after its idle time. ⚠ A probe of a file that
 was once downloaded proves nothing: Windows' thumbnail cache answers.
 
 **Uninstall (measured 2026-11-11, answers X4's question).** Once the package declares `windows.cloudFiles`, removing

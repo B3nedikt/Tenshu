@@ -133,6 +133,12 @@ private const val THUMBNAIL_CONCURRENCY = 8
  */
 private val THUMBNAIL_TIMEOUT = 20.seconds
 
+/**
+ * Shorter than the tray agent's own bridge timeout (15 s, `BridgeClient.TimeoutMs`): past that the agent has given up,
+ * and a request still working holds a thumbnail slot and a bridge thread for nothing.
+ */
+private val EXPLORER_THUMBNAIL_TIMEOUT = 12.seconds
+
 /** The largest upload the file-service can take: it is handed one `ByteArray`. */
 private const val MAX_UPLOAD_BYTES = Int.MAX_VALUE - 16L
 
@@ -303,7 +309,7 @@ fun NativeBridgeServer.registerExplorerMethods(koin: Koin) {
             ?: throw BridgeException("not_found", "not a Tenshu Drive file")
         val bytes = runBlocking {
             try {
-                withTimeout(THUMBNAIL_TIMEOUT) {
+                withTimeout(EXPLORER_THUMBNAIL_TIMEOUT) {
                     gate.withPermit { koin.fileSystem().storedThumbnail(realmPath, maxEdge) }
                 }
             } catch (e: TimeoutCancellationException) {
