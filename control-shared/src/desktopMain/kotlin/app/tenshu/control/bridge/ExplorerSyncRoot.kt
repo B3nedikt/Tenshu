@@ -26,6 +26,7 @@ import org.tenshu.core.collection.list.toList
 import org.tenshu.core.collection.list.traverse
 import org.tenshu.core.common.TenshuClient
 import java.util.Locale
+import org.tenshu.core.file.system.moveFile
 import org.tenshu.core.common.util.FileContentChunkSizeBytes
 import org.tenshu.core.common.util.IncrementalSha256
 import org.tenshu.core.common.util.toHexLower
@@ -225,7 +226,15 @@ internal class ExplorerSyncRoot(
         }
         val remote = remoteRows() ?: return
         val local = localEntries()
-        val planned = ExplorerMirror.plan(remote, local)
+        // Deletes and renames made in the folder (X3b): planned first, because until they reach the realm the mirror
+        // would undo them and the write path would take a renamed file for a new one.
+        pendingOps = pendingOps + generateSequence { notices.poll() }.toList()
+        val now0 = System.currentTimeMillis()
+        appliedGuards.removeAll { guard -> now0 > guard.until || remote.none { it.path.equals(guard.gone, ignoreCase = true) } }
+        val localPlan = ExplorerLocalOps.plan(pendingOps, remote, local, now0)
+        val guarded = localPlan.guarded + appliedGuards.flatMap { it.keys }
+        fun isGuarded(relative: String) = ExplorerLocalOps.isGuarded(relative.lowercase(Locale.ROOT), guarded)
+        val planned = ExplorerMirror.plan(remote, local).filterNot { isGuarded(it.relative) }
         // ⚠ A listing that comes back empty or partial for a moment (a cold store, a reset) would take every
         // downloaded and pinned copy with it. So a mass removal must be proposed again a while later to be applied —
         // and nothing is written meanwhile: against a partial listing, an edited file looks new or in conflict.
@@ -239,10 +248,19 @@ internal class ExplorerSyncRoot(
         } else {
             massRemovalSince = null
         }
+        if (localPlan.steps.isNotEmpty() || localPlan.dropped.isNotEmpty()) {
+            localPlan.dropped.forEach { log("explorer: not carried to the realm (the folder says otherwise): $it") }
+            val applied = withContext(writeDispatcher) { applyLocalOps(localPlan, remote) }
+            journal.save()
+            if (applied > 0) {
+                passes.trySend(Unit)
+                return
+            }
+        }
         // Writes first (X3, §7.10): what the folder holds that the realm does not. A pass that wrote anything ends
         // there and asks for another, so the mirror below always plans against a realm that includes it.
         val now = System.currentTimeMillis()
-        val writes = ExplorerWrites.candidates(remote, local, journal.snapshot(), now)
+        val writes = ExplorerWrites.candidates(remote, local, journal.snapshot(), now).filterNot { isGuarded(it.relative) }
         // Something still settling is looked at again once it has.
         ExplorerWrites.untilSettled(local, now)?.let { wait ->
             scope.launch {
@@ -275,6 +293,140 @@ internal class ExplorerSyncRoot(
         journal.save()
         pins.trySend(Unit)
     }
+
+    /**
+     * Carries [plan]'s steps to the realm, on the write thread; answers how many did. Every notice of the plan is done
+     * with afterwards except the ones still [ExplorerLocalOps.Plan.waiting] and a failed step's, tried again by the next
+     * pass — given up after [OP_GIVE_UP_MILLIS], when the mirror puts the folder back as the realm has it.
+     */
+    private fun applyLocalOps(plan: ExplorerLocalOps.Plan, remote: List<ExplorerMirror.Remote>): Int {
+        val now = System.currentTimeMillis()
+        var applied = 0
+        val retry = ArrayList<ExplorerLocalOps.Op>()
+        var later = plan.waiting
+        for ((i, step) in plan.steps.withIndex()) {
+            if (!scope.isActive) {
+                retry += plan.steps.drop(i).map { it.op }
+                break
+            }
+            val ok = runCatching { runBlocking(scope.coroutineContext[Job] ?: kotlin.coroutines.EmptyCoroutineContext) { applyStep(step, remote) } }
+                .onFailure { log("explorer: ${step.op} failed: $it") }
+                .getOrDefault(false)
+            if (ok) {
+                applied++
+                if (step is ExplorerLocalOps.Step.Move && step.isFolder) {
+                    // What is left was planned against the old paths: rebased onto the new ones and planned again.
+                    later = (later + plan.steps.drop(i + 1).map { it.op }).map { ExplorerLocalOps.rebased(it, step.from, step.to) }
+                    break
+                }
+            } else if (now - step.op.at < OP_GIVE_UP_MILLIS) {
+                retry += step.op
+            } else {
+                log("explorer: gave up on ${step.op}; the folder is put back as the realm has it")
+            }
+        }
+        pendingOps = later + retry
+        return applied
+    }
+
+    private suspend fun applyStep(step: ExplorerLocalOps.Step, remote: List<ExplorerMirror.Remote>): Boolean {
+        val fs = koin.fileSystem()
+        when (step) {
+            is ExplorerLocalOps.Step.Trash -> {
+                ensureRealmFolder(ExplorerLocalOps.TRASH)
+                val contentId = if (step.isFolder) null else runCatching { fs.readEntityItem(step.realmPath).contentId }.getOrNull()
+                val to = ExplorerLocalOps.trashPathFor(
+                    step.realmPath, contentId, System.currentTimeMillis(),
+                    remote.filter { ExplorerLocalOps.isTrashed(it.path) }.mapTo(HashSet()) { it.path },
+                )
+                fs.moveFile(step.realmPath, to).orThrowWrite("trash", "${step.realmPath} -> $to")
+                log("explorer: deleted in Explorer: '${step.realmPath}' moved to '$to'")
+                forgetJournalUnder(step.op.relative)
+                appliedGuards += AppliedGuard(setOf(key(step.op.relative), key(step.realmPath.trim('/'))), step.realmPath)
+            }
+            is ExplorerLocalOps.Step.Move -> {
+                ensureRealmFolder(step.to.substringBeforeLast('/').ifEmpty { "/" })
+                fs.moveFile(step.from, step.to).orThrowWrite("move", "${step.from} -> ${step.to}")
+                log("explorer: renamed in Explorer: '${step.from}' -> '${step.to}'")
+                val target = step.op.target!!
+                reidentify(target, step.from, step.to)
+                appliedGuards += AppliedGuard(
+                    setOf(key(step.op.relative), key(target), key(step.from.trim('/'))), step.from,
+                )
+            }
+        }
+        return true
+    }
+
+    /**
+     * After the realm moved [from] to [to]: our placeholders at [target] (and below it, for a folder) name the new
+     * paths, so fetches keep working and the mirror sees nothing to replace — a downloaded copy stays downloaded. The
+     * journal follows. A placeholder that cannot be updated now is left to the mirror, which replaces it.
+     */
+    private fun reidentify(target: String, from: String, to: String) {
+        val top = root.resolve(target)
+        val entries = if (Files.isDirectory(top, LinkOption.NOFOLLOW_LINKS)) {
+            Files.walk(top).use { s -> s.toList() }
+        } else {
+            listOf(top)
+        }
+        for (path in entries) {
+            val ours = ourPlaceholder(path) ?: continue
+            val rebased = ExplorerLocalOps.rebased(
+                ExplorerLocalOps.Op("", null, ours.identity.path, ours.identity.contentVersion, false, 0L), from, to,
+            ).identityPath
+            if (rebased == ours.identity.path) continue
+            val hr = WindowsCloudFiles.updateIdentity(path, ExplorerIdentity(rebased, ours.identity.contentVersion).encode())
+            if (hr == null || !CloudFilesHResult.succeeded(hr)) {
+                log("explorer: re-identify '${root.relativize(path)}' -> ${hr?.let(CloudFilesHResult::describe)}")
+            }
+        }
+        val oldPrefix = from.trim('/')
+        for ((relative, version) in journal.snapshot()) {
+            val moved = when {
+                relative == key(oldPrefix) -> target
+                relative.startsWith(key(oldPrefix) + "/") -> target + relative.substring(oldPrefix.length)
+                else -> continue
+            }
+            val hash = journal.hashOf(relative)
+            journal.forget(relative)
+            journal.record(moved, version, hash)
+        }
+    }
+
+    private fun forgetJournalUnder(relative: String) {
+        val prefix = key(relative)
+        journal.snapshot().keys.filter { it == prefix || it.startsWith("$prefix/") }.forEach(journal::forget)
+    }
+
+    private fun key(relative: String) = relative.trim('/').lowercase(Locale.ROOT)
+
+    /** A step applied whose effect the listing does not show yet: its paths stay guarded until [gone] has gone. */
+    private class AppliedGuard(val keys: Set<String>, val gone: String) {
+        val until = System.currentTimeMillis() + APPLIED_GUARD_MILLIS
+    }
+
+    /** Notices from Windows, noted on a CfAPI thread and taken by the next pass. */
+    private val notices = java.util.concurrent.ConcurrentLinkedQueue<ExplorerLocalOps.Op>()
+
+    /** Notices not carried to the realm yet. The pass's alone. */
+    private var pendingOps: List<ExplorerLocalOps.Op> = emptyList()
+    private val appliedGuards = ArrayList<AppliedGuard>()
+    private val ownPid = ProcessHandle.current().pid()
+
+    private fun note(path: Path?, target: String?, identity: ByteArray, isFolder: Boolean) {
+        val relative = path?.let(::relativeOf) ?: return
+        val id = ExplorerIdentity.decode(identity) ?: return
+        notices += ExplorerLocalOps.Op(relative, target, id.path, id.contentVersion, isFolder, System.currentTimeMillis())
+        scope.launch {
+            delay(ExplorerLocalOps.GRACE_MILLIS + SETTLE_MARGIN_MILLIS)
+            passes.trySend(Unit)
+        }
+    }
+
+    /** [path] inside the folder, `/`-separated; `null` outside it (or the folder itself). */
+    private fun relativeOf(path: Path): String? =
+        if (path.startsWith(root) && path != root) root.relativize(path).joinToString("/") else null
 
     private suspend fun remoteRows(): List<ExplorerMirror.Remote>? =
         koin.fileSystem().root.files.traverse().select { itemProjection() }.flow().first().fold(
@@ -657,34 +809,50 @@ internal class ExplorerSyncRoot(
 
     private fun deletePlaceholder(path: Path): Boolean {
         val relative = root.relativize(path).joinToString("/")
-        if (holdsAChange(path, relative)) return false
-        return (deleteIfStillOurs(root, path, log) == Deletion.DELETED).also { if (it) journal.forget(relative) }
+        if (!path.exists(LinkOption.NOFOLLOW_LINKS)) return true.also { journal.forget(relative) }
+        if (Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) {
+            return (deleteIfStillOurs(root, path, log) == Deletion.DELETED).also { if (it) journal.forget(relative) }
+        }
+        return deleteFileIfUnchanged(path, relative).also { if (it) journal.forget(relative) }
     }
 
     /**
-     * ⚠⚠ Whether a downloaded copy the mirror is about to remove holds bytes that are not the version it was made from
-     * — an edit Windows did not mark (it still says in sync). Such a copy is marked as a change instead, and the write
-     * path takes it (an upload, or a conflict copy): the realm moving on must never delete an edit. Checked on an
-     * unshared handle against the hash the journal recorded; without one (made before the hash was kept), or with no
+     * Removes our placeholder file at [path] — ⚠⚠ only if it holds nothing but what we put there, checked and deleted
+     * on **one unshared handle** (`deleteOnClose`), so no save can land between the check and the delete. In sync is
+     * not enough: a downloaded copy is also hashed against the journal's hash of its version, and bytes that differ —
+     * an edit Windows did not mark — are marked not-in-sync instead, for the write path (an upload or a conflict copy).
+     * The realm moving on must never delete an edit. Without a recorded hash (made before it was kept), or with no
      * complete local copy, there is nothing to compare and nothing of the user's to lose.
      */
-    private fun holdsAChange(path: Path, relative: String): Boolean {
-        val expected = journal.hashOf(relative) ?: return false
-        if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) return false
-        val bits = WindowsCloudFiles.fileAttributes(path) ?: return false
-        if (bits and WindowsCloudFiles.FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS != 0) return false
-        if (ourPlaceholder(path)?.inSync != true) return false // deleteIfStillOurs keeps it anyway
+    private fun deleteFileIfUnchanged(path: Path, relative: String): Boolean {
+        if (ourPlaceholder(path)?.inSync != true) {
+            log("explorer: kept '$relative': it is not (or no longer) only ours")
+            return false
+        }
+        // Placeholders made before X3 were read-only, which refuses the write access the handle asks for.
+        runCatching { Files.setAttribute(path, "dos:readonly", false, LinkOption.NOFOLLOW_LINKS) }
         return runCatching {
             WindowsCloudFiles.withUnsharedFile(path, asItself = false) { file ->
-                if (hashOf(file) == expected) return@withUnsharedFile false
-                val hr = file.clearInSync()
-                log("explorer: '$relative' was changed here; kept for upload -> ${CloudFilesHResult.describe(hr)}")
-                true
+                // Looked at again on the held handle: from here on nothing else can write to it.
+                if (ourPlaceholder(path)?.inSync != true) {
+                    log("explorer: kept '$relative': changed just now")
+                    return@withUnsharedFile false
+                }
+                val online = (WindowsCloudFiles.fileAttributes(path) ?: 0) and WindowsCloudFiles.FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS != 0
+                val expected = journal.hashOf(relative)
+                if (!online && expected != null && hashOf(file) != expected) {
+                    val hr = file.clearInSync()
+                    log("explorer: '$relative' was changed here; kept for upload -> ${CloudFilesHResult.describe(hr)}")
+                    return@withUnsharedFile false
+                }
+                val hr = file.deleteOnClose()
+                if (!CloudFilesHResult.succeeded(hr)) log("explorer: could not remove '$relative' -> ${CloudFilesHResult.describe(hr)}")
+                CloudFilesHResult.succeeded(hr)
             }
         }.getOrElse {
-            // Open elsewhere, typically: it cannot be checked now, so it stays until a pass can.
-            log("explorer: kept '$relative' for now: could not check it ($it)")
-            true
+            // Open elsewhere, typically: tried again by a later pass.
+            log("explorer: could not remove '$relative' yet: $it")
+            false
         }
     }
 
@@ -742,6 +910,19 @@ internal class ExplorerSyncRoot(
                     cancelled.remove(request.transferKey)
                 }
             }
+        }
+
+        // ⚠ Our own deletes (the mirror's) are ignored by process: carried to the realm, they would trash what the
+        // realm just replaced.
+        override fun notifyDelete(notice: WindowsCloudFiles.NotifyDelete) {
+            if (notice.isUndelete || notice.process?.pid == ownPid) return
+            note(notice.path, null, notice.fileIdentity, notice.isDirectory)
+        }
+
+        override fun notifyRename(notice: WindowsCloudFiles.NotifyRename) {
+            if (notice.process?.pid == ownPid) return
+            // Out of the folder (the Recycle Bin) is a delete.
+            note(notice.source, notice.target?.let(::relativeOf), notice.fileIdentity, notice.isDirectory)
         }
 
         override fun cancelFetchData(cancel: WindowsCloudFiles.CancelFetchData) {
@@ -866,6 +1047,12 @@ internal class ExplorerSyncRoot(
         /** The largest upload the file-service can take: it is handed one `ByteArray`. */
         private const val MAX_UPLOAD_BYTES = Int.MAX_VALUE - 16L
         private const val MASS_REMOVAL_CONFIRM_MILLIS = 30_000L
+
+        /** How long a delete or rename that keeps failing to reach the realm is tried for (X3b). */
+        private const val OP_GIVE_UP_MILLIS = 10 * 60_000L
+
+        /** How long an applied step's paths stay guarded while the listing does not show it yet (a deferred move). */
+        private const val APPLIED_GUARD_MILLIS = 2 * 60_000L
 
         /** `%USERPROFILE%\Tenshu Drive`. */
         fun defaultRoot(): Path = Path.of(System.getProperty("user.home"), DISPLAY_NAME)

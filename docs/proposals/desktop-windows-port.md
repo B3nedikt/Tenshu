@@ -1024,6 +1024,39 @@ device at the same time; unit-tested).
 - **Other fixes.** The journal is saved after every write. An upload is cancelled with the integration's scope when
   `stop()` runs. Old read-only placeholders are made writable once when a run starts, not by every scan.
 
+**X3b as built (2026-11-12)** — `ExplorerLocalOps` (pure rules, `ExplorerLocalOpsTest`) plus `NOTIFY_DELETE` /
+`NOTIFY_RENAME` in `WindowsCloudFiles`. Each notice is **acknowledged at once**, because the delete or rename waits on
+the ack, and is only noted. The pass carries it to the realm once the notices have been quiet for 3 s, and only if
+the folder still agrees:
+- a delete only if nothing stands at the path, or at the path its identity names, and the realm still holds the
+  version the placeholder showed;
+- a rename only if the source is gone and the target is there, and the realm has nothing at the target.
+
+Meanwhile the mirror and the write path leave those paths alone, until the listing shows the step done (or for 2 min:
+`moveFile` can defer a move). The rules:
+- **A delete is a move to `/Trash/<contentId>-<name>`** (D-X3-1). A folder goes whole, structure kept. Explorer
+  deletes the contents first and the folder's own notice can come seconds later, hence "quiet for 3 s", not 3 s per
+  notice.
+- ⚠ **A delete inside `/Trash` changes nothing**: the mirror shows the file again. D-X3-1 allows no hard delete from
+  the folder, so emptying the Trash stays with Drive and Photos. *Open for the maintainer:* whether Explorer should be
+  able to delete for good there.
+- **A rename or move is `moveFile`.** Afterwards the placeholders at the target, and below it for a folder, get the
+  new path in their identity (`updateIdentity`, on a shared handle, keeping their sync state), so a downloaded copy
+  stays downloaded. The journal follows. Notices planned against a folder that has just moved are rebased onto its
+  new path.
+- **A move out of the folder (the Recycle Bin) is a delete.** Control's own deletes are ignored by process id.
+
+✅ Device-verified (the test folder in the real realm):
+- a rename reached the realm and the copy stayed downloaded;
+- a folder with an uploaded file, deleted for good with `Remove-Item -Recurse`, went to `/Trash` whole;
+- a Word-style save (original renamed to `~WRL0001.tmp`, the new version renamed in, the backup deleted) trashed
+  nothing, and the journal uploaded the edit over the realm copy;
+- a Recycle Bin delete went to `/Trash` under the file's `contentId`.
+
+⚠ Measured: the Recycle Bin sends **two** notices for one file, so a second notice of a delete already planned is
+skipped. ⚠ The realm's `/Trash` already held Photos' trash, so turning X3b on also shows those files in Explorer, as
+D-X3-1 intended.
+
 **Threat model (owed with X3a):** T-C-21 grows a write half — any same-user process can add or change realm files
 by writing into the folder, as with any synced folder; and T-C-21(b)'s stand-in provider becomes reachable to the
 realm: a file planted while Control was not running is uploaded at the next start.
