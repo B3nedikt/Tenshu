@@ -1029,6 +1029,11 @@ device at the same time; unit-tested).
     delete still hashes first.
   - Switching the integration off turns a copy holding such an edit into an ordinary file (`CfRevertPlaceholder`),
     the user's own, instead of deleting it.
+  - **"Free up space" too:** the copy is checked and dropped on one unshared handle (`CfDehydratePlaceholder` on
+    it). Measured: the unshared handle gives the exclusivity dehydration needs, as the oplock handle did. A changed
+    copy is kept for upload, and its free mark stays until the edit is in the realm.
+
+  So every path that discards a copy's bytes — delete, cleanup, free — checks them first, on the handle that acts.
 
   Windows normally clears in-sync on any write, so all of this is defence in depth.
 - **A conflict copy is made once.** If handing the path back fails after the copy went up, the retry finds the realm

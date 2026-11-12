@@ -317,6 +317,12 @@ object WindowsCloudFiles {
          */
         fun revert(): Int
 
+        /**
+         * `CfDehydratePlaceholder` on this handle: "Free up space" for a copy whose bytes were just checked through it.
+         * The handle is unshared, which is the exclusivity dehydration needs.
+         */
+        fun dehydrate(): Int
+
         /** The file is deleted when the handle closes (`FileDispositionInfo`). */
         fun deleteOnClose(): Int
     }
@@ -529,6 +535,9 @@ object WindowsCloudFiles {
                     ) as Int
 
                     override fun revert(): Int = revertPlaceholder.invokeExact(handle, 0, MemorySegment.NULL) as Int
+
+                    override fun dehydrate(): Int =
+                        dehydratePlaceholder.invokeExact(handle, 0L, -1L, 0, MemorySegment.NULL) as Int
 
                     override fun clearInSync(): Int = updatePlaceholder.invokeExact(
                         handle, MemorySegment.NULL, MemorySegment.NULL, 0, MemorySegment.NULL, 0,
