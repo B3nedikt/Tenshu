@@ -110,4 +110,35 @@ class ExplorerWritesTest {
         assertEquals("Makefile (conflict, DESK)", ExplorerWrites.conflictName("Makefile", "DESK", emptySet()))
         assertTrue(ExplorerWrites.conflictName(".env", "DESK", emptySet()).startsWith(".env"))
     }
+
+    @Test
+    fun aConflictCopyAlreadyMadeIsRecognised_soARetryDoesNotMakeAnother() {
+        for (taken in listOf(emptySet(), setOf("report (conflict, DESK).docx"))) {
+            val made = ExplorerWrites.conflictName("report.docx", "DESK", taken)
+            assertTrue(ExplorerWrites.isConflictNameOf(made, "report.docx", "DESK"), made)
+        }
+        assertTrue(ExplorerWrites.isConflictNameOf("REPORT (conflict, desk).DOCX", "report.docx", "DESK"))
+        assertTrue(!ExplorerWrites.isConflictNameOf("report.docx", "report.docx", "DESK"))
+        assertTrue(!ExplorerWrites.isConflictNameOf("report (conflict, LAPTOP).docx", "report.docx", "DESK"))
+        assertTrue(!ExplorerWrites.isConflictNameOf("report (conflict, DESK) x.docx", "report.docx", "DESK"))
+    }
+
+    @Test
+    fun theJournalKeepsHashes_andReadsItsOldFormat() {
+        val file = kotlin.io.path.createTempFile("journal", ".tsv").toFile()
+        try {
+            file.writeText("old.txt\tv1\n")
+            val journal = ExplorerJournal(file)
+            assertEquals("v1", journal.snapshot()["old.txt"])
+            assertEquals(null, journal.hashOf("old.txt"))
+            journal.record("Dir/New.txt", "v2", "abc")
+            journal.save()
+            val reread = ExplorerJournal(file)
+            assertEquals("abc", reread.hashOf("dir/new.txt"))
+            assertEquals("v2", reread.snapshot()["dir/new.txt"])
+            assertEquals("v1", reread.snapshot()["old.txt"])
+        } finally {
+            file.delete()
+        }
+    }
 }

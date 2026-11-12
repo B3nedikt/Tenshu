@@ -128,6 +128,18 @@ internal object ExplorerWrites {
         }
     }
 
+    /** Whether [candidate] is one of the names [conflictName] gives [name] on [computer] (compared as NTFS does). */
+    fun isConflictNameOf(candidate: String, name: String, computer: String): Boolean {
+        val dot = name.lastIndexOf('.').takeIf { it > 0 } ?: name.length
+        val stem = name.substring(0, dot)
+        val ext = name.substring(dot)
+        val pattern = Regex(
+            Regex.escape("$stem (conflict, $computer)") + "( [0-9]+)?" + Regex.escape(ext),
+            RegexOption.IGNORE_CASE,
+        )
+        return pattern.matches(candidate)
+    }
+
     /** Never uploaded: hidden or system entries, and the temp and lock files editors and browsers leave about. */
     fun ignored(entry: ExplorerMirror.Local): Boolean {
         if (entry.hidden) return true
