@@ -162,6 +162,13 @@ tasks.register("packageMsix") {
         // puts the icon up and starts Control hidden. ⚠ Off until the user turns it on (`Enabled="false"`): the
         // Store expects consent, as the Mac App Store does. ⚠ TaskId is `LoginStart.TaskId`; never rename it.
         val toastActivator = "6E0B6C0B-3F1D-4C1F-9C61-2F0E7A9B5D41"
+        // Drive in File Explorer (desktop-windows-port.md §7.9, X2): the sync root's thumbnail handler, served by the
+        // agent too (`ThumbnailProvider.Clsid`). Windows applies a package's cloudFiles handlers to the sync roots that
+        // package registers — Control registers Tenshu Drive. ⚠ Never change the CLSID without changing the agent's.
+        val thumbnailProvider = "A7C1E2B4-5D3F-4E9A-8B60-2C4D7F1E9A35"
+        // ⚠ The schema requires the custom-state, extended-property and banners handlers beside it; we implement none,
+        // so they name the null CLSID, which COM cannot create.
+        val noHandler = "00000000-0000-0000-0000-000000000000"
         val applicationExtensions = if (trayAgentDir == null) "" else """
                   <Extensions>
                     <com:Extension Category="windows.comServer">
@@ -169,8 +176,20 @@ tasks.register("packageMsix") {
                         <com:ExeServer Executable="tray-agent\tray-agent.exe" DisplayName="${xml(displayName)}" Arguments="----AppNotificationActivated:">
                           <com:Class Id="$toastActivator" />
                         </com:ExeServer>
+                        <com:ExeServer Executable="tray-agent\tray-agent.exe" DisplayName="${xml(displayName)}" Arguments="--thumbnail-server">
+                          <com:Class Id="$thumbnailProvider" />
+                        </com:ExeServer>
                       </com:ComServer>
                     </com:Extension>
+                    <desktop3:Extension Category="windows.cloudFiles">
+                      <desktop3:CloudFiles>
+                        <desktop3:CustomStateHandler Clsid="$noHandler" />
+                        <desktop3:ThumbnailProviderHandler Clsid="$thumbnailProvider" />
+                        <desktop3:ExtendedPropertyHandler Clsid="$noHandler" />
+                        <desktop3:BannersHandler Clsid="$noHandler" />
+                        <desktop3:CloudFilesContextMenus />
+                      </desktop3:CloudFiles>
+                    </desktop3:Extension>
                     <desktop:Extension Category="windows.toastNotificationActivation">
                       <desktop:ToastNotificationActivation ToastActivatorCLSID="$toastActivator" />
                     </desktop:Extension>
@@ -191,7 +210,8 @@ tasks.register("packageMsix") {
               xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
               xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
               xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
-              IgnorableNamespaces="uap rescap com desktop">
+              xmlns:desktop3="http://schemas.microsoft.com/appx/manifest/desktop/windows10/3"
+              IgnorableNamespaces="uap rescap com desktop desktop3">
               <Identity Name="${xml(identityName)}" Publisher="${xml(publisher)}" Version="$version" ProcessorArchitecture="x64" />
               <Properties>
                 <DisplayName>${xml(displayName)}</DisplayName>

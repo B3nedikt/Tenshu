@@ -133,6 +133,12 @@ private const val THUMBNAIL_CONCURRENCY = 8
  */
 private val THUMBNAIL_TIMEOUT = 20.seconds
 
+/**
+ * Shorter than the tray agent's own bridge timeout (15 s, `BridgeClient.TimeoutMs`): past that the agent has given up,
+ * and a request still working holds a thumbnail slot and a bridge thread for nothing.
+ */
+private val EXPLORER_THUMBNAIL_TIMEOUT = 12.seconds
+
 /** The largest upload the file-service can take: it is handed one `ByteArray`. */
 private const val MAX_UPLOAD_BYTES = Int.MAX_VALUE - 16L
 
@@ -277,6 +283,40 @@ fun NativeBridgeServer.registerFileMethods(koin: Koin, state: FileProviderBridge
             val (items, _) = runBlocking { koin.fileSystem().refreshFeed(state) }
             changesResult(state.feed.changesSince(since), items)
         }
+    }
+}
+
+/**
+ * Registers the bridge method behind Explorer's thumbnails for the Tenshu Drive folder (desktop-windows-port.md §7.9,
+ * X2), called by the tray agent's `ThumbnailProvider`:
+ *
+ *  - `explorer.v1.thumbnail(path, size)` — [path] is the Windows path Explorer asked about; the answer is
+ *    [thumbnailResult] of the file's stored thumbnail class, by the same rule as Finder's ([storedThumbnail]).
+ *
+ * ⚠⚠ The realm path comes from the placeholder's own identity ([ExplorerSyncRoot.realmPathOf]), never from the Windows
+ * path's text, and nothing reads the file: a thumbnail must not download what it shows.
+ */
+fun NativeBridgeServer.registerExplorerMethods(koin: Koin) {
+    val gate = Semaphore(THUMBNAIL_CONCURRENCY)
+    register("explorer.v1.thumbnail") { params ->
+        val windowsPath = try {
+            java.nio.file.Path.of(params.require("path"))
+        } catch (e: java.nio.file.InvalidPathException) {
+            throw BridgeException("invalid_request", "'path' is not a path")
+        }
+        val maxEdge = params.requireEdge("size")
+        val realmPath = ExplorerSyncRoot.realmPathOf(windowsPath)
+            ?: throw BridgeException("not_found", "not a Tenshu Drive file")
+        val bytes = runBlocking {
+            try {
+                withTimeout(EXPLORER_THUMBNAIL_TIMEOUT) {
+                    gate.withPermit { koin.fileSystem().storedThumbnail(realmPath, maxEdge) }
+                }
+            } catch (e: TimeoutCancellationException) {
+                throw BridgeException("unavailable", "thumbnail for '$realmPath' timed out")
+            }
+        }
+        thumbnailResult(bytes)
     }
 }
 
@@ -518,7 +558,7 @@ private suspend fun FileSystem.refreshFeed(state: FileProviderBridgeState): Pair
     return items to anchor
 }
 
-private fun Koin.fileSystem(): FileSystem =
+internal fun Koin.fileSystem(): FileSystem =
     get<TenshuClient>().fileService.defaultFileSystem
 
 private fun Map<String, String>.require(key: String): String =
@@ -557,7 +597,7 @@ private fun childPath(parent: String, name: String): String =
     if (parent == FileProviderIds.ROOT_PATH) "/$name" else "$parent/$name"
 
 /** What every item-shaped read projects; shared so listings and metadata cannot drift. */
-private fun <T : org.tenshu.core.Data> ListBuilder<Selector<T>>.itemProjection() {
+internal fun <T : org.tenshu.core.Data> ListBuilder<Selector<T>>.itemProjection() {
     fields(File.Field.PATH)
     relations(
         File.Category, File.Size, File.CreatedAt, File.LastModifiedAt, File.ContentModifiedAt,
@@ -570,7 +610,7 @@ private fun <T : org.tenshu.core.Data> ListBuilder<Selector<T>>.itemProjection()
  * a name collision → `already_exists` (the extension maps it to a conflict),
  * everything else → `internal`.
  */
-private fun TResult<org.tenshu.core.Data?>.orThrowWrite(op: String, path: String) {
+internal fun TResult<org.tenshu.core.Data?>.orThrowWrite(op: String, path: String) {
     fold(
         onSuccess = {},
         onFailure = { error ->
@@ -698,7 +738,7 @@ private fun carriesStills(path: String): Boolean = nameOf(path).let { name ->
     isPdf(name) || fileCategoryForName(name).let { it == FileCategory.Image || it == FileCategory.Video }
 }
 
-private suspend fun FileSystem.readBytes(path: String): ByteArray =
+internal suspend fun FileSystem.readBytes(path: String): ByteArray =
     root.files
         .fileAt(path)
         .select { relations(File.Data) }
@@ -716,7 +756,7 @@ private suspend fun FileSystem.readBytes(path: String): ByteArray =
             onFailure = { throw it.asBridgeException("readContents", path) },
         )
 
-private suspend fun FileSystem.readEntityItem(path: String): ProjectedFile {
+internal suspend fun FileSystem.readEntityItem(path: String): ProjectedFile {
     if (path == FileProviderIds.ROOT_PATH) throw BridgeException("invalid_request", "the root has no metadata row")
     return root.files
         .fileAt(path)
@@ -762,7 +802,7 @@ private fun TList<File>.fileAt(fullPath: String) =
  * [BridgeFileItem] because minting an identifier is a write to the map: a caller that may
  * still discard the row (a deferred move) must be able to look first.
  */
-private class ProjectedFile(entity: Entity<File>) {
+internal class ProjectedFile(entity: Entity<File>) {
     val path: String = entity.path.get()
     val isFolder: Boolean = entity.type.get() == Folder.ID
     val size: Long = entity.get(File.Size)?.get() ?: 0L
@@ -795,6 +835,14 @@ private class ProjectedFile(entity: Entity<File>) {
      */
     fun moveFingerprint(): String? = if (isFolder) null else contentId?.takeIf { it.isNotBlank() }
 
+    /**
+     * Changes exactly when the bytes do. The content hash says "these bytes"; the content id is re-minted on
+     * every overwrite that changes them. Size + the realm's touch time is the fallback for rows older than
+     * both — ⚠ not [modifiedAtMillis], which an overwrite from an older source moves backwards or not at all.
+     */
+    val contentVersion: String =
+        if (isFolder) "" else contentHash ?: contentId ?: "$size:${touchedAtMillis ?: 0}"
+
     fun toBridgeItem(ids: FileProviderIds) = BridgeFileItem(
         id = ids.idFor(path),
         parentId = ids.idFor(path.substringBeforeLast('/').ifEmpty { FileProviderIds.ROOT_PATH }),
@@ -804,11 +852,7 @@ private class ProjectedFile(entity: Entity<File>) {
         createdAtMillis = createdAtMillis,
         modifiedAtMillis = modifiedAtMillis,
         category = category,
-        // The content hash says "these bytes"; the content id is re-minted on every overwrite
-        // that changes them. Size + the realm's touch time is the fallback for rows older than
-        // both — ⚠ not `modifiedAtMillis`, which an overwrite from an older source moves backwards
-        // or not at all.
-        contentVersion = if (isFolder) "" else contentHash ?: contentId ?: "$size:${touchedAtMillis ?: 0}",
+        contentVersion = contentVersion,
         path = path,
     )
 }

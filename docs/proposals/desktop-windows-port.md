@@ -681,6 +681,8 @@ and `FileProviderChangeFeed` — with no bridge on the content path at all.
 
 The bridge stays the seam for the **COM handlers** only (thumbnails, later badges/menu items): a small native
 DLL that Explorer loads, which asks Control over `bridge.sock` — so §3.2's peer gate must admit it.
+*As built (X2, §7.9): not a DLL — the tray agent serves the thumbnail handler as an out-of-process COM server, and is
+already admitted by the bridge's gate.*
 
 ### 7.3 What carries over unchanged
 
@@ -834,3 +836,290 @@ not a hang; (5) right-click shows "Always keep on this device" / "Free up space"
 has no dehydration path). After Enter, the entry must disappear from the navigation pane (an open Explorer
 window may need F5). If it stays: `cfapiSpike -PspikeArgs=--cleanup`. ✅ (1) seen by the maintainer
 2026-11-10 — the entry appears in Explorer's navigation pane; (2)–(5) not yet reported.
+
+### 7.8 X1 as built — the read path
+
+`ExplorerSyncRoot` (`:control-shared`, `bridge/`) behind `ExplorerIntegration`; the rules are
+`ExplorerMirror` (pure, `ExplorerMirrorTest`). Control's **Settings → Show Drive in File Explorer** turns it on;
+off by default while the folder is read-only. Log: `diagnostics/explorer.log`.
+
+- **Where**: `%USERPROFILE%\Tenshu Drive`, registered as `TenshuDrive!<user SID>!default` by
+  `StorageProviderSyncRootManager.Register` on every start (idempotent), then connected with
+  `BLOCK_SELF_IMPLICIT_HYDRATION` — §7.7 trap 2: our own scans never download. The SID comes from the process
+  token (`WindowsAccount`), not `whoami`.
+- **In step**: a pass lists the realm and applies `ExplorerMirror.plan` — at start, on every emission of the
+  realm listing, and every 60 s (which also restores what was deleted locally). Moves and renames made elsewhere
+  are delete + create, as on macOS (§7.3); a changed file (size, modification time or the content version in its
+  identity) is replaced, dropping its hydrated copy. ⚠ A pass that would remove more than half of the folder (and
+  more than ten placeholders) is applied only when a listing at least 30 s later says the same — a listing that is
+  empty for a moment (cold store, reset) would otherwise take every downloaded and pinned copy with it.
+- **The FileIdentity blob** is `1\n<realm path>\n<content version>`, not a `FileProviderIds` id: nothing here
+  follows a move, so an id buys nothing, and the version lets a fetch refuse a stale placeholder instead of
+  sending bytes of a different length than Windows expects.
+- **Hydration**: `FETCH_DATA` is handed off at once to four Control threads, which read the realm's content
+  stream in 1 MiB ranges and `CfExecute` each. A file with no stream yet (not synced, so its bytes are only
+  local) is read whole, once per request. Cancels are honoured between chunks.
+- ⚠⚠ **Only our placeholders are ever touched.** Until X3 nothing local is uploaded, so the user's own file in
+  the folder is the only copy: the mirror never removes or replaces one, and a realm row whose path it occupies
+  is not shown. "Ours" is decided by `CfGetPlaceholderInfo` on a handle that opens links as themselves — an entry
+  carrying a Tenshu identity — and, for a file, still **in sync**: ⚠ not `FILE_ATTRIBUTE_REPARSE_POINT`, which
+  every symlink and junction also has. A placeholder the user saved an edit into (read-only is advisory) is out of
+  sync, so it is theirs and kept. Each deletion re-checks this right before it happens. Files are created
+  `READONLY`, so editors refuse to save over them.
+- **Names**: a row Windows cannot hold (`:`, `CON`, a trailing dot…) is not shown, nor anything below it. NTFS is
+  case-insensitive: of two rows differing only in case, the first in path order is shown.
+- **Turning it off** stops serving, deletes every placeholder (never the user's files), unregisters, and removes
+  the folder if it is empty. ⚠⚠ A downloaded copy open in an app that shares no delete access cannot go yet: the
+  root then stays **registered** (unregistered, the leftover turns into an ordinary file nothing recognises as ours,
+  §7.9) and the cleanup is retried every minute, across restarts (`explorerCleanupPending`), until the folder is clean. Quitting Control only disconnects: the entry stays, and opening an online-only file
+  says the provider is not running (§7.7).
+
+- **Always keep / Free up space**: Explorer only *marks* the file (`FILE_ATTRIBUTE_PINNED` / `UNPINNED`); the
+  provider acts. A pin pass — on any change notification in the folder tree, after every mirror pass and every
+  60 s — downloads pinned files still online-only (`CfHydratePlaceholder`) whenever it sees them: "always keep" is a
+  standing order. It drops the copy of an unpinned one (`CfDehydratePlaceholder`) and then **clears the mark**
+  (`CfSetPinState(UNSPECIFIED)`): "Free up space" is a one-off request. ⚠ Left on, the mark outlives the request —
+  opening the freed file downloads it with the mark still set, the next pass would drop it half a second later, and
+  a second "Free up space" would set nothing new. A mark is cleared only once every drop it asked for succeeded (a
+  file open elsewhere fails with `ERROR_CLOUD_FILE_IN_USE`), so that file is tried again. ⚠ Except under a folder
+  marked "Always keep": there the free mark is the only thing between the file and the folder's mark, so it stays as
+  a standing exception (cleared, the file would download straight back) — and such a file, if opened, is dropped
+  again by the next pass. All of these run on
+  attribute-only handles that download nothing. A file without a mark of its own
+  follows the nearest marked folder above it (`ExplorerMirror.copies`), and finally the Tenshu Drive folder's own mark
+  ("Always keep" on the whole folder covers files that arrive later). ⚠ A mark on the folder itself is not a change
+  *inside* it, so no watch reports it: the 60 s pass picks it up (measured: all 28 photos downloaded one by one, ~1 s
+  each, then all dropped and the mark cleared). A replaced file keeps its pin
+  (`CfSetPinState`). An opened file without a mark keeps its copy until freed.
+- **Stopping** (quit, or the switch going off) waits up to 10 s for a pass in flight, so a pass still creating
+  placeholders cannot outlive their deletion. A start Windows refuses leaves the switch off.
+- **At start** Control unregisters this user's other `TenshuDrive!` roots, so Explorer never shows two.
+- **Hardened from §7.7**: a `FETCH_DATA` whose details cannot be read is failed from its keys alone (no 60 s wait);
+  `CF_CALLBACK_INFO` fields are read only up to the `StructSize` the OS sent; `register` releases every COM
+  reference on its failure paths; WinRT downcall handles are cached.
+- **Threat model**: T-C-21 and T-C-16's Windows paragraph (`threat-model.md`, the Windows Explorer sub-amendment).
+
+✅ **Device-verified 2026-11-10** (installed MSIX, Windows 11): the switch registers the root from the packaged
+Control and the navigation-pane entry appears — HKCU virtualisation does not hide it, so §7.7's open question is
+closed and the root itself needs no `windows.cloudFiles` manifest extension (X2 adds one, for the thumbnail handler
+only, §7.9); the realm's 29 rows appeared; a photo opened from
+Explorer downloaded and showed. Pin and free, by `attrib +P` / `+U` (the marks Explorer's menu sets): an
+online-only photo was downloaded within a second of `+P` and its copy dropped within a second of `+U`.
+⚠ Found only on the device: `ExtendedWatchEventModifier.FILE_TREE` is in `jdk.unsupported`, which the packaged
+runtime does not carry (`NoClassDefFoundError`) — so each folder is watched on its own.
+After the review fixes, also on the device: our placeholders are recognised by `CfGetPlaceholderInfo` (pinning
+still downloads); a freed photo opened again keeps its new copy; a junction put in the folder and a hydrated
+photo edited in place (read-only cleared, a byte appended) both survived a repair pass untouched. The free
+cycle (2026-11-11): free → copy dropped and mark cleared; reopen → copy kept; free again → dropped; free while
+another process holds the file exclusively → `ERROR_CLOUD_FILE_IN_USE`, mark kept, freed by the pass after closing.
+
+### 7.9 X2 as built — thumbnails
+
+Without a handler, Explorer downloads an online-only photo to draw its icon (seen in the log before X2: a
+`FETCH_DATA` for `explorer.exe` on a file nobody opened). The handler is **not a native DLL**, as §7.1 assumed:
+
+- **Where it runs**: the C# tray agent (`ThumbnailProvider.cs`), as an **out-of-process COM server** — the agent
+  already is one, for toast clicks. Control's AppxManifest declares it twice: a second `com:ExeServer` for the
+  agent with `--thumbnail-server`, and `desktop3:CloudFiles/ThumbnailProviderHandler` naming its CLSID. Windows applies a
+  package's cloud-files handlers to the sync roots that package registers, so it covers Tenshu Drive. ⚠ The schema
+  will not take the thumbnail handler alone: `CustomStateHandler`, `ExtendedPropertyHandler` and `BannersHandler` must
+  be present (we name the null CLSID, which COM cannot create) and `CloudFilesContextMenus` too (empty).
+- **Where the picture comes from**: the agent asks Control over the bridge, `explorer.v1.thumbnail(path, size)`.
+  Control reads the **realm path from the placeholder's identity** (never from the path's text) and answers with the
+  stored thumbnail class by Finder's rule (`storedThumbnail`): `LIST` or `LARGE`, pulled once if not on this device yet.
+  ⚠⚠ Never the file's bytes and never `File.Preview`. The agent decodes it with the OS's codecs
+  (`BitmapDecoder`: JPEG, PNG and Android's WebP) into a 32-bpp DIB, scaled to the size Explorer asked for — ⚠ up
+  as well as down: Explorer does not enlarge a smaller one, so at Large icons the 256 px class drew visibly smaller
+  than downloaded photos, which Windows draws from the full image (seen by the maintainer).
+- **When no tray is running**, Windows starts the agent itself (`tray-agent --thumbnail-server -Embedding`); it serves
+  with no icon and exits after two idle minutes. It writes its pid to `thumbnail-server.pid` in the socket directory,
+  and Control's tray supervisor passes over that process — ⚠ otherwise, found by path, it would be taken for the
+  tray (no heartbeat) and hold the real one back for the grace period.
+- ⚠ Source-generated COM (`StrategyBasedComWrappers`), not classic interop: CsWinRT installs its global ComWrappers
+  for WinUI.
+
+✅ **Device-verified 2026-11-11** with a Shell probe (`IShellItemImageFactory.GetImage`, thumbnail only — Explorer's
+pipeline): a never-downloaded photo got a 144×256 thumbnail and **stayed online-only**; with Control stopped,
+Windows started the agent as `--thumbnail-server -Embedding`, the request failed (`WTS_E_FAILEDEXTRACTION`) and the
+photo **still stayed online-only** — a failed thumbnail does not fall back to downloading. An iPhone HEIC got its
+thumbnail too (the stored class is not HEIC, so Windows' optional HEIF codec is not needed). With the thumbnail server
+alive when Control started, the real tray was up 15 s later beside it, and the server left after its idle time. ⚠ A probe of a file that
+was once downloaded proves nothing: Windows' thumbnail cache answers.
+
+**Uninstall (measured 2026-11-11, answers X4's question).** Once the package declares `windows.cloudFiles`, removing
+it **unregisters the sync root and deletes every online-only placeholder** — 37 entries became 9: the folders, the one
+downloaded photo and the user's own file stayed. So an uninstall leaves no orphaned Explorer entry, and nothing of
+the user's goes. ⚠ What survives changes kind: the folders and the downloaded copy become **ordinary** files and
+folders (no reparse point; the copy keeps `READONLY`), which Explorer then shows as **"Sync pending"** — the arrows
+of a download that never ends (seen by the maintainer). So Control **adopts** them back (`ExplorerMirror.Action.Adopt`,
+`CfConvertToPlaceholder`): ⚠⚠ a file only once its bytes hash — `wholeFileHashOf`'s 2 MiB fold — to exactly the row's
+`File.ContentHash`, on an exclusive handle; a folder at a realm folder's path on a shared one (Explorer always has a
+folder open, so an exclusive open fails). Anything that does not match is the user's and stays untouched; a
+mismatch is not hashed again until the file changes, and a failed conversion waits 10 min. Measured: all five
+leftover photos read "Available on this device" again. ⚠ *Open:* an adopted **folder** still reads "Sync pending"
+(the same folder created as a placeholder reads "Available when online"); neither `CfSetInSyncState` nor
+`CfUpdatePlaceholder(DISABLE_ON_DEMAND_POPULATION)` changed it. Cosmetic, and only after a side-load reinstall. Reinstalling is also what every side-load update does
+(`install.ps1` removes the old package first) — a Store update is an in-place upgrade and is not expected to do this
+(*not measured*).
+
+### 7.10 X3 — the write path (design, 2026-11-12)
+
+**Decided by the maintainer (2026-11-12):**
+
+- **D-X3-1 — a delete in Explorer moves the file to the realm's `/Trash`** (`TRASH_ROOT`, `/Trash/<contentId>-<name>`,
+  the convention Photos already uses), never a hard delete: bytes, `contentId` and history stay, restoring is a move
+  back. The Trash folder is a realm folder and shows in Explorer like any other.
+- **D-X3-3 (2026-11-12) — a delete inside `/Trash` is for good.** It is emptying one item of a recycle bin, which is
+  how OneDrive behaves too: its recycle bin is the end of the line, not a second Trash. The `/Trash` folder itself is
+  kept (Photos uses it). This supersedes the earlier "a delete in the Trash changes nothing".
+- **D-X3-2 — a conflict keeps both.** A file edited here while its realm copy changed elsewhere is uploaded beside it as
+  `name (conflict, <computer>).ext`; the other device's version keeps the name. Nothing is ever dropped.
+
+**Shape — state-driven, not event-driven.** Each pass compares the folder with the realm and the placeholder
+identities; an upload is followed by the *existing* adoption (§7.9) or a re-identification, so every step is
+idempotent and a crash between two of them is finished by the next pass:
+
+| Found locally | Realm row at that path | Action |
+|---|---|---|
+| ordinary file, no row | — | upload new → next pass adopts it (hash matches) |
+| ordinary folder, no row | — | create the folder → adopt |
+| ordinary file | row, same bytes | adopt (§7.9) |
+| ordinary file | row, other bytes, row still the version we last put there | upload over it (`replaceFile`) → adopt |
+| ordinary file | row, other bytes, row changed since | conflict copy (D-X3-2) |
+| our placeholder, **edited** (not in sync) | row = the identity's version | upload over it → re-identify in place |
+| our placeholder, edited | row moved on | conflict copy |
+
+"The version we last put there" is a small journal (`explorer-versions.tsv`), because editors save by writing a temp
+file and renaming it over the original: what is left is an *ordinary* file that has lost the placeholder's identity.
+⚠⚠ Every read that decides an upload, and every conversion or delete that follows one, goes through **one unshared
+handle** (§7.9's rule): what is uploaded is exactly what was checked, and a conflict's local file is replaced by the
+realm's version only after its bytes are safely in the realm, on a handle that proves they did not change since.
+Skipped: hidden or system files, editor temp files (`~$*`, `*.tmp`, `.~lock.*`, `*.crdownload`, `desktop.ini`,
+`Thumbs.db`), files modified in the last 3 s, files another process holds open, and files over the upload limit.
+
+**Slices.** X3a: uploads, edits, conflicts, writable placeholders. X3b: deletes (D-X3-1) and renames/moves, from
+CfAPI's `NOTIFY_DELETE` / `NOTIFY_RENAME`, acknowledged at once and applied by the pass after a short grace (so an
+editor's delete-then-rename save reads as an edit, not a delete). ⚠ A delete or rename by Control itself (the
+mirror) must not be propagated: the callbacks name the process, and our own pid is ignored.
+
+**X3a as built (2026-11-12)** — `ExplorerWrites` (pure rules, `ExplorerWritesTest`), `ExplorerJournal`, and the
+executor in `ExplorerSyncRoot` on its own write thread; placeholders are no longer read-only (older ones are made
+writable by the scan). ✅ Device-verified, in a test folder of the real realm: a new folder with a file in it is created
+and uploaded, then becomes ours in sync; an edit saved in place is uploaded ~5 s later and keeps its local copy; an
+editor-style save (temp file renamed over the original) is uploaded over the realm's copy through the journal.
+⚠ Found on the device: (1) an upload over a file stamps the realm's date with the moment of the upload, so the mirror
+must decide by the identity's version, never the date, or it replaces the just-uploaded copy with an online-only
+placeholder; (2) the folder watch fires inside the 3 s settle window, so a pass is scheduled for when it has
+settled, or an edit waits for the 60 s tick. *Not device-verified:* the conflict copy (needs a change from another
+device at the same time; unit-tested).
+
+**Hardened after review (X3a):**
+- ⚠⚠ **The mirror never deletes an edit Windows did not flag.** Before it removes a downloaded copy that still says
+  *in sync* (the realm deleted or replaced its row), the copy is hashed on an unshared handle against the hash the
+  journal recorded with its version. Bytes that differ mean an edit in place that kept the in-sync mark, so the copy
+  is marked not-in-sync (`CF_UPDATE_FLAG_CLEAR_IN_SYNC`) and the write path takes it: a conflict copy, or a re-upload
+  if the row was deleted. A copy made before the journal kept hashes has nothing to compare against and is removed as
+  before; an online-only one holds nothing local to lose.
+- ⚠⚠ **Such an edit is also found without a delete to trigger it, and is never lost by switching off.**
+  - The journal records each copy's size and modification time as Control left it.
+  - A downloaded in-sync copy that no longer matches is hashed on an unshared handle. If the bytes are the same, the
+    new size and time are recorded; if they differ, the copy is marked not in sync and the write path uploads it.
+    So a copy is read only when it looks changed, not every pass.
+  - ⚠ An edit that keeps both the size and the time is not found here. It stays unsynced but is never lost: every
+    delete still hashes first.
+  - Switching the integration off turns a copy holding such an edit into an ordinary file (`CfRevertPlaceholder`),
+    the user's own, instead of deleting it.
+  - **"Free up space" too:** the copy is checked and dropped on one unshared handle (`CfDehydratePlaceholder` on
+    it). Measured: the unshared handle gives the exclusivity dehydration needs, as the oplock handle did. A changed
+    copy is kept for upload, and its free mark stays until the edit is in the realm.
+
+  So every path that discards a copy's bytes — delete, cleanup, free — checks them first, on the handle that acts.
+
+  Windows normally clears in-sync on any write, so all of this is defence in depth.
+- **A conflict copy is made once.** If handing the path back fails after the copy went up, the retry finds the realm
+  sibling with the same bytes and a conflict name of this file, and only hands the path back.
+- **Writes wait out a suspect listing.** While the realm listing would remove most of the folder (the mass-removal
+  guard), nothing is written either: against a partial listing an edited file looks new or in conflict.
+- **Other fixes.** The journal is saved after every write. An upload is cancelled with the integration's scope when
+  `stop()` runs. Old read-only placeholders are made writable once when a run starts, not by every scan.
+
+**X3b as built (2026-11-12)** — `ExplorerLocalOps` (pure rules, `ExplorerLocalOpsTest`) plus `NOTIFY_DELETE` /
+`NOTIFY_RENAME` in `WindowsCloudFiles`. Each notice is **acknowledged at once**, because the delete or rename waits on
+the ack, and is only noted. The pass carries it to the realm once the notices have been quiet for 3 s, and only if
+the folder still agrees:
+- a delete only if nothing stands at the path, or at the path its identity names, and the realm still holds the
+  version the placeholder showed;
+- a rename only if the source is gone and the target is there, and the realm has nothing at the target.
+
+Meanwhile the mirror and the write path leave those paths alone, until the listing shows the step done (or for 2 min:
+`moveFile` can defer a move). The rules:
+- **A delete is a move to `/Trash/<contentId>-<name>`** (D-X3-1). A folder goes whole, structure kept. Explorer
+  deletes the contents first and the folder's own notice can come seconds later, hence "quiet for 3 s", not 3 s per
+  notice.
+- ⚠ **A delete inside `/Trash` is for good** (`deleteFile`, D-X3-3). Deleting the `/Trash` folder itself only empties
+  it: the folder stays.
+- **Deleting an online-only file shows Windows' own warning:** "permanently removed from your PC without sending it
+  to the Recycle Bin". There are no local bytes to recycle, and OneDrive gets the same dialog. Our `/Trash` is the
+  safety net in the role of OneDrive's online recycle bin. The wording is Windows', and no API changes it.
+- ⚠ Measured (maintainer, 2026-11-12): after a **side-load reinstall**, an Explorer window left open through it
+  silently did nothing on delete. No notice reached Control, so Explorer stopped before the delete began; reopening
+  Explorer fixed it. The reinstall unregisters the root and Control registers it again, so a window open through that
+  keeps the old registration. A Store update upgrades in place and is not expected to do this (*not measured*). Each
+  notice is now logged with its process and the ack's HRESULT, so a recurrence can be told apart from a Control fault.
+- **A rename or move is `moveFile`.** Afterwards the placeholders at the target, and below it for a folder, get the
+  new path in their identity (`updateIdentity`, on a shared handle, keeping their sync state), so a downloaded copy
+  stays downloaded. The journal follows. Notices planned against a folder that has just moved are rebased onto its
+  new path.
+- **A move out of the folder (the Recycle Bin) is a delete.** Control's own deletes are ignored by process id.
+
+✅ Device-verified (the test folder in the real realm):
+- a rename reached the realm and the copy stayed downloaded;
+- a folder with an uploaded file, deleted for good with `Remove-Item -Recurse`, went to `/Trash` whole;
+- a Word-style save (original renamed to `~WRL0001.tmp`, the new version renamed in, the backup deleted) trashed
+  nothing, and the journal uploaded the edit over the realm copy;
+- a Recycle Bin delete went to `/Trash` under the file's `contentId`.
+
+⚠ Measured: the Recycle Bin sends **two** notices for one file, so a second notice of a delete already planned is
+skipped. ⚠ Measured: a renamed file is left **not in sync** after the move, either by Windows or because
+`VERIFY_IN_SYNC` failed. So the write path then hashes it, finds the realm's bytes and marks it in sync again
+(`ALREADY_THERE`, about a second later): self-healing, at the cost of reading the file once. *Not device-verified:* the
+mirror's removal of a downloaded placeholder on one unshared handle (`deleteFileIfUnchanged`); it needs a change made
+on another device. ⚠ The realm's `/Trash` already held Photos' trash, so turning X3b on also shows those files in Explorer, as
+D-X3-1 intended.
+
+**Threat model (owed with X3a):** T-C-21 grows a write half — any same-user process can add or change realm files
+by writing into the folder, as with any synced folder; and T-C-21(b)'s stand-in provider becomes reachable to the
+realm: a file planted while Control was not running is uploaded at the next start.
+
+### 7.11 X4 — polish (as built, 2026-11-12)
+
+**The gate was met by X2's measurement:** an MSIX uninstall unregisters the root itself and removes every online-only
+placeholder (§7.9). Switching the integration off unregisters it too, and the cleanup retries across restarts. A
+crash leaves the registration in place, but the next start sweeps it. "Remove Tenshu from this PC" (§4) is a W-phase
+feature, not X4's: it removes keys and settings, and the Explorer root is the smallest part of it.
+
+**What X4 adds: the folder says what it is doing.** Explorer already draws the per-file states from CfAPI (online-only,
+downloaded, "sync pending" for anything not in sync) and the download progress from our `TRANSFER_DATA` chunks. What
+it cannot show is *why* a file stays pending. So the line under the Settings switch is now a status, `ExplorerStatus`,
+published after every pass (`ExplorerStatusTest`):
+- *Starting…*;
+- *Up to date*;
+- *Syncing N items…*, counting what the folder holds that the realm does not have yet, including deletes and renames
+  still in their grace;
+- *Can't read your files right now*, when the realm listing fails;
+- *Removing downloaded copies*, when switched off with a file still open;
+- ⚠ above all of these, *Can't upload ‹name›: ‹why›*. Over 2 GB, the file stays on this PC only. A failure retried after
+  2 min reads as "trying again shortly". A failure is forgotten once the file is no longer pending (fixed, moved or
+  deleted).
+
+The switch's description is corrected too: it said "read-only for now", which has been wrong since X3.
+
+**Not done, deliberately:**
+- **Upload progress per file.** `CfReportProviderProgress` needs a byte count. `uploadFile` takes the bytes whole and
+  reports nothing, so there is no number to show. Explorer's "sync pending" arrows plus the Settings count stand in.
+- **Custom state icons** (the `CustomStateHandler` the manifest declares with a null CLSID) for "can't upload". This
+  is a WinRT `StorageProviderItemProperties` call per item, worth it only if the Settings line proves too hidden.
+- ⚠ *Open, cosmetic:* an **adopted folder** still reads "Sync pending" (§7.9).
+
+✅ Device-verified by the maintainer (2026-11-12): the line reads *Syncing…* briefly after a change, then *Up to
+date*. The build also started, refilled the folder and adopted what the reinstall left.

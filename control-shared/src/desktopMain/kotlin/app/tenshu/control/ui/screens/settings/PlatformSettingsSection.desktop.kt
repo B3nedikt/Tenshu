@@ -4,6 +4,22 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DesktopMac
 import androidx.compose.material.icons.filled.DesktopWindows
 import androidx.compose.material.icons.automirrored.filled.Login
+import androidx.compose.material.icons.filled.FolderOpen
+import app.tenshu.control.bridge.ExplorerIntegration
+import app.tenshu.control.bridge.ExplorerStatus
+import app.tenshu.control.shared.resources.settings_explorer_reason_retrying
+import app.tenshu.control.shared.resources.settings_explorer_reason_too_large
+import app.tenshu.control.shared.resources.settings_explorer_status_cleaning_up
+import app.tenshu.control.shared.resources.settings_explorer_status_failed_one
+import app.tenshu.control.shared.resources.settings_explorer_status_failed_other
+import app.tenshu.control.shared.resources.settings_explorer_status_starting
+import app.tenshu.control.shared.resources.settings_explorer_status_syncing_one
+import app.tenshu.control.shared.resources.settings_explorer_status_syncing_other
+import app.tenshu.control.shared.resources.settings_explorer_status_unreachable
+import app.tenshu.control.shared.resources.settings_explorer_status_up_to_date
+import androidx.compose.runtime.collectAsState
+import app.tenshu.control.shared.resources.settings_explorer_integration_headline
+import app.tenshu.control.shared.resources.settings_explorer_integration_support
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
@@ -47,6 +63,41 @@ import org.jetbrains.compose.resources.stringResource
  * each one starts the tray agent as a process (`WindowsStartupTask`), which can take seconds. The
  * switch is disabled while one is in flight.
  */
+/**
+ * The line under the Explorer switch (X4): what the folder is doing, or `null` while it is off — then the switch
+ * explains itself instead. A file that cannot be uploaded outranks "syncing": it is the one thing the user must act on.
+ */
+@Composable
+private fun explorerStatusText(status: ExplorerStatus): String? {
+    val failure = status.failures.firstOrNull()
+    if (failure != null && status.state != ExplorerStatus.State.UNREACHABLE) {
+        val reason = stringResource(
+            when (failure.reason) {
+                ExplorerStatus.Reason.TOO_LARGE -> Res.string.settings_explorer_reason_too_large
+                ExplorerStatus.Reason.RETRYING -> Res.string.settings_explorer_reason_retrying
+            },
+        )
+        val name = failure.relative.substringAfterLast('/')
+        return if (status.failures.size == 1) {
+            stringResource(Res.string.settings_explorer_status_failed_one, name, reason)
+        } else {
+            stringResource(Res.string.settings_explorer_status_failed_other, status.failures.size, name, reason)
+        }
+    }
+    return when (status.state) {
+        ExplorerStatus.State.OFF -> null
+        ExplorerStatus.State.STARTING -> stringResource(Res.string.settings_explorer_status_starting)
+        ExplorerStatus.State.UP_TO_DATE -> stringResource(Res.string.settings_explorer_status_up_to_date)
+        ExplorerStatus.State.SYNCING -> if (status.pending == 1) {
+            stringResource(Res.string.settings_explorer_status_syncing_one)
+        } else {
+            stringResource(Res.string.settings_explorer_status_syncing_other, status.pending)
+        }
+        ExplorerStatus.State.UNREACHABLE -> stringResource(Res.string.settings_explorer_status_unreachable)
+        ExplorerStatus.State.CLEANING_UP -> stringResource(Res.string.settings_explorer_status_cleaning_up)
+    }
+}
+
 @Composable
 actual fun PlatformSettingsSection() {
     val settings = remember { DesktopControlSettings() }
@@ -58,7 +109,24 @@ actual fun PlatformSettingsSection() {
     var startAtLogin by remember { mutableStateOf(false) }
     var startAtLoginApprovalRequired by remember { mutableStateOf(false) }
     var startAtLoginBusy by remember { mutableStateOf(true) }
+    var explorer by remember { mutableStateOf(ExplorerIntegration.isEnabled()) }
+    var explorerBusy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    // Registering, filling or emptying the folder is file and COM work: off the UI thread, one at a time.
+    fun setExplorer(value: Boolean) {
+        if (explorerBusy) return
+        explorerBusy = true
+        explorer = value
+        scope.launch {
+            try {
+                // What it is now, not what was asked: a start Windows refused leaves it off.
+                explorer = withContext(Dispatchers.IO) { ExplorerIntegration.setEnabled(value) }
+            } finally {
+                explorerBusy = false
+            }
+        }
+    }
 
     suspend fun readStartAtLogin() {
         val (enabled, approval) = withContext(Dispatchers.IO) {
@@ -136,5 +204,13 @@ actual fun PlatformSettingsSection() {
             Switch(checked = startAtLogin, onCheckedChange = ::setStartAtLogin, enabled = !startAtLoginBusy)
         },
         onClick = { setStartAtLogin(!startAtLogin) },
+    )
+    val explorerStatus by ExplorerIntegration.status.collectAsState()
+    if (ExplorerIntegration.supported) AppListItem(
+        headline = stringResource(Res.string.settings_explorer_integration_headline),
+        supportingText = explorerStatusText(explorerStatus) ?: stringResource(Res.string.settings_explorer_integration_support),
+        leadingContent = { Icon(Icons.Default.FolderOpen, contentDescription = null) },
+        trailingContent = { Switch(checked = explorer, onCheckedChange = ::setExplorer, enabled = !explorerBusy) },
+        onClick = { setExplorer(!explorer) },
     )
 }

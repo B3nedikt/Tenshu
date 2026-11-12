@@ -33,6 +33,8 @@ import app.tenshu.control.bridge.SchemaFenceLog
 import app.tenshu.diagnostics.FileDiagnosticSink
 import app.tenshu.diagnostics.LogLevel
 import app.tenshu.control.bridge.registerDataMethods
+import app.tenshu.control.bridge.ExplorerIntegration
+import app.tenshu.control.bridge.registerExplorerMethods
 import app.tenshu.control.bridge.FileProviderBridgeState
 import app.tenshu.control.bridge.registerFileMethods
 import app.tenshu.control.bridge.registerFileWriteMethods
@@ -252,7 +254,23 @@ fun main() {
     // to join (HostPairingMonitor.activeRequest) so the tray can alert on the
     // close-to-tray case; tap → focus Control → the in-app approval modal. SAS-free.
     nativeBridgeServer.registerPairingApprovalMethod(koinApp.koin)
+    // Windows: Explorer's thumbnails for the Tenshu Drive folder, asked for by the tray agent (desktop-windows-port.md §7.9).
+    if (onWindows) nativeBridgeServer.registerExplorerMethods(koinApp.koin)
     nativeBridgeServer.start()
+
+    // Windows: Drive in File Explorer, when switched on (desktop-windows-port.md §7.8). Off the main thread —
+    // registering is COM work and the first pass lists the realm. Its own log file, as an MSIX has no stdout.
+    if (onWindows) {
+        val explorerLog = FileDiagnosticSink(
+            File(DesktopAppPaths.dataDir(koinApp.koin.get<String>(named("platformPackageName"))), "diagnostics/explorer.log"),
+        )
+        Thread({
+            ExplorerIntegration.install(koinApp.koin) { line ->
+                println(line)
+                explorerLog.append(LogLevel.INFO, "explorer", line, null)
+            }
+        }, "explorer-start").apply { isDaemon = true }.start()
+    }
 
     koinApp.koin.loadModules(listOf(module {
         single { unixSocketServer }
@@ -453,6 +471,8 @@ fun main() {
     // (sync scheduler, schedule-drain, constraint gate) before the process
     // tears down. The deterministic counterpart to process-death cleanup; see
     // the "Proxy Background Lifecycle" tech-debt entry.
+    // Stop serving Explorer before the proxy goes: a fetch in flight reads through it.
+    ExplorerIntegration.shutdown()
     runBlocking { proxyGateway.shutdownAndJoin() }
 
     // Take the socket files with us. A client connecting to a leftover file gets "connection

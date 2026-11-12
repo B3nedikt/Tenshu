@@ -27,6 +27,8 @@
     <WindowsAppSdkBootstrapInitialize>false</WindowsAppSdkBootstrapInitialize>
     <SelfContained>true</SelfContained>
     <Nullable>enable</Nullable>
+    <!-- The thumbnail handler reads IShellItem's vtable and builds a DIB (ThumbnailProvider.cs). -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ImplicitUsings>enable</ImplicitUsings>
     <EnableDefaultPageItems>false</EnableDefaultPageItems>
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>

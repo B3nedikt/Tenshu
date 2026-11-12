@@ -47,6 +47,23 @@ class DesktopControlSettings(
 
     fun setSyncPaused(value: Boolean) = write(KEY_SYNC_PAUSED, value.toString())
 
+    /**
+     * Whether Drive shows in File Explorer (Windows, desktop-windows-port.md §7.8). Off by default while the
+     * folder is read-only (X1); device-local, like every switch here.
+     */
+    fun explorerIntegration(): Boolean = read().getProperty(KEY_EXPLORER_INTEGRATION)?.toBooleanStrictOrNull() ?: false
+
+    fun setExplorerIntegration(value: Boolean) = write(KEY_EXPLORER_INTEGRATION, value.toString())
+
+    /**
+     * Whether turning [explorerIntegration] off left placeholders it could not delete yet (a downloaded copy held
+     * open by an app). Control keeps retrying, across restarts, until the folder is clean.
+     */
+    fun explorerCleanupPending(): Boolean =
+        read().getProperty(KEY_EXPLORER_CLEANUP_PENDING)?.toBooleanStrictOrNull() ?: false
+
+    fun setExplorerCleanupPending(value: Boolean) = write(KEY_EXPLORER_CLEANUP_PENDING, value.toString())
+
     private fun read(): Properties {
         val props = Properties()
         if (file.exists()) {
@@ -67,6 +84,8 @@ class DesktopControlSettings(
         const val KEY_CLOSE_TO_TRAY = "closeToTray"
         const val KEY_START_AT_LOGIN_DEFAULT_APPLIED = "startAtLoginDefaultApplied"
         const val KEY_SYNC_PAUSED = "syncPaused"
+        const val KEY_EXPLORER_INTEGRATION = "explorerIntegration"
+        const val KEY_EXPLORER_CLEANUP_PENDING = "explorerCleanupPending"
 
         private fun defaultFile(): File =
             DesktopAppPaths.sharedFile("control.settings.properties")

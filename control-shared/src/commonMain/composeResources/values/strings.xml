@@ -687,6 +687,20 @@
     <string name="settings_start_at_login_support">Launch Tenshu automatically when you sign in</string>
     <string name="settings_start_at_login_approval_support">Allow Tenshu in System Settings → Login Items</string>
     <string name="settings_start_at_login_approval_support_windows">Turn Tenshu Control on in Settings → Apps → Startup</string>
+    <string name="settings_explorer_integration_headline">Show Drive in File Explorer</string>
+    <string name="settings_explorer_integration_support">A Tenshu Drive folder whose files download when you open them. What you change in it syncs; deleted files go to the Trash.</string>
+    <!-- The line under the switch while it is on (desktop-windows-port.md §7.11). One-vs-other keys, not <plurals>:
+         the repo convention for composeResources. -->
+    <string name="settings_explorer_status_starting">Starting…</string>
+    <string name="settings_explorer_status_up_to_date">Up to date</string>
+    <string name="settings_explorer_status_syncing_one">Syncing 1 item…</string>
+    <string name="settings_explorer_status_syncing_other">Syncing %1$d items…</string>
+    <string name="settings_explorer_status_unreachable">Can’t read your files right now. Trying again.</string>
+    <string name="settings_explorer_status_cleaning_up">Removing downloaded copies. Close any file from the folder that is still open.</string>
+    <string name="settings_explorer_status_failed_one">Can’t upload %1$s: %2$s</string>
+    <string name="settings_explorer_status_failed_other">Can’t upload %1$d files, including %2$s: %3$s</string>
+    <string name="settings_explorer_reason_too_large">it is larger than 2 GB. It stays on this PC only.</string>
+    <string name="settings_explorer_reason_retrying">trying again shortly.</string>
 
     <!-- Tenshu Drive in the Android system file dialogs (cross-app-file-access.md P3 / D-D). -->
     <string name="drive_documents_root_title">Tenshu Drive</string>

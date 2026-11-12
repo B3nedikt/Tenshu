@@ -67,6 +67,7 @@ object WindowsCloudFiles {
     const val PLACEHOLDER_FLAG_SUPERSEDE = 0x4
 
     // File attributes a placeholder carries (GetFileAttributesW).
+    const val FILE_ATTRIBUTE_READONLY = 0x1
     const val FILE_ATTRIBUTE_DIRECTORY = 0x10
     const val FILE_ATTRIBUTE_NORMAL = 0x80
     const val FILE_ATTRIBUTE_SPARSE_FILE = 0x200
@@ -102,6 +103,8 @@ object WindowsCloudFiles {
         val modifiedAtMillis: Long,
         val flags: Int = PLACEHOLDER_FLAG_MARK_IN_SYNC,
         val directory: Boolean = false,
+        /** `FILE_ATTRIBUTE_READONLY`: editors refuse to save over it, Explorer asks before deleting it. */
+        val readOnly: Boolean = false,
     )
 
     /** Who opened the file, when the connection asked for [CONNECT_FLAG_REQUIRE_PROCESS_INFO]. */
@@ -144,11 +147,46 @@ object WindowsCloudFiles {
 
     data class CancelFetchData(val transferKey: Long, val fileIdentity: ByteArray, val offset: Long, val length: Long)
 
+    /**
+     * A placeholder is about to be deleted (`NOTIFY_DELETE`). [path]: where it is, `null` when it cannot be told.
+     * Already acknowledged when the handler sees it: Windows goes ahead whatever the handler does, and it may still
+     * fail or be undone — so it is a hint to check the folder against, never a fact.
+     */
+    data class NotifyDelete(
+        val path: Path?,
+        val fileIdentity: ByteArray,
+        val isDirectory: Boolean,
+        val isUndelete: Boolean,
+        val process: RequestingProcess?,
+        /** The HRESULT of our `ACK_DELETE`: a failed one fails the delete in Explorer. */
+        val acknowledged: Int,
+    )
+
+    /**
+     * A placeholder is about to be renamed or moved (`NOTIFY_RENAME`); [target] `null` when it leaves the sync root
+     * (the Recycle Bin, another folder). Acknowledged already, like [NotifyDelete].
+     */
+    data class NotifyRename(
+        val source: Path?,
+        val target: Path?,
+        val fileIdentity: ByteArray,
+        val isDirectory: Boolean,
+        val process: RequestingProcess?,
+        /** The HRESULT of our `ACK_RENAME`: a failed one fails the rename in Explorer. */
+        val acknowledged: Int,
+    )
+
     interface Handler {
         /** Called on a CfAPI thread; may answer now or later. A throw fails the request. */
         fun fetchData(request: FetchData)
 
         fun cancelFetchData(cancel: CancelFetchData) {}
+
+        /** Must return at once (the delete waits for it): note it, act later. */
+        fun notifyDelete(notice: NotifyDelete) {}
+
+        /** Must return at once (the rename waits for it): note it, act later. */
+        fun notifyRename(notice: NotifyRename) {}
     }
 
     class Connection internal constructor(val key: Long) {
@@ -212,6 +250,119 @@ object WindowsCloudFiles {
     fun fileAttributes(path: Path): Int? =
         natives?.let { n -> runCatching { n.fileAttributes(path.toString()) }.getOrNull() }
 
+    // CF_PIN_STATE
+    const val PIN_STATE_UNSPECIFIED = 0
+    const val PIN_STATE_PINNED = 1
+    const val PIN_STATE_UNPINNED = 2
+
+    /**
+     * `CfHydratePlaceholder` over the whole file: blocks until this provider's own FETCH_DATA has delivered it,
+     * so call it from a thread the fetch does not need. ⚠ Explicit, so `BLOCK_SELF_IMPLICIT_HYDRATION` does not
+     * stop it. Answers the HRESULT.
+     */
+    fun hydrate(path: Path): Int? = onAttributeHandle(path) { n, h -> n.hydrate(h) }
+
+    /**
+     * `CfDehydratePlaceholder` over the whole file: the local copy goes, the placeholder stays online-only.
+     * ⚠⚠ On an **exclusive** handle (`CfOpenFileWithOplock(EXCLUSIVE)`): the contract says the caller must hold the
+     * file exclusively "or data corruption can occur" — an attribute handle shared with a reader is not enough. A file
+     * open elsewhere fails the open, and the caller tries again later.
+     */
+    fun dehydrate(path: Path): Int? =
+        natives?.let { n -> runCatching { n.dehydrateExclusively(path.toString()) }.getOrElse { CloudFilesHResult.E_FAIL } }
+
+    /**
+     * `CfConvertToPlaceholder`: makes the ordinary file or folder at [path] a placeholder carrying [identity], marked in
+     * sync, with its bytes kept. On an exclusive handle with write access, as the call requires. ⚠ The caller must have
+     * established that the bytes are the provider's — converting declares them so.
+     */
+    fun convertToPlaceholder(
+        path: Path,
+        identity: ByteArray,
+        directory: Boolean = false,
+        verify: ((read: (ByteArray) -> Int) -> Boolean)? = null,
+    ): Int? =
+        natives?.let { n ->
+            runCatching {
+                // ⚠ A folder on a shared handle: exclusivity protects a file's bytes, and Explorer always has a folder
+                // open, so an exclusive open of one fails with a sharing violation (measured).
+                if (directory) n.convertDirectory(path.toString(), identity) else n.convertExclusively(path.toString(), identity, verify)
+            }.getOrElse { CloudFilesHResult.E_FAIL }
+        }
+
+    /** What [convertToPlaceholder] answers when [verify] refused the bytes: nothing was converted. */
+    const val E_ABORT = 0x80004004.toInt()
+
+    /**
+     * A file held open with **share mode 0** — nobody else can open it while the block runs — and read, write and delete
+     * access. ⚠⚠ The write path's one rule (desktop-windows-port.md §7.10): the bytes read here are the bytes acted on,
+     * because nothing can change them in between.
+     */
+    interface UnsharedFile {
+        /** The next bytes into [into]; `-1` at the end. */
+        fun read(into: ByteArray): Int
+
+        /** `CfConvertToPlaceholder` with [identity], marked in sync. */
+        fun convert(identity: ByteArray): Int
+
+        /** `CfUpdatePlaceholder`: our placeholder gets [identity] and is marked in sync again (an edit uploaded). */
+        fun updateIdentity(identity: ByteArray): Int
+
+        /** `CfUpdatePlaceholder` with `CF_UPDATE_FLAG_CLEAR_IN_SYNC`: our placeholder is marked as holding a change. */
+        fun clearInSync(): Int
+
+        /**
+         * `CfRevertPlaceholder`: an ordinary file again, bytes kept — no longer ours. For a downloaded copy holding an edit
+         * that cannot reach the realm (the integration being switched off). Fails on one that is not fully downloaded.
+         */
+        fun revert(): Int
+
+        /**
+         * `CfDehydratePlaceholder` on this handle: "Free up space" for a copy whose bytes were just checked through it.
+         * The handle is unshared, which is the exclusivity dehydration needs.
+         */
+        fun dehydrate(): Int
+
+        /** The file is deleted when the handle closes (`FileDispositionInfo`). */
+        fun deleteOnClose(): Int
+    }
+
+    /**
+     * Runs [block] on [path] held as an [UnsharedFile]; throws [CloudFilesException] when it cannot be opened so —
+     * another process has it open, typically. [asItself]: a link opens as itself, not its target (for an entry not yet
+     * known to be ours).
+     */
+    fun <T> withUnsharedFile(path: Path, asItself: Boolean, block: (UnsharedFile) -> T): T {
+        val n = natives ?: throw CloudFilesException(CloudFilesHResult.E_FAIL)
+        return n.withUnshared(path.toString(), asItself, block)
+    }
+
+    /**
+     * Gives our placeholder at [path] a new [identity] (it moved in the realm), on a handle shared with everyone so an
+     * open file is no obstacle. ⚠ Its sync state is kept: in sync stays in sync (`VERIFY_IN_SYNC | MARK_IN_SYNC`); one
+     * holding an edit keeps it and gets only the identity, so the edit is uploaded at the new path.
+     */
+    fun updateIdentity(path: Path, identity: ByteArray): Int? =
+        natives?.let { n -> runCatching { n.updateIdentityShared(path.toString(), identity) }.getOrElse { CloudFilesHResult.E_FAIL } }
+
+    /** `CfSetPinState` ([PIN_STATE_PINNED] = "Always keep on this device"). */
+    fun setPinState(path: Path, state: Int): Int? = onAttributeHandle(path) { n, h -> n.setPinState(h, state) }
+
+    private fun onAttributeHandle(path: Path, op: (Natives, Any) -> Int): Int? =
+        natives?.let { n -> runCatching { n.withAttributeHandle(path.toString(), followLinks = true) { op(n, it) } }.getOrElse { CloudFilesHResult.E_FAIL } }
+
+    /** A placeholder's FileIdentity blob, and whether its local state matches what the provider last set. */
+    class PlaceholderInfo(val identity: ByteArray, val inSync: Boolean)
+
+    /**
+     * `CfGetPlaceholderInfo(BASIC)` for [path], or `null` when it is not a placeholder — an ordinary file, a symlink
+     * or a junction (opened as itself, never followed) — or cannot be read.
+     * ⚠ This, not `FILE_ATTRIBUTE_REPARSE_POINT`, says whether an entry is a placeholder: every link has that bit.
+     * An edit saved into a placeholder leaves it **not in sync**.
+     */
+    fun placeholderInfo(path: Path): PlaceholderInfo? =
+        natives?.let { n -> runCatching { n.placeholderInfo(path.toString()) }.getOrNull() }
+
     /** Every `java.lang.foreign` reference of [WindowsCloudFiles]. */
     private class Natives private constructor(
         private val register: MethodHandle,
@@ -222,6 +373,23 @@ object WindowsCloudFiles {
         private val execute: MethodHandle,
         private val getSyncRootInfoByPath: MethodHandle,
         private val getFileAttributes: MethodHandle,
+        private val hydratePlaceholder: MethodHandle,
+        private val dehydratePlaceholder: MethodHandle,
+        private val setPin: MethodHandle,
+        /** `CreateFileW` with `GetLastError` captured: its first argument is the capture segment. */
+        private val createFile: MethodHandle,
+        private val closeHandle: MethodHandle,
+        private val getPlaceholderInfo: MethodHandle,
+        private val openWithOplock: MethodHandle,
+        private val referenceProtected: MethodHandle,
+        private val releaseProtected: MethodHandle,
+        private val win32FromProtected: MethodHandle,
+        private val closeProtected: MethodHandle,
+        private val convertToPlaceholder: MethodHandle,
+        private val readFile: MethodHandle,
+        private val updatePlaceholder: MethodHandle,
+        private val setFileInformationByHandle: MethodHandle,
+        private val revertPlaceholder: MethodHandle,
     ) {
         private val linker = Linker.nativeLinker()
         private val l = CloudFilesLayouts
@@ -263,6 +431,197 @@ object WindowsCloudFiles {
             if (attributes == -1) null else attributes
         }
 
+        /**
+         * Runs [op] on an attribute-only handle to [path] — enough for the pin and hydration calls, and opening
+         * it does not download anything. Answers `HRESULT_FROM_WIN32(GetLastError())` when the open fails.
+         */
+        fun withAttributeHandle(path: String, followLinks: Boolean, op: (Any) -> Int): Int = Arena.ofConfined().use { arena ->
+            val capture = arena.allocate(Linker.Option.captureStateLayout())
+            val flags = FILE_FLAG_BACKUP_SEMANTICS or (if (followLinks) 0 else FILE_FLAG_OPEN_REPARSE_POINT)
+            val handle = createFile.invokeExact(
+                capture, wstr(arena, path), FILE_READ_ATTRIBUTES or FILE_WRITE_ATTRIBUTES,
+                FILE_SHARE_ALL, MemorySegment.NULL, OPEN_EXISTING, flags, MemorySegment.NULL,
+            ) as MemorySegment
+            if (handle.address() == INVALID_HANDLE || handle.address() == 0L) {
+                val error = capture.get(ValueLayout.JAVA_INT, Linker.Option.captureStateLayout().byteOffset(groupElement("GetLastError")))
+                return@use if (error <= 0) error else (error and 0xFFFF) or 0x80070000.toInt()
+            }
+            try {
+                op(handle)
+            } finally {
+                closeHandle.invokeExact(handle) as Int
+            }
+        }
+
+        /** `CF_PLACEHOLDER_BASIC_INFO`, read on a handle that opens a link as itself. */
+        fun placeholderInfo(path: String): PlaceholderInfo? {
+            var result: PlaceholderInfo? = null
+            val hr = withAttributeHandle(path, followLinks = false) { handle ->
+                Arena.ofConfined().use { arena ->
+                    // { CF_PIN_STATE PinState; CF_IN_SYNC_STATE InSyncState; LARGE_INTEGER FileId;
+                    //   LARGE_INTEGER SyncRootFileId; ULONG FileIdentityLength; BYTE FileIdentity[]; }
+                    val size = PLACEHOLDER_BASIC_INFO_IDENTITY_OFFSET + MAX_FILE_IDENTITY
+                    val info = arena.allocate(size, 8L)
+                    val returned = arena.allocate(ValueLayout.JAVA_INT)
+                    val hr = getPlaceholderInfo.invokeExact(handle as MemorySegment, PLACEHOLDER_INFO_BASIC, info, size.toInt(), returned) as Int
+                    if (CloudFilesHResult.succeeded(hr)) {
+                        val length = info.get(ValueLayout.JAVA_INT, PLACEHOLDER_BASIC_INFO_IDENTITY_OFFSET - 4)
+                        if (length in 0..MAX_FILE_IDENTITY.toInt()) {
+                            result = PlaceholderInfo(
+                                identity = info.asSlice(PLACEHOLDER_BASIC_INFO_IDENTITY_OFFSET, length.toLong()).toArray(ValueLayout.JAVA_BYTE),
+                                inSync = info.get(ValueLayout.JAVA_INT, 4L) == IN_SYNC_STATE_IN_SYNC,
+                            )
+                        }
+                    }
+                    hr
+                }
+            }
+            return if (CloudFilesHResult.succeeded(hr)) result else null
+        }
+
+        // LARGE_INTEGER by value is a 64-bit integer on x64; a length of -1 means "to the end of the file".
+        fun hydrate(handle: Any): Int =
+            hydratePlaceholder.invokeExact(handle as MemorySegment, 0L, -1L, 0, MemorySegment.NULL) as Int
+
+        /**
+         * Converts on an exclusive handle; [verify], when given, first reads the bytes through **that same handle** —
+         * ⚠ so nothing can change them between the check and the conversion — and a `false` aborts ([E_ABORT]).
+         */
+        fun convertExclusively(path: String, identity: ByteArray, verify: ((read: (ByteArray) -> Int) -> Boolean)?): Int =
+            try {
+                withUnshared(path, asItself = true) { file ->
+                    if (verify != null && !runCatching { verify(file::read) }.getOrDefault(false)) E_ABORT
+                    else file.convert(identity)
+                }
+            } catch (e: CloudFilesException) {
+                e.hresult
+            }
+
+        /**
+         * ⚠ `CreateFileW` with share mode 0, not `CfOpenFileWithOplock`: the oplock handle cannot read the data (measured
+         * — every hash check through it failed), and the check has to read through the very handle that then acts.
+         */
+        fun <T> withUnshared(path: String, asItself: Boolean, block: (UnsharedFile) -> T): T = Arena.ofConfined().use { arena ->
+            val capture = arena.allocate(Linker.Option.captureStateLayout())
+            val handle = createFile.invokeExact(
+                capture, wstr(arena, path),
+                FILE_READ_DATA or FILE_WRITE_DATA or FILE_READ_ATTRIBUTES or FILE_WRITE_ATTRIBUTES or DELETE,
+                0, MemorySegment.NULL, OPEN_EXISTING, if (asItself) FILE_FLAG_OPEN_REPARSE_POINT else 0, MemorySegment.NULL,
+            ) as MemorySegment
+            if (handle.address() == INVALID_HANDLE || handle.address() == 0L) {
+                val error = capture.get(ValueLayout.JAVA_INT, Linker.Option.captureStateLayout().byteOffset(groupElement("GetLastError")))
+                throw CloudFilesException(if (error <= 0) error else (error and 0xFFFF) or 0x80070000.toInt())
+            }
+            try {
+                val buffer = arena.allocate(READ_BUFFER_BYTES)
+                val got = arena.allocate(ValueLayout.JAVA_INT)
+                block(object : UnsharedFile {
+                    override fun read(into: ByteArray): Int {
+                        val want = minOf(into.size.toLong(), READ_BUFFER_BYTES).toInt()
+                        val ok = readFile.invokeExact(handle, buffer, want, got, MemorySegment.NULL) as Int
+                        if (ok == 0) throw CloudFilesException(CloudFilesHResult.E_FAIL)
+                        val n = got.get(ValueLayout.JAVA_INT, 0L)
+                        MemorySegment.copy(buffer, ValueLayout.JAVA_BYTE, 0L, into, 0, n)
+                        return if (n == 0) -1 else n
+                    }
+
+                    override fun convert(identity: ByteArray): Int = convertToPlaceholder.invokeExact(
+                        handle, bytes(arena, identity), identity.size, CF_CONVERT_FLAG_MARK_IN_SYNC, MemorySegment.NULL, MemorySegment.NULL,
+                    ) as Int
+
+                    override fun updateIdentity(identity: ByteArray): Int = updatePlaceholder.invokeExact(
+                        handle, MemorySegment.NULL, bytes(arena, identity), identity.size, MemorySegment.NULL, 0,
+                        CF_UPDATE_FLAG_MARK_IN_SYNC, MemorySegment.NULL, MemorySegment.NULL,
+                    ) as Int
+
+                    override fun revert(): Int = revertPlaceholder.invokeExact(handle, 0, MemorySegment.NULL) as Int
+
+                    override fun dehydrate(): Int =
+                        dehydratePlaceholder.invokeExact(handle, 0L, -1L, 0, MemorySegment.NULL) as Int
+
+                    override fun clearInSync(): Int = updatePlaceholder.invokeExact(
+                        handle, MemorySegment.NULL, MemorySegment.NULL, 0, MemorySegment.NULL, 0,
+                        CF_UPDATE_FLAG_CLEAR_IN_SYNC, MemorySegment.NULL, MemorySegment.NULL,
+                    ) as Int
+
+                    override fun deleteOnClose(): Int {
+                        // FILE_DISPOSITION_INFO { BOOLEAN DeleteFile; }
+                        val disposition = arena.allocate(ValueLayout.JAVA_BYTE).also { it.set(ValueLayout.JAVA_BYTE, 0L, 1) }
+                        val ok = setFileInformationByHandle.invokeExact(handle, FILE_DISPOSITION_INFO_CLASS, disposition, 1) as Int
+                        return if (ok != 0) CloudFilesHResult.S_OK else CloudFilesHResult.E_FAIL
+                    }
+                })
+            } finally {
+                closeHandle.invokeExact(handle) as Int
+            }
+        }
+
+        fun convertDirectory(path: String, identity: ByteArray): Int = onWritableFolder(path) { arena, handle ->
+            convertToPlaceholder.invokeExact(
+                handle, bytes(arena, identity), identity.size, CF_CONVERT_FLAG_MARK_IN_SYNC, MemorySegment.NULL, MemorySegment.NULL,
+            ) as Int
+        }
+
+        fun updateIdentityShared(path: String, identity: ByteArray): Int = onWritableFolder(path) { arena, handle ->
+            val blob = bytes(arena, identity)
+            val kept = updatePlaceholder.invokeExact(
+                handle, MemorySegment.NULL, blob, identity.size, MemorySegment.NULL, 0,
+                CF_UPDATE_FLAG_VERIFY_IN_SYNC or CF_UPDATE_FLAG_MARK_IN_SYNC, MemorySegment.NULL, MemorySegment.NULL,
+            ) as Int
+            if (CloudFilesHResult.succeeded(kept)) return@onWritableFolder kept
+            // Not in sync (an edit not uploaded yet): the identity alone.
+            updatePlaceholder.invokeExact(
+                handle, MemorySegment.NULL, blob, identity.size, MemorySegment.NULL, 0,
+                0, MemorySegment.NULL, MemorySegment.NULL,
+            ) as Int
+        }
+
+        /** Runs [op] on a handle (a folder or a file) with write access, shared with everyone, opened as itself. */
+        fun onWritableFolder(path: String, op: (Arena, MemorySegment) -> Int): Int = Arena.ofConfined().use { arena ->
+            val capture = arena.allocate(Linker.Option.captureStateLayout())
+            val handle = createFile.invokeExact(
+                capture, wstr(arena, path), FILE_READ_ATTRIBUTES or FILE_WRITE_ATTRIBUTES or FILE_WRITE_DATA,
+                FILE_SHARE_ALL, MemorySegment.NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS or FILE_FLAG_OPEN_REPARSE_POINT,
+                MemorySegment.NULL,
+            ) as MemorySegment
+            if (handle.address() == INVALID_HANDLE || handle.address() == 0L) {
+                val error = capture.get(ValueLayout.JAVA_INT, Linker.Option.captureStateLayout().byteOffset(groupElement("GetLastError")))
+                return@use if (error <= 0) error else (error and 0xFFFF) or 0x80070000.toInt()
+            }
+            try {
+                op(arena, handle)
+            } finally {
+                closeHandle.invokeExact(handle) as Int
+            }
+        }
+
+        fun dehydrateExclusively(path: String): Int =
+            onExclusiveHandle(path, CF_OPEN_FILE_FLAG_EXCLUSIVE) { _, win32 ->
+                dehydratePlaceholder.invokeExact(win32, 0L, -1L, 0, MemorySegment.NULL) as Int
+            }
+
+        /** Runs [op] on the Win32 handle of a `CfOpenFileWithOplock` protected handle, referenced for the duration. */
+        private fun onExclusiveHandle(path: String, flags: Int, op: (Arena, MemorySegment) -> Int): Int = Arena.ofConfined().use { arena ->
+            val protectedHandle = arena.allocate(ValueLayout.ADDRESS)
+            val opened = openWithOplock.invokeExact(wstr(arena, path), flags, protectedHandle) as Int
+            if (!CloudFilesHResult.succeeded(opened)) return@use opened
+            val handle = protectedHandle.get(ValueLayout.ADDRESS, 0L)
+            try {
+                // The Win32 handle stays valid only while the protected handle is referenced (the oplock may break).
+                if ((referenceProtected.invokeExact(handle) as Byte).toInt() == 0) return@use CloudFilesHResult.E_FAIL
+                try {
+                    op(arena, win32FromProtected.invokeExact(handle) as MemorySegment)
+                } finally {
+                    releaseProtected.invokeExact(handle)
+                }
+            } finally {
+                closeProtected.invokeExact(handle)
+            }
+        }
+
+        fun setPinState(handle: Any, state: Int): Int =
+            setPin.invokeExact(handle as MemorySegment, state, 0, MemorySegment.NULL) as Int
+
         fun createPlaceholder(parent: String, p: Placeholder): Int = Arena.ofConfined().use { arena ->
             val info = arena.allocate(l.PLACEHOLDER_CREATE_INFO)
             info.set(ValueLayout.ADDRESS, l.off(l.PLACEHOLDER_CREATE_INFO, "RelativeFileName"), wstr(arena, p.relativeName))
@@ -274,7 +633,8 @@ object WindowsCloudFiles {
             info.set(
                 ValueLayout.JAVA_INT,
                 meta + l.off(l.FILE_BASIC_INFO, "FileAttributes"),
-                if (p.directory) FILE_ATTRIBUTE_DIRECTORY else FILE_ATTRIBUTE_NORMAL,
+                (if (p.directory) FILE_ATTRIBUTE_DIRECTORY else FILE_ATTRIBUTE_NORMAL)
+                    .let { if (p.readOnly) (it and FILE_ATTRIBUTE_NORMAL.inv()) or FILE_ATTRIBUTE_READONLY else it },
             )
             info.set(ValueLayout.JAVA_LONG, meta + l.off(l.FS_METADATA, "FileSize"), if (p.directory) 0L else p.size)
             info.set(ValueLayout.ADDRESS, l.off(l.PLACEHOLDER_CREATE_INFO, "FileIdentity"), bytes(arena, p.identity))
@@ -321,8 +681,10 @@ object WindowsCloudFiles {
             val lookup = MethodHandles.lookup()
             val fetch = linker.upcallStub(lookup.findVirtual(Dispatcher::class.java, "onFetchData", type).bindTo(dispatcher), descriptor, stubs)
             val cancel = linker.upcallStub(lookup.findVirtual(Dispatcher::class.java, "onCancelFetchData", type).bindTo(dispatcher), descriptor, stubs)
+            val delete = linker.upcallStub(lookup.findVirtual(Dispatcher::class.java, "onNotifyDelete", type).bindTo(dispatcher), descriptor, stubs)
+            val rename = linker.upcallStub(lookup.findVirtual(Dispatcher::class.java, "onNotifyRename", type).bindTo(dispatcher), descriptor, stubs)
 
-            val table = stubs.allocate(l.CALLBACK_REGISTRATION, 3)
+            val table = stubs.allocate(l.CALLBACK_REGISTRATION, 5)
             fun entry(index: Long, callbackType: Int, stub: MemorySegment) {
                 val at = index * l.CALLBACK_REGISTRATION.byteSize()
                 table.set(ValueLayout.JAVA_INT, at + l.off(l.CALLBACK_REGISTRATION, "Type"), callbackType)
@@ -330,7 +692,9 @@ object WindowsCloudFiles {
             }
             entry(0, CALLBACK_TYPE_FETCH_DATA, fetch)
             entry(1, CALLBACK_TYPE_CANCEL_FETCH_DATA, cancel)
-            entry(2, CALLBACK_TYPE_NONE, MemorySegment.NULL)
+            entry(2, CALLBACK_TYPE_NOTIFY_DELETE, delete)
+            entry(3, CALLBACK_TYPE_NOTIFY_RENAME, rename)
+            entry(4, CALLBACK_TYPE_NONE, MemorySegment.NULL)
 
             return Arena.ofConfined().use { arena ->
                 val key = arena.allocate(ValueLayout.JAVA_LONG)
@@ -341,32 +705,118 @@ object WindowsCloudFiles {
         }
 
         /** The upcall targets. ⚠ Nothing may escape these methods: an exception in an upcall aborts the JVM. */
-        class Dispatcher(private val handler: Handler) {
+        inner class Dispatcher(private val handler: Handler) {
             private val l = CloudFilesLayouts
 
+            /**
+             * ⚠⚠ Acknowledged first, unconditionally: the delete waits on the ack, and one that never comes holds the
+             * user's Explorer for the ~60 s timeout. The handler only notes it.
+             */
+            fun onNotifyDelete(infoPointer: MemorySegment, paramsPointer: MemorySegment) {
+                val info = runCatching { infoPointer.reinterpret(l.CALLBACK_INFO.byteSize()) }.getOrNull() ?: return
+                val ack = runCatching { acknowledge(info, OPERATION_TYPE_ACK_DELETE) }.getOrDefault(CloudFilesHResult.E_FAIL)
+                runCatching {
+                    val params = paramsPointer.reinterpret(l.CALLBACK_PARAMETERS_FLAGS.byteSize())
+                    val flags = params.get(ValueLayout.JAVA_INT, l.off(l.CALLBACK_PARAMETERS_FLAGS, "Flags"))
+                    handler.notifyDelete(
+                        NotifyDelete(
+                            path = fullPath(info, info.get(ValueLayout.ADDRESS, l.off(l.CALLBACK_INFO, "NormalizedPath"))),
+                            fileIdentity = fileIdentity(info),
+                            isDirectory = flags and DELETE_FLAG_IS_DIRECTORY != 0,
+                            isUndelete = flags and DELETE_FLAG_IS_UNDELETE != 0,
+                            process = process(info),
+                            acknowledged = ack,
+                        ),
+                    )
+                }
+            }
+
+            fun onNotifyRename(infoPointer: MemorySegment, paramsPointer: MemorySegment) {
+                val info = runCatching { infoPointer.reinterpret(l.CALLBACK_INFO.byteSize()) }.getOrNull() ?: return
+                val ack = runCatching { acknowledge(info, OPERATION_TYPE_ACK_RENAME) }.getOrDefault(CloudFilesHResult.E_FAIL)
+                runCatching {
+                    val params = paramsPointer.reinterpret(l.CALLBACK_PARAMETERS_RENAME.byteSize())
+                    val flags = params.get(ValueLayout.JAVA_INT, l.off(l.CALLBACK_PARAMETERS_RENAME, "Flags"))
+                    handler.notifyRename(
+                        NotifyRename(
+                            source = fullPath(info, info.get(ValueLayout.ADDRESS, l.off(l.CALLBACK_INFO, "NormalizedPath"))),
+                            target = if (flags and RENAME_FLAG_TARGET_IN_SCOPE == 0) null else
+                                fullPath(info, params.get(ValueLayout.ADDRESS, l.off(l.CALLBACK_PARAMETERS_RENAME, "TargetPath"))),
+                            fileIdentity = fileIdentity(info),
+                            isDirectory = flags and RENAME_FLAG_IS_DIRECTORY != 0,
+                            process = process(info),
+                            acknowledged = ack,
+                        ),
+                    )
+                }
+            }
+
+            /** `CfExecute(ACK_DELETE | ACK_RENAME)` with `STATUS_SUCCESS`: go ahead. */
+            private fun acknowledge(info: MemorySegment, type: Int): Int = Arena.ofConfined().use { arena ->
+                val op = arena.allocate(l.OPERATION_INFO)
+                op.set(ValueLayout.JAVA_INT, l.off(l.OPERATION_INFO, "StructSize"), l.OPERATION_INFO.byteSize().toInt())
+                op.set(ValueLayout.JAVA_INT, l.off(l.OPERATION_INFO, "Type"), type)
+                op.set(ValueLayout.JAVA_LONG, l.off(l.OPERATION_INFO, "ConnectionKey"), info.get(ValueLayout.JAVA_LONG, l.off(l.CALLBACK_INFO, "ConnectionKey")))
+                op.set(ValueLayout.JAVA_LONG, l.off(l.OPERATION_INFO, "TransferKey"), info.get(ValueLayout.JAVA_LONG, l.off(l.CALLBACK_INFO, "TransferKey")))
+                op.set(ValueLayout.JAVA_LONG, l.off(l.OPERATION_INFO, "RequestKey"), info.get(ValueLayout.JAVA_LONG, l.off(l.CALLBACK_INFO, "RequestKey")))
+                val params = arena.allocate(l.OPERATION_PARAMETERS_ACK)
+                params.set(ValueLayout.JAVA_INT, l.off(l.OPERATION_PARAMETERS_ACK, "ParamSize"), l.OPERATION_PARAMETERS_ACK.byteSize().toInt())
+                params.set(ValueLayout.JAVA_INT, l.off(l.OPERATION_PARAMETERS_ACK, "Flags"), 0)
+                params.set(ValueLayout.JAVA_INT, l.off(l.OPERATION_PARAMETERS_ACK, "CompletionStatus"), 0)
+                execute.invokeExact(op, params) as Int
+            }
+
+            /** A callback's volume-relative path (`\Users\…`) on the callback's volume (`C:`). */
+            private fun fullPath(info: MemorySegment, relative: MemorySegment): Path? {
+                val tail = readWstr(relative) ?: return null
+                val volume = readWstr(info.get(ValueLayout.ADDRESS, l.off(l.CALLBACK_INFO, "VolumeDosName"))) ?: return null
+                return runCatching { Path.of(volume + tail) }.getOrNull()
+            }
+
             fun onFetchData(infoPointer: MemorySegment, paramsPointer: MemorySegment) {
-                var request: FetchData? = null
-                try {
+                // ⚠ Failed from the keys alone when the rest cannot be read: an unanswered request leaves the
+                // opener waiting out the ~60 s timeout.
+                var minimal: FetchData? = null
+                val request: FetchData = try {
                     val info = infoPointer.reinterpret(l.CALLBACK_INFO.byteSize())
                     val params = paramsPointer.reinterpret(l.CALLBACK_PARAMETERS_FETCH_DATA.byteSize())
                     val p = l.CALLBACK_PARAMETERS_FETCH_DATA
-                    request = FetchData(
-                        connectionKey = info.get(ValueLayout.JAVA_LONG, l.off(l.CALLBACK_INFO, "ConnectionKey")),
-                        transferKey = info.get(ValueLayout.JAVA_LONG, l.off(l.CALLBACK_INFO, "TransferKey")),
-                        requestKey = info.get(ValueLayout.JAVA_LONG, l.off(l.CALLBACK_INFO, "RequestKey")),
+                    // Only what the OS sent: an older Windows may hand over a shorter CF_CALLBACK_INFO.
+                    val structSize = info.get(ValueLayout.JAVA_INT, l.off(l.CALLBACK_INFO, "StructSize")).toLong()
+                    fun sent(field: String) = structSize >= l.off(l.CALLBACK_INFO, field) + 8
+                    val facts = facts(info, params)
+                    val connectionKey = info.get(ValueLayout.JAVA_LONG, l.off(l.CALLBACK_INFO, "ConnectionKey"))
+                    val transferKey = info.get(ValueLayout.JAVA_LONG, l.off(l.CALLBACK_INFO, "TransferKey"))
+                    val requestKey = if (sent("RequestKey")) info.get(ValueLayout.JAVA_LONG, l.off(l.CALLBACK_INFO, "RequestKey")) else 0L
+                    val fileSize = info.get(ValueLayout.JAVA_LONG, l.off(l.CALLBACK_INFO, "FileSize"))
+                    val requiredOffset = params.get(ValueLayout.JAVA_LONG, l.off(p, "RequiredFileOffset"))
+                    val requiredLength = params.get(ValueLayout.JAVA_LONG, l.off(p, "RequiredLength"))
+                    minimal = FetchData(
+                        connectionKey, transferKey, requestKey, ByteArray(0), null, fileSize,
+                        requiredOffset, requiredLength, requiredOffset, requiredLength, null, facts,
+                    )
+                    FetchData(
+                        connectionKey = connectionKey,
+                        transferKey = transferKey,
+                        requestKey = requestKey,
                         fileIdentity = fileIdentity(info),
                         normalizedPath = readWstr(info.get(ValueLayout.ADDRESS, l.off(l.CALLBACK_INFO, "NormalizedPath"))),
-                        fileSize = info.get(ValueLayout.JAVA_LONG, l.off(l.CALLBACK_INFO, "FileSize")),
-                        requiredOffset = params.get(ValueLayout.JAVA_LONG, l.off(p, "RequiredFileOffset")),
-                        requiredLength = params.get(ValueLayout.JAVA_LONG, l.off(p, "RequiredLength")),
+                        fileSize = fileSize,
+                        requiredOffset = requiredOffset,
+                        requiredLength = requiredLength,
                         optionalOffset = params.get(ValueLayout.JAVA_LONG, l.off(p, "OptionalFileOffset")),
                         optionalLength = params.get(ValueLayout.JAVA_LONG, l.off(p, "OptionalLength")),
-                        process = process(info),
-                        facts = facts(info, params),
+                        process = if (sent("ProcessInfo")) process(info) else null,
+                        facts = facts,
                     )
+                } catch (t: Throwable) {
+                    runCatching { minimal?.fail() }
+                    return
+                }
+                try {
                     handler.fetchData(request)
                 } catch (t: Throwable) {
-                    runCatching { request?.fail() }
+                    runCatching { request.fail() }
                 }
             }
 
@@ -421,8 +871,37 @@ object WindowsCloudFiles {
             private const val OPERATION_TYPE_TRANSFER_DATA = 0
             private const val CALLBACK_TYPE_FETCH_DATA = 0
             private const val CALLBACK_TYPE_CANCEL_FETCH_DATA = 2
+            private const val CALLBACK_TYPE_NOTIFY_DELETE = 9
+            private const val CALLBACK_TYPE_NOTIFY_RENAME = 11
+            private const val OPERATION_TYPE_ACK_DELETE = 6
+            private const val OPERATION_TYPE_ACK_RENAME = 7
+            private const val DELETE_FLAG_IS_DIRECTORY = 0x1
+            private const val DELETE_FLAG_IS_UNDELETE = 0x2
+            private const val RENAME_FLAG_IS_DIRECTORY = 0x1
+            private const val RENAME_FLAG_TARGET_IN_SCOPE = 0x4
             private const val CALLBACK_TYPE_NONE = -1 // 0xFFFFFFFF
             private const val FILETIME_EPOCH_OFFSET = 116_444_736_000_000_000L
+            private const val FILE_READ_ATTRIBUTES = 0x80
+            private const val FILE_WRITE_ATTRIBUTES = 0x100
+            private const val FILE_WRITE_DATA = 0x2 // FILE_ADD_FILE on a folder
+            private const val FILE_READ_DATA = 0x1
+            private const val FILE_SHARE_ALL = 0x7 // read | write | delete
+            private const val OPEN_EXISTING = 3
+            private const val FILE_FLAG_BACKUP_SEMANTICS = 0x02000000 // so a folder opens too
+            private const val FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000 // a link opens as itself
+            private const val PLACEHOLDER_INFO_BASIC = 0
+            private const val CF_OPEN_FILE_FLAG_EXCLUSIVE = 0x1
+            private const val CF_CONVERT_FLAG_MARK_IN_SYNC = 0x1
+            private const val CF_UPDATE_FLAG_MARK_IN_SYNC = 0x2
+        private const val CF_UPDATE_FLAG_CLEAR_IN_SYNC = 0x40
+        private const val CF_UPDATE_FLAG_VERIFY_IN_SYNC = 0x1
+            private const val DELETE = 0x10000
+            private const val FILE_DISPOSITION_INFO_CLASS = 4
+            private const val READ_BUFFER_BYTES = 64L * 1024
+            private const val IN_SYNC_STATE_IN_SYNC = 1
+            private const val PLACEHOLDER_BASIC_INFO_IDENTITY_OFFSET = 28L
+            private const val MAX_FILE_IDENTITY = 4096L
+            private const val INVALID_HANDLE = -1L
 
             fun wstr(arena: Arena, s: String): MemorySegment = WindowsCloudFilesStrings.wstr(arena, s)
 
@@ -438,12 +917,13 @@ object WindowsCloudFiles {
             fun loadOrNull(): Natives? {
                 if (ValueLayout.ADDRESS.byteSize() != 8L) return null
                 val linker = Linker.nativeLinker()
-                fun handle(library: String, symbol: String, descriptor: FunctionDescriptor): MethodHandle? {
+                fun handle(library: String, symbol: String, descriptor: FunctionDescriptor, vararg options: Linker.Option): MethodHandle? {
                     val address = SymbolLookup.libraryLookup(library, Arena.global()).find(symbol).orElse(null) ?: return null
-                    return linker.downcallHandle(address, descriptor)
+                    return linker.downcallHandle(address, descriptor, *options)
                 }
                 val i = ValueLayout.JAVA_INT
                 val a = ValueLayout.ADDRESS
+                val j = ValueLayout.JAVA_LONG
                 val cf = "cldapi.dll"
                 return Natives(
                     // HRESULT CfRegisterSyncRoot(PCWSTR, const CF_SYNC_REGISTRATION*, const CF_SYNC_POLICIES*, CF_REGISTER_FLAGS)
@@ -460,6 +940,41 @@ object WindowsCloudFiles {
                     // HRESULT CfGetSyncRootInfoByPath(PCWSTR, CF_SYNC_ROOT_INFO_CLASS, PVOID, DWORD, DWORD*)
                     getSyncRootInfoByPath = handle(cf, "CfGetSyncRootInfoByPath", FunctionDescriptor.of(i, a, i, a, i, a)) ?: return null,
                     getFileAttributes = handle("kernel32.dll", "GetFileAttributesW", FunctionDescriptor.of(i, a)) ?: return null,
+                    // HRESULT CfHydratePlaceholder(HANDLE, LARGE_INTEGER offset, LARGE_INTEGER length, CF_HYDRATE_FLAGS, LPOVERLAPPED)
+                    hydratePlaceholder = handle(cf, "CfHydratePlaceholder", FunctionDescriptor.of(i, a, j, j, i, a)) ?: return null,
+                    // HRESULT CfDehydratePlaceholder(HANDLE, LARGE_INTEGER offset, LARGE_INTEGER length, CF_DEHYDRATE_FLAGS, LPOVERLAPPED)
+                    dehydratePlaceholder = handle(cf, "CfDehydratePlaceholder", FunctionDescriptor.of(i, a, j, j, i, a)) ?: return null,
+                    // HRESULT CfSetPinState(HANDLE, CF_PIN_STATE, CF_SET_PIN_FLAGS, LPOVERLAPPED)
+                    setPin = handle(cf, "CfSetPinState", FunctionDescriptor.of(i, a, i, i, a)) ?: return null,
+                    // HANDLE CreateFileW(LPCWSTR, DWORD access, DWORD share, LPSECURITY_ATTRIBUTES, DWORD disposition, DWORD flags, HANDLE)
+                    createFile = handle(
+                        "kernel32.dll", "CreateFileW", FunctionDescriptor.of(a, a, i, i, a, i, i, a),
+                        Linker.Option.captureCallState("GetLastError"),
+                    ) ?: return null,
+                    closeHandle = handle("kernel32.dll", "CloseHandle", FunctionDescriptor.of(i, a)) ?: return null,
+                    // HRESULT CfGetPlaceholderInfo(HANDLE, CF_PLACEHOLDER_INFO_CLASS, PVOID, DWORD, PDWORD)
+                    getPlaceholderInfo = handle(cf, "CfGetPlaceholderInfo", FunctionDescriptor.of(i, a, i, a, i, a)) ?: return null,
+                    // HRESULT CfOpenFileWithOplock(LPCWSTR, CF_OPEN_FILE_FLAGS, HANDLE* ProtectedHandle)
+                    openWithOplock = handle(cf, "CfOpenFileWithOplock", FunctionDescriptor.of(i, a, i, a)) ?: return null,
+                    // BOOLEAN CfReferenceProtectedHandle(HANDLE) — a 1-byte BOOLEAN
+                    referenceProtected = handle(cf, "CfReferenceProtectedHandle", FunctionDescriptor.of(ValueLayout.JAVA_BYTE, a)) ?: return null,
+                    // void CfReleaseProtectedHandle(HANDLE)
+                    releaseProtected = handle(cf, "CfReleaseProtectedHandle", FunctionDescriptor.ofVoid(a)) ?: return null,
+                    // HANDLE CfGetWin32HandleFromProtectedHandle(HANDLE)
+                    win32FromProtected = handle(cf, "CfGetWin32HandleFromProtectedHandle", FunctionDescriptor.of(a, a)) ?: return null,
+                    // void CfCloseHandle(HANDLE)
+                    closeProtected = handle(cf, "CfCloseHandle", FunctionDescriptor.ofVoid(a)) ?: return null,
+                    // HRESULT CfConvertToPlaceholder(HANDLE, LPCVOID FileIdentity, DWORD, CF_CONVERT_FLAGS, USN*, LPOVERLAPPED)
+                    convertToPlaceholder = handle(cf, "CfConvertToPlaceholder", FunctionDescriptor.of(i, a, a, i, i, a, a)) ?: return null,
+                    // BOOL ReadFile(HANDLE, LPVOID, DWORD, LPDWORD, LPOVERLAPPED)
+                    readFile = handle("kernel32.dll", "ReadFile", FunctionDescriptor.of(i, a, a, i, a, a)) ?: return null,
+                    // HRESULT CfUpdatePlaceholder(HANDLE, const CF_FS_METADATA*, LPCVOID FileIdentity, DWORD,
+                    //   const CF_FILE_RANGE* DehydrateRangeArray, DWORD, CF_UPDATE_FLAGS, USN*, LPOVERLAPPED)
+                    updatePlaceholder = handle(cf, "CfUpdatePlaceholder", FunctionDescriptor.of(i, a, a, a, i, a, i, i, a, a)) ?: return null,
+                    // BOOL SetFileInformationByHandle(HANDLE, FILE_INFO_BY_HANDLE_CLASS, LPVOID, DWORD)
+                    setFileInformationByHandle = handle("kernel32.dll", "SetFileInformationByHandle", FunctionDescriptor.of(i, a, i, a, i)) ?: return null,
+                    // HRESULT CfRevertPlaceholder(HANDLE, CF_REVERT_FLAGS, LPOVERLAPPED)
+                    revertPlaceholder = handle(cf, "CfRevertPlaceholder", FunctionDescriptor.of(i, a, i, a)) ?: return null,
                 )
             }
         }
@@ -579,6 +1094,26 @@ internal object CloudFilesLayouts {
         I.withName("Flags"), pad(4),
         L.withName("FileOffset"),
         L.withName("Length"),
+    )
+
+    /** `CF_CALLBACK_PARAMETERS` with its union read as a flags-only arm (`Delete`). */
+    val CALLBACK_PARAMETERS_FLAGS: StructLayout = MemoryLayout.structLayout(
+        I.withName("ParamSize"), pad(4),
+        I.withName("Flags"), pad(4),
+    )
+
+    /** `CF_CALLBACK_PARAMETERS` with its union read as the `Rename` arm. */
+    val CALLBACK_PARAMETERS_RENAME: StructLayout = MemoryLayout.structLayout(
+        I.withName("ParamSize"), pad(4),
+        I.withName("Flags"), pad(4),
+        A.withName("TargetPath"),
+    )
+
+    /** `CF_OPERATION_PARAMETERS` up to the end of the `AckDelete` / `AckRename` arm (same shape). */
+    val OPERATION_PARAMETERS_ACK: StructLayout = MemoryLayout.structLayout(
+        I.withName("ParamSize"), pad(4),
+        I.withName("Flags"),
+        I.withName("CompletionStatus"),
     )
 
     val OPERATION_INFO: StructLayout = MemoryLayout.structLayout(
