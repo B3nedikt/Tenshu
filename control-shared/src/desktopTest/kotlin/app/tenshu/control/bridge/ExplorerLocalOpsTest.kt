@@ -130,11 +130,12 @@ class ExplorerLocalOpsTest {
     }
 
     @Test
-    fun aDeleteInTheTrashChangesNothing_neverAHardDelete() {
+    fun aDeleteInTheTrashIsForGood_butTheTrashFolderStays() {
         val remote = listOf(row("/Trash", folder = true), row("/Trash/c1-a.txt"))
         val plan = ExplorerLocalOps.plan(listOf(delete("Trash/c1-a.txt")), remote, emptyList(), now)
-        assertTrue(plan.steps.isEmpty())
+        assertTrue((plan.steps.single() as Step.Trash).permanently)
         assertTrue(ExplorerLocalOps.plan(listOf(delete("Trash", folder = true)), remote, emptyList(), now).steps.isEmpty())
+        assertTrue(!(ExplorerLocalOps.plan(listOf(delete("a.txt")), listOf(row("/a.txt")), emptyList(), now).steps.single() as Step.Trash).permanently)
         assertTrue(!ExplorerLocalOps.isTrashed("/Trashcan/a.txt"))
     }
 

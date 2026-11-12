@@ -5470,8 +5470,10 @@ Invariants: I1, I8. Applies only while *Show Drive in File Explorer* is on (`des
   decided upload is read through one unshared handle, so what reaches the realm is what was checked; editor temp
   files, hidden and system files are never uploaded; deletes (X3b) move to `/Trash`, never destroy (D-X3-1).
   *X3b (2026-11-12):* deletes and renames in the folder reach the realm too. Any same-user process can therefore
-  move realm files to `/Trash`, or rename and move them, by doing so in the folder. Defense: no hard delete exists on
-  this path — a delete is a move to `/Trash`, and a delete inside `/Trash` changes nothing (the file is shown again);
+  move realm files to `/Trash`, or rename and move them, by doing so in the folder — and, by deleting inside `/Trash`,
+  delete a file for good (D-X3-3, the maintainer's call: emptying a recycle bin item). So a same-user process can
+  destroy a realm file in two steps, as it could through any synced folder with a recycle bin. Defense: a delete
+  anywhere else is a move to `/Trash`, never a destruction;
   a delete is carried only if the realm still holds the version the placeholder showed, so a version that arrived
   from another device is never trashed unseen; every notice waits until the folder has been quiet for 3 s and is then
   checked against the folder as it is, so an editor's save (original deleted or renamed away, new version put in its

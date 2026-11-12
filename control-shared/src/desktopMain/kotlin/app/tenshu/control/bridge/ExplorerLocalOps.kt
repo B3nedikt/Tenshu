@@ -34,8 +34,11 @@ internal object ExplorerLocalOps {
     sealed interface Step {
         val op: Op
 
-        /** Move [realmPath] to the realm's Trash (D-X3-1: never a hard delete). */
-        data class Trash(override val op: Op, val realmPath: String, val isFolder: Boolean) : Step
+        /**
+         * Move [realmPath] to the realm's Trash (D-X3-1) — or, when it is in the Trash already, delete it for good
+         * ([permanently], D-X3-3): emptying one item of a recycle bin.
+         */
+        data class Trash(override val op: Op, val realmPath: String, val isFolder: Boolean, val permanently: Boolean = false) : Step
 
         /** `moveFile([from], [to])`: the realm follows the folder (`op.target`). */
         data class Move(override val op: Op, val from: String, val to: String, val isFolder: Boolean) : Step
@@ -87,14 +90,15 @@ internal object ExplorerLocalOps {
                 }
                 // Goes with its folder; or a second notice of the same delete (the Recycle Bin sends a rename and a delete).
                 if (trashed.any { identityKey == it || identityKey.startsWith("$it/") }) continue
-                // ⚠ Already in the Trash: D-X3-1 allows no hard delete from the folder, so nothing changes in the realm
-                // and the mirror puts it back. Emptying the Trash is Drive's or Photos'.
-                if (isTrashed(row.path) || row.path.equals(TRASH, ignoreCase = true)) {
+                // ⚠ The Trash folder itself is kept (Photos puts its trash there too); its contents go with their own
+                // notices, which Explorer sends before the folder's.
+                if (row.path.equals(TRASH, ignoreCase = true)) {
                     dropped += op
                     continue
                 }
                 trashed += identityKey
-                steps += Step.Trash(op, row.path, op.isFolder)
+                // Already in the Trash: deleted for good (D-X3-3, 2026-11-12).
+                steps += Step.Trash(op, row.path, op.isFolder, permanently = isTrashed(row.path))
             } else {
                 val target = op.target!!
                 val source = localByKey[key(op.relative)]

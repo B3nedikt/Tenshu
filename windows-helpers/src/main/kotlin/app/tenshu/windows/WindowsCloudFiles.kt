@@ -158,6 +158,8 @@ object WindowsCloudFiles {
         val isDirectory: Boolean,
         val isUndelete: Boolean,
         val process: RequestingProcess?,
+        /** The HRESULT of our `ACK_DELETE`: a failed one fails the delete in Explorer. */
+        val acknowledged: Int,
     )
 
     /**
@@ -170,6 +172,8 @@ object WindowsCloudFiles {
         val fileIdentity: ByteArray,
         val isDirectory: Boolean,
         val process: RequestingProcess?,
+        /** The HRESULT of our `ACK_RENAME`: a failed one fails the rename in Explorer. */
+        val acknowledged: Int,
     )
 
     interface Handler {
@@ -701,7 +705,7 @@ object WindowsCloudFiles {
              */
             fun onNotifyDelete(infoPointer: MemorySegment, paramsPointer: MemorySegment) {
                 val info = runCatching { infoPointer.reinterpret(l.CALLBACK_INFO.byteSize()) }.getOrNull() ?: return
-                runCatching { acknowledge(info, OPERATION_TYPE_ACK_DELETE) }
+                val ack = runCatching { acknowledge(info, OPERATION_TYPE_ACK_DELETE) }.getOrDefault(CloudFilesHResult.E_FAIL)
                 runCatching {
                     val params = paramsPointer.reinterpret(l.CALLBACK_PARAMETERS_FLAGS.byteSize())
                     val flags = params.get(ValueLayout.JAVA_INT, l.off(l.CALLBACK_PARAMETERS_FLAGS, "Flags"))
@@ -712,6 +716,7 @@ object WindowsCloudFiles {
                             isDirectory = flags and DELETE_FLAG_IS_DIRECTORY != 0,
                             isUndelete = flags and DELETE_FLAG_IS_UNDELETE != 0,
                             process = process(info),
+                            acknowledged = ack,
                         ),
                     )
                 }
@@ -719,7 +724,7 @@ object WindowsCloudFiles {
 
             fun onNotifyRename(infoPointer: MemorySegment, paramsPointer: MemorySegment) {
                 val info = runCatching { infoPointer.reinterpret(l.CALLBACK_INFO.byteSize()) }.getOrNull() ?: return
-                runCatching { acknowledge(info, OPERATION_TYPE_ACK_RENAME) }
+                val ack = runCatching { acknowledge(info, OPERATION_TYPE_ACK_RENAME) }.getOrDefault(CloudFilesHResult.E_FAIL)
                 runCatching {
                     val params = paramsPointer.reinterpret(l.CALLBACK_PARAMETERS_RENAME.byteSize())
                     val flags = params.get(ValueLayout.JAVA_INT, l.off(l.CALLBACK_PARAMETERS_RENAME, "Flags"))
@@ -731,6 +736,7 @@ object WindowsCloudFiles {
                             fileIdentity = fileIdentity(info),
                             isDirectory = flags and RENAME_FLAG_IS_DIRECTORY != 0,
                             process = process(info),
+                            acknowledged = ack,
                         ),
                     )
                 }

@@ -969,6 +969,9 @@ leftover photos read "Available on this device" again. ⚠ *Open:* an adopted **
 - **D-X3-1 — a delete in Explorer moves the file to the realm's `/Trash`** (`TRASH_ROOT`, `/Trash/<contentId>-<name>`,
   the convention Photos already uses), never a hard delete: bytes, `contentId` and history stay, restoring is a move
   back. The Trash folder is a realm folder and shows in Explorer like any other.
+- **D-X3-3 (2026-11-12) — a delete inside `/Trash` is for good.** It is emptying one item of a recycle bin, which is
+  how OneDrive behaves too: its recycle bin is the end of the line, not a second Trash. The `/Trash` folder itself is
+  kept (Photos uses it). This supersedes the earlier "a delete in the Trash changes nothing".
 - **D-X3-2 — a conflict keeps both.** A file edited here while its realm copy changed elsewhere is uploaded beside it as
   `name (conflict, <computer>).ext`; the other device's version keeps the name. Nothing is ever dropped.
 
@@ -1048,9 +1051,8 @@ Meanwhile the mirror and the write path leave those paths alone, until the listi
 - **A delete is a move to `/Trash/<contentId>-<name>`** (D-X3-1). A folder goes whole, structure kept. Explorer
   deletes the contents first and the folder's own notice can come seconds later, hence "quiet for 3 s", not 3 s per
   notice.
-- ⚠ **A delete inside `/Trash` changes nothing**: the mirror shows the file again. D-X3-1 allows no hard delete from
-  the folder, so emptying the Trash stays with Drive and Photos. *Open for the maintainer:* whether Explorer should be
-  able to delete for good there.
+- ⚠ **A delete inside `/Trash` is for good** (`deleteFile`, D-X3-3). Deleting the `/Trash` folder itself only empties
+  it: the folder stays.
 - **A rename or move is `moveFile`.** Afterwards the placeholders at the target, and below it for a folder, get the
   new path in their identity (`updateIdentity`, on a shared handle, keeping their sync state), so a downloaded copy
   stays downloaded. The journal follows. Notices planned against a folder that has just moved are rebased onto its
