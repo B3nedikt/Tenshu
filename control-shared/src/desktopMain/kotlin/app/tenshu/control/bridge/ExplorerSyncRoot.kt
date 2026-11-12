@@ -330,23 +330,32 @@ internal class ExplorerSyncRoot(
         val row = action.remote
         val path = root.resolve(action.relative)
         adoptFailedAt[action.relative]?.let { if (System.currentTimeMillis() - it < ADOPT_RETRY_MILLIS) return false }
-        if (!row.isFolder) {
-            val before = Files.readAttributes(path, DosFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
-            val stamp = before.size() to before.lastModifiedTime().toMillis()
-            if (notAdoptable[action.relative] == stamp) return false
-            val matches = runCatching { localContentHash(path) == row.contentHash }.getOrDefault(false)
-            val after = Files.readAttributes(path, DosFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
-            if (!matches || after.size() to after.lastModifiedTime().toMillis() != stamp) {
-                notAdoptable[action.relative] = stamp
-                return false
-            }
-            // Read-only refuses the write access the conversion needs; it is put back, as on every placeholder.
-            Files.setAttribute(path, "dos:readonly", false, LinkOption.NOFOLLOW_LINKS)
+        val identity = ExplorerIdentity(row.path, row.contentVersion).encode()
+        if (row.isFolder) return finishAdopt(action, WindowsCloudFiles.convertToPlaceholder(path, identity, directory = true))
+
+        val attributes = Files.readAttributes(path, DosFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+        val stamp = attributes.size() to attributes.lastModifiedTime().toMillis()
+        if (notAdoptable[action.relative] == stamp) return false
+        // Read-only refuses the write access the conversion needs; put back as it was whatever the outcome.
+        val wasReadOnly = attributes.isReadOnly
+        if (wasReadOnly) Files.setAttribute(path, "dos:readonly", false, LinkOption.NOFOLLOW_LINKS)
+        // ⚠⚠ The bytes are hashed through the exclusive handle the conversion then uses: nothing can change them in
+        // between, so what is declared ours is exactly what was checked.
+        val hr = WindowsCloudFiles.convertToPlaceholder(path, identity) { read -> contentHash(read) == row.contentHash }
+        if (wasReadOnly || (hr != null && CloudFilesHResult.succeeded(hr))) {
+            // Ours now: read-only, as every placeholder file is.
+            runCatching { Files.setAttribute(path, "dos:readonly", true, LinkOption.NOFOLLOW_LINKS) }
         }
-        val hr = WindowsCloudFiles.convertToPlaceholder(
-            path, ExplorerIdentity(row.path, row.contentVersion).encode(), directory = row.isFolder,
-        ) ?: return false
-        if (!row.isFolder) runCatching { Files.setAttribute(path, "dos:readonly", true, LinkOption.NOFOLLOW_LINKS) }
+        if (hr == WindowsCloudFiles.E_ABORT) {
+            log("explorer: kept '${action.relative}': its bytes are not the realm's")
+            notAdoptable[action.relative] = stamp // the user's, left alone
+            return false
+        }
+        return finishAdopt(action, hr)
+    }
+
+    private fun finishAdopt(action: ExplorerMirror.Action.Adopt, hr: Int?): Boolean {
+        if (hr == null) return false
         log("explorer: adopt '${action.relative}' -> ${CloudFilesHResult.describe(hr)}")
         if (CloudFilesHResult.succeeded(hr)) {
             notAdoptable.remove(action.relative)
@@ -357,19 +366,35 @@ internal class ExplorerSyncRoot(
         return CloudFilesHResult.succeeded(hr)
     }
 
-    /** `File.ContentHash` of a local file, folded exactly as `wholeFileHashOf` does, one 2 MiB chunk in memory. */
-    private fun localContentHash(path: Path): String {
+    /**
+     * `File.ContentHash` of the bytes [read] yields (`-1` at the end), folded exactly as `wholeFileHashOf` does:
+     * ⚠ full 2 MiB chunks however short each read is, a single empty chunk for an empty file.
+     */
+    private fun contentHash(read: (ByteArray) -> Int): String {
         val hasher = IncrementalSha256()
+        val chunk = ByteArray(FileContentChunkSizeBytes)
+        val scratch = ByteArray(64 * 1024)
+        var filled = 0
         var folded = false
-        Files.newInputStream(path).use { input ->
-            val chunk = ByteArray(FileContentChunkSizeBytes)
-            while (true) {
-                val filled = input.readNBytes(chunk, 0, chunk.size)
-                if (filled <= 0) break
-                hasher.update(if (filled == chunk.size) chunk.copyOf() else chunk.copyOf(filled))
-                folded = true
-                if (filled < chunk.size) break
+        while (true) {
+            val n = read(scratch)
+            if (n <= 0) break
+            var used = 0
+            while (used < n) {
+                val take = minOf(chunk.size - filled, n - used)
+                scratch.copyInto(chunk, filled, used, used + take)
+                filled += take
+                used += take
+                if (filled == chunk.size) {
+                    hasher.update(chunk.copyOf())
+                    folded = true
+                    filled = 0
+                }
             }
+        }
+        if (filled > 0) {
+            hasher.update(chunk.copyOf(filled))
+            folded = true
         }
         if (!folded) hasher.update(ByteArray(0))
         return hasher.digest().toHexLower()

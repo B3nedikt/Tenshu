@@ -241,14 +241,22 @@ object WindowsCloudFiles {
      * sync, with its bytes kept. On an exclusive handle with write access, as the call requires. ⚠ The caller must have
      * established that the bytes are the provider's — converting declares them so.
      */
-    fun convertToPlaceholder(path: Path, identity: ByteArray, directory: Boolean = false): Int? =
+    fun convertToPlaceholder(
+        path: Path,
+        identity: ByteArray,
+        directory: Boolean = false,
+        verify: ((read: (ByteArray) -> Int) -> Boolean)? = null,
+    ): Int? =
         natives?.let { n ->
             runCatching {
                 // ⚠ A folder on a shared handle: exclusivity protects a file's bytes, and Explorer always has a folder
                 // open, so an exclusive open of one fails with a sharing violation (measured).
-                if (directory) n.convertDirectory(path.toString(), identity) else n.convertExclusively(path.toString(), identity)
+                if (directory) n.convertDirectory(path.toString(), identity) else n.convertExclusively(path.toString(), identity, verify)
             }.getOrElse { CloudFilesHResult.E_FAIL }
         }
+
+    /** What [convertToPlaceholder] answers when [verify] refused the bytes: nothing was converted. */
+    const val E_ABORT = 0x80004004.toInt()
 
     /** `CfSetPinState` ([PIN_STATE_PINNED] = "Always keep on this device"). */
     fun setPinState(path: Path, state: Int): Int? = onAttributeHandle(path) { n, h -> n.setPinState(h, state) }
@@ -291,6 +299,7 @@ object WindowsCloudFiles {
         private val win32FromProtected: MethodHandle,
         private val closeProtected: MethodHandle,
         private val convertToPlaceholder: MethodHandle,
+        private val readFile: MethodHandle,
     ) {
         private val linker = Linker.nativeLinker()
         private val l = CloudFilesLayouts
@@ -384,8 +393,25 @@ object WindowsCloudFiles {
         fun hydrate(handle: Any): Int =
             hydratePlaceholder.invokeExact(handle as MemorySegment, 0L, -1L, 0, MemorySegment.NULL) as Int
 
-        fun convertExclusively(path: String, identity: ByteArray): Int =
-            onExclusiveHandle(path, CF_OPEN_FILE_FLAG_EXCLUSIVE or CF_OPEN_FILE_FLAG_WRITE_ACCESS) { arena, win32 ->
+        /**
+         * Converts on an exclusive handle; [verify], when given, first reads the bytes through **that same handle** —
+         * ⚠ so nothing can change them between the check and the conversion — and a `false` aborts ([E_ABORT]).
+         */
+        fun convertExclusively(path: String, identity: ByteArray, verify: ((read: (ByteArray) -> Int) -> Boolean)?): Int =
+            onUnsharedFile(path) { arena, win32 ->
+                if (verify != null) {
+                    val buffer = arena.allocate(READ_BUFFER_BYTES)
+                    val got = arena.allocate(ValueLayout.JAVA_INT)
+                    val reader: (ByteArray) -> Int = { into ->
+                        val want = minOf(into.size.toLong(), READ_BUFFER_BYTES).toInt()
+                        val ok = readFile.invokeExact(win32, buffer, want, got, MemorySegment.NULL) as Int
+                        check(ok != 0) { "ReadFile failed" }
+                        val n = got.get(ValueLayout.JAVA_INT, 0L)
+                        MemorySegment.copy(buffer, ValueLayout.JAVA_BYTE, 0L, into, 0, n)
+                        if (n == 0) -1 else n
+                    }
+                    if (!runCatching { verify(reader) }.getOrDefault(false)) return@onUnsharedFile E_ABORT
+                }
                 convertToPlaceholder.invokeExact(
                     win32, bytes(arena, identity), identity.size, CF_CONVERT_FLAG_MARK_IN_SYNC, MemorySegment.NULL, MemorySegment.NULL,
                 ) as Int
@@ -395,6 +421,28 @@ object WindowsCloudFiles {
             convertToPlaceholder.invokeExact(
                 handle, bytes(arena, identity), identity.size, CF_CONVERT_FLAG_MARK_IN_SYNC, MemorySegment.NULL, MemorySegment.NULL,
             ) as Int
+        }
+
+        /**
+         * Runs [op] on a handle to an ordinary file with read and write access and **share mode 0**: nobody else can open
+         * it while [op] runs. ⚠ Not `CfOpenFileWithOplock`: its handle cannot read the data (measured — every hash
+         * check through it failed), and the check has to read through the very handle that converts.
+         */
+        fun onUnsharedFile(path: String, op: (Arena, MemorySegment) -> Int): Int = Arena.ofConfined().use { arena ->
+            val capture = arena.allocate(Linker.Option.captureStateLayout())
+            val handle = createFile.invokeExact(
+                capture, wstr(arena, path), FILE_READ_DATA or FILE_WRITE_DATA or FILE_READ_ATTRIBUTES or FILE_WRITE_ATTRIBUTES,
+                0, MemorySegment.NULL, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, MemorySegment.NULL,
+            ) as MemorySegment
+            if (handle.address() == INVALID_HANDLE || handle.address() == 0L) {
+                val error = capture.get(ValueLayout.JAVA_INT, Linker.Option.captureStateLayout().byteOffset(groupElement("GetLastError")))
+                return@use if (error <= 0) error else (error and 0xFFFF) or 0x80070000.toInt()
+            }
+            try {
+                op(arena, handle)
+            } finally {
+                closeHandle.invokeExact(handle) as Int
+            }
         }
 
         /** Runs [op] on a folder handle with write access, shared with everyone, opened as itself. */
@@ -628,14 +676,15 @@ object WindowsCloudFiles {
             private const val FILE_READ_ATTRIBUTES = 0x80
             private const val FILE_WRITE_ATTRIBUTES = 0x100
             private const val FILE_WRITE_DATA = 0x2 // FILE_ADD_FILE on a folder
+            private const val FILE_READ_DATA = 0x1
             private const val FILE_SHARE_ALL = 0x7 // read | write | delete
             private const val OPEN_EXISTING = 3
             private const val FILE_FLAG_BACKUP_SEMANTICS = 0x02000000 // so a folder opens too
             private const val FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000 // a link opens as itself
             private const val PLACEHOLDER_INFO_BASIC = 0
             private const val CF_OPEN_FILE_FLAG_EXCLUSIVE = 0x1
-            private const val CF_OPEN_FILE_FLAG_WRITE_ACCESS = 0x2
             private const val CF_CONVERT_FLAG_MARK_IN_SYNC = 0x1
+            private const val READ_BUFFER_BYTES = 64L * 1024
             private const val IN_SYNC_STATE_IN_SYNC = 1
             private const val PLACEHOLDER_BASIC_INFO_IDENTITY_OFFSET = 28L
             private const val MAX_FILE_IDENTITY = 4096L
@@ -704,7 +753,8 @@ object WindowsCloudFiles {
                     closeProtected = handle(cf, "CfCloseHandle", FunctionDescriptor.ofVoid(a)) ?: return null,
                     // HRESULT CfConvertToPlaceholder(HANDLE, LPCVOID FileIdentity, DWORD, CF_CONVERT_FLAGS, USN*, LPOVERLAPPED)
                     convertToPlaceholder = handle(cf, "CfConvertToPlaceholder", FunctionDescriptor.of(i, a, a, i, i, a, a)) ?: return null,
-                    // HRESULT CfSetInSyncState(HANDLE, CF_IN_SYNC_STATE, CF_SET_IN_SYNC_FLAGS, USN*)
+                    // BOOL ReadFile(HANDLE, LPVOID, DWORD, LPDWORD, LPOVERLAPPED)
+                    readFile = handle("kernel32.dll", "ReadFile", FunctionDescriptor.of(i, a, a, i, a, a)) ?: return null,
                 )
             }
         }
