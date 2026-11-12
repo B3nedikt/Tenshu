@@ -1017,6 +1017,17 @@ device at the same time; unit-tested).
   is marked not-in-sync (`CF_UPDATE_FLAG_CLEAR_IN_SYNC`) and the write path takes it: a conflict copy, or a re-upload
   if the row was deleted. A copy made before the journal kept hashes has nothing to compare against and is removed as
   before; an online-only one holds nothing local to lose.
+- ⚠⚠ **Such an edit is also found without a delete to trigger it, and is never lost by switching off.**
+  - The journal records each copy's size and modification time as Control left it.
+  - A downloaded in-sync copy that no longer matches is hashed on an unshared handle. If the bytes are the same, the
+    new size and time are recorded; if they differ, the copy is marked not in sync and the write path uploads it.
+    So a copy is read only when it looks changed, not every pass.
+  - ⚠ An edit that keeps both the size and the time is not found here. It stays unsynced but is never lost: every
+    delete still hashes first.
+  - Switching the integration off turns a copy holding such an edit into an ordinary file (`CfRevertPlaceholder`),
+    the user's own, instead of deleting it.
+
+  Windows normally clears in-sync on any write, so all of this is defence in depth.
 - **A conflict copy is made once.** If handing the path back fails after the copy went up, the retry finds the realm
   sibling with the same bytes and a conflict name of this file, and only hands the path back.
 - **Writes wait out a suspect listing.** While the realm listing would remove most of the folder (the mass-removal
@@ -1095,5 +1106,5 @@ The switch's description is corrected too: it said "read-only for now", which ha
   is a WinRT `StorageProviderItemProperties` call per item, worth it only if the Settings line proves too hidden.
 - ⚠ *Open, cosmetic:* an **adopted folder** still reads "Sync pending" (§7.9).
 
-*Not device-verified:* the Settings line itself (it needs a look at Control's Settings). The build that carries it
-started, refilled the folder and adopted what the reinstall left.
+✅ Device-verified by the maintainer (2026-11-12): the line reads *Syncing…* briefly after a change, then *Up to
+date*. The build also started, refilled the folder and adopted what the reinstall left.

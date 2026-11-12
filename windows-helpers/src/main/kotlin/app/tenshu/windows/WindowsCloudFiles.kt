@@ -307,6 +307,12 @@ object WindowsCloudFiles {
         /** `CfUpdatePlaceholder` with `CF_UPDATE_FLAG_CLEAR_IN_SYNC`: our placeholder is marked as holding a change. */
         fun clearInSync(): Int
 
+        /**
+         * `CfRevertPlaceholder`: an ordinary file again, bytes kept — no longer ours. For a downloaded copy holding an edit
+         * that cannot reach the realm (the integration being switched off). Fails on one that is not fully downloaded.
+         */
+        fun revert(): Int
+
         /** The file is deleted when the handle closes (`FileDispositionInfo`). */
         fun deleteOnClose(): Int
     }
@@ -373,6 +379,7 @@ object WindowsCloudFiles {
         private val readFile: MethodHandle,
         private val updatePlaceholder: MethodHandle,
         private val setFileInformationByHandle: MethodHandle,
+        private val revertPlaceholder: MethodHandle,
     ) {
         private val linker = Linker.nativeLinker()
         private val l = CloudFilesLayouts
@@ -516,6 +523,8 @@ object WindowsCloudFiles {
                         handle, MemorySegment.NULL, bytes(arena, identity), identity.size, MemorySegment.NULL, 0,
                         CF_UPDATE_FLAG_MARK_IN_SYNC, MemorySegment.NULL, MemorySegment.NULL,
                     ) as Int
+
+                    override fun revert(): Int = revertPlaceholder.invokeExact(handle, 0, MemorySegment.NULL) as Int
 
                     override fun clearInSync(): Int = updatePlaceholder.invokeExact(
                         handle, MemorySegment.NULL, MemorySegment.NULL, 0, MemorySegment.NULL, 0,
@@ -949,6 +958,8 @@ object WindowsCloudFiles {
                     updatePlaceholder = handle(cf, "CfUpdatePlaceholder", FunctionDescriptor.of(i, a, a, a, i, a, i, i, a, a)) ?: return null,
                     // BOOL SetFileInformationByHandle(HANDLE, FILE_INFO_BY_HANDLE_CLASS, LPVOID, DWORD)
                     setFileInformationByHandle = handle("kernel32.dll", "SetFileInformationByHandle", FunctionDescriptor.of(i, a, i, a, i)) ?: return null,
+                    // HRESULT CfRevertPlaceholder(HANDLE, CF_REVERT_FLAGS, LPOVERLAPPED)
+                    revertPlaceholder = handle(cf, "CfRevertPlaceholder", FunctionDescriptor.of(i, a, i, a)) ?: return null,
                 )
             }
         }

@@ -5478,7 +5478,8 @@ Invariants: I1, I8. Applies only while *Show Drive in File Explorer* is on (`des
   place) is an edit, not a delete; Control's own deletes are recognised by process and never carried.
   Every delete or rename the mirror makes for the realm — removing a placeholder whose row went — checks and deletes on
   one unshared handle, and a downloaded copy whose bytes differ from its version's recorded hash is kept for upload
-  instead (an edit Windows did not flag is never deleted).
+  instead (an edit Windows did not flag is never deleted). Switching the integration off keeps such a copy too, as an
+  ordinary file.
 Residual risk while the switch is on: **Medium** for (a) and (c), **Medium** for (b) since X3a (it now reaches the
 realm); none while it is off.
 
