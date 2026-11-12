@@ -1053,6 +1053,14 @@ Meanwhile the mirror and the write path leave those paths alone, until the listi
   notice.
 - ⚠ **A delete inside `/Trash` is for good** (`deleteFile`, D-X3-3). Deleting the `/Trash` folder itself only empties
   it: the folder stays.
+- **Deleting an online-only file shows Windows' own warning:** "permanently removed from your PC without sending it
+  to the Recycle Bin". There are no local bytes to recycle, and OneDrive gets the same dialog. Our `/Trash` is the
+  safety net in the role of OneDrive's online recycle bin. The wording is Windows', and no API changes it.
+- ⚠ Measured (maintainer, 2026-11-12): after a **side-load reinstall**, an Explorer window left open through it
+  silently did nothing on delete. No notice reached Control, so Explorer stopped before the delete began; reopening
+  Explorer fixed it. The reinstall unregisters the root and Control registers it again, so a window open through that
+  keeps the old registration. A Store update upgrades in place and is not expected to do this (*not measured*). Each
+  notice is now logged with its process and the ack's HRESULT, so a recurrence can be told apart from a Control fault.
 - **A rename or move is `moveFile`.** Afterwards the placeholders at the target, and below it for a folder, get the
   new path in their identity (`updateIdentity`, on a shared handle, keeping their sync state), so a downloaded copy
   stays downloaded. The journal follows. Notices planned against a folder that has just moved are rebased onto its
