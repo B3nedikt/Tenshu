@@ -513,7 +513,17 @@
     <string name="settings_start_at_login_support">Tenshu automatisch starten, wenn du dich anmeldest</string>
     <string name="settings_start_at_login_approval_support_windows">Aktiviere Tenshu Control unter Einstellungen → Apps → Autostart</string>
     <string name="settings_explorer_integration_headline">Drive im Datei-Explorer anzeigen</string>
-    <string name="settings_explorer_integration_support">Ein Ordner „Tenshu Drive“, dessen Dateien beim Öffnen geladen werden. Vorerst schreibgeschützt.</string>
+    <string name="settings_explorer_integration_support">Ein Ordner „Tenshu Drive“, dessen Dateien beim Öffnen geladen werden. Änderungen darin werden synchronisiert; gelöschte Dateien landen im Papierkorb.</string>
+    <string name="settings_explorer_status_starting">Wird gestartet …</string>
+    <string name="settings_explorer_status_up_to_date">Auf dem neuesten Stand</string>
+    <string name="settings_explorer_status_syncing_one">1 Element wird synchronisiert …</string>
+    <string name="settings_explorer_status_syncing_other">%1$d Elemente werden synchronisiert …</string>
+    <string name="settings_explorer_status_unreachable">Deine Dateien sind gerade nicht lesbar. Neuer Versuch folgt.</string>
+    <string name="settings_explorer_status_cleaning_up">Heruntergeladene Kopien werden entfernt. Schließe Dateien aus dem Ordner, die noch geöffnet sind.</string>
+    <string name="settings_explorer_status_failed_one">%1$s kann nicht hochgeladen werden: %2$s</string>
+    <string name="settings_explorer_status_failed_other">%1$d Dateien können nicht hochgeladen werden, darunter %2$s: %3$s</string>
+    <string name="settings_explorer_reason_too_large">größer als 2 GB. Die Datei bleibt nur auf diesem PC.</string>
+    <string name="settings_explorer_reason_retrying">neuer Versuch in Kürze.</string>
 
     <!-- Tenshu Drive in the Android system file dialogs (cross-app-file-access.md P3 / D-D). -->
     <string name="drive_documents_root_title">Tenshu Drive</string>

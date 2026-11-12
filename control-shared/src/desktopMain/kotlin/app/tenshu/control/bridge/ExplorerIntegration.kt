@@ -3,6 +3,9 @@ package app.tenshu.control.bridge
 import app.tenshu.control.lifecycle.DesktopControlSettings
 import app.tenshu.windows.WindowsCloudFiles
 import app.tenshu.windows.WindowsSyncRootManager
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import org.koin.core.Koin
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
@@ -17,13 +20,32 @@ import java.util.concurrent.TimeUnit
 object ExplorerIntegration {
     private var koin: Koin? = null
     private var log: (String) -> Unit = ::println
-    private var running: ExplorerSyncRoot? = null
+    @Volatile private var running: ExplorerSyncRoot? = null
     private val settings = DesktopControlSettings()
     private val retries = Executors.newSingleThreadScheduledExecutor { r ->
         Thread(r, "explorer-cleanup").apply { isDaemon = true }
     }
     private var cleanup: ScheduledFuture<*>? = null
     private var restart: ScheduledFuture<*>? = null
+
+    /** The root whose start() is running: its first pass may report before [running] is set. */
+    @Volatile private var starting: ExplorerSyncRoot? = null
+
+    private val _status = MutableStateFlow(ExplorerStatus(ExplorerStatus.State.OFF))
+
+    /** What the folder is doing, for the line under the Settings switch (X4). */
+    val status: StateFlow<ExplorerStatus> = _status.asStateFlow()
+
+    /** The state when nothing is serving: off, emptying the folder, or on and waiting to start. */
+    private fun idleStatus() {
+        _status.value = ExplorerStatus(
+            when {
+                isEnabled() -> ExplorerStatus.State.STARTING
+                cleanup != null || settings.explorerCleanupPending() -> ExplorerStatus.State.CLEANING_UP
+                else -> ExplorerStatus.State.OFF
+            },
+        )
+    }
 
     /** Windows with a usable Cloud Files API; false elsewhere, where the switch is not shown. */
     val supported: Boolean by lazy {
@@ -46,6 +68,7 @@ object ExplorerIntegration {
         }
         // Switched off while a downloaded copy was open: finish emptying the folder, now or as soon as it can be.
         else if (settings.explorerCleanupPending()) cleanUp()
+        if (running == null) idleStatus()
     }
 
     /**
@@ -73,6 +96,7 @@ object ExplorerIntegration {
             root?.stop()
             cleanUp()
         }
+        if (running == null) idleStatus()
         return running != null
     }
 
@@ -109,6 +133,7 @@ object ExplorerIntegration {
         if (ExplorerSyncRoot.removeAll(ExplorerSyncRoot.defaultRoot(), log)) {
             settings.setExplorerCleanupPending(false)
             stopCleanup()
+            if (running == null) idleStatus()
             return
         }
         settings.setExplorerCleanupPending(true)
@@ -127,10 +152,16 @@ object ExplorerIntegration {
 
     private fun start() {
         val koin = koin ?: return
+        var self: ExplorerSyncRoot? = null
         val root = ExplorerSyncRoot(
             koin, ExplorerSyncRoot.defaultRoot(), log,
             journalFile = org.tenshu.core.common.storage.DesktopAppPaths.sharedFile("explorer-versions.tsv"),
+            // Only the one serving speaks: a pass of a root being stopped must not overwrite "off".
+            onStatus = { status -> if (self != null && (running === self || starting === self)) _status.value = status },
         )
+        self = root
+        starting = root
+        _status.value = ExplorerStatus(ExplorerStatus.State.STARTING)
         running = if (runCatching { root.start() }.onFailure { log("explorer: start failed: $it") }.getOrDefault(false)) {
             settings.setExplorerCleanupPending(false)
             root
@@ -138,6 +169,7 @@ object ExplorerIntegration {
             root.stop()
             null
         }
+        starting = null
     }
 
     private const val CLEANUP_RETRY_SECONDS = 60L
