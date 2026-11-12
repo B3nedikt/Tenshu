@@ -26,6 +26,7 @@ import org.tenshu.core.collection.list.toList
 import org.tenshu.core.collection.list.traverse
 import org.tenshu.core.common.TenshuClient
 import java.util.Locale
+import org.tenshu.core.file.system.deleteFile
 import org.tenshu.core.file.system.moveFile
 import org.tenshu.core.common.util.FileContentChunkSizeBytes
 import org.tenshu.core.common.util.IncrementalSha256
@@ -373,14 +374,19 @@ internal class ExplorerSyncRoot(
         val fs = koin.fileSystem()
         when (step) {
             is ExplorerLocalOps.Step.Trash -> {
-                ensureRealmFolder(ExplorerLocalOps.TRASH)
-                val contentId = if (step.isFolder) null else runCatching { fs.readEntityItem(step.realmPath).contentId }.getOrNull()
-                val to = ExplorerLocalOps.trashPathFor(
-                    step.realmPath, contentId, System.currentTimeMillis(),
-                    remote.filter { ExplorerLocalOps.isTrashed(it.path) }.mapTo(HashSet()) { it.path },
-                )
-                fs.moveFile(step.realmPath, to).orThrowWrite("trash", "${step.realmPath} -> $to")
-                log("explorer: deleted in Explorer: '${step.realmPath}' moved to '$to'")
+                if (step.permanently) {
+                    fs.deleteFile(step.realmPath).orThrowWrite("delete", step.realmPath)
+                    log("explorer: deleted in Explorer from the Trash: '${step.realmPath}' deleted for good")
+                } else {
+                    ensureRealmFolder(ExplorerLocalOps.TRASH)
+                    val contentId = if (step.isFolder) null else runCatching { fs.readEntityItem(step.realmPath).contentId }.getOrNull()
+                    val to = ExplorerLocalOps.trashPathFor(
+                        step.realmPath, contentId, System.currentTimeMillis(),
+                        remote.filter { ExplorerLocalOps.isTrashed(it.path) }.mapTo(HashSet()) { it.path },
+                    )
+                    fs.moveFile(step.realmPath, to).orThrowWrite("trash", "${step.realmPath} -> $to")
+                    log("explorer: deleted in Explorer: '${step.realmPath}' moved to '$to'")
+                }
                 forgetJournalUnder(step.op.relative)
                 appliedGuards += AppliedGuard(setOf(key(step.op.relative), key(step.realmPath.trim('/'))), step.realmPath)
             }
@@ -456,8 +462,8 @@ internal class ExplorerSyncRoot(
     private val ownPid = ProcessHandle.current().pid()
 
     private fun note(path: Path?, target: String?, identity: ByteArray, isFolder: Boolean) {
-        val relative = path?.let(::relativeOf) ?: return
-        val id = ExplorerIdentity.decode(identity) ?: return
+        val relative = path?.let(::relativeOf) ?: return log("explorer: notice for '$path' is outside the folder; ignored")
+        val id = ExplorerIdentity.decode(identity) ?: return log("explorer: notice for '$relative' carries no Tenshu identity; ignored")
         notices += ExplorerLocalOps.Op(relative, target, id.path, id.contentVersion, isFolder, System.currentTimeMillis())
         scope.launch {
             delay(ExplorerLocalOps.GRACE_MILLIS + SETTLE_MARGIN_MILLIS)
@@ -970,16 +976,30 @@ internal class ExplorerSyncRoot(
 
         // ⚠ Our own deletes (the mirror's) are ignored by process: carried to the realm, they would trash what the
         // realm just replaced.
+        // Every notice is logged with its outcome: a delete Explorer silently refuses is otherwise invisible.
         override fun notifyDelete(notice: WindowsCloudFiles.NotifyDelete) {
-            if (notice.isUndelete || notice.process?.pid == ownPid) return
-            note(notice.path, null, notice.fileIdentity, notice.isDirectory)
+            val skip = when {
+                notice.process?.pid == ownPid -> "ours"
+                notice.isUndelete -> "an undelete"
+                else -> null
+            }
+            log("explorer: notice delete '${notice.path?.let(::relativeOf)}'${describe(notice.process)} ack ${CloudFilesHResult.describe(notice.acknowledged)}${skip?.let { " ($it, ignored)" }.orEmpty()}")
+            if (skip == null) note(notice.path, null, notice.fileIdentity, notice.isDirectory)
         }
 
         override fun notifyRename(notice: WindowsCloudFiles.NotifyRename) {
-            if (notice.process?.pid == ownPid) return
+            val ours = notice.process?.pid == ownPid
+            log(
+                "explorer: notice rename '${notice.source?.let(::relativeOf)}' -> " +
+                    "'${notice.target?.let(::relativeOf) ?: "(out of the folder)"}'${describe(notice.process)} " +
+                    "ack ${CloudFilesHResult.describe(notice.acknowledged)}${if (ours) " (ours, ignored)" else ""}",
+            )
             // Out of the folder (the Recycle Bin) is a delete.
-            note(notice.source, notice.target?.let(::relativeOf), notice.fileIdentity, notice.isDirectory)
+            if (!ours) note(notice.source, notice.target?.let(::relativeOf), notice.fileIdentity, notice.isDirectory)
         }
+
+        private fun describe(process: WindowsCloudFiles.RequestingProcess?): String =
+            process?.let { " by ${it.imagePath?.substringAfterLast('\\') ?: "?"} (${it.pid})" }.orEmpty()
 
         override fun cancelFetchData(cancel: WindowsCloudFiles.CancelFetchData) {
             // A cancel for a transfer already finished would otherwise stay in the map for good.
