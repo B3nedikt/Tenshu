@@ -1054,7 +1054,11 @@ Meanwhile the mirror and the write path leave those paths alone, until the listi
 - a Recycle Bin delete went to `/Trash` under the file's `contentId`.
 
 ⚠ Measured: the Recycle Bin sends **two** notices for one file, so a second notice of a delete already planned is
-skipped. ⚠ The realm's `/Trash` already held Photos' trash, so turning X3b on also shows those files in Explorer, as
+skipped. ⚠ Measured: a renamed file is left **not in sync** after the move, either by Windows or because
+`VERIFY_IN_SYNC` failed. So the write path then hashes it, finds the realm's bytes and marks it in sync again
+(`ALREADY_THERE`, about a second later): self-healing, at the cost of reading the file once. *Not device-verified:* the
+mirror's removal of a downloaded placeholder on one unshared handle (`deleteFileIfUnchanged`); it needs a change made
+on another device. ⚠ The realm's `/Trash` already held Photos' trash, so turning X3b on also shows those files in Explorer, as
 D-X3-1 intended.
 
 **Threat model (owed with X3a):** T-C-21 grows a write half — any same-user process can add or change realm files
