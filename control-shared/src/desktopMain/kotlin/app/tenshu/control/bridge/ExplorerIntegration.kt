@@ -127,7 +127,10 @@ object ExplorerIntegration {
 
     private fun start() {
         val koin = koin ?: return
-        val root = ExplorerSyncRoot(koin, ExplorerSyncRoot.defaultRoot(), log)
+        val root = ExplorerSyncRoot(
+            koin, ExplorerSyncRoot.defaultRoot(), log,
+            journalFile = org.tenshu.core.common.storage.DesktopAppPaths.sharedFile("explorer-versions.tsv"),
+        )
         running = if (runCatching { root.start() }.onFailure { log("explorer: start failed: $it") }.getOrDefault(false)) {
             settings.setExplorerCleanupPending(false)
             root

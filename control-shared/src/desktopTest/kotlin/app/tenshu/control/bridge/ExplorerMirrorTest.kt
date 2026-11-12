@@ -94,13 +94,9 @@ class ExplorerMirrorTest {
     }
 
     @Test
-    fun anOrdinaryFileOfTheRowsSizeIsACandidateForAdoption_onlyWithAHashToProveIt() {
+    fun anOrdinaryFileAtARowsPathIsTheWritePathsToLookAt_notTheMirrors() {
         val leftover = ExplorerMirror.Local("a.jpg", isFolder = false, isPlaceholder = false, size = 10, modifiedAtMillis = 1_000)
-        val hashed = file("/a.jpg").copy(contentHash = "abc")
-        assertEquals(listOf(Adopt("a.jpg", hashed)), ExplorerMirror.plan(listOf(hashed), listOf(leftover)))
-        // No hash to compare with, or another size: it is the user's, nothing to do.
-        assertEquals(emptyList(), ExplorerMirror.plan(listOf(file("/a.jpg")), listOf(leftover)))
-        assertEquals(emptyList(), ExplorerMirror.plan(listOf(hashed.copy(size = 11)), listOf(leftover)))
+        assertEquals(emptyList(), ExplorerMirror.plan(listOf(file("/a.jpg").copy(contentHash = "abc")), listOf(leftover)))
     }
 
     @Test
@@ -275,6 +271,13 @@ class ExplorerMirrorTest {
         // A file whose identity names its own path needs nothing.
         val same = old.copy(relative = "Photo.jpg", identityPath = "/Photo.jpg")
         assertEquals(emptyList(), ExplorerMirror.plan(listOf(file("/Photo.jpg")), listOf(same)))
+    }
+
+    @Test
+    fun withAVersionInItsIdentity_aDifferentDateIsNotAChange() {
+        // An upload over a file stamps the realm's date with the moment of the upload; the local file keeps its own.
+        val uploaded = placeholder("a.txt", modified = 5_000).copy(contentVersion = "v1", identityPath = "/a.txt")
+        assertEquals(emptyList(), ExplorerMirror.plan(listOf(file("/a.txt", modified = 9_000)), listOf(uploaded)))
     }
 
     @Test
