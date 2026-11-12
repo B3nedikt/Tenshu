@@ -130,7 +130,8 @@ object ExplorerIntegration {
 
     @Synchronized
     private fun cleanUp() {
-        if (ExplorerSyncRoot.removeAll(ExplorerSyncRoot.defaultRoot(), log)) {
+        // The journal's hashes tell a downloaded copy from one holding an edit that never reached the realm.
+        if (ExplorerSyncRoot.removeAll(ExplorerSyncRoot.defaultRoot(), log, ExplorerJournal(journalFile()))) {
             settings.setExplorerCleanupPending(false)
             stopCleanup()
             if (running == null) idleStatus()
@@ -155,7 +156,7 @@ object ExplorerIntegration {
         var self: ExplorerSyncRoot? = null
         val root = ExplorerSyncRoot(
             koin, ExplorerSyncRoot.defaultRoot(), log,
-            journalFile = org.tenshu.core.common.storage.DesktopAppPaths.sharedFile("explorer-versions.tsv"),
+            journalFile = journalFile(),
             // Only the one serving speaks: a pass of a root being stopped must not overwrite "off".
             onStatus = { status -> if (self != null && (running === self || starting === self)) _status.value = status },
         )
@@ -171,6 +172,8 @@ object ExplorerIntegration {
         }
         starting = null
     }
+
+    private fun journalFile() = org.tenshu.core.common.storage.DesktopAppPaths.sharedFile("explorer-versions.tsv")
 
     private const val CLEANUP_RETRY_SECONDS = 60L
 }

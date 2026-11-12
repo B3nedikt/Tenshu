@@ -290,6 +290,13 @@ internal class ExplorerSyncRoot(
                 return
             }
         }
+        // An edit Windows did not flag (the copy still says in sync): marked as one, the write path below takes it.
+        val flagged = withContext(writeDispatcher) { flagUnmarkedEdits(local.filterNot { isGuarded(it.relative) }) }
+        journal.save()
+        if (flagged > 0) {
+            passes.trySend(Unit)
+            return
+        }
         // Writes first (X3, §7.10): what the folder holds that the realm does not. A pass that wrote anything ends
         // there and asks for another, so the mirror below always plans against a realm that includes it.
         val now = System.currentTimeMillis()
@@ -422,8 +429,9 @@ internal class ExplorerSyncRoot(
                 else -> continue
             }
             val hash = journal.hashOf(relative)
+            val stamp = journal.stampOf(relative)
             journal.forget(relative)
-            journal.record(moved, version, hash)
+            journal.record(moved, version, hash, stamp)
         }
     }
 
@@ -532,7 +540,9 @@ internal class ExplorerSyncRoot(
             log("explorer: create '${action.relative}' -> ${CloudFilesHResult.describe(hr)}")
             return false
         }
-        if (!row.isFolder) journal.record(action.relative, row.contentVersion, row.contentHash)
+        if (!row.isFolder) {
+            journal.record(action.relative, row.contentVersion, row.contentHash, ExplorerJournal.Stamp(row.size, row.modifiedAtMillis))
+        }
         // A replaced file keeps its mark: kept stays kept (the pin pass downloads the new version), and a free mark
         // standing inside a kept folder stays, or the new version would follow the folder and download.
         val state = when (action.pin) {
@@ -696,7 +706,7 @@ internal class ExplorerSyncRoot(
         val hr = if (candidate.kind == ExplorerWrites.Kind.EDITED_PLACEHOLDER) file.updateIdentity(identity) else file.convert(identity)
         log("explorer: in sync '${candidate.relative}' -> ${CloudFilesHResult.describe(hr)}")
         if (CloudFilesHResult.succeeded(hr)) {
-            journal.record(candidate.relative, row.contentVersion, row.contentHash)
+            journal.record(candidate.relative, row.contentVersion, row.contentHash, stampOf(root.resolve(candidate.relative)))
             journal.save()
         }
         return CloudFilesHResult.succeeded(hr)
@@ -890,31 +900,43 @@ internal class ExplorerSyncRoot(
         }
     }
 
-    /** [wholeFileHashOf] streamed off [file], so a large download is never held in memory whole. */
-    private fun hashOf(file: WindowsCloudFiles.UnsharedFile): String {
-        val hasher = IncrementalSha256()
-        val chunk = ByteArray(FileContentChunkSizeBytes)
-        val buffer = ByteArray(64 * 1024)
-        var filled = 0
-        var any = false
-        while (true) {
-            val n = file.read(buffer)
-            if (n < 0) break
-            var at = 0
-            while (at < n) {
-                val take = minOf(n - at, chunk.size - filled)
-                System.arraycopy(buffer, at, chunk, filled, take)
-                filled += take
-                at += take
-                if (filled == chunk.size) {
-                    hasher.update(chunk.copyOf())
-                    any = true
-                    filled = 0
+    /**
+     * ⚠⚠ Finds edits saved into a downloaded copy that Windows left marked in sync, so they are uploaded rather than
+     * reported up to date for good. Hashing every copy every pass would read the whole folder each minute, so only a
+     * copy whose size or modification time differs from what the journal recorded when Control left it ([ExplorerJournal.Stamp])
+     * is hashed — on an unshared handle, against its version's hash. Same bytes: the new stamp is recorded. Other
+     * bytes: marked not in sync, which the write path takes (an upload, or a conflict copy). ⚠ An edit that keeps both
+     * the size and the time is not found here; the mirror still hashes before it ever deletes a copy
+     * ([deleteFileIfUnchanged]), so such an edit can go unsynced, never lost. Answers how many were marked.
+     */
+    private fun flagUnmarkedEdits(local: List<ExplorerMirror.Local>): Int {
+        var flagged = 0
+        for (entry in local) {
+            if (!scope.isActive) break
+            if (entry.isFolder || !entry.isPlaceholder || entry.online) continue
+            val expected = journal.hashOf(entry.relative) ?: continue
+            if (journal.stampOf(entry.relative) == ExplorerJournal.Stamp(entry.size, entry.modifiedAtMillis)) continue
+            val path = root.resolve(entry.relative)
+            val marked = runCatching {
+                WindowsCloudFiles.withUnsharedFile(path, asItself = false) { file ->
+                    if (ourPlaceholder(path)?.inSync != true) return@withUnsharedFile false
+                    val online = (WindowsCloudFiles.fileAttributes(path) ?: 0) and WindowsCloudFiles.FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS != 0
+                    if (online) return@withUnsharedFile false
+                    // Stamped as it is under the lock, so a save between the scan and here is not blessed unseen.
+                    val now = stampOf(path)
+                    if (hashOf(file) == expected) {
+                        now?.let { journal.restamp(entry.relative, it) }
+                        false
+                    } else {
+                        val hr = file.clearInSync()
+                        log("explorer: '${entry.relative}' was changed here without Windows noting it; kept for upload -> ${CloudFilesHResult.describe(hr)}")
+                        CloudFilesHResult.succeeded(hr)
+                    }
                 }
-            }
+            }.getOrDefault(false) // open elsewhere: looked at again next pass
+            if (marked) flagged++
         }
-        if (filled > 0 || !any) hasher.update(chunk.copyOf(filled))
-        return hasher.digest().toHexLower()
+        return flagged
     }
 
     /** Placeholders made before the write path (X3) were read-only; ours are writable now, so editors can save. */
@@ -1120,6 +1142,69 @@ internal class ExplorerSyncRoot(
         /** What [deleteIfStillOurs] did. */
         private enum class Deletion { DELETED, KEPT_NOT_OURS, FAILED }
 
+        private fun stampOf(path: Path): ExplorerJournal.Stamp? = runCatching {
+            val attributes = Files.readAttributes(path, DosFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+            ExplorerJournal.Stamp(attributes.size(), attributes.lastModifiedTime().toMillis())
+        }.getOrNull()
+
+        /** [wholeFileHashOf] streamed off [file], so a large download is never held in memory whole. */
+        private fun hashOf(file: WindowsCloudFiles.UnsharedFile): String {
+            val hasher = IncrementalSha256()
+            val chunk = ByteArray(FileContentChunkSizeBytes)
+            val buffer = ByteArray(64 * 1024)
+            var filled = 0
+            var any = false
+            while (true) {
+                val n = file.read(buffer)
+                if (n < 0) break
+                var at = 0
+                while (at < n) {
+                    val take = minOf(n - at, chunk.size - filled)
+                    System.arraycopy(buffer, at, chunk, filled, take)
+                    filled += take
+                    at += take
+                    if (filled == chunk.size) {
+                        hasher.update(chunk.copyOf())
+                        any = true
+                        filled = 0
+                    }
+                }
+            }
+            if (filled > 0 || !any) hasher.update(chunk.copyOf(filled))
+            return hasher.digest().toHexLower()
+        }
+
+        /**
+         * Switching off: removes our placeholder file at [path] — ⚠⚠ unless its bytes are not its version's
+         * ([journal]'s hash), an edit that never reached the realm. That one is turned into an ordinary file
+         * (`CfRevertPlaceholder`), the user's own, and is not a failure: the cleanup can finish. Checked and deleted
+         * on one unshared handle, as in [deleteFileIfUnchanged]. Without a recorded hash, or with no local copy, there
+         * is nothing to compare and nothing to lose.
+         */
+        private fun cleanUpFile(root: Path, path: Path, journal: ExplorerJournal?, log: (String) -> Unit): Deletion = runCatching {
+            if (!path.exists(LinkOption.NOFOLLOW_LINKS)) return Deletion.DELETED
+            val relative = root.relativize(path).joinToString("/")
+            if (ourPlaceholder(path)?.inSync != true) {
+                log("explorer: kept '$relative': it is not (or no longer) only ours")
+                return Deletion.KEPT_NOT_OURS
+            }
+            runCatching { Files.setAttribute(path, "dos:readonly", false, LinkOption.NOFOLLOW_LINKS) }
+            WindowsCloudFiles.withUnsharedFile(path, asItself = false) { file ->
+                if (ourPlaceholder(path)?.inSync != true) return@withUnsharedFile Deletion.KEPT_NOT_OURS
+                val online = (WindowsCloudFiles.fileAttributes(path) ?: 0) and WindowsCloudFiles.FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS != 0
+                val expected = journal?.hashOf(relative)
+                if (!online && expected != null && hashOf(file) != expected) {
+                    val hr = file.revert()
+                    log("explorer: '$relative' holds a change that never reached the realm; kept as an ordinary file -> ${CloudFilesHResult.describe(hr)}")
+                    return@withUnsharedFile if (CloudFilesHResult.succeeded(hr)) Deletion.KEPT_NOT_OURS else Deletion.FAILED
+                }
+                if (CloudFilesHResult.succeeded(file.deleteOnClose())) Deletion.DELETED else Deletion.FAILED
+            }
+        }.getOrElse {
+            log("explorer: could not remove '${root.relativize(path)}': $it")
+            Deletion.FAILED
+        }
+
         /**
          * Deletes [path] only if it is still one of our placeholders that holds what we put there — re-checked right
          * before deleting, so nothing the user changed since the scan (an edit saved in place, a link put there) goes.
@@ -1149,7 +1234,7 @@ internal class ExplorerSyncRoot(
          * **registered**: once unregistered, what is left turns into ordinary files (measured on uninstall, §7.9) that
          * [ourPlaceholder] no longer recognises — a decrypted copy nothing would ever remove. The caller retries.
          */
-        fun removeAll(root: Path, log: (String) -> Unit): Boolean {
+        fun removeAll(root: Path, log: (String) -> Unit, journal: ExplorerJournal? = null): Boolean {
             var failed = 0
             runCatching {
                 if (root.exists()) {
@@ -1164,7 +1249,12 @@ internal class ExplorerSyncRoot(
                             ) {
                                 return@forEach
                             }
-                            if (deleteIfStillOurs(root, entry, log) == Deletion.FAILED) failed++
+                            val outcome = if (Files.isDirectory(entry, LinkOption.NOFOLLOW_LINKS)) {
+                                deleteIfStillOurs(root, entry, log)
+                            } else {
+                                cleanUpFile(root, entry, journal, log)
+                            }
+                            if (outcome == Deletion.FAILED) failed++
                         }
                 }
             }.onFailure {
