@@ -811,7 +811,7 @@ internal class ExplorerSyncRoot(
             val path = root.resolve(relative)
             val hr = when (copy) {
                 ExplorerMirror.Copy.DOWNLOAD -> WindowsCloudFiles.hydrate(path)
-                ExplorerMirror.Copy.DROP -> WindowsCloudFiles.dehydrate(path)
+                ExplorerMirror.Copy.DROP -> dropCopy(path, relative)
             } ?: continue
             if (copy == ExplorerMirror.Copy.DROP && !CloudFilesHResult.succeeded(hr)) failedDrops += relative
             log("explorer: ${copy.name.lowercase()} '$relative' -> ${CloudFilesHResult.describe(hr)}")
@@ -943,6 +943,31 @@ internal class ExplorerSyncRoot(
             if (marked) flagged++
         }
         return flagged
+    }
+
+    /**
+     * "Free up space" for the downloaded copy at [path] — ⚠⚠ checked and dropped on **one unshared handle**, like every
+     * other path that discards a copy's bytes ([deleteFileIfUnchanged], [cleanUpFile]). Bytes that are not its
+     * version's (an edit Windows left marked in sync) are marked not in sync instead and kept, for the write path; the
+     * free mark stays and is carried out once the edit is uploaded. Without a recorded hash there is nothing to compare.
+     * Answers the HRESULT; `null` when CfAPI is not available.
+     */
+    private fun dropCopy(path: Path, relative: String): Int? {
+        if (!WindowsCloudFiles.isAvailable()) return null
+        return runCatching {
+            WindowsCloudFiles.withUnsharedFile(path, asItself = false) { file ->
+                if (ourPlaceholder(path)?.inSync != true) return@withUnsharedFile WindowsCloudFiles.E_ABORT
+                val online = (WindowsCloudFiles.fileAttributes(path) ?: 0) and WindowsCloudFiles.FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS != 0
+                val expected = journal.hashOf(relative)
+                if (!online && expected != null && hashOf(file) != expected) {
+                    val hr = file.clearInSync()
+                    log("explorer: '$relative' was changed here; kept for upload instead of freed -> ${CloudFilesHResult.describe(hr)}")
+                    passes.trySend(Unit)
+                    return@withUnsharedFile WindowsCloudFiles.E_ABORT
+                }
+                file.dehydrate()
+            }
+        }.getOrElse { (it as? app.tenshu.windows.CloudFilesException)?.hresult ?: CloudFilesHResult.E_FAIL }
     }
 
     /** Placeholders made before the write path (X3) were read-only; ours are writable now, so editors can save. */
