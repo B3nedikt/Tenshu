@@ -1064,3 +1064,36 @@ D-X3-1 intended.
 **Threat model (owed with X3a):** T-C-21 grows a write half — any same-user process can add or change realm files
 by writing into the folder, as with any synced folder; and T-C-21(b)'s stand-in provider becomes reachable to the
 realm: a file planted while Control was not running is uploaded at the next start.
+
+### 7.11 X4 — polish (as built, 2026-11-12)
+
+**The gate was met by X2's measurement:** an MSIX uninstall unregisters the root itself and removes every online-only
+placeholder (§7.9). Switching the integration off unregisters it too, and the cleanup retries across restarts. A
+crash leaves the registration in place, but the next start sweeps it. "Remove Tenshu from this PC" (§4) is a W-phase
+feature, not X4's: it removes keys and settings, and the Explorer root is the smallest part of it.
+
+**What X4 adds: the folder says what it is doing.** Explorer already draws the per-file states from CfAPI (online-only,
+downloaded, "sync pending" for anything not in sync) and the download progress from our `TRANSFER_DATA` chunks. What
+it cannot show is *why* a file stays pending. So the line under the Settings switch is now a status, `ExplorerStatus`,
+published after every pass (`ExplorerStatusTest`):
+- *Starting…*;
+- *Up to date*;
+- *Syncing N items…*, counting what the folder holds that the realm does not have yet, including deletes and renames
+  still in their grace;
+- *Can't read your files right now*, when the realm listing fails;
+- *Removing downloaded copies*, when switched off with a file still open;
+- ⚠ above all of these, *Can't upload ‹name›: ‹why›*. Over 2 GB, the file stays on this PC only. A failure retried after
+  2 min reads as "trying again shortly". A failure is forgotten once the file is no longer pending (fixed, moved or
+  deleted).
+
+The switch's description is corrected too: it said "read-only for now", which has been wrong since X3.
+
+**Not done, deliberately:**
+- **Upload progress per file.** `CfReportProviderProgress` needs a byte count. `uploadFile` takes the bytes whole and
+  reports nothing, so there is no number to show. Explorer's "sync pending" arrows plus the Settings count stand in.
+- **Custom state icons** (the `CustomStateHandler` the manifest declares with a null CLSID) for "can't upload". This
+  is a WinRT `StorageProviderItemProperties` call per item, worth it only if the Settings line proves too hidden.
+- ⚠ *Open, cosmetic:* an **adopted folder** still reads "Sync pending" (§7.9).
+
+*Not device-verified:* the Settings line itself (it needs a look at Control's Settings). The build that carries it
+started, refilled the folder and adopted what the reinstall left.

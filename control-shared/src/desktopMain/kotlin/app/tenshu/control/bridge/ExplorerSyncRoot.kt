@@ -75,6 +75,8 @@ internal class ExplorerSyncRoot(
     private val root: Path,
     private val log: (String) -> Unit,
     journalFile: java.io.File? = null,
+    /** Called after every pass with what the folder is doing (X4); from the pass's thread. */
+    private val onStatus: (ExplorerStatus) -> Unit = {},
 ) {
     /** The realm version last put at each path ([ExplorerJournal]); what tells an edit from a conflict (§7.10). */
     private val journal = ExplorerJournal(journalFile)
@@ -224,8 +226,39 @@ internal class ExplorerSyncRoot(
             log("explorer: $root is gone; restart Control or turn the integration off and on")
             return
         }
-        val remote = remoteRows() ?: return
+        val remote = remoteRows()
+        if (remote == null) {
+            onStatus(ExplorerStatus.of(emptySet(), emptyMap(), unreachable = true))
+            return
+        }
         val local = localEntries()
+        try {
+            passOver(remote, local)
+        } finally {
+            publish(remote, local)
+        }
+    }
+
+    /**
+     * The Settings line (X4): what the folder holds that the realm does not have yet, and what of it cannot get there.
+     * Taken from the pass's own view, so it lags a write by one pass — the pass that follows every write.
+     */
+    private fun publish(remote: List<ExplorerMirror.Remote>, local: List<ExplorerMirror.Local>) {
+        val pending = HashSet<String>()
+        // Long.MAX_VALUE: everything counts, settled or still being written.
+        ExplorerWrites.candidates(remote, local, journal.snapshot(), Long.MAX_VALUE).mapTo(pending) { it.relative.lowercase(Locale.ROOT) }
+        pendingOps.mapTo(pending) { it.relative.lowercase(Locale.ROOT) }
+        val failures = HashMap<String, ExplorerStatus.Reason>()
+        writeFailedAt.keys.forEach { failures[it.lowercase(Locale.ROOT)] = ExplorerStatus.Reason.RETRYING }
+        tooLarge.forEach { failures[it] = ExplorerStatus.Reason.TOO_LARGE }
+        tooLarge.retainAll(pending)
+        onStatus(ExplorerStatus.of(pending, failures, unreachable = false))
+    }
+
+    /** Paths (lower case) over the upload limit: not retried as failures, shown as too large. */
+    private val tooLarge = ConcurrentHashMap.newKeySet<String>()
+
+    private suspend fun passOver(remote: List<ExplorerMirror.Remote>, local: List<ExplorerMirror.Local>) {
         // Deletes and renames made in the folder (X3b): planned first, because until they reach the realm the mirror
         // would undo them and the write path would take a renamed file for a new one.
         pendingOps = pendingOps + generateSequence { notices.poll() }.toList()
@@ -589,6 +622,7 @@ internal class ExplorerSyncRoot(
         val attributes = Files.readAttributes(path, DosFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
         if (attributes.size() > MAX_UPLOAD_BYTES) {
             log("explorer: '${candidate.relative}' is ${attributes.size()} bytes; uploads are limited to $MAX_UPLOAD_BYTES")
+            tooLarge += candidate.relative.lowercase(Locale.ROOT)
             return false
         }
         val modifiedAt = attributes.lastModifiedTime().toMillis()
