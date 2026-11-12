@@ -1010,6 +1010,20 @@ placeholder; (2) the folder watch fires inside the 3 s settle window, so a pass 
 settled, or an edit waits for the 60 s tick. *Not device-verified:* the conflict copy (needs a change from another
 device at the same time; unit-tested).
 
+**Hardened after review (X3a):**
+- ⚠⚠ **The mirror never deletes an edit Windows did not flag.** Before it removes a downloaded copy that still says
+  *in sync* (the realm deleted or replaced its row), the copy is hashed on an unshared handle against the hash the
+  journal recorded with its version. Bytes that differ mean an edit in place that kept the in-sync mark, so the copy
+  is marked not-in-sync (`CF_UPDATE_FLAG_CLEAR_IN_SYNC`) and the write path takes it: a conflict copy, or a re-upload
+  if the row was deleted. A copy made before the journal kept hashes has nothing to compare against and is removed as
+  before; an online-only one holds nothing local to lose.
+- **A conflict copy is made once.** If handing the path back fails after the copy went up, the retry finds the realm
+  sibling with the same bytes and a conflict name of this file, and only hands the path back.
+- **Writes wait out a suspect listing.** While the realm listing would remove most of the folder (the mass-removal
+  guard), nothing is written either: against a partial listing an edited file looks new or in conflict.
+- **Other fixes.** The journal is saved after every write. An upload is cancelled with the integration's scope when
+  `stop()` runs. Old read-only placeholders are made writable once when a run starts, not by every scan.
+
 **Threat model (owed with X3a):** T-C-21 grows a write half — any same-user process can add or change realm files
 by writing into the folder, as with any synced folder; and T-C-21(b)'s stand-in provider becomes reachable to the
 realm: a file planted while Control was not running is uploaded at the next start.

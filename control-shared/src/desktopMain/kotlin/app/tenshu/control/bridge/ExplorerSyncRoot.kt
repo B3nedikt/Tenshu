@@ -25,6 +25,10 @@ import org.tenshu.core.collection.list.select
 import org.tenshu.core.collection.list.toList
 import org.tenshu.core.collection.list.traverse
 import org.tenshu.core.common.TenshuClient
+import java.util.Locale
+import org.tenshu.core.common.util.FileContentChunkSizeBytes
+import org.tenshu.core.common.util.IncrementalSha256
+import org.tenshu.core.common.util.toHexLower
 import org.tenshu.core.common.util.wholeFileHashOf
 import org.tenshu.core.file.system.createFolder
 import org.tenshu.core.file.system.replaceFile
@@ -206,6 +210,7 @@ internal class ExplorerSyncRoot(
     }
 
     private suspend fun runPasses() {
+        runCatching { makeOursWritable() }.onFailure { log("explorer: could not make placeholders writable: $it") }
         while (scope.isActive) {
             passes.receive()
             delay(DEBOUNCE_MILLIS)
@@ -220,6 +225,20 @@ internal class ExplorerSyncRoot(
         }
         val remote = remoteRows() ?: return
         val local = localEntries()
+        val planned = ExplorerMirror.plan(remote, local)
+        // ⚠ A listing that comes back empty or partial for a moment (a cold store, a reset) would take every
+        // downloaded and pinned copy with it. So a mass removal must be proposed again a while later to be applied —
+        // and nothing is written meanwhile: against a partial listing, an edited file looks new or in conflict.
+        if (ExplorerMirror.isMassRemoval(planned, local)) {
+            val now = System.currentTimeMillis()
+            val since = massRemovalSince ?: now.also { massRemovalSince = it }
+            if (now - since < MASS_REMOVAL_CONFIRM_MILLIS) {
+                log("explorer: the realm listing would remove most of the folder (${remote.size} rows); waiting for it to say so again")
+                return
+            }
+        } else {
+            massRemovalSince = null
+        }
         // Writes first (X3, §7.10): what the folder holds that the realm does not. A pass that wrote anything ends
         // there and asks for another, so the mirror below always plans against a realm that includes it.
         val now = System.currentTimeMillis()
@@ -239,17 +258,7 @@ internal class ExplorerSyncRoot(
                 return
             }
         }
-        val actions = ExplorerMirror.plan(remote, local)
-        // ⚠ A listing that comes back empty or partial for a moment (a cold store, a reset) would take every
-        // downloaded and pinned copy with it. So a mass removal must be proposed again a while later to be applied.
-        if (ExplorerMirror.isMassRemoval(actions, local)) {
-            val now = System.currentTimeMillis()
-            val since = massRemovalSince ?: now.also { massRemovalSince = it }
-            if (now - since < MASS_REMOVAL_CONFIRM_MILLIS) {
-                log("explorer: the realm listing would remove most of the folder (${remote.size} rows); waiting for it to say so again")
-                return
-            }
-        }
+        val actions = planned
         massRemovalSince = null
         if (actions.isEmpty()) return
         var failed = 0
@@ -294,10 +303,6 @@ internal class ExplorerSyncRoot(
             }.getOrNull() ?: return@mapNotNull null
             val bits = WindowsCloudFiles.fileAttributes(path) ?: 0
             val ours = ourPlaceholder(path)
-            // Placeholders made before the write path (X3) were read-only; ours are writable now, so editors can save.
-            if (ours != null && !attributes.isDirectory && attributes.isReadOnly) {
-                runCatching { Files.setAttribute(path, "dos:readonly", false, LinkOption.NOFOLLOW_LINKS) }
-            }
             ExplorerMirror.Local(
                 relative = root.relativize(path).joinToString("/"),
                 isFolder = attributes.isDirectory,
@@ -342,7 +347,7 @@ internal class ExplorerSyncRoot(
             log("explorer: create '${action.relative}' -> ${CloudFilesHResult.describe(hr)}")
             return false
         }
-        if (!row.isFolder) journal.record(action.relative, row.contentVersion)
+        if (!row.isFolder) journal.record(action.relative, row.contentVersion, row.contentHash)
         // A replaced file keeps its mark: kept stays kept (the pin pass downloads the new version), and a free mark
         // standing inside a kept folder stays, or the new version would follow the folder and download.
         val state = when (action.pin) {
@@ -409,7 +414,9 @@ internal class ExplorerSyncRoot(
         local: List<ExplorerMirror.Local>,
     ): Boolean {
         val path = root.resolve(candidate.relative)
-        val realmPath = "/" + candidate.relative
+        // The realm's spelling, not the folder's: realm paths are case-sensitive, and a folder renamed by case elsewhere
+        // keeps its old spelling here.
+        val realmPath = candidate.row?.path ?: canonicalRealmPath(candidate.relative, remote)
         val parent = realmPath.substringBeforeLast('/').ifEmpty { "/" }
         val name = realmPath.substringAfterLast('/')
         val fs = koin.fileSystem()
@@ -422,7 +429,7 @@ internal class ExplorerSyncRoot(
         val edited = candidate.kind == ExplorerWrites.Kind.EDITED_PLACEHOLDER
         if (edited && candidate.online) {
             // No local copy, so no bytes changed — only its metadata (an attribute). Mark it in sync as it was.
-            val identity = ExplorerIdentity("/" + candidate.relative, candidate.base ?: return false).encode()
+            val identity = ExplorerIdentity(candidate.row?.path ?: realmPath, candidate.base ?: return false).encode()
             val hr = WindowsCloudFiles.withUnsharedFile(path, asItself = false) { it.updateIdentity(identity) }
             return CloudFilesHResult.succeeded(hr)
         }
@@ -439,32 +446,50 @@ internal class ExplorerSyncRoot(
         try {
             return WindowsCloudFiles.withUnsharedFile(path, asItself = !edited) { file ->
                 val bytes = readAll(file, attributes.size())
-                val decision = ExplorerWrites.decide(candidate, sameBytes = candidate.row?.contentHash == wholeFileHashOf(bytes))
-                runBlocking {
+                val hash = wholeFileHashOf(bytes)
+                // Cancelled with the scope: stop() does not wait out an upload it is about to make irrelevant.
+                runBlocking(scope.coroutineContext[Job] ?: kotlin.coroutines.EmptyCoroutineContext) {
+                    // ⚠ Decided against the realm as it is now, not the pass's listing: a version another device
+                    // synced since (earlier writes in the pass widen that gap) must turn REPLACE into a conflict
+                    // copy. `replaceFile` has no expected-version precondition, so the window left is this re-read
+                    // to the replace below.
+                    val current = candidate.copy(row = readRowOrNull(realmPath))
+                    val decision = ExplorerWrites.decide(current, sameBytes = current.row?.contentHash == hash)
                     when (decision) {
-                        ExplorerWrites.Decision.ALREADY_THERE -> markOurs(file, candidate, candidate.row!!)
+                        ExplorerWrites.Decision.ALREADY_THERE -> markOurs(file, current, current.row!!)
                         ExplorerWrites.Decision.UPLOAD_NEW -> {
                             ensureRealmFolder(parent)
                             fs.uploadFile(parent, name, bytes, sourceModifiedAt = modifiedAt).orThrowWrite("upload", realmPath)
                             log("explorer: uploaded '${candidate.relative}' (${bytes.size} bytes)")
-                            markOurs(file, candidate, readRow(realmPath))
+                            markUploaded(file, current, realmPath, hash)
                         }
                         ExplorerWrites.Decision.REPLACE -> {
                             fs.replaceFile(parent, name, bytes).orThrowWrite("replace", realmPath)
                             log("explorer: uploaded the edit of '${candidate.relative}' (${bytes.size} bytes)")
-                            markOurs(file, candidate, readRow(realmPath))
+                            markUploaded(file, current, realmPath, hash)
                         }
                         ExplorerWrites.Decision.CONFLICT_COPY -> {
+                            // ⚠ Idempotent: when handing the path back failed after the copy went up, the retry finds
+                            // that copy (same bytes, a conflict name of this file) and only hands the path back.
+                            val existing = remote.firstOrNull {
+                                !it.isFolder && it.contentHash == hash &&
+                                    it.path.substringBeforeLast('/').ifEmpty { "/" } == parent &&
+                                    ExplorerWrites.isConflictNameOf(it.path.substringAfterLast('/'), name, computerName())
+                            }
                             val taken = remote.filter { it.path.substringBeforeLast('/').ifEmpty { "/" } == parent }
                                 .map { it.path.substringAfterLast('/') } +
                                 local.filter { it.relative.substringBeforeLast('/', "") == candidate.relative.substringBeforeLast('/', "") }
                                     .map { it.relative.substringAfterLast('/') }
-                            val copy = ExplorerWrites.conflictName(name, computerName(), taken.toSet())
-                            fs.uploadFile(parent, copy, bytes, sourceModifiedAt = modifiedAt).orThrowWrite("conflict copy", "$parent/$copy")
+                            val copy = existing?.path?.substringAfterLast('/')
+                                ?: ExplorerWrites.conflictName(name, computerName(), taken.toSet()).also { copy ->
+                                    fs.uploadFile(parent, copy, bytes, sourceModifiedAt = modifiedAt)
+                                        .orThrowWrite("conflict copy", "$parent/$copy")
+                                }
                             // Only now, with the bytes safely in the realm: the realm's version takes the path back.
                             check(CloudFilesHResult.succeeded(file.deleteOnClose())) { "could not hand the path back" }
                             restoreReadOnly = false
                             journal.forget(candidate.relative)
+                            journal.save()
                             log("explorer: '${candidate.relative}' changed elsewhere too; this edit is kept as '$copy'")
                             true
                         }
@@ -484,8 +509,51 @@ internal class ExplorerSyncRoot(
         val identity = ExplorerIdentity(row.path, row.contentVersion).encode()
         val hr = if (candidate.kind == ExplorerWrites.Kind.EDITED_PLACEHOLDER) file.updateIdentity(identity) else file.convert(identity)
         log("explorer: in sync '${candidate.relative}' -> ${CloudFilesHResult.describe(hr)}")
-        if (CloudFilesHResult.succeeded(hr)) journal.record(candidate.relative, row.contentVersion)
+        if (CloudFilesHResult.succeeded(hr)) {
+            journal.record(candidate.relative, row.contentVersion, row.contentHash)
+            journal.save()
+        }
         return CloudFilesHResult.succeeded(hr)
+    }
+
+    /**
+     * [markOurs] for what was just uploaded — ⚠ only if the realm's row still holds these bytes. A version another device
+     * synced between the upload and this read would otherwise give the local file its identity while it keeps our bytes,
+     * and the mirror would never replace them. Not marked, the next pass sees the row moved on: a conflict copy.
+     */
+    private suspend fun markUploaded(
+        file: WindowsCloudFiles.UnsharedFile,
+        candidate: ExplorerWrites.Candidate,
+        realmPath: String,
+        hash: String,
+    ): Boolean {
+        val row = readRow(realmPath)
+        if (row.contentHash != hash) {
+            log("explorer: '${candidate.relative}' changed in the realm right after the upload; looked at again next pass")
+            return false
+        }
+        return markOurs(file, candidate, row)
+    }
+
+    private suspend fun readRowOrNull(realmPath: String): ExplorerMirror.Remote? = try {
+        readRow(realmPath)
+    } catch (e: org.tenshu.core.common.proxy.BridgeException) {
+        if (e.code == "not_found") null else throw e
+    }
+
+    /**
+     * [relative]'s realm path, each existing folder of it in the realm's own spelling ([remote] rows matched as NTFS
+     * matches names); what the realm does not have yet keeps the folder's spelling.
+     */
+    private fun canonicalRealmPath(relative: String, remote: List<ExplorerMirror.Remote>): String {
+        val folders = remote.filter { it.isFolder }.associateBy { it.path.lowercase(Locale.ROOT) }
+        val segments = relative.split('/')
+        var path = ""
+        for ((i, segment) in segments.withIndex()) {
+            val next = "$path/$segment"
+            path = if (i < segments.lastIndex) folders[next.lowercase(Locale.ROOT)]?.path ?: next else next
+        }
+        return path
     }
 
     private fun readAll(file: WindowsCloudFiles.UnsharedFile, size: Long): ByteArray {
@@ -587,8 +655,76 @@ internal class ExplorerSyncRoot(
         }
     }
 
-    private fun deletePlaceholder(path: Path): Boolean =
-        (deleteIfStillOurs(root, path, log) == Deletion.DELETED).also { if (it) journal.forget(root.relativize(path).joinToString("/")) }
+    private fun deletePlaceholder(path: Path): Boolean {
+        val relative = root.relativize(path).joinToString("/")
+        if (holdsAChange(path, relative)) return false
+        return (deleteIfStillOurs(root, path, log) == Deletion.DELETED).also { if (it) journal.forget(relative) }
+    }
+
+    /**
+     * ⚠⚠ Whether a downloaded copy the mirror is about to remove holds bytes that are not the version it was made from
+     * — an edit Windows did not mark (it still says in sync). Such a copy is marked as a change instead, and the write
+     * path takes it (an upload, or a conflict copy): the realm moving on must never delete an edit. Checked on an
+     * unshared handle against the hash the journal recorded; without one (made before the hash was kept), or with no
+     * complete local copy, there is nothing to compare and nothing of the user's to lose.
+     */
+    private fun holdsAChange(path: Path, relative: String): Boolean {
+        val expected = journal.hashOf(relative) ?: return false
+        if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) return false
+        val bits = WindowsCloudFiles.fileAttributes(path) ?: return false
+        if (bits and WindowsCloudFiles.FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS != 0) return false
+        if (ourPlaceholder(path)?.inSync != true) return false // deleteIfStillOurs keeps it anyway
+        return runCatching {
+            WindowsCloudFiles.withUnsharedFile(path, asItself = false) { file ->
+                if (hashOf(file) == expected) return@withUnsharedFile false
+                val hr = file.clearInSync()
+                log("explorer: '$relative' was changed here; kept for upload -> ${CloudFilesHResult.describe(hr)}")
+                true
+            }
+        }.getOrElse {
+            // Open elsewhere, typically: it cannot be checked now, so it stays until a pass can.
+            log("explorer: kept '$relative' for now: could not check it ($it)")
+            true
+        }
+    }
+
+    /** [wholeFileHashOf] streamed off [file], so a large download is never held in memory whole. */
+    private fun hashOf(file: WindowsCloudFiles.UnsharedFile): String {
+        val hasher = IncrementalSha256()
+        val chunk = ByteArray(FileContentChunkSizeBytes)
+        val buffer = ByteArray(64 * 1024)
+        var filled = 0
+        var any = false
+        while (true) {
+            val n = file.read(buffer)
+            if (n < 0) break
+            var at = 0
+            while (at < n) {
+                val take = minOf(n - at, chunk.size - filled)
+                System.arraycopy(buffer, at, chunk, filled, take)
+                filled += take
+                at += take
+                if (filled == chunk.size) {
+                    hasher.update(chunk.copyOf())
+                    any = true
+                    filled = 0
+                }
+            }
+        }
+        if (filled > 0 || !any) hasher.update(chunk.copyOf(filled))
+        return hasher.digest().toHexLower()
+    }
+
+    /** Placeholders made before the write path (X3) were read-only; ours are writable now, so editors can save. */
+    private fun makeOursWritable() {
+        Files.walk(root).use { s -> s.filter { it != root }.toList() }.forEach { path ->
+            val attributes = runCatching {
+                Files.readAttributes(path, DosFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+            }.getOrNull() ?: return@forEach
+            if (attributes.isDirectory || !attributes.isReadOnly || ourPlaceholder(path) == null) return@forEach
+            runCatching { Files.setAttribute(path, "dos:readonly", false, LinkOption.NOFOLLOW_LINKS) }
+        }
+    }
 
     private val handler = object : WindowsCloudFiles.Handler {
         // Called on a CfAPI pool thread: hand off at once, answer from our own threads (X0: blocking there works,

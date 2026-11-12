@@ -273,6 +273,9 @@ object WindowsCloudFiles {
         /** `CfUpdatePlaceholder`: our placeholder gets [identity] and is marked in sync again (an edit uploaded). */
         fun updateIdentity(identity: ByteArray): Int
 
+        /** `CfUpdatePlaceholder` with `CF_UPDATE_FLAG_CLEAR_IN_SYNC`: our placeholder is marked as holding a change. */
+        fun clearInSync(): Int
+
         /** The file is deleted when the handle closes (`FileDispositionInfo`). */
         fun deleteOnClose(): Int
     }
@@ -473,6 +476,11 @@ object WindowsCloudFiles {
                     override fun updateIdentity(identity: ByteArray): Int = updatePlaceholder.invokeExact(
                         handle, MemorySegment.NULL, bytes(arena, identity), identity.size, MemorySegment.NULL, 0,
                         CF_UPDATE_FLAG_MARK_IN_SYNC, MemorySegment.NULL, MemorySegment.NULL,
+                    ) as Int
+
+                    override fun clearInSync(): Int = updatePlaceholder.invokeExact(
+                        handle, MemorySegment.NULL, MemorySegment.NULL, 0, MemorySegment.NULL, 0,
+                        CF_UPDATE_FLAG_CLEAR_IN_SYNC, MemorySegment.NULL, MemorySegment.NULL,
                     ) as Int
 
                     override fun deleteOnClose(): Int {
@@ -733,6 +741,7 @@ object WindowsCloudFiles {
             private const val CF_OPEN_FILE_FLAG_EXCLUSIVE = 0x1
             private const val CF_CONVERT_FLAG_MARK_IN_SYNC = 0x1
             private const val CF_UPDATE_FLAG_MARK_IN_SYNC = 0x2
+        private const val CF_UPDATE_FLAG_CLEAR_IN_SYNC = 0x40
             private const val DELETE = 0x10000
             private const val FILE_DISPOSITION_INFO_CLASS = 4
             private const val READ_BUFFER_BYTES = 64L * 1024
