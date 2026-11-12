@@ -5469,6 +5469,16 @@ Invariants: I1, I8. Applies only while *Show Drive in File Explorer* is on (`des
   beside it as a conflict copy (D-X3-2), so a write cannot silently replace another device's change; every
   decided upload is read through one unshared handle, so what reaches the realm is what was checked; editor temp
   files, hidden and system files are never uploaded; deletes (X3b) move to `/Trash`, never destroy (D-X3-1).
+  *X3b (2026-11-12):* deletes and renames in the folder reach the realm too. Any same-user process can therefore
+  move realm files to `/Trash`, or rename and move them, by doing so in the folder. Defense: no hard delete exists on
+  this path — a delete is a move to `/Trash`, and a delete inside `/Trash` changes nothing (the file is shown again);
+  a delete is carried only if the realm still holds the version the placeholder showed, so a version that arrived
+  from another device is never trashed unseen; every notice waits until the folder has been quiet for 3 s and is then
+  checked against the folder as it is, so an editor's save (original deleted or renamed away, new version put in its
+  place) is an edit, not a delete; Control's own deletes are recognised by process and never carried.
+  Every delete or rename the mirror makes for the realm — removing a placeholder whose row went — checks and deletes on
+  one unshared handle, and a downloaded copy whose bytes differ from its version's recorded hash is kept for upload
+  instead (an edit Windows did not flag is never deleted).
 Residual risk while the switch is on: **Medium** for (a) and (c), **Medium** for (b) since X3a (it now reaches the
 realm); none while it is off.
 
