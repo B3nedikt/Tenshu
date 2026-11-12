@@ -5460,7 +5460,17 @@ Invariants: I1, I8. Applies only while *Show Drive in File Explorer* is on (`des
   long as size, date and identity match, and read as Tenshu's (a later phase could compare content hashes).
   ⚠⚠ **X3 (uploading from the folder) must revisit this:** a file planted or a placeholder served by a stand-in
   would then reach the realm and every device.
-Residual risk while the switch is on: **Medium** for (a), **Low** for (b) until X3; none while it is off.
+- **(c) The folder writes to the realm (X3a, 2026-11-12, `desktop-windows-port.md` §7.10).** A file created or
+  edited in the folder is uploaded to the realm, and from there to every device. So any same-user process can add
+  files to the realm, or change one, by writing into the folder — as with any synced folder — and this path does
+  not pass the A14 gate either. It also makes (b) reach the realm: a file planted while Control was not running is
+  uploaded at the next start. Defense: off by default; an upload never overwrites a realm version other than the
+  one the local file was made from (a placeholder's identity, or the journal) — otherwise the edit is uploaded
+  beside it as a conflict copy (D-X3-2), so a write cannot silently replace another device's change; every
+  decided upload is read through one unshared handle, so what reaches the realm is what was checked; editor temp
+  files, hidden and system files are never uploaded; deletes (X3b) move to `/Trash`, never destroy (D-X3-1).
+Residual risk while the switch is on: **Medium** for (a) and (c), **Medium** for (b) since X3a (it now reaches the
+realm); none while it is off.
 
 ### 8.5 Key management and revocation
 

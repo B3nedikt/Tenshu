@@ -610,7 +610,7 @@ internal fun <T : org.tenshu.core.Data> ListBuilder<Selector<T>>.itemProjection(
  * a name collision → `already_exists` (the extension maps it to a conflict),
  * everything else → `internal`.
  */
-private fun TResult<org.tenshu.core.Data?>.orThrowWrite(op: String, path: String) {
+internal fun TResult<org.tenshu.core.Data?>.orThrowWrite(op: String, path: String) {
     fold(
         onSuccess = {},
         onFailure = { error ->

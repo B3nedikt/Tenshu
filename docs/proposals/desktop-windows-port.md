@@ -961,3 +961,55 @@ leftover photos read "Available on this device" again. ⚠ *Open:* an adopted **
 `CfUpdatePlaceholder(DISABLE_ON_DEMAND_POPULATION)` changed it. Cosmetic, and only after a side-load reinstall. Reinstalling is also what every side-load update does
 (`install.ps1` removes the old package first) — a Store update is an in-place upgrade and is not expected to do this
 (*not measured*).
+
+### 7.10 X3 — the write path (design, 2026-11-12)
+
+**Decided by the maintainer (2026-11-12):**
+
+- **D-X3-1 — a delete in Explorer moves the file to the realm's `/Trash`** (`TRASH_ROOT`, `/Trash/<contentId>-<name>`,
+  the convention Photos already uses), never a hard delete: bytes, `contentId` and history stay, restoring is a move
+  back. The Trash folder is a realm folder and shows in Explorer like any other.
+- **D-X3-2 — a conflict keeps both.** A file edited here while its realm copy changed elsewhere is uploaded beside it as
+  `name (conflict, <computer>).ext`; the other device's version keeps the name. Nothing is ever dropped.
+
+**Shape — state-driven, not event-driven.** Each pass compares the folder with the realm and the placeholder
+identities; an upload is followed by the *existing* adoption (§7.9) or a re-identification, so every step is
+idempotent and a crash between two of them is finished by the next pass:
+
+| Found locally | Realm row at that path | Action |
+|---|---|---|
+| ordinary file, no row | — | upload new → next pass adopts it (hash matches) |
+| ordinary folder, no row | — | create the folder → adopt |
+| ordinary file | row, same bytes | adopt (§7.9) |
+| ordinary file | row, other bytes, row still the version we last put there | upload over it (`replaceFile`) → adopt |
+| ordinary file | row, other bytes, row changed since | conflict copy (D-X3-2) |
+| our placeholder, **edited** (not in sync) | row = the identity's version | upload over it → re-identify in place |
+| our placeholder, edited | row moved on | conflict copy |
+
+"The version we last put there" is a small journal (`explorer-versions.tsv`), because editors save by writing a temp
+file and renaming it over the original: what is left is an *ordinary* file that has lost the placeholder's identity.
+⚠⚠ Every read that decides an upload, and every conversion or delete that follows one, goes through **one unshared
+handle** (§7.9's rule): what is uploaded is exactly what was checked, and a conflict's local file is replaced by the
+realm's version only after its bytes are safely in the realm, on a handle that proves they did not change since.
+Skipped: hidden or system files, editor temp files (`~$*`, `*.tmp`, `.~lock.*`, `*.crdownload`, `desktop.ini`,
+`Thumbs.db`), files modified in the last 3 s, files another process holds open, and files over the upload limit.
+
+**Slices.** X3a: uploads, edits, conflicts, writable placeholders. X3b: deletes (D-X3-1) and renames/moves, from
+CfAPI's `NOTIFY_DELETE` / `NOTIFY_RENAME`, acknowledged at once and applied by the pass after a short grace (so an
+editor's delete-then-rename save reads as an edit, not a delete). ⚠ A delete or rename by Control itself (the
+mirror) must not be propagated: the callbacks name the process, and our own pid is ignored.
+
+**X3a as built (2026-11-12)** — `ExplorerWrites` (pure rules, `ExplorerWritesTest`), `ExplorerJournal`, and the
+executor in `ExplorerSyncRoot` on its own write thread; placeholders are no longer read-only (older ones are made
+writable by the scan). ✅ Device-verified, in a test folder of the real realm: a new folder with a file in it is created
+and uploaded, then becomes ours in sync; an edit saved in place is uploaded ~5 s later and keeps its local copy; an
+editor-style save (temp file renamed over the original) is uploaded over the realm's copy through the journal.
+⚠ Found on the device: (1) an upload over a file stamps the realm's date with the moment of the upload, so the mirror
+must decide by the identity's version, never the date, or it replaces the just-uploaded copy with an online-only
+placeholder; (2) the folder watch fires inside the 3 s settle window, so a pass is scheduled for when it has
+settled, or an edit waits for the 60 s tick. *Not device-verified:* the conflict copy (needs a change from another
+device at the same time; unit-tested).
+
+**Threat model (owed with X3a):** T-C-21 grows a write half — any same-user process can add or change realm files
+by writing into the folder, as with any synced folder; and T-C-21(b)'s stand-in provider becomes reachable to the
+realm: a file planted while Control was not running is uploaded at the next start.

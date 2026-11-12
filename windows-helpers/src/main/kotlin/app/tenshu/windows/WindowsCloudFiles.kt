@@ -258,6 +258,35 @@ object WindowsCloudFiles {
     /** What [convertToPlaceholder] answers when [verify] refused the bytes: nothing was converted. */
     const val E_ABORT = 0x80004004.toInt()
 
+    /**
+     * A file held open with **share mode 0** — nobody else can open it while the block runs — and read, write and delete
+     * access. ⚠⚠ The write path's one rule (desktop-windows-port.md §7.10): the bytes read here are the bytes acted on,
+     * because nothing can change them in between.
+     */
+    interface UnsharedFile {
+        /** The next bytes into [into]; `-1` at the end. */
+        fun read(into: ByteArray): Int
+
+        /** `CfConvertToPlaceholder` with [identity], marked in sync. */
+        fun convert(identity: ByteArray): Int
+
+        /** `CfUpdatePlaceholder`: our placeholder gets [identity] and is marked in sync again (an edit uploaded). */
+        fun updateIdentity(identity: ByteArray): Int
+
+        /** The file is deleted when the handle closes (`FileDispositionInfo`). */
+        fun deleteOnClose(): Int
+    }
+
+    /**
+     * Runs [block] on [path] held as an [UnsharedFile]; throws [CloudFilesException] when it cannot be opened so —
+     * another process has it open, typically. [asItself]: a link opens as itself, not its target (for an entry not yet
+     * known to be ours).
+     */
+    fun <T> withUnsharedFile(path: Path, asItself: Boolean, block: (UnsharedFile) -> T): T {
+        val n = natives ?: throw CloudFilesException(CloudFilesHResult.E_FAIL)
+        return n.withUnshared(path.toString(), asItself, block)
+    }
+
     /** `CfSetPinState` ([PIN_STATE_PINNED] = "Always keep on this device"). */
     fun setPinState(path: Path, state: Int): Int? = onAttributeHandle(path) { n, h -> n.setPinState(h, state) }
 
@@ -300,6 +329,8 @@ object WindowsCloudFiles {
         private val closeProtected: MethodHandle,
         private val convertToPlaceholder: MethodHandle,
         private val readFile: MethodHandle,
+        private val updatePlaceholder: MethodHandle,
+        private val setFileInformationByHandle: MethodHandle,
     ) {
         private val linker = Linker.nativeLinker()
         private val l = CloudFilesLayouts
@@ -398,51 +429,68 @@ object WindowsCloudFiles {
          * ⚠ so nothing can change them between the check and the conversion — and a `false` aborts ([E_ABORT]).
          */
         fun convertExclusively(path: String, identity: ByteArray, verify: ((read: (ByteArray) -> Int) -> Boolean)?): Int =
-            onUnsharedFile(path) { arena, win32 ->
-                if (verify != null) {
-                    val buffer = arena.allocate(READ_BUFFER_BYTES)
-                    val got = arena.allocate(ValueLayout.JAVA_INT)
-                    val reader: (ByteArray) -> Int = { into ->
+            try {
+                withUnshared(path, asItself = true) { file ->
+                    if (verify != null && !runCatching { verify(file::read) }.getOrDefault(false)) E_ABORT
+                    else file.convert(identity)
+                }
+            } catch (e: CloudFilesException) {
+                e.hresult
+            }
+
+        /**
+         * ⚠ `CreateFileW` with share mode 0, not `CfOpenFileWithOplock`: the oplock handle cannot read the data (measured
+         * — every hash check through it failed), and the check has to read through the very handle that then acts.
+         */
+        fun <T> withUnshared(path: String, asItself: Boolean, block: (UnsharedFile) -> T): T = Arena.ofConfined().use { arena ->
+            val capture = arena.allocate(Linker.Option.captureStateLayout())
+            val handle = createFile.invokeExact(
+                capture, wstr(arena, path),
+                FILE_READ_DATA or FILE_WRITE_DATA or FILE_READ_ATTRIBUTES or FILE_WRITE_ATTRIBUTES or DELETE,
+                0, MemorySegment.NULL, OPEN_EXISTING, if (asItself) FILE_FLAG_OPEN_REPARSE_POINT else 0, MemorySegment.NULL,
+            ) as MemorySegment
+            if (handle.address() == INVALID_HANDLE || handle.address() == 0L) {
+                val error = capture.get(ValueLayout.JAVA_INT, Linker.Option.captureStateLayout().byteOffset(groupElement("GetLastError")))
+                throw CloudFilesException(if (error <= 0) error else (error and 0xFFFF) or 0x80070000.toInt())
+            }
+            try {
+                val buffer = arena.allocate(READ_BUFFER_BYTES)
+                val got = arena.allocate(ValueLayout.JAVA_INT)
+                block(object : UnsharedFile {
+                    override fun read(into: ByteArray): Int {
                         val want = minOf(into.size.toLong(), READ_BUFFER_BYTES).toInt()
-                        val ok = readFile.invokeExact(win32, buffer, want, got, MemorySegment.NULL) as Int
-                        check(ok != 0) { "ReadFile failed" }
+                        val ok = readFile.invokeExact(handle, buffer, want, got, MemorySegment.NULL) as Int
+                        if (ok == 0) throw CloudFilesException(CloudFilesHResult.E_FAIL)
                         val n = got.get(ValueLayout.JAVA_INT, 0L)
                         MemorySegment.copy(buffer, ValueLayout.JAVA_BYTE, 0L, into, 0, n)
-                        if (n == 0) -1 else n
+                        return if (n == 0) -1 else n
                     }
-                    if (!runCatching { verify(reader) }.getOrDefault(false)) return@onUnsharedFile E_ABORT
-                }
-                convertToPlaceholder.invokeExact(
-                    win32, bytes(arena, identity), identity.size, CF_CONVERT_FLAG_MARK_IN_SYNC, MemorySegment.NULL, MemorySegment.NULL,
-                ) as Int
+
+                    override fun convert(identity: ByteArray): Int = convertToPlaceholder.invokeExact(
+                        handle, bytes(arena, identity), identity.size, CF_CONVERT_FLAG_MARK_IN_SYNC, MemorySegment.NULL, MemorySegment.NULL,
+                    ) as Int
+
+                    override fun updateIdentity(identity: ByteArray): Int = updatePlaceholder.invokeExact(
+                        handle, MemorySegment.NULL, bytes(arena, identity), identity.size, MemorySegment.NULL, 0,
+                        CF_UPDATE_FLAG_MARK_IN_SYNC, MemorySegment.NULL, MemorySegment.NULL,
+                    ) as Int
+
+                    override fun deleteOnClose(): Int {
+                        // FILE_DISPOSITION_INFO { BOOLEAN DeleteFile; }
+                        val disposition = arena.allocate(ValueLayout.JAVA_BYTE).also { it.set(ValueLayout.JAVA_BYTE, 0L, 1) }
+                        val ok = setFileInformationByHandle.invokeExact(handle, FILE_DISPOSITION_INFO_CLASS, disposition, 1) as Int
+                        return if (ok != 0) CloudFilesHResult.S_OK else CloudFilesHResult.E_FAIL
+                    }
+                })
+            } finally {
+                closeHandle.invokeExact(handle) as Int
             }
+        }
 
         fun convertDirectory(path: String, identity: ByteArray): Int = onWritableFolder(path) { arena, handle ->
             convertToPlaceholder.invokeExact(
                 handle, bytes(arena, identity), identity.size, CF_CONVERT_FLAG_MARK_IN_SYNC, MemorySegment.NULL, MemorySegment.NULL,
             ) as Int
-        }
-
-        /**
-         * Runs [op] on a handle to an ordinary file with read and write access and **share mode 0**: nobody else can open
-         * it while [op] runs. ⚠ Not `CfOpenFileWithOplock`: its handle cannot read the data (measured — every hash
-         * check through it failed), and the check has to read through the very handle that converts.
-         */
-        fun onUnsharedFile(path: String, op: (Arena, MemorySegment) -> Int): Int = Arena.ofConfined().use { arena ->
-            val capture = arena.allocate(Linker.Option.captureStateLayout())
-            val handle = createFile.invokeExact(
-                capture, wstr(arena, path), FILE_READ_DATA or FILE_WRITE_DATA or FILE_READ_ATTRIBUTES or FILE_WRITE_ATTRIBUTES,
-                0, MemorySegment.NULL, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, MemorySegment.NULL,
-            ) as MemorySegment
-            if (handle.address() == INVALID_HANDLE || handle.address() == 0L) {
-                val error = capture.get(ValueLayout.JAVA_INT, Linker.Option.captureStateLayout().byteOffset(groupElement("GetLastError")))
-                return@use if (error <= 0) error else (error and 0xFFFF) or 0x80070000.toInt()
-            }
-            try {
-                op(arena, handle)
-            } finally {
-                closeHandle.invokeExact(handle) as Int
-            }
         }
 
         /** Runs [op] on a folder handle with write access, shared with everyone, opened as itself. */
@@ -684,6 +732,9 @@ object WindowsCloudFiles {
             private const val PLACEHOLDER_INFO_BASIC = 0
             private const val CF_OPEN_FILE_FLAG_EXCLUSIVE = 0x1
             private const val CF_CONVERT_FLAG_MARK_IN_SYNC = 0x1
+            private const val CF_UPDATE_FLAG_MARK_IN_SYNC = 0x2
+            private const val DELETE = 0x10000
+            private const val FILE_DISPOSITION_INFO_CLASS = 4
             private const val READ_BUFFER_BYTES = 64L * 1024
             private const val IN_SYNC_STATE_IN_SYNC = 1
             private const val PLACEHOLDER_BASIC_INFO_IDENTITY_OFFSET = 28L
@@ -755,6 +806,11 @@ object WindowsCloudFiles {
                     convertToPlaceholder = handle(cf, "CfConvertToPlaceholder", FunctionDescriptor.of(i, a, a, i, i, a, a)) ?: return null,
                     // BOOL ReadFile(HANDLE, LPVOID, DWORD, LPDWORD, LPOVERLAPPED)
                     readFile = handle("kernel32.dll", "ReadFile", FunctionDescriptor.of(i, a, a, i, a, a)) ?: return null,
+                    // HRESULT CfUpdatePlaceholder(HANDLE, const CF_FS_METADATA*, LPCVOID FileIdentity, DWORD,
+                    //   const CF_FILE_RANGE* DehydrateRangeArray, DWORD, CF_UPDATE_FLAGS, USN*, LPOVERLAPPED)
+                    updatePlaceholder = handle(cf, "CfUpdatePlaceholder", FunctionDescriptor.of(i, a, a, a, i, a, i, i, a, a)) ?: return null,
+                    // BOOL SetFileInformationByHandle(HANDLE, FILE_INFO_BY_HANDLE_CLASS, LPVOID, DWORD)
+                    setFileInformationByHandle = handle("kernel32.dll", "SetFileInformationByHandle", FunctionDescriptor.of(i, a, i, a, i)) ?: return null,
                 )
             }
         }

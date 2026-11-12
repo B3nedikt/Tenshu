@@ -42,6 +42,10 @@ internal object ExplorerMirror {
         val contentVersion: String? = null,
         /** The realm path its identity names — what a fetch reads; `null` when unknown. */
         val identityPath: String? = null,
+        /** It carries a Tenshu identity — in sync or not ([isPlaceholder] is the in-sync half). */
+        val ours: Boolean = isPlaceholder,
+        /** Hidden or system: never uploaded (X3). */
+        val hidden: Boolean = false,
     )
 
     /** "Always keep on this device" ([PINNED]) and "Free up space" ([UNPINNED]). */
@@ -110,12 +114,9 @@ internal object ExplorerMirror {
                 found == null -> creations += Action.Create(relative, row)
                 !found.isPlaceholder -> {
                     if (found.isFolder != row.isFolder || !row.isFolder) blocked += key
-                    // Same kind and, for a file, the same size and a hash to prove it by: worth a look.
-                    if (found.isFolder == row.isFolder &&
-                        (row.isFolder || (found.size == row.size && row.contentHash != null))
-                    ) {
-                        adoptions += Action.Adopt(relative, row)
-                    }
+                    // An ordinary folder at a realm folder's path is ours to keep. A file needs its bytes looked at
+                    // first, which is the write path's job (ExplorerWrites: adopt, upload or keep both).
+                    if (found.isFolder && row.isFolder && !found.ours) adoptions += Action.Adopt(relative, row)
                 }
                 found.isFolder != row.isFolder -> {
                     removals[key] = Action.Remove(found.relative, found.isFolder)
@@ -126,8 +127,12 @@ internal object ExplorerMirror {
                 // ⚠ And the path: NTFS matches a case-only rename (`photo.jpg` → `Photo.jpg`) to the old placeholder,
                 // whose identity still names the old path, which no longer exists — every fetch would fail. Folders
                 // are never fetched, so theirs does not matter.
+                // ⚠ With a version in its identity, that version decides, not the date: an upload over a file (X3) stamps
+                // the realm's date with the moment of the upload, and comparing dates replaced the just-uploaded copy with
+                // an online-only placeholder (measured). The date is the test only for a placeholder without a version.
                 !row.isFolder && (
-                    found.size != row.size || found.modifiedAtMillis != row.modifiedAtMillis ||
+                    found.size != row.size ||
+                        (found.contentVersion == null && found.modifiedAtMillis != row.modifiedAtMillis) ||
                         (found.contentVersion != null && found.contentVersion != row.contentVersion) ||
                         (found.identityPath != null && found.identityPath != row.path)
                     ) -> {
