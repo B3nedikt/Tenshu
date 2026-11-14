@@ -238,6 +238,141 @@ Indexing a library is not an interactive workload.
   per image, and a progress holder ticked per image. ⚠ Nothing renders either yet — the stream op
   and the UI are 1e-3, so *visible* is half-kept.
 
+### IN-D6a — New arrivals are indexed without being asked; the backlog is not (2026-11-11)
+
+**Decided by the maintainer, 2026-11-11.** Narrows IN-D6; it does not replace it.
+
+- **Why.** IN-D6's reason is the *first index of a large library* — "a multi-hour,
+  battery-visible operation" that must never run silently. It was never written for one new
+  photo, which costs ~33 ms for its search vector and a few hundred ms for faces (§9.7 of
+  `ios-on-device-inference.md`). Applied to a single upload it reads as "I added a photo of
+  myself and People never found me", which is not what a user expects. Found on the iPhone in
+  `ios-face-grouping.md`'s F8 device pass.
+- **How others do it.** OneDrive and Google Photos analyse on their servers after upload, which
+  is why it looks instant there; HR 1 (the relay sees ciphertext only) rules that out here.
+  Apple Photos, the on-device analogue, does most of its analysis while locked and charging,
+  plus some light work at capture. IN-D6a is that shape: bulk overnight, small batches at once.
+- **The rule.** A *small batch* of photos no pass has seen yet — local uploads and files synced
+  in from other devices alike — is indexed without a press, for each capability whose own
+  consent is on and whose own model serves (absence = NO, unchanged; IN-D3's per-half gating,
+  unchanged). ⚠ The cap is a constant to measure, starting at **50 photos per batch**; anything
+  beyond it is left to the scheduled pass or *Index now*, and never chained into a long run.
+  Progress shows on the same surface *Index now* uses (§34), so it is not silent.
+- **Same runner.** It goes through `MediaIndexRunner` (§34.3): single-flight with *Index now*
+  and the scheduled pass, never a second runner.
+- **⚖️ The platforms differ on purpose**, because their background rules do:
+  - **Android (and desktop):** Control is long-lived and WorkManager runs a short job reliably
+    in the background. A **debounced one-time job** (about two minutes after the last arrival)
+    runs the small batch with **battery-not-low** as its only constraint — Photos need not be
+    open. A short job needs no foreground-service notification. The backlog stays on the
+    12-hour idle+charging pass (`MediaIndexSchedule.kt`). ⭐ Built 2026-11-11 — as-built below.
+  - **iOS:** no background work at arrival, ever — about 30 s of time, and a suspended app
+    holding the store lock is the `0xdead10cc` kill (`ios-on-device-inference.md` §3.3). The
+    small batch runs **while Photos is in the foreground**, under `ForegroundIndexingConditions`
+    (thermal, Low Power Mode, battery), and stops when Photos leaves the foreground. The backlog
+    goes to PR-6's overnight `BGProcessingTask` (⭐ built 2026-11-11 behind the AI flag,
+    `ios-on-device-inference.md` §16; 📱 its nights owed). Planned as **PR-6b** in
+    `ios-on-device-inference.md`.
+- **Open:** the batch cap (measure on the floor-class phone); what "arrived" is detected from on
+  iOS (the library watch's revision, `CollectionsViewModel`) — never by walking the whole library to
+  find out. Android and desktop: decided, below.
+
+#### IN-D6a as built — Android and desktop (2026-11-11)
+
+- **"Arrived" is a modification row, not a listing.** ⚠ The doc said "a listing change"; no listing
+  holds the photographs — they live in any folder, and watching every folder's array is the walk this
+  must not be. Every file write op stamps a `FileModification` row and a peer's row syncs in with the
+  file, so `NewArrivalsObserver` (`control-shared-proxy`, `NewArrivalsIndexing.kt`) — a
+  `DataObserver` — takes the **path** of each saved `Created`/`Moved`/`Renamed` row for an image
+  outside the trash, **whatever its origin**. A type-id prefix test rejects every other save before a
+  schema is looked up. ⚠ Moved and renamed count (the stores are keyed by path); a content change at
+  the same path does not (nothing re-indexes it).
+  - ⚠⚠ **Two blind spots:** a file op writes these rows only when it has a device id (production
+    always passes one); and a shared realm's `SharedFile` content writes none, so a photograph that
+    arrives in a **shared folder** is not seen — the scheduled pass is its route.
+- ⚠⚠ **The batch indexes the ARRIVED paths and nothing else — never a walk.** A first build walked
+  the library to find "photos no pass has seen" and capped that: one upload then cost a whole-tree
+  read, a whole-library reconcile and per-photo checks on battery, every two minutes under a trickle —
+  and with any backlog the 50 slots went to the first backlog photos in tree order, so **the photograph
+  that arrived might never be indexed**, the exact failure IN-D6a exists for. As built:
+  - `ArrivalQueue` (`:inference-service-proxy`, general — iOS's foreground batch can use it): the
+    arrived paths, de-duplicated, in arrival order, **bounded at 500** (past it the oldest fall to the
+    backlog), persisted to `/inference/arrivals.queue` in the device-local inference file store (a
+    WorkManager input is limited to 10 KB). ⚠ Flushed on the scheduler's cadence, not per save: an
+    arrival in the last seconds before the process dies is the scheduled pass's.
+  - `MediaIndexRunner.runPathsBatch(ec, paths, cap, bar)` — **general "index these paths"** — reads
+    them through `MediaSource.mediaAt`, which Control answers with **point reads** (`livePaths` per
+    path), and reconciles nothing (`wholeLibrary = null`). The bar counts the batch, not the library.
+    `runArrivalsBatch(ec, queue)` is that over the queue, settled afterwards.
+  - Per path (`PathOutcome`), settled **after** the photograph's work: indexed / already current /
+    nothing to do → leaves; **no bytes and no preview** (relay-only on a metered network), **a half that
+    failed on it**, or ⚠⚠ **no live row yet** → stays for 3 batches, then leaves; not reached (cap,
+    deferral) → stays for the next batch. ⚠ "No row" is retried rather than dropped because a peer's
+    modification row can be applied before its `File` row. A batch that did not finish (superseded,
+    stopped) settles nothing.
+  - ⚠⚠ **The queue is the realm's**: `wipeDerivedInferenceState` (every platform's
+    `onLocalStoreWiped`) clears it with the vectors and templates — memory and file — and so do iOS's
+    custody on a realm change or relinquish and `eraseAtRest`, and a batch that finds **every** half
+    explicitly withdrawn (absence keeps it). File names can say a lot; the next realm's first batch
+    must not work them.
+  - ⚠ `MediaSource.mediaAt`'s default walks and filters — correct, and the cost the batch exists to
+    avoid — so it logs that it did; Control overrides it. (Not abstract only because `MediaSource` is
+    a `fun interface`.)
+  - ⚠⚠ **A path batch is no library coverage**: `IndexPassResult.libraryWalk` is set for walks only,
+    and the Models screen's "N of M aren't on this device" is recorded from those alone — a batch of
+    three must not read "3 of 3" over "1,290 of 1,300".
+- **The cap — `NEW_ARRIVALS_BATCH_CAP = 50`** — counts photographs **whose bytes were read**. ⚠⚠ An
+  unavailable photograph does not spend it, or relay-only arrivals would exhaust every batch for ever.
+  It BREAKS with `IndexPassResult.batchCapReached`; ⚠⚠ nothing re-runs it — what is left waits for the
+  next arrival's batch, the 12 h pass or *Index now*.
+- **Its own bar, `PassBar.ARRIVALS`.** `IndexingConditions.allowArrivalIndexing()`: battery not low,
+  and ⚠⚠ **unknown is NO** — nobody asked. Defaults to `false` (absent means never); Android (capacity
+  > 15 %) and desktop (no macOS low-battery warning; Windows/Linux never) override it. The 12 h pass
+  keeps charging + not in use, untouched.
+- **The ONE runner.** `runPathsBatch` returns `null` while any pass runs (never joined: a 10-minute
+  job waiting on an hours-long pass would be stopped, and its stop would end that pass); refuses
+  before taking the slot when no half may run (`MediaIndexer.anyHalfMayRun`) or the bar says no — ⚠⚠
+  and **still deletes what a face-consent withdrawal owes**, as the pass's own refusals do (now true of
+  `runToCompletion`'s pre-check too). A press and the scheduled pass REPLACE a running batch.
+  ⚠ iOS's wake expiry (`cancelRunningScheduledPass`) does **not** stop one: it is not the wake's, and
+  its own trigger owns its end.
+- **Android:** `ThrottledArrivalScheduler` arms `NewArrivalsIndexWorker` — a plain `CoroutineWorker`,
+  one-time, `REPLACE` + `setInitialDelay(2 min)` + `setRequiresBatteryNotLow(true)` alone — looking at
+  most once per 15 s:
+  - no job / a finished one → arm; a waiting one → push it back, ⚠⚠ but only while it is still **due
+    within 10 minutes of its first arm** (`NEW_ARRIVALS_MAX_LATENCY_MS`, the 2-minute delay counted),
+    so an hours-long sync cannot starve it. ⚠ The first-arm time is per process — a Control restarted
+    mid-stream starts a fresh window — and a re-arm of a job waiting on a retry resets its WorkManager
+    attempt count, so the retry bound is per armed job;
+  - ⚠⚠ a **running** one → left alone and looked at again next window: `REPLACE` would cancel the
+    batch. Its arrivals wait on the queue. ⚠ One race remains — a job that starts between the state
+    read and the write is cancelled before its first stamp, and the next arm re-runs it.
+  - A regular job's 10-minute limit is far above 50 photographs, so no foreground notification.
+    A deferral, and a cold wake that finds no proxy session, retry once and are then left; no model /
+    no consent is not retried. ⚠ The `Schedule` op was not used: it dispatches an op by id, and a new
+    op is a schema addition this needed no reason for.
+  - ⚠⚠ **"About two minutes" is the best case.** A one-time job is subject to App Standby buckets and
+    Doze; for Control in the *rare* or *restricted* bucket Android may hold it for hours. The queue
+    keeps the paths meanwhile.
+- **Desktop:** no WorkManager — `InProcessArrivalScheduler` runs the batch 2 min after the last
+  arrival or 10 min after the first, one batch at a time; the batch's own bar is its only constraint.
+- **Progress** is the runner's: the same `IndexProgressHolder` *Index now* publishes into, so Control's
+  Models screen shows the batch — its own total, since the batch is its paths. No Android notification.
+- **Pinned:** `NewArrivalsBatchTest`, `NewArrivalsIndexingTest`, `NewArrivalsIndexWorkerTest`,
+  `DesktopIndexingConditionsTest`; each guard mutation-checked. 📱 Owed on a phone: an upload and a
+  synced-in photo each indexed after the debounce with Photos closed; a low battery deferring it; the
+  cap measured on the floor-class phone.
+- **As built — iOS (PR-6b, 2026-11-11, behind the AI flag; 📱 owed):** `ios-on-device-inference.md`
+  §17. The library watch's revision, while Photos is in front, is the cue; **which paths arrived** is
+  read from the rows of the same modification log **past a persisted cursor** (`ArrivedPhotoPaths`,
+  at most 500, never a walk; no cursor ⇒ nothing queued, the wake's) into the shared `ArrivalQueue`,
+  bound in Photos' graph and stored in Photos' private inference store (so the wipe and custody above
+  reach it), and the batch is the shared `runArrivalsBatch`, with iOS's `MediaSource.mediaAt` a point
+  read. ⚠ The log is not read unless a half may run. The queue is flushed on every change (the look, the
+  batch's settle), never at the leave. ⚠ Two iOS differences (§17.3): the batch **yields to a running wake** rather
+  than replacing it, and it is cancelled when Photos leaves the foreground. ⚠ "Never chained" is per
+  foreground; the next leave still arms PR-6's wake after a capped batch.
+
 ### IN-D7 — Character and content tagging: buy the vocabulary, never train
 
 The interesting question — *can we recognise characters from games and films in cosplay
@@ -4056,7 +4191,9 @@ exists to index nothing would have let a press run a neural network over the who
 
 Two entry points became three, and two of them already existed: the schedule is dispatched by the
 in-process `ScheduleDrainLoop` **and** by WorkManager waking a closed Control. Both now go through
-one runner:
+one runner — ⭐ and so does the fourth, IN-D6a's **new-arrivals batch** (`runPathsBatch` over the
+arrived paths — never a walk: the debounced `NewArrivalsIndexWorker` on Android, an in-process
+debounce on desktop), which never joins a running pass and is replaced by either of the others:
 
 - `start()` returns **as soon as the pass is running** — an IPC call from a screen cannot be held
   open for the hours a first index takes.
@@ -4199,24 +4336,80 @@ carried by the consumer would silently describe whichever model it was written a
 checkpoint's pair (117.330765, −12.932437) while pinning `-256-multilingual`; corrected 2026-10-11
 (`models.md` §3.10.8), with a test that holds the literals beside the weights they were read from.
 
-The floor is **cosine ≥ 0.09149529**, written `SEMANTIC_RELEVANCE_FLOOR = 0.061245844`: the
-probability the pinned checkpoint gives that cosine. ⚠⚠ **It is a carried-over cosine, not a
-measured value.** It shipped as `p ≥ 0.10`, the middle of §3.7.2's usable band (0.05–0.15) — a band
-measured on the `-224` checkpoint and read through its constants. When the constants were corrected
-the floor moved to the number that keeps the cut on the same `Float`, so that the correction
-changed no search result on any platform (`SemanticFloorCarryOverTest`). A true `p ≥ 0.10` on the
-pinned model would be cosine ≥ 0.0963. **Re-measuring it on the pinned checkpoint is still owed**;
-it is the one number here worth measuring rather than reasoning about. ⚠ It errs low on purpose: a
-floor slightly too generous shows a weak match the user can dismiss, where one too strict makes a
-photograph they know they own unfindable — and they cannot tell that from it never having been
-indexed.
+The floor is **cosine ≈ 0.05998** (0.06 is admitted, 0.0599 is not), written
+`SEMANTIC_RELEVANCE_FLOOR = 0.00197`: the probability the pinned checkpoint gives that cosine.
+⭐ **Measured on the pinned checkpoint, 2026-11-09** (§35.1.1). Until then it was cosine 0.0915
+(`0.061245844`), carried over from the `-224` checkpoint's band and never measured on this one, and
+⚠⚠ **that hid every true match on the first iPhone to search**: five cat photographs scored cosine
+0.080–0.084 for *"cat"*, all below 0.0915, and search answered *no results*. Ranking was perfect —
+the best non-cat scored 0.021 — so the towers were fine and the floor was wrong. ⚠ It errs low on
+purpose: a floor slightly too generous shows a weak match the user can dismiss, where one too strict
+makes a photograph they know they own unfindable — and they cannot tell that from it never having
+been indexed.
 
-⚠⚠ **Until 2026-10-04 this floor very likely passed nothing on the ONNX backend.** The band it was
+#### 35.1.1 How the floor was measured
+
+**Inputs, all on the pinned `siglip-base-patch16-256-multilingual`**, through all three pairs: fp32
+PyTorch, the published ONNX pair (uint8 vision + int8 text, Android/desktop) and the Core ML fp16
+export the phone runs (archives `a30d4ddeaa9d…`/`628f7f32ac0c…`, CPU_AND_NE), with
+`retrieval-gate.py`'s tokeniser (pad id 1) in the pinned toolchain.
+
+- **The iPhone's own 22 vectors** (5 cats, 17 photographs of Sintra), read from its
+  `DefaultEmbeddingStore` log. ⭐ The host's Core ML text tower reproduces the device's printed
+  cosines to **1.2 × 10⁻⁷**, so host Core ML numbers *are* phone numbers.
+- **COCO val2017, 5,000 images with ground truth**: the 28 exactly-mapped bare-word labels of
+  `label-eval-coco-mapping.tsv` (`people` left out), and the retrieval gate's 36 queries, 16 of them
+  matched to a COCO category.
+- **The maintainer's 554-photo camera roll** (no truth), against 22 objects that are not obviously
+  in it — five instruments (*xylophone, saxophone, accordion, harp, tuba*) among them.
+
+**What it shows.**
+
+| | |
+|---|---|
+| True matches of a one-word query | typically cosine **0.06–0.10**, not all: COCO's cats median 0.085, 5th percentile 0.038; the iPhone's cats 0.080–0.084 |
+| An object not in the library | the five instruments peak at **0.030–0.057** over the camera roll; *xylophone* at 0.021 over the iPhone; the prefix *"ca"* (as-you-type) at 0.016 |
+| Bare-word labels over COCO, at cosine 0.06 | median recall **0.57**, median precision **0.88** (Core ML; ONNX 0.56 / 0.88) — against 0.08 / 1.0, and 6 of 28 labels finding nothing, at 0.0915 |
+| The same at 0.065 / 0.07 | 0.53 / 0.92; 0.45 / 0.96 |
+
+0.06 is the lowest cut at which no instrument returns a photograph on the camera roll on any of the
+three pairs (0.055 lets one or two through), and it is where §3.10's per-label floors for precision
+0.90 already had their median (`models.md` §3.10.3: cosine about 0.06, p ≈ 0.002). ⚠ It is
+**not** a cut that rejects every absent object: at 0.06 the iPhone returns one photograph for
+*igloo* (0.062) and the camera roll a handful for *igloo*, *snowman*, *penguin* or *skiing* — weak,
+dismissible matches, which is the side this floor is meant to err on. ⚠ And a random letter string can
+beat it: observed for *qwzx*, which scores 0.117 on the camera roll (its median there 0.049), above
+any floor that keeps true matches. One string, not a measured rule about such queries.
+
+**⚠ One absolute floor, not a relative rule — decided on these numbers.** A cut relative to the
+best score always admits the best, so it can never return nothing for *xylophone*, whose top over
+the camera roll is a smooth tail (0.048, 0.044, 0.041, …), not an outlier. A cut relative to the
+library's median returns nothing for *"cat"* in a library that is mostly cats. And within one query
+true matches spread wide (COCO's cats: 0.038 to 0.10), so any gap narrow enough to matter drops real
+ones.
+
+**Platform skew — what was observed.** On this 554-photo camera roll no instrument crosses 0.06 on
+any of the three pairs, so one shared constant behaved the same on all of them here. ⚠ The margin
+is thin next to the skew: the worst instrument (harp on ONNX, 0.0567) sits ~0.003 below the floor,
+far less than the per-pair differences below, so another library may put an absent object just over
+the cut on one platform and not the other. ONNX minus Core ML for the same image and query, over pairs
+near the cut (either score in 0.04–0.10): mean **+0.001 to +0.002**, sd 0.009–0.014, |difference|
+≤ **0.019–0.028** for 95 % of pairs (real words, camera roll and COCO; sentences the wider end).
+On COCO's 184 cat photographs for *"cat"*, mean −0.0024, sd 0.0053. The ONNX *text* tower alone,
+against the iPhone's Core ML image vectors: within 0.0053 of the device. The sweep's figures are the
+same to within 0.01–0.03 on all three pairs.
+
+⚠ The sweep's scripts and raw results are not in the repository; they were written to a session
+scratchpad. Re-running needs only the inputs, all on the maintainer's Mac: the image vectors in
+`~/tenshu-models/label-eval-2026-10-10/` (COCO) and `label-eval-wide-2026-10-11/phone/` (camera
+roll), the score matrices in `label-eval-wide-2026-10-11/coco-bare/`, the export and ONNX pair in
+`~/tenshu-models/`, and the query texts embedded with `retrieval-gate.py`'s `tokenise` and loaders.
+
+⚠⚠ **Until 2026-10-04 the carried-over floor very likely passed nothing on the ONNX backend.** The band it was
 taken from was measured on correctly padded text vectors, while `embedText` padded with the wrong
 id (§21.1) and scored lower across the board: on a 36-query, 300-image host corpus, no query's best
 match reached the floor (cosine 0.0915, then written `p ≥ 0.10`) before the fix and 19 of 36 do
-after it (`models.md` §3.9.4). ⚠ Not confirmed on a device, and the floor itself has not been
-re-measured.
+after it (`models.md` §3.9.4).
 
 ### 35.2 ⚠ A backend that cannot calibrate does not filter
 
@@ -4236,11 +4429,14 @@ that claim is pinned separately against `VisionModel.PinnedSigLip`.
 Four mutations, each caught: removing the filter, comparing the raw cosine, filtering when there is
 no calibration, and dropping the pinned constants.
 
-Since 2026-10-11 three more things are pinned. `PinnedSigLipCalibrationPinTest`: the constants,
-beside the checkpoint revision and weights digest they were read from. `SemanticFloorCarryOverTest`:
-the corrected constants with the new floor admit exactly the cosines the former pair admitted
-(restoring `0.10`, or moving the floor to the next score up, fails it). And
-`theOpCutsAtTheCarriedOverCosine`: the same cut through the op.
+Since 2026-10-11 `PinnedSigLipCalibrationPinTest` holds the constants beside the checkpoint
+revision and weights digest they were read from. `SemanticFloorCarryOverTest`, which held the
+carried-over cut, is **retired** with it (2026-11-09). In its place, through the op and under the
+pinned constants: `theIphonesFiveCatsAreFoundAndNothingElse` (the device's 22 cosines: five back,
+best first, the rest dropped; red under the old floor), `xylophoneOverAnUnrelatedLibraryReturnsNothing`
+(the iPhone's and the camera roll's measured cosines; red at a floor of 0.0003) and
+`theOpCutsAtTheMeasuredCosine` (0.06 in, 0.0599 out). `test_label_eval.py` holds the Kotlin
+constant to the same cut.
 
 ### 35.4 Still not done
 
@@ -4324,7 +4520,8 @@ the row (§39.2).
 ⚠⚠ The same section records that `VisionModel.PinnedSigLip.calibration` carried the `-224`
 checkpoint's constants, so `SEMANTIC_RELEVANCE_FLOOR` (§35) was p ≥ 0.061 on the pinned model, not
 the 0.10 it stated. Corrected 2026-10-11: the constants are the pinned checkpoint's and the floor
-reads `0.061245844`, the same cosine (0.0915) as before. ⚠ Carried over, not re-measured (§35.1).
+reads `0.061245844`, the same cosine (0.0915) as before. ⭐ Re-measured 2026-11-09: cosine 0.06,
+`0.00197` (§35.1.1).
 
 ### 37.3 What the first labelled read says about §19.3
 

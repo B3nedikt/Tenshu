@@ -87,7 +87,22 @@ class ForgetThisDeviceUnfinishedWipeTest {
         ): T = null as T
     }
 
-    private class Run(val outcome: String, val delegate: InMemorySecureStorageDelegate, val store: Store, val syncManager: SyncManagerImpl)
+    private class Run(
+        val outcome: String,
+        val delegate: InMemorySecureStorageDelegate,
+        val store: Store,
+        val syncManager: SyncManagerImpl,
+        val oldDeviceId: String,
+    ) {
+        /**
+         * The forgotten identity is gone at rest. ⚠ Not "no `DEVICE_ID` at all": a finished forget
+         * re-mints A4 in-process (§7i.5), so the slot names the NEW device — never the old one.
+         */
+        fun custodyPurged(): Boolean =
+            delegate.getString(SyncManagerImpl.Keys.DEVICE_ID) != oldDeviceId &&
+                delegate.getSecret(SyncManagerImpl.Keys.RECOVERY_PHRASE) == null &&
+                delegate.getSecret(SyncManagerImpl.Keys.OWNER_ID) == null
+    }
 
     private suspend fun forget(wipe: Store.Wipe): Run {
         val testProxy = TestProxy(schemaRegistry = createSyntheticTestRegistry())
@@ -102,7 +117,7 @@ class ForgetThisDeviceUnfinishedWipeTest {
         syncManager.initialize("mock phrase")
         store.storeSyncCursor(41L)
         // The id is derived from the A4 key on first use (workstream B) — a device that syncs has used it.
-        syncManager.currentDeviceId
+        val oldDeviceId = syncManager.currentDeviceId
         assertNotNull(delegate.getString(SyncManagerImpl.Keys.DEVICE_ID), "precondition: an identity at rest")
         var ticks = 0L
         val impl = ForgetThisDeviceImplementation(
@@ -117,13 +132,14 @@ class ForgetThisDeviceUnfinishedWipeTest {
             caller = null,
             params = null,
         ).get().orEmpty()
-        return Run(outcome, delegate, store, syncManager)
+        return Run(outcome, delegate, store, syncManager, oldDeviceId)
     }
 
     @Test
     fun anUnfinishedWipeKeepsCustodyAndSaysNotFinished() = runTest {
         val run = forget(Store.Wipe.UNFINISHED)
-        assertNotNull(run.delegate.getString(SyncManagerImpl.Keys.DEVICE_ID), "D3: custody kept over a store still present")
+        assertEquals(run.oldDeviceId, run.delegate.getString(SyncManagerImpl.Keys.DEVICE_ID), "D3: custody kept over a store still present")
+        // ⚠ Both matched by Control's `forgetNoticesFor` (WelcomeScreen.kt) — reword them together.
         assertTrue(run.outcome.contains("not finished"), run.outcome)
         assertTrue(run.outcome.contains('⚠'), "the Welcome notice's marker: ${run.outcome}")
         assertFalse(run.outcome.contains("forgotten"), run.outcome)
@@ -132,7 +148,7 @@ class ForgetThisDeviceUnfinishedWipeTest {
     @Test
     fun aFinishedWipeStillResetsTheCursorsAndPurgesCustody() = runTest {
         val run = forget(Store.Wipe.FINISHED)
-        assertNull(run.delegate.getString(SyncManagerImpl.Keys.DEVICE_ID), "custody purged")
+        assertTrue(run.custodyPurged(), "custody purged")
         assertTrue(run.outcome.contains("local store dropped"), run.outcome)
         assertEquals(0L, run.store.loadSyncCursor(), "the cursor a tick wrote after the wipe was reset")
     }
@@ -141,15 +157,17 @@ class ForgetThisDeviceUnfinishedWipeTest {
     fun aFencedHandleAfterItsWipeNeverThrowsPastThePurge() = runTest {
         val run = forget(Store.Wipe.FENCED)
         assertTrue(run.store.writesAfterWipe > 0, "the reset was attempted")
-        assertNull(run.delegate.getString(SyncManagerImpl.Keys.DEVICE_ID), "custody purged")
+        assertTrue(run.custodyPurged(), "custody purged")
         assertTrue(run.outcome.contains("local store dropped"), run.outcome)
     }
 
     @Test
     fun aWipeThatDidNotStartBehavesAsBeforeTheCursorsResetAndCustodyGoes() = runTest {
         val run = forget(Store.Wipe.FAILS)
-        assertNull(run.delegate.getString(SyncManagerImpl.Keys.DEVICE_ID), "today's behaviour for a wipe that did not happen")
-        assertTrue(run.outcome.contains("NOT dropped"), run.outcome)
+        assertTrue(run.custodyPurged(), "today's behaviour for a wipe that did not happen")
+        // ⚠ The exact phrase and the marker Control's `forgetNoticesFor` (WelcomeScreen.kt) matches.
+        assertTrue(run.outcome.contains("local store NOT dropped"), run.outcome)
+        assertTrue(run.outcome.contains('⚠'), "the Welcome notice's marker: ${run.outcome}")
         assertEquals(0L, run.store.loadSyncCursor(), "the cursor was reset")
     }
 

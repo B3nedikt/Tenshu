@@ -646,7 +646,7 @@ paths:
         '200': { description: 'Stored; the registration lands on the joiner''s first peek.', content: { text/plain: { schema: { const: OK } } } }
         '400': { description: 'A missing field, bad base64, a non-integer epoch, an invalid cert chain, or a `newDevicePublicKey` that is not 32 bytes / a malformed `newDeviceId` (registration input rules; both refusals in one body).' }
         '401': { description: '`Invalid master delegation`, or a JWT error.' }
-        '403': { description: '`admission-revoked: …` / `device-removed: …`. Also refused: a chain that runs through a device in the removal ledger (S1), whatever its keys.' }
+        '403': { description: '`admission-revoked: …` / `device-removed: …`. Also refused: an approver (the chain''s leaf) in the removal ledger, whatever its keys. ⚠ A removed *ancestor* link is not refused (§7j retired S1''s ancestor rule). The chain''s approver (`chain[0]`) must be the authenticated poster (401 otherwise) and registered now (403 `admission-revoked` otherwise) — §7j.9.' }
         '404': { description: '`Realm not found`.' }
         '409': { description: '`pairing-response-consumed: pairingSecretHash already consumed` (acked within the last 24 h). The `RelayRefusal` token is first, so a host retrying a post whose reply it lost reads it as delivered.' }
 
@@ -667,7 +667,7 @@ paths:
       responses:
         '200': { description: 'The raw encrypted master key bytes.', content: { application/octet-stream: { schema: { type: string, format: binary } } } }
         '400': { description: '`Missing pairingSecretHash`, or not 64 lower-case hex.' }
-        '403': { description: '`device-removed: …` — the joiner was removed between the host''s post and this fetch; or `admission-revoked: An admitter in this device''s admission chain was revoked or removed` — the queued A33 chain is re-verified in full here (removal ledger and key-scoped revocations, S1). Either way nothing is registered or served.' }
+        '403': { description: '`device-removed: …` — the joiner was removed between the host''s post and this fetch; or `admission-revoked: The approving device was removed, or its admission capability revoked` — the queued A33 chain is re-verified here (key-scoped revocations on every link; the removal ledger on the approver only — an ancestor''s removal is not a refusal, admission-revocation-names-the-capability.md §7j). Either way nothing is registered or served.' }
         '404': { description: 'Nothing yet, past the TTL, or acked (empty body).' }
 
   /sync/pairing/ack:
@@ -723,7 +723,7 @@ paths:
         '200': { description: 'Stored.', content: { text/plain: { schema: { const: OK } } } }
         '400': { description: 'A missing field, a bad status, payload not present iff approved, bad base64, an invalid chain, or (approved) an `offererSigningKey` that is not 32 bytes / a malformed `offererDeviceId` (registration input rules; both refusals in one body).' }
         '401': { description: '`Unknown responder device` / `Invalid offer-response signature` / `Invalid master delegation`.' }
-        '403': { description: '`admission-revoked` / `device-removed`. Also refused: a chain that runs through a device in the removal ledger (S1), whatever its keys.' }
+        '403': { description: '`admission-revoked` / `device-removed`. Also refused: an approver (the chain''s leaf) in the removal ledger, whatever its keys. ⚠ A removed *ancestor* link is not refused (§7j retired S1''s ancestor rule). The chain''s approver (`chain[0]`) must be the authenticated poster (401 otherwise) and registered now (403 `admission-revoked` otherwise) — §7j.9.' }
         '404': { description: '`Realm not found`.' }
         '409': { description: '`pairingSecretHash already consumed`, or (scanned only) `already announced`.' }
     get:
@@ -750,7 +750,7 @@ paths:
                   publicKeyA: { $ref: '#/components/schemas/Base64' }
                   payload: { type: [string, 'null'], description: base64; null unless approved }
         '400': { description: '`Missing hash`.' }
-        '403': { description: '`device-removed`: the offerer was removed between approval and fetch; or `admission-revoked: An admitter in this device''s admission chain was revoked or removed` — the queued A33 chain is re-verified in full here (removal ledger and key-scoped revocations, S1). Nothing registered, nothing served.' }
+        '403': { description: '`device-removed`: the offerer was removed between approval and fetch; or `admission-revoked: The approving device was removed, or its admission capability revoked` — the queued A33 chain is re-verified here (key-scoped revocations on every link; the removal ledger on the approver only — an ancestor''s removal is not a refusal, admission-revocation-names-the-capability.md §7j). Nothing registered, nothing served.' }
         '404': { description: 'Nothing yet, or past the TTL (empty body).' }
 
   /sync/pairing/hub-offer:

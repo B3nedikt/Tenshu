@@ -29,6 +29,13 @@ interface SyncStatusInstance {
   schemaFence(): Promise<NativeSchemaFence | null>
   // Resolves whether the KICK was signalled — not whether the drain succeeded.
   syncNow(): Promise<boolean>
+  // The browser's device-local pause switch (web-apex-home.md §4.7). Paused: no push, no pull, no
+  // upload, and `syncNow` does not get past it. Persisted per browser,
+  // never synced; readable before the runtime has started.
+  isPaused(): boolean
+  setPaused(paused: boolean): void
+  // The current value first, then every change (including another tab's). Returns the unsubscribe.
+  observePaused(callback: (paused: boolean) => void): () => void
 }
 
 interface SyncHealthInstance {
@@ -38,6 +45,9 @@ interface SyncHealthInstance {
   // Pushes every change until the returned lambda is called. Genuine push — `syncHealth()` is a
   // Flow in the runtime and always was; `status()` just takes its first emission.
   observe(callback: (row: NativeSyncHealth | null) => void): () => void
+  // `observe` with an end: `onEnd` fires once when the stream can no longer deliver (never for the
+  // returned unsubscribe), so a reader can stop showing its last row as current.
+  observeUntilEnd(callback: (row: NativeSyncHealth | null) => void, onEnd: (reason: string) => void): () => void
 }
 
 declare module '*/productionExecutable/tenshu-sdk-js.js' {

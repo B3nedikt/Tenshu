@@ -1332,9 +1332,36 @@ the tree into the emulator's Documents, and picking a folder of that name picks 
   author (the rest); and the Android Drive capture's file sizes for *Dolomites 2026* agree with the
   new bytes to ~0.1 KB, a re-encode, not a new photo. Again on 2026-10-31: 18 of the 48, checked the
   same way (each against its page slug on a contact sheet; the four *Dolomites 2026* ones also against
-  the sizes the published grid capture shows). ⚠ So expect it: a landing run months after the last pin
-  will usually stop here first. Unsplash's photo pages sit behind a bot wall,
-  so the licence check is the image still being on `images.unsplash.com`, not `plus.unsplash.com`.
+  the sizes the published grid capture shows). Again on 2026-11-07: 14 of the 48. ⚠ So expect it:
+  any landing run more than a few days after the last pin will usually stop here first. Unsplash's
+  photo pages sit behind a bot wall, so the licence check is the image still being on
+  `images.unsplash.com`, not `plus.unsplash.com`.
+- **Why the bytes move.** The `fetch` URLs carry no `ixlib`, `auto` or other parameter that changes
+  over time. `images.unsplash.com` is imgix: it
+  renders the sized JPEG when a request misses its cache (the response's `last-modified` is the
+  render time, not the photo's), and a render made after imgix changed its encoder gives different
+  bytes for the same URL. So a size drifts whenever its cached render is evicted. Nothing on our side
+  can stop that: the unsized original URL is an imgix render too (and up to 14 MB). A machine that
+  still has the old bytes in `build/store/fixture-cache/` is not affected until it loses its cache,
+  so "it works here" proves nothing about a fresh machine.
+  ⚠ **More than one rendition can be live at once.** On 2026-11-11, four fresh `--check` runs from
+  one machine within an hour, two days after a re-pin of 14 files: the first reported 14 drifted,
+  the next three the same 5, and 4 of those 5 hashed to the pin the re-pin had *replaced*. So a
+  re-pin can fall back on the next fetch, and a `--check` that passes once is no proof the next
+  one will. A sha256 pin over an imgix render is the weak point of this scheme; until it changes
+  (pin the bytes in our own bucket, as the `s3://` entries already are), expect to look at a drifted
+  file again and find the same photo.
+- **Re-pinning.** `python3 store/fixtures/generate.py landing --check` downloads every `fetch` entry
+  again, skipping the cache, lists each drifted one with its pinned and new sha256, keeps the new bytes
+  under `build/store/fixture-cache/review/landing/<path>`, lists any file it could not download
+  (a photo pulled from Unsplash shows up here), and exits 1 if anything drifted or failed. For each
+  drifted entry: compare its dimensions with the original's (`<fetch url without query>?fm=json`
+  gives `PixelWidth`/`PixelHeight`; the rendition is that with its width capped at 2400 px, height in proportion), look at it full
+  size against its page slug and author, and check it against the rules under *Choosing a photo*
+  below. Then replace its `sha256` with the new value and run `--check` again (see the warning above:
+  it may not settle). Never
+  re-pin a file you haven't looked at: a re-pin is what stops a swapped photo from getting into the
+  screenshots.
 - **Choosing a photo.** Unsplash or Pexels only, under their own licence (not Unsplash+). **No
   recognisable person, no logo or brand, no legible sign, no artwork** — and no famous building in a
   country without freedom of panorama. Look at it full size before adding it, and record author and
@@ -1342,3 +1369,50 @@ the tree into the emulator's Documents, and picking a folder of that name picks 
 - **Adding one.** Append an entry (download the sized URL once, `shasum -a 256` it), keep the day
   groups at three or more, run `generate.py landing --dry-run`, then the walk.
 
+
+### The promo set — the same flow over your own photos
+
+`--set promo` (Android only) runs this section's flow over a tree of the maintainer's own photos
+instead of the stock recipe, and records the screen clips the product video is cut from. It
+publishes nothing. The video itself — its scenes, cuts and formats — is composed outside this
+public tree, in the private marketing repository, which reads these recordings from the checkout.
+
+```bash
+# 1. Stage: JPEG, 2400 px, every tag but the capture date and orientation stripped (no GPS, no camera
+#    serial); one photo held back for the on-camera upload, one for the folder backup.
+python3 store/fixtures/promo/stage_photos.py --upload <photo> --backup <photo>
+# 2. Record: a read-only emulator, a fresh Free realm on the dev lab, the albums uploaded through
+#    Drive's Folder upload, then the clips.
+scripts/store-screenshots-android.sh --set promo \
+  --fixture-dir build/store/fixture/promo --upload-dir build/store/fixture/promo-upload \
+  --backup-dir build/store/fixture/promo-backup --promo-config <promo.json>
+```
+
+The photos come from `~/Movies/Tenshu promo/photos/<Album>/` (one folder per album; loose photos
+form one album). ⚠ Look at every photo on the contact sheets in `build/store/fixture/promo-review/`
+before a run: only photos the maintainer took, with **no people, brands, legible signs or number
+plates** — the same bar as the stock set above.
+
+The recordings land beside the captures in `store/{drive,photos}/screenshots/android/phonepromo/en/`
+(gitignored): `android-upload` (the held-back photo through + → Upload → Images), `android-share`
+(More → Link → Generate link — ⚠ the link names the production viewer and the realm is the dev
+lab's, so it opens nothing), `android-recovery` (Control's recovery phrase — the throwaway realm's,
+gone with the emulator), `android-backup` (Synced Folders switched on for a `Chat` folder holding
+the `--backup-dir` photo), `android-photos-scroll`, and — with `--promo-config`, a JSON file
+`{"album": …, "albumPhotos": […]}` kept with the video, not here — `android-album` (an album made off
+camera, one of its photos made a favourite).
+
+Things that cost a run to learn:
+
+- **A backup needs a photo new to the realm.** Synced Folders skips content the realm already holds,
+  so a copy of a seed photo backs up nothing — correctly. Hence `--backup`, held out of the seed.
+- **The photo picker names files by media-store id** (`32.jpg`), never their own name, so the walk
+  waits for a new `.jpg`, not a name. It lists only Pictures; the walk empties the seed's copies
+  from Documents first, so its first tile is the held-back photo.
+- **Tap blind inside a recording.** Every `wait()` reads the screen through uiautomator (1–2 s) —
+  dead air on camera. `record_album` taps measured positions (`ALBUM_TILE`, `VIEWER_FAVOURITE`,
+  `COLLECTIONS_TAB`, the pinned 1080 × 2400 Pixel 8 profile) and does every lookup before recording.
+- **`adb screenrecord` writes a variable frame rate with almost no keyframes.** Re-encode before
+  editing (constant 30 fps, a keyframe every half second), or frame-exact seeks time out.
+- ⚠ **Never record the recovery phrase or a share link on a real realm.** Those two stay on the
+  throwaway dev-lab realm this run creates.

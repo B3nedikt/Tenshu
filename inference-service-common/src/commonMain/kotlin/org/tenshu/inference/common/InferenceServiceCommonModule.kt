@@ -31,6 +31,9 @@ import org.tenshu.inference.FaceGroups
 import org.tenshu.inference.FaceGroupsUnavailable
 import org.tenshu.inference.GroupedFace
 import org.tenshu.inference.NameFaceGroup
+import org.tenshu.inference.FaceSuggestionRejections
+import org.tenshu.inference.RejectFaceSuggestion
+import org.tenshu.inference.RejectedFace
 import org.tenshu.inference.PhotosLike
 import org.tenshu.inference.SemanticSearchUnavailable
 import org.tenshu.inference.SimilarPhoto
@@ -46,6 +49,7 @@ import org.tenshu.inference.common.impl.IntentCandidateDto
 import org.tenshu.inference.common.impl.IntentChoiceDto
 import org.tenshu.inference.common.impl.FaceGroupsUnavailableDto
 import org.tenshu.inference.common.impl.GroupedFaceDto
+import org.tenshu.inference.common.impl.RejectedFaceDto
 import org.tenshu.inference.common.impl.SimilarPhotoDto
 
 /**
@@ -90,6 +94,14 @@ val inferenceServiceCommonModule = tModule {
         interfaceClass = GroupedFace::class,
         dataSchema = GroupedFace.Schema,
         dtoFactory = ::GroupedFaceDto,
+    )
+
+    // IN-6 F6c name suggestions — a device-local "this face is not X", returned to the app on this
+    // device only. ⚠ A return shape like `GroupedFace`, never a stored row.
+    composite(
+        interfaceClass = RejectedFace::class,
+        dataSchema = RejectedFace.Schema,
+        dtoFactory = ::RejectedFaceDto,
     )
 
     // ⚠⚠ Its typed error, for the reason two blocks up — and here the failure path is the ONLY
@@ -148,6 +160,9 @@ val inferenceServiceCommonModule = tModule {
     // `FaceGroupsUnavailable`, already registered above, because a refused NAME and a refused
     // READ are the same fact about the same switch.
     operation(NameFaceGroup.Schema)
+    // IN-6 F6c name suggestions: the device-local "No" and its read. Neither writes realm data.
+    operation(RejectFaceSuggestion.Schema)
+    operation(FaceSuggestionRejections.Schema)
     operation(ClassifyIntent.Schema)
     // 1c-3. ⚠ The tick's payload — an unregistered stream element crosses as an unreadable blob,
     // and a progress bar that never moves is indistinguishable from a stalled download.

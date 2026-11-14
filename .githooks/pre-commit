@@ -4,6 +4,11 @@ root="$(git rev-parse --show-toplevel)"
 # Every commit: no staged file may gain a PR reference (`#NNNN`). Reads only the staged files.
 python3 "$root/scripts/check-pr-refs.py" --staged || exit 1
 
+# Every commit: no test source may gain a wall-clock bound or a real-time sleep, nor leave the global
+# Koin running (~1 s together; docs/testing-flakes.md categories C and B).
+python3 "$root/scripts/check-test-wallclock.py" > /dev/null || python3 "$root/scripts/check-test-wallclock.py" || exit 1
+python3 "$root/scripts/check-test-koin.py" > /dev/null || python3 "$root/scripts/check-test-koin.py" || exit 1
+
 # The store checks run only when the commit touches store/ — every other commit pays one `git diff --cached`.
 # Keeps binaries and generated screenshots out of git (scripts/check-store-assets.py), and the
 # listing copy inside App Store Connect's limits and the copy rules (scripts/store-listing.py check).

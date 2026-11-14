@@ -186,6 +186,26 @@ class SocketDirectoryTest {
         )
     }
 
+    /**
+     * ⚠⚠ The REAL `/tmp`, not a stand-in. The case above builds a sticky directory the test user
+     * owns, and so passed while every real one was refused: `/tmp` is owned by **root**, and the
+     * owner check ran before the sticky carve-out, so on a Linux CI runner every Unix-socket test
+     * failed with "/tmp is owned by 'root', not 'runner'". macOS hid it — its `$TMPDIR` belongs to
+     * the user. `/tmp` is root-owned and sticky on both macOS (`/private/tmp`) and Linux, so this
+     * fails on either without the fix; it skips only where `/tmp` is not that.
+     */
+    @Test
+    fun inspect_warnsButDoesNotRefuseTheRealRootOwnedTmp() {
+        val tmp = Path.of("/tmp").toRealPath()
+        val rootOwned = runCatching { Files.getAttribute(tmp, "unix:uid") as Int == 0 }.getOrDefault(false)
+        if (!rootOwned || !isSticky(tmp) || System.getProperty("user.name") == "root") return
+
+        assertIs<SocketDirectory.Verdict.Reachable>(
+            SocketDirectory.inspect(tmp),
+            "root-owned, sticky /tmp must warn, not refuse — root can replace anything anyway",
+        )
+    }
+
     /** The same `01000` read [SocketDirectory] uses, so the test's premise matches its subject. */
     private fun isSticky(dir: Path): Boolean =
         runCatching { (Files.getAttribute(dir, "unix:mode") as Int) and 0b1_000_000_000 != 0 }

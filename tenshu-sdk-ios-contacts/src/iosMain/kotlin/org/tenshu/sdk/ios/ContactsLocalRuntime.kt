@@ -1,7 +1,11 @@
 package org.tenshu.sdk.ios
 
+import app.tenshu.control.di.proxyGraphJob
 import app.tenshu.reachability.MutableSchemaSkewSource
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.job
+import kotlinx.coroutines.withTimeoutOrNull
 import org.tenshu.sync.client.runtimeIdentity
 import org.tenshu.sync.client.schemaFence
 import org.tenshu.sync.client.syncService
@@ -63,7 +67,43 @@ object ContactsLocalRuntime {
         val tenshuClient: TenshuClient,
         val contactsRepository: ContactsRepository,
         internal val reachScope: CoroutineScope,
-    )
+    ) {
+        /**
+         * Stops this assembly for good: the reachability probe, then every scope the proxy graph
+         * made, then the graph itself.
+         *
+         * ⚠⚠ **Tests only.** A production graph is stopped by the shared store's host
+         * ([FirstPartyLocalRuntime]'s stop/rebuild). A test replica has no host, so nothing else
+         * ever stops a test's graph: without this, every assembly a test class builds keeps its
+         * probe and its graph running until the test binary exits.
+         *
+         * Cancelled and **joined** before the Koin close, never a bare close: a coroutine still at
+         * work when the singletons are dropped throws a non-cancellation exception, which aborts a
+         * Kotlin/Native process (`ProxyGraphJobTeardownTest`). The join is bounded so a stuck
+         * child cannot hang a teardown.
+         */
+        internal suspend fun close() {
+            val graph = proxyGraphJob(koin)
+            val stopped = withTimeoutOrNull(GRAPH_JOIN_TIMEOUT_MS) {
+                reachScope.coroutineContext.job.cancelAndJoin()
+                graph.cancel()
+                graph.job.join()
+            }
+            if (stopped == null) {
+                // ⚠ Not closing Koin: children still at work would throw once the singletons go,
+                // which aborts the whole K/N binary. A leaked graph costs memory only.
+                println("ContactsLocalRuntime: the assembly's scopes did not finish within ${GRAPH_JOIN_TIMEOUT_MS}ms; leaving its graph open")
+                reachScope.coroutineContext.job.cancel()
+                graph.cancel()
+                return
+            }
+            koin.close()
+        }
+
+        private companion object {
+            const val GRAPH_JOIN_TIMEOUT_MS = 5_000L
+        }
+    }
 
     private var installed: Assembly? = null
 

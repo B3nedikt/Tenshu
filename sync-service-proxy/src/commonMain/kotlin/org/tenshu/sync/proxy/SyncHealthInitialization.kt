@@ -46,33 +46,7 @@ fun ExecutionContext.initSyncHealth(
                 // Entitlement-blocked takes priority over plain online/offline: the relay is
                 // reachable but rejecting this device's writes (402), so the banner must say
                 // "needs attention on this device", not "Offline". (Track A.)
-                connectivity = when {
-                    // Locked outranks everything: with no derived keys the loop never reaches the
-                    // relay, so online/offline is meaningless, and the null owner also zeroes the
-                    // storage figures — leaving Drive to mis-read the sealed realm as an
-                    // unsubscribed one unless it is told the real reason.
-                    figures.locked -> SyncHealthStatus.CONNECTIVITY_LOCKED
-                    // Above entitlement, and above online/offline: the relay refuses this device's
-                    // identity, so its writes never reach the entitlement check at all, and a `401`
-                    // means the relay *answered* (see CONNECTIVITY_DEVICE_UNRECOGNIZED).
-                    figures.deviceUnrecognized -> SyncHealthStatus.CONNECTIVITY_DEVICE_UNRECOGNIZED
-                    figures.entitlementBlocked -> SyncHealthStatus.CONNECTIVITY_NEEDS_ATTENTION
-                    // Below the two identity/credential states — both refuse writes before the
-                    // quota check is ever reached, so naming fullness there would report a
-                    // consequence rather than the cause — but ABOVE `deferred` and online/offline:
-                    // a full realm is why nothing is uploading, and "Waiting for Wi-Fi" or
-                    // "Syncing…" over the top of it is the indefinite non-answer this replaces.
-                    figures.storageRejected -> SyncHealthStatus.CONNECTIVITY_STORAGE_FULL
-                    // Deferred (WifiOnly on metered, backlog waiting) outranks online/offline: the
-                    // relay may be reachable, but the user's own policy is holding the push, so the
-                    // banner must say "Waiting for Wi-Fi", not "Syncing…"/"Offline" (sub-slice A).
-                    figures.deferred -> SyncHealthStatus.CONNECTIVITY_DEFERRED
-                    // Below `deferred` (Wi-Fi-only holds the content, so no PUT is failing) and
-                    // above online/offline: the relay answers, but refuses content (§5.7).
-                    figures.contentRetrying -> SyncHealthStatus.CONNECTIVITY_RELAY_RETRYING
-                    figures.online -> SyncHealthStatus.CONNECTIVITY_ONLINE
-                    else -> SyncHealthStatus.CONNECTIVITY_OFFLINE
-                },
+                connectivity = figures.connectivity(),
                 isSyncing = figures.isSyncing,
                 pendingBlockCount = figures.pendingBlockCount.toLong(),
                 lastSyncedAtMillis = figures.lastSyncedAtMillis,
@@ -83,5 +57,42 @@ fun ExecutionContext.initSyncHealth(
             }
           }
         }
+    }
+}
+
+/**
+ * The one `connectivity` value [figures][SyncHealthFigures] stand for — what [initSyncHealth] writes
+ * into the store's single row, and what a surface reads **in-process** when it must describe its own
+ * runtime rather than whichever runtime last wrote that shared row (iOS's App Group replica,
+ * `suite-sync-status.md` SS-1b).
+ */
+fun SyncHealthFigures.connectivity(): String {
+    val figures = this
+    return when {
+        // Locked outranks everything: with no derived keys the loop never reaches the
+        // relay, so online/offline is meaningless, and the null owner also zeroes the
+        // storage figures — leaving Drive to mis-read the sealed realm as an
+        // unsubscribed one unless it is told the real reason.
+        figures.locked -> SyncHealthStatus.CONNECTIVITY_LOCKED
+        // Above entitlement, and above online/offline: the relay refuses this device's
+        // identity, so its writes never reach the entitlement check at all, and a `401`
+        // means the relay *answered* (see CONNECTIVITY_DEVICE_UNRECOGNIZED).
+        figures.deviceUnrecognized -> SyncHealthStatus.CONNECTIVITY_DEVICE_UNRECOGNIZED
+        figures.entitlementBlocked -> SyncHealthStatus.CONNECTIVITY_NEEDS_ATTENTION
+        // Below the two identity/credential states — both refuse writes before the
+        // quota check is ever reached, so naming fullness there would report a
+        // consequence rather than the cause — but ABOVE `deferred` and online/offline:
+        // a full realm is why nothing is uploading, and "Waiting for Wi-Fi" or
+        // "Syncing…" over the top of it is the indefinite non-answer this replaces.
+        figures.storageRejected -> SyncHealthStatus.CONNECTIVITY_STORAGE_FULL
+        // Deferred (WifiOnly on metered, backlog waiting) outranks online/offline: the
+        // relay may be reachable, but the user's own policy is holding the push, so the
+        // banner must say "Waiting for Wi-Fi", not "Syncing…"/"Offline" (sub-slice A).
+        figures.deferred -> SyncHealthStatus.CONNECTIVITY_DEFERRED
+        // Below `deferred` (Wi-Fi-only holds the content, so no PUT is failing) and
+        // above online/offline: the relay answers, but refuses content (§5.7).
+        figures.contentRetrying -> SyncHealthStatus.CONNECTIVITY_RELAY_RETRYING
+        figures.online -> SyncHealthStatus.CONNECTIVITY_ONLINE
+        else -> SyncHealthStatus.CONNECTIVITY_OFFLINE
     }
 }

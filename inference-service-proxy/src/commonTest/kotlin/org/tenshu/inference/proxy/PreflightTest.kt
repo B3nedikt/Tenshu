@@ -1275,6 +1275,98 @@ class PreflightTest {
         assertEquals(AiReadinessState.Unsuitable, readiness().fingerprintChecked(), "the next interrupted load did not stop it again")
     }
 
+    /**
+     * ⚠⚠ The cap on *Try again* (§14.18.16 item 10): one press per key, counted on disk. A load
+     * that kills Photos is never looped by presses — the second stop is D12's plain fail, with no
+     * way out offered, across relaunches and for a model removed and offered again.
+     */
+    @Test
+    fun aRetryThatAlsoKilledPhotosIsAPlainFailWithNoSecondTryAgain() = runTest {
+        killedAt("text")
+        later()
+        killedAt("text")
+        assertTrue(readiness().loadAgain(current), "the first press was refused")
+
+        process = AttemptLedger()
+        killedAt("vision")
+        val stopped = readiness()
+        assertEquals(AiReadinessState.Unsuitable, stopped.fingerprintChecked())
+        assertEquals(ReadinessStanding.For(current, AiReadinessState.Unsuitable, stoppedLoading = false), stopped.standing.value)
+        assertFalse(stopped.loadAgain(current), "a second press withdrew a fail the first press's load had made again")
+        // ⚠ Not given back by a relaunch, nor to a model not installed whose key it is.
+        process = AttemptLedger()
+        val relaunched = readiness()
+        assertEquals(AiReadinessState.Unsuitable, relaunched.fingerprintChecked())
+        assertEquals(AiReadiness.KeyAnswer.Unsuitable(stoppedLoading = false), relaunched.answerFor(current))
+        assertFalse(relaunched.loadAgain(current))
+        assertEquals(PreflightOutcome.NotAwaiting, preflight(relaunched).foregrounded(++scene))
+        assertNothingWasOpened("a key whose retry was spent was loaded again")
+        assertTrue(onDisk()?.contains("\"loadedAgain\":1") == true, "the spent press is not on disk: ${onDisk()}")
+    }
+
+    @Test
+    fun aRetryThatPassesKeepsItsSpentPressForTheKey() = runTest {
+        killedAt("text")
+        later()
+        killedAt("text")
+        val readiness = readiness()
+        assertTrue(readiness.loadAgain(current))
+        assertEquals(1, attempts(readiness)?.loadedAgain)
+        assertEquals(PreflightPolicy.INTERRUPTED_LOADS_FOR_UNSUITABLE - 1, attempts(readiness)?.interrupted)
+
+        // The press's load runs and passes: the press stays spent, under the pass, for this key.
+        assertIs<PreflightOutcome.Passed>(preflight(readiness).foregrounded(++scene))
+        assertEquals(AiReadinessState.Ready, readiness.state.value)
+        assertTrue(onDisk()?.contains("\"loadedAgain\":1") == true, "the pass gave the press back: ${onDisk()}")
+        // The kills before the pass are not kept under it (a zero count is not written).
+        assertFalse(onDisk().orEmpty().contains("\"interrupted\":"), "the pass kept the kills before it: ${onDisk()}")
+    }
+
+    /** Kills the process in a tower's open while the model is served, and starts the next one. */
+    private suspend fun killedServing() {
+        val serving = readiness()
+        serving.fingerprintChecked()
+        runCatching {
+            serving.servingOpen("vision", foreground = ++scene, atEpochMs = now) {
+                dead = true
+                throw Killed()
+            }
+        }
+        dead = false
+        process = AttemptLedger()
+        opened.clear()
+    }
+
+    /**
+     * ⚠⚠ A pass ends the run of kills it answered (§14.18.16 item 10): two kills, *Try again*, a
+     * pass, and weeks later one kill in a served tower's open is one kill, not the bound. Two in
+     * a row after the pass still stop the model, and with the press spent, as D12's plain fail.
+     */
+    @Test
+    fun aKillLongAfterARetryPassedIsCountedFromZero() = runTest {
+        killedAt("text")
+        later()
+        killedAt("text")
+        val retried = readiness()
+        assertTrue(retried.loadAgain(current))
+        assertIs<PreflightOutcome.Passed>(preflight(retried).foregrounded(++scene))
+        process = AttemptLedger()
+
+        later()
+        killedServing()
+        val afterOne = readiness()
+        assertEquals(AiReadinessState.Ready, afterOne.fingerprintChecked(), "one kill after a pass joined the kills before it")
+        assertEquals("1", onDisk()?.substringAfter("\"interrupted\":", "")?.takeWhile { it.isDigit() }, "the kill after the pass was not counted: ${onDisk()}")
+        process = AttemptLedger()
+
+        later()
+        killedServing()
+        val afterTwo = readiness()
+        assertEquals(AiReadinessState.Unsuitable, afterTwo.fingerprintChecked(), "two kills in a row after the pass did not stop the model")
+        assertEquals(AiReadiness.KeyAnswer.Unsuitable(stoppedLoading = false), afterTwo.answerFor(current))
+        assertFalse(afterTwo.loadAgain(current), "the spent press was given back by the pass")
+    }
+
     @Test
     fun aPhoneThatWasSlowThreeTimesHasNoWayOut() = runTest {
         visionCost = 900.milliseconds

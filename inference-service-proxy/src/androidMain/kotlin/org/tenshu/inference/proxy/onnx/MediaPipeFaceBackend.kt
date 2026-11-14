@@ -41,6 +41,7 @@ import org.tenshu.inference.proxy.InferenceBackend
 import org.tenshu.inference.proxy.ModelBackedBackend
 import org.tenshu.inference.proxy.TextRegion
 import org.tenshu.inference.proxy.alignFace
+import org.tenshu.inference.proxy.resampleFace
 
 /**
  * The face pipeline on Android — MediaPipe Face Landmarker detects, the shared
@@ -483,22 +484,13 @@ class MediaPipeFaceBackend(
     }
 
     /**
-     * The aligned square as packed ARGB — nearest-neighbour through [FaceCrop.unmap], clamped at the
-     * border, exactly as measured (§12.5 is why this is not re-derived casually).
+     * The aligned square as packed ARGB — the shared [resampleFace], reading the bitmap in place.
+     * ⚠ The arithmetic is frozen (§12.5 is why it is not re-derived casually); see [resampleFace].
+     *
+     * `internal` for `MediaPipeFaceResampleGoldenTest`, which pins its output bit for bit.
      */
-    private fun resample(source: Bitmap, side: Int, crop: FaceCrop): IntArray {
-        val w = source.width
-        val h = source.height
-        val out = IntArray(side * side)
-        for (y in 0 until side) {
-            for (x in 0 until side) {
-                // ⚠ Pixel centres, and `unmap` answers in the pixel space the landmarks were fitted in.
-                val at = crop.unmap(FacePoint(x + 0.5f, y + 0.5f))
-                out[y * side + x] = source.getPixel(at.x.toInt().coerceIn(0, w - 1), at.y.toInt().coerceIn(0, h - 1))
-            }
-        }
-        return out
-    }
+    internal fun resample(source: Bitmap, side: Int, crop: FaceCrop): IntArray =
+        resampleFace(source.width, source.height, side, crop, source::getPixel)
 
     private companion object {
         const val MAX_FACES_PER_PHOTO = 10

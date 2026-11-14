@@ -4,7 +4,7 @@
   `DefaultInteractorProvider.resubscribeAll()` with retained start tasks; desktop reconnect loop;
   **R1b** = `changes()` *and* `flow()` retry a *failed* subscribe, §4.1; **R3** = the replay buffer,
   §4.2; **R4** = the staleness signal, §4.3; **R5** = convergence onto that signal, §4.4; **R6** =
-  R3's residual bound, §4.5; **R9** = a too-large Binder transaction is not a dead connection, and an oversize stream message travels in `SharedMemory`, §4.8). **Phase map R1–R6 COMPLETE** —
+  R3's residual bound, §4.5; **R9** = a too-large Binder transaction is not a dead connection, and an oversize stream message travels in `SharedMemory`, §4.8; **R10** = concurrent subscribes no longer lose a stream's registration, §4.9). **Phase map R1–R6 COMPLETE** —
   see the §4 phase table, which is canonical. The §5 `am force-stop` reproduction **was run
   2026-08-03 and R1 passed it** — which is what proved the remaining symptom was R1b's separate
   path, not a broken R1. Found on-device 2026-07-22.
@@ -231,6 +231,7 @@ streams it risks duplicates. **Q2**.
 | ~~**R5**~~ **SHIPPED** | Convergence (§4.4): the retry loops and the apps' reachability engine both **poll** for a fact the transport already knows. Both now take the connection signal, so a retry waits on the reconnect edge and an outage is reported without a probe. | ✅ |
 | ~~**R6**~~ **SHIPPED** | R3's residual (§4.5): the replay buffer was bounded by rows *ever seen* because a removal could not be dropped. It can be, when the row it cancels is in no replayed payload. | ✅ |
 | ~~**R9**~~ **SHIPPED** | §4.8: a Binder transaction that failed with the binding alive (too large) was read as a dead connection, and every later send and file token went with it; and a stream message over one transaction now travels in `SharedMemory`. | ✅ |
+| ~~**R10**~~ **SHIPPED** | §4.9: concurrent subscribes on one session raced `StreamRegistry`'s unguarded maps — a stream that lost its registration token sent no snapshot (a read that never emits), one that lost its callback or ref set never heard a change. Not a restart path at all; found as an iOS "subscribe-window race". | ✅ |
 
 R1 is the whole user-visible fix on the platform where it actually bites.
 
@@ -424,6 +425,17 @@ standing "Can't reach Control" case in this project's history and it is not a tr
 all. So a reconnect is treated as a **reason to re-check, never as an answer**, and the probe
 remains the thing that detects a live-but-refusing proxy. Organic `markReachable`/`markUnreachable`
 from read folds stay for the same reason.
+
+> ⚠⚠ **Amended 2026-11-13 — `false` is not authoritative before the first connect.**
+> `BinderTaskTransport` starts `isConnected = false` and reports it the moment the client
+> registers, ~0.3 s before `onServiceConnected` (measured on a OnePlus CPH2581 with Control running).
+> Read as an outage, it flashed *"Can't reach Tenshu Control"* on **every** cold start (14 of 14
+> traced Photos launches composed `Transport`); in Photos, a nav entry built inside that window also
+> kept the strip for good (`TabStripFollowsTheVerdictTest`). The engine now holds a `false` that
+> arrives while it has **no verdict yet** for `FIRST_CONNECT_GRACE_MS` (2 s), and a connect
+> cancels it. After the first verdict, a drop is still reported at once; a Control that never binds
+> is still reported, 2 s late. Pinned by `aTransportThatConnectsWithinTheLaunchGraceIsNeverAnOutage`
+> and `aTransportThatNeverConnectsIsReportedOnceTheGraceRunsOut`.
 
 > ⚠⚠ **Amended 2026-09-03 — the last sentence was wrong about `markReachable`, and R5's own
 > reasoning is what falsifies it.** *"A reason to re-check, never an answer"* is the right treatment
@@ -753,6 +765,75 @@ asking about the caller): the smoke gate **PASSED** again (same WARN class, `una
 few Fit/preference reads of the un-rebuilt apps) with **no** `is not Control` refusal in logcat —
 the run before the guard rewrite had shown Home refusing Control for a re-check interval — and the
 `fit` run exited 0 with the 1,350,918-byte message out of band and the workout detail loading.
+
+
+### 4.9 R10 — concurrent subscribes lost a stream's registration (2026-11-11)
+
+Not a restart either: a read that **never emitted** on a healthy, in-process proxy. Seen as
+`ContactsLocalRuntimeTest.aWrittenContactIsReadBack` timing out in 2 of 15 iOS simulator runs, with
+the test's diagnostic saying a *fresh* subscription saw the row — read at the time as "the write
+committed between the initial read and the listener's registration". ⚠ **That was not the
+mechanism**, and nothing in this path reads before it registers: `StreamRegistry.setDatabaseListener`
+installs the array listener before its initial evaluation, and the write had returned before the
+read began.
+
+**What a proxy-side trace of a stalled read showed** (simulator, 12 stalls in 150 fresh assemblies,
+each one carrying it): Contacts' `contacts()` is a `combine` of four relation reads, so four
+`setDatabaseListener`s run **at once** on `Dispatchers.Default` workers, and nothing above the
+registry serialises one session's requests. Its maps were plain hash maps. One of the four
+registrations' `streamIdToRegistration[id] = token` was lost to a concurrent write, so that stream's
+own initial evaluation found itself not live, sent **no snapshot**, and `combine` never emitted. A
+fresh subscription seldom races the same way, which is what made it look like a missed invalidation.
+
+**The other face of the same race is a missed invalidation**: a lost `streamIdToUpdateCallback` or
+`refToStreamListeners` entry is a stream that subscribed fine and never hears its array change — on
+the JVM that is the shape that reproduces, in the first of 400 rounds of 16 concurrent registrations.
+
+**The rules now** (`StreamRegistry`):
+
+1. **Every map is under one lock** (`state`, an atomicfu reentrant lock), held only around map reads
+   and writes and the database's listener (un)registration — never across a suspension or a send.
+2. **The order is registry → database.** The database fires array listeners under its own lock, so
+   `triggerUpdate` never takes the registry lock: it reads an immutable copy of the array → streams
+   map republished under the lock (`listenersByArray`), and each stream's update looks up its
+   callback under the lock from its own coroutine — still one launch per stream, so a change costs
+   the same dispatch hops as before (`DatabaseStreamTest.testNestedFolderStreaming` counts them).
+   Taking the registry lock in the listener would invert the order `registerRefForStream` holds (the
+   reason `docs/tech-debt.md` recorded this as "not a one-line lock").
+3. **The liveness check and the ref bookkeeping are one step.** A stream ended between its
+   evaluation and its ref update used to re-register refs nobody would remove; the check is repeated
+   inside the guarded step.
+4. **A registration installs only while it is still the live one.** `setDatabaseListener` stamps its
+   token, then installs the callback, the root ref's listener and the active-stream count in a
+   second guarded step that re-checks the token — an `EndStream` landing in between used to leave a
+   listener re-evaluating a dead stream, and `activeStreamCount` one too high (holding
+   `SyncScheduler` on its fast tick).
+5. ⚠⚠ **The session scope must dispatch.** Under an unconfined scope `triggerUpdate`'s launched
+   update runs inline inside the database's lock and its first guarded step inverts the order. The
+   production scopes are `Dispatchers.Default`-based; the unit tests that use unconfined scopes run
+   over lock-free fake databases, so they could not catch a scope that stopped dispatching.
+
+The snapshot is republished once per outermost hold that changed it, not per ref, and deferred
+patch jobs are cancelled after the lock is released (cancellation runs completion handlers that take
+it again).
+
+Guards: `StreamRegistryConcurrentRegistrationTest` (JVM) — a second registration must not progress
+inside the first (deterministic); a stream ended between stamp and install leaves no listener, count
+or snapshot (deterministic, via the `afterRegistrationStamped` seam); and 400 rounds of 16 concurrent registrations each send a snapshot
+and hear their change; both red with the lock deleted. `ContactsConcurrentSubscribeTest` (iOS
+simulator) — 100 fresh assemblies, each must list the contact it wrote. Measured on the simulator:
+20 runs of the whole `:tenshu-sdk-ios-contacts`
+iOS suite each side. **Before:** `ContactsConcurrentSubscribeTest` red in 18 of 20 (1–14 of its 100
+reads lost per run), and `ContactsLocalRuntimeTest` failed in 3 — `aWrittenContactIsReadBack` once,
+and two **first emissions that never came** (`contacts()` on an empty graph, `ownProfile()`), which
+the now-bounded `firstBounded()` reports as a 30 s timeout instead of hanging the binary as a bare
+`first()` had. **After:** 0 of 20, i.e. 0 lost reads in 2 000 fresh assemblies, no hangs. Earlier
+probes without the fix: 6 of 60 and 4 of 80 reads lost; reachability ruled out (the bare repository
+lost reads as often as the wrapped one).
+
+⚠ **Every platform had it**, not only iOS: the registry is `commonMain` and every proxy — Control
+on Android and desktop, route 1 on iOS, the web runtime — subscribes concurrently. It is likeliest
+wherever a screen combines several reads; the timing only made it common on the simulator.
 
 ## 5. Testing
 

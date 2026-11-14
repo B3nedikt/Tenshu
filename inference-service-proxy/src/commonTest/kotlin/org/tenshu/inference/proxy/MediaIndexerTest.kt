@@ -83,7 +83,7 @@ class MediaIndexerTest {
         conditions: IndexingConditions = IndexingConditions { true },
     ) = MediaIndexer(
         registry,
-        thisDevice,
+        { thisDevice },
         // ⚠⚠ A vocabulary is now REQUIRED for any label to be written (Phase 2, IN-D9): the empty
         // one emits nothing however confident the model is, because an uncalibrated label is not
         // better than no label. `FakeInferenceBackend` tags `cat` at 0.9, so this is the smallest
@@ -881,7 +881,7 @@ class MediaIndexerTest {
     fun anIndexerWiredWithoutConditionsNeverIndexes() = runTest {
         val proxy = proxy().apply { consent(InferenceCapability.SEMANTIC_IMAGE_SEARCH) }
 
-        val result = MediaIndexer(searchOnlyRegistry(), thisDevice, embeddings = InMemoryEmbeddingStore())
+        val result = MediaIndexer(searchOnlyRegistry(), { thisDevice }, embeddings = InMemoryEmbeddingStore())
             .index(proxy.executionContext, media("a.jpg"), capability)
 
         assertTrue(result.deferred)
@@ -911,7 +911,7 @@ class MediaIndexerTest {
         val progress = IndexProgressHolder()
         val indexer = MediaIndexer(
             registry = InferenceBackendRegistry(listOf(FakeInferenceBackend())),
-            deviceId = thisDevice,
+            deviceId = { thisDevice },
             embeddings = InMemoryEmbeddingStore(),
             conditions = IndexingConditions { true },
             progress = progress,

@@ -22,6 +22,17 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // `-Ptenshu.control.testBuildType=release` runs the instrumented tests against the R8-processed
+    // build — the only way to see a keep rule missing for code that reaches classes reflectively
+    // or by counting stack frames (`ReleaseStackWalkerInstrumentedTest`, android-release.md).
+    testBuildType = (findProperty("tenshu.control.testBuildType") as String?) ?: "debug"
+    // The test APK leans on the app for every library they share, so R8 must keep what the test
+    // runner reaches in the app (androidx.tracing). Only under the property: a shipped release
+    // never carries these keeps.
+    if (testBuildType == "release") {
+        buildTypes.getByName("release").proguardFile("release-test-rules.pro")
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -60,6 +71,13 @@ dependencies {
     implementation(libs.lifecycle.runtime.ktx)
     implementation(libs.lifecycle.process)
     implementation(project(":app-liveness"))
+    // ⚠ Both named by THIS module's manifest, so both are direct dependencies rather than riding in
+    // transitively through `:control-shared-proxy`'s `implementation` edge, which keeps them off
+    // this module's compile classpath: `AlertActionReceiver` (CA-5f's Snooze / Dismiss) and
+    // WorkManager's `SystemForegroundService`, whose foreground types the manifest overrides.
+    // Lint's MissingClass check resolves manifest classes against that classpath.
+    implementation(project(":app-notify"))
+    implementation(libs.androidx.work.runtime)
     implementation(libs.activity.compose)
     implementation(platform(libs.compose.bom))
     implementation(libs.ui)
@@ -84,6 +102,8 @@ dependencies {
     androidTestImplementation(libs.espresso.core)
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.ui.test.junit4)
+    // `ReleaseStackWalkerInstrumentedTest` calls MediaPipe directly; the copy that runs is the app's.
+    androidTestImplementation(libs.mediapipeTasksVision)
     debugImplementation(libs.ui.tooling)
     debugImplementation(libs.ui.test.manifest)
 }

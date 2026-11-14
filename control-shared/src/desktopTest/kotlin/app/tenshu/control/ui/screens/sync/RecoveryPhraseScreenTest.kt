@@ -19,6 +19,7 @@ import org.tenshu.core.TString
 import org.tenshu.core.common.impl.TStringDto
 import org.tenshu.core.common.impl.ResultSuccessDto
 import org.tenshu.core.TResult
+import kotlin.test.AfterTest
 import kotlin.test.Test
 
 /**
@@ -38,6 +39,10 @@ class RecoveryPhraseScreenTest {
 
     private val fakePreferences = FakeAffordancePreferences()
 
+    /** Each test starts its own global Koin through [startKoinWith]; none may outlive the test. */
+    @AfterTest
+    fun stopTheTestsKoin() = stopKoin()
+
     private fun startKoinWith(
         phrase: String?,
         // Ph-reauth: Success is the default so the pre-existing cases keep asserting what they
@@ -45,7 +50,6 @@ class RecoveryPhraseScreenTest {
         reauth: AppLockAuthResult = AppLockAuthResult.Success,
     ): FakeReauthenticator {
         val reauthenticator = FakeReauthenticator(reauth)
-        stopKoin()
         startKoin {
             modules(
                 module {

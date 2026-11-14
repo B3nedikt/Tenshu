@@ -342,6 +342,26 @@ subprojects {
         outputs.doNotCacheIf("tests must execute to verify anything (run-gate.sh)") { true }
     }
 
+    // ⚠⚠ Every browser test run reads ONE shared Karma config directory, `gradle/karma.config.d/`
+    // (Mocha timeout + root-only Chrome sandbox flag — each snippet says why). Kotlin reads exactly
+    // one directory per test task, defaulting to the module's own `karma.config.d/`, so with
+    // per-module copies a snippet reached only the modules someone remembered: the 30 s timeout
+    // lived in `:tenshu-sdk-js` alone, and `:app-notify` failed public CI on Mocha's 2 s default.
+    // Set at execution time because `browser()` installs its Karma framework after this block
+    // runs. A module's own `karma.config.d/` would be silently ignored, so it is refused instead.
+    val sharedKarmaConfig = rootProject.file("gradle/karma.config.d")
+    tasks.withType<org.jetbrains.kotlin.gradle.targets.js.testing.KotlinJsTest>().configureEach {
+        check(project.file("karma.config.d").listFiles { f -> f.extension == "js" }.isNullOrEmpty()) {
+            "${project.path}/karma.config.d is ignored — put the snippet in gradle/karma.config.d/"
+        }
+        inputs.dir(sharedKarmaConfig).withPropertyName("sharedKarmaConfig")
+        doFirst {
+            val karma = (this as org.jetbrains.kotlin.gradle.targets.js.testing.KotlinJsTest).testFramework
+            (karma as? org.jetbrains.kotlin.gradle.targets.js.testing.karma.KotlinKarma)
+                ?.useConfigDirectory(sharedKarmaConfig)
+        }
+    }
+
     tasks.withType<Test>().configureEach {
         // ⚠⚠ A test that deadlocks otherwise holds its task — and the whole gate behind it — until
         // someone notices, with nothing on the console. Past the limit Gradle stops the worker and
@@ -350,6 +370,11 @@ subprojects {
         // minutes; `-Ptenshu.testTaskTimeoutMinutes=N` moves the limit, `0` removes it.
         val timeoutMinutes = (findProperty("tenshu.testTaskTimeoutMinutes") as String?)?.toLongOrNull() ?: 20L
         if (timeoutMinutes > 0) timeout.set(java.time.Duration.ofMinutes(timeoutMinutes))
+        // ⚠ A test JVM with no heap set takes the JVM default, a QUARTER of the machine's RAM — 4 GB
+        // each on a 16 GB CI runner, so three in parallel next to the Gradle and Kotlin daemons
+        // starved it and the runner was lost mid-build. `-Ptenshu.testMaxHeap=2g` (CI sets it)
+        // bounds them; unset, nothing changes locally.
+        (findProperty("tenshu.testMaxHeap") as String?)?.let { maxHeapSize = it }
         // ⚠ Pin the test JVM's locale to en-US. UI tests assert the English copy, and with the
         // German catalogues present Compose resources resolve `values-de` on a machine whose
         // default locale is German — every such test then fails there and passes elsewhere.
@@ -357,6 +382,39 @@ subprojects {
         // command-line `-D` also wins over a `JAVA_TOOL_OPTIONS` one. Covers every `Test` task:
         // desktopTest, jvmTest and the Android host tests alike.
         jvmArgs("-Duser.language=en", "-Duser.country=US")
+        // ⚠⚠ Every desktop/JVM test JVM gets a home of its OWN, never the developer's. Desktop code
+        // resolves app data under `user.home` (`DesktopAppPaths` → `~/.tenshu/<appId>`, window
+        // state, sockets), and the integration harnesses keep the real `SecureStorageDelegate`,
+        // so two gates running at once on one machine (parallel worktrees) shared
+        // `~/.tenshu/app.tenshu.control.test/` and collided on its files. The real home rides
+        // along as `tenshu.test.realHome` so `DesktopAppPaths.root()` can refuse to resolve into
+        // it; `TestHomeIsolationTest` (:core-common) goes red if this block stops applying.
+        // ⚠ Android host tests are left alone: they cannot reach `desktopMain`, and Robolectric
+        // caches its android-all jars under `~/.m2` via `user.home`.
+        // One fresh directory per test TASK EXECUTION (forks of one task would share it; none fork
+        // today), under this task's build/tmp, so per worktree too; old runs are swept (below). ⚠ The lambda captures only these locals — a script
+        // class would be a non-static inner class (see NativeSlotParams above) and drag the
+        // script into the configuration cache.
+        if (!name.endsWith("UnitTest") && !name.contains("AndroidHostTest")) {
+            val runsDir = layout.buildDirectory.dir("tmp/$name/isolated-home").get().asFile
+            val realHome = System.getProperty("user.home")
+            jvmArgumentProviders += CommandLineArgumentProvider {
+                runsDir.mkdirs()
+                // Bounded on a tight disk: runs older than an hour go, and at most 3 earlier runs stay beside this one
+                // (a gate writes one per test task per run, across every worktree).
+                val stale = System.currentTimeMillis() - java.util.concurrent.TimeUnit.HOURS.toMillis(1)
+                val runs = runsDir.listFiles()?.sortedByDescending { it.lastModified() }.orEmpty()
+                runs.filterIndexed { i, f -> i >= 3 || f.lastModified() < stale }.forEach { it.deleteRecursively() }
+                val run = java.nio.file.Files.createTempDirectory(runsDir.toPath(), "run-").toFile()
+                val home = java.io.File(run, "home").apply { mkdirs() }
+                listOf(
+                    "-Duser.home=${home.absolutePath}",
+                    "-Dtenshu.test.realHome=$realHome",
+                    // Skiko's extracted natives are a cache, not app state: keep sharing it.
+                    "-Dskiko.data.path=$realHome/.skiko",
+                )
+            }
+        }
         testLogging {
             events("failed")
             exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
@@ -522,6 +580,17 @@ val ossLicencePermissive = listOf(
     "Apache-2.0", "MIT", "BSD-2-Clause", "BSD-3-Clause", "ISC", "0BSD", "Unlicense", "CC0-1.0",
     "Zlib", "BSL-1.0", "MIT-0", "Bouncy Castle Licence", "Android Software Development Kit License",
 )
+// Dual-licensed components whose POM also names a GPL licence, allowed for THAT library only — the
+// permissive alternative we elect is recorded in `docs/oss-licences.md` §4.1. Keyed by the
+// plugin's licence hash (what its warning prints), never the GPL licence as such: anything else
+// under these licences still warns.
+val ossLicenceDualElected = mapOf(
+    // JavaCPP (via MapLibre's native FFI): Apache-2.0, or GPLv2+CPE, or GPL-2.0+. We elect Apache-2.0.
+    "074cc43976712959e080ddcdfc85831f" to listOf("org.bytedeco:javacpp"),
+    "db199403a2b13a9b762a9bf2bca5b8c6" to listOf("org.bytedeco:javacpp"),
+    // Checker Framework annotations: MIT, or GPLv2+CPE. We elect MIT.
+    "da5e524a4235731b9b96281090f5f82d" to listOf("org.checkerframework:checker-compat-qual"),
+)
 fun Project.applyOssLicences() {
     apply(plugin = "com.mikepenz.aboutlibraries.plugin")
     extensions.configure<com.mikepenz.aboutlibraries.plugin.AboutLibrariesExtension> {
@@ -536,6 +605,7 @@ fun Project.applyOssLicences() {
         license {
             strictMode.set(com.mikepenz.aboutlibraries.plugin.StrictMode.WARN)
             allowedLicenses.addAll(ossLicencePermissive)
+            allowedLicensesMap.putAll(ossLicenceDualElected)
         }
     }
 }
@@ -1079,4 +1149,42 @@ tasks.register<Exec>("installGitHooks") {
         "`git config --unset core.hooksPath`."
     commandLine("git", "config", "core.hooksPath", ".githooks")
     doLast { logger.lifecycle("Installed: core.hooksPath -> .githooks") }
+}
+
+// ---------------------------------------------------------------------------
+// The project graph for `scripts/run-gate.sh --quick`: every project's directory, any source
+// directory it compiles from outside it, the projects it depends on (any configuration — main,
+// test and per-target alike), and the gate's test and compile tasks it has. The script reads it to find what a change can break.
+//
+// Written at configuration time, only when asked (`-Ptenshu.projectGraph=<file>`), because it is
+// a read of the configured model and nothing else: `./gradlew help --no-configuration-cache
+// -Ptenshu.projectGraph=build/project-graph.json`. ⚠ `--no-configuration-cache`, or a cache hit
+// skips configuration and writes no file.
+// ---------------------------------------------------------------------------
+providers.gradleProperty("tenshu.projectGraph").orNull?.let { out ->
+    val gateTasks = listOf(
+        "desktopTest", "jvmTest", "test", "testAndroidHostTest", "jsTest",
+        "compileTestKotlinJs", "compileTestKotlinIosSimulatorArm64",
+        // Read by the iOS CI workflow to shard the simulator tests across runners.
+        "linkDebugTestIosSimulatorArm64", "iosSimulatorArm64Test",
+    )
+    gradle.projectsEvaluated {
+        val json = rootProject.allprojects.filter { it != rootProject }.sortedBy { it.path }.joinToString(",\n", "[\n", "\n]\n") { p ->
+            val deps = p.configurations.flatMap { c ->
+                c.dependencies.withType(org.gradle.api.artifacts.ProjectDependency::class.java).map { it.path }
+            }.filter { it != p.path }.toSortedSet()
+            val tasks = gateTasks.filter { it in p.tasks.names }
+            val dir = p.projectDir.relativeTo(rootProject.projectDir).invariantSeparatorsPath
+            // ⚠ Source dirs OUTSIDE the project's own directory (`kotlin.srcDir("../other/…")`): a
+            // compile-time dependency with no project dependency behind it, so the graph above
+            // would miss it. A change under one of these is a change to this project.
+            val kotlin = p.extensions.findByType(org.jetbrains.kotlin.gradle.dsl.KotlinProjectExtension::class.java)
+            val foreign = kotlin?.sourceSets.orEmpty().flatMap { it.kotlin.srcDirs + it.resources.srcDirs }
+                .filter { !it.startsWith(p.projectDir) && it.startsWith(rootProject.projectDir) }
+                .map { it.relativeTo(rootProject.projectDir).invariantSeparatorsPath }.toSortedSet()
+            fun list(xs: Collection<String>) = xs.joinToString(",", "[", "]") { "\"$it\"" }
+            """  {"path": "${p.path}", "dir": "$dir", "srcDirs": ${list(foreign)}, "deps": ${list(deps)}, "tasks": ${list(tasks)}}"""
+        }
+        rootProject.file(out).apply { parentFile.mkdirs() }.writeText(json)
+    }
 }

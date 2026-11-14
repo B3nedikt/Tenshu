@@ -136,6 +136,11 @@ struct ModelsScreen: View {
         #endif
     }
 
+    /// Search's row keeps the identifier it always had; another feature's names its capability.
+    static func identifier(_ capability: InferenceCapability) -> String {
+        capability == .semanticImageSearch ? "models-feature" : "models-feature-\(capability.name)"
+    }
+
     private func hidden(_ screen: PhotosModelsScreen) -> Bool {
         if case .hidden = onEnum(of: screen.body) { return true }
         return false
@@ -175,16 +180,19 @@ struct ModelsScreen: View {
                 if let notice = rows.notice { notices(text: notice, detail: nil, tryAgain: rows.tryAgain) }
                 ForEach(rows.rows, id: \.modelId) { row in ModelRowSection(row: row, model: model) }
             }
-            if let feature = screen.feature {
+            // One row per switch Kotlin offers, search first (ios-face-grouping.md F6).
+            if !screen.features.isEmpty {
                 Section {
-                    Button {
-                        pressedFeature = feature.capability
-                        showFeature = true
-                    } label: {
-                        PushRow(title: feature.title, status: feature.status, detail: feature.detail)
+                    ForEach(screen.features, id: \.capability) { feature in
+                        Button {
+                            pressedFeature = feature.capability
+                            showFeature = true
+                        } label: {
+                            PushRow(title: feature.title, status: feature.status, detail: feature.detail)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier(Self.identifier(feature.capability))
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("models-feature")
                 }
             }
             // ⚠ Under the switch it depends on: its "turn on … above" names that row.
@@ -343,6 +351,10 @@ struct ModelFeatureScreen: View {
     /// Presentation only: *Turn off everywhere* was pressed and its question is up. ⚠ The question
     /// itself, and whether there is one to ask, are the screen value's (`everywhere`).
     @State private var asking = false
+    /// Presentation only: a device's switch was pressed whose press asks first (face grouping's
+    /// *off*, ios-face-grouping.md F6), by that device's key. ⚠ The question is the screen value's
+    /// (`Device.question`), read again from the state each time: nothing of it is kept here.
+    @State private var askingFor: String?
 
     var body: some View {
         if let screen = model.feature(capability) {
@@ -377,6 +389,28 @@ struct ModelFeatureScreen: View {
         } message: { everywhere in
             Text(everywhere.question.text)
         }
+        // ⚠⚠ A device's question, while the state still asks it: a switch that has since moved
+        // (another device switched it off) withdraws its question.
+        .alert(
+            asked(screen)?.question?.title ?? "",
+            isPresented: Binding(get: { asked(screen) != nil }, set: { if !$0 { askingFor = nil } }),
+            presenting: asked(screen)
+        ) { device in
+            Button(device.question?.yes ?? "", role: .destructive) {
+                askingFor = nil
+                if let press = device.press { self.press(press) }
+            }
+            Button(device.question?.no ?? "", role: .cancel) { askingFor = nil }
+        } message: { device in
+            Text(device.question?.text ?? "")
+        }
+    }
+
+    /// The device whose question is up, as the state has it now, or `nil`.
+    private func asked(_ screen: PhotosFeatureScreen) -> PhotosFeatureScreen.Device? {
+        guard let key = askingFor else { return nil }
+        let device = ([screen.thisDevice] + screen.others).first { $0.key == key }
+        return device?.question != nil && device?.press != nil ? device : nil
     }
 
     private func about(_ screen: PhotosFeatureScreen) -> some View {
@@ -414,7 +448,11 @@ struct ModelFeatureScreen: View {
     /// A device and its switch. ⚠ The switch shows what the state says and never its own press:
     /// it moves when the view model moves it, and a device with no press has none to make.
     private func device(_ device: PhotosFeatureScreen.Device) -> some View {
-        Toggle(isOn: Binding(get: { device.on }, set: { _ in if let press = device.press { self.press(press) } })) {
+        Toggle(isOn: Binding(get: { device.on }, set: { _ in
+            guard let press = device.press else { return }
+            // ⚠⚠ Asked first where Kotlin says so: the switch does not move until *Turn off*.
+            if device.question != nil { askingFor = device.key } else { self.press(press) }
+        })) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(device.name)
                 Text(device.status).font(.subheadline).foregroundStyle(.secondary)

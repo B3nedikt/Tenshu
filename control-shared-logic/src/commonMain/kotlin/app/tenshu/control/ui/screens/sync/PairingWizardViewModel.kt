@@ -2,6 +2,9 @@ package app.tenshu.control.ui.screens.sync
 
 import org.tenshu.core.common.util.bestEffort
 import org.tenshu.sync.RelayRouteUnsupportedError
+import org.tenshu.sync.PairingDeviceRemovedError
+import org.tenshu.sync.PairingThisDeviceRemovedError
+import org.tenshu.sync.PairingApproverRevokedError
 import org.tenshu.sync.PairingFailedError
 import org.tenshu.sync.PairingFailure
 import app.tenshu.error.errorCopyKey
@@ -60,6 +63,8 @@ class PairingWizardViewModel(
     private val syncRepository: SyncRepository,
     private val pairingMonitor: HostPairingMonitor,
     offerCleanupScope: CoroutineScope? = null,
+    /** The offer poll's pause, handed to [OfferPairingMonitor]; `null` keeps its real cadence. */
+    offerPollPacer: (suspend () -> Unit)? = null,
 ) : ViewModel() {
 
     /**
@@ -84,6 +89,7 @@ class PairingWizardViewModel(
         // …and the proxy-side cancel must outlive that, or `onCleared` fires it into a dead scope
         // and the offer is orphaned on the relay until its TTL.
         teardownScope = this.offerCleanupScope,
+        pacePoll = offerPollPacer ?: { delay(OfferPairingMonitor.OFFER_POLL_MS) },
     )
 
     /**
@@ -169,6 +175,9 @@ class PairingWizardViewModel(
         }
         viewModelScope.launch {
             offerMonitor.failed.collect { failed -> _uiState.update { it.copy(offerFailed = failed) } }
+        }
+        viewModelScope.launch {
+            offerMonitor.removed.collect { removed -> _uiState.update { it.copy(offerRemoved = removed) } }
         }
         viewModelScope.launch {
             offerMonitor.sasShownBeforeApproval.collect { shown ->
@@ -436,6 +445,7 @@ class PairingWizardViewModel(
                 offerPaired = false,
                 offerDenied = false,
                 offerFailed = false,
+                offerRemoved = false,
             )
         }
     }
@@ -835,8 +845,14 @@ class PairingWizardViewModel(
             // is the side of the join race, so it waits out the settle.
             watchForUnfundedRealm(settle = true)
         } else {
+            // ⚠ A typed refusal keeps its type: a removed identity is told as such, never as the
+            // generic error a retry would only repeat.
+            val failure = (response as? TResult.Failure<*>)?.error
             _uiState.update {
-                it.copy(isLoading = false, error = PairingError.Unexpected(ErrorCopyKey.UNEXPECTED))
+                it.copy(
+                    isLoading = false,
+                    error = failure?.toPairingError() ?: PairingError.Unexpected(ErrorCopyKey.UNEXPECTED),
+                )
             }
         }
     }
@@ -979,6 +995,11 @@ data class PairingWizardUiState(
     val offerPaired: Boolean = false,
     val offerDenied: Boolean = false,
     val offerFailed: Boolean = false,
+    /**
+     * Offerer terminal: the relay refused to admit this device, a removed identity (F2′). ⚠ Its own
+     * flag, not [offerFailed]: the remedy is *Forget this device* here, not "try again".
+     */
+    val offerRemoved: Boolean = false,
     val step: PairingStep = PairingStep.ScanQr,
     val scannedDeviceId: String? = null,
     val otherDevicePublicKey: ByteArray? = null,
@@ -1087,6 +1108,7 @@ data class PairingWizardUiState(
         if (offerPaired != other.offerPaired) return false
         if (offerDenied != other.offerDenied) return false
         if (offerFailed != other.offerFailed) return false
+        if (offerRemoved != other.offerRemoved) return false
         if (step != other.step) return false
         if (scannedDeviceId != other.scannedDeviceId) return false
         if (otherDevicePublicKey != null) {
@@ -1127,6 +1149,7 @@ data class PairingWizardUiState(
         result = 31 * result + offerPaired.hashCode()
         result = 31 * result + offerDenied.hashCode()
         result = 31 * result + offerFailed.hashCode()
+        result = 31 * result + offerRemoved.hashCode()
         result = 31 * result + step.hashCode()
         result = 31 * result + (scannedDeviceId?.hashCode() ?: 0)
         result = 31 * result + (otherDevicePublicKey?.contentHashCode() ?: 0)
@@ -1190,6 +1213,29 @@ sealed class PairingError {
     /** This device holds no pairing authority at all. */
     data object NoAuthority : PairingError()
 
+    /**
+     * The device being added was removed from this realm before and is back under the same
+     * identity, which the relay refuses for good. ⚠ The fault is the *other* device's, and the
+     * remedy is there (forget it, pair again) — `admission-revocation-names-the-capability.md` §7h.
+     */
+    data object DeviceRemoved : PairingError()
+
+    /**
+     * The relay refused THIS device's approval: its admission capability was revoked
+     * (`403 admission-revoked`). ⚠ The fault is *this* device's, the opposite of [DeviceRemoved];
+     * the remedy is to remove it and pair it again from another device
+     * (`admission-revocation-names-the-capability.md` §7j.5).
+     */
+    data object ApproverRevoked : PairingError()
+
+    /**
+     * The relay refused to admit THIS device: it was removed from that realm before and is back
+     * under the same identity (F2′). ⚠ The joiner's side of [DeviceRemoved] — the remedy is
+     * here, *Forget this device*, then pair again (`admission-revocation-names-the-capability.md`
+     * §7i.5).
+     */
+    data object ThisDeviceRemoved : PairingError()
+
     /** Anything else, rendered from the shared catalogue by key. */
     data class Unexpected(val copyKey: ErrorCopyKey) : PairingError()
 }
@@ -1202,7 +1248,10 @@ sealed class PairingError {
  * the reason set is a `TConstant` and not a `String`.
  */
 internal fun TError.toPairingError(): PairingError =
-    if (this !is PairingFailedError) PairingError.Unexpected(errorCopyKey())
+    if (this is PairingDeviceRemovedError) PairingError.DeviceRemoved
+    else if (this is PairingThisDeviceRemovedError) PairingError.ThisDeviceRemoved
+    else if (this is PairingApproverRevokedError) PairingError.ApproverRevoked
+    else if (this !is PairingFailedError) PairingError.Unexpected(errorCopyKey())
     else when (reason) {
         PairingFailure.AdmitterUnrecognised -> PairingError.AdmitterUnrecognised
         PairingFailure.NoAuthority -> PairingError.NoAuthority

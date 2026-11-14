@@ -8,13 +8,13 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.tenshu.viewmodel.test.vmTest
 
 /**
  * Reactive coverage of [FitSurface] over the default [app.tenshu.fit.data.MockFitRepository] — the
@@ -30,10 +30,10 @@ class FitSurfaceTest {
     @AfterTest fun tearDown() = Dispatchers.resetMain()
 
     @Test
-    fun home_loads_and_a_workout_resolves() = runTest(dispatcher) {
+    fun home_loads_and_a_workout_resolves() = vmTest(dispatcher) { vms ->
         FitSurface.installMock()
 
-        val home = FitSurface.homeViewModel()
+        val home = vms.own(FitSurface.homeViewModel())
         advanceUntilIdle()
         val today = home.uiState.value.today
         assertTrue(today != null, "Home should surface today's aggregate")
@@ -42,30 +42,30 @@ class FitSurfaceTest {
         // The latest workout from Home resolves via the detail factory.
         val workoutId = home.uiState.value.latestWorkout?.workoutId
         assertTrue(workoutId != null, "Home should surface a latest workout")
-        val detail = FitSurface.workoutViewModel(workoutId)
+        val detail = vms.own(FitSurface.workoutViewModel(workoutId))
         advanceUntilIdle()
         assertTrue(detail.uiState.value is WorkoutDetailUiState.Loaded, "workout $workoutId should load")
     }
 
     @Test
-    fun browse_categories_load() = runTest(dispatcher) {
+    fun browse_categories_load() = vmTest(dispatcher) { vms ->
         FitSurface.installMock()
-        val browse = FitSurface.browseViewModel()
+        val browse = vms.own(FitSurface.browseViewModel())
         advanceUntilIdle()
         assertTrue(browse.uiState.value.categories.isNotEmpty(), "Browse should surface category cards")
     }
 
     /** Home's week cards open Activity's other series through the two-argument factory (§18.18). */
     @Test
-    fun category_detail_opens_the_requested_activity_series() = runTest(dispatcher) {
+    fun category_detail_opens_the_requested_activity_series() = vmTest(dispatcher) { vms ->
         FitSurface.installMock()
         for (metric in listOf(CategoryMetric.ActiveEnergy, CategoryMetric.Steps, CategoryMetric.ActiveMinutes, CategoryMetric.Distance)) {
-            val vm = FitSurface.categoryViewModel(CategoryId.Activity, metric)
+            val vm = vms.own(FitSurface.categoryViewModel(CategoryId.Activity, metric))
             advanceUntilIdle()
             assertEquals(metric, vm.uiState.value.metric, "Activity should open on $metric")
         }
         // The one-argument form Browse calls still opens on steps.
-        val browse = FitSurface.categoryViewModel(CategoryId.Activity)
+        val browse = vms.own(FitSurface.categoryViewModel(CategoryId.Activity))
         advanceUntilIdle()
         assertEquals(CategoryMetric.Steps, browse.uiState.value.metric)
     }

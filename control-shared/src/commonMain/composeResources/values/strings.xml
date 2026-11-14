@@ -136,6 +136,11 @@
     <string name="welcome_start_fresh">Start fresh on this device</string>
     <string name="welcome_existing_device">I have Tenshu on another device</string>
     <string name="welcome_recover_phrase">Recover from a recovery phrase</string>
+    <!-- Shown on the Welcome screen after "Forget this device", only when the forget left something to do. Plain words: never the op's own outcome text. -->
+    <string name="welcome_forget_still_listed">This device may still appear in your device list. To finish removing it, open Tenshu Control on another device and remove it under Realm devices.</string>
+    <string name="welcome_forget_key_not_saved">This device's new key couldn't be saved. Quit and reopen Tenshu Control before pairing it.</string>
+    <string name="welcome_forget_not_finished">Forgetting this device didn't finish. Quit and reopen Tenshu Control, then forget it again.</string>
+    <string name="welcome_forget_data_not_cleared">Some data from before couldn't be removed from this device. It is no longer synced.</string>
 
     <!-- New-user flow — onboarding-low-friction.md §4. -->
     <string name="new_user_registering">Registering your realm</string>
@@ -206,7 +211,7 @@
     <string name="forget_device_support">Remove this device from your realm and start over here.</string>
     <string name="forget_device_title">Forget this device?</string>
     <string name="forget_device_body">This device leaves your realm and forgets who it was. You can set it up again later, but it joins as a new device — it will not get its name or its settings here back.</string>
-    <string name="forget_device_phrase_warning">This device holds your recovery phrase. It may be the only copy. Write it down before continuing — without it nobody can add devices to this realm again.</string>
+    <string name="forget_device_phrase_warning">This device holds your recovery phrase. It may be the only copy. Write it down before continuing — without it your realm cannot be recovered once your other devices are gone.</string>
     <string name="forget_device_acknowledge">I have saved my recovery phrase</string>
     <string name="forget_device_confirm">Forget this device</string>
     <string name="forget_device_cancel">Cancel</string>
@@ -375,6 +380,9 @@
     <string name="device_revoke_dialog_body">“%1$s” will lose access to your files straight away, and this cannot be undone. You can set the device up again later, but it joins as a new device — it will not get its name or its settings here back.</string>
     <!-- Gates the confirm button. F has no way to undo a mistaken removal, so the mis-tap has to be
          caught before it happens — this is that mitigation, not a second "are you sure". -->
+    <string name="device_revoke_dialog_admittees_intro">These devices report that “%1$s” added them. Keep trusting them? Untick a device to remove it too. Each device reports this itself, so treat the list as a guide, not a guarantee.</string>
+    <string name="device_revoke_dialog_keep_admittee">Keep “%1$s”</string>
+    <string name="device_revoke_dialog_unlisted">%1$d other devices don’t say who added them, or name a device that isn’t here, so they aren’t listed. You can remove any of them from the device list.</string>
     <string name="device_revoke_dialog_acknowledge">I understand this cannot be undone</string>
     <string name="device_revoke_dialog_confirm">Remove device</string>
     <string name="device_revoke_dialog_cancel">Cancel</string>
@@ -759,6 +767,12 @@
          translator can reach it. -->
     <string name="pairing_error_admitter_unrecognised">This device is no longer recognised by the relay, so it can't add another device. Pair this device again, then retry.</string>
     <string name="pairing_error_no_authority">This device can't add other devices yet. Finish setting it up first.</string>
+    <!-- The OTHER device was removed from this realm before (relay 403 device-removed). States the
+         fact, no reassurance (admission-revocation-names-the-capability.md §7h.3). Names the
+         "Forget this device" setting by its label; keep in step with ControlSurface.kt (iOS). -->
+    <string name="pairing_error_device_removed">That device was removed from your realm before, so it can't rejoin as the same device. To add it again, choose "Forget this device" on it, then pair again.</string>
+    <string name="pairing_error_this_device_removed">This device was removed from that realm before, so it can't rejoin as the same device. Choose "Forget this device", then pair again.</string>
+    <string name="pairing_error_approver_revoked">This device can no longer add devices. Remove it and pair it again from another device.</string>
 
     <!-- Account deletion (commerce-accounts-and-sessions.md §9.7) -->
     <string name="services_delete_account">Delete account</string>

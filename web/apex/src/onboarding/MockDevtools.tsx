@@ -148,7 +148,7 @@ function goReset(navigate: ReturnType<typeof useNavigate>): void {
 // Navigate to `/` (the landing) so the smart CTA + signed-in banner
 // render in the chosen scenario. Click the CTA from there to reach the
 // post-state destination (`/start` → `/onboarding` chooser, `/lock`,
-// `/control/home`). Going straight to those destinations skipped the
+// `/overview`). Going straight to those destinations skipped the
 // landing — useful before web-apex-landing.md landed; now the landing
 // IS the surface most onboarding-flow tests want to start from.
 function goScenario(navigate: ReturnType<typeof useNavigate>, scenario: 'firstTime' | 'locked' | 'active'): void {

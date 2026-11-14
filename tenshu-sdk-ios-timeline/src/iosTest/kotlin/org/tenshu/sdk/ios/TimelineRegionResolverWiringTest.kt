@@ -35,6 +35,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import org.tenshu.viewmodel.test.vmTest
 
 /**
  * C3 coverage — the offline-region **data path** on iOS, Timeline's half. Both map-drawing surfaces
@@ -71,12 +72,12 @@ class TimelineRegionResolverWiringTest {
     // ── 1. the surface passes the resolver through ─────────────────────────────────────────
 
     @Test
-    fun tripDetailReceivesTheInstalledResolverAndRendersItsStream() = runTest(dispatcher) {
+    fun tripDetailReceivesTheInstalledResolverAndRendersItsStream() = vmTest(dispatcher) { vms ->
         TimelineSurface.installMock()
         val resolver = RecordingTimelineResolver()
         TimelineSurface.installRegionResolver(resolver)
 
-        val vm = TimelineSurface.tripViewModel("lisbon-2026-04")
+        val vm = vms.own(TimelineSurface.tripViewModel("lisbon-2026-04"))
         advanceUntilIdle()
 
         assertEquals(5, resolver.seenRoute.size, "the mock trip's whole route reaches the resolver")
@@ -88,7 +89,7 @@ class TimelineRegionResolverWiringTest {
     }
 
     @Test
-    fun momentAndPlaceDetailAlsoBuildOverTheInstalledResolver() = runTest(dispatcher) {
+    fun momentAndPlaceDetailAlsoBuildOverTheInstalledResolver() = vmTest(dispatcher) { vms ->
         // The two other factories that carried the same silent `regions = null`. Their resolver use
         // is *conditional* on data the mock does not carry — a place needs non-zero coordinates and
         // a moment needs a MOVEMENT kind with trace ids — so there is no behavioural assertion to
@@ -99,13 +100,13 @@ class TimelineRegionResolverWiringTest {
         val resolver = RecordingTimelineResolver()
         TimelineSurface.installRegionResolver(resolver)
 
-        val home = TimelineSurface.homeViewModel()
+        val home = vms.own(TimelineSurface.homeViewModel())
         advanceUntilIdle()
         val state = home.uiState.value
         val momentId = state.days.firstNotNullOf { it.moments.firstOrNull() }.id
 
-        TimelineSurface.momentViewModel(momentId)
-        TimelineSurface.placeViewModel(state.places.first().id)
+        vms.own(TimelineSurface.momentViewModel(momentId))
+        vms.own(TimelineSurface.placeViewModel(state.places.first().id))
         advanceUntilIdle()
 
         assertTrue(

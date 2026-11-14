@@ -150,7 +150,16 @@ data class PersonHeader(
      * selection should survive the user naming the face they are looking at.
      */
     val key: String = "",
-)
+) {
+    /**
+     * The companion a "With…" selection of [withId] names, or `null`. ⚠ Through the aliases too:
+     * naming an unnamed companion re-keys them from the cluster id to `person:name:…`, and a saved
+     * selection must still find them afterwards. Resolved against the CURRENT companions, so a
+     * refresh that drops them falls back to the whole grid rather than a stale intersection.
+     */
+    fun chosenCompanion(withId: String?): SmartAlbum? =
+        withId?.let { id -> companions.firstOrNull { it.id == id || id in it.alternateIds } }
+}
 
 /**
  * The people a person's page offers in its "With…" picker: every other person, named or

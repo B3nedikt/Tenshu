@@ -31,10 +31,35 @@ on:
     branches: [ "master" ]
 
 jobs:
-  ios:
+  # The simulator tests, split over runners. ⚠⚠ Two things made one job 95 minutes AND red: every
+  # module's Kotlin/Native test binary linked one after another on one 3-core runner, and the
+  # simulator ran tests WHILE other modules linked beside it — starved, so real-time waits that
+  # take milliseconds on a Mac ran out (10–30 s). Each shard now links first, then tests with one
+  # worker, so nothing competes with the simulator. The shards are disjoint and together cover
+  # every module with iOS tests (`scripts/ci/ios-test-shard.py`, from the build's own graph).
+  ios-tests:
+    name: ios tests (shard ${{ matrix.shard }}/3)
     runs-on: macos-latest
+    # ⚠ Generous: macOS arm64 runners slow down under GitHub's capacity limits, and a shard cut off
+    # mid-link reports nothing about its tests.
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v4
+
+      # ⚠ The NEWEST installed release Xcode, not the image default, and selected FIRST: Kotlin/Native
+      # links against the selected Xcode's SDK too, so every step of every job builds with one
+      # toolchain. The app shells are written against the current SDK (the maintainer builds with
+      # Xcode 27); an older default fails to compile Swift that is fine there. Printed, so a failure
+      # names the toolchain it ran on.
+      - name: Use the newest installed Xcode
+        run: |
+          newest="$(ls -d /Applications/Xcode_*.app 2>/dev/null | grep -viE 'beta|release_candidate' | sort -V | tail -1)"
+          [ -n "$newest" ] && sudo xcode-select -s "$newest"
+          xcodebuild -version
 
       # ⚠⚠ A PIN, not a fix. control-desktop / drive-desktop resolve an `FFM_JDK = 25` launcher
       # eagerly at CONFIGURATION time and there is no configure-on-demand, so every invocation
@@ -49,50 +74,182 @@ jobs:
             25
             17
           distribution: 'temurin'
-          cache: gradle
+
+      # Gradle's own cache action: Gradle's user home (dependencies, wrapper, and the local BUILD
+      # cache, so a compile already done for these inputs is not redone). It replaces setup-java's
+      # `cache: gradle`, which kept dependencies only. ⚠ By default only the default branch WRITES
+      # the cache; PRs read it — so a run on master is what warms it.
+      - name: Set up Gradle (dependency + build cache)
+        uses: gradle/actions/setup-gradle@v4
+
+      # Kotlin/Native's toolchain and platform-library caches (`~/.konan`), which every job would
+      # otherwise download and rebuild — minutes per job. Keyed on the version catalog (the Kotlin
+      # version lives there). Restored everywhere; SAVED only from master, so PRs neither race to
+      # write it nor fill the repository's 10 GB cache allowance.
+      - name: Restore Kotlin/Native (~/.konan)
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('gradle/libs.versions.toml') }}
+          restore-keys: |
+            konan-${{ runner.os }}-${{ runner.arch }}-
 
       # ⚠ setup-java installs into the hosted tool cache, which is NOT a location Gradle's
       # toolchain auto-detection scans — so the 25 above is invisible to `launcherFor` without
       # this. `fromEnv` takes env var NAMES; setup-java exports JAVA_HOME_<version>_<arch> and
       # the arch differs per runner (ubuntu = X64, macos-latest = ARM64), so both spellings are
       # listed. Unset names are skipped silently (verified), so the unused half costs nothing.
-      - name: Register both JDKs with Gradle toolchain detection
+      #
+      # ⚠ And a heap and worker budget for THIS runner (3 cores, 7 GB), not the maintainer's Mac
+      # that `gradle.properties` is tuned for: a user-home `gradle.properties` overrides the
+      # project's.
+      - name: Register both JDKs with Gradle toolchain detection; fit the build to the runner
         run: |
           mkdir -p ~/.gradle
-          echo "org.gradle.java.installations.fromEnv=JAVA_HOME_25_X64,JAVA_HOME_25_ARM64,JAVA_HOME_17_X64,JAVA_HOME_17_ARM64" >> ~/.gradle/gradle.properties
+          cat >> ~/.gradle/gradle.properties <<'PROPS'
+          org.gradle.java.installations.fromEnv=JAVA_HOME_25_X64,JAVA_HOME_25_ARM64,JAVA_HOME_17_X64,JAVA_HOME_17_ARM64
+          org.gradle.workers.max=3
+          org.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8 -Dkotlin.daemon.jvm.options=-Xmx1536m
+          kotlin.native.jvmArgs=-Xmx3g
+          PROPS
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # Runs commonTest + iosTest for the client-facing shared modules on the
-      # iOS simulator. The `-proxy` / `-test-utils` modules are gated out at the
-      # root build (proxy code runs on Control-on-iOS — not in the iOS
-      # app under proxy-mediated EPC); see build.gradle.kts.
-      - name: Run iOS simulator tests
-        run: ./gradlew iosSimulatorArm64Test --stacktrace
+      - name: Pick this shard's modules
+        run: |
+          ./gradlew help -q --no-configuration-cache -Ptenshu.projectGraph=build/project-graph.json
+          echo "LINK_TASKS=$(python3 scripts/ci/ios-test-shard.py build/project-graph.json $(( ${{ matrix.shard }} - 1 )) 3 link)" >> "$GITHUB_ENV"
+          echo "TEST_TASKS=$(python3 scripts/ci/ios-test-shard.py build/project-graph.json $(( ${{ matrix.shard }} - 1 )) 3 test)" >> "$GITHUB_ENV"
+
+      # Every test binary of the shard, in parallel. Compiles only: nothing runs on the simulator yet.
+      - name: Link the shard's iOS test binaries
+        run: ./gradlew $LINK_TASKS --continue --stacktrace
+
+      # Runs commonTest + iosTest for the shard's modules on the simulator, ONE at a time: the
+      # binaries above are up to date, so this is test execution alone. `--continue`: every failing
+      # module is reported, not just the first. The `-proxy` / `-test-utils` modules are gated out
+      # at the root build (proxy code runs on Control-on-iOS); see build.gradle.kts.
+      - name: Run the shard's iOS simulator tests
+        run: ./gradlew $TEST_TASKS --continue --stacktrace --max-workers=1
+
+      - name: Save Kotlin/Native (~/.konan)
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('gradle/libs.versions.toml') }}
+
+      - name: Upload Test Report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-test-report-${{ matrix.shard }}
+          path: "**/build/reports/tests/**"
+
+  # The apps: each TenshuSdk framework linked, then each Swift shell compiled against it.
+  # Independent of the tests above, so it runs beside them. ⚠ In TWO halves: all ten in one job
+  # took ~43 min of framework links plus ~4 min per Swift shell, past any sane timeout. Drive and
+  # Photos (the slowest shells) sit in different halves. ⚠⚠ Together the halves must be exactly
+  # `ios-smoke.sh --build-only`'s default list; the first step checks that, so an app added to
+  # the script cannot silently go uncompiled here.
+  ios-apps:
+    name: ios apps (${{ matrix.apps }})
+    runs-on: macos-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        apps: ["control drive fit timeline maps", "photos contacts home mia calendar"]
+    steps:
+      - uses: actions/checkout@v4
+
+      # ⚠ The NEWEST installed release Xcode, not the image default, and selected FIRST: Kotlin/Native
+      # links against the selected Xcode's SDK too, so every step of every job builds with one
+      # toolchain. The app shells are written against the current SDK (the maintainer builds with
+      # Xcode 27); an older default fails to compile Swift that is fine there. Printed, so a failure
+      # names the toolchain it ran on.
+      - name: Use the newest installed Xcode
+        run: |
+          newest="$(ls -d /Applications/Xcode_*.app 2>/dev/null | grep -viE 'beta|release_candidate' | sort -V | tail -1)"
+          [ -n "$newest" ] && sudo xcode-select -s "$newest"
+          xcodebuild -version
+
+      # ⚠⚠ A PIN, not a fix. control-desktop / drive-desktop resolve an `FFM_JDK = 25` launcher
+      # eagerly at CONFIGURATION time and there is no configure-on-demand, so every invocation
+      # configures them. Without the pin this does not fail — the foojay resolver in
+      # settings.gradle.kts auto-provisions 25 by DOWNLOADING it mid-configuration, which is why
+      # JDK 17 alone was green. Pinning removes that per-run download and the network dependency.
+      # 17 is listed LAST so it stays the daemon JVM. Full reasoning in android.yml.
+      - name: Set up JDK 25 (desktop FFM toolchain) + JDK 17 (daemon + shared modules)
+        uses: actions/setup-java@v4
+        with:
+          java-version: |
+            25
+            17
+          distribution: 'temurin'
+
+      # Gradle's own cache action: Gradle's user home (dependencies, wrapper, and the local BUILD
+      # cache, so a compile already done for these inputs is not redone). It replaces setup-java's
+      # `cache: gradle`, which kept dependencies only. ⚠ By default only the default branch WRITES
+      # the cache; PRs read it — so a run on master is what warms it.
+      - name: Set up Gradle (dependency + build cache)
+        uses: gradle/actions/setup-gradle@v4
+
+      # Kotlin/Native's toolchain and platform-library caches (`~/.konan`), which every job would
+      # otherwise download and rebuild — minutes per job. Keyed on the version catalog (the Kotlin
+      # version lives there). Restored everywhere; SAVED only from master, so PRs neither race to
+      # write it nor fill the repository's 10 GB cache allowance.
+      - name: Restore Kotlin/Native (~/.konan)
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('gradle/libs.versions.toml') }}
+          restore-keys: |
+            konan-${{ runner.os }}-${{ runner.arch }}-
+
+      # ⚠ setup-java installs into the hosted tool cache, which is NOT a location Gradle's
+      # toolchain auto-detection scans — so the 25 above is invisible to `launcherFor` without
+      # this. `fromEnv` takes env var NAMES; setup-java exports JAVA_HOME_<version>_<arch> and
+      # the arch differs per runner (ubuntu = X64, macos-latest = ARM64), so both spellings are
+      # listed. Unset names are skipped silently (verified), so the unused half costs nothing.
+      #
+      # ⚠ And a heap and worker budget for THIS runner (3 cores, 7 GB), not the maintainer's Mac
+      # that `gradle.properties` is tuned for: a user-home `gradle.properties` overrides the
+      # project's.
+      - name: Register both JDKs with Gradle toolchain detection; fit the build to the runner
+        run: |
+          mkdir -p ~/.gradle
+          cat >> ~/.gradle/gradle.properties <<'PROPS'
+          org.gradle.java.installations.fromEnv=JAVA_HOME_25_X64,JAVA_HOME_25_ARM64,JAVA_HOME_17_X64,JAVA_HOME_17_ARM64
+          org.gradle.workers.max=3
+          org.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8 -Dkotlin.daemon.jvm.options=-Xmx1536m
+          kotlin.native.jvmArgs=-Xmx3g
+          PROPS
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
 
       # Proves each app's Kotlin links into its framework: one debug simulator
       # slice per app, which is what the Swift step below links against
       # (ios-per-app-frameworks.md §8.2). Release device links are ~5 min each
       # and are proved per app by `scripts/ios-archive.sh`, not here.
-      - name: Link every app's TenshuSdk framework (simulator, debug)
-        run: >-
-          ./gradlew --stacktrace
-          :tenshu-sdk-ios-control:linkDebugFrameworkIosSimulatorArm64
-          :tenshu-sdk-ios-drive:linkDebugFrameworkIosSimulatorArm64
-          :tenshu-sdk-ios-fit:linkDebugFrameworkIosSimulatorArm64
-          :tenshu-sdk-ios-timeline:linkDebugFrameworkIosSimulatorArm64
-          :tenshu-sdk-ios-maps:linkDebugFrameworkIosSimulatorArm64
-          :tenshu-sdk-ios-photos:linkDebugFrameworkIosSimulatorArm64
-          :tenshu-sdk-ios-home:linkDebugFrameworkIosSimulatorArm64
-          :tenshu-sdk-ios-mia:linkDebugFrameworkIosSimulatorArm64
-          :tenshu-sdk-ios-calendar:linkDebugFrameworkIosSimulatorArm64
-          :tenshu-sdk-ios-contacts:linkDebugFrameworkIosSimulatorArm64
+      - name: The two halves are exactly ios-smoke's app list
+        run: |
+          script="$(sed -n 's/^    APPS=(\(control drive .*timeline.*\))$/\1/p' scripts/ios-smoke.sh | tr ' ' '\n' | sort | xargs)"
+          halves="$(echo "control drive fit timeline maps photos contacts home mia calendar" | tr ' ' '\n' | sort | xargs)"
+          echo "ios-smoke --build-only: $script"
+          echo "the two halves:         $halves"
+          [ -n "$script" ] && [ "$script" = "$halves" ] || { echo "::error::ios.yml's ios-apps halves do not match scripts/ios-smoke.sh's --build-only list"; exit 1; }
+
+      - name: Link this half's TenshuSdk frameworks (simulator, debug)
+        run: ./gradlew --stacktrace $(for app in ${{ matrix.apps }}; do echo ":tenshu-sdk-ios-$app:linkDebugFrameworkIosSimulatorArm64"; done)
 
       # `ios-smoke.sh` regenerates each .xcodeproj from its project.yml before
       # building; xcodegen is not preinstalled on the runner image.
       - name: Install xcodegen
         run: brew install xcodegen
+
 
       # The Swift half. Compiles every app shell against its framework just
       # linked, on the SIMULATOR sdk — so no signing identity, no device, and no
@@ -107,12 +264,12 @@ jobs:
       # links, while this proves the Swift that consumes it still typechecks. A
       # Kotlin change that breaks linking is caught above; an app shell whose Swift
       # never compiles is caught only here.
-      - name: Compile the iOS app shells (Swift)
-        run: scripts/ios-smoke.sh --build-only
+      - name: Compile this half's iOS app shells (Swift)
+        run: scripts/ios-smoke.sh --build-only ${{ matrix.apps }}
 
-      - name: Upload Test Report
-        if: failure()
-        uses: actions/upload-artifact@v4
+      - name: Save Kotlin/Native (~/.konan)
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: actions/cache/save@v4
         with:
-          name: ios-test-report
-          path: "**/build/reports/tests/**"
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('gradle/libs.versions.toml') }}

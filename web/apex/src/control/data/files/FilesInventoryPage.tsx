@@ -16,12 +16,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { FileSystem } from '@tenshu/sdk/files'
-import { findHostedApp } from '../../../apps/registry'
 import { formatStorageBytes } from '../../../lib/format'
 import { totalsByKind } from './fileKinds'
 import { readInventoryOnce, type InventoryState } from './fileInventoryReader'
 
-const DRIVE_PATH = findHostedApp('drive')?.manifest.launchPath ?? '/drive/files'
+// Drive's file browser, not its Home: this page is about files (web-apps-layout.md §3.4 sections).
+const DRIVE_PATH = '/drive/files'
 
 export function FilesInventoryPage() {
   const { t } = useTranslation('dataFiles')

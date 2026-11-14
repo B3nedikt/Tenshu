@@ -2,6 +2,7 @@ package app.tenshu.ui.components
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.util.Log
 import android.util.Size
 import java.util.concurrent.atomic.AtomicReference
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -60,7 +61,17 @@ actual fun QrScanner(
         }
     }
 
-    if (hasCameraPermission) {
+    // Set when CameraX cannot give us a camera at all — provider init failed (the device
+    // reports zero cameras, a crashed camera HAL, a policy-disabled camera), no back or front
+    // lens exists, or binding was refused. Callers always offer manual code entry beside the
+    // scanner, so a message is the whole degradation.
+    var cameraUnavailable by remember { mutableStateOf(false) }
+
+    if (!hasCameraPermission) {
+        ScannerMessage("Camera permission required", modifier)
+    } else if (cameraUnavailable) {
+        ScannerMessage("Camera not available", modifier)
+    } else {
         val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
         // The decoder reports the code on EVERY analyzed frame, so one physical scan arrives
         // as a burst of identical results until the scanner leaves composition. Latch the
@@ -82,7 +93,36 @@ actual fun QrScanner(
                 val executor = Executors.newSingleThreadExecutor()
 
                 cameraProviderFuture.addListener({
-                    val cameraProvider = cameraProviderFuture.get()
+                    // ⚠ `get()` rethrows a failed provider init as ExecutionException
+                    // (InitializationException / CameraUnavailableException). This listener
+                    // runs on the main looper, so an escape here kills the app.
+                    val cameraProvider = try {
+                        cameraProviderFuture.get()
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Camera provider unavailable", e)
+                        executor.shutdown()
+                        cameraUnavailable = true
+                        return@addListener
+                    }
+                    // Back lens first; a device with only a front camera (some tablets and
+                    // Chromebooks) can still scan with it.
+                    val cameraSelector = listOf(
+                        CameraSelector.DEFAULT_BACK_CAMERA,
+                        CameraSelector.DEFAULT_FRONT_CAMERA,
+                    ).firstOrNull { selector ->
+                        try {
+                            cameraProvider.hasCamera(selector)
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Camera query failed", e)
+                            false
+                        }
+                    }
+                    if (cameraSelector == null) {
+                        Log.w(TAG, "No usable camera")
+                        executor.shutdown()
+                        cameraUnavailable = true
+                        return@addListener
+                    }
                     val preview = Preview.Builder().build().also {
                         it.surfaceProvider = previewView.surfaceProvider
                     }
@@ -136,8 +176,6 @@ actual fun QrScanner(
                             }
                         }
 
-                    val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-
                     try {
                         cameraProvider.unbindAll()
                         cameraProvider.bindToLifecycle(
@@ -147,7 +185,9 @@ actual fun QrScanner(
                             imageAnalysis
                         )
                     } catch (e: Exception) {
-                        e.printStackTrace()
+                        Log.w(TAG, "Camera bind failed", e)
+                        executor.shutdown()
+                        cameraUnavailable = true
                     }
                 }, ContextCompat.getMainExecutor(context))
 
@@ -155,9 +195,14 @@ actual fun QrScanner(
             },
             modifier = modifier
         )
-    } else {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Camera permission required")
-        }
     }
 }
+
+@Composable
+private fun ScannerMessage(text: String, modifier: Modifier) {
+    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(text)
+    }
+}
+
+private const val TAG = "QrScanner"

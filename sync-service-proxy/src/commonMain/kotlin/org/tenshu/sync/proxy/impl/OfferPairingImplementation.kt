@@ -39,10 +39,12 @@ internal class OfferPairingImplementation(
         val secret = nextSecureRandomBytes(SECRET_BYTES)
         val pairingSecretHash = sha256(secret).toHexString()
 
+        // One snapshot, so the offered key and id are always one identity's (§7i.5).
+        val identity = syncManager.currentDeviceIdentity()
         val offerUri = PairingUri.offerUri(
             offererPublicKey = ephemeralKeyPair.publicKey,
-            offererSigningKey = syncManager.getDeviceSigningKeyPair().publicKey,
-            offererDeviceId = syncManager.currentDeviceId,
+            offererSigningKey = identity.signingKeyPair.publicKey,
+            offererDeviceId = identity.deviceId,
             pairingSecret = secret,
             deviceName = deviceName,
         )

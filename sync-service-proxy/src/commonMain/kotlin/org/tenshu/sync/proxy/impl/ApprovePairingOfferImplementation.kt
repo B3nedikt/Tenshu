@@ -22,6 +22,7 @@ import org.tenshu.sync.proxy.admissionStamp
 import org.tenshu.sync.proxy.ContentPropertyTagger
 import org.tenshu.sync.proxy.flushPendingBlocks
 import org.tenshu.sync.proxy.isRelayUnauthorized
+import org.tenshu.sync.proxy.throwIfTypedAdmitRefusal
 import org.tenshu.sync.proxy.security.offerResponseMessage
 
 /**
@@ -95,6 +96,13 @@ internal class ApprovePairingOfferImplementation(
         )
         var result = postResponse()
 
+        // The relay refuses the OFFERER: it was removed from this realm and is back under the
+        // same identity (F2′). Terminal, and about the other device, so the self-heal below
+        // cannot change it — tell the approver what happened instead
+        // (`admission-revocation-names-the-capability.md` §7h). Likewise a refusal of THIS device's
+        // admission capability (`admission-revoked`, §7j.5) — terminal for a chain-presenting admitter.
+        result.throwIfTypedAdmitRefusal(ctx)
+
         // Self-heal a relay that has forgotten this realm — the offer flow's twin of the join
         // flow's repair (`ApprovePairingRequestImplementation`). Without it, Approve
         // is a permanent dead end after a relay data wipe / restore-from-backup: the relay
@@ -118,6 +126,9 @@ internal class ApprovePairingOfferImplementation(
             RealmRegistrar(syncManager, cryptoManager, relay)
                 .reregisterThisDevice(admitted.masterKeyPair)
             result = postResponse()
+            // A relay that had forgotten this device answers its 401 before the removal check,
+            // so the refusal of the offerer can first appear on the retry.
+            result.throwIfTypedAdmitRefusal(ctx)
         }
         if (result is TResult.Failure<*>) {
             // A 401 that survived the self-heal means the relay will not accept THIS device's

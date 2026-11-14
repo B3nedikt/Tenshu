@@ -1,5 +1,11 @@
 package org.tenshu.place.proxy
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.concurrent.atomics.AtomicBoolean
+import kotlin.concurrent.atomics.AtomicReference
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import org.tenshu.core.Composite
 import org.tenshu.core.Data
 import org.tenshu.core.TString
@@ -51,7 +57,17 @@ import org.tenshu.core.time.UnixInstant
  * class. ⚠ It would become one if places ever reached the scale moments do; the fix then is a
  * grid-cell index, not a wider scan. Moments are deliberately **not** reconciled here — see the
  * as-built note in §10.9.
+ *
+ * ⚠⚠ **Never on the save path.** A save observer runs *inside* the writer's transaction — for a peer's
+ * block that is `SyncProcessor.resolveConflictAndSave`'s `database.transaction { }`, which on the iOS
+ * SQLite replica is one `BEGIN IMMEDIATE` under `HOLD_MAX`. The ambiguous-pair arbiter
+ * (`VisitTimeCorroboration`) reads the MOMENTS relation, and paging cannot bound a read that re-enters
+ * a held lock (`core-ordered-window-fusion.md` §6.1), so a synced `Place` used to fence a phone with
+ * thousands of moments `COMMIT_FAILED`. [onDataSaved] therefore only records the anchor; the
+ * reconciliation runs coalesced on `sessionScope`, after the saving transaction has committed — the
+ * same shape as `MomentReconciliationPass` and `PlaceRoleInferencePass`.
  */
+@OptIn(ExperimentalAtomicApi::class)
 class PlaceReconciler(
     private val executionContext: ExecutionContext,
     /** Injected so tests are deterministic; production passes a real clock. */
@@ -72,12 +88,71 @@ class PlaceReconciler(
         val anchorId = string(data, Place.Fields.PLACE_ID)
         if (anchorId.isBlank()) return
 
-        val places = loadPlaces()
-        val anchor = places.firstOrNull { it.placeId == anchorId }
-            // A save we have not read back yet (or a row the relation maintainer has not added):
-            // fall back to the saved payload itself, so the very first place still reconciles.
-            ?: candidateOf(data)
-        reconcileAround(anchor, places, loadMerges())
+        // ⚠⚠ Record, never reconcile, here — see the class KDoc.
+        while (true) {
+            val current = pendingAnchors.load()
+            if (pendingAnchors.compareAndSet(current, current + anchorId)) break
+        }
+        scheduleFlush()
+    }
+
+    private fun scheduleFlush() {
+        if (!flushArmed.compareAndSet(expectedValue = false, newValue = true)) return
+        executionContext.sessionScope.launch {
+            // ⚠ "After the commit" is the lock's doing, not the delay's: `transaction { }` holds the
+            // store lock until it commits, so a flush that wakes while the writer is still inside
+            // blocks on its first read and then sees the committed state.
+            delay(COALESCE_MS)
+            // ⚠ Cleared BEFORE the anchors are taken, so a save arriving during the flush arms the
+            // next one instead of being swallowed by the run already in progress.
+            flushArmed.store(false)
+            reconcilePending()
+        }
+    }
+
+    /** Whether a coalesced flush is already armed — see [onDataSaved]. */
+    private val flushArmed = AtomicBoolean(false)
+
+    /** The `placeId`s saved since the last flush. */
+    private val pendingAnchors = AtomicReference<Set<String>>(emptySet())
+
+    /**
+     * Reconcile every anchor saved since the last flush, once each, outside any writer's transaction.
+     * Public and synchronous so tests can drive it directly. Failures are logged and dropped **per
+     * anchor**, as in [reconcileAll]: this runs detached on `sessionScope`, where a throw would reach no
+     * caller, and one anchor's failure must not drop the rest of the batch.
+     *
+     * ⚠ An anchor not in PLACES is skipped, not reconciled from its payload: the relation maintainer
+     * adds the row in the same synchronous save, so after a commit it is there — absence means the
+     * save rolled back, and a merge pointing at a place that never committed would sync to peers.
+     */
+    fun reconcilePending() {
+        val anchors = pendingAnchors.exchange(emptySet())
+        if (anchors.isEmpty()) return
+        val places: List<PlaceClustering.Candidate>
+        var merges: Map<String, String>
+        try {
+            places = loadPlaces()
+            merges = loadMerges()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            println("WARN PlaceReconciler: coalesced pass skipped (${e::class.simpleName}: ${e.message})")
+            return
+        }
+        val byId = places.associateBy { it.placeId }
+        anchors.forEach { anchorId ->
+            val anchor = byId[anchorId] ?: return@forEach
+            try {
+                reconcileAround(anchor, places, merges)
+                // Re-read, as in [reconcileAll]: a fold just recorded must be visible to the next anchor.
+                if (anchors.size > 1) merges = loadMerges()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                println("WARN PlaceReconciler: anchor $anchorId skipped (${e::class.simpleName}: ${e.message})")
+            }
+        }
     }
 
     /**
@@ -224,6 +299,15 @@ class PlaceReconciler(
         labelSource = string(row, Place.Fields.LABEL_SOURCE),
         networkTags = tags,
     )
+
+    companion object {
+        /**
+         * Coalescing cadence. A place is a venue, not a visit, so `Place` saves are rare and there is
+         * no window for an anchor to age out of — the delay only folds a sync page's worth of places
+         * into one read of PLACES/MERGES instead of one per row.
+         */
+        internal const val COALESCE_MS: Long = 1_000L
+    }
 
     private fun string(data: Data, fieldId: String): String = when (data) {
         is Entity<*> -> data.getFieldValue<TString>(fieldId).get()

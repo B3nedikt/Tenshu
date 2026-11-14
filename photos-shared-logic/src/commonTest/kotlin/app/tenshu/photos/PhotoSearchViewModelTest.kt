@@ -620,6 +620,242 @@ class PhotoSearchViewModelTest {
         }
     }
 
+    private fun idleLine(vm: PhotoSearchViewModel): String =
+        (vm.state.value.layout.body as PhotoSearchLayout.Body.Idle).text
+
+    @Test
+    fun theOpeningQuestionLetsTheIdleLineSayDescriptionSearchWorks() = vmTest(dispatcher) { vms ->
+        // ⚠⚠ The maintainer's phone (`ios-on-device-inference.md` §1.8): a ready model, consent given,
+        // "cat" finds cats — and the empty bar said "Search by file name.".
+        val inner = MockPhotosRepository(listOf(photo("cat.jpg"))).apply {
+            semanticOutcome = emptyList<Photo>() to SemanticSearchStatus.Available
+        }
+        val repo = CountingRepository(inner)
+        val vm = vms.own(PhotoSearchViewModel(repo, askOnOpen = true))
+        assertEquals("Search by file name.", idleLine(vm), "nothing is known before the proxy answers")
+        testScheduler.advanceUntilIdle()
+        assertEquals(1, repo.semanticSearches, "asked once, on opening")
+        // ⚠ A blank text is answered by the repository without asking the proxy at all.
+        assertTrue(PhotoSearchViewModel.OPENING_QUERY.isNotBlank())
+        assertEquals(listOf(PhotoSearchViewModel.OPENING_QUERY), inner.semanticQueries, "the opening question never reached the repository")
+        assertEquals("Search by file name or by what's in a photo.", idleLine(vm))
+        assertTrue(vm.state.value.layout.notes.isEmpty())
+    }
+
+    @Test
+    fun theOpeningQuestionsRefusalKeepsThePlainLine() = vmTest(dispatcher) { vms ->
+        for (refusal in listOf("noBackend", "noConsent", "notIndexed", "noTextEmbedding")) {
+            val repo = MockPhotosRepository(listOf(photo("cat.jpg"))).apply {
+                semanticOutcome = emptyList<Photo>() to SemanticSearchStatus.Unavailable(refusal)
+            }
+            val vm = vms.own(PhotoSearchViewModel(repo, askOnOpen = true))
+            testScheduler.advanceUntilIdle()
+            assertEquals("Search by file name.", idleLine(vm), refusal)
+        }
+        // ⚠ An unsuitable phone: its noBackend reads as NotBuiltHere, and the plain line.
+        val unsuitable = vms.own(
+            PhotoSearchViewModel(
+                MockPhotosRepository(emptyList()),
+                askOnOpen = true,
+                onNoBackend = { SemanticSearchStatus.NotBuiltHere("iPhone") },
+            ),
+        )
+        testScheduler.advanceUntilIdle()
+        assertEquals(SemanticSearchStatus.NotBuiltHere("iPhone"), unsuitable.state.value.semanticKnown)
+        assertEquals("Search by file name.", idleLine(unsuitable))
+    }
+
+    @Test
+    fun withoutTheOpeningQuestionTheSeedPromisesNothing() = vmTest(dispatcher) { vms ->
+        // ⚠⚠ Android and desktop: the seed is Available, and their production registry has no backend.
+        val repo = CountingRepository(MockPhotosRepository(listOf(photo("cat.jpg"))).apply {
+            semanticOutcome = emptyList<Photo>() to SemanticSearchStatus.Available
+        })
+        val vm = vms.own(PhotoSearchViewModel(repo))
+        testScheduler.advanceUntilIdle()
+        assertEquals(0, repo.semanticSearches, "nothing asked before a query")
+        assertEquals("Search by file name.", idleLine(vm))
+        // ⚠ Learned from the first query, and kept across the return to an empty bar.
+        vm.onQueryChanged("cat")
+        testScheduler.advanceUntilIdle()
+        vm.clear()
+        assertEquals("Search by file name or by what's in a photo.", idleLine(vm))
+    }
+
+    @Test
+    fun aRefusalLearnedFromAQueryTakesThePromiseBack() = vmTest(dispatcher) { vms ->
+        val inner = MockPhotosRepository(listOf(photo("cat.jpg"))).apply {
+            semanticOutcome = emptyList<Photo>() to SemanticSearchStatus.Available
+        }
+        val vm = vms.own(PhotoSearchViewModel(inner, askOnOpen = true))
+        testScheduler.advanceUntilIdle()
+        assertEquals("Search by file name or by what's in a photo.", idleLine(vm))
+        // Consent withdrawn while the screen is up: the next answer says so, and the bar stops promising.
+        inner.semanticOutcome = emptyList<Photo>() to SemanticSearchStatus.Unavailable("noConsent")
+        vm.onQueryChanged("cat")
+        testScheduler.advanceUntilIdle()
+        vm.clear()
+        assertEquals("Search by file name.", idleLine(vm))
+    }
+
+    @Test
+    fun aQueryAnsweredFirstOutranksTheOpeningQuestion() = vmTest(dispatcher) { vms ->
+        // ⚠ The opening answer arrives after a query's: the query's status is the newer one.
+        val gate = CompletableDeferred<Unit>()
+        val inner = MockPhotosRepository(listOf(photo("cat.jpg"))).apply {
+            semanticOutcome = emptyList<Photo>() to SemanticSearchStatus.Unavailable("noConsent")
+        }
+        val repo = object : app.tenshu.photos.data.PhotosRepository by inner {
+            override suspend fun searchSemantic(query: String, limit: Int): Pair<List<Photo>, SemanticSearchStatus> {
+                if (query == PhotoSearchViewModel.OPENING_QUERY) {
+                    withContext(NonCancellable) { gate.await() }
+                    return emptyList<Photo>() to SemanticSearchStatus.Available
+                }
+                return inner.searchSemantic(query, limit)
+            }
+        }
+        val vm = vms.own(PhotoSearchViewModel(repo, askOnOpen = true))
+        vm.onQueryChanged("cat")
+        // ⚠ Past the debounce, well inside the opening question's bound — `advanceUntilIdle` would
+        // time it out and test nothing.
+        testScheduler.advanceTimeBy(PhotoSearchViewModel.SEARCH_DEBOUNCE_MS + 1_000)
+        testScheduler.runCurrent()
+        assertTrue(vm.state.value.settled, "the query answered while the opening question was held")
+        gate.complete(Unit)
+        testScheduler.runCurrent()
+        assertEquals(SemanticSearchStatus.Unavailable("noConsent"), vm.state.value.semanticStatus)
+        vm.clear()
+        assertEquals("Search by file name.", idleLine(vm))
+    }
+
+    @Test
+    fun anEarlierRefusalIsNotTheNextQuerysNote() = vmTest(dispatcher) { vms ->
+        // ⚠⚠ Consent turned on since "cat" was refused: while "dog" runs, no "switched off" note.
+        for (askOnOpen in listOf(false, true)) {
+            val inner = MockPhotosRepository(listOf(photo("cat.jpg"), photo("dog.jpg", 1))).apply {
+                semanticOutcome = emptyList<Photo>() to SemanticSearchStatus.Unavailable("noConsent")
+            }
+            val vm = vms.own(PhotoSearchViewModel(inner, askOnOpen = askOnOpen))
+            vm.onQueryChanged("cat")
+            testScheduler.advanceUntilIdle()
+            assertEquals(1, vm.state.value.layout.notes.size, "the refusal is this query's note")
+            vm.clear()
+            inner.semanticOutcome = emptyList<Photo>() to SemanticSearchStatus.Available
+            vm.onQueryChanged("dog")
+            assertTrue(vm.state.value.searching)
+            assertTrue(vm.state.value.layout.notes.isEmpty(), "askOnOpen=$askOnOpen: a refusal from before the bar was emptied")
+            testScheduler.advanceUntilIdle()
+            assertTrue(vm.state.value.layout.notes.isEmpty())
+            // ⚠ As before: within one typed question a refusal stays up while a newer query runs.
+            inner.semanticOutcome = emptyList<Photo>() to SemanticSearchStatus.Unavailable("noConsent")
+            vm.onQueryChanged("do")
+            testScheduler.advanceUntilIdle()
+            vm.onQueryChanged("dog!")
+            assertTrue(vm.state.value.searching)
+            assertEquals(1, vm.state.value.layout.notes.size, "askOnOpen=$askOnOpen: a note true of the device shook with a keystroke")
+        }
+    }
+
+    @Test
+    fun shownAgainTheOpeningQuestionIsAskedAgain() = vmTest(dispatcher) { vms ->
+        // ⚠ Consent switched on in Settings → Models, then back to Search: no query typed.
+        val inner = MockPhotosRepository(listOf(photo("cat.jpg"))).apply {
+            semanticOutcome = emptyList<Photo>() to SemanticSearchStatus.Unavailable("noConsent")
+        }
+        val vm = vms.own(PhotoSearchViewModel(inner, askOnOpen = true))
+        testScheduler.advanceUntilIdle()
+        assertEquals("Search by file name.", idleLine(vm))
+        inner.semanticOutcome = emptyList<Photo>() to SemanticSearchStatus.Available
+        vm.screenShown()
+        testScheduler.advanceUntilIdle()
+        assertEquals("Search by file name or by what's in a photo.", idleLine(vm))
+        assertEquals(2, inner.semanticQueries.size)
+
+        // ⚠ Never over a typed bar, never beside one in flight.
+        vm.onQueryChanged("cat")
+        testScheduler.advanceUntilIdle()
+        val asked = inner.semanticQueries.size
+        vm.screenShown()
+        testScheduler.advanceUntilIdle()
+        assertEquals(asked, inner.semanticQueries.size, "asked over a typed bar")
+        vm.clear()
+        vm.screenShown()
+        vm.screenShown()
+        testScheduler.advanceUntilIdle()
+        assertEquals(asked + 1, inner.semanticQueries.size, "two opening questions at once")
+
+        // Without askOnOpen (Android, desktop) it asks nothing.
+        val android = MockPhotosRepository(emptyList())
+        val plain = vms.own(PhotoSearchViewModel(android))
+        plain.screenShown()
+        testScheduler.advanceUntilIdle()
+        assertTrue(android.semanticQueries.isEmpty())
+    }
+
+    @Test
+    fun aQueryCancelsTheOpeningQuestionInFlight() = vmTest(dispatcher) { vms ->
+        // ⚠⚠ Two `photosLike` calls must not compete for the text tower's first load.
+        val held = CompletableDeferred<Unit>()
+        var openingCancelled = false
+        val inner = MockPhotosRepository(listOf(photo("cat.jpg"))).apply {
+            semanticOutcome = emptyList<Photo>() to SemanticSearchStatus.Available
+        }
+        val repo = object : app.tenshu.photos.data.PhotosRepository by inner {
+            override suspend fun searchSemantic(query: String, limit: Int): Pair<List<Photo>, SemanticSearchStatus> {
+                if (query == PhotoSearchViewModel.OPENING_QUERY) {
+                    try {
+                        held.await()
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        openingCancelled = true
+                        throw e
+                    }
+                }
+                return inner.searchSemantic(query, limit)
+            }
+        }
+        val vm = vms.own(PhotoSearchViewModel(repo, askOnOpen = true))
+        testScheduler.runCurrent()
+        vm.onQueryChanged("cat")
+        testScheduler.runCurrent()
+        assertTrue(openingCancelled, "the opening question still ran beside the query")
+        testScheduler.advanceUntilIdle()
+        assertTrue(vm.state.value.settled)
+    }
+
+    @Test
+    fun anOpeningQuestionThatThrowsOrTimesOutKeepsThePlainLine() = vmTest(dispatcher) { vms ->
+        val inner = MockPhotosRepository(emptyList())
+        val throwing = object : app.tenshu.photos.data.PhotosRepository by inner {
+            override suspend fun searchSemantic(query: String, limit: Int): Pair<List<Photo>, SemanticSearchStatus> =
+                throw IllegalStateException("the connection dropped")
+        }
+        val a = vms.own(PhotoSearchViewModel(throwing, askOnOpen = true))
+        testScheduler.advanceUntilIdle()
+        assertEquals("Search by file name.", idleLine(a))
+        assertEquals(null, a.state.value.semanticKnown)
+
+        val hanging = object : app.tenshu.photos.data.PhotosRepository by inner {
+            override suspend fun searchSemantic(query: String, limit: Int): Pair<List<Photo>, SemanticSearchStatus> {
+                withContext(NonCancellable) { CompletableDeferred<Unit>().await() }
+                return emptyList<Photo>() to SemanticSearchStatus.Available
+            }
+        }
+        val b = vms.own(PhotoSearchViewModel(hanging, askOnOpen = true, timeoutMs = 1_000))
+        testScheduler.advanceTimeBy(2_000)
+        testScheduler.runCurrent()
+        assertEquals("Search by file name.", idleLine(b))
+        assertEquals(null, b.state.value.semanticKnown)
+    }
+
+    @Test
+    fun aPlatformWithNoIndexIsNeverAskedOnOpening() = vmTest(dispatcher) { vms ->
+        val repo = CountingRepository(MockPhotosRepository(emptyList()))
+        val vm = vms.own(PhotoSearchViewModel(repo, descriptionSearch = DescriptionSearch.NotBuilt("iPhone"), askOnOpen = true))
+        testScheduler.advanceUntilIdle()
+        assertEquals(0, repo.semanticSearches)
+        assertEquals("Search by file name.", idleLine(vm))
+    }
+
     /** A repository whose search reads can fail, throw, hang or be held — and which counts them. */
     private class FailingReads(
         private val delegate: MockPhotosRepository,

@@ -86,7 +86,6 @@ class FilesScreenTest {
 
     @Before
     fun setup() {
-        stopKoin()
         mockFilesRepository = object : FilesRepository {
             val allFiles = MutableStateFlow(
                 listOf(

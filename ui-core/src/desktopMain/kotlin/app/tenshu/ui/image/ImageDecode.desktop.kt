@@ -89,3 +89,7 @@ private fun ImageBitmap.downscaledTo(maxEdge: Int): ImageBitmap {
         surface.close()
     }
 }
+
+/** Skia applies EXIF orientation during the decode, so there is no raw fallback to refuse. */
+actual fun decodeToUprightImageBitmap(data: ByteArray, maxEdge: Int): ImageBitmap? =
+    decodeToImageBitmap(data, maxEdge)

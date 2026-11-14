@@ -108,6 +108,13 @@ class JoinedModelSource(
     /** Lets go of what is loaded for search: the backend's text tower. */
     private val unloadSearch: suspend () -> Unit = {},
     /**
+     * Face grouping was just switched off (`ios-face-grouping.md` F6): what this device holds for it
+     * goes now. ⚠⚠ A source's hook only: what is deleted, and that only an **explicit** no deletes,
+     * is the operation's to decide (`FaceGroupsImplementation`'s withdrawal-first deletion), never
+     * this class's.
+     */
+    private val facesWithdrawn: suspend () -> Unit = {},
+    /**
      * What the verdict's file says of [ModelEntryData] as this device would install it (its key
      * from the entry's digests and this OS build). ⚠ May throw: a throw is *unreadable*.
      */
@@ -384,6 +391,7 @@ class JoinedModelSource(
      */
     override suspend fun consentWithdrawn(capability: InferenceCapability) {
         if (capability == InferenceCapability.SEMANTIC_IMAGE_SEARCH) withContext(context) { unloadSearch() }
+        if (capability == InferenceCapability.FACE_CLUSTERING) withContext(context) { facesWithdrawn() }
     }
 
     override suspend fun checkAgain() {

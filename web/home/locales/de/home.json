@@ -1,9 +1,6 @@
 {
-  "app": {
-    "title": "Home",
-    "tagline": "Deine Geräte, Automationen und Aktivitäten – nur zum Ansehen, Ende-zu-Ende-verschlüsselt."
-  },
   "nav": {
+    "label": "Home-Bereiche",
     "devices": "Home",
     "automations": "Automationen",
     "activity": "Aktivität"

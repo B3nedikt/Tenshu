@@ -10,6 +10,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlin.concurrent.atomics.AtomicReference
+import kotlinx.atomicfu.locks.reentrantLock
+import kotlinx.atomicfu.locks.withLock
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
@@ -99,15 +101,21 @@ class SyncManagerImpl(
      * the readers that run before this object exists (the store-migration context, the iOS route-1
      * hand-off); a stale value there (a pre-derivation UUID) is overwritten here, never trusted.
      *
-     * ⚠ Lazy, because it reads the A4 key from the *secret* bucket — construction touches only the
-     * plaintext one, and an eager read would move a Keychain/Keystore access into DI assembly.
-     * [hlcManager] is lazy for the same reason.
+     * ⚠ Read on first use, because it reads the A4 key from the *secret* bucket — construction
+     * touches only the plaintext one, and an eager read would move a Keychain/Keystore access into
+     * DI assembly. [hlcManager] is read on first use for the same reason.
+     *
+     * ⚠⚠ **Derived from the key held NOW, never memoised for the process.** This was `by lazy`, and
+     * [forgetThisDevice] replaces the key in a running process: the lazy kept answering the
+     * forgotten id, so a pairing offered straight after *Forget this device* presented the removed
+     * identity and the relay's F2′ refused it (`403 device-removed`, seen 2026-11-11 on desktop) until
+     * Control was restarted (`admission-revocation-names-the-capability.md` §7i.5). The id is held
+     * beside its pair in one atomic ([identity]), so a new key is a new id at the very next read.
      */
-    override val currentDeviceId: String by lazy {
-        val derived = deviceIdForPublicKey(getDeviceSigningKeyPair().publicKey)
-        if (storageDelegate.getString(Keys.DEVICE_ID) != derived) storageDelegate.storeString(Keys.DEVICE_ID, derived)
-        derived
-    }
+    override val currentDeviceId: String
+        get() = currentDeviceIdentity().deviceId
+
+    private val hlcContext: TContext = context
 
     override var currentOwnerId: String? = null
         private set
@@ -121,7 +129,29 @@ class SyncManagerImpl(
     override val residentOwnerId: String?
         get() = currentOwnerId ?: storageDelegate.getSecret(Keys.OWNER_ID)
 
-    override val hlcManager: HLCManager by lazy { HLCManager(currentDeviceId, context) }
+    /**
+     * The clock stamps every local event with [currentDeviceId], so it follows the id: after
+     * [forgetThisDevice] the next read is a clock under the new id, never the forgotten one.
+     *
+     * ⚠ The successor is seeded from its predecessor (a raise, never a reset): the HLC tip is this
+     * process's clock (`HlcWatermarkStore`), and a fresh `(0,0)` would publish a tip below one the
+     * process already published.
+     */
+    @OptIn(ExperimentalAtomicApi::class)
+    override val hlcManager: HLCManager
+        get() {
+            val id = currentDeviceId
+            while (true) {
+                val held = hlcHolder.load()
+                if (held != null && held.deviceId == id) return held
+                val next = HLCManager(id, hlcContext)
+                held?.current()?.let { tip -> next.seed(tip.physicalTime.get(), tip.logicalCounter.get()) }
+                if (hlcHolder.compareAndSet(held, next)) return next
+            }
+        }
+
+    @OptIn(ExperimentalAtomicApi::class)
+    private val hlcHolder = AtomicReference<HLCManager?>(null)
 
     // A1: the cursor is a reserved row in the object store, so it is wiped with the data (a
     // container wipe / reinstall resets it to 0 → back-fill) and can never outlive the store —
@@ -244,11 +274,16 @@ class SyncManagerImpl(
         divergenceWarningSource = source
     }
 
-    // Asset A4 — device's persistent Ed25519 signing keypair, lazy-initialised and persisted
-    // via SecureStorageDelegate. ⚠ Atomic, not a plain `var`: this is the election that keeps the
-    // device to ONE identity when several callers touch it at once. See [getDeviceSigningKeyPair].
+    // Asset A4 — device's persistent Ed25519 signing keypair and the id derived from it, read on
+    // first use and persisted via SecureStorageDelegate. ⚠ One atomic for the PAIR, so no reader
+    // ever sees one identity's key beside another's id ([currentDeviceIdentity]). Written only under
+    // [identityLock], persisted before it is published: a key this process signs with is always the
+    // key at rest, so no in-memory-only identity can be paired and then orphaned by a restart.
     @OptIn(ExperimentalAtomicApi::class)
-    private val deviceSigningKeyPair = AtomicReference<SyncCryptoManager.KeyPair?>(null)
+    private val identity = AtomicReference<SyncManager.DeviceKeyIdentity?>(null)
+
+    /** Serialises every writer of [identity]: first use, and [forgetThisDevice]'s re-mint. */
+    private val identityLock = reentrantLock()
 
     // Asset A13 — the realm's X25519 encryption sub-key, held in memory on a JOINER
     // (delivered via the pairing key-blob, SR-3b.4). On a host it's derived on demand
@@ -597,40 +632,61 @@ class SyncManagerImpl(
         )
     }
 
-    @OptIn(ExperimentalEncodingApi::class, ExperimentalAtomicApi::class)
-    override fun getDeviceSigningKeyPair(): SyncCryptoManager.KeyPair {
-        deviceSigningKeyPair.load()?.let { return it }
-        // Asset A4 — Ed25519 device signing key. Distinct curve from
-        // the X25519 ephemeral keypair generateKeyPair() now produces
-        // for pairing. The default impl on `SyncCryptoManager`
-        // delegates to generateKeyPair() so existing test fakes (which
-        // override generateKeyPair to return canned 32 bytes) keep
-        // working without an explicit override.
-        //
-        // Persisted at rest via SecureStorageDelegate (threat-model A4) so the device keeps
-        // ONE stable signing identity across restarts. A key regenerated on every process start
-        // would churn a fresh relay registration each launch — and, under the iOS in-process
-        // collapse (§C4), fork the device identity between Control and Drive. Stored per-app
-        // (the standard SecureStorageDelegate bucket); the shared-Keychain custody that lets two
-        // processes read ONE key is route-1's.
-        val loaded = storageDelegate.getSecret(Keys.DEVICE_SIGNING_KEY)
-            ?.let(::decodeDeviceSigningKeyPair)
-        if (loaded != null) {
-            // A persisted identity always wins over minting a new one.
-            return if (deviceSigningKeyPair.compareAndSet(null, loaded)) loaded
-            else deviceSigningKeyPair.load()!!
-        }
+    override fun getDeviceSigningKeyPair(): SyncCryptoManager.KeyPair = currentDeviceIdentity().signingKeyPair
 
-        // ⚠⚠ A new key is a new DEVICE: the id is derived from it ([currentDeviceId]). That is also
-        // what an unreadable blob above leads to — the device comes back as a stranger and must be
-        // admitted again, which is the honest outcome for a key that is gone.
+    @OptIn(ExperimentalAtomicApi::class)
+    override fun currentDeviceIdentity(): SyncManager.DeviceKeyIdentity {
+        identity.load()?.let { return it }
+        return identityLock.withLock {
+            identity.load()?.let { return@withLock it }
+            // Asset A4 — Ed25519 device signing key. Distinct curve from
+            // the X25519 ephemeral keypair generateKeyPair() now produces
+            // for pairing. The default impl on `SyncCryptoManager`
+            // delegates to generateKeyPair() so existing test fakes (which
+            // override generateKeyPair to return canned 32 bytes) keep
+            // working without an explicit override.
+            //
+            // Persisted at rest via SecureStorageDelegate (threat-model A4) so the device keeps
+            // ONE stable signing identity across restarts. A key regenerated on every process start
+            // would churn a fresh relay registration each launch — and, under the iOS in-process
+            // collapse (§C4), fork the device identity between Control and Drive. Stored per-app
+            // (the standard SecureStorageDelegate bucket); the shared-Keychain custody that lets two
+            // processes read ONE key is route-1's.
+            val loaded = storageDelegate.getSecret(Keys.DEVICE_SIGNING_KEY)
+                ?.let(::decodeDeviceSigningKeyPair)
+            // A persisted identity always wins over minting a new one.
+            if (loaded != null) return@withLock publishIdentity(loaded)
+
+            // ⚠⚠ A new key is a new DEVICE: the id is derived from it ([currentDeviceId]). That is also
+            // what an unreadable blob above leads to — the device comes back as a stranger and must be
+            // admitted again, which is the honest outcome for a key that is gone.
+            mintIdentity()
+        }
+    }
+
+    /**
+     * Mint a new A4 pair, **persist it, then publish it** — under [identityLock], which is what
+     * elects one identity among concurrent callers (the lock, not a CAS: a CAS has to publish
+     * before persisting, and a key published but never written is the in-memory-only identity a
+     * restart orphans). ⚠ A persist that throws publishes nothing and rethrows: the caller fails,
+     * and no one signs with a key that is not at rest.
+     */
+    @OptIn(ExperimentalAtomicApi::class)
+    private fun mintIdentity(): SyncManager.DeviceKeyIdentity {
         val pair = cryptoManager.generateDeviceSigningKeyPair()
-        // ⚠ Publish BEFORE persisting, and let only the winner write. The CAS is what elects a
-        // single identity among concurrent callers; a loser that went on to `storeSecret` would
-        // overwrite the very key the winner is handing out — which IS the fork this guards.
-        if (!deviceSigningKeyPair.compareAndSet(null, pair)) return deviceSigningKeyPair.load()!!
         storageDelegate.storeSecret(Keys.DEVICE_SIGNING_KEY, encodeDeviceSigningKeyPair(pair))
-        return pair
+        return publishIdentity(pair)
+    }
+
+    /** Derive [pair]'s id, rewrite the plaintext id cache, and make the pair this process's A4. */
+    @OptIn(ExperimentalAtomicApi::class)
+    private fun publishIdentity(pair: SyncCryptoManager.KeyPair): SyncManager.DeviceKeyIdentity {
+        val derived = SyncManager.DeviceKeyIdentity(deviceIdForPublicKey(pair.publicKey), pair)
+        if (storageDelegate.getString(Keys.DEVICE_ID) != derived.deviceId) {
+            storageDelegate.storeString(Keys.DEVICE_ID, derived.deviceId)
+        }
+        identity.store(derived)
+        return derived
     }
 
     /** A4 keypair → `Base64(pub)|Base64(priv)`, for the SecureStorageDelegate secret bucket. */
@@ -889,6 +945,22 @@ class SyncManagerImpl(
     }
 
     override fun forgetThisDevice() {
+        // ⚠ The pairing sessions go in a `finally`: even a forget whose re-mint failed must not
+        // leave a handshake opened by the identity it just stopped being.
+        try {
+            forgetCustodyAndRemint()
+        } finally {
+            // Every pairing session in flight was opened by the identity being forgotten: a host
+            // context carries its device id, and an offer its signing key's announcement. Zeroed,
+            // as their own teardowns do. After the swap, so none opened in between survives it.
+            stopPairing()
+            offerSessions.keys.toList().forEach(::clearOfferSession)
+            responderSessions.keys.toList().forEach(::clearResponderSession)
+            pendingHandshakes.clear()
+        }
+    }
+
+    private fun forgetCustodyAndRemint() {
         // The full custody bucket. ⚠⚠ Shared with iOS `wipeDeviceState` by *construction*, not by
         // comment: two hand-maintained lists drift. One definition, both callers — see
         // [Keys.CUSTODY_SLOTS].
@@ -913,6 +985,48 @@ class SyncManagerImpl(
         sessionRecoveryPhrase = null
         admissionKeyPair = null
         admissionCertChain = emptyList()
+
+        remintDeviceSigningKey()
+    }
+
+    /**
+     * ⚠⚠ **The new identity, minted in this process before [forgetThisDevice] returns.** Removing
+     * [Keys.DEVICE_SIGNING_KEY] at rest is not enough: the A4 pair is held in memory too (and the
+     * id derived from it, and the clock stamped with it), and Desktop / Android Control keep their
+     * one process-lifetime graph across a forget — the user goes straight from Welcome to pairing.
+     * Before this, that pairing offered the forgotten id and its key, and the relay refused it as a
+     * removed identity (F2′, `admission-revocation-names-the-capability.md` §7i.5) until a restart.
+     *
+     * Under [identityLock], so it is one step for every other writer: the old identity is
+     * withdrawn, the stored slots cleared and the new pair persisted **before** it is published.
+     * Two overlapping forgets therefore end with memory and disk on the same key, and a reader
+     * meanwhile blocks on the lock and then sees the new identity, never the old one.
+     *
+     * ⚠⚠ **A persist that fails throws, and leaves no identity held** (MED-2, threat model A4
+     * *lifecycle*). The old one stays withdrawn and the new one is never published, so the next
+     * reader takes the first-use path, which persists before it publishes or throws again — a
+     * pairing is refused rather than run under a key a restart would replace, orphaning the
+     * admitted id at the relay (T-K (iii)).
+     */
+    @OptIn(ExperimentalAtomicApi::class)
+    private fun remintDeviceSigningKey() {
+        var forgotten: SyncManager.DeviceKeyIdentity? = null
+        try {
+            identityLock.withLock {
+                forgotten = identity.load()
+                identity.store(null)
+                runCatching { storageDelegate.remove(Keys.DEVICE_SIGNING_KEY) }
+                runCatching { storageDelegate.remove(Keys.DEVICE_ID) }
+                val fresh = mintIdentity()
+                println("forgetThisDevice -> this device is now ${fresh.deviceId.take(12)}…")
+            }
+        } finally {
+            // ⚠ Zeroed once withdrawn, whether or not the new one persisted: every holder of a
+            // copy is gone (shared-realm runtimes are unregistered by `ForgetThisDeviceImplementation`
+            // before this runs; JWTs and tips read [currentDeviceIdentity] per call). A signer still
+            // mid-flight with it fails closed.
+            forgotten?.signingKeyPair?.privateKey?.fill(0)
+        }
     }
 
     override fun discardSupersededRealm() {

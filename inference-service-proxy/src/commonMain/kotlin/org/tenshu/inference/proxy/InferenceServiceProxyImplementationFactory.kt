@@ -103,6 +103,14 @@ fun inferenceServiceProxyImplementationFactory(
         // or which never had a backend, must still be able to SHOW names its peers typed, and
         // refusing the write there would make a synced name un-correctable from that device.
         org.tenshu.inference.NameFaceGroup.ID -> NameFaceGroupImplementation(deviceId)
+        // IN-6 F6c name suggestions — over the SAME template store, which holds the rejections so
+        // they leave by every exit the templates do (`FaceRejections`). No grouping, no rejections.
+        org.tenshu.inference.RejectFaceSuggestion.ID -> faceGrouping?.let {
+            RejectFaceSuggestionImplementation(it.store, deviceId, storeGate)
+        }
+        org.tenshu.inference.FaceSuggestionRejections.ID -> faceGrouping?.let {
+            FaceSuggestionRejectionsImplementation(it.store, deviceId, storeGate)
+        }
         // MQ-5. ⚠ No `embeddings`: choosing which question was asked reads no vectors and no
         // library — the only user content it sees is the sentence itself.
         ClassifyIntent.ID -> ClassifyIntentImplementation(registry, deviceId)

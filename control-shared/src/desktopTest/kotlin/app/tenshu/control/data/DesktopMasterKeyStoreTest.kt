@@ -2,6 +2,9 @@ package app.tenshu.control.data
 
 import java.io.File
 import java.nio.file.Files
+import java.util.Collections
+import java.util.concurrent.CyclicBarrier
+import kotlin.concurrent.thread
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -87,5 +90,44 @@ class DesktopMasterKeyStoreTest {
         // crash — the blob is undecryptable, so the bucket reads as empty (re-pair).
         val rekeyed = DesktopMasterKeyStore(dir, FixedWrappingKeyStore(keyOf(9)))
         assertNull(rekeyed.getSecret("sync_owner_id"))
+    }
+
+    /**
+     * Two stores over ONE directory — what two Gradle test JVMs on one machine (or a Control
+     * and a stray second Control) amount to. Each instance's `@Synchronized` lock is its own, so
+     * the writes interleave freely; with a fixed `secrets.enc.tmp` one writer renamed the other's
+     * temp file away and the loser threw NoSuchFileException out of `persist`.
+     */
+    @Test
+    fun concurrentWritersOnOneDirectory_neverCollideOnTheTempFile() {
+        val key = FixedWrappingKeyStore(keyOf(5))
+        val stores = List(WRITERS) { DesktopMasterKeyStore(dir, key) }
+        val failures = Collections.synchronizedList(mutableListOf<Throwable>())
+        val start = CyclicBarrier(WRITERS)
+
+        stores.mapIndexed { i, store ->
+            thread(name = "mks-writer-$i") {
+                start.await()
+                repeat(WRITES_EACH) { n ->
+                    try {
+                        store.storeSecret("k$i", "v$n")
+                    } catch (t: Throwable) {
+                        failures += t
+                    }
+                }
+            }
+        }.forEach { it.join() }
+
+        assertEquals(emptyList(), failures.map { it.toString() }.distinct(), "concurrent persist() threw")
+        // Every write either landed or was superseded: no temp file is left behind, and the blob
+        // that won is a whole one (it decrypts under the shared key).
+        assertEquals(listOf("secrets.enc"), dir.list()!!.sorted())
+        val winner = DesktopMasterKeyStore(dir, key)
+        assertTrue((0 until WRITERS).any { winner.getSecret("k$it") == "v${WRITES_EACH - 1}" })
+    }
+
+    private companion object {
+        const val WRITERS = 4
+        const val WRITES_EACH = 200
     }
 }

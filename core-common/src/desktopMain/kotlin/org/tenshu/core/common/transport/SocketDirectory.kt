@@ -116,7 +116,13 @@ object SocketDirectory {
 
         val owner = runCatching { Files.getOwner(dir)?.name }.getOrNull()
         val self = System.getProperty("user.name")
-        if (owner != null && self != null && owner != self) {
+        // ⚠⚠ Root counts as ours. Root can replace anything in any directory whatever its mode, so
+        // a root-owned directory grants nobody a power they lack — and refusing it refused `/tmp`,
+        // which is root-owned on every Linux box (and on macOS, `/private/tmp`). The sticky
+        // carve-out below was written for exactly that directory and never ran: on a Linux CI
+        // runner every Unix-socket test failed with "/tmp is owned by 'root', not 'runner'",
+        // while macOS, whose `$TMPDIR` the user owns, passed. The mode checks below still apply.
+        if (owner != null && self != null && owner != self && !isOwnedByRoot(dir)) {
             return Verdict.Squattable("$dir is owned by '$owner', not '$self'")
         }
 
@@ -162,6 +168,10 @@ object SocketDirectory {
     private fun isSticky(dir: Path): Boolean =
         runCatching { (Files.getAttribute(dir, "unix:mode") as Int) and 0b1_000_000_000 != 0 }
             .getOrDefault(false)
+
+    /** uid 0, read through the `unix:` view — by number, since root's *name* is not portable. */
+    private fun isOwnedByRoot(dir: Path): Boolean =
+        runCatching { Files.getAttribute(dir, "unix:uid") as Int == 0 }.getOrDefault(false)
 
     private fun supportsPosix(dir: Path): Boolean =
         runCatching {

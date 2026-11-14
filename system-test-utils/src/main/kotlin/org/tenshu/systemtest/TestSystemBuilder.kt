@@ -33,6 +33,19 @@ class TestSystemBuilder {
 
     private var durable: DurableContentPlane? = null
 
+    private var stepped = false
+
+    /**
+     * Build every [TestClient] of this system in **stepped** mode: no device's `SyncScheduler` or
+     * `ScheduleDrainLoop` loop ever starts, and a device ticks only when the test says so —
+     * [TestSystem.sync], [TestSystem.syncUntil], [TestSystem.syncUntilQuiet]. See [TestSystem]'s
+     * KDoc and `docs/testing.md` §12 for when to reach for it and when not.
+     */
+    fun stepped(): TestSystemBuilder {
+        stepped = true
+        return this
+    }
+
     /**
      * CR-2 B5r: run the relay's content plane on the SQLite + filesystem set production runs, in [dir], with
      * the G2 clock and the sweep on [clock], and the sweep in [sweepMode] with T = [graceMs]. The sweep is
@@ -157,6 +170,8 @@ class TestSystemBuilder {
             contentBlobs = contentBlobStore,
             contentFreeing = contentFreedStore,
             contentSweep = contentSweep,
+            stepped = stepped,
+            syncClock = if (stepped) TestSyncClock(startMs = System.currentTimeMillis()) else null,
             onShutdown = { database?.close() },
         )
     }

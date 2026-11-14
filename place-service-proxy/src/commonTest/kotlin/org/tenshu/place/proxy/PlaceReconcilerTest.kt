@@ -1,5 +1,8 @@
 package org.tenshu.place.proxy
 
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.tenshu.core.TString
 import org.tenshu.core.common.impl.UnixInstantDto
@@ -14,6 +17,7 @@ import org.tenshu.core.place.PlaceService
 import org.tenshu.place.test.createPlaceProxy
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -33,9 +37,11 @@ class PlaceReconcilerTest {
         val ctx = proxy.executionContext
 
         ctx.saveData(place(proxy, officeA, lngE7 = 209_030_000))
+        settle()
         assertTrue(merges(proxy).isEmpty(), "one place alone merges nothing")
 
         ctx.saveData(place(proxy, officeB, lngE7 = 209_040_000))
+        settle()
 
         assertEquals(mapOf(officeB to officeA), merges(proxy))
     }
@@ -50,6 +56,7 @@ class PlaceReconcilerTest {
         ctx.saveData(
             place(proxy, officeB, lngE7 = 209_040_000, label = "Office", labelSource = LabelSource.USER),
         )
+        settle()
 
         assertEquals(mapOf(officeB to officeA), merges(proxy))
         val root = places(proxy).getValue(officeA)
@@ -66,10 +73,12 @@ class PlaceReconcilerTest {
 
         ctx.saveData(place(proxy, officeA, lngE7 = 209_030_000))
         ctx.saveData(place(proxy, officeB, lngE7 = 209_040_000))
+        settle()
         val after = merges(proxy)
 
         ctx.saveData(place(proxy, officeB, lngE7 = 209_040_000))
         ctx.saveData(place(proxy, officeA, lngE7 = 209_030_000))
+        settle()
 
         assertEquals(after, merges(proxy))
     }
@@ -80,6 +89,7 @@ class PlaceReconcilerTest {
         val ctx = proxy.executionContext
         ctx.saveData(place(proxy, officeA, lngE7 = 209_030_000))
         ctx.saveData(place(proxy, "cap:491450000,218500000", latE7 = 491_450_000, lngE7 = 218_500_000))
+        settle()
         assertTrue(merges(proxy).isEmpty())
     }
 
@@ -91,6 +101,7 @@ class PlaceReconcilerTest {
         ctx.saveData(
             place(proxy, "cap:2", lngE7 = 209_030_400, label = "Bookshop", labelSource = LabelSource.USER),
         )
+        settle()
         assertTrue(merges(proxy).isEmpty())
     }
 
@@ -107,6 +118,7 @@ class PlaceReconcilerTest {
             place(proxy, officeB, lngE7 = 209_040_000),
             WriteOrigin.SYNC_INGEST,
         )
+        settle()
 
         assertEquals(mapOf(officeB to officeA), merges(proxy))
     }
@@ -142,6 +154,7 @@ class PlaceReconcilerTest {
         val ctx = proxy.executionContext
         ctx.saveData(place(proxy, officeA, lngE7 = 209_030_000))
         ctx.saveData(place(proxy, officeB, lngE7 = 209_040_000))
+        settle()
         val reconciler = PlaceReconciler(ctx, { 42L })
 
         reconciler.reconcileAll()
@@ -165,6 +178,7 @@ class PlaceReconcilerTest {
 
         ctx.saveData(place(proxy, officeA, lngE7 = 209_030_000, label = "Corner café"))
         ctx.saveData(place(proxy, officeB, lngE7 = 209_040_000, label = "Bookshop"))
+        settle()
 
         assertTrue(merges(proxy).isEmpty())
     }
@@ -180,6 +194,7 @@ class PlaceReconcilerTest {
 
         ctx.saveData(place(proxy, officeA, lngE7 = 209_030_000, label = "Town hall"))
         ctx.saveData(place(proxy, officeB, lngE7 = 209_040_000, label = "Ice cream shop"))
+        settle()
 
         assertEquals(mapOf(officeB to officeA), merges(proxy))
     }
@@ -197,11 +212,90 @@ class PlaceReconcilerTest {
 
         ctx.saveData(place(proxy, officeA, lngE7 = 209_030_000, label = "Office"))
         ctx.saveData(place(proxy, officeB, lngE7 = 209_040_000, label = "Office"))
+        settle()
 
         assertEquals(mapOf(officeB to officeA), merges(proxy))
     }
 
+    // ── never inside the writer's transaction ──────────────────────────────────
+
+    @Test
+    fun aSyncedPlaceIsNotReconciledInsideTheIngestTransaction() = runTest {
+        // ⚠⚠ THE REGRESSION THIS GUARDS (`core-ordered-window-fusion.md` §6.1). `SyncProcessor`
+        // saves a peer's block inside `database.transaction { }`, and every save observer runs inside
+        // it. The ambiguous-pair arbiter reads MOMENTS (`VisitTimeCorroboration`); on the iOS replica
+        // that read held one `BEGIN IMMEDIATE` past `HOLD_MAX` and fenced the store COMMIT_FAILED.
+        // The arbiter is the reconciler's only MOMENTS read, so "never consulted inside the
+        // transaction" is "no MOMENTS read inside the transaction".
+        val proxy = createPlaceProxy(this)
+        val ctx = proxy.executionContext
+        var inIngestTransaction = false
+        var consultedInside = 0
+        var consultedOutside = 0
+        ctx.observerRegistry.clear()
+        ctx.installRelationMaintainer()
+        ctx.addDataObserver(
+            PlaceReconciler(ctx, { 42L }, PlaceCorroboration { _, _ ->
+                if (inIngestTransaction) consultedInside++ else consultedOutside++
+                true
+            }),
+        )
+
+        // An ambiguous pair: adjacent cells, both machine-named, the names disagreeing.
+        ctx.saveData(place(proxy, officeA, lngE7 = 209_030_000, label = "Town hall"))
+        settle()
+        consultedOutside = 0
+
+        // What `SyncProcessor.resolveConflictAndSave` does when a peer's block lands.
+        ctx.database.transaction {
+            inIngestTransaction = true
+            try {
+                ctx.saveData(
+                    place(proxy, officeB, lngE7 = 209_040_000, label = "Ice cream shop"),
+                    origin = WriteOrigin.SYNC_INGEST,
+                )
+            } finally {
+                inIngestTransaction = false
+            }
+        }
+        assertEquals(0, consultedInside, "the arbiter (a MOMENTS read) ran inside the ingest transaction")
+        assertTrue(merges(proxy).isEmpty(), "nothing is decided on the save path any more")
+
+        settle()
+
+        assertTrue(consultedOutside > 0, "the pair must still reach the arbiter, after the commit")
+        assertEquals(mapOf(officeB to officeA), merges(proxy), "and reconciliation must still run")
+    }
+
+    @Test
+    fun aBurstOfPlaceSavesIsReconciledOnlyAfterTheBurst() = runTest {
+        // A sync page of places reads PLACES/MERGES once per flush, not once per row.
+        val proxy = createPlaceProxy(this)
+        val ctx = proxy.executionContext
+        ctx.observerRegistry.clear()
+        ctx.installRelationMaintainer()
+        val reconciler = PlaceReconciler(ctx, { 42L })
+        ctx.addDataObserver(reconciler)
+
+        repeat(5) { i -> ctx.saveData(place(proxy, "cap:far:$i", latE7 = 400_000_000L + i * 10_000_000L)) }
+        ctx.saveData(place(proxy, officeA, lngE7 = 209_030_000))
+        ctx.saveData(place(proxy, officeB, lngE7 = 209_040_000))
+        assertTrue(merges(proxy).isEmpty())
+
+        settle()
+        assertEquals(mapOf(officeB to officeA), merges(proxy))
+        // Nothing left over: a further flush finds no anchors and writes nothing.
+        reconciler.reconcilePending()
+        assertFalse(merges(proxy).size > 1)
+    }
+
     // ── helpers ────────────────────────────────────────────────────────────────
+
+    /** Let the coalesced flush run — virtual time, so this is instant. */
+    private fun TestScope.settle() {
+        advanceTimeBy(PlaceReconciler.COALESCE_MS + 1)
+        runCurrent()
+    }
 
     private fun place(
         proxy: org.tenshu.core.common.TestProxy,

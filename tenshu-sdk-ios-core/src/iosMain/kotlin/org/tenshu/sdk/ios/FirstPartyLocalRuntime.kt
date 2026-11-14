@@ -2,6 +2,10 @@
 
 package org.tenshu.sdk.ios
 
+import org.tenshu.sync.proxy.SyncHealthHolder
+import org.tenshu.sync.proxy.connectivity
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import app.tenshu.control.di.buildPlatformProxyModule
 import app.tenshu.control.di.ProxyGraphJob
 import app.tenshu.control.di.buildProxyModule
@@ -450,7 +454,14 @@ class FirstPartyLocalRuntime(private val config: Config) {
         // client, and "each app remembers to wire it" is precisely the shape that leaves an app's
         // services unregistered. Install-only — no service init, no Koin lookups
         // beyond the client already resolved above, so it cannot fail on the startup path.
-        RealmStorageSurface.install(client)
+        // SS-1b: the strip's health is THIS runtime's, read in-process from its own holder — the
+        // store's single health row is shared by every app on the replica (`RealmStorageSurface`).
+        RealmStorageSurface.install(
+            client,
+            ownConnectivity = koin.getOrNull<SyncHealthHolder>()?.observe()
+                ?.map { it.connectivity() }
+                ?.distinctUntilChanged(),
+        )
         // The sync-activity capsule (`ios-sync-activity-indicator.md` §3), at the same seam and for
         // the same reason. ⚠ The id is the one `hostAppId` above hands the scheduler: the surface
         // reads the row THIS runtime writes, and a second spelling of it would read nobody's.

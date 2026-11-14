@@ -7,6 +7,7 @@ import java.nio.file.Files
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -26,6 +27,59 @@ class TrayLivenessTest {
     }
 
     private fun secondsAgo(seconds: Long) = now - seconds * 1000
+
+    // ── trayPgrepPattern: only the tray itself, never a process that mentions its path ──
+
+    private val trayPath = "/Applications/TenshuControl.app/Contents/Helpers/tray-agent"
+
+    private fun matches(commandLine: String) =
+        Regex(TrayLiveness.trayPgrepPattern(trayPath)).containsMatchIn(commandLine)
+
+    @Test
+    fun pgrepPatternMatchesTheTrayItself() {
+        assertTrue(matches(trayPath))
+    }
+
+    @Test
+    fun pgrepPatternIgnoresProcessesThatMentionThePath() {
+        assertFalse(matches("/bin/zsh -c pgrep -f $trayPath"))
+        assertFalse(matches("codesign -dv $trayPath"))
+        assertFalse(matches("$trayPath --debug"))
+    }
+
+    @Test
+    fun pgrepPatternEscapesTheDots() {
+        assertFalse(matches("/Applications/TenshuControlXapp/Contents/Helpers/tray-agent"))
+    }
+
+    // ── isHealthy: may a deferring Control leave the tray alone? ─────────────────────
+
+    @Test
+    fun freshVisibleHeartbeatIsHealthy() {
+        assertTrue(TrayLiveness.isHealthy(Heartbeat(secondsAgo(5), visible = true), now))
+    }
+
+    @Test
+    fun missingHeartbeatIsNotHealthy() {
+        assertFalse(TrayLiveness.isHealthy(null, now))
+    }
+
+    @Test
+    fun staleHeartbeatIsNotHealthy() {
+        // A tray that exited leaves its last line behind; that is the case being revived.
+        val stale = Heartbeat(secondsAgo(TrayLiveness.STALE_AFTER_SECONDS + 1), visible = true)
+        assertFalse(TrayLiveness.isHealthy(stale, now))
+    }
+
+    @Test
+    fun hiddenHeartbeatIsNotHealthy() {
+        assertFalse(TrayLiveness.isHealthy(Heartbeat(secondsAgo(1), visible = false), now))
+    }
+
+    @Test
+    fun futureHeartbeatIsHealthy() {
+        assertTrue(TrayLiveness.isHealthy(Heartbeat(now + 60_000, visible = true), now))
+    }
 
     // ── The table ────────────────────────────────────────────────────────────────────
 

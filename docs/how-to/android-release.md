@@ -226,6 +226,12 @@ its app signing choice — "Let Google generate" for every app (above) — is ma
 the Console's first-release flow. Upload the first bundle there by hand; every later one can use
 `--upload`.
 
+⚠ While an app has other changes in review, Play refuses the commit with HTTP 400 *"Changes cannot be
+sent for review automatically"* — even after those changes were sent for review (Fit, 2026-11-11).
+`play_publish.py upload --changes-not-sent-for-review …` commits the release anyway; it then waits in
+the Console until you send it for review there. `android-release.sh --upload` does not pass it, so a
+refused app stops the run: upload that app and the ones after it by hand.
+
 ⚠ An app Play still treats as a draft (never released on any track) accepts only `status: draft`;
 `play_publish.py upload --status draft` is for that case. Not fastlane `supply` (which the iOS listings
 use, `store-listings.md`): uploading is four API calls, and the Android release path then needs no
@@ -244,6 +250,32 @@ is not minified, so neither the smoke gate nor an emulator launch reaches it.
 `scripts/lib/check_jni_classes.py` now refuses such a bundle: it reads every class name out of the
 `.so` files and looks it up in the dex. A new or bumped native dependency that trips it needs a
 `-keep` in the rules file.
+
+⚠⚠ **R8 cannot see code that counts stack frames either.** MediaPipe logs through Flogger, whose
+`StackBasedCallerFinder` names a logger by skipping a fixed number of frames. R8 inlined it into
+`FluentLogger.forEnclosingClass`, the count landed on the wrong frame, and MediaPipe's `Graph`
+failed its static initialiser — face detection never ran in Control 1.0.2 from Play (2026-11-11,
+`IllegalStateException: no caller found on the stack for: …FluentLogger`), while search, which is
+ONNX only, worked. `-keep class com.google.common.flogger.**` fixed it. Two guards:
+
+- `scripts/lib/check_stack_frames.py` (run by `android-release.sh` on every bundle and APK) refuses a
+  dex in which a listed frame-counting method no longer exists as a method. It is structural: it
+  catches only the methods in its table, so a new stack-walking library needs an entry.
+- `ReleaseStackWalkerInstrumentedTest` runs MediaPipe inside the R8-processed Control on an emulator:
+
+  ```bash
+  ANDROID_SERIAL=emulator-5600 ./gradlew :control:connectedReleaseAndroidTest \
+    -Ptenshu.control.testBuildType=release \
+    -Pandroid.testInstrumentationRunnerArguments.class=app.tenshu.control.android.release.ReleaseStackWalkerInstrumentedTest
+  ```
+
+  Its detector half runs only when `face_landmarker.task` and `scripts/inference/face-probe-photo.jpg`
+  are pushed to `/sdcard/Android/data/app.tenshu.control.android/files/`; otherwise it prints why it
+  skipped. Under that property `control/release-test-rules.pro` joins Control's release R8 run (the
+  test APK uses the app's copy of `kotlin` and `androidx.tracing`, so those must survive); a shipped
+  release never carries it (`android-release.sh` refuses to run with the property set). ⚠ So the
+  test's R8 output keeps `kotlin.**` where the shipped one does not: fine for Flogger, but it can hide
+  a missing Kotlin keep. ⚠ Not in any gate: nothing runs it unless a release does.
 
 **Native debug symbols** go into the bundle for Play's crash reports
 (`debugSymbolLevel = "SYMBOL_TABLE"`). That needs the NDK pinned as `ndkVersion` in the root

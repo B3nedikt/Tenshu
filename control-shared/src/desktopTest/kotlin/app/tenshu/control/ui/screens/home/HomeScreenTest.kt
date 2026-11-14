@@ -90,7 +90,6 @@ class HomeScreenTest {
             }
         }
 
-        stopKoin()
         startKoin {
             modules(module {
                 single<EventRepository> { mockEventRepository }

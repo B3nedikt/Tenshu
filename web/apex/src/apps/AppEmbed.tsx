@@ -1,3 +1,5 @@
+import type { Ref } from 'react'
+
 // Hosts a first-party app that lives on its own origin (`drive.tenshu.app`, `contacts.tenshu.app`,
 // or each app's Vite dev server locally) inside the apex control-plane chrome, via an iframe.
 //
@@ -18,8 +20,12 @@
 // See docs/adr/0020-web-app-structure.md for the per-app structure convention.
 
 export interface AppEmbedProps {
-  // The app's exact origin — the iframe `src`.
+  // The app's exact origin.
   readonly origin: string
+  // Where in the app the frame opens: an in-app path + fragment (`/files#/Taxes`). Default `''`, the
+  // app's root. Read once — later moves travel as messages, never as a new `src` (which would reload).
+  readonly entry?: string
+  readonly frameRef?: Ref<HTMLIFrameElement>
   // The iframe's accessible title.
   readonly title: string
   // Permissions-Policy for the frame. Default: what a first-party app legitimately needs from
@@ -29,17 +35,16 @@ export interface AppEmbedProps {
 
 export const FIRST_PARTY_ALLOW = 'clipboard-read; clipboard-write; publickey-credentials-get *'
 
-export function AppEmbed({ origin, title, allow = FIRST_PARTY_ALLOW }: AppEmbedProps) {
+export function AppEmbed({ origin, entry = '', frameRef, title, allow = FIRST_PARTY_ALLOW }: AppEmbedProps) {
   return (
-    // Break out of the shell's content padding so the app fills the area below
-    // the 3.5rem header edge-to-edge, the way a hosted app should feel.
-    <div className="-mx-6 -my-8 md:-mb-8">
-      <iframe
-        title={title}
-        src={origin}
-        allow={allow}
-        className="block h-[calc(100vh-3.5rem)] w-full border-0 bg-surface"
-      />
-    </div>
+    // The app shell (`shell/AppShell.tsx`) gives its content no padding, so the frame fills the area
+    // below the 3.5rem header edge-to-edge, the way a hosted app should feel.
+    <iframe
+      ref={frameRef}
+      title={title}
+      src={origin + entry}
+      allow={allow}
+      className="block h-[calc(100vh-3.5rem)] w-full border-0 bg-surface"
+    />
   )
 }

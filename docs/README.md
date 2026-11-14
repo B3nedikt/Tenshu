@@ -5,7 +5,7 @@ for something specific, scan the section that matches what you want.
 
 ⚠ **Complete for the small, stable sets; a curated subset for proposals.** *Read first*,
 *Architecture*, *ADRs*, *Conventions & how-to* and the folder map below list everything they
-cover. The **Proposals** section does not: it summarises **59 of the 167** docs in
+cover. The **Proposals** section does not: it summarises **60 of the 167** docs in
 `proposals/`, and the summaries are written by hand, so they lag the docs they describe. When
 you need the state of a track, the doc's own `Status:` header is the source of truth, and
 `ls docs/proposals/` is the complete list. AGENTS.md's two tables route to the ~40 tracks that
@@ -49,6 +49,8 @@ Always-relevant guidance for writing platform-shaped code.
   builders, field-helper conventions, when to use `Type` vs `DataSchema`.
 - [`testing.md`](testing.md) — testing tiers (unit / proxy / integration), the
   `TestProxy` fixture, conventions per module.
+- [`testing-flakes.md`](testing-flakes.md) — every known flaky test sorted by cause, and the
+  harness change that removes each cause (the Koin and wall-clock checks, observed-generation paging).
 - [`models.md`](models.md) — the models Tenshu ships, and the review surface for adding one.
   ⚖️ The model table is deliberately empty until model choice and licence/corpus provenance
   are settled.
@@ -113,6 +115,7 @@ Always-relevant guidance for writing platform-shaped code.
 - [`how-to/commerce-dry-run.md`](how-to/commerce-dry-run.md) — walk the whole commerce flow once, locally.
 - [`how-to/reset-and-commerce-test.md`](how-to/reset-and-commerce-test.md) — the production-reset runbook: wipe every plane and every client in order, then verify (+ the commerce/enforcement test).
 - [`how-to/pio7-phone-session.md`](how-to/pio7-phone-session.md) — PIO-7's one iPhone session before `TENSHU_PHOTOS_ON_DEVICE_AI` flips: IN-3m-iOS, then every phone-only item of `ios-on-device-inference.md` §14, destructive steps last.
+- [`how-to/photos-processing-wake.md`](how-to/photos-processing-wake.md) — PIO-7 PR-6's overnight index wake on the iPhone: the debugger's forced launch and expiry, then three real nights read from the wake's own journal (`ios-on-device-inference.md` §16).
 
 ### Doc gates
 
@@ -417,11 +420,11 @@ hard to find by filename, or when the doc supersedes something a reader would ot
   gate (§5): it has no target on desktop and would aim at the wrong app on Android.
   SK-1 (surface the announce verdict) stands alone.
 - [`proposals/core-deterministic-invalidation.md`](proposals/core-deterministic-invalidation.md) —
-  v0.4 — design, no code; re-verified against master 2026-09-23, corrected under review over two
-  passes 2026-09-24 (originally drafted 2026-08-05). Reactive reload signals are collapsed by a tuned
+  v0.5 — §8's store-equality predicate (P0a/P1/P2) is on master since 2026-11-11: a byte-identical
+  re-save no longer re-evaluates relation streams; P0b (on-device) and P3 are open. Reactive reload signals are collapsed by a tuned
   400 ms debounce, where the sync plane collapses the identical fan-out deterministically — by
   lane/task identity and `WriteOrigin`, both of which reach the proxy and are discarded. ⚠⚠ **Read
-  §0.0: the diagnosis stands, every proposed remedy is down, and P0 is the only unblocked phase.**
+  §0.0: the v0.4 remedies (lane boundary, origin filter) are withdrawn; §8 is what shipped.**
   The lane half is contradicted by shipped design (§0.2): `drive-sorted-folder-paging.md` B4
   added a 3 s *ceiling* because a listing must rebuild **during** a long burst. The origin half is
   withdrawn (§0.6): `WriteOrigin.SYNC_INGEST` marks *"do not re-broadcast"*, not *"my own echo"* — it
@@ -592,6 +595,14 @@ hard to find by filename, or when the doc supersedes something a reader would ot
   Web onboarding flow specification: screen-by-screen UX.
 - [`proposals/web-about-tenshu-public.md`](proposals/web-about-tenshu-public.md) —
   Public-narrative content design for `tenshu.app` home route.
+- [`proposals/web-apex-home.md`](proposals/web-apex-home.md) — **Proposal, no code.**
+  Signed-in landing becomes `/overview` (⚠ `/home` is the Home app) (shown apps + per-app preview cards), Control moves behind a
+  gear. ⚠⚠ Removing an app only *hides* it — never uninstall; Drive is always shown, enforced
+  at read. Glances are drawn by the apex but scoped to the app's own allowlist.
+- [`proposals/web-apps-layout.md`](proposals/web-apps-layout.md) — **L1–L5 built.**
+  Every web app: no headline, sidebar layout, sticky details pane, desktop pointer rules, the
+  bottom sheets as menus, real routes. ⚠⚠ User-named data goes in the URL *fragment*, never the
+  path — paths reach the apex and app hosts' logs.
 - [`proposals/web-storage-status.md`](proposals/web-storage-status.md) — **Decided,
   no code.** Wiring `StorageService` into the apex in-process runtime so `StorageStatus`
   is produced on web (consumption is identical to file-service; production needs a storage
@@ -671,6 +682,10 @@ hard to find by filename, or when the doc supersedes something a reader would ot
   GR-1…GR-7 complete. Cross-user join: capability chain, sealed grant mailbox,
   explicit accept, and Kr rotation on removal. Security posture lives in the
   threat model (A26/A27, surface #12, §8.14), not here.
+- [`proposals/shared-realm-read-only-members.md`](proposals/shared-realm-read-only-members.md) —
+  **Proposal, nothing built.** Members are view-only by default and editing is opt-in per
+  member; enforced by the relay (role in the master-signed capability) and by clients (authored,
+  credential-checked blocks). Lifts GR's "no write tiers" v1 non-goal.
 
 - [`proposals/admission-revocation-names-the-capability.md`](proposals/admission-revocation-names-the-capability.md)
   — **v0.3 — decided (F), first slice shipped.** A revocation names a *device at an epoch*, not the
@@ -865,6 +880,11 @@ hard to find by filename, or when the doc supersedes something a reader would ot
   leave the App Group for Photos' private container (PIO-D10), and every other app binds a store that
   never writes. ⚠ Whether an OS update changes the vectors is not known, so the OS build is in the store's
   fingerprint.
+- [`proposals/ios-face-grouping.md`](proposals/ios-face-grouping.md) — **Draft v0.1, design only.**
+  People on iOS (PIO-8, IN-6 F5): Apple Vision for boxes and landmarks, plus Android's AuraFace checkpoint
+  converted to Core ML fp16. ⚠⚠ Templates never sync, so what must transfer is the 0.44 **calibration**,
+  not the vectors — the same checkpoint, re-checked on iOS's pipeline by a Mac-only spike first.
+  ⚠ The catalog runtime must not be bare `coreml`, and the realm stamp's epoch half is a precondition.
 - [`proposals/file-streaming-upload.md`](proposals/file-streaming-upload.md) — **Design, nothing
   built.** Every upload path ends in one `ByteArray` in the proxy's heap, so a file above 2 GiB cannot
   be uploaded and a large video costs its size in memory; the emit and the download already stream.
@@ -878,6 +898,12 @@ hard to find by filename, or when the doc supersedes something a reader would ot
   the next file starts, and the scheduled index pass barely runs. Proposes one bounded decode, a
   device-local derive queue for on-upload indexing (pets slot in there), one media CPU budget;
   phases split ☁/📱/🖥.
+- [`proposals/photos-editing.md`](proposals/photos-editing.md) — **v0.1 — design skeleton, no
+  code.** Editing one photograph: Transform, Adjust, Filter. ⚠⚠ An in-place save re-mints
+  `contentId`: it clears the favourite and leaves album entries listed but un-removable — so
+  *Save as copy* first, a baked non-destructive `PhotoEdit` second (ED-D1/D2). §5: what Core
+  Image / Vision / AVFoundation give iOS for free. §1: Google's editor measured on the phone (8 tabs; Crop/Adjust/Filters/Markup
+  are mostly pixel math; only *Save as copy* offered).
 - [`proposals/photos-people-and-pets.md`](proposals/photos-people-and-pets.md) — **v0.1 — design,
   no code.** IN-6: a People section in Photos, opt-in face clustering over the user's own library.
   ⚠⚠ The central move is IN-D5's and it is counter-intuitive — people are named **per photo, never
@@ -886,6 +912,12 @@ hard to find by filename, or when the doc supersedes something a reader would ot
   data (§8 drafts it); ⚖️ carries the counsel sign-off `camera-service.md` CD-D7 and IN-D3 both name.
   ⚠ The clustering threshold is this slice's uncalibrated vocabulary (§4) — measured, never a
   literature default. Pets are a later phase with their own model.
+- [`proposals/photos-pets.md`](proposals/photos-pets.md) — **v0.1 — design, no code.** People's P1:
+  name your cat or dog like a person — a per-photo `MediaLabel`, device-local templates, suggest
+  never auto-assign — under its own `PET_RECOGNITION` consent (not Article 9). ⚠⚠ Ships a Things
+  **allowlist** first, or every released build shows a pet's name as a *Thing*. Vision detects on
+  Apple, an Apache-2.0 detector elsewhere (also People's non-human-face veto); ⚖️ COCO's NC images and
+  the re-ID embedder's data are both owed a call.
 - [`proposals/photos-app.md`](proposals/photos-app.md) — **v1.4 — decisions SETTLED 2026-08-21;
   every phase BUILT — PH-1…PH-7, S2 and the shared index (§9–§20).** Screens (three tabs + viewer, place detail, trash) and the gap
   list for `milestones.md` §Photos. ⭐ The headline is that the milestone entry is stale in the
@@ -968,6 +1000,13 @@ hard to find by filename, or when the doc supersedes something a reader would ot
   generation / backfill apparatus and the non-idempotent-aggregate drift class with it.
   ⚠ Corrects a wrong steer: this is **not** an `:inference-service` concern (that seam is
   content-ref shaped), it is a proxy-side `DataObserver`.
+
+- [`proposals/suite-sync-status.md`](proposals/suite-sync-status.md) — **v0.1 — design, no code.**
+  Every app says when sync is broken, and when data is still arriving. Moves Drive's sync-health
+  states (locked, device not recognised, offline) into one shared strip for all apps (SS-1), brings
+  the iOS pull indicator to Compose (SS-2), wakes Photos' waiting tiles on recovery (SS-3).
+  ⚠⚠ "This app's data is still arriving" is knowable only for **content bytes, locally** — the relay
+  cannot tell one app's blocks from another's (HR #1, T-R-08), so never design toward asking it.
 
 - [`proposals/ios-sync-activity-indicator.md`](proposals/ios-sync-activity-indicator.md) —
   **P1 built (2026-10-06), P2–P4 outlines.** One small shared "Syncing…" / "Uploading N of M" capsule for
@@ -1250,6 +1289,7 @@ docs/
   whitepaper.adoc                 # foundational architecture
   schema-dsl.md                   # DSL conventions
   testing.md                      # testing conventions
+  testing-flakes.md               # every known flake by cause, and the harness fix per cause
 
   sync/                           # sync architecture & spec (timeless)
     threat-model.md, design.md, pairing-flow.md, roadmap.md

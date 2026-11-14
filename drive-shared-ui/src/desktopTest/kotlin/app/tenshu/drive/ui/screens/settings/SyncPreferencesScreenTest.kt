@@ -30,7 +30,6 @@ class SyncPreferencesScreenTest {
 
     @Before
     fun setup() {
-        stopKoin()
         startKoin {
             modules(module {
                 viewModel { SyncPreferencesViewModel(fakeOfflinePreferences, NoopSyncRulesPreferences) }

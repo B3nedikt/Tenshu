@@ -201,6 +201,35 @@ wedged proxy costs the user *visibility of* Control rather than Control itself.
 ⚠ This also changes what a missing icon means, which is the point: after this change, no tray
 at login is a tray problem, because nothing else can delay it.
 
+### 4.6 A tray that dies after start-up — Quit, reopen, relaunch (2026-11-08)
+
+§4.2 runs once, at start-up. A tray that dies *later* left a Control that was running, hidden,
+holding the instance lock, with nothing on screen — and every attempt to open it went nowhere.
+Reported as "after quitting Control once I cannot start it again". Three defects, all fixed:
+
+1. **The tray's Quit lost its own message.** It sent `quitApp` on a background queue and called
+   `NSApp.terminate` at once; the tray usually exited first. Quit now waits (bounded, 2 s) for the
+   bridge call before terminating.
+2. ⚠⚠ **Opening a running app starts no second process.** Finder, Spotlight and `open -a` send
+   the running Control a *reopen* event, so the instance guard never sees them, and AWT ignores
+   the event by default. Control now handles it: show the window and re-run `ensureTrayRunning`.
+   A launch that *does* start a process (another install channel, `open -n`) defers and sends
+   `openControlWindow`, which revives the tray in the same way. ⚠⚠ **Only the lock holder
+   ever spawns a tray**: a deferring copy that spawned its own raced the holder's tray when two
+   channels started together (the first heartbeat lands ~2 s after spawn). Revival is also
+   gated on the shared heartbeat (`TrayLiveness.isHealthy`), since another channel's tray is
+   invisible to the path-based `pgrep`, and serialized within the process.
+3. ⚠⚠ **The shutdown after `application { }` never ran.** Compose's default
+   `exitProcessOnExit = true` calls `exitProcess(0)` the moment the block returns, so
+   `shutdownAndJoin`, socket removal and the lock release were dead code; Cmd+Q / Dock Quit /
+   logout went through AWT's default quit handler (`System.exit`) and skipped them too. Now
+   `exitProcessOnExit = false`, a quit handler routes macOS quits through `requestQuit` and
+   answers `performQuit()` after the shutdown, and the shutdown is bounded (10 s) — an unbounded
+   join that hangs would recreate the hidden-Control-holding-the-lock state.
+
+⚠ The tray spawn discards stdout/stderr: nobody reads the default pipes, and a tray that
+outlives its parent would die of SIGPIPE on its next `NSLog`.
+
 ## 5. Phases
 
 - **TL-1** — Swift: heartbeat writer + visibility probe (§4.1).

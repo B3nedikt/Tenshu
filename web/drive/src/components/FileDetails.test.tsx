@@ -80,16 +80,17 @@ describe('FileDetails', () => {
     details.mockResolvedValueOnce({ ok: true, row: null })
     activity.mockResolvedValueOnce([])
     const onClose = renderPanel('/x')
-    await userEvent.click(screen.getByRole('button', { name: 'Close' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Close details' }))
     expect(onClose).toHaveBeenCalledOnce()
   })
 
-  it('closes on Escape', async () => {
+  // The pane is sticky (D2): Escape belongs to the list (clear the selection), not to the pane.
+  it('does not close on Escape', async () => {
     details.mockResolvedValueOnce({ ok: true, row: null })
     activity.mockResolvedValueOnce([])
     const onClose = renderPanel('/x')
     await userEvent.keyboard('{Escape}')
-    expect(onClose).toHaveBeenCalledOnce()
+    expect(onClose).not.toHaveBeenCalled()
   })
 
   // ⚠⚠ The two failures a download can have are different problems with different remedies, and

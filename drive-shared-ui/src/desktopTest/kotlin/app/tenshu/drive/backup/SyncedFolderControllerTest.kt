@@ -56,6 +56,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import app.tenshu.ingest.IngestSettings
+import app.tenshu.ingest.RealmContentReads
 import app.tenshu.ingest.backup.TenshuDuplicateContentGate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -87,6 +88,7 @@ import org.tenshu.core.equalTo
 import org.tenshu.core.file.ContentHash
 import org.tenshu.core.file.File
 import org.tenshu.core.file.files
+import org.tenshu.core.file.notTrashed
 import org.tenshu.core.file.path
 import org.tenshu.core.file.system.createFolder
 import org.tenshu.core.file.system.uploadFile
@@ -313,6 +315,67 @@ class SyncedFolderControllerTest {
         // ⚠ And the cursor advanced past the skipped one — otherwise the bucket re-offers it
         // every drain forever, hashing it again each time.
         assertEquals("2", prefs.cursors["drive.gallery/cam"])
+    }
+
+    @Test
+    fun aRunWhoseEveryFileIsAlreadyInTheRealm_saysSo_andCreatesNoEmptyFolder() = vmTest { vms ->
+        // ⚠⚠ The emulator report (2026-11-08): every photo in a newly ticked folder was a copy of
+        // one the realm already held. The skip was right, but the run summarised as "Backed up 0
+        // files" and the destination folder was created empty — which reads as backup broken.
+        val prefs = FakePrefs(enabled = true, buckets = listOf("cam"))
+        val media = FakeMediaSource(
+            buckets = listOf(camBucket),
+            itemsByBucket = mapOf("cam" to listOf(item("a.jpg", 1), item("b.jpg", 2))),
+        )
+        val files = FakeFilesRepository(storageStatusResult = StorageStatusModel(true, 0, 100))
+        files.contentHashes["uri/a.jpg"] = "h-a"
+        files.contentHashes["uri/b.jpg"] = "h-b"
+        val scope = unconfinedScope(vms)
+        val ctrl = controller(
+            scope, prefs, media, files,
+            duplicates = FakeDuplicateGate(setOf("h-a", "h-b")),
+        )
+        val seen = mutableListOf<BackupState>()
+        scope.launch { ctrl.state.collect { seen += it } }
+        ctrl.start()
+        advanceUntilIdle()
+
+        assertTrue(files.backupUploadCalls.isEmpty())
+        assertEquals(
+            listOf(BackupState.JustFinished(uploaded = 0, failed = 0, alreadyInRealm = 2)),
+            seen.filterIsInstance<BackupState.JustFinished>(),
+        )
+        assertTrue(
+            files.ensureBackupDestinationCalls.isEmpty(),
+            "nothing was uploaded, so no /Backup folder may be created: ${files.ensureBackupDestinationCalls}",
+        )
+    }
+
+    @Test
+    fun aRunThatSkipsSomeAndUploadsOthers_countsBoth() = vmTest { vms ->
+        val prefs = FakePrefs(enabled = true, buckets = listOf("cam"))
+        val media = FakeMediaSource(
+            buckets = listOf(camBucket),
+            itemsByBucket = mapOf("cam" to listOf(item("have.jpg", 1), item("new.jpg", 2))),
+        )
+        val files = FakeFilesRepository(storageStatusResult = StorageStatusModel(true, 0, 100))
+        files.contentHashes["uri/have.jpg"] = "h-have"
+        files.contentHashes["uri/new.jpg"] = "h-new"
+        val scope = unconfinedScope(vms)
+        val ctrl = controller(
+            scope, prefs, media, files,
+            duplicates = FakeDuplicateGate(setOf("h-have")),
+        )
+        val seen = mutableListOf<BackupState>()
+        scope.launch { ctrl.state.collect { seen += it } }
+        ctrl.start()
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(BackupState.JustFinished(uploaded = 1, failed = 0, alreadyInRealm = 1)),
+            seen.filterIsInstance<BackupState.JustFinished>(),
+        )
+        assertEquals(listOf("/Backup/dev1/Camera"), files.ensureBackupDestinationCalls)
     }
 
     @Test
@@ -904,6 +967,19 @@ class SyncedFolderControllerTest {
             30L in seen,
             "b.jpg and c.jpg were abandoned, so their 5000 bytes must leave the run's total " +
                 "as well as its count; saw $seen",
+        )
+    }
+
+    @Test
+    fun aggregateState_sumsWhatTheRealmAlreadyHeld_acrossSources() {
+        assertEquals(
+            BackupState.JustFinished(uploaded = 1, failed = 0, alreadyInRealm = 5),
+            aggregateState(
+                listOf(
+                    BackupState.JustFinished(uploaded = 1, failed = 0, alreadyInRealm = 2),
+                    BackupState.JustFinished(uploaded = 0, failed = 0, alreadyInRealm = 3),
+                ),
+            ),
         )
     }
 
@@ -1875,15 +1951,33 @@ class SyncedFolderControllerTest {
                 }
                 .single()
         }.also { replies.clear() }
+
+        /** The bytes of the narrowest whole-realm read that answers "held?": every hash, in ONE reply. */
+        fun wholeRealmHashReplyBytes(): Int = runBlocking {
+            replies.clear()
+            check(
+                client.fileService.defaultFileSystem.root.files.traverse()
+                    .filter<File> { notTrashed() }
+                    .select { relations(File.ContentHash) }
+                    .getAll() is TResult.Success,
+            )
+            replies.largest.also { replies.clear() }
+        }
     }
 
     @Test
     fun theSkipAsksTheRealmInBoundedReplies_andStillSkipsWhatTheRealmHolds() {
-        // ⚠⚠ Every file in the realm, nine properties each, in ONE reply is ~640 bytes a file,
-        // so 2,000 files is ~1.3 MB: past Binder's ~1 MB transaction ceiling, where the read gets
-        // no answer at all (`photos-app.md` §39/§40).
-        val realm = MeasuredRealm(files = 2_000)
-        val held = realm.hashOf("/Camera/IMG_11234.jpg")
+        // ⚠⚠ Every file in the realm, nine properties each, in ONE reply is ~640 bytes a file, so a
+        // realm past ~1,600 files is past Binder's ~1 MB transaction ceiling, where the read gets no
+        // answer at all (`photos-app.md` §39/§40). The realm here is derived from the reply budget:
+        // files enough to put even the narrowest whole-realm read — every hash, no other property —
+        // past it. The precondition below proves that; a bigger realm buys nothing but seeding time.
+        val realm = MeasuredRealm(files = PAST_THE_BUDGET)
+        val held = realm.hashOf("/Camera/IMG_${10_000 + PAST_THE_BUDGET / 2}.jpg")
+        assertTrue(
+            realm.wholeRealmHashReplyBytes() > RealmContentReads.REPLY_BYTE_BUDGET,
+            "precondition: every hash in ONE reply is within the budget — grow the realm",
+        )
         val prefs = FakePrefs(enabled = true, buckets = listOf("cam"))
         val media = FakeMediaSource(
             listOf(camBucket),
@@ -1909,7 +2003,7 @@ class SyncedFolderControllerTest {
         assertEquals("2", prefs.cursors["drive.gallery/cam"])
         assertTrue(realm.replies.count > 0, "the skip never asked the realm")
         assertTrue(
-            realm.replies.largest <= BOUNDED_REPLY_BYTES,
+            realm.replies.largest <= RealmContentReads.REPLY_BYTE_BUDGET,
             "a reply of ${realm.replies.largest} bytes (replies: ${realm.replies.all}) — the skip read the whole realm",
         )
     }
@@ -1969,8 +2063,15 @@ class SyncedFolderControllerTest {
     }
 
     private companion object {
-        /** A quarter of Binder's ~1 MB transaction, the budget `photos-app.md` §39 sized its pages to. */
-        const val BOUNDED_REPLY_BYTES = 256 * 1024
+        /**
+         * A lower bound on a hash-only row on the wire, the narrowest row a whole-realm presence
+         * read could carry: measured at ~200 B (`photos-app.md` §40.4), most of it the entity's type
+         * ids. ⚠ Under the measurement on purpose — the precondition, not this number, is the proof.
+         */
+        const val NARROWEST_ROW_BYTES = 190
+
+        /** Files enough that their hash-only rows, at [NARROWEST_ROW_BYTES] each, overflow one reply. */
+        const val PAST_THE_BUDGET = RealmContentReads.REPLY_BYTE_BUDGET / NARROWEST_ROW_BYTES + 1
     }
 
     /** A gate whose realm read fails while [readable] is false, and holds nothing once it succeeds. */

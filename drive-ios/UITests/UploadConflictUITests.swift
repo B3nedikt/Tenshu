@@ -5,7 +5,8 @@ import XCTest
 /// ⚠ The picker is an out-of-process remote view: its chrome ("Photos", "Cancel") shows up in the
 /// host app's element tree, but the **photo grid does not** — `app.cells` returns the Files list
 /// underneath it. So the photo is selected by a **coordinate tap**, the standard escape hatch for
-/// un-queryable remote views. That pins these tests to one simulator geometry (iPhone 16), which
+/// un-queryable remote views, made relative to the grid's container frame so it is not tied to one
+/// screen size (the whole-screen offset it falls back to was tuned on an iPhone 16), which
 /// is why they live in their own suite: it can be skipped without taking the sharing-cluster
 /// coverage with it.
 ///
@@ -133,11 +134,27 @@ final class UploadConflictUITests: XCTestCase {
             "the photo picker did not present"
         )
 
-        // First cell of the 3-wide grid, below the "Private Access to Photos" banner.
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.16, dy: 0.34)).tap()
+        // First cell of the 3-wide grid. The cells are invisible to the test, but their container
+        // is not: tapping relative to ITS frame survives a different banner height or screen
+        // size, where a whole-screen offset missed the grid. The screen offset stays as fallback.
+        let grid = app.otherElements["PXZoomablePhotosLayout-Group"]
+        if grid.waitForExistence(timeout: 5) {
+            let cell = grid.frame.width / 3
+            grid.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: cell / 2, dy: cell / 2))
+                .tap()
+        } else {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.16, dy: 0.34)).tap()
+        }
 
-        // Selecting dismisses the picker (maxSelectionCount: 1); wait for it to go before
-        // driving the app again, or the next tap lands on the picker's chrome.
+        // The picker is multi-select, so a tap only marks the photo; its "Add" confirms. Then wait
+        // for the picker to go before driving the app again, or the next tap lands on its chrome.
+        // ⚠ Scoped to the picker's bar: Drive's own + button (`add-file`) is LABELLED "Add" and
+        // sits under the picker. The picker's button has the IDENTIFIER `Add`; its label varies
+        // by iOS version ("Done" on iOS 27), so the label is no anchor either.
+        let confirm = app.navigationBars["Photos"].buttons["Add"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 10), "the picker's Add button is missing")
+        confirm.tap()
         XCTAssertTrue(
             app.buttons["Photos"].waitForNonExistence(timeout: 10),
             "the picker did not dismiss after selecting a photo"

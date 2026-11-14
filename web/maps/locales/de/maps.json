@@ -1,8 +1,4 @@
 {
-  "app": {
-    "title": "Maps",
-    "tagline": "Deine Orte, Ende-zu-Ende-verschlüsselt."
-  },
   "runtime": {
     "connectingTitle": "Verbindung zu Tenshu wird noch hergestellt…",
     "connectingBody": "Der Tenshu-Tab, in dem Maps läuft, ist beschäftigt. Maps lädt, sobald er antwortet.",

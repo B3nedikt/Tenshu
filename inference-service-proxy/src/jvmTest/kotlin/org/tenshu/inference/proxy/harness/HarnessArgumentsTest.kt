@@ -64,9 +64,13 @@ class HarnessArgumentsTest {
 
     @Test
     fun suppliedPhotosThatIsUnreadableFails() {
+        // ⚠ Through the seam, not `setReadable(false)`: root reads a chmod-000 directory, so that
+        // fixture made this test red in every root container (`docs/testing-flakes.md`, category F).
         val dir = corpus("previews", "p.jpg")
-        check(dir.setReadable(false)) { "cannot make the fixture unreadable" }
-        assertFailsWith<IllegalStateException> { HarnessArguments.photos(root, "previews") }
+        val failure = assertFailsWith<IllegalStateException> {
+            HarnessArguments.photos(root, "previews", readable = { it != dir })
+        }
+        assertTrue("unreadable" in failure.message!!, failure.message)
     }
 
     @Test
@@ -106,8 +110,12 @@ class HarnessArgumentsTest {
         assertFailsWith<IllegalStateException> { HarnessArguments.orientationManifest(root, "o.txt", photos) }
         File(root, "dir.txt").mkdirs()
         assertFailsWith<IllegalStateException> { HarnessArguments.orientationManifest(root, "dir.txt", photos) }
-        val unreadable = File(root, "u.txt").apply { writeText("a.jpg 6\n"); check(setReadable(false)) }
-        assertFailsWith<IllegalStateException> { HarnessArguments.orientationManifest(root, unreadable.name, photos) }
+        val unreadable = File(root, "u.txt").apply { writeText("a.jpg 6\n") }
+        assertFailsWith<IllegalStateException> {
+            HarnessArguments.orientationManifest(root, unreadable.name, photos, readable = { it != unreadable })
+        }
+        // …and the same file, readable, parses: the seam is what made it fail, not its content.
+        assertEquals(mapOf("a.jpg" to 6), HarnessArguments.orientationManifest(root, unreadable.name, photos))
     }
 
     @Test

@@ -14,7 +14,9 @@ import app.tenshu.ui.theme.TenshuTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.koin.compose.KoinApplication
+import org.koin.core.context.stopKoin
 import org.koin.dsl.module
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
@@ -32,6 +34,16 @@ import kotlin.test.assertTrue
  */
 @OptIn(ExperimentalTestApi::class)
 class ImportRowLayoutTest {
+
+    /**
+     * ⚠⚠ The composition-scoped `KoinApplication` below still registers a **global** Koin, and the
+     * last test leaves it started. Any later class that calls `startKoin` then dies with
+     * `KoinApplicationAlreadyStartedException` — `TimelineEmptyStateRenderTest` did, on the Linux CI
+     * runner only: Gradle runs classes in filesystem order, which on macOS put `home/` before
+     * `settings/` and on Linux did not. Run in that order by hand, the second class fails.
+     */
+    @AfterTest
+    fun tearDown() = stopKoin()
 
     private class FakeControl : TimelineImportControl {
         override val status: StateFlow<TimelineImportStatus> = MutableStateFlow(TimelineImportStatus.Idle)

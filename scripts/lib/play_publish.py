@@ -157,8 +157,11 @@ class Edit:
             data = f.read()
         return request("POST", url, self.token, body=data, headers={"Content-Type": "image/png"})
 
-    def commit(self):
-        return self.call("POST", ":commit")
+    def commit(self, not_sent_for_review=False):
+        # ⚠ While an app has changes in review (or under managed publishing), Play refuses a plain
+        # commit with HTTP 400 "Changes cannot be sent for review automatically". The edit then
+        # commits only with this flag, and the maintainer sends it for review in the Console.
+        return self.call("POST", ":commit?changesNotSentForReview=true" if not_sent_for_review else ":commit")
 
     def discard(self):
         request("DELETE", f"{self.base}/{self.id}", self.token)
@@ -317,7 +320,7 @@ def check(token, package):
         edit.discard()
 
 
-def upload(token, package, track, aab, status):
+def upload(token, package, track, aab, status, not_sent_for_review=False):
     edit = Edit(token, package)
     committed = False
     try:
@@ -327,9 +330,11 @@ def upload(token, package, track, aab, status):
             "track": track,
             "releases": [{"versionCodes": [str(version_code)], "status": status}],
         })
-        edit.commit()
+        edit.commit(not_sent_for_review)
         committed = True
         print(f"{package}: versionCode {version_code} is the {status} release on '{track}'")
+        if not_sent_for_review:
+            print(f"{package}: ⚠ committed WITHOUT sending for review — send it from the Play Console")
     finally:
         if not committed:
             edit.discard()
@@ -378,6 +383,8 @@ def main(argv=None):
     p_upload.add_argument("--track", required=True)
     # ⚠ An app Play still lists as a draft (never released anywhere) accepts only `draft`.
     p_upload.add_argument("--status", default="completed", choices=["completed", "draft"])
+    p_upload.add_argument("--changes-not-sent-for-review", action="store_true",
+                          help="commit without sending for review (Play's answer while other changes are in review)")
     p_upload.add_argument("package")
     p_upload.add_argument("aab")
     p_promote = sub.add_parser("promote")
@@ -424,7 +431,7 @@ def main(argv=None):
     else:
         if not os.path.isfile(args.aab):
             fail(f"no bundle at {args.aab}")
-        upload(token, args.package, args.track, args.aab, args.status)
+        upload(token, args.package, args.track, args.aab, args.status, args.changes_not_sent_for_review)
 
 
 if __name__ == "__main__":

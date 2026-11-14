@@ -7,6 +7,9 @@ import app.tenshu.photos.data.AlbumSummary
 import app.tenshu.photos.model.FaceCover
 import app.tenshu.photos.model.FaceRegion
 import app.tenshu.photos.model.PeopleStatus
+import app.tenshu.photos.model.Photo
+import app.tenshu.photos.model.withoutEditedCovers
+import org.tenshu.core.file.isEditRenditionPath
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.sync.Mutex
@@ -63,6 +66,8 @@ data class SnapshotAlbum(
     val coverPath: String? = null,
     val coverPixelWidth: Int? = null,
     val coverPixelHeight: Int? = null,
+    /** See [SnapshotSection.coverContentId]. */
+    val coverContentId: String? = null,
 )
 
 /**
@@ -82,6 +87,12 @@ data class SnapshotSection(
     val coverPixelHeight: Int? = null,
     val alternateIds: List<String> = emptyList(),
     val coverFace: SnapshotFace? = null,
+    /**
+     * The cover photo's `contentId`, what a cold start checks against the edit index before drawing
+     * the cover (`photos-editing.md` §12.13). ⚠ Absent from a file written before it existed: such a
+     * cover is unknown, and is not drawn.
+     */
+    val coverContentId: String? = null,
 )
 
 @Serializable
@@ -97,6 +108,7 @@ data class SnapshotCard(
     val coverPath: String?,
     val coverPixelWidth: Int?,
     val coverPixelHeight: Int?,
+    val coverContentId: String? = null,
 )
 
 /**
@@ -274,7 +286,7 @@ class JsonCollectionsSnapshotStore(private val store: OutboxStore) : Collections
  */
 fun CollectionsUiState.toSnapshot(): CollectionsSnapshot = CollectionsSnapshot(
     albums = albums.map {
-        SnapshotAlbum(it.albumId, it.name, it.createdAtMs, it.photoCount, it.coverPath, it.coverPixelWidth, it.coverPixelHeight)
+        SnapshotAlbum(it.albumId, it.name, it.createdAtMs, it.photoCount, it.coverPath, it.coverPixelWidth, it.coverPixelHeight, it.coverContentId)
     },
     favouriteCount = favouriteCount,
     people = people.map { it.toSnapshotSection() },
@@ -299,6 +311,7 @@ private fun SmartAlbum.toSnapshotSection() = SnapshotSection(
     coverPixelHeight = coverPixelHeight,
     alternateIds = alternateIds,
     coverFace = coverFace?.let { SnapshotFace(it.path, it.region.left, it.region.top, it.region.right, it.region.bottom) },
+    coverContentId = coverContentId,
 )
 
 private fun SnapshotSection.toSmartAlbum() = SmartAlbum(
@@ -309,7 +322,7 @@ private fun SnapshotSection.toSmartAlbum() = SmartAlbum(
     photos = emptyList(),
     alternateIds = alternateIds,
     coverFace = coverFace?.let { FaceCover(it.path, FaceRegion(it.left, it.top, it.right, it.bottom)) },
-    snapshotCard = SnapshotCard(photoCount, coverPath, coverPixelWidth, coverPixelHeight),
+    snapshotCard = SnapshotCard(photoCount, coverPath, coverPixelWidth, coverPixelHeight, coverContentId),
 )
 
 private fun peopleStatusFrom(spelled: String?): PeopleStatus? = when {
@@ -338,6 +351,42 @@ internal fun CollectionsUiState.allLoading(): CollectionsUiState = copy(
  * them on screen and the layout says "Couldn't refresh …" (stale beats blank, said as stale).
  * ⚠ A section a live read has answered — even with nothing — is never filled from the snapshot.
  */
+/**
+ * This snapshot with every cover taken off that may show an **edited** original — or every such
+ * cover, when [editedContentIds] is `null` (not known) (`photos-editing.md` §12.13).
+ *
+ * ⚠⚠ The snapshot was written before the edit may have existed — on this device, or on another one
+ * while Photos was closed — so a cover it names can be an original the user has since redacted, and a
+ * person's face crop is cut from the original by construction. The live read never names one
+ * ([withoutEditedCovers], [Photo.previewPath]); this is the same rule for the cache, applied before a
+ * card is drawn from it. A card that loses its cover keeps its title and count and draws the
+ * placeholder until its live read lands.
+ *
+ * Kept: a cover that is itself a rendition (`isEditRenditionPath`), which is the edit's own picture.
+ * Dropped: a cover with no recorded `contentId` (a file from before it was recorded) — unknown.
+ */
+fun CollectionsSnapshot.withoutCoversFrom(editedContentIds: Set<String>?): CollectionsSnapshot {
+    fun mayShowAnOriginal(path: String?, contentId: String?) =
+        path != null && !isEditRenditionPath(path) &&
+            (editedContentIds == null || contentId == null || contentId in editedContentIds)
+    fun SnapshotSection.clean() =
+        if (mayShowAnOriginal(coverPath ?: coverFace?.path, coverContentId)) {
+            copy(coverPath = null, coverPixelWidth = null, coverPixelHeight = null, coverFace = null)
+        } else {
+            this
+        }
+    return copy(
+        albums = albums.map {
+            if (mayShowAnOriginal(it.coverPath, it.coverContentId)) it.copy(coverPath = null, coverPixelWidth = null, coverPixelHeight = null) else it
+        },
+        people = people.map { it.clean() },
+        places = places.map { it.clean() },
+        things = things.map { it.clean() },
+        years = years.map { it.clean() },
+        videos = videos?.clean(),
+    )
+}
+
 fun CollectionsUiState.withSnapshot(snapshot: CollectionsSnapshot): CollectionsUiState {
     // ⚠ LOADING or FAILED, and empty: the realm or the file can answer after a read
     // has already failed, and an empty failed section is exactly what stale-beats-blank is for — it
@@ -348,7 +397,7 @@ fun CollectionsUiState.withSnapshot(snapshot: CollectionsSnapshot): CollectionsU
     return copy(
         albums = if (open(albumsLoad, albums.isEmpty())) {
             snapshot.albums.map {
-                AlbumSummary(it.albumId, it.name, it.createdAtMs, it.photoCount, it.coverPath, it.coverPixelWidth, it.coverPixelHeight)
+                AlbumSummary(it.albumId, it.name, it.createdAtMs, it.photoCount, it.coverPath, it.coverPixelWidth, it.coverPixelHeight, it.coverContentId)
             }
         } else {
             albums

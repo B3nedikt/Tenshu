@@ -6,8 +6,10 @@ import org.tenshu.core.TenshuException
 import org.tenshu.core.common.proxy.ExecutionContext
 import org.tenshu.core.getOrNull
 import org.tenshu.core.security.SyncCryptoManager
+import org.tenshu.sync.PairingThisDeviceRemovedError
 import org.tenshu.sync.common.SyncManager
 import org.tenshu.sync.common.SyncRelay
+import org.tenshu.sync.proxy.isDeviceRemoved
 import org.tenshu.sync.proxy.security.PairingRendezvous
 
 /**
@@ -55,7 +57,15 @@ internal class PairingCompletion(
         // tolerate a transient blip or surface it. A real 404 still returns `false` and
         // keeps polling, because the approval may still be on its way. Thrown before any
         // local state changes, so the handshake stays intact for a later retry.
-        if (response is TResult.Failure<*>) throw TenshuException(response.error)
+        if (response is TResult.Failure<*>) {
+            val failure = TenshuException(response.error)
+            // ⚠ F2′ at delivery: THIS device is a removed identity and will never be admitted
+            // under it — terminal, so typed, never a blip for the poll loop to retry.
+            if (failure.isDeviceRemoved()) {
+                throw TenshuException(PairingThisDeviceRemovedError.create(executionContext.context))
+            }
+            throw failure
+        }
         val encryptedKey = response.getOrNull() as? TByteArray ?: return false
 
         // Decrypt + install the received key blob (shared with the offer flow via

@@ -109,11 +109,13 @@ class MainActivity : ComponentActivity() {
                 onResult = { }
             )
 
+            // Multi-select pickers, as Google Drive's own Upload does: each picked item is its
+            // own upload, so N picks are N `uploadFile` calls. An empty list is a cancel.
             val openDocumentLauncher = rememberLauncherForActivityResult(
-                contract = ActivityResultContracts.OpenDocument(),
-                onResult = { uri ->
+                contract = ActivityResultContracts.OpenMultipleDocuments(),
+                onResult = { uris ->
                     pendingParentPath?.let { path ->
-                        addFileActionsViewModel.uploadFile(uri?.toString() ?: return@let, path)
+                        uris.forEach { addFileActionsViewModel.uploadFile(it.toString(), path) }
                     }
                 }
             )
@@ -143,10 +145,12 @@ class MainActivity : ComponentActivity() {
             )
 
             val pickVisualMediaLauncher = rememberLauncherForActivityResult(
-                contract = ActivityResultContracts.PickVisualMedia(),
-                onResult = { uri ->
+                // No explicit `maxItems`: the default is the system photo picker's own limit
+                // (`MediaStore.getPickImagesMaxLimit()`), and a larger value throws on launch.
+                contract = ActivityResultContracts.PickMultipleVisualMedia(),
+                onResult = { uris ->
                     pendingParentPath?.let { path ->
-                        addFileActionsViewModel.uploadFile(uri?.toString() ?: return@let, path)
+                        uris.forEach { addFileActionsViewModel.uploadFile(it.toString(), path) }
                     }
                 }
             )

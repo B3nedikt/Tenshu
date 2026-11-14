@@ -140,6 +140,11 @@ data class ModelsUiState(
     /** What the index holds, from the store (iOS, §14.19.6). ⚠ `null` where it is not read. */
     val storedIndex: StoredIndex? = null,
     /**
+     * Whether a continued task carries the running pass (iOS 26+, `ios-on-device-inference.md`
+     * §15): leaving the app does not stop it. ⚠ `false` until read, and everywhere else.
+     */
+    val indexContinued: Boolean = false,
+    /**
      * IN-D3's switches, one entry per capability of [capabilities].
      *
      * ⚠ Seeded with every offered capability switched off rather than empty: off is each consent's
@@ -175,6 +180,12 @@ data class ModelsUiState(
      * nothing, and the switch that says why is at the bottom of the screen.
      */
     val featureOffer: InferenceCapability? = null,
+    /**
+     * The capability ids each listed model serves, by model id, from the repository's catalog read
+     * ([ModelsState.serves]). ⚠ Empty until the catalog was read: what a screen then says of a row
+     * is said as of search's model (`ios-face-grouping.md` F6).
+     */
+    val serves: Map<String, List<String>> = emptyMap(),
 ) {
     /** Nothing has been read yet. */
     val loading: Boolean get() = availability == ModelsAvailability.Loading
@@ -232,7 +243,7 @@ private fun ModelSetup.lastSaid(): ModelSetup.DownloadSaid? = when (this) {
  * Whether this row is **known** not to be usable. ⚠ A standing that was not read, or could not
  * be, is not known either way: a model seen ready after it has not just become ready.
  */
-private val ModelSetup.knownNotUsable: Boolean
+internal val ModelSetup.knownNotUsable: Boolean
     get() = when (this) {
         is ModelSetup.Absent, is ModelSetup.Fetching -> true
         is ModelSetup.Held -> when (standing) {
@@ -414,6 +425,11 @@ class ModelsViewModel(
                 repository.storedIndex().collect { stored -> _uiState.update { it.copy(storedIndex = stored) } }
             }
         }
+        viewModelScope.launch {
+            bestEffort("Models -> observing the continued task") {
+                repository.indexContinued().collect { continued -> _uiState.update { it.copy(indexContinued = continued) } }
+            }
+        }
     }
 
     /**
@@ -458,6 +474,7 @@ class ModelsViewModel(
                             // ⚠ Not said twice: a store's refusal is also its press's answer.
                             message = said?.takeUnless { new -> new == it.message } ?: it.message,
                             featureOffer = offer ?: it.featureOffer,
+                            serves = now.serves,
                         )
                     }
                 }

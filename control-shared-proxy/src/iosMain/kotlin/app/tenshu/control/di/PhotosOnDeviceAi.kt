@@ -49,6 +49,7 @@ import org.tenshu.inference.proxy.AiStaticGates
 import org.tenshu.inference.proxy.InferenceBackend
 import org.tenshu.inference.proxy.InferenceStoreCustody
 import org.tenshu.inference.proxy.MediaIndexRunner
+import org.tenshu.inference.proxy.MediaIndexer
 import org.tenshu.inference.proxy.Preflight
 import org.tenshu.inference.proxy.PreflightDevice
 import org.tenshu.inference.proxy.PreflightOutcome
@@ -74,6 +75,25 @@ import org.tenshu.inference.proxy.coreml.coreMlBackendOver
 import org.tenshu.inference.proxy.coreml.coreMlModelFacts
 import org.tenshu.inference.proxy.coreml.iosAiDevice
 import org.tenshu.inference.proxy.coreml.iosPreflightKey
+import org.tenshu.inference.proxy.FaceTemplateCustody
+import org.tenshu.inference.proxy.coreml.FaceImageDecoder
+import org.tenshu.inference.proxy.coreml.IosFaceImageDecoder
+import org.tenshu.inference.proxy.coreml.SystemVisionFaceDetector
+import org.tenshu.inference.proxy.coreml.VisionCoreMlFaceBackend
+import org.tenshu.inference.proxy.coreml.VisionFaceDetector
+import org.tenshu.inference.proxy.coreml.coreMlFaceReadiness
+import org.tenshu.inference.proxy.coreml.coreMlFaceNotPrepared
+import org.tenshu.inference.proxy.coreml.CoreMlFacePreflightModels
+import org.tenshu.inference.proxy.coreml.faceBackendOver
+import org.tenshu.inference.proxy.coreml.iosFacePreflightKey
+import org.tenshu.inference.proxy.coreml.iosFacePreflightKeyOf
+import org.tenshu.inference.proxy.FacePreflightModels
+import org.tenshu.inference.proxy.FacePreflightProbeLookup
+import org.tenshu.inference.proxy.FacePreflightProber
+import org.tenshu.inference.proxy.catalog.ModelArtifactRole
+import org.tenshu.inference.faceGroups
+import app.tenshu.control.inference.CombinedModelSource
+import org.tenshu.inference.proxy.onnx.FaceModel
 import org.tenshu.inference.proxy.hasInferenceConsent
 import org.tenshu.sync.common.SyncManager
 import kotlinx.coroutines.flow.Flow
@@ -84,8 +104,19 @@ import org.tenshu.inference.client.inferenceService
 import org.tenshu.inference.startMediaIndexPass
 import org.tenshu.inference.proxy.BackgroundWindow
 import org.tenshu.inference.proxy.DeviceIndexingState
+import org.tenshu.inference.proxy.ARRIVALS_DEBOUNCE_MS
+import app.tenshu.control.inference.ArrivalsLogCursor
+import app.tenshu.control.inference.ArrivalsMissed
+import app.tenshu.control.inference.ArrivedPhotoPaths
+import org.tenshu.inference.proxy.ArrivalQueue
+import org.tenshu.inference.proxy.PathsBatch
+import org.tenshu.inference.proxy.runArrivalsBatch
+import org.tenshu.inference.proxy.ForegroundArrivals
 import org.tenshu.inference.proxy.ForegroundIndexing
 import org.tenshu.inference.proxy.ForegroundIndexingConditions
+import org.tenshu.inference.proxy.IndexPassResult
+import org.tenshu.inference.proxy.NEW_ARRIVALS_BATCH_CAP
+import org.tenshu.inference.proxy.PassEnding
 import org.tenshu.inference.proxy.IndexingConditions
 import org.tenshu.inference.proxy.PassExclusion
 import org.tenshu.inference.proxy.StartAnswer
@@ -96,6 +127,16 @@ import kotlin.concurrent.AtomicInt
 import org.tenshu.inference.proxy.ContinuedIndexing
 import org.tenshu.inference.proxy.ContinuedTaskScheduler
 import org.tenshu.inference.proxy.IndexProgressHolder
+import org.tenshu.inference.proxy.InferenceBackendRegistry
+import org.tenshu.inference.proxy.MEDIA_INDEX_CAPABILITIES
+import org.tenshu.inference.proxy.PassOutcome
+import org.tenshu.inference.proxy.ProcessingWake
+import org.tenshu.inference.proxy.WakeScheduler
+import org.tenshu.inference.proxy.WakeWork
+import org.tenshu.inference.proxy.isIndexingPaused
+import org.tenshu.inference.proxy.passOutcomeOf
+import org.tenshu.inference.proxy.permittedInference
+import org.tenshu.inference.proxy.runWakePassOver
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -119,7 +160,8 @@ import kotlin.uuid.Uuid
  * - [ModelStoreChanges]: every commit and every removal runs inside `AiReadiness.storeChanging`.
  *
  * ⚠⚠ **The foreground pass is bound here** (§14.19): `indexingConditions` (the
- * manual bar: in front, not hot, not Low Power Mode, not a low battery; the scheduled bar never),
+ * manual bar: in front, not hot, not Low Power Mode, not a low battery; the scheduled bar only inside
+ * a processing wake, PR-6),
  * the process's [PassExclusion] and [ForegroundIndexing], which *Index now* goes through and which
  * stops the pass when Photos leaves the foreground. ⚠ A downloaded model **is** prepared
  * ([ModelPreparer], §14.17): compiled in the foreground, after which the preflight decides
@@ -128,9 +170,20 @@ import kotlin.uuid.Uuid
  * **The preflight is bound** (§14.6): [Preflight], readiness's writer 2, started by
  * [PhotosOnDeviceAi.recheck]. With no model installable it finds nothing to probe.
  *
+ * ⚠⚠ **Faces are bound here too, behind a second flag** ([faces]; `ios-face-grouping.md` FD10, F5):
+ * the face backend beside the Core ML one, `coreml+vision` beside `coreml`, and the face pair's own
+ * readiness ([PhotosOnDeviceAi.FACE_READINESS]) over **its own custody** ([FaceTemplateCustody], over
+ * `ReadinessSlot.FACES.fingerprintPath`). ⚠⚠ Never SigLIP's: that custody clears the search vectors.
+ * ⚠ Only inside this module, so only where the AI flag and both static gates admitted the phone:
+ * faces ride SigLIP's pass, journal and readiness machinery. ⭐ F6: the face model has a prepare
+ * step of its own ([PhotosOnDeviceAi.FACE_PREPARER], towers `[faceEmbedder]`) and a probe of its
+ * own ([PhotosOnDeviceAi.FACE_PREFLIGHT], over `FacePreflightProber`), both run by the same check
+ * as SigLIP's and after it; and the Models screen lists it ([CombinedModelSource]).
+ *
  * @param root the absolute directory the owner's inference database is rooted at.
+ * @param faces whether this build binds the face backend ([PhotosOnDeviceAi.facesAdmitted]).
  */
-fun photosOnDeviceAiModule(root: String): Module = module {
+fun photosOnDeviceAiModule(root: String, faces: Boolean = false): Module = module {
     single {
         // ⚠ Under `inference/`, with everything else this app derives: the purge of a directory
         // that lost its backup exclusion removes that tree, and compiled models are ~740 MB of it.
@@ -171,9 +224,14 @@ fun photosOnDeviceAiModule(root: String): Module = module {
         // ⚠ For an EARLIER graph's unload. When it is this graph that was torn down the wait
         // returns at once, and the load below finds the model is not served.
         val mine: AiReadiness = get()
+        val koin: Koin = getKoin()
         val beforeLoad: suspend () -> Unit = {
             PhotosOnDeviceAi.awaitPendingUnload(mine)
             get<Preflight>().awaitSessionsClosed()
+            // ⚠ Nor beside a face probe that holds the embedder (`ios-face-grouping.md` §16.2): the
+            // reverse of the face loads' wait on search's probe. ⚠ Only one the graph has BUILT: a
+            // wait must not construct the face pair. With faces off there is none, and this is nothing.
+            PhotosOnDeviceAi.builtFacePreflight(koin)?.awaitSessionsClosed()
         }
         // ⚠⚠ Every open while `Ready` is recorded in the scene's foreground (§14.19).
         val foregroundNow: () -> Long? = { PhotosOnDeviceAi.foregroundEpoch() }
@@ -230,7 +288,7 @@ fun photosOnDeviceAiModule(root: String): Module = module {
         // source: this throws, and [PhotosOnDeviceAi.modelSource] answers `null` for it.
         val downloader: BackgroundModelDownloader = delivery.downloader as? BackgroundModelDownloader
             ?: error("the Models source needs the journalling downloader; this graph has ${delivery.downloader::class.simpleName}")
-        JoinedModelSource(
+        val search = JoinedModelSource(
             modelId = preparer.modelId,
             // ⚠ Its own: a download's call outlives whoever asked for it, and the screen.
             scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
@@ -287,6 +345,15 @@ fun photosOnDeviceAiModule(root: String): Module = module {
                 readiness.loadAgain(key)
             },
         )
+        // ⚠⚠ With the face backend, the face model's rows beside search's: each from its own
+        // readiness, preparer and probe, and nothing of one read for the other.
+        if (!faces) return@single search
+        CombinedModelSource(
+            linkedMapOf(
+                preparer.modelId to search,
+                FaceModel.AuraFaceCoreMl.modelId to PhotosOnDeviceAi.faceSource(koin, delivery, downloader),
+            ),
+        )
     }
     // ⚠⚠ Under the INTERFACE, and ONE for the graph: every Models screen that opens reads the
     // same repository, so a removal one of them started is *removing* on all of them (§14.18.14).
@@ -299,6 +366,11 @@ fun photosOnDeviceAiModule(root: String): Module = module {
         teardown.built(OnDeviceModelsRepository.over(
             // ⚠ A graph with no journalling downloader has no source: *not connected*, never empty.
             source = runCatching { get<OnDeviceModelSource>() }.getOrNull(),
+            // ⚠⚠ From the backends this graph BOUND, never a constant: the face switch is offered
+            // only where a face backend is (two switches, absence is NO).
+            features = PhotosOnDeviceAi.features(get(named("inferenceBackends"))),
+            // ⚠ What the screen reads a row as before the catalog is read: the models this graph prepares.
+            modelFeatures = PhotosOnDeviceAi.modelFeatures(faces),
             // Photos' own client: the removal is the operation, the consents and the pause are
             // the preference rows.
             client = get<TenshuClient>(),
@@ -329,6 +401,10 @@ fun photosOnDeviceAiModule(root: String): Module = module {
                 },
                 clearedByOsUpdate = { if (graphRetired(koin)) MutableStateFlow(false) else koin.get<InferenceStoreCustody>().clearedByOsUpdate },
                 alsoWhen = { koin.get<AiReadiness>().standing },
+                // ⚠⚠ The running line follows the claim, never the OS version (§15.7 Q2): below
+                // iOS 26, or with the request refused, the claim stays NONE and the line says *Keep
+                // Photos open*.
+                continuation = { if (graphRetired(koin)) null else koin.get<ContinuedIndexing>().standings },
             ),
         ))
     }
@@ -337,7 +413,113 @@ fun photosOnDeviceAiModule(root: String): Module = module {
         // ⚠ Its own scope: a commit asks for a check from inside the downloader and waits for none.
         CoalescedRuns(CoroutineScope(SupervisorJob() + Dispatchers.Default)) { launch -> PhotosOnDeviceAi.recheckOnce(koin, launch) }
     }
-    single<List<InferenceBackend>>(named("inferenceBackends")) { listOf(get<CoreMlInferenceBackend>()) }
+    // ⚠⚠ The face backend only with the face flag: absent, no backend of this graph claims
+    // `FACE_CLUSTERING`, and the Models screen offers no face switch ([PhotosOnDeviceAi.features]).
+    single<List<InferenceBackend>>(named("inferenceBackends")) {
+        if (faces) listOf(get<CoreMlInferenceBackend>(), get<VisionCoreMlFaceBackend>()) else listOf(get<CoreMlInferenceBackend>())
+    }
+    if (faces) {
+        // ⚠⚠ The face pair's custody: its own fingerprint file, and the templates the only thing it
+        // clears. The realm half (owner and `meta.epoch`) stays `InferenceStoreCustody`'s.
+        single {
+            FaceTemplateCustody(
+                files = get(named(INFERENCE_FILE_DATABASE)),
+                faces = get(),
+                cancelPass = { get<MediaIndexRunner>().cancelRunningPass() },
+            )
+        }
+        single(named(PhotosOnDeviceAi.FACE_READINESS)) {
+            // ⚠ Lazy, as SigLIP's: this is constructed wherever the registry first is.
+            val realm: Lazy<InferenceStoreCustody> = lazy { get<InferenceStoreCustody>() }
+            coreMlFaceReadiness(
+                files = { get(named(INFERENCE_FILE_DATABASE)) },
+                store = { get<ModelStore>() },
+                cache = { get<CoreMlModelCache>() },
+                custody = { get<FaceTemplateCustody>() },
+                realmUsable = { realm.value.usable() },
+                cancelPass = { get<MediaIndexRunner>().cancelRunningPass() },
+                closeSessions = { get<VisionCoreMlFaceBackend>().closeSessions() },
+            )
+        }
+        single {
+            // A test's stand-ins for Core ML and Vision; nothing binds them in production.
+            val open: CoreMlSessionOpener? = getOrNull()
+            val detector: VisionFaceDetector = getOrNull() ?: SystemVisionFaceDetector
+            val decoder: FaceImageDecoder = getOrNull() ?: IosFaceImageDecoder
+            val mine: AiReadiness = get(named(PhotosOnDeviceAi.FACE_READINESS))
+            // ⚠⚠ As SigLIP's: no embedder is opened while an earlier graph is still unloading, nor
+            // while this graph's search probe holds a pair.
+            val beforeLoad: suspend () -> Unit = {
+                PhotosOnDeviceAi.awaitPendingUnload(mine)
+                get<Preflight>().awaitSessionsClosed()
+            }
+            // ⚠⚠ `faceBackendOver` refuses any readiness that is not the face slot's.
+            if (open != null) {
+                faceBackendOver(mine, decoder, detector, open = open::open, beforeLoad = beforeLoad, foregroundNow = { PhotosOnDeviceAi.foregroundEpoch() })
+            } else {
+                faceBackendOver(mine, decoder, detector, beforeLoad = beforeLoad, foregroundNow = { PhotosOnDeviceAi.foregroundEpoch() })
+            }
+        }
+        single(named(PhotosOnDeviceAi.FACE_PREFLIGHT)) {
+            // The face model's writer 2 (F6; `ios-face-grouping.md` §6.2): F4's prober over the face
+            // slot, with the backend's own detector, decode and embedder spec.
+            // A test's stand-ins; nothing binds them in production.
+            val open: CoreMlSessionOpener? = getOrNull()
+            val models: FacePreflightModels = getOrNull()
+                ?: if (open != null) CoreMlFacePreflightModels(open = open::open) else CoreMlFacePreflightModels()
+            val probes: FacePreflightProbeLookup? = getOrNull()
+            val device: PreflightDevice = getOrNull() ?: IosPreflightDevice
+            val probing: AiReadiness = get(named(PhotosOnDeviceAi.FACE_READINESS))
+            val prober: FacePreflightProber = if (probes != null) FacePreflightProber(models, device, probes) else FacePreflightProber(models, device)
+            val koin: Koin = getKoin()
+            val built: FacePreflightBuilt = get()
+            Preflight.over(
+                readiness = probing,
+                prober = prober,
+                device = device,
+                // ⚠⚠ As SigLIP's: an earlier graph's unload first, and never beside search's probe.
+                beforeLoad = {
+                    PhotosOnDeviceAi.awaitPendingUnload(probing)
+                    koin.get<Preflight>().awaitSessionsClosed()
+                },
+                // ⚠⚠ The process's, and the face model's own: a slow face probe spends no search foreground.
+                slowProbes = PhotosOnDeviceAi.faceSlowProbes,
+                foregroundNow = { PhotosOnDeviceAi.foregroundEpoch() },
+            ).also { built.preflight = it }
+        }
+        // ⚠ Holds the face probe once it exists, and nothing before: what a wait and a teardown read.
+        single { FacePreflightBuilt() }
+        single(named(PhotosOnDeviceAi.FACE_PREPARER)) {
+            // The face model's prepare step (F6): SigLIP's preparer class over the face slot, its one
+            // tower and its id. ⚠ The same compiled cache and step lock: the sweep keeps every
+            // installed record's digests, of either model.
+            val koin: Koin = getKoin()
+            val readiness: AiReadiness = get(named(PhotosOnDeviceAi.FACE_READINESS))
+            ModelPreparer(
+                store = get(),
+                compiled = get(),
+                readiness = readiness,
+                preflight = { afterRecompile ->
+                    val foreground: Long? = PhotosOnDeviceAi.foregroundEpoch()
+                    val preflight: Preflight = koin.get(named(PhotosOnDeviceAi.FACE_PREFLIGHT))
+                    if (afterRecompile) preflight.recompiled(foreground) else preflight.prepared(foreground)
+                },
+                currentKey = { iosFacePreflightKey(koin.get<ModelStore>().installed()) },
+                notPrepared = { coreMlFaceNotPrepared(koin.get(), koin.get()) },
+                inForeground = { PhotosOnDeviceAi.inForeground() },
+                // ⚠⚠ No first open beside either model's probe, nor while an earlier graph unloads.
+                beforeLoad = {
+                    PhotosOnDeviceAi.awaitPendingUnload(readiness)
+                    koin.get<Preflight>().awaitSessionsClosed()
+                    koin.get<Preflight>(named(PhotosOnDeviceAi.FACE_PREFLIGHT)).awaitSessionsClosed()
+                },
+                steps = PhotosModelDownloads.steps,
+                towers = listOf(ModelArtifactRole.FACE_EMBEDDER),
+                modelId = FaceModel.AuraFaceCoreMl.modelId,
+                foregroundNow = { PhotosOnDeviceAi.foregroundEpoch() },
+            )
+        }
+    }
     // ─── The foreground pass (§14.19). ─────────────────────────────────────────────────────────
     single {
         // A test's phone; nothing binds one in production.
@@ -346,7 +528,12 @@ fun photosOnDeviceAiModule(root: String): Module = module {
         // ⚠⚠ A pass a continued task owns is in the foreground as far as its own bar goes —
         // the task is what keeps the app running. Asked lazily: the bridge needs the graph's scope.
         val continued: ContinuedIndexing by lazy { koin.get<ContinuedIndexing>() }
-        ForegroundIndexingConditions { signals.read(PhotosOnDeviceAi.inForeground() || continued.holdsPass()) }
+        // ⚠⚠ PR-6: the scheduled bar says yes only inside a processing wake. Lazy, as the bridge.
+        val wake: ProcessingWake by lazy { koin.get<ProcessingWake>() }
+        ForegroundIndexingConditions(
+            read = { signals.read(PhotosOnDeviceAi.inForeground() || continued.holdsPass()) },
+            inWake = { wake.carriesPass() },
+        )
     }
     // ⚠⚠ Under the name the indexer and the op read: the manual bar is this, the scheduled one never.
     single<IndexingConditions>(named("indexingConditions")) { get<ForegroundIndexingConditions>() }
@@ -368,12 +555,64 @@ fun photosOnDeviceAiModule(root: String): Module = module {
             // ⚠⚠ Through the operation, so its four refusals are checked once, there.
             startPass = { PhotosOnDeviceAi.startPass(koin.get<TenshuClient>()) },
             cancelPass = { koin.get<MediaIndexRunner>().cancelRunningPass() },
-            closeSessions = { koin.get<CoreMlInferenceBackend>().closeSessions() },
+            // ⚠ The face embedder too: nothing of a model stays loaded behind a Photos that left.
+            closeSessions = {
+                koin.get<CoreMlInferenceBackend>().closeSessions()
+                koin.getOrNull<VisionCoreMlFaceBackend>()?.closeSessions()
+            },
             // A test's window; nothing binds one in production.
             window = getOrNull() ?: AppBackgroundWindow,
             clock = { kotlin.time.Clock.System.now().toEpochMilliseconds() },
             // The continued task, when this build and this phone can make one.
             continuation = get<ContinuedIndexing>(),
+            // ⚠⚠ PR-6: a leave inside a processing wake stops nothing; the wake's end does.
+            wakeCarriesPass = { koin.get<ProcessingWake>().carriesPass() },
+        ).also { it.start() }
+    }
+    // ─── The processing wake: the library indexed overnight on the charger (PR-6, §16). ──────
+    single {
+        val koin: Koin = getKoin()
+        ProcessingWake(
+            // ⚠ The driver's, cancelled with the graph: a live wake is then completed with `false`.
+            scope = get(named(INDEXING_SCOPE)),
+            // A test's scheduler first; in production the one Swift installed, or none.
+            scheduler = { koin.getOrNull<WakeScheduler>() ?: PhotosProcessingWake.scheduler() },
+            work = { PhotosOnDeviceAi.wakeWork(koin) },
+            runPass = { PhotosOnDeviceAi.runWakePass(koin) },
+            // ⚠⚠ Only a scheduled pass: a press's pass the wake met is not the wake's to end.
+            stopPass = { koin.get<MediaIndexRunner>().cancelRunningScheduledPass() },
+            // ⚠⚠ The leave's stop if Photos is not in front: the pass stopped and BOTH models let
+            // go inside a background window, before the task is completed.
+            released = { koin.get<ForegroundIndexing>().continuationReleased() },
+            window = getOrNull() ?: AppBackgroundWindow,
+            clock = { kotlin.time.Clock.System.now().toEpochMilliseconds() },
+        )
+    }
+    // ─── New arrivals while Photos is in front (IN-D6a, PR-6b, §17). ───────────────────────────
+    // ⚠⚠ The cursor on disk beside the queue: a fresh process queues only what arrived past it.
+    single { ArrivedPhotoPaths(ArrivalsLogCursor.InFile(get(named(INFERENCE_FILE_DATABASE)))) }
+    single { ArrivalsMissed() }
+    single {
+        val koin: Koin = getKoin()
+        ForegroundArrivals(
+            // ⚠ The driver's, cancelled with the graph: a batch waiting or running goes with it.
+            scope = get(named(INDEXING_SCOPE)),
+            inForeground = { PhotosOnDeviceAi.inForeground() },
+            // ⚠⚠ Which photographs arrived: the modification log's newest rows, never the tree, into
+            // the graph's one arrivals queue (the common module's, in Photos' private store).
+            look = { PhotosOnDeviceAi.lookForArrivals(koin) },
+            // ⚠⚠ The ONE runner, capped, over the queued paths alone; never the start operation (it
+            // takes no paths) and never a join.
+            runBatch = { PhotosOnDeviceAi.runArrivalsBatch(koin) },
+            runnerStanding = { koin.get<MediaIndexRunner>().standing },
+            // A test's debounce; production's is the constant.
+            debounceMs = getOrNull<Long>(named(PhotosOnDeviceAi.ARRIVALS_DEBOUNCE)) ?: ARRIVALS_DEBOUNCE_MS,
+            // ⚠⚠ Before the look: no consent or no model reads no log and queues nothing.
+            mayRun = { PhotosOnDeviceAi.arrivalsMayRun(koin) },
+            // ⚠⚠ The look is a store read a leave cannot cancel: the batch holds a window to its end.
+            window = getOrNull() ?: AppBackgroundWindow,
+            // ⚠ No half may run: the log's end is marked (hashes only), so consent given later starts there.
+            notAsked = { PhotosOnDeviceAi.markArrivalsLogEnd(koin) },
         ).also { it.start() }
     }
     // ─── *Index now* continued (iOS 26+). ──────────────────────────────────────────────────────
@@ -395,11 +634,21 @@ fun photosOnDeviceAiModule(root: String): Module = module {
         )
     }
     // ─── The model download (§14.11). The three bindings below go together or not at all.
-    single<Set<String>>(named("supportedModelRuntimes")) { COREML_RUNTIMES }
+    // ⚠⚠ `coreml+vision` only with the face backend: the face entry is offered where it can run.
+    single<Set<String>>(named("supportedModelRuntimes")) {
+        if (faces) COREML_RUNTIMES + FaceModel.COREML_VISION_RUNTIME else COREML_RUNTIMES
+    }
     single<ModelStoreChanges> {
         // Readiness's writer 3: the old generation stops being served before the store moves.
-        // ⚠⚠ For the one model this graph serves: a change to any other model stands nothing down.
-        PinnedModelChanges(get(), VisionModel.PinnedSigLip.modelId)
+        // ⚠⚠ For the model the change is about: a change to any other model stands nothing down.
+        if (faces) {
+            ByModelChanges(
+                siglip = get(),
+                faces = get(named(PhotosOnDeviceAi.FACE_READINESS)),
+            )
+        } else {
+            PinnedModelChanges(get(), VisionModel.PinnedSigLip.modelId)
+        }
     }
     single<ModelDownloaderFactory> {
         val koin: Koin = getKoin()
@@ -428,14 +677,25 @@ fun photosOnDeviceAiModule(root: String): Module = module {
                 // step has ended, and not waited for.
                 // ⚠ When it is the model this graph prepares that was installed.
                 storeChanged = { changed ->
-                    if (koin.get<ModelPreparer>().concerns(changed)) koin.get<CoalescedRuns>(named(RECHECKS)).requestLater()
+                    // ⚠ The face model's install asks for the same check: it prepares and probes both.
+                    val concerned: Boolean = koin.get<ModelPreparer>().concerns(changed) ||
+                        koin.getOrNull<ModelPreparer>(named(PhotosOnDeviceAi.FACE_PREPARER))?.concerns(changed) == true
+                    if (concerned) koin.get<CoalescedRuns>(named(RECHECKS)).requestLater()
                 },
                 // ⚠⚠ And a removal evicts the compiled towers in its own step, under the lock
                 // it holds, wherever Photos is: `DeleteModel` returning means the bytes are gone.
                 // ⚠⚠ Each says WHICH model: the towers discarded are the removed model's, never
                 // this graph's because some other model went.
-                beforeRemoval = { removed -> koin.get<ModelPreparer>().evicting(removed) },
-                afterRemoval = { removed -> koin.get<ModelPreparer>().evicted(removed) },
+                // ⚠⚠ The face preparer evicts the face model's towers, and only those: each
+                // preparer's `evicting` returns at once for a model that is not its own.
+                beforeRemoval = { removed ->
+                    koin.get<ModelPreparer>().evicting(removed)
+                    koin.getOrNull<ModelPreparer>(named(PhotosOnDeviceAi.FACE_PREPARER))?.evicting(removed)
+                },
+                afterRemoval = { removed ->
+                    koin.get<ModelPreparer>().evicted(removed)
+                    koin.getOrNull<ModelPreparer>(named(PhotosOnDeviceAi.FACE_PREPARER))?.takeIf { it.concerns(removed) }?.evicted(removed)
+                },
             )
         }
     }
@@ -479,6 +739,115 @@ fun photosOnDeviceAiModule(root: String): Module = module {
  * [OwnedInferenceStores]' reason: the umbrella does not see `:inference-service-proxy`.
  */
 object PhotosOnDeviceAi {
+
+    /** The face pair's [AiReadiness] in [photosOnDeviceAiModule]'s graph; SigLIP's is unqualified. */
+    const val FACE_READINESS: String = "faceReadiness"
+
+    /** The face model's [ModelPreparer] (F6); SigLIP's is unqualified. */
+    const val FACE_PREPARER: String = "facePreparer"
+
+    /** The face model's [Preflight] (F6); SigLIP's is unqualified. */
+    const val FACE_PREFLIGHT: String = "facePreflight"
+
+    /** [koin]'s face [Preflight] if its graph has built one, else `null`. ⚠ Never constructs it ([FacePreflightBuilt]). */
+    fun builtFacePreflight(koin: Koin): Preflight? =
+        runCatching { koin.getOrNull<FacePreflightBuilt>()?.preflight }.getOrNull()
+
+    /**
+     * Which feature each model a graph prepares serves (`ModelsCapabilities.modelFeatures`). ⚠ Empty
+     * with faces off: one model, every row search's already, and the capabilities exactly what they were.
+     */
+    fun modelFeatures(faces: Boolean): Map<String, InferenceCapability> =
+        if (!faces) emptyMap()
+        else mapOf(VisionModel.PinnedSigLip.modelId to InferenceCapability.SEMANTIC_IMAGE_SEARCH, FaceModel.AuraFaceCoreMl.modelId to InferenceCapability.FACE_CLUSTERING)
+
+    /**
+     * The face model's rows of the Models screen (F6): [JoinedModelSource] over the face slot's
+     * readiness, preparer and probe, and the same journal, store and catalog as search's.
+     * ⚠⚠ Nothing of SigLIP's is read: its key is the face key, its record the face record.
+     */
+    internal fun faceSource(koin: Koin, delivery: ModelDeliveryComponents, downloader: BackgroundModelDownloader): JoinedModelSource {
+        val readiness: AiReadiness = koin.get(named(FACE_READINESS))
+        val preparer: ModelPreparer = koin.get(named(FACE_PREPARER))
+        val preflight: Preflight = koin.get(named(FACE_PREFLIGHT))
+        val modelId: String = preparer.modelId
+        return JoinedModelSource(
+            modelId = modelId,
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+            retired = readiness.retiredNow,
+            readiness = readiness.standing,
+            journal = downloader.journalView,
+            outcome = downloader.lastOutcome,
+            progress = delivery.progress.progress,
+            compiling = preparer.compiling,
+            probing = preflight.probing,
+            prepare = preparer.lastReport,
+            prepareRefusal = preparer.lastRefusal,
+            preflight = preflight.lastReport,
+            readInstalled = {
+                when (val index: InstalledIndex = delivery.store.read()) {
+                    InstalledIndex.NotAnIndex, is InstalledIndex.Unreadable -> InstalledRead.Unreadable
+                    is InstalledIndex.Records -> {
+                        val record: InstalledModelData? = index.models.firstOrNull { it.modelId == modelId }
+                        InstalledRead.Read(
+                            record = record,
+                            prepareKey = record?.let(preparer::keyFor),
+                            preflightKey = record?.let { iosFacePreflightKey(index.models) },
+                            onDeviceBytes = record?.let { it.byteSize + CoreMlDiskBudget.prepareBytes(it.byteSize) } ?: 0L,
+                        )
+                    }
+                }
+            },
+            loadCatalog = {
+                delivery.catalogSource.load()
+                    ?.let { catalog ->
+                        // ⚠ By id AND runtime: Android's `onnx+mediapipe` entry has the same id.
+                        val entry: ModelEntryData? = catalog.models.firstOrNull { it.modelId == modelId && it.runtime == FaceModel.COREML_VISION_RUNTIME }
+                        CatalogRead.Read(entry, entry?.let { it.byteSize + CoreMlDiskBudget.prepareBytes(it.byteSize) })
+                    }
+                    ?: CatalogRead.Unavailable
+            },
+            startDownload = { id, allowsCellular, admitted -> downloader.download(id, allowsCellular) { admitted() } },
+            cancelDownload = { id -> downloader.cancel(id) },
+            recheck = { recheck(koin) },
+            isRetired = readiness::isRetired,
+            // ⚠⚠ Switched off: the embedder is let go, and the operation People reads runs its
+            // withdrawal-first deletion now rather than at the next People or pass. ⚠ It deletes only
+            // for an EXPLICIT no (`inferenceConsentWithdrawn`); a row that is absent deletes nothing.
+            facesWithdrawn = {
+                koin.getOrNull<VisionCoreMlFaceBackend>()?.closeSessions()
+                runCatching { koin.get<TenshuClient>().inferenceService.faceGroups(1) }
+                    .onFailure { println("PhotosOnDeviceAi -> the withdrawn face data was not deleted now: $it") }
+            },
+            readOffered = { entry -> readiness.answerFor(iosFacePreflightKeyOf(entry)) },
+            loadAgainOf = { entry ->
+                val key: PreflightKey = entry?.let { iosFacePreflightKeyOf(it) } ?: iosFacePreflightKey(koin.get<ModelStore>().installed())
+                readiness.loadAgain(key)
+            },
+        )
+    }
+
+    /**
+     * Whether this build binds the face backend (`ios-face-grouping.md` FD10): the face flag **and**
+     * everything [admitted] asks — the AI flag and both static gates. ⚠ Faces ride SigLIP's pass,
+     * download journal and readiness machinery, so they are never bound where search is not.
+     */
+    fun facesAdmitted(aiBuildFlag: Boolean, facesBuildFlag: Boolean): Boolean =
+        facesBuildFlag && admitted(aiBuildFlag)
+
+    /** The same decision over a stated phone. */
+    fun facesAdmitted(aiBuildFlag: Boolean, facesBuildFlag: Boolean, osMajorVersion: Int, physicalMemoryBytes: Long): Boolean =
+        facesBuildFlag && admitted(aiBuildFlag, osMajorVersion, physicalMemoryBytes)
+
+    /**
+     * The capabilities a switch changes something for **in this graph**: one for each kind of
+     * backend it bound, search first. ⚠⚠ What the Models screen offers consent for, so a face switch
+     * appears only beside a bound face backend.
+     */
+    fun features(backends: List<InferenceBackend>): List<InferenceCapability> = buildList {
+        if (backends.any { it is CoreMlInferenceBackend }) add(InferenceCapability.SEMANTIC_IMAGE_SEARCH)
+        if (backends.any { it is VisionCoreMlFaceBackend }) add(InferenceCapability.FACE_CLUSTERING)
+    }
 
     /**
      * The static gates (D12 ⓪ and ①, and the build flag): whether this phone gets a backend at
@@ -580,6 +949,9 @@ object PhotosOnDeviceAi {
         // ⚠ The foreground pass's driver follows the runner and the phone from the first check on.
         koin.get<ForegroundIndexing>()
         koin.get<AiReadiness>().fingerprintChecked()
+        // ⚠ The face pair's own writer 4, where faces are bound: a new OS build or Vision
+        // revision voids its verdict, and nothing of SigLIP's is read or written by it.
+        koin.getOrNull<AiReadiness>(named(FACE_READINESS))?.fingerprintChecked()
         // The download journal: what was delivered while this app was suspended or dead is
         // verified from disk and installed, through readiness's writer 3 (§14.11).
         runCatching { PhotosModelDownloads.resume(koin) }
@@ -601,6 +973,14 @@ object PhotosOnDeviceAi {
             // left out of it on the way: a narrower identity is another install's too.
             ModelPreparer.Probed(about = report.key, outcome = report.outcome)
         }
+        searchAfterTheCheck(koin, launch, checked)
+        // ⭐ F6: the face model's own prepare and probe, after search's and in the same sequence,
+        // so the two never compile or probe side by side. ⚠ Where faces are bound, and only then.
+        faceCheck(koin)
+    }
+
+    /** SigLIP's tail of a check: the text tower let go, or warmed, by search's consent. */
+    private suspend fun searchAfterTheCheck(koin: Koin, launch: Boolean, checked: ModelPreparer.Checked) {
         // ⚠ Search switched off, here or on another device of the realm: what was warmed for it
         // is let go (§14.18.15). The Models screen's own switch lets go at once.
         if (!searchConsented(koin)) return koin.get<CoreMlInferenceBackend>().closeText()
@@ -611,6 +991,28 @@ object PhotosOnDeviceAi {
         // a user who has not switched search on. Without consent the first consented query
         // opens the tower instead, and pays the open (24–88 ms once the OS has it cached, §2.2).
         koin.get<CoreMlInferenceBackend>().warmText()
+    }
+
+    /**
+     * The face model's prepare, then its probe when the face slot awaits a verdict (F6): the same
+     * [ModelPreparer.check] as SigLIP's, over the face preparer and the face preflight. ⚠ Nothing is
+     * warmed afterwards: the embedder opens with the first face.
+     * ⚠ A failure is said and the check goes on: search's half has already run.
+     */
+    internal suspend fun faceCheck(koin: Koin) {
+        val preparer: ModelPreparer = koin.getOrNull(named(FACE_PREPARER)) ?: return
+        runCatching {
+            preparer.check { pastTheBackoff ->
+                val foreground: Long? = foregroundEpoch()
+                val preflight: Preflight = koin.get(named(FACE_PREFLIGHT))
+                val report: PreflightReport =
+                    if (pastTheBackoff) preflight.recompiledReport(foreground) else preflight.foregroundedReport(foreground)
+                ModelPreparer.Probed(about = report.key, outcome = report.outcome)
+            }
+        }.onFailure { failure ->
+            if (failure is kotlinx.coroutines.CancellationException) throw failure
+            println("PhotosOnDeviceAi -> the face model's check failed: $failure")
+        }
     }
 
     /**
@@ -655,6 +1057,9 @@ object PhotosOnDeviceAi {
      */
     fun retire(koin: Koin): Job? {
         val readiness: AiReadiness = runCatching { koin.get<AiReadiness>() }.getOrNull() ?: return null
+        // ⚠⚠ The face pair's too, first and on this thread: a torn-down graph claims no face either.
+        val faces: AiReadiness? = runCatching { koin.getOrNull<AiReadiness>(named(FACE_READINESS)) }.getOrNull()
+        faces?.retire()
         // ⚠ Retired first, before anyone is told. [PendingUnloads.retire] retires again inside its
         // lock, with the publishing. Early is the safe side: a party that reads *retired* waits
         // for no unload. The order that must never be seen is published and not yet retired.
@@ -667,9 +1072,17 @@ object PhotosOnDeviceAi {
         // their repository goes on. It waits for nothing.
         runCatching { koin.get<RetiredWithTheGraph>() }.getOrNull()?.retire()
         val preflight: Preflight? = runCatching { koin.get<Preflight>() }.getOrNull()
+        // ⚠ Only one this graph built: resolving it here would construct the face probe (and its
+        // readiness) inside a graph being torn down.
+        val facePreflight: Preflight? = builtFacePreflight(koin)
         // ⚠ The foreground pass's driver goes with the graph; its pass is stopped by the unload.
         runCatching { koin.get<CoroutineScope>(named(INDEXING_SCOPE)).cancel() }
-        return unloads.retire(readiness, teardown) { preflight?.awaitSessionsClosed() }
+        // ⚠ The face embedder is unloaded inside the same unload, so the next graph waits for it too.
+        return unloads.retire(readiness, teardown) {
+            preflight?.awaitSessionsClosed()
+            facePreflight?.awaitSessionsClosed()
+            faces?.let { runCatching { it.unloadRetired() }.onFailure { failure -> println("PhotosOnDeviceAi -> the face embedder was not unloaded: $failure") } }
+        }
     }
 
     /**
@@ -706,23 +1119,154 @@ object PhotosOnDeviceAi {
         val was: Long? = scene.number()
         koin?.let { graph -> runCatching { graph.get<AiReadiness>().sceneChanged(active = now, leftForeground = was) } }
             ?.onFailure { println("PhotosOnDeviceAi -> the scene's change was not recorded: $it") }
+        koin?.let { graph -> runCatching { graph.getOrNull<AiReadiness>(named(FACE_READINESS))?.sceneChanged(active = now, leftForeground = was) } }
+            ?.onFailure { println("PhotosOnDeviceAi -> the scene's change was not recorded for faces: $it") }
         scene.set(now)
         // ⚠⚠ After the scene moved, so the pass's own bar already says no at its next photo:
         // cancelled, both towers let go, inside a background window (§3.3, §14.19).
         if (!now) {
             koin?.let { graph -> runCatching { graph.get<ForegroundIndexing>().leftForeground() } }
                 ?.onFailure { println("PhotosOnDeviceAi -> the pass was not stopped on leaving the foreground: $it") }
+            // ⚠ PR-6: the overnight wake is armed now, if something is asked and photos are left.
+            // Returns at once; the read is off this thread, inside a background window.
+            koin?.let { graph -> runCatching { graph.get<ProcessingWake>().leftForeground() } }
+                ?.onFailure { println("PhotosOnDeviceAi -> the processing wake was not armed: $it") }
+            // ⚠ PR-6b: a batch of new arrivals waiting to start never starts behind Photos.
+            koin?.let { graph -> runCatching { graph.get<ForegroundArrivals>().leftForeground() } }
+                ?.onFailure { println("PhotosOnDeviceAi -> the arrivals batch was not stopped: $it") }
         }
         // ⚠ An ask still waiting for the phone is read again in front — a wait kept across a
         // continued task's release would otherwise have spent its re-check in the background.
         if (now) {
             koin?.let { graph -> runCatching { graph.get<ForegroundIndexing>().enteredForeground() } }
                 ?.onFailure { println("PhotosOnDeviceAi -> the waiting pass was not re-checked in front: $it") }
+            // ⚠ PR-6b: what arrived while Photos was away, as the library watch says.
+            koin?.let { graph -> runCatching { graph.get<ForegroundArrivals>().enteredForeground() } }
+                ?.onFailure { println("PhotosOnDeviceAi -> new arrivals were not looked for: $it") }
         }
     }
 
     /** The one pass of the process, whatever graph runs it ([PassExclusion]). */
     internal val passSlot: PassExclusion = PassExclusion.shared()
+
+    /**
+     * What a processing wake would find to do (PR-6, §16). ⚠⚠ Read the way the start operation reads
+     * it, per half (IN-D3): indexing not paused here, and at least one half the pass does that is both
+     * **permitted** — its two switches on, absence is NO — and **served**, a backend claiming it.
+     * Then whether photos are left: unknown is *left*, and only a pass of this runner that ran to its
+     * end ([PassOutcome.COMPLETED]) says the library is current.
+     *
+     * ⚠ Off the main thread: it reads the realm's preference rows and resolves the runner, whose
+     * construction opens the stores.
+     */
+    internal fun wakeWork(koin: Koin): WakeWork {
+        val context: ExecutionContext =
+            koin.get<ClientRegistry>().getExecutionContext(koin.get<String>(named("platformPackageName")))
+        val device: String = koin.get<SyncManager>().currentDeviceId
+        if (context.isIndexingPaused(device)) return WakeWork.NOT_ASKED
+        val permitted = context.permittedInference(koin.get<InferenceBackendRegistry>(), device)
+        if (MEDIA_INDEX_CAPABILITIES.none { it in permitted }) return WakeWork.NOT_ASKED
+        return workLeft(koin.get<MediaIndexRunner>().standing.value, koin.getOrNull<ArrivalsMissed>()?.since)
+    }
+
+    /**
+     * Whether photos may be left, from the runner's [standing]. ⚠ Unknown is left. ⚠⚠ Only a
+     * **library walk** that ran to its end says none are ([IndexPassResult.libraryWalk]): a
+     * new-arrivals batch (PR-6b) is [PassOutcome.COMPLETED] to the runner over its paths alone — capped
+     * or not, it says nothing of the rest of the library, and reading it as "current" armed no wake,
+     * so what the cap left, or a backlog the batch never looked at, waited for a press.
+     */
+    fun workLeft(standing: PassStanding, missedSince: Long? = null): WakeWork = when (standing) {
+        is PassStanding.Running -> WakeWork.LEFT
+        is PassStanding.Idle -> {
+            val last: PassEnding? = standing.last
+            val walked: Boolean = last is PassEnding.Finished && last.result.libraryWalk
+            // ⚠⚠ A look that may have missed arrivals ([ArrivalsMissed]) is answered only by a walk
+            // that started after it.
+            val after: Boolean = missedSince == null || (last != null && last.pass > missedSince)
+            if (walked && after && last?.let { passOutcomeOf(it) } == PassOutcome.COMPLETED) WakeWork.NONE_LEFT else WakeWork.LEFT
+        }
+    }
+
+    /** With no cursor yet, the modification log's end becomes it ([ArrivedPhotoPaths.markEndIfUnmarked]). */
+    internal fun markArrivalsLogEnd(koin: Koin) {
+        val context: ExecutionContext =
+            koin.get<ClientRegistry>().getExecutionContext(koin.get<String>(named("platformPackageName")))
+        koin.get<ArrivedPhotoPaths>().markEndIfUnmarked(context)
+    }
+
+    /** Whether a half may run (consent, model, pause) — what the arrivals trigger asks before it reads the log. */
+    internal suspend fun arrivalsMayRun(koin: Koin): Boolean {
+        val context: ExecutionContext =
+            koin.get<ClientRegistry>().getExecutionContext(koin.get<String>(named("platformPackageName")))
+        return koin.get<MediaIndexer>().anyHalfMayRun(context)
+    }
+
+    /**
+     * A new-arrivals batch (PR-6b): the runner's capped batch over the queued paths alone — no walk,
+     * no reconcile — at most [NEW_ARRIVALS_BATCH_CAP] photos processed; the queue settled with what
+     * became of each. `null` when a pass is already running. ⚠⚠ The runner checks first that a half
+     * may run — its two switches on (absence is NO) and a backend serving it — and the arrivals bar (in
+     * front, heat, Low Power Mode, a known battery); a refusal still deletes what a withdrawal owes.
+     */
+    internal suspend fun runArrivalsBatch(koin: Koin): PathsBatch? {
+        val context: ExecutionContext =
+            koin.get<ClientRegistry>().getExecutionContext(koin.get<String>(named("platformPackageName")))
+        val queue: ArrivalQueue = koin.get()
+        val asked: Int = queue.size
+        return koin.get<MediaIndexRunner>().runArrivalsBatch(context, queue, NEW_ARRIVALS_BATCH_CAP)
+            ?.also { batch ->
+                val result: IndexPassResult = batch.result
+                println(
+                    "[photos-arrivals] asked=$asked visited=${result.imagesVisited} embedded=${result.embedded} " +
+                        "faces=${result.faceRecordsWritten} capped=${result.batchCapReached} deferred=${result.deferred} " +
+                        "left=${queue.size}",
+                )
+            }
+    }
+
+    /**
+     * What arrived since this graph last looked (`ArrivedPhotoPaths`), into the arrivals queue, and
+     * whether anything is queued. ⚠ Off the main thread: two store reads and a small file write.
+     *
+     * ⚠⚠ The queue is flushed here, and `runArrivalsBatch` flushes it after settling, so on iOS every
+     * change is on disk before Photos can be suspended: a leave cancels a batch (which then settles
+     * nothing) and leaves the flushed queue for the next foreground or the wake. Nothing adds to it
+     * anywhere else in this graph.
+     */
+    internal fun lookForArrivals(koin: Koin): Boolean {
+        val context: ExecutionContext =
+            koin.get<ClientRegistry>().getExecutionContext(koin.get<String>(named("platformPackageName")))
+        val queue: ArrivalQueue = koin.get()
+        val look: ArrivedPhotoPaths.Look = koin.get<ArrivedPhotoPaths>().read(context)
+        look.paths.forEach(queue::add)
+        // ⚠⚠ Arrivals this look could not name (no cursor yet, the cursor's row moved, a burst past the
+        // window) are the wake's: the next leave arms it, whatever the last walk said.
+        if (look.missed) koin.get<ArrivalsMissed>().record(koin.get<MediaIndexRunner>().standing.value)
+        queue.flush()
+        return queue.size > 0
+    }
+
+    /** A test's debounce for the arrivals batch (a `Long`, milliseconds). Nothing binds it in production. */
+    const val ARRIVALS_DEBOUNCE: String = "photosArrivalsDebounceMs"
+
+    /**
+     * A wake's pass: the runner's **scheduled** pass (`manual = false`, so the scheduled bar, which
+     * says yes only inside the wake), run to its end. ⚠⚠ Never through the `MediaIndexPass`
+     * operation: on iOS that op is the retirement of the old schedule row (`ios-on-device-inference.md` §13.4 item 8).
+     * A deferred or paused report is [PassOutcome.REFUSED]; a throw reaches the wake, which answers it
+     * [PassOutcome.FAILED]; a cancellation (the wake's expiry) cancels the pass.
+     */
+    internal suspend fun runWakePass(koin: Koin): PassOutcome {
+        val context: ExecutionContext =
+            koin.get<ClientRegistry>().getExecutionContext(koin.get<String>(named("platformPackageName")))
+        return runWakePassOver(koin.get<MediaIndexRunner>(), context) { result ->
+            // ⚠ What the device runbook's three nights record: how much of the library a wake got through.
+            val summary = "visited=${result.imagesVisited} embedded=${result.embedded} current=${result.alreadyCurrent} deferred=${result.deferred} paused=${result.paused}"
+            PhotosProcessingWake.lastPass = summary
+            println("[photos-wake] pass $summary")
+        }
+    }
 
     /** *Index now*, through the operation, typed. ⚠ Every failure is answered, never thrown. */
     internal suspend fun startPass(client: TenshuClient): StartAnswer = try {
@@ -757,6 +1301,9 @@ object PhotosOnDeviceAi {
 
     /** Which foreground of the scene has had its slow probe. The process's, like the scene. */
     internal val slowProbes = SlowProbes()
+
+    /** The face model's own (F6): a slow face probe must not spend search's foreground, nor the reverse. */
+    internal val faceSlowProbes = SlowProbes()
 
     /**
      * Suspends while a torn-down graph of this process is still unloading its towers. What every
@@ -820,8 +1367,42 @@ object PhotosIndexNow {
     internal fun scheduler(): ContinuedTaskScheduler? = installed
 }
 
+/**
+ * The process's processing-wake scheduler (PR-6): what Photos' Swift installs at launch, behind the
+ * build flag and the static gates. ⚠ The process's, not a graph's, like [PhotosIndexNow]'s.
+ */
+object PhotosProcessingWake {
+    @kotlin.concurrent.Volatile
+    private var installed: WakeScheduler? = null
+
+    fun install(scheduler: WakeScheduler) {
+        installed = scheduler
+    }
+
+    /** For a test: no scheduler, as in a process that never installed one. */
+    fun uninstall() {
+        installed = null
+    }
+
+    internal fun scheduler(): WakeScheduler? = installed
+
+    /** The last wake pass's counts, for the wake's journal line (`how-to/photos-processing-wake.md`). */
+    @kotlin.concurrent.Volatile
+    var lastPass: String? = null
+}
+
 /** Whether [koin]'s graph was torn down. ⚠ Readiness is built at assembly, so asking it builds nothing. */
 private fun graphRetired(koin: Koin): Boolean = runCatching { koin.get<AiReadiness>().isRetired() }.getOrDefault(true)
+
+/**
+ * The face [Preflight] of a graph, once that graph has constructed it (`ios-face-grouping.md` F6).
+ * ⚠ Resolving this constructs nothing else: it is how search's loads and [PhotosOnDeviceAi.retire]
+ * reach the face probe without building it (and the face readiness under it) for nothing.
+ */
+internal class FacePreflightBuilt {
+    @kotlin.concurrent.Volatile
+    var preflight: Preflight? = null
+}
 
 /** Stands in for the consent read in a test: [PhotosOnDeviceAi.searchConsented]. */
 fun interface SearchConsent {
@@ -868,5 +1449,20 @@ private object AppBackgroundWindow : BackgroundWindow {
         val window: Window = handle as? Window ?: return
         if (!window.ended.compareAndSet(0, 1) || window.id == UIBackgroundTaskInvalid) return
         UIApplication.sharedApplication.endBackgroundTask(window.id)
+    }
+}
+
+/**
+ * [ModelStoreChanges] for a graph that serves **two** models: a commit or a removal runs inside
+ * the writer 3 of the readiness it is about, and of no other; a change to any third model runs as it
+ * is. ⚠ A change that does not say which model stands both down, which is the safe side.
+ */
+private class ByModelChanges(private val siglip: AiReadiness, private val faces: AiReadiness) : ModelStoreChanges {
+    override suspend fun <T> changing(change: suspend () -> T): T = siglip.storeChanging { faces.storeChanging(change) }
+
+    override suspend fun <T> changing(modelId: String, change: suspend () -> T): T = when (modelId) {
+        VisionModel.PinnedSigLip.modelId -> siglip.storeChanging(change)
+        FaceModel.AuraFaceCoreMl.modelId -> faces.storeChanging(change)
+        else -> change()
     }
 }

@@ -9,6 +9,7 @@ import app.tenshu.photos.ui.screens.collections.CollectionsViewModel
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -50,16 +51,37 @@ class CollectionsWalksOnlyWhenChangedTest {
         override suspend fun albums(): AlbumsResult = if (failAlbums) AlbumsResult.Failed("boom") else inner.albums()
     }
 
-    private class Fixture(val scope: TestScope, val watch: MutableLibraryWatch?, val library: Library, val vm: CollectionsViewModel) {
+    private class Fixture(
+        val scope: TestScope,
+        val watch: MutableLibraryWatch?,
+        val library: Library,
+        val vm: CollectionsViewModel,
+        /** What the iOS shell feeds from the index runner: a pass that changed the face templates. */
+        val indexed: MutableSharedFlow<Unit>,
+    ) {
         fun settle() = scope.advanceUntilIdle()
+
+        /** An index pass ended having written face templates — and, ⚠ like the Core ML backend, no label. */
+        fun passEnded() {
+            check(indexed.tryEmit(Unit))
+        }
     }
 
-    private fun tab(watch: MutableLibraryWatch? = MutableLibraryWatch(watching = true), body: suspend Fixture.() -> Unit) {
+    /**
+     * ⚠ [followsIndex] `false` is the Android/desktop construction — no `indexChanges` at all — kept
+     * covered on its own, since every other case here passes one.
+     */
+    private fun tab(
+        watch: MutableLibraryWatch? = MutableLibraryWatch(watching = true),
+        followsIndex: Boolean = true,
+        body: suspend Fixture.() -> Unit,
+    ) {
         val main = StandardTestDispatcher()
         Dispatchers.setMain(main)
         vmTest(main) { vms ->
             val library = Library(MockPhotosRepository(photos = photos).also { it.watch = watch })
-            val fixture = Fixture(this, watch, library, vms.own(CollectionsViewModel(library)))
+            val indexed = MutableSharedFlow<Unit>(extraBufferCapacity = 8)
+            val fixture = Fixture(this, watch, library, vms.own(CollectionsViewModel(library, indexChanges = indexed.takeIf { followsIndex })), indexed)
             fixture.settle()
             assertEquals(1, library.walks, "the walk the view model starts with")
             fixture.body()
@@ -256,6 +278,69 @@ class CollectionsWalksOnlyWhenChangedTest {
         assertEquals(2, library.walks, "the grid that came back is walked for")
     }
 
+    // ── this device's index (`photos-ios.md` §8.22.3, `ios-face-grouping.md` §17.6) ────────────────
+
+    /**
+     * ⚠⚠ The device-pass defect: a pass writes face templates and no `MediaLabel`, so the watch's
+     * revision does not move — and the return said `walk=skipped (clean)` over the pre-pass People.
+     */
+    @Test
+    fun aPassThatWroteFacesButNoLabelIsWalkedForOnTheReturn() = tab {
+        passEnded()
+        settle()
+        assertEquals(1, library.walks, "nobody is looking: nothing is walked")
+
+        vm.setShown("tab", true)
+        vm.refreshIfChanged()
+        settle()
+        assertEquals(2, library.walks, "the return walks: People is re-read")
+
+        vm.setShown("tab", false)
+        vm.setShown("tab", true)
+        vm.refreshIfChanged()
+        settle()
+        assertEquals(2, library.walks, "and clean again after it")
+    }
+
+    /** The tab on screen when the pass ends redraws without being left and re-entered. */
+    @Test
+    fun aPassThatEndsWhileTheTabIsShownIsWalkedFor() = tab {
+        vm.setShown("tab", true)
+        passEnded()
+        settle()
+        assertEquals(2, library.walks)
+    }
+
+    /** A pass ending mid-walk is one more walk after it, not a walk beside it. */
+    @Test
+    fun aPassThatEndsDuringAWalkIsOneMoreWalk() = tab {
+        vm.setShown("tab", true)
+        val gate = CompletableDeferred<Unit>()
+        library.hold = gate
+        vm.refresh()
+        scope.runCurrent()
+        assertEquals(2, library.walks)
+        passEnded()
+        scope.advanceTimeBy(5_000)
+        assertEquals(2, library.walks, "never a second walk beside the first")
+        library.hold = null
+        gate.complete(Unit)
+        settle()
+        assertEquals(3, library.walks)
+    }
+
+    /** ⚠ Unlike `changed()`: with no watch a pass is still not a walk of a library nobody is looking at. */
+    @Test
+    fun withoutAWatchAPassWithTheTabHiddenWaitsForTheReturn() = tab(watch = null) {
+        passEnded()
+        settle()
+        assertEquals(1, library.walks)
+        vm.setShown("tab", true)
+        passEnded()
+        settle()
+        assertEquals(2, library.walks, "shown: walked for, by the change loop a watchless tab still runs")
+    }
+
     // ── when nobody can vouch ──────────────────────────────────────────────────────────────────────
 
     /** ⚠⚠ The safe direction: no watch is "may have changed", every time — today's behaviour. */
@@ -270,6 +355,29 @@ class CollectionsWalksOnlyWhenChangedTest {
         vm.changed()
         settle()
         assertEquals(5, library.walks)
+    }
+
+    /** The Android/desktop construction: no watch, no `indexChanges` — every return walks, an edit at once. */
+    @Test
+    fun withoutAWatchOrIndexChangesEveryReturnWalks_andAnEditWalksAtOnce() = tab(watch = null, followsIndex = false) {
+        repeat(3) {
+            vm.setShown("tab", true)
+            vm.refreshIfChanged()
+            settle()
+        }
+        assertEquals(4, library.walks)
+        vm.changed()
+        settle()
+        assertEquals(5, library.walks)
+    }
+
+    /** ⚠ With a watch and no `indexChanges`, the skip is today's: nothing changed, nothing walked. */
+    @Test
+    fun withAWatchAndNoIndexChangesACleanReturnStillSkips() = tab(followsIndex = false) {
+        vm.setShown("tab", true)
+        vm.refreshIfChanged()
+        settle()
+        assertEquals(1, library.walks)
     }
 
     @Test

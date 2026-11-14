@@ -14,4 +14,14 @@ export function findHostedApp(id: string): HostedApp | null {
   return HOSTED_APPS.find((app) => app.id === id) ?? null
 }
 
-export { appOrigin, SESSION_METHODS, type HostedApp } from './types'
+export {
+  appOrigin,
+  SESSION_METHODS,
+  type AppGlance,
+  type GlanceAgendaRow,
+  type GlanceCall,
+  type GlanceData,
+  type GlanceListRow,
+  type GlanceTile,
+  type HostedApp,
+} from './types'

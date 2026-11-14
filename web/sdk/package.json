@@ -10,6 +10,8 @@
     "./core": "./src/core.ts",
     "./identity": "./src/identity.ts",
     "./notifications": "./src/notifications.ts",
+    "./overview": "./src/overview.ts",
+    "./apps": "./src/apps.ts",
     "./files": "./src/files.ts",
     "./bridge": "./src/bridge.ts",
     "./share": "./src/share.ts",

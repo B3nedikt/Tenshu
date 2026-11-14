@@ -45,11 +45,23 @@ import kotlin.uuid.Uuid
  */
 internal class ErrorEventRecorderImpl(
     private val sessionExecutionContext: ExecutionContext,
-    private val deviceId: String,
+    private val deviceId: () -> String,
     private val appId: String,
     private val appVersion: String,
     private val osLabel: String,
 ) : ErrorEventRecorder {
+
+    /**
+     * ⚠ Never throws: recording an error must not become a second one. After a forget whose new
+     * key could not be saved, every read of the device id throws until Control restarts
+     * (`SyncManagerImpl`'s persist-before-publish), so the event carries [UNKNOWN_DEVICE] instead.
+     */
+    private fun recordedDeviceId(): String =
+        try {
+            deviceId()
+        } catch (failure: Exception) {
+            UNKNOWN_DEVICE
+        }
 
     @OptIn(ExperimentalUuidApi::class)
     override fun record(error: TError, operationId: String, callstackDepth: Int) {
@@ -67,7 +79,7 @@ internal class ErrorEventRecorderImpl(
                     operationId.toTString(context),
                     callstackDepth.toLong().toTInteger(context),
                     capturedAt.toTInteger(context),
-                    deviceId.toTString(context),
+                    recordedDeviceId().toTString(context),
                     appId.toTString(context),
                     appVersion.toTString(context),
                     osLabel.toTString(context),
@@ -81,3 +93,6 @@ internal class ErrorEventRecorderImpl(
         sessionExecutionContext.saveData(event)
     }
 }
+
+/** The device id an error event carries when this device's id cannot be read — see `recordedDeviceId`. */
+internal const val UNKNOWN_DEVICE = "unknown-device"

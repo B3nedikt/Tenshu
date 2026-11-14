@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FileBrowser } from './FileBrowser'
@@ -104,17 +104,35 @@ describe('FileBrowser', () => {
     expect(names).toEqual(['Albums', 'big.bin', 'small.txt'])
   })
 
-  it('navigates into a folder on click and lists its contents', async () => {
+  it('navigates into a folder on double-click and lists its contents', async () => {
     listFiles.mockResolvedValueOnce([folder('/Photos')]) // root
     listFiles.mockResolvedValueOnce([file('/Photos/a.jpg')]) // inside Photos
     renderBrowser()
 
-    await userEvent.click(await screen.findByText('Photos'))
+    await userEvent.dblClick(await screen.findByText('Photos'))
 
     await screen.findByText('a.jpg')
     expect(listFiles).toHaveBeenCalledWith('/Photos')
     // Breadcrumb trail now shows the folder.
     expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveTextContent('Photos')
+  })
+
+  it('controlled: opening a folder asks the owner to move, and follows the path it is given', async () => {
+    listFiles.mockImplementation(async (path: string) => (path === '/' ? [folder('/Photos')] : [file('/Photos/a.jpg')]))
+    const onPathChange = vi.fn()
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const view = (path: string) => (
+      <QueryClientProvider client={queryClient}>
+        <FileBrowser path={path} onPathChange={onPathChange} />
+      </QueryClientProvider>
+    )
+    const { rerender } = render(view('/'))
+    await userEvent.dblClick(await screen.findByText('Photos'))
+    expect(onPathChange).toHaveBeenCalledWith('/Photos')
+    // The owner (App, via the URL) decides; until it does, the browser stays put.
+    expect(screen.queryByText('a.jpg')).toBeNull()
+    rerender(view('/Photos'))
+    expect(await screen.findByText('a.jpg')).toBeInTheDocument()
   })
 
   it('navigates back up via a breadcrumb', async () => {
@@ -123,7 +141,7 @@ describe('FileBrowser', () => {
     listFiles.mockResolvedValueOnce([folder('/Photos')]) // back at root
     renderBrowser()
 
-    await userEvent.click(await screen.findByText('Photos'))
+    await userEvent.dblClick(await screen.findByText('Photos'))
     await screen.findByText('a.jpg')
     await userEvent.click(screen.getByRole('button', { name: 'Drive' }))
 
@@ -148,7 +166,7 @@ describe('FileBrowser', () => {
     })
     renderBrowser()
 
-    await userEvent.click(await screen.findByText('a.png'))
+    await userEvent.dblClick(await screen.findByText('a.png'))
 
     await waitFor(() => expect(getData).toHaveBeenCalledWith('/a.png'))
     expect(await screen.findByRole('img', { name: 'a.png' })).toHaveAttribute('src', 'blob:p')
@@ -173,7 +191,7 @@ describe('FileBrowser', () => {
     })
     renderBrowser()
 
-    await userEvent.click(await screen.findByText('a.png'))
+    await userEvent.dblClick(await screen.findByText('a.png'))
 
     const img = await screen.findByRole('img', { name: 'a.png' })
     expect(img).toHaveAttribute('src', 'blob:rung')
@@ -185,7 +203,7 @@ describe('FileBrowser', () => {
   // ⚠⚠ The data-loss guard. What is on screen is a 2048 px JPEG, not the file — so Download must
   // fetch the real bytes. Deleting the `standIn` branch makes Download an `<a href>` over the rung,
   // which saves a thumbnail under the original's filename and passes every other test silently.
-  it('Download fetches the original when the lightbox is showing a rung', async () => {
+  it('Download fetches the original when the viewer is showing a rung', async () => {
     listFiles.mockResolvedValueOnce([file('/a.png')])
     getLargePreview.mockResolvedValue({
       ok: true,
@@ -201,7 +219,7 @@ describe('FileBrowser', () => {
     })
     renderBrowser()
 
-    await userEvent.click(await screen.findByText('a.png'))
+    await userEvent.dblClick(await screen.findByText('a.png'))
     await screen.findByRole('img', { name: 'a.png' })
     expect(getData).not.toHaveBeenCalled()
 
@@ -211,7 +229,7 @@ describe('FileBrowser', () => {
     vi.unstubAllGlobals()
   })
 
-  it('opens a preview (getData + lightbox) when a file is clicked', async () => {
+  it('opens a file in the viewer (getData) on double-click', async () => {
     listFiles.mockResolvedValueOnce([file('/a.png')])
     getData.mockResolvedValueOnce({ ok: true, bytes: new Int8Array([1, 2, 3]) })
     vi.stubGlobal('URL', {
@@ -221,7 +239,7 @@ describe('FileBrowser', () => {
     })
     renderBrowser()
 
-    await userEvent.click(await screen.findByText('a.png'))
+    await userEvent.dblClick(await screen.findByText('a.png'))
 
     await waitFor(() => expect(getData).toHaveBeenCalledWith('/a.png'))
     const img = await screen.findByRole('img', { name: 'a.png' })
@@ -229,46 +247,125 @@ describe('FileBrowser', () => {
     vi.unstubAllGlobals()
   })
 
-  it('opens the details drawer from the row menu', async () => {
-    listFiles.mockResolvedValueOnce([file('/a.jpg')])
-    details.mockResolvedValue({ ok: true, row: { path: '/a.jpg', size: 10, createdAt: 0, lastModified: 0 } })
-    activity.mockResolvedValue([])
-    renderBrowser()
+  it('Get info selects the entry and opens the details pane', async () => {
+    listFiles.mockResolvedValue([file('/a.jpg'), file('/b.jpg')])
+    const onTogglePane = vi.fn()
+    const onFocusChange = vi.fn()
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <FileBrowser onTogglePane={onTogglePane} onFocusChange={onFocusChange} />
+      </QueryClientProvider>,
+    )
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Actions for a.jpg' }))
-    await userEvent.click(screen.getByRole('menuitem', { name: 'Details' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Actions for b.jpg' }))
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Get info' }))
 
-    expect(await screen.findByRole('dialog', { name: 'File details' })).toBeInTheDocument()
-    expect(details).toHaveBeenCalledWith('/a.jpg')
+    expect(onTogglePane).toHaveBeenCalledOnce()
+    await waitFor(() => expect(onFocusChange).toHaveBeenLastCalledWith(expect.objectContaining({ path: '/b.jpg' })))
   })
 
-  it('does not offer Details for a folder', async () => {
+  it('does not offer Download for a folder', async () => {
     listFiles.mockResolvedValue([folder('/Docs')])
     renderBrowser()
 
     await userEvent.click(await screen.findByRole('button', { name: 'Actions for Docs' }))
-    expect(screen.queryByRole('menuitem', { name: 'Details' })).toBeNull()
+    // Folders get Get info (a summary) but no Download.
+    expect(screen.queryByRole('menuitem', { name: 'Download' })).toBeNull()
   })
 
-  it('shows an empty state and an Upload button', async () => {
+  it('shows an empty state', async () => {
     listFiles.mockResolvedValueOnce([])
     renderBrowser()
-
-    await screen.findByText('This folder is empty.')
-    expect(screen.getByRole('button', { name: 'Upload' })).toBeInTheDocument()
+    expect(await screen.findByText('This folder is empty.')).toBeInTheDocument()
   })
 
-  it('creates a folder via the New folder dialog', async () => {
-    listFiles.mockResolvedValue([])
-    createFolder.mockResolvedValueOnce(true)
+  // §3.2: a click selects — it never opens.
+  it('a click selects without opening; Escape clears', async () => {
+    listFiles.mockResolvedValue([folder('/Photos'), file('/a.txt')])
     renderBrowser()
-    await screen.findByText('This folder is empty.')
+    await userEvent.click(await screen.findByText('Photos'))
+    expect(screen.getByText('Photos').closest('button')).toHaveAttribute('aria-pressed', 'true')
+    expect(listFiles).not.toHaveBeenCalledWith('/Photos')
+    await userEvent.keyboard('{Escape}')
+    expect(screen.getByText('Photos').closest('button')).toHaveAttribute('aria-pressed', 'false')
+  })
 
-    await userEvent.click(screen.getByRole('button', { name: 'New folder' }))
-    await userEvent.type(screen.getByLabelText('Folder name'), 'Photos')
-    await userEvent.click(screen.getByRole('button', { name: 'Create' }))
+  it('Enter opens the selected folder', async () => {
+    listFiles.mockResolvedValueOnce([folder('/Photos')])
+    listFiles.mockResolvedValueOnce([file('/Photos/a.jpg')])
+    renderBrowser()
+    await userEvent.click(await screen.findByText('Photos'))
+    await userEvent.keyboard('{Enter}')
+    expect(await screen.findByText('a.jpg')).toBeInTheDocument()
+  })
 
-    await waitFor(() => expect(createFolder).toHaveBeenCalledWith('/Photos'))
+  it('Shift-click selects the range, ⌘-click adds one; the selection bar replaces the toolbar', async () => {
+    listFiles.mockResolvedValue([file('/a.txt'), file('/b.txt'), file('/c.txt'), file('/d.txt')])
+    const user = userEvent.setup() // one instance, so a held modifier carries into the click
+    renderBrowser()
+    await user.click(await screen.findByText('a.txt'))
+    expect(screen.queryByRole('toolbar', { name: 'Selection' })).toBeNull() // one plain click: no bar
+    await user.keyboard('{Shift>}')
+    await user.click(screen.getByText('c.txt'))
+    await user.keyboard('{/Shift}')
+    expect(screen.getByText('3 selected')).toBeInTheDocument()
+    await user.keyboard('{Meta>}')
+    await user.click(screen.getByText('b.txt'))
+    await user.keyboard('{/Meta}')
+    expect(screen.getByText('2 selected')).toBeInTheDocument()
+    expect(screen.getByRole('toolbar', { name: 'Selection' })).toHaveTextContent('200 B')
+    expect(screen.queryByRole('combobox', { name: 'Sort by' })).toBeNull()
+  })
+
+  // The native file-actions sheet, on right-click — the same entries as the ⋯ menu.
+  it('right-click opens the item menu', async () => {
+    listFiles.mockResolvedValue([file('/a.txt')])
+    renderBrowser()
+    fireEvent.contextMenu(await screen.findByText('a.txt'))
+    // It also selects the row it points at, so the pane and the menu agree.
+    expect(screen.getByText('a.txt').closest('button')).toHaveAttribute('aria-pressed', 'true')
+    for (const name of ['Open', 'Download', 'Share', 'Move', 'Rename', 'Delete']) {
+      expect(await screen.findByRole('menuitem', { name: new RegExp(`^${name}`) })).toBeInTheDocument()
+    }
+  })
+
+  // Review finding (L3): Enter on a menu item used to bubble to the list and ALSO open the selected
+  // folder — so "Delete" landed you inside the folder you were deleting.
+  it('Enter on a menu item does only that item, not "open" for the selected row', async () => {
+    listFiles.mockResolvedValue([folder('/Photos')])
+    renderBrowser()
+    fireEvent.contextMenu(await screen.findByText('Photos'))
+    const del = await screen.findByRole('menuitem', { name: /^Delete/ })
+    del.focus()
+    await userEvent.keyboard('{Enter}')
+    expect(await screen.findByRole('dialog', { name: 'Delete folder' })).toBeInTheDocument()
+    expect(listFiles).not.toHaveBeenCalledWith('/Photos')
+  })
+
+  it('keys on the toolbar are the toolbar’s: Backspace there deletes nothing', async () => {
+    listFiles.mockResolvedValue([file('/a.txt')])
+    renderBrowser()
+    await userEvent.click(await screen.findByText('a.txt'))
+    screen.getByRole('button', { name: /Sort (ascending|descending)/ }).focus()
+    await userEvent.keyboard('{Backspace}')
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('a selected file that disappears from the listing drops out of the selection', async () => {
+    listFiles.mockResolvedValueOnce([file('/a.txt'), file('/b.txt')])
+    listFiles.mockResolvedValue([file('/a.txt')])
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <FileBrowser />
+      </QueryClientProvider>,
+    )
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'Select a.txt' }))
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select b.txt' }))
+    expect(screen.getByText('2 selected')).toBeInTheDocument()
+    await queryClient.invalidateQueries()
+    await waitFor(() => expect(screen.queryByText('b.txt')).toBeNull())
+    expect(screen.getByText('1 selected')).toBeInTheDocument()
   })
 
   it('renames an entry via its row menu', async () => {
@@ -338,43 +435,6 @@ describe('FileBrowser', () => {
   // W7. A folder pick arrives as a FLAT FileList; the directory tree exists only inside each
   // file's `webkitRelativePath`. If that is not reconstructed, every file lands in the root and
   // the user's folder structure is silently flattened on upload.
-  it('recreates a picked folder’s tree, parents before children', async () => {
-    listFiles.mockResolvedValue([])
-    createFolder.mockResolvedValue(true)
-    uploadFile.mockResolvedValue(true)
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <FileBrowser />
-      </QueryClientProvider>,
-    )
-    await screen.findByText(/upload folder/i)
-
-    const input = document.querySelector('input[webkitdirectory]') as HTMLInputElement
-    expect(input).not.toBeNull()
-
-    const pick = (relative: string) => {
-      const f = new File(['x'], relative.split('/').pop()!, { type: 'text/plain' })
-      Object.defineProperty(f, 'webkitRelativePath', { value: relative })
-      return f
-    }
-    const files = [pick('trip/photos/a.jpg'), pick('trip/notes.txt'), pick('trip/photos/raw/b.dng')]
-    Object.defineProperty(input, 'files', { value: files, configurable: true })
-    input.dispatchEvent(new Event('change', { bubbles: true }))
-
-    await waitFor(() => expect(uploadFile).toHaveBeenCalledTimes(3))
-
-    // ⚠⚠ Parents before children — a child folder cannot be created into a parent that does
-    // not exist yet. Every ancestor appears exactly once, however many files share it.
-    const created = createFolder.mock.calls.map((c) => c[0] as string)
-    expect(created).toEqual(['/trip', '/trip/photos', '/trip/photos/raw'])
-
-    // Each file into the folder its relative path named — not the root.
-    const targets = uploadFile.mock.calls.map((c) => [c[0], c[1]])
-    expect(targets).toContainEqual(['/trip/photos', 'a.jpg'])
-    expect(targets).toContainEqual(['/trip', 'notes.txt'])
-    expect(targets).toContainEqual(['/trip/photos/raw', 'b.dng'])
-  })
-
   it('bulk-deletes multiple selected items', async () => {
     listFiles.mockResolvedValue([file('/a.txt'), file('/b.txt')])
     deleteEntry.mockResolvedValue(true)

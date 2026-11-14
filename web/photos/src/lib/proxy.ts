@@ -116,13 +116,18 @@ export function subscribeSyncHealth(
 
 // One keyset page, newest first. `cursor` null = the head; pass back exactly the `nextCursor` the
 // previous page returned (opaque, `v2.<ms>.<lastPath>`). `pageSize` 1..500.
-export function feedPage(cursor: string | null, pageSize: number): Promise<FeedPageResult> {
-  return call<FeedPageResult>(ProxyMethod.FeedPage, { cursor, pageSize })
+// `kind`: the library (photos and videos) or the Videos collection (web-apps-layout.md L5) — the
+// same walk, order and cursor. Sent only when it is not the library, so a library call is unchanged.
+export type FeedKind = 'all' | 'videos'
+
+export function feedPage(cursor: string | null, pageSize: number, kind: FeedKind = 'all'): Promise<FeedPageResult> {
+  return call<FeedPageResult>(ProxyMethod.FeedPage, kind === 'all' ? { cursor, pageSize } : { cursor, pageSize, kind })
 }
 
 // Every capture time in the feed, newest first: the scrubber's map and the feed's length.
-export function captureTimes(): Promise<CaptureTimesResult> {
-  return call<CaptureTimesResult>(ProxyMethod.CaptureTimes)
+// ⚠ The same `kind` as the pages it maps — index i of these times is index i of that feed.
+export function captureTimes(kind: FeedKind = 'all'): Promise<CaptureTimesResult> {
+  return call<CaptureTimesResult>(ProxyMethod.CaptureTimes, kind === 'all' ? undefined : { kind })
 }
 
 export function photoDetails(path: string): Promise<PhotoDetailsResult> {

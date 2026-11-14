@@ -1,13 +1,16 @@
 {
   "app": {
-    "title": "Photos",
-    "tagline": "Your photos and videos, end-to-end encrypted."
+    "title": "Photos"
   },
   "nav": {
-    "photos": "Photos",
+    "label": "Photos sections",
+    "photos": "Library",
     "albums": "Albums",
     "favourites": "Favourites",
-    "trash": "Trash"
+    "trash": "Trash",
+    "years": "Years",
+    "collections": "Collections",
+    "videos": "Videos"
   },
   "common": {
     "cancel": "Cancel",
@@ -22,7 +25,17 @@
   },
   "tile": {
     "photoLabel": "Photo {name}, {date}",
-    "videoLabel": "Video {name}, {date}"
+    "videoLabel": "Video {name}, {date}",
+    "select": "Select {name}",
+    "actions": "Actions for {name}"
+  },
+  "menu": {
+    "open": "Open",
+    "download": "Download",
+    "favourite": "Favourite",
+    "unfavourite": "Unfavourite",
+    "addToAlbum": "Add to album…",
+    "trash": "Move to trash"
   },
   "feed": {
     "scrubber": "Jump to a date",
@@ -30,12 +43,12 @@
     "empty": "No photos yet. Photos and videos you add in Drive or on your phone appear here."
   },
   "select": {
-    "start": "Select",
     "count": "{count, plural, =0 {Nothing selected} one {# selected} other {# selected}}",
     "addToAlbum": "Add to album",
     "favourite": "Add to favourites",
     "removeFromAlbum": "Remove from album",
-    "partial": "{done} of {total} done."
+    "partial": "{done} of {total} done.",
+    "clear": "Clear selection"
   },
   "albums": {
     "addTo": "Add to album",
@@ -70,7 +83,9 @@
     "downloadOriginal": "Download original",
     "downloaded": "Saved.",
     "play": "Play",
-    "cannotPlay": "This video can’t be played here yet. Try again once it has synced."
+    "cannotPlay": "This video can’t be played here yet. Try again once it has synced.",
+    "filmstrip": "Photos nearby",
+    "position": "{index} of {total}"
   },
   "details": {
     "name": "Name",
@@ -105,6 +120,7 @@
     "bridge": "Couldn’t reach Tenshu. Make sure it is open and unlocked, then try again.",
     "bridge_timeout": "Tenshu took too long to answer. Try again.",
     "error_photos_bad_cursor": "The library changed while loading. Refresh to start again.",
+    "error_photos_bad_kind": "Something went wrong loading your library. Please try again.",
     "error_photos_bad_page_size": "Something went wrong loading your library. Please try again.",
     "error_photos_unknown_album": "That album no longer exists.",
     "error_photos_not_found": "That photo is no longer there.",
@@ -135,5 +151,18 @@
     "body": "This part of Photos hit an unexpected error. Your data is safe — nothing was changed.",
     "retry": "Try again",
     "reload": "Reload"
+  },
+  "density": {
+    "label": "View",
+    "days": "Days",
+    "months": "Months",
+    "years": "Years"
+  },
+  "years": {
+    "count": "{count, plural, one {# photo} other {# photos}}",
+    "open": "Show {year}"
+  },
+  "videos": {
+    "empty": "No videos yet."
   }
 }

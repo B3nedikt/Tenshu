@@ -14,10 +14,11 @@ export const photoGateway: GatewayModule = {
   handlers: {
     // The feed: a keyset page in, a page and the next cursor out. Never the whole library.
     'photo.feedPage': async (params) => {
-      const { cursor, pageSize } = readFeedPage(params)
-      return Photos.feedPage(cursor, pageSize)
+      const { cursor, pageSize, kind } = readFeedPage(params)
+      return Photos.feedPage(cursor, pageSize, kind)
     },
-    'photo.captureTimes': async () => Photos.captureTimes(),
+    // Optional `{ kind }` — the Videos collection's times; absent = the library's.
+    'photo.captureTimes': async (params) => Photos.captureTimes(readKind(params, 'photo.captureTimes')),
 
     // One photograph. `null` = nothing at that path; `ok: false` = the read failed.
     'photo.get': async (params) => Photos.photo(readId(params, 'path', 'photo.get')),
@@ -77,7 +78,16 @@ export const photoGateway: GatewayModule = {
 // `cursor` is optional (absent or null = the head) and opaque. A non-string is a malformed call.
 // `pageSize` is a required integer in 1..MAX_FEED_PAGE_SIZE: a missing one must not quietly become
 // "the whole library".
-function readFeedPage(params: unknown): { cursor: string | null; pageSize: number } {
+// `kind` is optional: absent = the library ('all'), 'videos' = the Videos collection (L5). Anything
+// else is a malformed call — never quietly "everything".
+function readKind(params: unknown, method: string): 'all' | 'videos' {
+  const kind = params === undefined || params === null ? undefined : asRecord(params).kind
+  if (kind === undefined || kind === 'all') return 'all'
+  if (kind === 'videos') return 'videos'
+  throw new Error(`${method} requires { kind?: 'all' | 'videos' }`)
+}
+
+function readFeedPage(params: unknown): { cursor: string | null; pageSize: number; kind: 'all' | 'videos' } {
   const r = asRecord(params)
   const cursor = r.cursor ?? null
   if (cursor !== null && typeof cursor !== 'string') throw new Error('photo.feedPage requires { cursor: string | null }')
@@ -85,5 +95,5 @@ function readFeedPage(params: unknown): { cursor: string | null; pageSize: numbe
   if (typeof pageSize !== 'number' || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > MAX_FEED_PAGE_SIZE) {
     throw new Error(`photo.feedPage requires { pageSize: integer 1..${MAX_FEED_PAGE_SIZE} }`)
   }
-  return { cursor, pageSize }
+  return { cursor, pageSize, kind: readKind(params, 'photo.feedPage') }
 }

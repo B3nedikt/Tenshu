@@ -11,17 +11,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExecutorCoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
+import org.tenshu.core.common.awaitState
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
-import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -31,8 +29,6 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kotlin.test.fail
-import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -46,9 +42,19 @@ import kotlin.time.Duration.Companion.seconds
  * prove both sides *derive* the same SAS, but never asserted what each user *sees, and when*).
  *
  * Threading mirrors `PairingSystemTest`: `runBlocking` + a real single-thread Main (the VMs'
- * `viewModelScope`) because `ProxyGateway.call` deadlocks under the test dispatcher. State
- * transitions are awaited with real-time timeouts (the offerer/host polls run at their real
- * 2 s cadence).
+ * `viewModelScope`) because `ProxyGateway.call` deadlocks under the test dispatcher.
+ *
+ * ## Stepped: every poll is one the test takes
+ *
+ * *What each user sees, and when* is the subject, and "when" is decided by three polls: the
+ * offerer's status poll (`OfferPairingMonitor`), the host's request poll (`HostPairingMonitor`) and
+ * the joiner's in-proxy wait (`AwaitPairing`). Each takes its pause from a [StepPacer], and
+ * `step()` lets exactly one more poll run, after the previous one has finished. So each case is a
+ * sequence: the other device acts, its own state shows the act reached the relay, then one poll on
+ * this device must show the outcome. A state that needed a second poll would go red rather than wait
+ * 2 s longer. The system is stepped too (`docs/testing.md` §12), so no sync loop ticks underneath.
+ * The view models' states are still awaited with `awaitState`, because a poll publishes on the
+ * view model's own coroutines.
  *
  * ⚠⚠ Every [Party] is built through [Parties.own] and torn down by [tearDown] BEFORE the system —
  * a real Main means a real 6 s timer on `viewModelScope`, and one that outlives its test fails a
@@ -73,8 +79,12 @@ class PairingVmFlowSystemTest {
 
     private class Party(client: TestClient, scope: CoroutineScope) {
         val repository = TenshuSyncRepository(client.tenshuClient)
-        val monitor = HostPairingMonitor(repository, scope)
-        val viewModel = PairingWizardViewModel(repository, monitor, scope)
+        /** The host's request poll (`HostPairingMonitor`): it polls, then pauses here. */
+        val hostPoll = StepPacer("${client.deviceId}'s host request poll")
+        /** The offerer's status poll (`OfferPairingMonitor`): it pauses here, then polls. */
+        val offerPoll = StepPacer("${client.deviceId}'s offer status poll")
+        val monitor = HostPairingMonitor(repository, scope, pacePoll = hostPoll.pace)
+        val viewModel = PairingWizardViewModel(repository, monitor, scope, offerPollPacer = offerPoll.pace)
     }
 
     /**
@@ -133,21 +143,11 @@ class PairingVmFlowSystemTest {
             "viewModelScope is cancelled and JOINED before system.shutdown(); see Parties' KDoc",
     )
 
-    private suspend fun <T> StateFlow<T>.awaitState(
-        what: String,
-        timeout: Duration = 20.seconds,
-        predicate: (T) -> Boolean,
-    ): T = try {
-        withTimeout(timeout) { first(predicate) }
-    } catch (e: TimeoutCancellationException) {
-        fail("Timed out waiting for $what; last state = $value")
-    }
-
     // ------------------------------------------------------------------ offer flow (§4)
 
     @Test
     fun offerFlow_unpairedDesktopShowsOffer_phoneApproves_desktopLandsPaired() = runBlocking {
-        val system = TestSystem.builder().build()
+        val system = TestSystem.builder().stepped().build()
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val parties = Parties()
         try {
@@ -174,6 +174,10 @@ class PairingVmFlowSystemTest {
                 it.step == PairingStep.ResponderApproval && it.responderSas != null
             }
             val phoneSas = assertNotNull(phonePrompt.responderSas)
+            // The prompt's SAS is set only once `RespondToPairingOffer` has returned, and that op
+            // posts the scanned announce before it returns. So ONE offerer poll from here must
+            // see it.
+            desktop.offerPoll.step()
 
             // ⭐⭐ …and NOW the desktop shows the same code, with the decision still open. This
             // assertion is the inverse of the one it replaces: until A1–A3 the offerer could not
@@ -205,6 +209,9 @@ class PairingVmFlowSystemTest {
             val phoneTerminal = phone.viewModel.uiState.awaitState("the device-added terminal on the phone") {
                 it.step == PairingStep.ResponderSuccess
             }
+            // ResponderSuccess is set once the approval op has returned, so ONE more offerer poll
+            // must see the approval.
+            desktop.offerPoll.step()
 
             // ⚠⚠ The SAS must SURVIVE the transition to the terminal, because that is the only
             // screen on which the comparison can actually be made. The offer flow's SAS is
@@ -240,7 +247,7 @@ class PairingVmFlowSystemTest {
 
     @Test
     fun offerFlow_phoneDenies_desktopShowsDeclinedNotSpinner() = runBlocking {
-        val system = TestSystem.builder().build()
+        val system = TestSystem.builder().stepped().build()
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val parties = Parties()
         try {
@@ -264,6 +271,12 @@ class PairingVmFlowSystemTest {
             }
 
             phone.viewModel.denyOffer()
+            // The phone returns to its scanner only once the deny op has returned, so ONE offerer
+            // poll from there must see the denial.
+            phone.viewModel.uiState.awaitState("the phone back at its scanner after denying") {
+                it.step == PairingStep.ScanQr && it.responderSecretHash == null
+            }
+            desktop.offerPoll.step()
             val deniedState = desktop.viewModel.uiState.awaitState("the declined terminal on the desktop") {
                 it.offerDenied
             }
@@ -280,12 +293,14 @@ class PairingVmFlowSystemTest {
 
     @Test
     fun joinFlow_pairedPhoneShowsJoinQr_desktopRequests_phoneApproves_desktopLandsPaired() = runBlocking {
-        val system = TestSystem.builder().build()
+        val system = TestSystem.builder().stepped().build()
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val parties = Parties()
         try {
+            // The joiner's in-proxy pairing wait (`AwaitPairing`): it tries, then pauses here.
+            val desktopWait = StepPacer("the desktop's pairing wait")
             val phoneClient = system.client("phone", TestClientRole.RealmHost)
-            val desktopClient = system.client("desktop", TestClientRole.JoiningDevice)
+            val desktopClient = system.client("desktop", TestClientRole.JoiningDevice, pairingWaitPacer = desktopWait.pace)
             assertTrue(phoneClient.bootstrapAsHost(deviceName = "Phone") is TResult.Success)
 
             val phone = parties.own(Party(phoneClient, scope))
@@ -312,6 +327,9 @@ class PairingVmFlowSystemTest {
             // 3. The phone's process-lifetime monitor surfaces the approval request — the
             //    app-global modal's trigger — carrying the SAME SAS the desktop shows
             //    (join flow = true simultaneous comparison, unlike the offer flow).
+            //    The desktop's SAS is set once `InitiatePairing` has returned, which posts the
+            //    request; so ONE host poll from here must surface it.
+            phone.hostPoll.step()
             val request = assertNotNull(
                 phone.monitor.activeRequest.awaitState("the approval request on the phone") { it != null },
             )
@@ -319,7 +337,13 @@ class PairingVmFlowSystemTest {
             assertEquals(desktopSas, request.sas?.get(), "host and requester must show the same SAS")
 
             // 4. Phone approves → the desktop reaches Success and is realm-bound.
+            //    ⚠ The desktop's wait tries once BEFORE its first pause. Stand on that pause first,
+            //    so its pending attempt is known to have finished before the approval; then the
+            //    approval, confirmed by the monitor; then exactly one more attempt.
+            desktopWait.awaitPause()
             phone.monitor.approveActiveRequest()
+            phone.monitor.pairingComplete.awaitState("the phone's approval landed") { it }
+            desktopWait.release()
             desktop.viewModel.uiState.awaitState("the success terminal on the desktop") {
                 it.step == PairingStep.Success
             }

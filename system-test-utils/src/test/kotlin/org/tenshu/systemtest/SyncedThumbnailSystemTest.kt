@@ -2,11 +2,9 @@ package org.tenshu.systemtest
 
 import app.tenshu.photos.data.TenshuPhotosRepository
 import app.tenshu.timeline.data.TimelineProjectionRepository
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.runBlocking
 import org.tenshu.core.Data
 import org.tenshu.core.TBoolean
-import org.tenshu.core.TResult
 import org.tenshu.core.common.proxy.ExecutionContext
 import org.tenshu.core.common.proxy.OperationContext
 import org.tenshu.core.common.proxy.executor.OperationImplementation
@@ -35,12 +33,6 @@ import org.tenshu.core.get
 import org.tenshu.core.resolve
 import org.tenshu.core.getOrNull
 import org.tenshu.file.client.fileService
-import org.tenshu.sync.client.syncService
-import org.tenshu.sync.approvePairingRequest
-import org.tenshu.sync.getPairingStatus
-import org.tenshu.sync.getPendingPairingRequests
-import org.tenshu.sync.initiatePairing
-import org.tenshu.sync.startPairing
 import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -52,7 +44,6 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.test.fail
-import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.flow.toList
 
 /**
@@ -67,6 +58,14 @@ import kotlinx.coroutines.flow.toList
  * exercises the load-bearing claim of the design — that a `TByteArray` value
  * property `set` on the entity rides `File`'s eager block and is projectable on the
  * receiver, exactly as `File.Size` is.
+ *
+ * ## Stepped
+ *
+ * The system is stepped (`TestSystem` KDoc, `docs/testing.md` §12). Every wait here re-issues a
+ * read whose answer depends on a manifest or a row the host pushes and the joiner pulls, so each is
+ * [TestSystem.syncUntil]: a round ticks both devices, then the read is asked again. That replaces a
+ * 1 s real poll per hop, and a failure now says "not after N rounds" — the content never arrived by
+ * syncing — rather than a timeout that cannot tell a dropped signal from a slow box.
  */
 class SyncedThumbnailSystemTest {
 
@@ -79,7 +78,7 @@ class SyncedThumbnailSystemTest {
      * thousand failure of this test.
      */
     @Test fun hostUploadsImage_joinerSeesSyncedThumbnailWithoutBytes() = runBlocking {
-        val system = TestSystem.builder().build()
+        val system = TestSystem.builder().stepped().build()
         try {
             val (host, joiner, path) = hostWithPhotoAndPairedJoiner(system)
 
@@ -98,7 +97,7 @@ class SyncedThumbnailSystemTest {
             // must fetch the thumbnails first — see [SyncStrategy.OnDemand], "reading one",
             // for why, and `TenshuFilesRepository.getPreview` for the same two-step.
             var joinerPreview: ByteArray? = null
-            system.advanceUntil(timeout = 20.seconds) {
+            system.syncUntil("the joiner resolves a 100 px File.Preview from the synced thumbnails") {
                 joiner.tenshuClient.fileService.defaultFileSystem.root
                     .files
                     .search<File> { this.path equalTo path }
@@ -132,7 +131,7 @@ class SyncedThumbnailSystemTest {
             // request carries JPEG (FF D8), proving it came from the LARGE class and
             // not an upscaled LIST PNG.
             var joinerLargePreview: ByteArray? = null
-            system.advanceUntil(timeout = 20.seconds) {
+            system.syncUntil("the joiner resolves a 480 px File.Preview from the LARGE class") {
                 val resolved = joiner.tenshuClient.fileService.defaultFileSystem.root
                     .files
                     .search<File> { this.path equalTo path }
@@ -173,7 +172,7 @@ class SyncedThumbnailSystemTest {
             )
 
             var heroAfter: Int? = null
-            system.advanceUntil(timeout = 20.seconds) {
+            system.syncUntil("the joiner's hero-sized request is served above the LARGE class once XLARGE is pulled") {
                 joiner.tenshuClient.fileService.defaultFileSystem.root
                     .files
                     .search<File> { this.path equalTo path }
@@ -229,34 +228,14 @@ class SyncedThumbnailSystemTest {
         val host = system.client(
             deviceId = "host",
             role = TestClientRole.RealmHost,
-            pollingIntervalMs = 1_000,
             operationDecorator = hostOperationDecorator,
         )
         val joiner = system.client(
             deviceId = "joiner",
-            role = TestClientRole.JoiningDevice,
-            pollingIntervalMs = 1_000
+            role = TestClientRole.JoiningDevice
         )
 
-        host.bootstrapAsHost(deviceName = "Host Desktop")
-        host.tenshuClient.syncService.startPairing()
-        val parsed = PairingUri.parse(host.syncManager.getPairingString()!!)
-        joiner.tenshuClient.syncService.initiatePairing(
-            ownerId = parsed.ownerId,
-            pairingSecret = parsed.secret,
-            deviceName = "Joiner Phone",
-            otherDevicePublicKey = parsed.hostPairingPublicKey
-        )
-        val request = host.tenshuClient.syncService.getPendingPairingRequests()
-            .let { it.valueOrFail("getPendingPairingRequests")!!.toList().single() }
-        host.tenshuClient.syncService.approvePairingRequest(request.deviceId.get())
-        system.advanceUntil(timeout = 30.seconds) {
-            val status = joiner.tenshuClient.syncService.getPairingStatus(
-                pairingSecret = parsed.secret,
-                otherDevicePublicKey = parsed.hostPairingPublicKey
-            )
-            status is TResult.Success && status.value?.get() == true
-        }
+        system.pair(host = host, joiner = joiner, hostName = "Host Desktop", joinerName = "Joiner Phone")
 
         // A real, decodable PNG so the host's GetPreview renders an actual
         // thumbnail (an arbitrary byte blob would decode to null → no thumbnail).
@@ -267,7 +246,7 @@ class SyncedThumbnailSystemTest {
             .valueOrFail("host uploadFile($path)")
 
         // The entity propagates first (File is Syncable(Eager)).
-        system.advanceUntil(timeout = 20.seconds) {
+        system.syncUntil("the host's File row for the photo reached the joiner") {
             val dataId = DataId.StringDataId.create(type = File.ID, keyValue = path)
             joiner.executionContext.database.getData(dataId) != null
         }
@@ -286,13 +265,13 @@ class SyncedThumbnailSystemTest {
      * ⚠ Asserted by decoded dimensions, for the reason [joinerPreviewEdge] gives.
      */
     @Test fun joinerOpensAPhotoAfterTheGrid_andIsServedTheHeroRung() = runBlocking {
-        val system = TestSystem.builder().build()
+        val system = TestSystem.builder().stepped().build()
         try {
             val (host, joiner, path) = hostWithPhotoAndPairedJoiner(system)
             val joinerPhotos = TenshuPhotosRepository(joiner.tenshuClient, reachability = null /* test: no reachability engine */)
 
             var tileEdge: Int? = null
-            system.advanceUntil(timeout = 20.seconds) {
+            system.syncUntil("the grid's tile read resolves on the joiner") {
                 tileEdge = joinerPhotos.preview(path, GRID_TILE_PX, GRID_TILE_PX)?.bytes?.let(::decodedEdge)
                 tileEdge != null
             }
@@ -305,13 +284,13 @@ class SyncedThumbnailSystemTest {
             var heroEdge: Int? = null
             var heroStandIn: Boolean? = null
             try {
-                system.advanceUntil(timeout = 20.seconds) {
+                system.syncUntil("the joiner's hero read is served by the hero rung") {
                     val hero = joinerPhotos.preview(path, HERO_REQUEST_PX, HERO_REQUEST_PX)
                     heroEdge = hero?.bytes?.let(::decodedEdge)
                     heroStandIn = hero?.standIn
                     (heroEdge ?: 0) > GetStoredThumbnail.LARGE_PX
                 }
-            } catch (e: TimeoutCancellationException) {
+            } catch (e: AssertionError) {
                 fail(
                     "A $HERO_REQUEST_PX px preview on a joiner that already holds LARGE must be " +
                         "served by the hero rung; it stayed at $heroEdge px",
@@ -334,7 +313,7 @@ class SyncedThumbnailSystemTest {
             // — so an unretried read fails with a message about what the viewer drew rather than
             // about what had not arrived.
             var joinerEdges: List<Int?> = emptyList()
-            system.advanceUntil(timeout = 30.seconds) {
+            system.syncUntil("the joiner's progressive viewer read ends on the named rung") {
                 joinerEdges = TenshuPhotosRepository(joiner.tenshuClient, reachability = null /* test: no reachability engine */)
                     .viewerPreview(path, 3_072)
                     .toList()
@@ -366,12 +345,12 @@ class SyncedThumbnailSystemTest {
             host.tenshuClient.fileService.defaultFileSystem
                 .uploadFile("/", "second.png", pngBytes(width = 2600, height = 1950))
                 .valueOrFail("host uploadFile($second)")
-            system.advanceUntil(timeout = 20.seconds) {
+            system.syncUntil("the host's second File row reached the joiner") {
                 joiner.executionContext.database
                     .getData(DataId.StringDataId.create(type = File.ID, keyValue = second)) != null
             }
             val secondReads = TenshuPhotosRepository(joiner.tenshuClient, reachability = null /* test: no reachability engine */)
-            system.advanceUntil(timeout = 30.seconds) {
+            system.syncUntil("the joiner's viewer read of the second photo ends on XXLARGE") {
                 secondReads.viewerPreview(second, 3_072).toList()
                     .map { decodedEdge(it.bytes) }
                     .lastOrNull() == GetStoredThumbnail.XXLARGE_PX
@@ -455,7 +434,7 @@ class SyncedThumbnailSystemTest {
      * into a test of the happy path.
      */
     @Test fun joinerAsksForAHeroRungNobodyMinted_andIsServedAMarkedStandIn() = runBlocking {
-        val system = TestSystem.builder().build()
+        val system = TestSystem.builder().stepped().build()
         try {
             val (host, joiner, path) = hostWithPhotoAndPairedJoiner(
                 system,
@@ -474,7 +453,7 @@ class SyncedThumbnailSystemTest {
             assertNull(hostXLarge, "Premise: a host that never rendered the hero size published no hero rung")
 
             val joinerPhotos = TenshuPhotosRepository(joiner.tenshuClient, reachability = null /* test: no reachability engine */)
-            system.advanceUntil(timeout = 20.seconds) {
+            system.syncUntil("the joiner's grid-tile read resolves") {
                 joinerPhotos.preview(path, GRID_TILE_PX, GRID_TILE_PX) != null
             }
 
@@ -561,13 +540,13 @@ class SyncedThumbnailSystemTest {
      * `> LARGE_PX` bar while still handing the hero a 1.56x upscale.
      */
     @Test fun joinerOpensAMomentAfterTheFeed_andTheHeroIsServedTheLargeRung() = runBlocking {
-        val system = TestSystem.builder().build()
+        val system = TestSystem.builder().stepped().build()
         try {
             val (_, joiner, path) = hostWithPhotoAndPairedJoiner(system)
             val timeline = TimelineProjectionRepository(joiner.tenshuClient, controlHasRealm = app.tenshu.reachability.RealmProbe.None("test: no realm probe"))
 
             var feedEdge: Int? = null
-            system.advanceUntil(timeout = 20.seconds) {
+            system.syncUntil("the timeline feed row resolves on the joiner") {
                 feedEdge = timeline
                     .photoBytes(path, GRID_TILE_PX, GRID_TILE_PX, heroFidelity = false)
                     ?.let(::decodedEdge)
@@ -581,13 +560,13 @@ class SyncedThumbnailSystemTest {
 
             var heroEdge: Int? = null
             try {
-                system.advanceUntil(timeout = 20.seconds) {
+                system.syncUntil("the timeline hero resolves above LARGE on the joiner") {
                     heroEdge = timeline
                         .photoBytes(path, TIMELINE_HERO_PX, TIMELINE_HERO_PX, heroFidelity = true)
                         ?.let(::decodedEdge)
                     (heroEdge ?: 0) > GetStoredThumbnail.LARGE_PX
                 }
-            } catch (e: TimeoutCancellationException) {
+            } catch (e: AssertionError) {
                 fail(
                     "A $TIMELINE_HERO_PX px hero on a joiner that already holds LARGE must be " +
                         "served a named rung; it stayed at $heroEdge px",
@@ -623,14 +602,14 @@ class SyncedThumbnailSystemTest {
      * a fast scroll all arrive here first.
      */
     @Test fun aMomentOpenedBeforeItsFeedRow_stillLeavesTheSmallClassesPulled() = runBlocking {
-        val system = TestSystem.builder().build()
+        val system = TestSystem.builder().stepped().build()
         try {
             val (_, joiner, path) = hostWithPhotoAndPairedJoiner(system)
             val timeline = TimelineProjectionRepository(joiner.tenshuClient, controlHasRealm = app.tenshu.reachability.RealmProbe.None("test: no realm probe"))
 
             // The hero FIRST — nothing has read this photo at tile size yet.
             var heroEdge: Int? = null
-            system.advanceUntil(timeout = 20.seconds) {
+            system.syncUntil("the timeline hero resolves on the joiner") {
                 heroEdge = timeline
                     .photoBytes(path, TIMELINE_HERO_PX, TIMELINE_HERO_PX, heroFidelity = true)
                     ?.let(::decodedEdge)
@@ -640,7 +619,7 @@ class SyncedThumbnailSystemTest {
 
             // Now a feed row. It must be answered by LARGE, not by the hero blob served verbatim.
             var rowEdge: Int? = null
-            system.advanceUntil(timeout = 20.seconds) {
+            system.syncUntil("the timeline feed row resolves on the joiner after the hero") {
                 rowEdge = timeline
                     .photoBytes(path, GRID_TILE_PX, GRID_TILE_PX, heroFidelity = false)
                     ?.let(::decodedEdge)
@@ -669,13 +648,13 @@ class SyncedThumbnailSystemTest {
      * ⚠ The floor alone does not protect this. Only the flag does, and nothing else asserts it.
      */
     @Test fun aWideFeedFrameNeverNamesTheHeroRung() = runBlocking {
-        val system = TestSystem.builder().build()
+        val system = TestSystem.builder().stepped().build()
         try {
             val (_, joiner, path) = hostWithPhotoAndPairedJoiner(system)
             val timeline = TimelineProjectionRepository(joiner.tenshuClient, controlHasRealm = app.tenshu.reachability.RealmProbe.None("test: no realm probe"))
 
             var wideEdge: Int? = null
-            system.advanceUntil(timeout = 20.seconds) {
+            system.syncUntil("the wide feed frame resolves on the joiner") {
                 wideEdge = timeline
                     .photoBytes(path, WIDE_FEED_PX, WIDE_FEED_PX, heroFidelity = false)
                     ?.let(::decodedEdge)

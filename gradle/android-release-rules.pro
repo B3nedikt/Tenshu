@@ -18,6 +18,16 @@
 # MediaPipe hands its options to native code as protobuf-lite messages, which read their fields by
 # reflection.
 -keep class * extends com.google.protobuf.GeneratedMessageLite { *; }
+# ⚠⚠ MediaPipe logs through Flogger, and Flogger finds its caller by COUNTING STACK FRAMES:
+# `StackBasedCallerFinder.findLoggingClass` skips exactly one frame (its own) and names the logger
+# after the frame below `FluentLogger`. R8 inlined it into `FluentLogger.forEnclosingClass`, the
+# count landed on the wrong frame, and MediaPipe's `Graph` failed its static initialiser ("no caller
+# found on the stack for: …FluentLogger") — on 2026-11-11 face detection never ran in the shipped
+# Control. Kept methods are never inlined; `Platform` also loads its backend by name. Two guards:
+# scripts/lib/check_stack_frames.py checks the release dex still has these methods (the release
+# script runs it), and `ReleaseStackWalkerInstrumentedTest` runs MediaPipe inside the R8 build on an
+# emulator (by hand; see docs/how-to/android-release.md).
+-keep class com.google.common.flogger.** { *; }
 # (MapLibre's native renderer reaches Java through JavaCPP too, but `maplibre-native-ffi` ships the
 # rules for it — checked 2026-10-22. The QR scanner is ZXing, pure Java with no reflection, and
 # needs no rule; ML Kit's `barhopper` keep went with ML Kit.)

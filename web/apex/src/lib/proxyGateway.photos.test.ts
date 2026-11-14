@@ -146,10 +146,13 @@ describe('proxyGateway — photos', () => {
   })
 
   it.each<[string, unknown, keyof typeof photos, unknown[]]>([
-    ['photo.feedPage', { pageSize: 60 }, 'feedPage', [null, 60]],
-    ['photo.feedPage', { cursor: null, pageSize: 1 }, 'feedPage', [null, 1]],
-    ['photo.feedPage', { cursor: 'v1.5.2', pageSize: 500 }, 'feedPage', ['v1.5.2', 500]],
-    ['photo.captureTimes', undefined, 'captureTimes', []],
+    ['photo.feedPage', { pageSize: 60 }, 'feedPage', [null, 60, 'all']],
+    ['photo.feedPage', { cursor: null, pageSize: 1 }, 'feedPage', [null, 1, 'all']],
+    ['photo.feedPage', { cursor: 'v1.5.2', pageSize: 500 }, 'feedPage', ['v1.5.2', 500, 'all']],
+    // L5: the Videos collection is the same feed with `kind`.
+    ['photo.feedPage', { pageSize: 60, kind: 'videos' }, 'feedPage', [null, 60, 'videos']],
+    ['photo.captureTimes', undefined, 'captureTimes', ['all']],
+    ['photo.captureTimes', { kind: 'videos' }, 'captureTimes', ['videos']],
     ['photo.get', { path: '/a.jpg' }, 'photo', ['/a.jpg']],
     ['photo.details', { path: '/a.jpg' }, 'details', ['/a.jpg']],
     ['photo.motionClip', { path: '/v.mp4' }, 'motionClip', ['/v.mp4']],
@@ -193,6 +196,9 @@ describe('proxyGateway — photos', () => {
     ['photo.feedPage', { pageSize: 2.5 }],
     ['photo.feedPage', { pageSize: '60' }],
     ['photo.feedPage', { cursor: 7, pageSize: 60 }],
+    // An unknown kind is a malformed call, never quietly "everything".
+    ['photo.feedPage', { pageSize: 60, kind: 'images' }],
+    ['photo.captureTimes', { kind: 'images' }],
     ['photo.get', {}],
     ['photo.get', { path: '' }],
     ['photo.details', { path: 3 }],

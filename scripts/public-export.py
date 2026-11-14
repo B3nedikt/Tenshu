@@ -8,6 +8,7 @@ the tree from time to time, one commit per sync, opened as a PR. Design and runb
     scripts/public-export.py                      # dry run: build the export, run every gate
     scripts/public-export.py --keep DIR           # dry run, and leave the cleaned tree in DIR
     scripts/public-export.py --publish CLONE      # also commit it into a clone of the public repo
+    scripts/public-export.py --publish CLONE --summary FILE   # … with a hand-written message body
 
 ⚠⚠ **Every sync publishes.** The gates are the only thing between this tree and the public one,
 so a finding is fatal, never a warning to read later. `review` findings are the exception: they
@@ -313,14 +314,65 @@ def message_findings(message, rules, scratch):
     return found
 
 
-def summary_message(ref_sha, since, rules):
+# A sync's message is read by people who cannot open the internal repository, so the internal PR
+# numbers its subjects carry are dropped, never qualified into dead links.
+
+
+def message_rules(rules):
+    """A commit message has no path, so every coordinate rule applies to it."""
+    return dict(rules, coarsen_coords=[dict(c, paths=["*"]) for c in rules.get("coarsen_coords", [])])
+
+
+def public_subject(subject, rules):
+    """One internal commit subject as a public reader sees it: transformed, internal refs gone."""
+    text = transform_text("COMMIT_MESSAGE", subject, message_rules(rules))
+    text = re.sub(rf"https?://github\.com/{re.escape(rules['internal_repo'])}/(?:pull|issues)/\d+\S*",
+                  "an internal change", text)
+    ref = rf"{re.escape(rules['internal_repo'])}#\d+"
+    text = re.sub(rf"\s*\(\s*{ref}(?:\s*[,/]\s*(?:{ref}|#\d+))*\s*\)", "", text)
+    text = re.sub(rf"(?:{ref})(?:/#\d+)*", "an internal change", text)
+    return text.strip()
+
+
+def summary_message(ref_sha, since, rules, summary=None, new_docs=()):
+    """The sync commit's message. `summary` is a hand-written body; without one the body is a
+    draft: the date span, the design docs this sync adds, and the internal subjects."""
     short = ref_sha[:10]
+    written = transform_text("COMMIT_MESSAGE", summary.strip(), message_rules(rules)) if summary and summary.strip() else None
     if since is None:
-        return f"Tenshu, initial public release\n\n{TRAILER}: {ref_sha}\n"
-    subjects = git("log", "--no-merges", "--format=%s", f"{since}..{ref_sha}").splitlines()
-    msg_rules = dict(rules, coarsen_coords=[dict(c, paths=["*"]) for c in rules.get("coarsen_coords", [])])
-    body = "\n".join(f"- {transform_text('COMMIT_MESSAGE', s, msg_rules)}" for s in subjects)
+        return f"Tenshu, initial public release\n\n{written + chr(10) + chr(10) if written else ''}{TRAILER}: {ref_sha}\n"
+    if written:
+        body = written
+    else:
+        span = f"Changes from {git('log', '-1', '--format=%cs', since)} to {git('log', '-1', '--format=%cs', ref_sha)}."
+        parts = [span]
+        if new_docs:
+            parts.append("New design docs:\n" + "\n".join(f"- {d}" for d in new_docs))
+        subjects = git("log", "--no-merges", "--format=%s", f"{since}..{ref_sha}").splitlines()
+        parts.append("Changes:\n" + "\n".join(f"- {public_subject(s, rules)}" for s in subjects))
+        body = "\n\n".join(parts)
     return f"Sync from the internal repository ({short})\n\n{body}\n\n{TRAILER}: {ref_sha}\n"
+
+
+# A doc path, bare or in a code span, not already inside a markdown link's text or target.
+DOC_PATH = re.compile(r"(?<![\w/.\[-])(?<!\]\()(`?)(docs/[\w./-]+\.md)\b\1(?!\]\()")
+
+
+def pr_body(message, clone, commit, repo_slug):
+    """The PR description: the message without subject and trailer, every doc path that exists in
+    the commit linked to it. Pinned to the commit, so the links work before the merge and after."""
+    lines = message.strip().splitlines()
+    body = "\n".join(l for l in lines[1:] if not l.startswith(f"{TRAILER}: ")).strip()
+    if not repo_slug:
+        return body + "\n"
+
+    def link(m):
+        tick, path = m.group(1), m.group(2)
+        if not os.path.isfile(os.path.join(clone, path)):
+            return m.group(0)
+        return f"[{tick}{path}{tick}](https://github.com/{repo_slug}/blob/{commit}/{path})"
+
+    return DOC_PATH.sub(link, body) + "\n"
 
 
 def internal_remotes_pointing_public(rules):
@@ -335,7 +387,7 @@ def internal_remotes_pointing_public(rules):
     return sorted(set(bad))
 
 
-def publish(dest, clone, ref_sha, rules, allow_drift):
+def publish(dest, clone, ref_sha, rules, allow_drift, summary=None):
     bad = internal_remotes_pointing_public(rules)
     if bad:
         sys.exit("⚠⚠ This repository's remotes still name the public repository:\n  " + "\n  ".join(bad)
@@ -374,9 +426,16 @@ def publish(dest, clone, ref_sha, rules, allow_drift):
     git("add", "-A", "-f", cwd=clone)
     staged = len(git("ls-files", "-z", cwd=clone).split("\0")) - 1
     exported = sum(1 for _ in walk_files(dest))
-    message = summary_message(ref_sha, since, rules)
+    new_docs = []
+    if has_base:
+        added = git("diff", "--cached", "--name-only", "--diff-filter=A", "HEAD", cwd=clone).splitlines()
+        new_docs = sorted(p for p in added if fnmatch.fnmatchcase(p, "docs/*.md"))
+    message = summary_message(ref_sha, since, rules, summary, new_docs)
     fatal = [] if staged == exported else [f"staged {staged} files, exported {exported}"]
     fatal += message_findings(message, rules, os.path.dirname(dest))
+    if re.search(rf"{re.escape(rules['internal_repo'])}(?:#|/pull/|/issues/)\d+", message):
+        fatal.append("commit message: links an internal PR, which a public reader cannot open (a bare "
+                     "#NNNN is read as one; cite a public issue as owner/repo#N)")
     for var in ("GIT_AUTHOR_IDENT", "GIT_COMMITTER_IDENT"):
         ident = git("var", var, cwd=clone)
         fatal += [f"{var}: forbidden string ({f.get('why', '')})" for f in rules.get("forbid", [])
@@ -391,7 +450,17 @@ def publish(dest, clone, ref_sha, rules, allow_drift):
           f"  (cd {clone} && scripts/run-gate.sh)        # the export must build on its own\n"
           f"  git -C {clone} push -u origin {work}")
     if has_base:
-        print(f"  (cd {clone} && gh pr create --base {branch} --fill)")
+        url = git("remote", "get-url", "origin", cwd=clone, check=False)
+        m = re.search(r"github\.com[:/]([\w.-]+/[\w.-]+?)(?:\.git)?$", url or "")
+        body_path = os.path.join(git("rev-parse", "--absolute-git-dir", cwd=clone), "SYNC_PR_BODY.md")
+        with open(body_path, "w") as f:
+            f.write(pr_body(message, clone, git("rev-parse", "HEAD", cwd=clone), m and m.group(1)))
+        title = message.splitlines()[0]
+        print(f"  (cd {clone} && gh pr create --base {branch} --title '{title}' --body-file {body_path})")
+        if not (summary and summary.strip()):
+            print(f"⚠ The message is a draft (internal subjects). To replace it with a summary:\n"
+                  f"  git -C {clone} switch {branch} && git -C {clone} branch -D {work}\n"
+                  "  then re-run with --summary FILE (public-export.md §5).")
 
 
 # ---------------------------------------------------------------- main
@@ -404,8 +473,15 @@ def main(argv=None):
     ap.add_argument("--keep", metavar="DIR", help="leave the cleaned tree in DIR (must not exist)")
     ap.add_argument("--publish", metavar="CLONE", help="commit the export into this public clone")
     ap.add_argument("--allow-drift", action="store_true")
+    ap.add_argument("--summary", metavar="FILE", help="hand-written body for the sync commit (with --publish)")
     ap.add_argument("--no-gitleaks", action="store_true", help="tests only; never with --publish")
     a = ap.parse_args(argv)
+    summary = None
+    if a.summary:
+        if not a.publish:
+            sys.exit("--summary only means something with --publish")
+        with open(a.summary) as f:
+            summary = f.read()
     if a.publish and a.no_gitleaks:
         sys.exit("--no-gitleaks cannot be combined with --publish")
 
@@ -439,7 +515,7 @@ def main(argv=None):
             print(f"\n{len(fatal) + (len(missing) if a.publish else 0)} fatal finding(s): nothing published.")
             return 1
         if a.publish:
-            publish(dest, os.path.abspath(a.publish), ref_sha, rules, a.allow_drift)
+            publish(dest, os.path.abspath(a.publish), ref_sha, rules, a.allow_drift, summary)
         else:
             print("\nDry run clean." + (f" {len(review)} item(s) to review." if review else ""))
         return 0

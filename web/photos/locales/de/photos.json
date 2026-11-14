@@ -1,13 +1,16 @@
 {
   "app": {
-    "title": "Fotos",
-    "tagline": "Deine Fotos und Videos, Ende-zu-Ende-verschlüsselt."
+    "title": "Fotos"
   },
   "nav": {
-    "photos": "Fotos",
+    "label": "Fotos-Bereiche",
+    "photos": "Mediathek",
     "albums": "Alben",
     "favourites": "Favoriten",
-    "trash": "Papierkorb"
+    "trash": "Papierkorb",
+    "years": "Jahre",
+    "collections": "Sammlungen",
+    "videos": "Videos"
   },
   "common": {
     "cancel": "Abbrechen",
@@ -22,7 +25,17 @@
   },
   "tile": {
     "photoLabel": "Foto {name}, {date}",
-    "videoLabel": "Video {name}, {date}"
+    "videoLabel": "Video {name}, {date}",
+    "select": "{name} auswählen",
+    "actions": "Aktionen für {name}"
+  },
+  "menu": {
+    "open": "Öffnen",
+    "download": "Herunterladen",
+    "favourite": "Favorit",
+    "unfavourite": "Kein Favorit",
+    "addToAlbum": "Zu Album hinzufügen…",
+    "trash": "In den Papierkorb"
   },
   "feed": {
     "scrubber": "Zu einem Datum springen",
@@ -30,12 +43,12 @@
     "empty": "Noch keine Fotos. Fotos und Videos, die du in Drive oder auf deinem Handy hinzufügst, erscheinen hier."
   },
   "select": {
-    "start": "Auswählen",
     "count": "{count, plural, =0 {Nichts ausgewählt} one {# ausgewählt} other {# ausgewählt}}",
     "addToAlbum": "Zu Album hinzufügen",
     "favourite": "Zu Favoriten hinzufügen",
     "removeFromAlbum": "Aus Album entfernen",
-    "partial": "{done} von {total} erledigt."
+    "partial": "{done} von {total} erledigt.",
+    "clear": "Auswahl aufheben"
   },
   "albums": {
     "addTo": "Zu Album hinzufügen",
@@ -70,7 +83,9 @@
     "downloadOriginal": "Original herunterladen",
     "downloaded": "Gespeichert.",
     "play": "Abspielen",
-    "cannotPlay": "Dieses Video kann hier noch nicht abgespielt werden. Versuche es erneut, sobald es synchronisiert ist."
+    "cannotPlay": "Dieses Video kann hier noch nicht abgespielt werden. Versuche es erneut, sobald es synchronisiert ist.",
+    "filmstrip": "Fotos in der Nähe",
+    "position": "{index} von {total}"
   },
   "details": {
     "name": "Name",
@@ -105,6 +120,7 @@
     "bridge": "Tenshu ist nicht erreichbar. Stelle sicher, dass es geöffnet und entsperrt ist, und versuche es erneut.",
     "bridge_timeout": "Tenshu hat zu lange nicht geantwortet. Versuche es erneut.",
     "error_photos_bad_cursor": "Die Mediathek hat sich beim Laden geändert. Aktualisiere, um neu zu beginnen.",
+    "error_photos_bad_kind": "Beim Laden deiner Mediathek ist etwas schiefgelaufen. Bitte versuche es erneut.",
     "error_photos_bad_page_size": "Beim Laden deiner Mediathek ist etwas schiefgelaufen. Bitte versuche es erneut.",
     "error_photos_unknown_album": "Dieses Album gibt es nicht mehr.",
     "error_photos_not_found": "Dieses Foto ist nicht mehr vorhanden.",
@@ -135,5 +151,18 @@
     "body": "In diesem Teil von Fotos ist ein unerwarteter Fehler aufgetreten. Deine Daten sind sicher – nichts wurde geändert.",
     "retry": "Erneut versuchen",
     "reload": "Neu laden"
+  },
+  "density": {
+    "label": "Ansicht",
+    "days": "Tage",
+    "months": "Monate",
+    "years": "Jahre"
+  },
+  "years": {
+    "count": "{count, plural, one {# Foto} other {# Fotos}}",
+    "open": "{year} anzeigen"
+  },
+  "videos": {
+    "empty": "Noch keine Videos."
   }
 }

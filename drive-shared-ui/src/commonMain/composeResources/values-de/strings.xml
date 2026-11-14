@@ -304,6 +304,8 @@
     <string name="synced_folders_status_up_to_date">Auf dem neuesten Stand</string>
     <string name="synced_folders_status_backing_up">Wird gesichert: %1$d von %2$d…</string>
     <string name="synced_folders_status_finished">%1$d Dateien gesichert</string>
+    <string name="synced_folders_status_finished_all_held">Nichts Neues zu sichern · %1$d bereits in deinem Drive</string>
+    <string name="synced_folders_status_finished_some_held">%1$d Dateien gesichert · %2$d bereits in deinem Drive</string>
     <string name="synced_folders_status_finished_with_failures">%1$d Dateien gesichert · %2$d konnten nicht hochgeladen werden</string>
     <string name="synced_folders_status_finished_with_reason">%1$d Dateien gesichert · %2$d konnten nicht hochgeladen werden – %3$s</string>
     <string name="synced_folders_status_finished_could_not_check">%1$d Dateien gesichert · %2$d warten – ob sie bereits gesichert sind, ließ sich nicht prüfen; neuer Versuch folgt</string>

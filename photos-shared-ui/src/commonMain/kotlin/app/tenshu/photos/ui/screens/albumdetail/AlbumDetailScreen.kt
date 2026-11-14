@@ -110,6 +110,12 @@ fun AlbumDetailScreen(
      * photos the user just filtered away.
      */
     onPhotoInListClick: ((Photo, List<Photo>) -> Unit)? = null,
+    /**
+     * *"Is this Anna?"* on an unnamed person, or a display fold's photographs on a named one
+     * (IN-6 F6c name suggestions; `PersonPage.suggestedName` / `unconfirmedCount`). `null` shows
+     * nothing — every collection that is not a person, and every person with nothing to ask.
+     */
+    suggestion: NameSuggestionPrompt? = null,
 ) {
     var naming by remember { mutableStateOf(false) }
     // The second person, by id. ⚠ Keyed on the person's route so opening someone else
@@ -119,9 +125,8 @@ fun AlbumDetailScreen(
     // `remember` comes back un-narrowed — the user returns to a grid they had not asked for.
     var withId by rememberSaveable(state.person?.key) { mutableStateOf<String?>(null) }
     var choosing by remember(state.person?.key) { mutableStateOf(false) }
-    // ⚠ Through the aliases too: naming an unnamed companion re-keys them from the
-    // cluster id to `person:name:…`, and a saved selection must still find them afterwards.
-    val second: SmartAlbum? = state.person?.companions?.firstOrNull { withId != null && (it.id == withId || withId in it.alternateIds) }
+    // ⚠ Through the aliases too (`PersonHeader.chosenCompanion`).
+    val second: SmartAlbum? = state.person?.chosenCompanion(withId)
     val visiblePhotos = if (second != null) photosWithBoth(state.photos, second.photos) else state.photos
     // ⚠⚠ No naming while narrowed. Naming writes the name to EVERY photo of the
     // primary person — not the intersection on screen — so naming from an "Anna & Bob" grid would
@@ -158,11 +163,7 @@ fun AlbumDetailScreen(
                     if (effectiveOnName != null) {
                         TextButton(onClick = { naming = true }) {
                             Text(
-                                when {
-                                    unfinishedName != null -> "Finish naming"
-                                    state.title.isBlank() -> "Add a name"
-                                    else -> "Add another person"
-                                },
+                                PersonPageCopy.nameAction(unfinished = unfinishedName != null, titleBlank = state.title.isBlank()),
                             )
                         }
                     }
@@ -203,33 +204,15 @@ fun AlbumDetailScreen(
             AlertDialog(
                 onDismissRequest = onDismissNameRefusal,
                 title = {
-                    Text(
-                        if (nameFailure == NamingOutcome.PartiallySaved) {
-                            "Only some photos were named"
-                        } else {
-                            "That name wasn't saved"
-                        },
-                    )
+                    Text(PersonPageCopy.failureTitle(nameFailure))
                 },
                 // ⚠⚠ TWO sentences, because there are two instructions. Naming the
                 // consent switch for a Control that is merely not running — or for an older
                 // Control that does not have this operation yet, which adding an op does not
                 // fence — sends the user to check a setting that is already correct.
-                text = {
-                    Text(
-                        when (nameFailure) {
-                            NamingOutcome.NoConsent ->
-                                "People is switched off for this device, so the name could not be saved."
-                            // ⚠⚠ Says what IS true rather than what failed. The saved rows are
-                            // durable and already on the user's other devices; telling them nothing
-                            // saved would send them to retype a name that is half applied.
-                            NamingOutcome.PartiallySaved ->
-                                "Some of these photos were named before it stopped. Try again to name the rest."
-                            else -> "The name could not be saved. Please try again."
-                        },
-                    )
-                },
-                confirmButton = { TextButton(onClick = onDismissNameRefusal) { Text("OK") } },
+                // ⚠⚠ Says what IS true rather than what failed (`PersonPageCopy.failureText`).
+                text = { Text(PersonPageCopy.failureText(nameFailure)) },
+                confirmButton = { TextButton(onClick = onDismissNameRefusal) { Text(PersonPageCopy.OK) } },
             )
         }
         when {
@@ -260,7 +243,7 @@ fun AlbumDetailScreen(
                         PersonHeaderRow(
                             name = state.title,
                             person = person,
-                            fallbackPath = state.photos.firstOrNull()?.path,
+                            fallbackPath = state.photos.firstOrNull()?.previewPath,
                             shownCount = visiblePhotos.size,
                             onAddName = if (effectiveOnName != null) ({ naming = true }) else null,
                             loadPreview = loadPreview,
@@ -269,10 +252,17 @@ fun AlbumDetailScreen(
                             onClearWith = { withId = null },
                         )
                     }
+                    // ⚠ Not while narrowed: a Yes names every photograph of this person, not the
+                    // intersection on screen — the reason naming is off there too.
+                    if (second == null && suggestion != null) {
+                        item(key = NAME_SUGGESTION_KEY, span = { GridItemSpan(maxLineSpan) }) {
+                            NameSuggestionRow(suggestion)
+                        }
+                    }
                     if (second != null && visiblePhotos.isEmpty()) {
                         item(key = NO_PHOTOS_TOGETHER_KEY, span = { GridItemSpan(maxLineSpan) }) {
                             Text(
-                                text = "No photos of both yet",
+                                text = PersonPageCopy.NO_PHOTOS_TOGETHER,
                                 modifier = Modifier.fillMaxWidth().padding(32.dp),
                                 textAlign = TextAlign.Center,
                                 style = MaterialTheme.typography.bodyLarge,
@@ -298,6 +288,72 @@ fun AlbumDetailScreen(
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * What a person's page asks about a name (IN-6 F6c name suggestions), already worded: a question on
+ * an unnamed group, or the unconfirmed photographs of a display fold on a named one.
+ */
+data class NameSuggestionPrompt(
+    val text: String,
+    val detail: String?,
+    val yes: String,
+    val no: String,
+    val failed: Boolean,
+    val onYes: () -> Unit,
+    val onNo: () -> Unit,
+) {
+    companion object {
+        /** From the shared page; `null` when there is nothing to ask. */
+        fun of(
+            suggestedName: String?,
+            unconfirmedCount: Int,
+            name: String,
+            failed: Boolean,
+            onYes: () -> Unit,
+            onNo: () -> Unit,
+        ): NameSuggestionPrompt? = when {
+            suggestedName != null -> NameSuggestionPrompt(
+                text = PersonPageCopy.suggestionQuestion(suggestedName),
+                detail = PersonPageCopy.SUGGESTION_EXPLAINED,
+                yes = PersonPageCopy.SUGGESTION_YES,
+                no = PersonPageCopy.SUGGESTION_NO,
+                failed = failed,
+                onYes = onYes,
+                onNo = onNo,
+            )
+            unconfirmedCount > 0 -> NameSuggestionPrompt(
+                text = PersonPageCopy.unconfirmed(unconfirmedCount, name),
+                detail = null,
+                yes = PersonPageCopy.CONFIRM,
+                no = PersonPageCopy.notThem(name),
+                failed = failed,
+                onYes = onYes,
+                onNo = onNo,
+            )
+            else -> null
+        }
+    }
+}
+
+/** The question and its two answers, quiet — offered, never imposed (§7). */
+@Composable
+private fun NameSuggestionRow(prompt: NameSuggestionPrompt) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
+        Text(prompt.text, style = MaterialTheme.typography.titleMedium)
+        prompt.detail?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+        if (prompt.failed) {
+            Text(
+                PersonPageCopy.SUGGESTION_NOT_SAVED,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        Row {
+            TextButton(onClick = prompt.onYes) { Text(prompt.yes) }
+            TextButton(onClick = prompt.onNo) { Text(prompt.no) }
         }
     }
 }
@@ -350,12 +406,12 @@ private fun PersonHeaderRow(
             Column {
                 when {
                     second != null -> Text(
-                        "${name.ifBlank { UNNAMED }} & ${second.title.ifBlank { UNNAMED }}",
+                        PersonPageCopy.both(name, second.title),
                         style = MaterialTheme.typography.headlineSmall,
                     )
                     name.isNotBlank() -> Text(name, style = MaterialTheme.typography.headlineSmall)
-                    onAddName != null -> TextButton(onClick = onAddName) { Text("Add a name") }
-                    else -> Text(UNNAMED, style = MaterialTheme.typography.headlineSmall)
+                    onAddName != null -> TextButton(onClick = onAddName) { Text(PersonPageCopy.ADD_A_NAME) }
+                    else -> Text(PersonPageCopy.UNNAMED, style = MaterialTheme.typography.headlineSmall)
                 }
                 Text(photoCount(shownCount), style = MaterialTheme.typography.bodyMedium)
             }
@@ -367,7 +423,7 @@ private fun PersonHeaderRow(
             if (second == null) {
                 AssistChip(
                     onClick = onChooseWith,
-                    label = { Text("With…") },
+                    label = { Text(PersonPageCopy.WITH) },
                     leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
                 )
             } else {
@@ -375,7 +431,7 @@ private fun PersonHeaderRow(
                 InputChip(
                     selected = true,
                     onClick = onClearWith,
-                    label = { Text("With ${second.title.ifBlank { UNNAMED }}") },
+                    label = { Text(PersonPageCopy.withChip(second.title)) },
                     avatar = {
                         FaceAvatar(
                             path = second.coverPath,
@@ -387,7 +443,7 @@ private fun PersonHeaderRow(
                     trailingIcon = {
                         Icon(
                             Icons.Filled.Close,
-                            contentDescription = "Remove ${second.title.ifBlank { UNNAMED }}",
+                            contentDescription = PersonPageCopy.removeWith(second.title),
                         )
                     },
                 )
@@ -410,7 +466,7 @@ private fun CompanionPicker(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Photos with…") },
+        title = { Text(PersonPageCopy.PICKER_TITLE) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 companions.forEach { companion ->
@@ -429,7 +485,7 @@ private fun CompanionPicker(
                         )
                         Spacer(Modifier.width(16.dp))
                         Text(
-                            companion.title.ifBlank { UNNAMED },
+                            PersonPageCopy.name(companion.title),
                             style = MaterialTheme.typography.bodyLarge,
                         )
                     }
@@ -437,14 +493,15 @@ private fun CompanionPicker(
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(PersonPageCopy.CANCEL) } },
     )
 }
-
-private const val UNNAMED = "Unnamed"
 private const val NO_PHOTOS_TOGETHER_KEY = "no-photos-together"
 
 private const val PERSON_HEADER_KEY = "person-header"
+
+/** ⚠ A key no photo path can be: paths start with `/`. */
+private const val NAME_SUGGESTION_KEY = "name-suggestion"
 
 /**
  * Type a person's name.
@@ -465,7 +522,7 @@ private fun NameDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (initial.isBlank()) "Who is this?" else "Finish naming") },
+        title = { Text(PersonPageCopy.dialogTitle(initial)) },
         text = {
             Column {
                 OutlinedTextField(
@@ -473,13 +530,13 @@ private fun NameDialog(
                     // ⚠ Bounded at the field, because the name is repeated in EVERY call the
                     // write is split into: an unbounded one makes every chunk over-budget and
                     // every call fail beneath the typed-error layer, where nothing explains it.
-                    onValueChange = { if (it.length <= NAME_MAX_LENGTH) text = it },
+                    onValueChange = { if (it.length <= PersonPageCopy.NAME_MAX_LENGTH) text = it },
                     singleLine = true,
-                    label = { Text("Name") },
+                    label = { Text(PersonPageCopy.NAME_FIELD) },
                 )
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    text = "This name is saved with these photos and appears on your other devices.",
+                    text = PersonPageCopy.NAME_SYNCS,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -491,17 +548,9 @@ private fun NameDialog(
                 onClick = { onConfirm(text) },
                 enabled = text.isNotBlank(),
             ) {
-                Text("Save")
+                Text(PersonPageCopy.SAVE)
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(PersonPageCopy.CANCEL) } },
     )
 }
-
-/**
- * The longest name a person may be given.
- *
- * ⚠ Generous for any real name, and far below the transport budget the repository enforces:
- * the point is that a paste cannot produce a write that fails where no typed error can describe it.
- */
-private const val NAME_MAX_LENGTH = 200

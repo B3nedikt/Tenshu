@@ -1,7 +1,6 @@
 {
   "app": {
-    "title": "Kontakte",
-    "tagline": "Die Menschen, die du kennst – Ende-zu-Ende-verschlüsselt."
+    "sections": "Kontakte-Bereiche"
   },
   "nav": {
     "contacts": "Kontakte",
@@ -49,6 +48,7 @@
     "notConnectedDetail": "Du hast diese Person selbst hinzugefügt, daher gibt es keinen Schlüssel zu verifizieren."
   },
   "detail": {
+    "pane": "Kontakt",
     "back": "Alle Kontakte",
     "rename": "Umbenennen",
     "editInfo": "Angaben bearbeiten",

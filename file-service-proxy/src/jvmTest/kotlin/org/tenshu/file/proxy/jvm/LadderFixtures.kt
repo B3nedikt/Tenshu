@@ -18,6 +18,7 @@ import org.tenshu.file.proxy.ThumbnailClass
 import org.tenshu.file.proxy.ThumbnailClasses
 import org.tenshu.file.test.createFileProxy
 import java.awt.image.BufferedImage
+import java.awt.image.DataBufferInt
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicInteger
 import javax.imageio.ImageIO
@@ -87,14 +88,13 @@ internal object LadderFixtures {
      */
     fun photo(width: Int, height: Int, format: String = "jpeg", seed: Int = 1): ByteArray {
         val random = Random(seed)
-        val image = BufferedImage(width, height, BufferedImage.TYPE_INT_RGB)
-        for (y in 0 until height) for (x in 0 until width) {
+        val image = rgbImage(width, height) { x, y ->
             val grain = random.nextInt(-6, 7)
             val band = if ((x / (width / 8 + 1) + y / (height / 6 + 1)) % 2 == 0) 30 else 0
             val r = (x * 220 / width + band + grain).coerceIn(0, 255)
             val g = (y * 200 / height + grain).coerceIn(0, 255)
             val b = (((x + y) * 160) / (width + height) + 40 + grain).coerceIn(0, 255)
-            image.setRGB(x, y, (r shl 16) or (g shl 8) or b)
+            (r shl 16) or (g shl 8) or b
         }
         return encode(image, format)
     }
@@ -102,9 +102,7 @@ internal object LadderFixtures {
     /** Per-pixel noise: the frame the caps exist to refuse, and the one that walks the step-down. */
     fun noise(width: Int, height: Int, seed: Int = 7): ByteArray {
         val random = Random(seed)
-        val image = BufferedImage(width, height, BufferedImage.TYPE_INT_RGB)
-        for (y in 0 until height) for (x in 0 until width) image.setRGB(x, y, random.nextInt(0x1000000))
-        return encode(image, "png")
+        return encode(rgbImage(width, height) { _, _ -> random.nextInt(0x1000000) }, "png")
     }
 
     /**
@@ -112,9 +110,21 @@ internal object LadderFixtures {
      * subsampled read keeps one phase of — a solid black picture.
      */
     fun stripes(edge: Int): ByteArray {
-        val image = BufferedImage(edge, edge, BufferedImage.TYPE_INT_RGB)
-        for (y in 0 until edge) for (x in 0 until edge) image.setRGB(x, y, if (x % 2 == 0) 0 else 0xFFFFFF)
-        return encode(image, "png")
+        return encode(rgbImage(edge, edge) { x, _ -> if (x % 2 == 0) 0 else 0xFFFFFF }, "png")
+    }
+
+    /**
+     * A `TYPE_INT_RGB` image whose pixel at (x, y) is [rgb]`(x, y)`, called row by row, left to right —
+     * the order a seeded [Random] in [rgb] relies on. Written straight into the raster's backing array:
+     * the same pixels, and so byte for byte the same encoded fixture, as `setRGB` per pixel, without
+     * a colour-model conversion per pixel. ⚠ The encode, not this, is most of a fixture's cost.
+     */
+    private inline fun rgbImage(width: Int, height: Int, rgb: (x: Int, y: Int) -> Int): BufferedImage {
+        val image = BufferedImage(width, height, BufferedImage.TYPE_INT_RGB)
+        val pixels = (image.raster.dataBuffer as DataBufferInt).data
+        var i = 0
+        for (y in 0 until height) for (x in 0 until width) pixels[i++] = rgb(x, y)
+        return image
     }
 
     /** Mean channel value, 0–255. */

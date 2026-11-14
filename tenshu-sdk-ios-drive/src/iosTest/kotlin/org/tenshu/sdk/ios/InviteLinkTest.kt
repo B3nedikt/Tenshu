@@ -9,9 +9,9 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.tenshu.contact.ContactInvite
+import org.tenshu.viewmodel.test.vmTest
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -29,9 +29,9 @@ class InviteLinkTest {
     @AfterTest fun tearDown() = Dispatchers.resetMain()
 
     @Test
-    fun generate_creates_a_share_folder_invite_and_surfaces_the_link() = runTest(dispatcher) {
+    fun generate_creates_a_share_folder_invite_and_surfaces_the_link() = vmTest(dispatcher) { vms ->
         val fake = FakeContactsRepository()
-        val vm = DriveShareSurface.inviteLink(fake, "Photos")
+        val vm = vms.own(DriveShareSurface.inviteLink(fake, "Photos"))
 
         vm.onGenerateClicked()
         advanceUntilIdle()
@@ -42,9 +42,9 @@ class InviteLinkTest {
     }
 
     @Test
-    fun an_empty_folder_name_creates_a_plain_invite() = runTest(dispatcher) {
+    fun an_empty_folder_name_creates_a_plain_invite() = vmTest(dispatcher) { vms ->
         val fake = FakeContactsRepository()
-        val vm = DriveShareSurface.inviteLink(fake, "")
+        val vm = vms.own(DriveShareSurface.inviteLink(fake, ""))
 
         vm.onGenerateClicked()
         advanceUntilIdle()
@@ -53,9 +53,9 @@ class InviteLinkTest {
     }
 
     @Test
-    fun generate_is_idempotent_once_a_link_exists() = runTest(dispatcher) {
+    fun generate_is_idempotent_once_a_link_exists() = vmTest(dispatcher) { vms ->
         val fake = FakeContactsRepository()
-        val vm = DriveShareSurface.inviteLink(fake, "Photos")
+        val vm = vms.own(DriveShareSurface.inviteLink(fake, "Photos"))
 
         vm.onGenerateClicked()
         advanceUntilIdle()
@@ -66,9 +66,9 @@ class InviteLinkTest {
     }
 
     @Test
-    fun a_failed_generate_surfaces_an_error_and_no_link() = runTest(dispatcher) {
+    fun a_failed_generate_surfaces_an_error_and_no_link() = vmTest(dispatcher) { vms ->
         val fake = FakeContactsRepository(inviteLinkResult = RepositoryResult.Error(RepositoryError.Unknown(ErrorCopyKey.UNEXPECTED)))
-        val vm = DriveShareSurface.inviteLink(fake, "Photos")
+        val vm = vms.own(DriveShareSurface.inviteLink(fake, "Photos"))
 
         vm.onGenerateClicked()
         advanceUntilIdle()

@@ -34,7 +34,11 @@ import kotlin.test.assertTrue
  */
 abstract class BlobStoreContractTest {
 
-    /** A fresh, empty store. Called once per test; the fixture owns cleanup. */
+    /**
+     * A fresh, empty store, sharing nothing with any store made before it — pinned by
+     * [aFreshStore_sharesNothingWithAnEarlierOne]. Called before every test and again by tests that
+     * need a second store; the fixture owns cleanup.
+     */
     protected abstract fun newStore(): BlobStore
 
     private lateinit var store: BlobStore
@@ -180,6 +184,25 @@ abstract class BlobStoreContractTest {
     }
 
     @Test
+    fun aFreshStore_sharesNothingWithAnEarlierOne() {
+        // ⚠⚠ The S3 suites share one server per test JVM, so "fresh" is a bucket, not a process —
+        // and every test writes the same few keys. If two stores could see each other's objects, a
+        // test could pass on an earlier test's leftovers (or fail on them), so the promise is
+        // checked in both directions here rather than assumed.
+        store.put("alice/blob-1", byteArrayOf(1))
+        val later = newStore()
+        assertNull(later.get("alice/blob-1"), "a fresh store read an earlier store's object")
+        assertFalse(later.exists("alice/blob-1"))
+        assertNull(later.sizeOf("alice/blob-1"))
+
+        later.put("alice/blob-1", byteArrayOf(2))
+        assertContentEquals(byteArrayOf(1), store.get("alice/blob-1"), "a later store's write reached the earlier one")
+        later.delete("alice/blob-1")
+        later.deleteAll(listOf("alice/blob-1"))
+        assertContentEquals(byteArrayOf(1), store.get("alice/blob-1"), "a later store's delete reached the earlier one")
+    }
+
+    @Test
     fun probe_succeedsOnHealthyStore_andLeavesNoReadableKey() {
         // The probe backs an unauthenticated `/health` (`HealthRouting`). It must be a real write
         // — a read could not tell a full volume from a healthy one (2026-08-14) — and it must not
@@ -199,15 +222,18 @@ abstract class BlobStoreContractTest {
 class FileBlobStoreContractTest : BlobStoreContractTest() {
 
     private lateinit var root: File
+    private val roots = mutableListOf<File>()
 
     override fun newStore(): BlobStore {
         root = File.createTempFile("relay-blobstore-contract", "").also { it.delete(); it.mkdirs() }
+        roots += root
         return FileBlobStore(root)
     }
 
     @AfterTest
     fun teardown() {
-        root.deleteRecursively()
+        roots.forEach { it.deleteRecursively() }
+        roots.clear()
     }
 
     @Test

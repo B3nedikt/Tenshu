@@ -5,6 +5,7 @@
 app surface, the Rei trust chain (publications / issues / evaluations), shared realms, and
 desktop deployment (Control as a system-tray daemon + IPC peer-credential checks + the macOS
 native-bridge surface backing the Drive File Provider).
+**A4-lifecycle sub-amendment (2026-11-12, [`admission-revocation-names-the-capability.md`](../proposals/admission-revocation-names-the-capability.md) §7i.5):** amends **A4** — Forget this device replaces the A4 pair in the running process (new key ⇒ new id, old pair dropped and zeroed), persists the new key before using it (a failed persist is reported, never held in memory alone), and tears down the pairing sessions and shared-realm runtimes of the forgotten identity. No relay, wire or stored-shape change (House Rule #1).
 **v0.3 amendment ([`tenshu-rei.md`](../proposals/tenshu-rei.md)):** introduces six new assets
 (A11–A16) and three new threat groups — desktop client (T-C-11–13), Rei trust chain (§8.8),
 and shared realms (§8.9). Threats sized at proposal-level granularity; per House Rule #2,
@@ -75,6 +76,9 @@ untagged bare concatenations, and capability/revocation shared a shape exactly �
 signature *was* a valid revocation signature, which the relay sees one of on every admit. Closed by
 domain-separation tags; **this is a relay wire change** (`RELAY_PROTOCOL_VERSION` 1 → 2, min stays
 1). ⚠ Assets A26/A27 are otherwise unchanged — no new asset, no new surface.
+**Member-eviction sub-amendment (2026-11-09):** adds **T-GR-08** — a member device could revoke any
+device of its realm at the relay through a `Device` tombstone. Closed relay-side: a member device's
+`Device` tombstone revokes only the pusher. No wire, schema or protocol change; no client change.
 **Commerce↔relay bridge sub-amendment ([`commerce-billing-plane.md`](../proposals/commerce-billing-plane.md) §6):**
 adds assets A28/A29/A30 (the commerce identity & payment set; the A29 entitlement signing keypair;
 the minimal-variant `account↔ownerId` link), attack surface #13 (the commerce↔relay entitlement
@@ -214,7 +218,16 @@ left open, on the fresh realms the complete production reset creates:
    the revoker's view, built from rows a device writes about *itself* (whole-row LWW, no authorship
    check), so a malicious device can blank or garble its own `admissionPublicKey` and leave nothing
    to name — which item 3 closes.
-3. ⭐ **S1 — a chain through a removed device is refused, key-independently.** The relay passes its
+3. ⚠⚠ **SUPERSEDED in part by §7j (2026-11-11) — read this item as history for its ancestor half.**
+   The relay now consults the removal ledger for the chain's **approver** (`chain[0]`) only
+   (`RejectRemovedApprover` → 403 `admission-revoked`); a removed *ancestor* link is no longer a
+   refusal, because that rule locked a realm with no A1 holder out of admission for good (every device
+   the removed one had admitted was refused). Sleepers are now handled by the removal UI listing the
+   removed device's admittees (§8.17 sub-amendment). ~~Key-scoped revocation still covers every link.~~
+   ⚠⚠ Superseded by §7j.10 (same day): revocation, too, is checked for the approver alone, and removal
+   revokes only the removed device's own key — a device is a member or removed.
+   What follows is S1 as it shipped:
+   ⭐ **S1 — a chain through a removed device is refused, key-independently.** The relay passes its
    F2′ removal ledger into `AdmissionChainVerifier` (`isRemovedDevice`), and any chain with a link
    whose `deviceId` was removed is refused (`RejectRemovedLink` → 403) — at post time **and again at
    delivery**. A queued registration (join peek, offer fetch) carries its raw admission chain, and the
@@ -826,6 +839,24 @@ Explicitly not trusted:
   reads. ⚠ So XSS on that origin can read device names, rooms and states, routine programs (device
   ids, times, notification text, geofence place ids) and run history — and nothing else. No relay or
   protocol change.
+  *Amendment (A4 lifecycle on Forget, 2026-11-12, [`admission-revocation-names-the-capability.md`](../proposals/admission-revocation-names-the-capability.md) §7i.5):*
+  **Forget this device replaces A4 in the running process**, not only at rest — Desktop and Android
+  Control keep one graph across it, and a forgotten pair left in memory was offered and refused by
+  F2′. `SyncManagerImpl` holds `(A4 pair, derived id)` in one reference written under one lock, so
+  (i) a **new key is a new id** from the next read (`currentDeviceIdentity` gives signers both from
+  one snapshot); (ii) the **old pair is dropped and its private bytes zeroed**; (iii) a new key is
+  **persisted before it is published**, at first use and on Forget alike — a persist that fails leaves
+  *no* identity held, Forget reports *"new device key NOT saved"* and pairing is refused until a key
+  can be written, so no in-memory-only key is ever admitted and then orphaned by a restart (which would stall
+  the tombstone-GC quorum and content reclamation — workstream B (iii)); (iv) everything tied to the
+  forgotten identity is torn down: pairing sessions (host context, offer / responder, join
+  handshakes, their ephemeral keys zeroed) and **every shared-realm runtime** (`RealmRegistry`, each
+  holding its own copy of the id and key and an in-memory cursor) — registration refused for the whole
+  forget, every runtime unregistered before the store wipe and again after — so nothing pushes under,
+  or pulls back into the wiped store for, the identity that left. Relay JWTs and HLC tips are minted
+  per call from one `currentDeviceIdentity()` snapshot, so a token never pairs one identity's id with
+  the other's key. No relay, wire or stored-shape change (House Rule #1); iOS rebuilds
+  its graph after Forget and was not affected.
 - **A5. User Data.** Stored encrypted both at rest on the relay and at rest on devices.
   *Amendment (synced thumbnails, [`drive-synced-thumbnails.md`](../proposals/drive-synced-thumbnails.md)):*
   a file's `File.Thumbnail` is a **low-resolution derivative of A5** — a small
@@ -1054,17 +1085,20 @@ Explicitly not trusted:
   about inference outlives an uninstall. ⚠ **What the move costs, and how it is paid:** the
   realm-wipe hook runs in the process that observes the wipe, and a reset made from Control while
   Photos is not running no longer reaches Photos' stores. They carry a **stamp of the realm they
-  were built for** (the owner id; the shared store's `meta.epoch` joins it after S0b-1), checked
+  were built for** (the owner id and, since 2026-11-10, the shared store's `meta.epoch`), checked
   at install, on every return to the foreground, at the start of every index pass and before
   every `photosLike`; a mismatch cancels a running pass and clears the vectors and templates
   before anything reads them, and the stamp is rewritten only after both clears return. The same
   check, under the same lock, then applies the runtime fingerprint (model archive, OS build,
   compute units, preprocessing revision), so a query or a pass that reaches the stores before the
-  launch-time check has run cannot read or extend vectors made under another one.
-  ⚠ **Residual, accepted until S0b-1:** a reset that keeps the owner id is not seen by the stamp.
-  Vectors are keyed by file path, so a photograph recreated at the same path could be skipped as
-  already indexed and an old vector could rank under it; nothing crosses to another user, and
-  deleted photographs still drop out through the live-path filter. ⚠ **Residual:** stale vectors
+  launch-time check has run cannot read or extend vectors made under another one. ⚠ The
+  templates' fingerprint is **not** that one: since F5 it is a custody of the face pair's own,
+  which clears templates only (A40, *Faces on iOS route 1*).
+  ~~⚠ **Residual, accepted until S0b-1:** a reset that keeps the owner id is not seen by the stamp.~~
+  ✅ **Closed 2026-11-10:** the stamp carries the shared store's `meta.epoch` beside the owner id, so a
+  reset that keeps the owner is a mismatch and clears before anything reads (A40's iOS paragraph
+  states the rules: an epoch that cannot be read refuses the asker and is never "unchanged", and it
+  stops no running pass, which continues under its start's answer — the accepted check-to-read gap). ⚠ **Residual:** stale vectors
   stay on disk, unread, for as long as Photos is not launched after a reset. **Relay exposure
   unchanged (House Rule #1):** device-local only; no key material, sync protocol or relay data
   shape is touched, and no schema'd row is reshaped.
@@ -1494,11 +1528,16 @@ Explicitly not trusted:
   [`tenshu-rei.md`](../proposals/tenshu-rei.md) §2.3), wrapped under each member's realm-identity
   encryption sub-key (A13) and persisted as a `SharedRealmMembership` record on each member's
   `IdentityService`. Provides confidentiality between the share's members and the relay for the
-  shared realm's block stream and content blobs. Member writes to the shared realm are signed
-  under each member's **own** A1 (not A12), so authorship within the share is attributable —
-  A12 is a confidentiality key only, not an authorship key. Held in memory while the member's
+  shared realm's block stream and content blobs. A12 is a confidentiality key only, not an
+  authorship key. ⚠ *Corrected 2026-11-10:* this entry said member writes are signed under each
+  member's own A1 and so attributable within the share. They are not. Blocks carry no author
+  signature; the only signatures on the write path are the relay JWTs, so the **relay** can
+  attribute a push to a device but **peers cannot**, and any Kr holder can mint a block every peer
+  accepts. Authored blocks are proposed in
+  [`shared-realm-read-only-members.md`](../proposals/shared-realm-read-only-members.md) §D4. Held in memory while the member's
   realm is unlocked. Rotated on membership change. Compromise = an attacker reads + writes the
-  shared realm's blob channel; cannot forge member-attributable writes (A1 still required).
+  shared realm's blob channel, and its writes are indistinguishable from any member's to peers
+  (only the relay's JWT attributes a push, to a device).
   *Realised — bootstrap (SR-3b.1, `sync-multi-realm-runtime.md` §3):* a shared realm is created with a
   **random** 32-byte A12 (`SyncCryptoManager.generateSharedRealmMasterKey`, CSPRNG — a shared realm
   has no recovery phrase) plus a separate random Ed25519 realm identity used only for the realm's
@@ -2233,7 +2272,10 @@ Explicitly not trusted:
   ciphertext on the relay from which one could be recovered. The read operation (`faceGroups`)
   enforces this at the boundary: it groups templates in-process and returns **file paths, an
   ephemeral group id, each face's box and each photograph's face count** — no vector crosses IPC, so
-  an app process renders People while holding no biometric data at all. ⚠ The box and the count
+  an app process renders People while holding no biometric data at all. ⚠⚠ **That last clause holds
+  where the proxy is another process (Android, desktop), and not on iOS route 1**, where the proxy
+  runs inside Photos' process: there the boundary is the operation, not a process (*Faces on iOS
+  route 1*, below). ⚠ The box and the count
   (IN-6 F6a, inference service v2) are **position, never identity**: they say where a face is and
   how many a photograph holds, not whose it is, and the app uses them only to crop a header face and
   to filter "Only them". Adding anything identity-bearing to that return is a change to this entry.
@@ -2357,8 +2399,8 @@ Explicitly not trusted:
   on a permanent delete (S2), names following a move (S4) and invalidation on replace (S3).
 
   **Where the templates live on iOS (PIO-7 PR-3, 2026-10-07; `ios-on-device-inference.md` §3.1 /
-  §13).** No iOS build produces a template yet: nothing binds a face backend there. The place is
-  fixed first. On iOS the template log is **Photos' alone, in Photos' own container**, never the
+  §13).** No shipped iOS build produces a template: the face backend is bound only behind a build
+  flag that is off (*Faces on iOS route 1*, below). The place was fixed first. On iOS the template log is **Photos' alone, in Photos' own container**, never the
   App Group the other first-party apps share (the A5 amendment of the same date), in a directory
   excluded from backup, so a biometric template cannot reach an iCloud or Finder backup; a directory that cannot be so marked is never written to. Every
   other route-1 process binds a template store with no file behind it. ⚠ *"Dropped when the local
@@ -2379,8 +2421,107 @@ Explicitly not trusted:
   are hidden): the withdrawal's question to the store retries the purge of the directory, so the
   templates go although the store reported none. ⚠ Residual: the removal of a
   *deleted photograph's* template runs inside a pass, so it waits while the gate is closed; the
-  template is on disk, unread, until a check succeeds. Until S0b-1 the stamp is the owner id alone, so a same-owner reset is not
-  seen: acceptable while no template exists on iOS, and a precondition for PIO-8.
+  template is on disk, unread, until a check succeeds. ✅ **The stamp's epoch half is built
+  (2026-11-10), so PIO-8's precondition is met:** the stamp is the owner id **and** the shared
+  store's `meta.epoch`, which every wipe and migration of the store moves
+  ([`ios-on-device-inference.md`](../proposals/ios-on-device-inference.md) §13.2). A same-owner reset
+  is therefore a mismatch, and the templates are cleared before `faceGroups` serves. The epoch is
+  read at every check through the graph's own store handle, as one access, so a handle a sibling's
+  wipe has replaced answers "cannot tell", never the epoch it opened on. ⚠⚠ **"Cannot tell" is
+  never "unchanged", and never a change either:** for the owner the stamp names, the check that
+  could not tell refuses its caller (no template is served, no pass starts) and changes nothing
+  else: it stops no running pass and clears nothing, because a blind read is frequent and
+  transient; an owner the stamp does not name is a change whatever the epoch, and clears. A
+  stamp written before the epoch half carries none, and its first check clears once. ⚠
+  Residual, accepted: a pass already running continues under the answer its start was given,
+  the same gap any check leaves before the reads after it; a store really replaced fences the
+  graph's handle and the graph's stop ends that pass, and the rebuilt graph clears before it
+  serves. ⚠ Residual: a migration moves the epoch too, so it re-indexes, which costs time and
+  exposes nothing.
+
+  **Faces on iOS route 1 (IN-6 F5, 2026-11-10; [`ios-face-grouping.md`](../proposals/ios-face-grouping.md)
+  §3.6 / §15).** What produces a template on iOS, where it is held, and which of the rules above
+  change:
+  - **Bound in one graph, behind a flag that is off.** Only Photos' graph binds a face backend
+    (`VisionCoreMlFaceBackend`), and only when its own build flag (`TENSHU_PHOTOS_FACES`) is on
+    **and** on-device AI's flag and both its static gates (iOS 17, memory) admitted the phone. Both
+    flags are `NO` in every build. Drive's, Control's, Mia's and every other route-1 graph bind no
+    face backend and a template store with no file behind it.
+  - **The detector is Apple Vision**, a system framework, run in-process and on-device at a pinned
+    revision; nothing of a photograph leaves the device to find a face. The embedder is the same
+    checkpoint Android ships (AuraFace), converted to Core ML, run on-device.
+  - ⚠⚠ **The `faceGroups` boundary on route 1 is an operation, not a process.** The proxy runs
+    inside Photos' process, so Photos' process holds templates in memory while it indexes and while
+    `faceGroups` clusters them. The operation's return is unchanged (paths, an ephemeral group id,
+    each face's box, each photograph's count: never a vector), and the UI above it — the SwiftUI
+    screens and `:photos-shared-logic` — is handed no template. This is Decision C's co-owner
+    posture (A4) applied to A40: a first-party app that already holds the realm's keys in its own
+    process is not walled off from data derived from that realm. ⚠ So *"an app process … holding
+    no biometric data at all"* is false on iOS; what stays true there is that no template reaches
+    the relay, a schema, a sync block or another app.
+  - **Where they live:** `/inference/faces.log` in Photos' **own** container
+    (`<Application Support>/photos-private`), never the App Group, in a directory excluded from
+    backup (fail closed: the A5 amendment of 2026-10-07). ⚠ Data Protection class: the
+    container's default, not `complete` (FD8), so templates are readable after the first unlock
+    since boot, as the search vectors are (A5, AD1). Revisit if face indexing is shown to run while
+    the phone is locked.
+  - **The realm stamp (owner + `meta.epoch`)** above governs the templates exactly as it governs
+    the vectors: a mismatch clears them before `faceGroups` serves, under the gate `photosLike`
+    asks. Verified on the graph that has a face backend, for an owner change and for an epoch change
+    that keeps the owner (`PhotosFaceBindingTest`).
+  - **A runtime fingerprint of their own.** Templates are cleared, before the face model may serve,
+    whenever this build could not have made them: another embedder archive, another Vision
+    revision, another face decode or another **OS build** (Vision's points differ by platform, so an
+    iOS update re-detects every face; names are untouched). It is kept by a custody of the face
+    pair's own (`FaceTemplateCustody`, `/inference/faces.runtime.fingerprint`), which clears
+    templates and nothing else. ⚠⚠ Never search's custody: that one clears the vectors, and a face
+    key written to its file would wipe search's index while leaving every template in place. The
+    face readiness takes its custody by type, the custody refuses search's file and search's key,
+    and the face backend refuses any readiness that is not the face slot's.
+  - **Withdrawal deletes before the gate**, unchanged: an explicit switch-off deletes the templates
+    in `faceGroups` and at a pass's start before the gate is asked, so a gate closed for any other
+    reason (no realm, a failed face custody) keeps nothing on disk. Absence of a row refuses and
+    deletes nothing. Both verified on the face graph.
+  - **Templates never sync**, unchanged: no schema, no realm row, no relay surface. A name typed on
+    iOS is a `MediaLabel` like any other (the *Person labels* paragraph above).
+  **Residual:** code running inside Photos' process (AD3 reaching that process) reads the
+  templates in memory. It already reads the realm's keys and plaintext under Decision C, so this
+  adds no new trust boundary. **Relay exposure unchanged (House Rule #1)**; no key material, sync
+  protocol, relay data shape or schema'd row is touched, so no House Rule 9 bump.
+
+  **Name suggestions (IN-6 F6c name suggestions, 2026-11-11; `photos-people-and-pets.md` §6a
+  *F6c-s as built*).** Two new things, neither of them realm data:
+  - **A rendering.** Where this device's own face grouping attributes a group to a named person —
+    by the group's unambiguous single-face photographs labelled with that name, never by label
+    overlap alone — People either **folds** the group into the person on this screen (confident)
+    or **asks** *"Is this Anna?"* (not). ⚠⚠ A fold writes **nothing**: no `MediaLabel`, no row, no
+    sync block; it is recomputed on every read from the device-local groups and disappears with
+    them. Only the user's Yes (or Confirm) writes, and it writes through `nameFaceGroup` — the
+    *Person labels* paragraph above, unchanged. No similarity score and no vector reach the app.
+  - **A rejection** — "this face is not Anna", the No. A per-device record of a photograph's path,
+    a face's **box** and the typed name, with **no vector and no score**
+    (`RejectFaceSuggestion` / `FaceSuggestionRejections`, `RejectedFace`). ⚠⚠ It is special-category
+    (it places a named person's absence at a position in a photograph) and has **the templates'
+    custody, by construction**: it is held by the template store itself, in a file beside its log
+    (`/inference/faces.log.rejections`, on iOS under the same backup-excluded directory), so every
+    exit the templates leave by takes it too — a local store wipe, a realm-stamp change, an
+    explicit consent withdrawal, a model or runtime rebase (`clear`), and a deleted or trashed
+    photograph (`forget` / `remove`). ⚠⚠ Two orderings make that hold across an interruption: a
+    rejection is recorded **only beside a template row** of the same photograph, and every erase
+    removes the rejections **before** the templates. So the predicates that decide whether there is
+    anything left to delete — the stamp for a withdrawal, the remembered rows for a deleted
+    photograph — still see the templates until the rejections are gone, and a clear or a reconcile
+    that stopped half way is repeated by the next one. A rejections file that cannot be read is
+    never written over; a deleted photograph's reconcile erases it whole. **It never syncs** (D2 of
+    §6a F6c.9: syncing it would widen this entry and the realm for the cost of one repeated
+    question per device). Consent and the store gate govern the write and the read exactly as they
+    govern `nameFaceGroup` and `faceGroups`; the read refuses — on no consent, a closed gate, or an
+    unreadable file — rather than answering empty. Its read returns paths, boxes and names to the
+    app on this device only — position and a name the app already holds as a label.
+  - **Residual unchanged in kind:** a device compromise yields the rejections as it yields the
+    templates; a realm member admitted later sees neither. New ops and one new return composite,
+    additive — no stored or synced shape moved, so no House Rule 9 bump (`SchemaShapeBaseline`
+    regenerated for the new types). **House Rule #1 unchanged.**
 
 
 - **A39. Mia's query capability (cross-service read on the user's behalf).** Mia is the first
@@ -6551,6 +6692,17 @@ join. Defeated **structurally** by A26 — the relay sees only a realm-local aut
 and realm-local device ids (`deviceId'`), never the member's personal `ownerId`, on the
 admit/JWT path. Residual: pickup/admit *timing* + the grantor's IP, identical to the existing
 invite mailbox.
+⚠⚠ *Found 2026-11-10 — not true on the block path.* Every block emitted into a shared realm is
+stamped with the device's **personal** HLC (`SyncObserver.generateSyncBlock` →
+`syncManager.hlcManager.tick()`), whose node id is the personal `SyncManager.currentDeviceId`.
+The HLC is clear on the envelope, and its device id is bound into `syncBlockCanonical`. So the relay,
+and every member, sees the writer's personal device id. The same id appears in that device's
+personal-realm pushes, which links a member's personal `ownerId` to the realms it writes into.
+Today members write only their `Member` row on accept; owners write every `SharedFile`. The
+realm-local `HLCManager(realm.deviceId)` already exists, but only on the ingest side
+(`SyncProxyInitialization`). Fix owed: stamp shared-realm blocks with the realm's HLC, plus owner
+per-realm device keys (`proposals/shared-realm-read-only-members.md` D10). Until then this
+entry's "structural" defence holds for the admit/JWT path only.
 Residual: **Accepted, documented** — consistent with the A6 metadata posture and the surface #10
 co-membership residual.
 
@@ -6587,6 +6739,49 @@ unforgeably distinct. Pinned by
 ⚠ Latent, never exercised: production held **0** `member_revocation` and **0** `member_admission`
 rows when the fix shipped, which is also why the cutover carries no dual-accept window for the
 untagged form (`RELAY_PROTOCOL_VERSION` 1 → 2).
+Residual: **Low.**
+
+**T-GR-08. A member device evicts other devices through a `Device` tombstone.**
+*Added 2026-11-09 — found in a relay security pass.*
+Actors: a granted member running a modified client. Assets: the realm's device registrations
+(availability only). Invariants: I5 (revocation is the owner's act).
+The relay keeps **one** device registry per `ownerId`, and a shared realm's owner devices
+(`POST /sync/realm`, `/admit-device`) and member devices (`/sync/realm-member/admit`) are both
+registered under the realm's id. `/sync/push-tombstone` applied any `Device` tombstone's
+`revokedDeviceId` from any registered device: the relay cannot verify the `authTag` (House Rule
+#1, and every member holds Kr, from which the tag key is derived), and the staleness guard
+compares against an HLC the sender chooses. A member could therefore read the other device ids
+from `peerTips` and revoke the owner's and every other member's devices, write them to the
+removal ledger, and repeat at will — bypassing the master-signed `/sync/realm-member/revoke`
+that member removal is meant to require. Not covered by T-GR-06, which is about realm *state*.
+⚠ Bounded to denial: no read access, and clients never act on it — a shared realm's pull
+fetches only `/sync/changes`, never `/sync/tombstones`. But nothing re-registers a shared-realm
+device after a 401, so an evicted device stayed cut off until repaired by hand.
+Defense: the relay applies a `Device` tombstone pushed by a **member** device
+(`MembershipRegistry.isMemberDevice`) only when it names the pusher itself, so a member leaving
+still retires its own device. The tombstone is stored either way; only the registry side effect
+is skipped. Owner devices are unaffected. Pinned by `MemberDeviceTombstoneGuardTest`.
+The guard depends on the member/owner split being honest, so `/sync/realm-member/admit` refuses
+(409) a binding whose device id is already registered in the realm unless the same member
+authority admitted it: device public keys are not secret, and without this a member could bind an
+owner device's id under its own authority, which would mute that owner device's revocations and
+make the owner's `/revoke` of the member purge the owner's own device.
+Known residuals (all Low): `/revoke`'s snapshot-then-clear is not transactional with a concurrent
+`/admit`, so a device admitted mid-revoke can survive the purge; a refused tombstone still counts
+toward `/sync/realm-epoch`; an owner device id that is *not yet* registered can still be claimed
+by a member first.
+⚠⚠ The client side stays safe only because shared realms do not sync tombstones: a member can
+mint a tag-valid tombstone for any entity in the realm. If shared realms ever pull
+`/sync/tombstones`, tombstone authorship must be checked first — the A1-signed roster
+(`proposals/sync-entity-identity.md` §5b, T-K-02) is the selected design for `Device` rows.
+⚠ **Accepted by the maintainer (2026-11-10): the owner's devices are the shared realm's root of
+trust.** The shared realm's master key is wrapped to the owner's A13 and syncs to every owner
+device, so any one compromised owner device, or the owner's personal A1/recovery phrase, can read,
+write, admit and remove members in every realm they own. This is accepted as-is: a shared folder
+normally has one sharer, who already trusts all of their own devices. No per-device split of the
+shared master is planned, unlike the personal realm's A33. The signature-gated revocation in the
+successor therefore defends against members and the relay, never against an owner device.
+Members stay trusted with content (T-GR-06).
 Residual: **Low.**
 
 Invariants I1–I9 unchanged by this group. House Rule #1 audit: every relay-visible field of the
@@ -7281,6 +7476,54 @@ detectable, synced state. House Rule #1 audit: every relay-visible field of surf
 opaque id, an epoch, a public key, or a master-/A33-signed token the relay verifies but cannot
 mint; the A33 *private* key rides only inside the ECDH-encrypted pairing blob the relay forwards
 unread. No decrypt code lands server-side.
+
+**Sub-amendment (2026-11-11, `admission-revocation-names-the-capability.md` §7j):** the relay no
+longer refuses an admission because an *ancestor* link of the approver's chain was removed (S1's
+ancestor rule). It refuses a removed *new* device (F2′), a removed or key-revoked *approver*, and a
+malformed or unrooted chain. ⚠⚠ **The approver is bound to the poster:** an A33 chain's `chain[0]`
+must be the device the route authenticated (the JWT `sub` on `/pairing/response`; on `/offer-response`
+the `responderDeviceId` whose registered A4 key verified `hostSignature`) and must be registered at
+the relay — at post time, and still registered at delivery. Without that binding, a removed but
+never key-revoked device could forge a leaf under any realm JWT and admit it through itself as an
+ancestor (§7j.9). Rationale: the threat is a **silent rejoin** of a removed identity. ⚠ The SAS is a
+client ceremony the relay cannot verify; what the relay enforces is that only a current,
+authenticated member presents a chain **whose leaf names it** (the leaf's *id* is bound; its A33 *key* is not pinned) — so **any current member device can admit**
+(as before §7j). **Residual (accepted, Low):** a "sleeper" a thief admitted through a since-removed
+device keeps membership, and can admit, until the user removes it by id; mitigated by the removal
+flow listing the removed device's admittees with a per-device keep/remove choice — an **advisory**
+list, since the admitter field is self-written (unplaceable rows are counted). Silent rejoin of a
+removed identity stays impossible (F2′). **Residual (accepted, Low–Med, 2026-11-11):** because the leaf's key is not pinned, a current member M that also holds a removed device D's A33 *private* key (D never key-revoked — e.g. D blanked its key, or the realm has no A1) can mint a fresh cert for its own id under D and so regain an admission capability the user stripped from M by key (Q3). It needs a thief holding both devices and the user keeping M; in a realm without A1 it adds no reach (M can admit with its own cert anyway). Follow-up: pin a device's A33 key at its first presented chain (updated on a P4 re-root). ⚠⚠ **This residual is SUPERSEDED by the §7j.10 sub-amendment below** — kept as history. On the offer route, `hostSignature` covers `status‖hash‖publicKeyA‖payload` but not the admission fields — exploiting that needs an approved signature for an unused hash before the responder's own post, i.e. being the responder (Low).
+
+**Sub-amendment §7j.10 (2026-11-11, maintainer decision — `admission-revocation-names-the-capability.md`
+§7j.10): a device is a member (it can admit) or removed (it can do nothing).** Removing a device revokes
+only **its own** A33 key(s); the devices it admitted are untouched unless the user unticks them in the
+removal dialog, which removes each fully (tombstone, F2′, own key). Q3's conservative subtree strip is
+retired. The relay checks the revocation list for the **approver** (`chain[0]`) only — never an
+ancestor — at post and at delivery, the same scope as the removal ledger; for the approver the check is
+**id-scoped**, any key (§7j.10.2). Unchanged: F2′ on the new
+device; the approver bound to the authenticated, currently registered poster (§7j.9), not removed, its
+own key not revoked; chain signatures rooted in A1. No wire change, no `RELAY_PROTOCOL_VERSION` bump;
+needs a relay redeploy. **The Low–Med residual above disappears:** no member is stripped by key, so a
+member holding a removed device's private A33 key has nothing to regain. **Residual (re-examined,
+Low):** that key still signs certs, but any chain the relay accepts must name, as `chain[0]`, a current
+registered member the poster authenticated as — so its holder gains nothing a member device does not
+already have, and a removed device fails the binding whatever it signs with. **Removal window:** the
+remover strips the removed device D's own key at once; the tombstone that unregisters D lands on the
+next push (possibly long — offline remover, 507/402 latch, rate limit). Own-key revocation stops D as
+an approver **immediately**, because the relay's approver refusal is **id-scoped**: any master-signed
+revocation naming D's id refuses a chain whose approver is D, whatever key D presents, and a chain that
+names a device id twice is refused too (§7j.10.1/§7j.10.2). Without that D could re-key itself in the
+window — `[D(K′), D(K_D), …]` under its own revoked key, or a depth-1 `[D(K′)]` that a *second* A1
+holder which has not applied D's tombstone mints by P4 for an announced K′ (that holder cannot know
+locally: revocations live only in the relay ledger) — and admit a sleeper that outlives D. Removal
+completes when the tombstone unregisters D. Inside the window D can present an acceptable chain only
+as *another* device, i.e. with a second stolen device whose JWT it can use (Low). **Legacy:** revocations a pre-§7j.10
+removal minted for kept admittees still refuse those devices as approvers (own-key rule), with the
+"remove it and pair it again" remedy — which works only with a new identity (*Start fresh*), since
+F2′ bars the removed id; such a device cannot re-key itself, nor be re-minted by P4 (§7j.10.2). Not migrated (production holds
+test data). Invariants I1–I9
+unchanged; I5 (eviction) is unaffected — eviction is still removal, which still strips the evicted
+device's own capability.
 
 ### 8.18 Offline map-region delivery
 

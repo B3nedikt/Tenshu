@@ -1,6 +1,10 @@
 package org.tenshu.inference.proxy
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import org.tenshu.core.Composite
 import org.tenshu.core.Data
 import org.tenshu.core.TString
@@ -68,8 +72,9 @@ data class IndexPassResult(
      *
      * ⚠⚠ A count of photos, not a verdict on the model: one photo the model cannot embed in a pass
      * that embedded 500 is `embeddingsFailed = 1` and [embeddingStoodDown] `false`. For the vector
-     * half it excludes [embeddingsNotAttempted]. ⚠ The face half adds to it too, and still counts
-     * the photos it skipped after its own latch.
+     * half it excludes [embeddingsNotAttempted]. ⚠⚠ The vector half ONLY — the face half has
+     * [facesFailed]: one shared counter printed `embedFailed=29` over a SigLIP that was fine, when
+     * only the face detector had latched.
      */
     val embeddingsFailed: Int = 0,
     /**
@@ -100,6 +105,20 @@ data class IndexPassResult(
      * is a very different failure from one that finds none, and a single number hides which.
      */
     val facesFound: Int = 0,
+    /**
+     * Photographs the face half could not do because its model could not run — a `Failed` detection,
+     * an embedder that returned `null` — and the ones it skipped after that latched. ⚠ The face
+     * half's own: [embeddingsFailed] is the vector half's.
+     */
+    val facesFailed: Int = 0,
+    /** Face records the [FaceTemplateStore] REFUSED (a foreign stamp or width), and the ones skipped after. ⚠ [embeddingsRejected] is the vector half's. */
+    val facesRejected: Int = 0,
+    /**
+     * Photographs whose face record the store ACCEPTED this pass — with faces, or the empty record of a
+     * photograph with none. ⚠ Not [facesEmbedded]: a first pass over a faceless library writes 0
+     * templates and N records, and People then answers "nobody found", not "index first".
+     */
+    val faceRecordsWritten: Int = 0,
     /** Templates actually written to the [FaceTemplateStore]. */
     val facesEmbedded: Int = 0,
     /** Detections the embedder judged not a human face and left out (§12.15) — a cat, a doll, food. */
@@ -152,8 +171,68 @@ data class IndexPassResult(
     val staleFacesRemoved: Int = 0,
     /** The [EmbeddingStore] half of [staleFacesRemoved]: vectors and vectorless visits dropped. */
     val staleVectorsRemoved: Int = 0,
+    /**
+     * Whether the face half ran this pass, and if not, why — the pass report's `faces=` field.
+     *
+     * ⚠⚠ Its own field because the counts cannot say it. With search able to run and faces not, a
+     * photograph whose vector is current is counted [alreadyCurrent], and [skippedNoBackend] /
+     * [skippedNoConsent] count only photos for which NOTHING could run — so "the face model is not
+     * ready" and "every face is done" printed the same line on a device pass.
+     */
+    val faceHalf: FaceHalf = FaceHalf.NOT_ASKED,
+    /** Photographs whose faces were not looked at because of [faceHalf]'s reason — 0 when it is [FaceHalf.ON]. */
+    val facesSkippedOff: Int = 0,
+    /**
+     * The pass deleted every face template — a withdrawal of face consent, or a model change
+     * rebasing the store. ⚠ What People draws changed even when nothing was embedded.
+     */
+    val facesCleared: Boolean = false,
+    /**
+     * A new-arrivals batch (IN-D6a) stopped at its cap with photographs still to do. ⚠⚠ Not a
+     * deferral and never a reason to run again: what is left waits for the scheduled pass or
+     * *Index now*, and a batch that chained into the next would be the long unasked run IN-D6
+     * forbids.
+     */
+    val batchCapReached: Boolean = false,
+    /**
+     * The pass walked the library — the scheduled pass and *Index now* — rather than a list of
+     * paths. ⚠⚠ Only such a pass says anything about the whole library: a path batch of three
+     * photographs recorded as library coverage reads "3 of 3" over "1,290 of 1,300 aren't here".
+     * Set by `MediaIndexRunner`.
+     */
+    val libraryWalk: Boolean = false,
 ) {
     val skipped: Int get() = alreadyCurrent + notOnDevice + skippedNoConsent + skippedNoBackend
+
+    /**
+     * Whether this pass may have changed what People draws — the device-local face templates, which
+     * no synced row records (`ios-face-grouping.md` §17.6). ⚠ Errs toward `true`: a pass that
+     * changed nothing returns `false` only when it wrote no record (empty ones included), dropped
+     * and cleared nothing. ⚠ The reader that matters is [MediaIndexer.faceStoreWrites], which also
+     * sees a pass that ended without a report; this is the report's own view of the same thing.
+     */
+    val mayHaveChangedFaces: Boolean
+        get() = faceRecordsWritten > 0 || facesEmbedded > 0 || staleFacesRemoved > 0 || facesCleared
+}
+
+/**
+ * Whether one pass's face half ran ([IndexPassResult.faceHalf]).
+ *
+ * ⚠ One reason per pass: a missing store or backend holds for the whole pass, and consent — read per
+ * photograph — is the reason only where both were there. A pass that met a withdrawal partway
+ * reports [NO_CONSENT] with [IndexPassResult.facesSkippedOff] saying how many photographs it cost.
+ */
+enum class FaceHalf(val report: String) {
+    /** Every photograph the pass got to was offered to the face half. */
+    ON("on"),
+    /** This graph binds no face template store — face grouping is not built into this app. */
+    NO_STORE("off(noStore)"),
+    /** No backend serves `FACE_CLUSTERING` — no face model, or its readiness does not serve yet. */
+    NO_BACKEND("off(noBackend)"),
+    /** The face switch is not on for this device, for at least one photograph the pass reached. */
+    NO_CONSENT("off(noConsent)"),
+    /** The pass ended before it resolved its backends — a deferral, a refusal, or no pass at all. */
+    NOT_ASKED("notAsked"),
 }
 
 /**
@@ -184,7 +263,12 @@ data class IndexPassResult(
  */
 class MediaIndexer(
     private val registry: InferenceBackendRegistry,
-    private val deviceId: String,
+    /**
+     * This device's id, read at each use. ⚠ A provider, not a value: "Forget this device" gives the
+     * running process a new id (`SyncManager.forgetThisDevice`), and the consent / pause rows this
+     * reads are keyed on it — a captured id would read the forgotten device's rows until a restart.
+     */
+    private val deviceId: () -> String,
     /**
      * IN-D9's vocabulary: what the model is asked about, **and the rule that decides what is
      * written** (§19.3).
@@ -241,9 +325,63 @@ class MediaIndexer(
     private val conditions: IndexingConditions = IndexingConditions.Never,
 ) {
 
+    /**
+     * How many times this indexer has changed the face template store — a write of a photograph's
+     * record (faces, or the empty record of a photograph with none), a clear, a reconcile that
+     * dropped rows. Monotonic, never reset (`ios-face-grouping.md` §17.6).
+     *
+     * ⚠⚠ Counted AT the write, not from the pass's report: a pass that is stopped or throws returns
+     * no report, but what it wrote before that is on disk and changes People all the same.
+     * [MediaIndexRunner] compares it across each pass ([MediaIndexRunner.faceChanges]).
+     * ⚠ An EMPTY record counts: a store holding only no-face photographs answers People differently
+     * from an empty one (indexed, nobody found — not "index first").
+     */
+    val faceStoreWrites: StateFlow<Long> get() = faceStoreWritesNow.asStateFlow()
+    private val faceStoreWritesNow = MutableStateFlow(0L)
+
+    private fun faceStoreChanged() {
+        faceStoreWritesNow.update { it + 1 }
+    }
+
     /** @see MediaIndexer.index's `manual` — the two bars, chosen once and re-read per image. */
-    fun allowed(manual: Boolean): Boolean =
-        if (manual) conditions.allowManualIndexing() else conditions.allowIndexing()
+    fun allowed(manual: Boolean): Boolean = allowed(if (manual) PassBar.MANUAL else PassBar.SCHEDULED)
+
+    /** The bar [bar] names, asked of the platform's [IndexingConditions] now. */
+    fun allowed(bar: PassBar): Boolean = when (bar) {
+        PassBar.SCHEDULED -> conditions.allowIndexing()
+        PassBar.MANUAL -> conditions.allowManualIndexing()
+        PassBar.ARRIVALS -> conditions.allowArrivalIndexing()
+    }
+
+    /**
+     * Whether a pass could do anything at all: some half this device can run — its own backend, and
+     * its store where it has one — with that half's OWN consent on, and indexing not paused.
+     *
+     * ⚠⚠ Per half, never two ORs (`StartMediaIndexPassImplementation`'s argument): a backend for X
+     * and consent for Y is nothing this pass may do. Asked by a new-arrivals batch (IN-D6a) BEFORE
+     * the library walk, so a device with no model or no consent costs a few reads per batch, not a
+     * walk of the whole tree. ⚠ Every unknown is a no — absence of consent is NO (IN-D3).
+     */
+    /**
+     * Whether the user has **explicitly** switched off every half this pass does on this device —
+     * never "no consent found", which is absence (IN-D3). What lets a holder of arrived paths drop
+     * them: the user asked for none of this.
+     */
+    suspend fun everyHalfWithdrawn(executionContext: ExecutionContext): Boolean =
+        MEDIA_INDEX_CAPABILITIES.all { executionContext.inferenceConsentWithdrawn(it, deviceId()) }
+
+    suspend fun anyHalfMayRun(executionContext: ExecutionContext): Boolean {
+        if (executionContext.isIndexingPaused(deviceId())) return false
+        return MEDIA_INDEX_CAPABILITIES.any { capability ->
+            val stored = when (capability) {
+                InferenceCapability.SEMANTIC_IMAGE_SEARCH -> embeddings != null
+                InferenceCapability.FACE_CLUSTERING -> faces != null
+                else -> true
+            }
+            stored && registry.backendFor(capability) != null &&
+                executionContext.hasInferenceConsent(capability, deviceId())
+        }
+    }
 
     /**
      * ⚠⚠ A thin wrapper for ONE reason: the bar must be cleared **however the pass ends**. A throw
@@ -278,9 +416,28 @@ class MediaIndexer(
          * subtree can be read as "the library does not have these any more".
          */
         wholeLibrary: WholeLibrary? = null,
+        /**
+         * The bar this pass is held to, before it starts and per image. Follows [manual] unless a
+         * caller names another — a new-arrivals batch passes [PassBar.ARRIVALS] (IN-D6a).
+         */
+        bar: PassBar = if (manual) PassBar.MANUAL else PassBar.SCHEDULED,
+        /**
+         * At most this many photographs are **worked on** — their bytes read and handed to a model —
+         * and then the pass stops with [IndexPassResult.batchCapReached]. ⚠⚠ Only a photograph whose
+         * bytes were there counts: one already current costs a stamp read, and one with no bytes and
+         * no preview (relay-only, on a metered network) costs nothing, or such photographs would spend
+         * every batch's budget for ever. `null` is no cap. IN-D6a's small batch.
+         */
+        batchCap: Int? = null,
+        /**
+         * Told what became of each photograph of [media] this pass reached ([PathOutcome]); a
+         * photograph never reported was not reached (the cap, a deferral, a pause). How a caller
+         * holding a queue of paths knows which to keep — IN-D6a's arrivals queue.
+         */
+        onPath: ((String, PathOutcome) -> Unit)? = null,
     ): IndexPassResult = try {
         val reconciled = wholeLibrary?.let { reconcile(executionContext, media, it) } ?: Reconciled(0, 0)
-        indexPass(executionContext, media, capability, manual).copy(
+        indexPass(executionContext, media, capability, bar, batchCap, onPath).copy(
             staleFacesRemoved = reconciled.faces,
             staleVectorsRemoved = reconciled.vectors,
         )
@@ -348,6 +505,7 @@ class MediaIndexer(
         val faceRows = faces?.let { store ->
             dropTheDead("faces", executionContext, walked, wholeLibrary, store::remembered, store::forget)
         } ?: 0
+        if (faceRows > 0) faceStoreChanged()
         val vectorRows = embeddings?.let { store ->
             dropTheDead("embeddings", executionContext, walked, wholeLibrary, store::remembered, store::forget)
         } ?: 0
@@ -387,20 +545,26 @@ class MediaIndexer(
      * whether the stores may be read and extended; it must not decide whether a withdrawn user's
      * templates are deleted.
      */
-    suspend fun deleteTemplatesOnWithdrawal(executionContext: ExecutionContext) {
+    /** ⚠ Answers whether it deleted the templates — what People draws changes then ([IndexPassResult.facesCleared]). */
+    suspend fun deleteTemplatesOnWithdrawal(executionContext: ExecutionContext): Boolean {
         if (faces != null &&
-            executionContext.inferenceConsentWithdrawn(InferenceCapability.FACE_CLUSTERING, deviceId) &&
+            executionContext.inferenceConsentWithdrawn(InferenceCapability.FACE_CLUSTERING, deviceId()) &&
             faces.provenance() != null
         ) {
             faces.clear()
+            faceStoreChanged()
+            return true
         }
+        return false
     }
 
     private suspend fun indexPass(
         executionContext: ExecutionContext,
         media: List<IndexableMedia>,
         capability: InferenceCapability,
-        manual: Boolean,
+        bar: PassBar,
+        batchCap: Int?,
+        onPath: ((String, PathOutcome) -> Unit)?,
     ): IndexPassResult {
         // ⚠⚠ **Withdrawal deletes the templates** (`photos-people-and-pets.md` F4). A user who
         // switches face grouping off — on this device, or for the realm on another one — has asked
@@ -411,7 +575,7 @@ class MediaIndexer(
         // words, synced `MediaLabel`s, and outlive the switch (`photos-people-and-pets.md` §8). ⚠⚠
         // Only an EXPLICIT withdrawal deletes — see `inferenceConsentWithdrawn`: a read that merely
         // finds nothing is not a switch-off.
-        deleteTemplatesOnWithdrawal(executionContext)
+        var facesCleared = deleteTemplatesOnWithdrawal(executionContext)
         // ⚠⚠ A backend PER HALF, never "the" backend. The pinned ONNX backend supports search and not
         // tagging, so a pass that asked only for a tagging backend found none and skipped every photo
         // on every real device — while the fake, which supports everything, kept every test green.
@@ -427,13 +591,28 @@ class MediaIndexer(
         // worthless in this one; the cost is a re-index, never a name (labels are per-photograph).
         if (faces != null && faceBackend != null) {
             val held = faces.provenance()
-            if (held != null && held != currentProvenance(faceBackend)) faces.clear()
+            if (held != null && held != currentProvenance(faceBackend)) {
+                faces.clear()
+                faceStoreChanged()
+                facesCleared = true
+            }
+        }
+        // ⚠ Pass-level; consent, read per photograph below, can still turn it to NO_CONSENT.
+        var faceHalf = when {
+            faces == null -> FaceHalf.NO_STORE
+            faceBackend == null -> FaceHalf.NO_BACKEND
+            else -> FaceHalf.ON
         }
         if (tagger == null && embedder == null && faceBackend == null) {
-            return IndexPassResult(skippedNoBackend = media.size)
+            return IndexPassResult(
+                skippedNoBackend = media.size,
+                faceHalf = faceHalf,
+                facesSkippedOff = media.size,
+                facesCleared = facesCleared,
+            )
         }
         // ⚠ Asked before the bar starts, so a pass the device is not ready for never shows as running.
-        if (!allowed(manual)) return IndexPassResult(deferred = true)
+        if (!allowed(bar)) return IndexPassResult(deferred = true, facesCleared = facesCleared)
 
         var labelled = 0
         var current = 0
@@ -446,6 +625,17 @@ class MediaIndexer(
         var considered = 0
         var paused = false
         var deferred = false
+        var workedOn = 0
+        var capReached = false
+        // The photograph whose bytes were read and whose work is under way, and whether any half of
+        // that work failed. ⚠ Failure is UNAVAILABLE to a queue — tried again, a bounded number of times.
+        var pendingPath: String? = null
+        var pendingFailed = false
+        fun settlePending() {
+            val path = pendingPath ?: return
+            onPath?.invoke(path, if (pendingFailed) PathOutcome.UNAVAILABLE else PathOutcome.DONE)
+            pendingPath = null
+        }
         val firing = mutableMapOf<String, Int>()
 
         // ⚠ Latched per pass, because a refusal is a property of the SINK, not of the photo: a store
@@ -469,6 +659,10 @@ class MediaIndexer(
         var facesEmbedded = 0
         var facesNotHuman = 0
         var photosSearchedForFaces = 0
+        var facesSkippedOff = 0
+        var facesFailed = 0
+        var facesRejected = 0
+        var faceRecordsWritten = 0
 
         val stamp = tagger?.let(currentProvenance)
 
@@ -476,6 +670,7 @@ class MediaIndexer(
         var visited = 0
 
         for (item in media) {
+            settlePending()
             visited++
             progress?.advance(visited)
 
@@ -486,14 +681,14 @@ class MediaIndexer(
             // comment: `break` stops at the current image, `continue` would walk the whole library.
             // Consent below skips instead, because a revocation still has to let the loop finish
             // counting what it refused.
-            if (executionContext.isIndexingPaused(deviceId)) {
+            if (executionContext.isIndexingPaused(deviceId())) {
                 paused = true
                 break
             }
             // ⚠⚠ Per image, and it BREAKS, for the pause's reason: unplugging or picking the device up
             // mid-pass means "stop now", not "skip the remaining nine thousand". ⚠ A manual pass is
             // re-checked too — the battery can go low mid-library — against its own bar.
-            if (!allowed(manual)) {
+            if (!allowed(bar)) {
                 deferred = true
                 break
             }
@@ -501,13 +696,13 @@ class MediaIndexer(
             // ⚠⚠ Per file, and per capability. A revocation must stop the pass, not wait for the next
             // one — and each switch gates only its own half (IN-D3): a user who agreed to search and
             // not to labels gets an index and no labels, never nothing.
-            val mayTag = tagger != null && executionContext.hasInferenceConsent(capability, deviceId)
+            val mayTag = tagger != null && executionContext.hasInferenceConsent(capability, deviceId())
             val mayEmbed = embedder != null &&
-                executionContext.hasInferenceConsent(InferenceCapability.SEMANTIC_IMAGE_SEARCH, deviceId)
+                executionContext.hasInferenceConsent(InferenceCapability.SEMANTIC_IMAGE_SEARCH, deviceId())
             // ⚠ Its own consent, re-read per file like the others: `FACE_CLUSTERING` is a separate
             // switch (IN-D3) and a user may have exactly one of the three on.
             val faceConsent = faces != null &&
-                executionContext.hasInferenceConsent(InferenceCapability.FACE_CLUSTERING, deviceId)
+                executionContext.hasInferenceConsent(InferenceCapability.FACE_CLUSTERING, deviceId())
             // ⚠⚠ **A withdrawal mid-pass deletes too**. The pass-start clear has
             // already run by now, so without this a switch-off during a long pass would stop new
             // templates and leave every one made so far on disk until the next pass or People read.
@@ -516,13 +711,23 @@ class MediaIndexer(
             // this photo's faces and deletes NOTHING; only an explicit switch-off deletes — a single
             // empty read must never be able to destroy the whole face store.
             if (faces != null && !faceConsent && faces.provenance() != null &&
-                executionContext.inferenceConsentWithdrawn(InferenceCapability.FACE_CLUSTERING, deviceId)
+                executionContext.inferenceConsentWithdrawn(InferenceCapability.FACE_CLUSTERING, deviceId())
             ) {
                 faces.clear()
+                faceStoreChanged()
+                facesCleared = true
             }
             val mayFaces = faceBackend != null && faceConsent
+            // ⚠ Counted BEFORE the no-consent `continue` and the `current` bookkeeping below: a photo
+            // whose vector is current is otherwise reported "current" with its faces never looked at.
+            if (!mayFaces) {
+                facesSkippedOff++
+                if (faceHalf == FaceHalf.ON) faceHalf = FaceHalf.NO_CONSENT
+            }
             if (!mayTag && !mayEmbed && !mayFaces) {
                 noConsent++
+                // ⚠ Done for a batch: nothing it may do here, and the switch's next pass covers it.
+                onPath?.invoke(item.filePath, PathOutcome.DONE)
                 continue
             }
 
@@ -549,12 +754,25 @@ class MediaIndexer(
             // the first file must say so for all of them, not claim the rest were already done.
             val skippedFaces = facesMissing && (faceSinkRefuses || detectorFailing)
             if (skippedFaces) {
-                if (faceSinkRefuses) rejected++ else failed++
+                if (faceSinkRefuses) facesRejected++ else facesFailed++
             }
             val needsFaces = facesMissing && !skippedFaces
             if (!needsTags && !needsVector && !needsFaces) {
-                if (!skippedUnread && !skippedFaces) current++
+                if (!skippedUnread && !skippedFaces) {
+                    current++
+                    onPath?.invoke(item.filePath, PathOutcome.DONE)
+                } else {
+                    // ⚠ A latched half skipped it: not done, retried a bounded number of times.
+                    onPath?.invoke(item.filePath, PathOutcome.UNAVAILABLE)
+                }
                 continue
+            }
+            // ⚠⚠ IN-D6a's cap, asked BEFORE the byte read and it BREAKS: the rest is the next batch's,
+            // the scheduled pass's or *Index now*'s — never a chained run. Spent below, only once the
+            // bytes turned out to be here.
+            if (batchCap != null && workedOn >= batchCap) {
+                capReached = true
+                break
             }
 
             // ⚠ The original when it is here; otherwise a preview — a photograph stored
@@ -570,8 +788,17 @@ class MediaIndexer(
                 // ⚠ Counted, not silently dropped: "indexed 0 of 4 000" with no reason is the
                 // report that gets filed as "the feature does nothing".
                 notOnDevice++
+                onPath?.invoke(item.filePath, PathOutcome.UNAVAILABLE)
                 continue
             }
+            workedOn++
+            // ⚠⚠ Settled when the photograph's work is over — at the next photograph or after the
+            // loop — never here, before it: a failure below keeps it queued. ⚠⚠ And a half already
+            // latched off for this photograph (`skippedFaces`, `skippedUnread`) is a failure from the
+            // start: the other half running on it does not make it done — dropped as DONE, its faces
+            // (or vector) would wait for a library pass.
+            pendingPath = item.filePath
+            pendingFailed = skippedFaces || skippedUnread
 
             // ⚠⚠ The SAME visit, and this is IN-D8's whole argument made concrete: one image–text
             // model serves tagging and search, and the library walk — not the model call — is the
@@ -587,6 +814,7 @@ class MediaIndexer(
                     ImageEmbeddingOutcome.Unreadable -> embeddings.markVisited(item.filePath)
                     ImageEmbeddingOutcome.Failed -> {
                         failed++
+                        pendingFailed = true
                         embedFailureStreak++
                         if (embedFailureStreak == EMBED_FAILURE_STREAK_LIMIT) {
                             println(
@@ -605,6 +833,7 @@ class MediaIndexer(
                         } else {
                             rejected++
                             sinkRefuses = true
+                            pendingFailed = true
                         }
                     }
                 }
@@ -659,19 +888,23 @@ class MediaIndexer(
                         if (embedderCouldNotRun) {
                             // ⚠ Nothing recorded, and latched: a model that will not run for this
                             // face will not run for the next photograph's either.
-                            failed++
+                            facesFailed++
+                            pendingFailed = true
                             // ⚠ Diagnostic: the latch silences the face half for the rest of the
                             // pass, and without this line nothing says which photograph tripped it
                             // or why.
                             println("MediaIndexPass -> face half LATCHED at ${item.filePath}: embedFace returned null")
                             detectorFailing = true
                         } else if (faces.put(item.filePath, stored, faceStamp)) {
+                            faceStoreChanged()
+                            faceRecordsWritten++
                             facesEmbedded += stored.size
                         } else {
                             // ⚠ A refused write is the store's stamp or width disagreeing, which will
                             // disagree for every later photograph too — latch, do not re-ask per file.
-                            rejected++
+                            facesRejected++
                             faceSinkRefuses = true
+                            pendingFailed = true
                         }
                     }
 
@@ -681,15 +914,19 @@ class MediaIndexer(
                     // over undecodable files re-ran the detector for every one of them, reported no
                     // rejection, and never latched the incompatibility the `Detected` branch does.
                     FaceDetectionOutcome.Unreadable ->
-                        if (!faces.put(item.filePath, emptyList(), faceStamp)) {
-                            rejected++
+                        if (faces.put(item.filePath, emptyList(), faceStamp)) {
+                            faceStoreChanged()
+                            faceRecordsWritten++
+                        } else {
+                            facesRejected++
                             faceSinkRefuses = true
                         }
 
                     // ⚠⚠ NOT remembered. A detector that could not run says nothing about the
                     // photograph, and recording it would keep the photo out of People for good.
                     FaceDetectionOutcome.Failed -> {
-                        failed++
+                        facesFailed++
+                        pendingFailed = true
                         detectorFailing = true
                         println("MediaIndexPass -> face half LATCHED at ${item.filePath}: detectFaces Failed")
                     }
@@ -728,6 +965,8 @@ class MediaIndexer(
             }
         }
 
+        settlePending()
+
         // ⚠ Cleared by [index]'s `finally`, on every exit from the loop AND on a throw — see there.
 
         return IndexPassResult(
@@ -750,8 +989,45 @@ class MediaIndexer(
             facesNotHuman = facesNotHuman,
             photosSearchedForFaces = photosSearchedForFaces,
             deferred = deferred,
+            faceHalf = faceHalf,
+            facesSkippedOff = facesSkippedOff,
+            facesCleared = facesCleared,
+            facesFailed = facesFailed,
+            facesRejected = facesRejected,
+            faceRecordsWritten = faceRecordsWritten,
+            batchCapReached = capReached,
         )
     }
+}
+
+/** What became of one photograph a pass reached (`MediaIndexer.index`'s `onPath`). */
+enum class PathOutcome {
+    /** Indexed, already current, or nothing this device may do for it: no batch needs it again. */
+    DONE,
+
+    /**
+     * Not indexed now, and worth asking again a few times: neither its bytes nor a preview are on
+     * this device, a half failed on it, or — for a path batch — it is not (yet) a live image row.
+     */
+    UNAVAILABLE,
+}
+
+/**
+ * Which bar a pass is held to (§32.9, §34.2, IN-D6a) — asked of [IndexingConditions] before the pass
+ * and per image.
+ */
+enum class PassBar {
+    /** The 12 h maintenance pass: charging, battery not low, not in use. */
+    SCHEDULED,
+
+    /** *Index now*: battery not low; unknown is allowed (the user asked). */
+    MANUAL,
+
+    /**
+     * A new-arrivals batch (IN-D6a): battery not low, and **unknown is NO** — nobody asked. ⚠⚠ Its own
+     * kind, so the batch's lighter bar never loosens [SCHEDULED]'s.
+     */
+    ARRIVALS,
 }
 
 /**

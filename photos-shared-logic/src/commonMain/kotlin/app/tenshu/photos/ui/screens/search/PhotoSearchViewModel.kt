@@ -60,6 +60,16 @@ data class PhotoSearchUiState(
     val couldNotLook: Set<PhotoHitSource> = emptySet(),
     /** Whose Settings hold the switch a `noConsent` refusal points at: the view model's, fixed. */
     val modelsSwitch: ModelsSwitchHome = ModelsSwitchHome.CONTROL,
+    /**
+     * What source 3 last ANSWERED on this device — a query's answer or the opening question's —
+     * or `null` while nothing has. The idle line's input alone ([PhotoSearchCopy.idle]).
+     *
+     * ⚠⚠ Not [semanticStatus]. Under [DescriptionSearch.AskThisDevice] that one's seed is
+     * [SemanticSearchStatus.Available] before anything was asked — an assumption, not a fact — and
+     * it is reset when the bar is emptied, so a query typed next shows only ITS OWN refusal note:
+     * a refusal remembered from before (consent since turned on) would be a stale "switched off".
+     */
+    val semanticKnown: SemanticSearchStatus? = null,
 ) {
     /** ⚠ Empty only once a search has actually settled — never while one is in flight. */
     val isEmpty: Boolean get() = hits.isEmpty() && settled && query.isNotBlank()
@@ -124,6 +134,16 @@ class PhotoSearchViewModel(
      */
     private val onNoBackend: () -> SemanticSearchStatus? = { null },
     private val modelsSwitch: ModelsSwitchHome = ModelsSwitchHome.CONTROL,
+    /**
+     * Ask source 3 when the screen opens, and again each time it is shown over an empty bar
+     * ([screenShown]), so the idle line can say whether search by description runs here before
+     * anything is typed (`ios-on-device-inference.md` §1.8). ⚠ The
+     * proxy's own answer — its refusals are checked before it embeds anything, so on a device that
+     * cannot search it costs one call; on one that can, one query's work, which also warms the text
+     * tower for the first real query. ⚠ Off by default: Android and desktop learn from their first
+     * query instead. Ignored under [DescriptionSearch.NotBuilt], where nothing is ever asked.
+     */
+    private val askOnOpen: Boolean = false,
 ) : ViewModel() {
 
     // ⚠⚠ Every field is declared before anything can run (`photos-ios.md` §8.16 note 2): on K/N
@@ -158,13 +178,30 @@ class PhotoSearchViewModel(
      */
     private var generation = 0
 
+    /**
+     * Counts every answer a search published. ⚠ The opening question ([askOnOpen]) publishes only if
+     * none has: a search's answer is newer than it, whichever arrived last.
+     */
+    private var published = 0
+
+    /** The opening question in flight, or `null`. ⚠ At most one; a query cancels it ([start]). */
+    private var opening: Job? = null
+
+    init {
+        // ⚠⚠ After every field above: on K/N this launch runs at once (`Main.immediate`).
+        askOpening()
+    }
+
     fun onQueryChanged(text: String) {
         val wanted = text.trim()
         if (wanted.isEmpty()) {
             abandon()
             answered = null
             // ⚠ The typed text is kept (a bar holding only spaces still shows them); the rest is idle.
-            _state.value = idle.copy(query = text)
+            // ⚠⚠ Except what source 3 last answered, which the idle line follows
+            // ([PhotoSearchUiState.semanticKnown]); never the note's status, which a next query
+            // must answer for itself.
+            _state.update { idle.copy(query = text, semanticKnown = it.semanticKnown) }
             return
         }
         // ⚠⚠ The question already answered — a trailing space, or a letter typed and taken back. The
@@ -229,6 +266,10 @@ class PhotoSearchViewModel(
 
     private fun start(wanted: String, debounce: Boolean) {
         abandon()
+        // ⚠⚠ A real query takes over from the opening question: two `photosLike` calls must not
+        // compete for the text tower's first load. Its answer would be the older one anyway.
+        opening?.cancel()
+        opening = null
         val mine = generation
         running = wanted
         // ⚠⚠ Locals only below (`photos-ios.md` §8.16 note 15): a repository call that never returns
@@ -249,6 +290,7 @@ class PhotoSearchViewModel(
             if (mine != generation) return@launch
             answered = wanted
             running = null
+            published++
             // ⚠ Its OWN fields, into the latest state (`photos-ios.md` §8.16 note 5) — never a copy of
             // the state as it was when the search began: the bar's text is not this read's to put back.
             _state.update {
@@ -257,6 +299,7 @@ class PhotoSearchViewModel(
                     searching = false,
                     settled = true,
                     semanticStatus = answer.semanticStatus ?: it.semanticStatus,
+                    semanticKnown = answer.semanticStatus ?: it.semanticKnown,
                     capped = answer.capped,
                     couldNotLook = answer.couldNotLook,
                 )
@@ -264,7 +307,56 @@ class PhotoSearchViewModel(
         }
     }
 
+    /**
+     * The Search screen is in front again — the shells call it on every appearance and when the app
+     * comes back to the foreground. ⚠ Asks the opening question again, so a consent switched in
+     * Settings → Models, or an index that finished meanwhile, reaches the idle line with nothing
+     * typed. ⚠ Only over an empty bar with nothing running, and never a second one beside one in
+     * flight; a no-op unless [askOnOpen].
+     */
+    fun screenShown() {
+        if (_state.value.query.isNotBlank() || job?.isActive == true) return
+        askOpening()
+    }
+
+    /**
+     * The opening question: source 3 alone, bounded, its hits dropped — only its status is kept, and
+     * only as [PhotoSearchUiState.semanticKnown]: it is no query's answer, so it adds no note.
+     * ⚠ "Could not look" is not said for it: nothing was searched for, so nothing can be missing.
+     */
+    private fun askOpening() {
+        if (!askOnOpen || descriptionSearch != DescriptionSearch.AskThisDevice) return
+        if (opening?.isActive == true) return
+        // ⚠⚠ Locals only, as in `start`.
+        val repository = repository
+        val bound = timeoutMs
+        val onNoBackend = onNoBackend
+        val before = published
+        opening = viewModelScope.launch {
+            val asked: SemanticSearchStatus? = try {
+                boundedCall(bound) { repository.searchSemantic(OPENING_QUERY, 1).second }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (t: Throwable) {
+                println("PhotoSearchViewModel -> the opening question could not be asked: $t")
+                null
+            }
+            // ⚠ Unanswered stays unknown: the idle line keeps its plain sentence.
+            val answer: SemanticSearchStatus = asked ?: return@launch
+            val status: SemanticSearchStatus = if (answer == NO_BACKEND) onNoBackend() ?: answer else answer
+            // ⚠ A search answered meanwhile: its status is the newer one.
+            if (published != before) return@launch
+            _state.update { it.copy(semanticKnown = status) }
+        }
+    }
+
     companion object {
+        /**
+         * What the opening question asks. ⚠ Any non-blank text: the hits are dropped, and the
+         * proxy's refusals do not depend on it.
+         */
+        internal const val OPENING_QUERY = "photo"
+
         /** Matches Drive's search bar — long enough to swallow a burst, short enough to feel live. */
         const val SEARCH_DEBOUNCE_MS = 250L
 

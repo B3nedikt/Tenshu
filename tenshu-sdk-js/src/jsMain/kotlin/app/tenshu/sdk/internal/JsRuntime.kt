@@ -793,16 +793,10 @@ internal object JsRuntime : RuntimeContext {
     // only the clock source differs (Clock.nowEpochMillis() instead of
     // System.currentTimeMillis(), since the latter doesn't exist on JS).
     private val authTokenProvider: suspend () -> String? by lazy {
-        jwtTokenProvider(
-            ownerIdProvider = { syncManager.currentOwnerId },
-            deviceIdProvider = { syncManager.currentDeviceId },
-            signer = { msg ->
-                syncCryptoManager.signEd25519(
-                    privateKey = syncManager.getDeviceSigningKeyPair().privateKey,
-                    message = msg
-                )
-            },
-            nowEpochSec = { systemClock.nowEpochMillis() / 1000 }
+        org.tenshu.sync.proxy.deviceJwtTokenProvider(
+            syncManager = syncManager,
+            cryptoManager = syncCryptoManager,
+            nowEpochSec = { systemClock.nowEpochMillis() / 1000 },
         )
     }
 

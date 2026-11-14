@@ -8,6 +8,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import app.tenshu.reachability.ControlReachability.Companion.FIRST_CONNECT_GRACE_MS
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -209,7 +210,9 @@ class ControlReachabilityTest {
 
         connected.value = false
         runCurrent()
-        assertEquals(false, reach.state.value, "the transport answers immediately — no probe wait")
+        // ⚠ Before any verdict a `false` may be "not connected yet": held for the launch grace only.
+        advanceTimeBy(FIRST_CONNECT_GRACE_MS + 1); runCurrent()
+        assertEquals(false, reach.state.value, "the transport answers without a probe wait")
         assertEquals(0, probed)
 
         // And it keeps not probing: a round trip across a dead channel can only fail.
@@ -231,7 +234,7 @@ class ControlReachabilityTest {
             controlHasRealm = app.tenshu.reachability.RealmProbe.None("test: no realm probe"),
         )
         connected.value = false
-        runCurrent()
+        advanceTimeBy(FIRST_CONNECT_GRACE_MS + 1); runCurrent()
         assertEquals(false, reach.state.value)
 
         // Reconnect: the probe runs at once rather than after the 60s interval — but the proxy is
@@ -247,6 +250,52 @@ class ControlReachabilityTest {
         advanceTimeBy(60_001); runCurrent()
         assertEquals(true, reach.state.value)
         assertEquals(1, reach.readEpoch.value, "recovery re-subscribed the reads")
+    }
+
+    /**
+     * ⚠⚠ The device symptom: Android's Binder transport reads `false` from the moment the client
+     * registers until `onServiceConnected` (~0.3 s), and every cold start flashed *"Can't reach
+     * Tenshu Control"* for that window. Not connected *yet* is not down.
+     */
+    @Test
+    fun aTransportThatConnectsWithinTheLaunchGraceIsNeverAnOutage() = runTest {
+        val connected = MutableStateFlow(false) // as BinderTaskTransport reports itself at launch
+        val seen = mutableListOf<UnreachableReason?>()
+        val reach = ControlReachability(
+            probe = { connected.value },
+            scope = backgroundScope,
+            probeIntervalMs = 5_000,
+            transportConnected = connected,
+            controlHasRealm = app.tenshu.reachability.RealmProbe.None("test: no realm probe"),
+        )
+        backgroundScope.launch { reach.reason.collect { seen += it } }
+        runCurrent()
+        advanceTimeBy(300); runCurrent()
+        assertNull(reach.state.value, "still unknown while the bind is in flight")
+
+        connected.value = true // onServiceConnected
+        runCurrent()
+        assertEquals(true, reach.state.value, "the reconnect woke the probe, which answered")
+        advanceTimeBy(FIRST_CONNECT_GRACE_MS * 2); runCurrent()
+        assertEquals(true, reach.state.value)
+        assertFalse(UnreachableReason.Transport in seen, "no outage was ever reported: $seen")
+    }
+
+    @Test
+    fun aTransportThatNeverConnectsIsReportedOnceTheGraceRunsOut() = runTest {
+        val connected = MutableStateFlow(false)
+        val reach = ControlReachability(
+            probe = { true },
+            scope = backgroundScope,
+            probeIntervalMs = 5_000,
+            transportConnected = connected,
+            controlHasRealm = app.tenshu.reachability.RealmProbe.None("test: no realm probe"),
+        )
+        advanceTimeBy(FIRST_CONNECT_GRACE_MS - 1); runCurrent()
+        assertNull(reach.state.value)
+        advanceTimeBy(2); runCurrent()
+        assertEquals(false, reach.state.value, "Control absent or disabled still says so")
+        assertEquals(UnreachableReason.Transport, reach.reason.value)
     }
 
     @Test

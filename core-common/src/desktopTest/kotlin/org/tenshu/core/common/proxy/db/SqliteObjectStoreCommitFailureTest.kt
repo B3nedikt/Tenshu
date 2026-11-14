@@ -78,25 +78,65 @@ class SqliteObjectStoreCommitFailureTest {
     )
 
     /**
-     * Holds SQLite's write lock on [path] from a second connection for [holdMs] — a foreign
-     * writer, as far as the store's own connection can tell. Returns once the lock is held, so
-     * the caller's writes provably contend with it.
+     * SQLite's write lock on a store's file, held from a second connection — a foreign writer, as
+     * far as the store's own connection can tell — until [release]. ⚠ Released on an event the
+     * test has seen (a failed `flush()`, a traced retry), never after a guessed time: a hold sized
+     * in milliseconds is only as long as the store's retries on an idle machine, and every case
+     * paid it in full.
      */
-    private fun holdWriteLock(path: String, holdMs: Long): Thread {
+    private class HeldWriteLock(val thread: Thread, private val released: CountDownLatch) {
+        fun release() = released.countDown()
+
+        /** [release], then wait for the foreign writer to commit and let go. */
+        fun releaseAndJoin() {
+            release()
+            thread.join(5_000)
+        }
+    }
+
+    /** Takes the lock on [path]; returns once it is held, so the caller's writes provably contend. */
+    private fun holdWriteLock(path: String): HeldWriteLock {
         val held = CountDownLatch(1)
+        val released = CountDownLatch(1)
         val thread = Thread {
             val conn = BundledSQLiteDriver().open(path)
             try {
                 conn.prepare("BEGIN IMMEDIATE").let { s -> try { s.step() } finally { s.close() } }
                 held.countDown()
-                Thread.sleep(holdMs)
+                // The bound only turns a test that forgot to release into a red one.
+                released.await(HOLD_HANG_GUARD_S, TimeUnit.SECONDS)
                 conn.prepare("COMMIT").let { s -> try { s.step() } finally { s.close() } }
             } finally {
                 conn.close()
             }
         }.apply { isDaemon = true; start() }
         assertTrue(held.await(5, TimeUnit.SECONDS), "the foreign writer must take the lock")
-        return thread
+        return HeldWriteLock(thread, released)
+    }
+
+    /**
+     * Holds the lock on [path] for [holdMs] of real time. ⚠ Only for the one case whose subject
+     * is the WAIT itself — the writer waiting on a lock that clears within its `busy_timeout` —
+     * where SQLite's busy wait leaves no trace to release on.
+     */
+    private fun holdWriteLockFor(path: String, holdMs: Long): HeldWriteLock {
+        val lock = holdWriteLock(path)
+        Thread {
+            Thread.sleep(holdMs) // wall-clock: the hold's length is the case's subject (see KDoc)
+            lock.release()
+        }.apply { isDaemon = true; start() }
+        return lock
+    }
+
+    /** Holds the lock on [path] until the store beside it has logged its first retry. */
+    private fun holdWriteLockUntilFirstRetry(path: String): HeldWriteLock {
+        val lock = holdWriteLock(path)
+        Thread {
+            // ⚠ Released even when no retry comes: the batch then drops, and the case fails on
+            // that rather than hanging on a lock nobody lets go.
+            try { awaitFirstRetry(path) } finally { lock.release() }
+        }.apply { isDaemon = true; start() }
+        return lock
     }
 
     private fun refsOf(entry: DbEntry?): List<Long>? =
@@ -121,14 +161,14 @@ class SqliteObjectStoreCommitFailureTest {
         runTest {
             val path = tempDbPath()
             val store = SqliteObjectStore.open(path, scope(), writerBusyTimeoutMs = 2_000)
-            val holder = holdWriteLock(path, holdMs = 600)
+            val holder = holdWriteLockFor(path, holdMs = 600)
 
             // A member row and the list row that references it — the `addToArray` shape.
             store.storeObject(row(1L))
             store.storeObject(listRow(100L, listOf(1L)))
             // The barrier must NOT fail: the writer waits on the lock instead of dropping the batch.
             store.flush()
-            holder.join(5_000)
+            holder.thread.join(5_000)
             store.close()
 
             val reopened = SqliteObjectStore.open(path, scope())
@@ -152,13 +192,14 @@ class SqliteObjectStoreCommitFailureTest {
             writerBusyTimeoutMs = 100,
             commitRetryBackoffMs = longArrayOf(50, 100, 200, 400, 800),
         )
-        val holder = holdWriteLock(path, holdMs = 700)
+        // Let go once the member row's batch has failed and been retried, so a retry is certain.
+        val holder = holdWriteLockUntilFirstRetry(path)
 
         store.storeObject(row(1L))
         store.flushBarrier() // a commit boundary, so the member row is its own batch…
         store.storeObject(listRow(100L, listOf(1L))) // …and the list row lands in a later one.
         store.flush()
-        holder.join(5_000)
+        holder.thread.join(5_000)
         store.close()
 
         val reopened = SqliteObjectStore.open(path, scope())
@@ -183,7 +224,7 @@ class SqliteObjectStoreCommitFailureTest {
             writerBusyTimeoutMs = 20,
             commitRetryBackoffMs = longArrayOf(10, 10),
         )
-        val holder = holdWriteLock(path, holdMs = 1_000)
+        val holder = holdWriteLock(path)
 
         store.storeObject(row(1L))
         val dropped = assertFailsWith<Throwable>("the barrier must report the drop") { store.flush() }
@@ -192,7 +233,7 @@ class SqliteObjectStoreCommitFailureTest {
         // to the process that suffered it.
         assertEquals(row(1L), store.getObject(1L))
 
-        holder.join(5_000)
+        holder.releaseAndJoin()
         // The writer is still alive: a later batch commits normally once the lock is gone.
         store.storeObject(listRow(100L, listOf(1L)))
         store.flush()
@@ -226,11 +267,11 @@ class SqliteObjectStoreCommitFailureTest {
                 writerBusyTimeoutMs = 20,
                 commitRetryBackoffMs = longArrayOf(10, 10),
             )
-            val holder = holdWriteLock(path, holdMs = 1_000)
+            val holder = holdWriteLock(path)
 
             store.storeObject(row(7L))
             assertFailsWith<Throwable> { store.flush() }
-            holder.join(5_000)
+            holder.releaseAndJoin()
             store.close()
 
             val trace = traceOf(path)
@@ -264,10 +305,10 @@ class SqliteObjectStoreCommitFailureTest {
             store.storeObject(row(11L))
             store.flush()
 
-            val holder = holdWriteLock(path, holdMs = 1_000)
+            val holder = holdWriteLock(path)
             store.removeObject(11L)
             assertFailsWith<Throwable> { store.flush() }
-            holder.join(5_000)
+            holder.releaseAndJoin()
             store.close()
 
             val drop = traceOf(path).single { it.code == SqliteObjectStore.TRACE_CODE_BATCH_DROPPED }
@@ -320,7 +361,7 @@ class SqliteObjectStoreCommitFailureTest {
                 writerBusyTimeoutMs = 20,
                 commitRetryBackoffMs = longArrayOf(10, 10),
             )
-            val holder = holdWriteLock(path, holdMs = 2_000)
+            val holder = holdWriteLock(path)
 
             store.storeObject(row(7L))
             // The Put's batch is in flight and failing, so the barrier cannot join it.
@@ -340,7 +381,7 @@ class SqliteObjectStoreCommitFailureTest {
             assertTrue(drop.message.contains("[7]"), "the one drop is the Put's: ${drop.message}")
 
             // Consumed, not latched: once the lock is free the store commits and flushes normally.
-            holder.join(5_000)
+            holder.releaseAndJoin()
             store.storeObject(row(8L))
             store.flush()
             store.close()
@@ -450,10 +491,10 @@ class SqliteObjectStoreCommitFailureTest {
         store.storeObject(row(9L))
         store.flush()
 
-        val holder = holdWriteLock(path, holdMs = 1_000)
+        val holder = holdWriteLock(path)
         runCatching { store.wipeAllObjects() }
         runCatching { store.flush() }
-        holder.join(5_000)
+        holder.releaseAndJoin()
         runCatching { store.close() }
 
         val retries = traceOf(path).filter { it.code == SqliteObjectStore.TRACE_CODE_COMMIT_RETRY }
@@ -478,14 +519,14 @@ class SqliteObjectStoreCommitFailureTest {
             writerBusyTimeoutMs = 20,
             commitRetryBackoffMs = longArrayOf(10_000, 10_000),
         )
-        val holder = holdWriteLock(path, holdMs = 2_000)
+        val holder = holdWriteLock(path)
         store.storeObject(row(5L))
 
         // Cancel the close while it is parked in the retry backoff inside flush().
         val closing = launch { runCatching { store.close() } }
         withContext(Dispatchers.Default) { delay(200) }
         closing.cancelAndJoin()
-        holder.join(5_000)
+        holder.releaseAndJoin()
 
         val reopened = SqliteObjectStore.open(path, scope())
         assertFalse(
@@ -509,12 +550,12 @@ class SqliteObjectStoreCommitFailureTest {
             writerBusyTimeoutMs = 20,
             commitRetryBackoffMs = longArrayOf(10, 10),
         )
-        val holder = holdWriteLock(path, holdMs = 1_000)
+        val holder = holdWriteLock(path)
         store.storeObject(row(3L))
 
         // The close still reports the loss — that is the contract this must not trade away.
         assertFailsWith<Throwable> { store.close() }
-        holder.join(5_000)
+        holder.releaseAndJoin()
 
         val reopened = SqliteObjectStore.open(path, scope())
         assertFalse(
@@ -666,5 +707,10 @@ class SqliteObjectStoreCommitFailureTest {
                 .none { it.code == SqliteObjectStore.TRACE_CODE_LOCK_CONTENDED },
             "and NOT in the owner's trace, which it would otherwise truncate",
         )
+    }
+
+    private companion object {
+        /** How long a foreign writer may hold the lock before the test is deemed hung. */
+        const val HOLD_HANG_GUARD_S = 30L
     }
 }

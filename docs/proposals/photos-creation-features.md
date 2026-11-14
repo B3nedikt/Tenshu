@@ -4,7 +4,11 @@
 creation features under Google Photos' `+` … I feel like the others are mostly relatively easy to
 build with our existing/in-progress AI and model features — basically just another model we would
 need to add and call differently"). §1 is measured on the device; §3 is the finding that answers the
-request, and it should be read before the per-feature costing in §4.
+request, and it should be read before the per-feature costing in §4. ⭐ **CR-D8 is BUILT
+(2026-11-09): Settings is a ⚙ in the feed's top bar, so the Android/desktop bar is Photos ·
+Collections — §8, as-built §8.1.** ⚠⚠ **The Create tab is DEFERRED** (2026-11-09, maintainer): it
+was built and taken out the same day — feature creep for now; work goes to editing (§8). ⭐ **CR-1's seam
+shipped (2026-11-09): `ImageBitmap.encodeToBytes` in `:ui-core`, and Q4 is answered yes — §9.**
 
 ⚠⚠ **§3 is the constraint and it inverts the framing of the request.** The model *is* now the cheap
 part — IN-3b's backend is in production DI and a second model is a catalog row plus a `supports()`
@@ -159,7 +163,7 @@ raw material for §4.1, and it is why a collage is the cheapest *image* feature.
 | Decode a still, every platform | ✅ `decodeToImageBitmap` (`:ui-core`), four actuals |
 | Encode a **single** still, per platform | ✅ §2.4, inside `GetPreview` |
 | Decode a video frame | ⚠ Android + iOS only (`MediaMetadataRetriever` / `AVAssetImageGenerator`); **desktop none** |
-| **Composite N images into one surface** | ❌ nothing — `decodeToImageBitmap` is one-way and has no `encode` twin |
+| **Composite N images into one surface** | ⚠ the encode half shipped — `encodeToBytes` (`:ui-core`, §9); the compositor itself is still CR-1's to build |
 | **Encode an animation** (GIF / animated WebP) | ❌ nothing |
 | **Encode a video** | ❌ nothing — no `MediaCodec`, `MediaMuxer`, `AVAssetWriter` or ffmpeg anywhere |
 | **Audio: assets, mixing, muxing** | ❌ nothing; no `composeResources` audio in any module |
@@ -292,7 +296,7 @@ things make it worse than the sum of its parts:
 
 ---
 
-## 5. Decisions — proposed, none settled
+## 5. Decisions — proposed, except CR-D8 (settled, Create tab deferred)
 
 | # | Decision | State |
 |---|---|---|
@@ -302,7 +306,8 @@ things make it worse than the sum of its parts:
 | **CR-D4** | **A creation is a synced document, so a platform that cannot make one has a missing feature, not a degraded derivative.** ⚠ This amends `photos-video-support.md` §4.4's "not new and not a regression" for *created* content only | proposed (§3.3) |
 | **CR-D5** | **On-device or absent** — HR #1 forbids a server render tier, so a depth model that cannot run on a mid-range phone is not a candidate | proposed (§3.4) |
 | **CR-D6** | **Highlight video is deferred until its music licensing has an answer**, not designed around | proposed (§4.4) |
-| **CR-D7** | `encodeToBytes` lands in **`:ui-core`** beside `decodeToImageBitmap`, as one seam with per-platform actuals — not a new module | proposed (§4.1) |
+| **CR-D7** | `encodeToBytes` lands in **`:ui-core`** beside `decodeToImageBitmap`, as one seam with per-platform actuals — not a new module | **built** (§9) |
+| **CR-D8** | ⭐ **Settings leaves the bar for a ⚙ in the feed's top app bar** — settled and built. ⚠ **The Create tab is deferred** (maintainer, 2026-11-09): the bar is Photos · Collections (§8) | **SETTLED** (gear) · **DEFERRED** (Create tab) |
 
 ---
 
@@ -315,8 +320,10 @@ things make it worse than the sum of its parts:
 - **Q2 — What does Google's Animation actually emit, GIF or MP4?** §4.2 costs both; the answer
   informs nothing but a sanity check.
 - **Q3 — Which depth model, and does it clear `models.md` §2?** The real gate on §4.3.
-- **Q4 — Does the web target have an `encodeToBytes`?** §4.1 assumes a canvas encode exists; it was
-  not checked, and CR-D3's "all five platforms" claim depends on it.
+- ~~**Q4 — Does the web target have an `encodeToBytes`?**~~ **Yes — answered 2026-11-09, §9.3.** The
+  browser encodes through `OffscreenCanvas.convertToBlob`, already in production for the web
+  thumbnail ladder. ⚠ It is **not** a `:ui-core` actual, and cannot be one; CR-D3's "all five
+  platforms" stands, with the web half written in the web stack.
 - **Q5 — Where does a creation live?** A collage is a new image `File`; is it *also* a first-class
   row (so it can be re-edited, and so `Creations` in §5.3 has something to list), or just a
   photograph like any other? This is a schema question and HR #4 says it is answered before code.
@@ -333,8 +340,8 @@ things make it worse than the sum of its parts:
 
 | # | Phase | Depends on | Notes |
 |---|---|---|---|
-| **CR-0** | Answer Q3 (depth model) and Q4 (web encode) | — | ⚠ Both are cheap and both can return *"not this way"* |
-| **CR-1** | `encodeToBytes` in `:ui-core` + the collage compositor | Q4 | no model, no encoder |
+| **CR-0** | Answer Q3 (depth model) and Q4 (web encode) | — | Q4 ✅ yes (§9.3); Q3 open |
+| **CR-1** | `encodeToBytes` in `:ui-core` + the collage compositor | Q4 | ✅ the seam (§9); the compositor is still to do |
 | **CR-2** | Collage: templates, slot editor, save | CR-1 | the UI is the work |
 | **CR-3** | Animation | `photos-video-support.md` **M4**, or the `commonMain` GIF fallback | ⭐ near-free once M4 lands |
 | **CR-4** | Cinematic photo: depth capability + 2.5D render | CR-0/Q3, M4 | ⚖️ licence gates it |
@@ -353,3 +360,131 @@ consumer stating why that track's schedule matters beyond motion thumbnails.
 - **HR #8** — Photos is in the smoke gate's built set; anything touching `androidMain` runs it.
 - **HR #2** — none of §4 adds an asset class (a creation is synced ciphertext like any other row).
   ⚠ IN-6 (faces) would, and §2.2 deliberately scopes the picker to three axes to avoid pulling it in.
+
+---
+
+## 8. Settings moves to a ⚙; the Create tab is deferred (CR-D8, 2026-11-09)
+
+The maintainer first settled §1's observation that Google gives creation a whole tab — **Create as
+the third tab, and Settings out of the bottom bar** — and it was built. The same day the Create half
+was taken back out:
+
+> "I want the settings wheel at the top, but not the 'create' feature for now, it feels a bit like
+> feature creep. And this way the bottom bar only has two icons, making it far easier to use. And we
+> can focus on making the edit feature which I feel all similar apps have work great. The create
+> feels more like a google like feature which we can also add later."
+
+| Before CR-D8 (`photos-shared-ui` `App.kt` `navItems`) | Now |
+|---|---|
+| Photos · **Settings** · Collections | Photos · Collections |
+| Settings is a tab | Settings is a **⚙ in the feed's top app bar**, pushed as a destination like Licences |
+
+- ⭐ **Settled and built: the ⚙.** iOS already had this shape — its gear is a `.topBarTrailing` item
+  on the Library title (`photos-ios/Sources/FeedSelection.swift`, `library-settings`) — so Android
+  and desktop moved to the layout iOS ships.
+- ⚠ **Deferred: the Create tab.** Not rejected — "we can also add later". Album creation stays where
+  it always was, the *New album* card in Collections. Whoever revives the tab: it was built once and
+  removed the same day (Album as its one tile, from a shared `CreateTools` list; see git history),
+  and one rule still holds — ⚠ **a Create tab must not ship empty**: `control-cross-app-open.md`
+  §5g.2's rule applies to a tab as much as to a menu line, so it lands only with a tool that works.
+- ⚠ **iOS keeps Search as a tab**: its bar is Library · Collections · Search, which predates this
+  work. The maintainer's "two icons" was said of the Android bar; whether iOS's Search should move to
+  the Library title like Android's is **open**, not decided here.
+- **Editing is not a creation feature.** Google keeps Edit on the viewer, over one photograph; so
+  does this platform — [`photos-editing.md`](photos-editing.md) — and it is where the work goes next.
+
+### 8.1 As built (2026-11-09)
+
+| | Android / desktop (`photos-shared-ui`) | iOS (`photos-ios`) |
+|---|---|---|
+| Bar | `photosNavItems` (`navigation/PhotosNavItems.kt`): Photos · Collections | `PhotosTabs`: Library · Collections · Search (unchanged) |
+| Settings | `Destination.Settings` is a plain `Destination`, pushed from `PhotosFeedTopAppBar`'s ⚙ (`photosFeedSettings`); its entry draws `PushedTopAppBar` with Back | unchanged — the `library-settings` gear |
+| New album | Collections' *New album* card → the shell's `NameAlbumDialog` → `CollectionsViewModel.createAlbum` | unchanged |
+
+- ⚠ **Settings is not `Destination.TopLevel`.** Reached from the ⚙ it is a pushed entry, so Back
+  returns to the feed rather than leaving the app, and `selectTop`'s stack-clearing does not apply
+  to it. The screens it pushes, `Licences` and `Trash`, keep their routes.
+- ⚠ The pushed Settings draws its **own Back** (`PushedTopAppBar`): the bar used to make one
+  unnecessary, and desktop has no system Back to fall back on.
+- Android **says** a refused album write (*Couldn’t create the album*), as iOS already did; before
+  CR-D8 it closed the dialog on nothing. That stayed when the Create tab went.
+- Tests: `PhotosBarAndSettingsGearTest` (desktop: the bar is two items, Settings is no `TopLevel`,
+  gear → Settings → Back).
+
+---
+
+## 9. CR-1 as built — `encodeToBytes` (2026-11-09)
+
+`ImageBitmap.encodeToBytes(format, quality): ByteArray` in `ui-core/.../image/ImageEncode.kt`, beside
+`decodeToImageBitmap`, with `ImageEncodeFormat` = `JPEG` · `PNG` · `WEBP` (lossy only) and quality
+0–100 (default 90). Actuals: Android `Bitmap.compress`; desktop and iOS Skia
+`Image.encodeToData`. It is the encode half only — the collage compositor (draw N bitmaps into slot
+rectangles) is CR-1's remaining work and needs nothing beyond a Compose `Canvas(ImageBitmap)`.
+
+### 9.1 ⚠⚠ Orientation — the output is upright, and why that is a property of the input
+
+An `ImageBitmap` carries no orientation, so the encoder **writes the pixels as they stand and writes
+no orientation tag**. The output is upright exactly when the bitmap handed in is — and
+`decodeToImageBitmap` returns upright pixels on every platform: Android applies the EXIF tag itself
+(`ImageDecode.android.kt`, since `BitmapFactory` ignores it), Skia applies it on desktop and iOS.
+`ImageEncodeTest` (`commonTest`, so desktop **and** the iOS simulator) pins both halves with a
+90°-tagged JPEG: the decode comes back with its edges swapped and the stored left half on top, and the
+re-encode decodes the same way again (no tag carried, so no second turn).
+
+⚠ **The raw-order trap lives one layer down, in the thumbnail rungs.** Android/JVM `GetPreview`
+mint rungs in raw sensor order with no tag, so a rung decoded here comes back raw and an encode of it
+writes raw. A creation or an edit is built from the **original's** bytes, never from a rung.
+
+⚠ **Two limits of "upright, end to end"**, both in the decode rather than the encode:
+- **Android's rotation can miss.** `ImageDecode.android.kt` `upright()` falls back to the raw bitmap
+  when the rotated copy cannot be allocated (a second full-size buffer, under memory pressure). For a
+  viewer that is the right trade; for a stored edit it is a sideways permanent copy. ED-1 should give
+  the editor a decode that reports the miss before it relies on this one.
+- **The decode caps the long edge at `MAX_DECODE_EDGE` (4096).** A copy of a larger original comes
+  out smaller unless the caller passes a larger `maxEdge` — a deliberate choice ED-1 has to make,
+  against Android's heap.
+
+### 9.2 ⚠⚠ EXIF — nothing is carried
+
+The output holds pixels only: no capture time, location, camera, lens or orientation. Carrying a
+block was rejected because (a) the source is often HEIC, whose EXIF sits in an ISO-BMFF item rather
+than an APP1 segment, so there is no one splice; (b) none of the three encoders writes a metadata
+block, so it would be a hand-rolled JPEG splicer covering one source format; and (c) a copied block
+carries the source's orientation onto pixels that are already upright, which turns them a second
+time on every reader that honours the tag — the bug §9.1 exists to prevent.
+
+So a caller that stores the result passes metadata to `UploadFile`: `SOURCE_MODIFIED_AT` for the
+capture time, `CAPTURE_LAT_E7` / `CAPTURE_LNG_E7` for the place (`photos-editing.md` §3.2 A).
+⚠ **Camera, lens and the EXIF date-taken row cannot be passed that way, so an edited copy or a
+collage shows none** (its feed position still comes from `SOURCE_MODIFIED_AT`, which seeds
+`File.CreatedAt`). If that
+matters later, the fix is a JPEG-only APP1 carry with orientation rewritten to 1 — a follow-up, not a
+change to this seam's contract.
+
+⚠ **WebP quality is capped at 99 on every platform**, because Android's pre-API-30 `WEBP` turns
+lossless at 100. Skia does not — measured: `webpAtQualityHundredStaysLossy` passes with the cap
+removed — so the cap is for parity, and that test pins only the Skia half.
+
+Two other rules the KDoc carries: **JPEG drops alpha to black** on every platform (a collage with
+transparent gutters fills a background first or encodes PNG), and the call **blocks** — run it off
+the UI thread. A failed encode **throws** `ImageEncodeException`; there is no `null`.
+
+### 9.3 Q4 — the web target does have a canvas encode
+
+**Yes.** `OffscreenCanvas.convertToBlob({ type, quality })` (and `HTMLCanvasElement.toBlob`) encodes
+JPEG and PNG in every current browser, and it is **already in production**:
+`tenshu-sdk-js/.../internal/CanvasPreview.kt` `generatePreview` mints the synced thumbnail ladder from
+a browser upload with it (`drive-web-parity.md` W2b).
+
+⚠⚠ **But it is not, and cannot be, a `:ui-core` actual.** `:ui-core` has no JS target, and gaining
+one would mean Compose on the web, which House Rule #5 rules out. The browser API is also
+Promise-only, so it could not satisfy the synchronous `expect` anyway. The web half of a collage is
+therefore written in the web stack over the same call, when web Collage is built — there is no JS
+actual to stub, and no fake one was added.
+
+Traps for whoever writes it:
+- ⚠ An unsupported `type` **silently falls back to PNG** (that is the spec), so check `blob.type`
+  rather than trusting the request — WebP encode support is not universal.
+- ⚠ The canvas output carries no EXIF either, so §9.2's `UploadFile` rule applies unchanged.
+- ⚠ Upright input depends on `createImageBitmap`'s `imageOrientation`, whose spec default is
+  `"from-image"`; that was not verified per browser here.

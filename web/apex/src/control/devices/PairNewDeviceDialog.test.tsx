@@ -126,6 +126,32 @@ describe('PairNewDeviceDialog', () => {
     expect(onPaired).toHaveBeenCalledTimes(1)
   })
 
+  it("approve refused because the device was removed before says so, not the schema id", async () => {
+    const user = userEvent.setup()
+    const harness = makeSession({ ok: false, error: { kind: 'deviceRemoved' } })
+    showMock.mockResolvedValue({ ok: true, value: harness.session })
+    render(<PairNewDeviceDialog onClose={() => {}} onPaired={() => {}} />)
+    await waitFor(() => expect(showMock).toHaveBeenCalled())
+    harness.emit({ kind: 'request', deviceId: 'peer-9', deviceName: 'Pixel 9', sas: null })
+    await user.click(await screen.findByRole('button', { name: 'Approve' }))
+    expect(
+      await screen.findByText(/was removed from your realm before/i),
+    ).toBeInTheDocument()
+  })
+
+  it("approve refused because this device's capability was revoked says so", async () => {
+    const user = userEvent.setup()
+    const harness = makeSession({ ok: false, error: { kind: 'approverRevoked' } })
+    showMock.mockResolvedValue({ ok: true, value: harness.session })
+    render(<PairNewDeviceDialog onClose={() => {}} onPaired={() => {}} />)
+    await waitFor(() => expect(showMock).toHaveBeenCalled())
+    harness.emit({ kind: 'request', deviceId: 'peer-9', deviceName: 'Pixel 9', sas: null })
+    await user.click(await screen.findByRole('button', { name: 'Approve' }))
+    expect(
+      await screen.findByText(/can no longer add devices/i),
+    ).toBeInTheDocument()
+  })
+
   it("approve failure surfaces the error inline without leaving the request step", async () => {
     const user = userEvent.setup()
     const harness = makeSession({ ok: false, error: { kind: 'network' } })

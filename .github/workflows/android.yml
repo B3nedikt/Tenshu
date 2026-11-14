@@ -8,7 +8,13 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # ⚠ Pinned, not `ubuntu-latest`: GitHub moves that label to Ubuntu 26.04 from 2026-10-19, and
+    # the pinned Playwright refuses to install its browser there ("does not support
+    # chromium-headless-shell on ubuntu26.04-x64"). Move the pin on purpose, with the tools that
+    # need it, rather than finding out from a red run.
+    runs-on: ubuntu-24.04
+    # ⚠ A hang must not hold the runner for hours: the full `check` takes ~30 min here.
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 
@@ -48,17 +54,38 @@ jobs:
             25
             17
           distribution: 'temurin'
-          cache: gradle
+
+      # Gradle's own cache action: Gradle's user home (dependencies, wrapper, and the local BUILD
+      # cache, so a compile already done for these inputs is not redone). It replaces setup-java's
+      # `cache: gradle`, which kept dependencies only. ⚠ By default only the default branch WRITES
+      # the cache; PRs read it — so a run on master is what warms it.
+      - name: Set up Gradle (dependency + build cache)
+        uses: gradle/actions/setup-gradle@v4
 
       # ⚠ setup-java installs into the hosted tool cache, which is NOT a location Gradle's
       # toolchain auto-detection scans — so the 25 above is invisible to `launcherFor` without
       # this. `fromEnv` takes env var NAMES; setup-java exports JAVA_HOME_<version>_<arch> and
       # the arch differs per runner (ubuntu = X64, macos-latest = ARM64), so both spellings are
       # listed. Unset names are skipped silently (verified), so the unused half costs nothing.
-      - name: Register both JDKs with Gradle toolchain detection
+      #
+      # ⚠⚠ And a heap and worker budget for THIS runner (4 cores, 16 GB). `gradle.properties` is
+      # tuned for the maintainer's Mac (a 5 GB daemon, a 4 GB Kotlin daemon, 6 workers), and with
+      # `--continue` reaching the heavy tasks the runner was shut down mid-build, twice, at ~30
+      # min ("The runner has received a shutdown signal"). A user-home `gradle.properties`
+      # overrides the project's. ⚠⚠ `tenshu.testMaxHeap` is the half that matters most: unset,
+      # every test JVM takes a quarter of RAM (4 GB here), and 3 workers + 2 daemons is ~19 GB
+      # on a 16 GB runner — it was then "lost communication" at ~20 min. At 3 workers × 2 GB it
+      # still got lost (at ~70 min: lint, Kotlin compiles and Chrome share the rest), so 2 workers:
+      # 2 × 2 + 4 + 3 = 11 GB.
+      - name: Register both JDKs with Gradle toolchain detection; fit the build to the runner
         run: |
           mkdir -p ~/.gradle
-          echo "org.gradle.java.installations.fromEnv=JAVA_HOME_25_X64,JAVA_HOME_25_ARM64,JAVA_HOME_17_X64,JAVA_HOME_17_ARM64" >> ~/.gradle/gradle.properties
+          cat >> ~/.gradle/gradle.properties <<'PROPS'
+          org.gradle.java.installations.fromEnv=JAVA_HOME_25_X64,JAVA_HOME_25_ARM64,JAVA_HOME_17_X64,JAVA_HOME_17_ARM64
+          org.gradle.workers.max=2
+          org.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8 -XX:G1PeriodicGCInterval=60000 -Dkotlin.daemon.jvm.options=-Xmx3g
+          tenshu.testMaxHeap=2g
+          PROPS
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
@@ -66,7 +93,25 @@ jobs:
       - name: Run all checks
         # 'check' runs unit tests and lint for both Android and multiplatform targets.
         # It's faster than 'build' because it skips assembly (building APKs/AARs).
-        run: ./gradlew check --stacktrace
+        #
+        # ⚠⚠ Minus the known-red JS suites in `scripts/js-test-exclusions.txt` — the SAME list the
+        # local gate (`scripts/run-gate.sh`) skips. Without it this lane ran exactly the suites the
+        # gate excluded and was red on every run from the first public release on, so a real break
+        # here read as more of the same (docs/tech-debt.md "Public CI was red on every run").
+        run: |
+          excluded=""
+          # ⚠ `jsBrowserTest`, not the `jsTest` the gate excludes: `check` reaches the browser run
+          # through `allTests`, which depends on it directly, so `-x :m:jsTest` still runs it.
+          for m in $(sed -e 's/#.*//' scripts/js-test-exclusions.txt); do excluded="$excluded -x :$m:jsBrowserTest"; done
+          # ⚠ `--continue`: without it `check` stops at the first failing task, so a run shows one
+          # red and hides every task behind it — the reds then surface one CI run at a time.
+          # One line a minute of memory and disk, IN this step's output: a runner that is lost leaves
+          # its last readings in the log (a later "print the log" step never runs then).
+          while true; do
+            echo "[resources] $(date -u +%H:%M:%S) $(free -m | awk '/Mem:/{print "mem used " $3 " / " $2 " MB, avail " $7}') $(df -h / | awk 'NR==2{print "disk " $3 " / " $2}')"
+            sleep 60
+          done &
+          ./gradlew check --continue --stacktrace $excluded
 
       - name: Upload Test Report
         if: failure()

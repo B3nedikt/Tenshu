@@ -24,7 +24,7 @@
   },
   "banner": {
     "thisDevice": "dieses Gerät",
-    "signedInAs": "Du bist als <strong>{deviceName}</strong> angemeldet. <controlPlane>Zu deiner Kontrollzentrale →</controlPlane>",
+    "signedInAs": "Du bist als <strong>{deviceName}</strong> angemeldet. <apps>Zu deinen Apps →</apps>",
     "lock": "Sperren",
     "lockAriaLabel": "Dieses Gerät sperren. Zum Fortfahren musst du es erneut entsperren",
     "dismiss": "Ausblenden"

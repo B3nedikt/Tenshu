@@ -29,8 +29,9 @@ internal fun tensorDigest(tensor: FloatArray): String {
  * hand forgot. It runs on the JVM, so it is in the gate, where the iOS half
  * (`IosPreprocessingGoldenTest`) is not.
  *
- * ⚠ Float bits, so it is meaningful where `Float` is IEEE single precision: the JVM, Android and
- * Kotlin/Native. A browser computes in doubles; nothing embeds there.
+ * ⚠ Float bits, and the same digest on every target: `ImagePreprocessing` rounds each step to
+ * float32, so Kotlin/JS (whose `Float` is a double in memory) makes the same tensor as the JVM,
+ * Android and Kotlin/Native. A JS red here is a real divergence, not a platform artefact.
  */
 class ImagePreprocessingGoldenTest {
 

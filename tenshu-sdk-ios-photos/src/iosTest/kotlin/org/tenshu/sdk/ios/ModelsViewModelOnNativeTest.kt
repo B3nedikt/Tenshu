@@ -43,6 +43,8 @@ import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
 import org.tenshu.inference.InferenceCapability
 import org.tenshu.inference.proxy.catalog.CoreMlDiskBudget
+import org.tenshu.viewmodel.test.OwnedViewModels
+import org.tenshu.viewmodel.test.vmBlocking
 import platform.posix.usleep
 import kotlin.concurrent.AtomicReference
 import kotlin.coroutines.CoroutineContext
@@ -122,7 +124,8 @@ class ModelsViewModelOnNativeTest {
             removal
         }
         val repository = OnDeviceModelsRepository(source, null, OnDeviceModelsCapabilities, remove, Consents, scope)
-        val vm = ModelsViewModel(repository)
+        val owned = OwnedViewModels()
+        val vm = owned.own(ModelsViewModel(repository))
         // ⚠ Each transition of what a removal shows, timed: printed with a failure below.
         val began = TimeSource.Monotonic.markNow()
         val transitions = MutableStateFlow(emptyList<String>())
@@ -194,10 +197,11 @@ class ModelsViewModelOnNativeTest {
             source.list.value = ModelsAvailability.NotConnected
             eventually({ "a retired source was not said: ${vm.uiState.value}" }) { vm.uiState.value.availability == ModelsAvailability.NotConnected }
         } finally {
-            vm.viewModelScope.cancel()
+            owned.closeAll()
             scope.cancel()
             tracing.cancel()
         }
+        owned.assertNothingActive()
     }
 
     /**
@@ -226,8 +230,9 @@ class ModelsViewModelOnNativeTest {
         val before = PhotosSurface.modelsInstalls.value
         val probe = assertNotNull(PhotosSurface.installModelsFixture("readyOn"))
         assertEquals(before + 1, PhotosSurface.modelsInstalls.value)
-        val models = PhotosSurface.models()
-        val feature = PhotosSurface.modelsFeature()
+        val owned = OwnedViewModels()
+        val models = PhotosSurface.models().also { owned.own(it.viewModel) }
+        val feature = PhotosSurface.modelsFeature().also { owned.own(it.viewModel) }
         val search = InferenceCapability.SEMANTIC_IMAGE_SEARCH
         try {
             assertEquals(PhotosSurface.modelsInstalls.value, models.install)
@@ -291,6 +296,10 @@ class ModelsViewModelOnNativeTest {
             PhotosSurface.installNotConnected()
         }
         assertTrue(!models.viewModel.viewModelScope.isActive && !feature.viewModel.viewModelScope.isActive, "a closed binding still collects")
+        // ⚠ Joined only after that assertion: a `closeAll()` in the `finally` would cancel what
+        // `close()` failed to, and the assertion could no longer see it.
+        owned.closeAll()
+        owned.assertNothingActive()
     }
 
     /**
@@ -300,7 +309,8 @@ class ModelsViewModelOnNativeTest {
     @Test
     fun theIndexingSectionAndItsPressesRunOnNative() = runBlocking {
         val probe = assertNotNull(PhotosSurface.installModelsFixture("indexNotAsked"))
-        val models = PhotosSurface.models()
+        val owned = OwnedViewModels()
+        val models = PhotosSurface.models().also { owned.own(it.viewModel) }
         try {
             fun section() = photosModelsScreen(models.state.value, "iPhone", probe.onWifi).indexing
             eventually({ "the section was not drawn: ${models.state.value}" }) { section()?.status?.contains("can be searched") == true }
@@ -323,8 +333,10 @@ class ModelsViewModelOnNativeTest {
             eventually({ "the resume was not written: ${probe.calls.value}" }) { probe.calls.value.endsWith("pause(off)") }
         } finally {
             models.close()
+            owned.closeAll()
             PhotosSurface.installNotConnected()
         }
+        owned.assertNothingActive()
     }
 
     /**
@@ -333,12 +345,12 @@ class ModelsViewModelOnNativeTest {
      * over the repository that was replaced, and its screen never built another.
      */
     @Test
-    fun aBindingBuiltAcrossAnInstallIsOfTheEarlierInstallSoItsScreenBuildsAgain() {
+    fun aBindingBuiltAcrossAnInstallIsOfTheEarlierInstallSoItsScreenBuildsAgain() = vmBlocking { owned ->
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val replaced = OnDeviceModelsRepository.notConnected(scope)
         // The install lands while the view model is being built over what it replaces.
         PhotosSurface.installModels { PhotosSurface.installNotConnected(); replaced }
-        val binding = PhotosSurface.models()
+        val binding = PhotosSurface.models().also { owned.own(it.viewModel) }
         try {
             assertTrue(
                 binding.install != PhotosSurface.modelsInstalls.value,
@@ -357,6 +369,11 @@ class ModelsViewModelOnNativeTest {
         assertEquals(
             PhotosModelsFixture.DOWNLOAD_BYTES + CoreMlDiskBudget.prepareBytes(PhotosModelsFixture.DOWNLOAD_BYTES),
             PhotosModelsFixture.ON_DEVICE_BYTES,
+        )
+        // The face entry's (`ios-face-grouping.md` F6), by the same sum.
+        assertEquals(
+            PhotosModelsFixture.FACE_DOWNLOAD_BYTES + CoreMlDiskBudget.prepareBytes(PhotosModelsFixture.FACE_DOWNLOAD_BYTES),
+            PhotosModelsFixture.FACE_ON_DEVICE_BYTES,
         )
     }
 }

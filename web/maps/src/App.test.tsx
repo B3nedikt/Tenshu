@@ -34,6 +34,8 @@ const CAFE = placeRow({ placeId: 'p-cafe', name: 'Café', latitude: 48.1, longit
 const PARK = placeRow({ placeId: 'p-park', name: 'Park', latitude: 48.2, longitude: 11.7 })
 
 beforeEach(async () => {
+  // The route reads the URL on mount (web-apps-layout.md §3.4).
+  window.history.replaceState(null, '', '/')
   resetProxy()
   maps.length = 0
   await i18n.changeLanguage('en')
@@ -48,7 +50,9 @@ beforeEach(async () => {
 describe('App', () => {
   it('renders its shell, with no lease banner while this tab holds the runtime', async () => {
     renderWithQueryClient(<App />)
-    expect(screen.getByRole('heading', { name: 'Maps' })).toBeInTheDocument()
+    // No headline, and no one-item sidebar: the apex top bar already names the app.
+    expect(screen.queryByRole('heading', { name: 'Maps' })).toBeNull()
+    expect(screen.queryByRole('navigation')).toBeNull()
     expect(await screen.findByText('Park')).toBeInTheDocument()
     expect(screen.queryByText('Tenshu is open in another tab')).toBeNull()
   })
@@ -108,27 +112,58 @@ describe('App', () => {
     expect(await screen.findByRole('searchbox')).toBeInTheDocument()
   })
 
-  // Pins that opening a place keeps the list mounted, so Back keeps the query and the scroll.
-  it('Back keeps the search and puts the list back where it was scrolled', async () => {
-    const scrollTo = vi.spyOn(window, 'scrollTo')
+  // Pins that opening a place keeps the list mounted, so Back keeps the query and the scroll. ⚠ The
+  // scroller is the shell's <main>, not the window: the shell is full-height, so the window never
+  // scrolls and a restore through `window.scrollY` would silently put the list back at the top.
+  it('Back keeps the search and puts the list back where its scroller was scrolled', async () => {
     const user = userEvent.setup()
     renderWithQueryClient(<App />)
     await user.type(await screen.findByRole('searchbox'), 'park')
     expect(within(screen.getByRole('list', { name: 'Your places' })).getAllByRole('button')).toHaveLength(1)
 
-    Object.defineProperty(window, 'scrollY', { value: 1234, configurable: true })
+    const scroller = screen.getByRole('main')
+    scroller.scrollTop = 1234
     await user.click(screen.getByRole('button', { name: /^Park/ }))
     expect(await screen.findByRole('heading', { name: 'Park' })).toBeInTheDocument()
     expect(screen.queryByRole('searchbox')).toBeNull() // hidden, not just covered
-    expect(scrollTo).toHaveBeenLastCalledWith(0, 0)
+    expect(scroller.scrollTop).toBe(0)
 
-    Object.defineProperty(window, 'scrollY', { value: 0, configurable: true })
     await user.click(screen.getByRole('button', { name: /Back/ }))
     expect(await screen.findByRole('searchbox')).toHaveValue('park')
     expect(within(screen.getByRole('list', { name: 'Your places' })).getAllByRole('button').map((b) => b.textContent)).toEqual([
       'Park48.20000, 11.70000',
     ])
-    expect(scrollTo).toHaveBeenLastCalledWith(0, 1234)
-    scrollTo.mockRestore()
+    expect(scroller.scrollTop).toBe(1234)
+  })
+
+  describe('routes', () => {
+    it('a start fragment opens its place', async () => {
+      window.history.replaceState(null, '', '/#place=p-cafe')
+      renderWithQueryClient(<App />)
+      expect(await screen.findByRole('heading', { name: 'Café' })).toBeInTheDocument()
+      expect(proxy.place).toHaveBeenCalledWith('p-cafe')
+    })
+
+    it('opening a place puts its id in the fragment; Back clears it', async () => {
+      const user = userEvent.setup()
+      renderWithQueryClient(<App />)
+      await user.click(await screen.findByRole('button', { name: /^Park/ }))
+      expect(await screen.findByRole('heading', { name: 'Park' })).toBeInTheDocument()
+      expect(window.location.pathname).toBe('/')
+      expect(window.location.hash).toBe('#place=p-park')
+      // ⚠⚠ Never the name, anywhere in the URL.
+      expect(window.location.href).not.toMatch(/Park/)
+
+      await user.click(screen.getByRole('button', { name: /Back/ }))
+      expect(await screen.findByRole('searchbox')).toBeInTheDocument()
+      expect(window.location.hash).toBe('')
+    })
+
+    it('an unknown path or fragment shows the list', async () => {
+      window.history.replaceState(null, '', '/elsewhere#nonsense')
+      renderWithQueryClient(<App />)
+      expect(await screen.findByRole('searchbox')).toBeInTheDocument()
+      expect(screen.queryByRole('heading', { name: 'Café' })).toBeNull()
+    })
   })
 })

@@ -4,12 +4,14 @@
     "thisDeviceLabel": "Dieses Gerät",
     "synced": "Synchronisiert",
     "sections": {
-      "home": "Start",
+      "notifications": "Benachrichtigungen",
       "apps": "Apps",
       "data": "Daten",
       "services": "Dienste",
       "settings": "Einstellungen"
-    }
+    },
+    "backToOverview": "Tenshu",
+    "backToOverviewTitle": "Zurück zu all deinen Apps"
   },
   "appLauncher": {
     "triggerAriaLabel": "Apps",
@@ -18,7 +20,7 @@
     "entries": {
       "tenshu": {
         "label": "Tenshu",
-        "description": "Geräte, Berechtigungen, Wiederherstellung, Einstellungen."
+        "description": "Alle deine Apps auf einen Blick."
       },
       "drive": {
         "label": "Drive",
@@ -29,8 +31,152 @@
         "description": "Die Menschen, die du kennst – Ende-zu-Ende-verschlüsselt."
       }
     },
-    "installAnother": "+ Weitere App installieren",
-    "installAnotherTitle": "Kommt mit dem Tenshu Store"
+    "control": "Control – Geräte, Daten, Speicher",
+    "yourApps": "Deine Apps …"
+  },
+  "overview": {
+    "title": "Tenshu",
+    "needsActionAriaLabel": "Erfordert Aufmerksamkeit",
+    "appsHeading": "Deine Apps",
+    "addApp": "App hinzufügen",
+    "shownAppsUnavailable": "Deine App-Auswahl konnte nicht geladen werden, daher werden alle Apps angezeigt.",
+    "customize": "Anpassen"
+  },
+  "yourApps": {
+    "title": "Deine Apps",
+    "intro": "Wähle, was in deiner Übersicht und im App-Umschalter erscheint.",
+    "shownHeading": "In deiner Übersicht",
+    "moreHeading": "Weitere Apps",
+    "alwaysOn": "Immer an",
+    "remove": "Entfernen",
+    "add": "Hinzufügen",
+    "removeAriaLabel": "{app} aus deiner Übersicht entfernen",
+    "addAriaLabel": "{app} zu deiner Übersicht hinzufügen",
+    "writeFailed": "Die Änderung konnte nicht gespeichert werden. Versuch es noch einmal.",
+    "unavailable": "Deine App-Auswahl kann gerade nicht geladen und daher nicht geändert werden.",
+    "dataStays": "Eine App zu entfernen blendet sie nur hier aus. Ihre Daten bleiben in deinem Realm und auf deinen anderen Geräten.",
+    "driveDetail": "Deine Dateien. Andere Apps legen ihre Dateien hier ab.",
+    "usesDrive": "Nutzt Drive",
+    "usedOnOne": "Du nutzt sie auf {device}",
+    "usedOnTwo": "Du nutzt sie auf {first} und {second}",
+    "usedOnMany": "Du nutzt sie auf {first} und {count} weiteren Geräten",
+    "done": "Fertig"
+  },
+  "customize": {
+    "done": "Fertig",
+    "hint": "Ziehen zum Umsortieren · − blendet eine App aus, ihre Daten bleiben",
+    "unavailable": "Deine App-Auswahl kann gerade nicht geladen werden, daher lässt sich die Anordnung nicht ändern.",
+    "writeFailed": "Die Änderung konnte nicht gespeichert werden. Versuch es noch einmal.",
+    "hidden": "{app} aus deiner Übersicht ausgeblendet",
+    "hiddenToast": "{app} ausgeblendet. Die Daten bleiben in deinem Realm.",
+    "restored": "{app} ist wieder in deiner Übersicht",
+    "moved": "{app} an Position {position} von {count} verschoben",
+    "hideAriaLabel": "{app} ausblenden",
+    "moveEarlierAriaLabel": "{app} nach vorne verschieben",
+    "moveLaterAriaLabel": "{app} nach hinten verschieben",
+    "undo": "Rückgängig"
+  },
+  "glance": {
+    "open": "Öffnen",
+    "failed": "Konnte gerade nicht geladen werden.",
+    "retry": "Erneut versuchen",
+    "video": "Video",
+    "storageAriaLabel": "Belegter Speicher",
+    "storageUsed": "{used} von {limit}",
+    "subtitle": {
+      "recents": "Zuletzt verwendet",
+      "library": "Mediathek",
+      "upNext": "Als Nächstes",
+      "today": "Heute"
+    },
+    "empty": {
+      "default": "Hier ist noch nichts.",
+      "drive": "Noch keine Dateien. Hochgeladenes erscheint hier.",
+      "photos": "Noch keine Fotos.",
+      "calendar": "Diese Woche steht nichts an.",
+      "timeline": "Heute ist noch nichts aufgezeichnet."
+    },
+    "unit": {
+      "steps": "Schritte"
+    },
+    "goalAriaLabel": "Fortschritt zu deinem Ziel",
+    "lastWorkout": "Letztes Training · {title} · {when}",
+    "when": {
+      "today": "Heute",
+      "tomorrow": "Morgen",
+      "yesterday": "Gestern"
+    },
+    "untitled": "Ohne Titel",
+    "movement": {
+      "walk": "Zu Fuß",
+      "run": "Laufen",
+      "cycle": "Rad",
+      "drive": "Auto",
+      "transit": "ÖPNV",
+      "flight": "Flug",
+      "unknown": "Unterwegs"
+    },
+    "activity": {
+      "running": "Laufen",
+      "walking": "Gehen",
+      "cycling": "Radfahren",
+      "strength": "Krafttraining",
+      "other": "Training"
+    },
+    "placeRole": {
+      "home": "Zuhause",
+      "work": "Arbeit"
+    },
+    "moment": {
+      "place": "Ein Ort",
+      "other": "Moment"
+    }
+  },
+  "bell": {
+    "ariaLabel": "Benachrichtigungen",
+    "ariaLabelWithCount": "{count, plural, one {Benachrichtigungen, # erfordert Aufmerksamkeit} other {Benachrichtigungen, # erfordern Aufmerksamkeit}}",
+    "title": "Benachrichtigungen",
+    "needsAction": "Erfordert Aufmerksamkeit",
+    "recent": "Zuletzt",
+    "failed": "Benachrichtigungen konnten nicht geladen werden.",
+    "empty": "Nichts Neues.",
+    "all": "Alle Benachrichtigungen",
+    "event": {
+      "file_added": "{name} hinzugefügt",
+      "folder_added": "Ordner {name} hinzugefügt",
+      "files_added": "{name} und {count, plural, one {# weitere} other {# weitere}} hinzugefügt",
+      "file_deleted": "{name} gelöscht",
+      "folder_deleted": "Ordner {name} gelöscht",
+      "change_lost": "{name} wurde auf einem anderen Gerät gelöscht, während deine Änderung wartete",
+      "app_registered": "{name} verbunden",
+      "app_removed": "{name} entfernt",
+      "other": "Etwas hat sich geändert"
+    }
+  },
+  "sync": {
+    "ariaLabel": "Synchronisierung: {state}",
+    "title": "Synchronisierung",
+    "lastSynced": "Zuletzt synchronisiert",
+    "never": "Noch nicht",
+    "pending": "Wartet auf Sync",
+    "devices": "Geräte",
+    "now": "Jetzt synchronisieren",
+    "requested": "Synchronisierung angefordert.",
+    "requestFailed": "Synchronisierung konnte nicht gestartet werden.",
+    "pause": "Pausieren",
+    "resume": "Fortsetzen",
+    "pausedNote": "In diesem Browser pausiert. Änderungen bleiben hier, bis du fortsetzt – deine anderen Geräte synchronisieren weiter.",
+    "state": {
+      "checking": "Wird geprüft",
+      "synced": "Synchronisiert",
+      "paused": "Pausiert",
+      "syncing": "Synchronisiert …",
+      "offline": "Offline",
+      "deferred": "Wartet",
+      "locked": "Gesperrt",
+      "attention": "Erfordert Aufmerksamkeit",
+      "unknown": "Unbekannt"
+    }
   },
   "deviceMenu": {
     "signedInOnPrefix": "Du bist auf ",
@@ -54,7 +200,7 @@
     }
   },
   "home": {
-    "title": "Start",
+    "title": "Benachrichtigungen",
     "subtitle": "Was in deinem Realm passiert ist, seit du zuletzt nachgesehen hast."
   },
   "notificationFeed": {
@@ -86,11 +232,12 @@
   "apps": {
     "list": {
       "title": "Apps",
-      "subtitle": "In deinem Realm installierte Apps. Öffne eine, um ihre Berechtigungen, Dienste und App-spezifischen Aktionen zu prüfen.",
+      "subtitle": "Alle Apps, die du hier öffnen kannst, und die Geräte, auf denen sie installiert sind. Öffne eine, um ihre Berechtigungen, Dienste und App-spezifischen Aktionen zu prüfen.",
       "empty": "Noch keine Apps. Apps, die du installierst und mit diesem Realm verbindest, erscheinen hier.",
       "footer": "Weitere Apps erscheinen hier, während die Plattform wächst. Tenshu selbst ist die Verwaltungsoberfläche, keine App, der man Berechtigungen erteilt.",
       "version": "v{version}",
-      "installed": "Installiert am {date}",
+      "onDevices": "{count, plural, =1 {Auf 1 Gerät} other {Auf {count} Geräten}}",
+      "onNoDevice": "Noch auf keinem deiner Geräte",
       "permissionCount": "{count, plural, =1 {1 Berechtigung} other {{count} Berechtigungen}}"
     },
     "detail": {
@@ -98,7 +245,8 @@
       "meta": {
         "version": "Version",
         "installed": "Installiert",
-        "launchPath": "Startpfad"
+        "launchPath": "Startpfad",
+        "notInstalled": "Auf keinem deiner Geräte"
       },
       "permissions": {
         "title": "Berechtigungen",
@@ -112,9 +260,16 @@
         "subtitleLink": "Dienste",
         "subtitleSuffix": "."
       },
+      "devices": {
+        "title": "Geräte",
+        "loading": "Wird geladen…",
+        "unavailable": "Gerade lässt sich nicht sagen, auf welchen Geräten sie ist.",
+        "none": "Noch auf keinem deiner Geräte installiert. Hier kannst du sie trotzdem öffnen.",
+        "unknownDevice": "Unbekanntes Gerät"
+      },
       "perAppActions": "Aktionen für diese App",
       "revokeAll": "Alle Berechtigungen widerrufen",
-      "uninstall": "Deinstallieren",
+      "uninstall": "Von allen Geräten entfernen",
       "grant": {
         "granted": "Erteilt",
         "denied": "Verweigert",
@@ -122,13 +277,12 @@
         "setAriaLabel": "{permission} auf {state} setzen"
       },
       "uninstallConfirm": {
-        "title": "{appName} deinstallieren?",
-        "ariaLabel": "{appName} deinstallieren",
-        "thisDevice": "Von diesem Gerät entfernen",
-        "allDevices": "Von allen Geräten entfernen",
-        "note": "Meldet die App ab und vergisst ihre Berechtigungen. Um sie vollständig zu entfernen, deinstalliere sie über dein Betriebssystem.",
+        "title": "{appName} von allen deinen Geräten entfernen?",
+        "ariaLabel": "{appName} von allen deinen Geräten entfernen",
+        "note": "Meldet die App auf jedem Gerät ab und vergisst dort ihre Berechtigungen. Hier im Web bleibt sie verfügbar. Um sie vollständig zu entfernen, deinstalliere sie über das Betriebssystem jedes Geräts.",
         "cancel": "Abbrechen",
-        "remove": "Entfernen"
+        "remove": "Entfernen",
+        "failed": "{appName} konnte nicht entfernt werden. Versuch es noch einmal."
       },
       "notFound": {
         "title": "Unbekannte App",
@@ -213,6 +367,8 @@
         "approve": "Bestätigen",
         "approving": "Wird bestätigt…",
         "approvalFailed": "Bestätigung fehlgeschlagen.",
+        "deviceRemoved": "Das Gerät wurde schon einmal aus deinem Realm entfernt und kann nicht als dasselbe Gerät zurückkehren. Um es wieder hinzuzufügen, wähle dort „Dieses Gerät vergessen“ oder „Diesen Browser trennen“ und kopple es dann erneut.",
+        "approverRevoked": "Dieses Gerät kann keine Geräte mehr hinzufügen. Entferne es und kopple es von einem anderen Gerät aus neu.",
         "cancel": "Abbrechen"
       },
       "paired": {

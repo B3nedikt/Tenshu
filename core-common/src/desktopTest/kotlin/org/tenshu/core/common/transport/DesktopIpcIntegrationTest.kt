@@ -55,7 +55,6 @@ class DesktopIpcIntegrationTest {
 
     @BeforeTest
     fun setup() {
-        stopKoin()
         val koinApp = startKoin {
             modules(coreCommonModule())
         }

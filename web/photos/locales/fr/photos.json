@@ -1,13 +1,16 @@
 {
   "app": {
-    "title": "Photos",
-    "tagline": "Vos photos et vidéos, chiffrées de bout en bout."
+    "title": "Photos"
   },
   "nav": {
-    "photos": "Photos",
+    "label": "Sections de Photos",
+    "photos": "Photothèque",
     "albums": "Albums",
     "favourites": "Favoris",
-    "trash": "Corbeille"
+    "trash": "Corbeille",
+    "years": "Années",
+    "collections": "Collections",
+    "videos": "Vidéos"
   },
   "common": {
     "cancel": "Annuler",
@@ -22,7 +25,17 @@
   },
   "tile": {
     "photoLabel": "Photo {name}, {date}",
-    "videoLabel": "Vidéo {name}, {date}"
+    "videoLabel": "Vidéo {name}, {date}",
+    "select": "Sélectionner {name}",
+    "actions": "Actions pour {name}"
+  },
+  "menu": {
+    "open": "Ouvrir",
+    "download": "Télécharger",
+    "favourite": "Favori",
+    "unfavourite": "Retirer des favoris",
+    "addToAlbum": "Ajouter à un album…",
+    "trash": "Mettre à la corbeille"
   },
   "feed": {
     "scrubber": "Aller à une date",
@@ -30,12 +43,12 @@
     "empty": "Aucune photo pour l’instant. Les photos et vidéos ajoutées dans Drive ou sur votre téléphone apparaissent ici."
   },
   "select": {
-    "start": "Sélectionner",
     "count": "{count, plural, =0 {Aucune sélection} one {# sélectionné} other {# sélectionnés}}",
     "addToAlbum": "Ajouter à un album",
     "favourite": "Ajouter aux favoris",
     "removeFromAlbum": "Retirer de l’album",
-    "partial": "{done} sur {total} effectués."
+    "partial": "{done} sur {total} effectués.",
+    "clear": "Effacer la sélection"
   },
   "albums": {
     "addTo": "Ajouter à un album",
@@ -70,7 +83,9 @@
     "downloadOriginal": "Télécharger l’original",
     "downloaded": "Enregistré.",
     "play": "Lire",
-    "cannotPlay": "Cette vidéo ne peut pas encore être lue ici. Réessayez une fois synchronisée."
+    "cannotPlay": "Cette vidéo ne peut pas encore être lue ici. Réessayez une fois synchronisée.",
+    "filmstrip": "Photos voisines",
+    "position": "{index} sur {total}"
   },
   "details": {
     "name": "Nom",
@@ -105,6 +120,7 @@
     "bridge": "Impossible de joindre Tenshu. Vérifiez qu’il est ouvert et déverrouillé, puis réessayez.",
     "bridge_timeout": "Tenshu a mis trop de temps à répondre. Réessayez.",
     "error_photos_bad_cursor": "La bibliothèque a changé pendant le chargement. Actualisez pour recommencer.",
+    "error_photos_bad_kind": "Une erreur s’est produite lors du chargement de votre bibliothèque. Veuillez réessayer.",
     "error_photos_bad_page_size": "Une erreur s’est produite lors du chargement de votre bibliothèque. Veuillez réessayer.",
     "error_photos_unknown_album": "Cet album n’existe plus.",
     "error_photos_not_found": "Cette photo n’existe plus.",
@@ -135,5 +151,18 @@
     "body": "Cette partie de Photos a rencontré une erreur inattendue. Vos données sont en sécurité — rien n’a été modifié.",
     "retry": "Réessayer",
     "reload": "Recharger"
+  },
+  "density": {
+    "label": "Affichage",
+    "days": "Jours",
+    "months": "Mois",
+    "years": "Années"
+  },
+  "years": {
+    "count": "{count, plural, one {# photo} other {# photos}}",
+    "open": "Afficher {year}"
+  },
+  "videos": {
+    "empty": "Pas encore de vidéos."
   }
 }

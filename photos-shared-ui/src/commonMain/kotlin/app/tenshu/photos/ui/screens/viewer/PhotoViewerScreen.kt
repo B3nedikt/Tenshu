@@ -7,6 +7,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -29,6 +30,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.LibraryAdd
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.StarBorder
@@ -171,6 +174,16 @@ fun PhotoViewerScreen(
     onToggleFavourite: () -> Unit = {},
     /** Adds the photo on screen to an album. ⚠ `null` where nothing can receive it. */
     onAddToAlbum: ((Photo) -> Unit)? = null,
+    /**
+     * Opens the editor on the photo on screen (`photos-editing.md` ED-1). ⚠ `null` where nothing can
+     * edit; offered for stills only — a video's edit is a trim, which this editor is not.
+     */
+    onEdit: ((Photo) -> Unit)? = null,
+    /**
+     * *Revert to original* (ED-3) on an edited photo — the caller confirms first. Offered in ⋯ only
+     * when the photo on screen [Photo.isEdited]; `null` where nothing can revert.
+     */
+    onRevertEdit: ((Photo) -> Unit)? = null,
     /** The date shown in the bar's title, e.g. "9 Apr". Supplied by the shell (`PhotoDates`), so a
      * render test can pin it — the `groupIntoDays` precedent. */
     formatDate: (Long) -> String = { "" },
@@ -346,6 +359,19 @@ fun PhotoViewerScreen(
                         ),
                 )
 
+                // ⚠ The bottom bar's scrim, for the same reason as the top one.
+                if (!state.infoOpen) Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(SCRIM_HEIGHT)
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)),
+                            ),
+                        ),
+                )
+
                 Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
                     ViewerTopBar(
                         state = state,
@@ -355,10 +381,23 @@ fun PhotoViewerScreen(
                         onToggleInfo = onToggleInfo,
                         onAddToAlbum = onAddToAlbum,
                         onTrash = onTrash,
+                        onRevertEdit = onRevertEdit,
                         formatDate = formatDate,
                         formatTime = formatTime,
                         modifier = Modifier.align(Alignment.TopCenter),
                     )
+                    // ⚠ Hidden while the About panel is open: the panel is the page scrolled up
+                    // (§11), and a bar over it would cover the details it is showing.
+                    if (!state.infoOpen) {
+                        ViewerBottomBar(
+                            state = state,
+                            current = current,
+                            onEdit = onEdit,
+                            onAddToAlbum = onAddToAlbum,
+                            onTrash = onTrash,
+                            modifier = Modifier.align(Alignment.BottomCenter),
+                        )
+                    }
                 }
             }
         }
@@ -381,6 +420,7 @@ private fun ViewerTopBar(
     onToggleInfo: (() -> Unit)?,
     onAddToAlbum: ((Photo) -> Unit)?,
     onTrash: ((Photo) -> Unit)?,
+    onRevertEdit: ((Photo) -> Unit)?,
     formatDate: (Long) -> String,
     formatTime: (Long) -> String,
     modifier: Modifier = Modifier,
@@ -459,26 +499,97 @@ private fun ViewerTopBar(
                         leadingIcon = { Icon(Icons.Outlined.Info, contentDescription = null) },
                     )
                 }
-                // ⚠ Offered only for a photo that can be filed — the feed's long-press rule.
-                if (onAddToAlbum != null && state.canFavourite) {
+                // ED-3: only on an edited photo, so the item always does something (§5g.2).
+                // ⚠ The view model's photo first: it is what a revert just updated, while [current]
+                // comes from the list the pager was handed.
+                val edited = (state.photo.takeIf { current == null || it.path == current.path } ?: current)
+                    ?.takeIf { it.isEdited }
+                if (onRevertEdit != null && edited != null) {
                     DropdownMenuItem(
-                        text = { Text("Add to album") },
-                        onClick = { menuOpen = false; current?.let(onAddToAlbum) },
+                        text = { Text("Revert to original") },
+                        enabled = !state.writing,
+                        onClick = { menuOpen = false; onRevertEdit(edited) },
+                        modifier = Modifier.testTag(VIEWER_REVERT_TAG),
                     )
                 }
-                // ⚠ Behind the same gate: the trash op refuses a file with no `contentId`, so offering
-                // it could only ever end in a refusal.
-                if (state.canFavourite) onTrash?.let { trash ->
-                    DropdownMenuItem(
-                        text = { Text("Move to trash") },
-                        onClick = { menuOpen = false; current?.let(trash) },
-                        leadingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null) },
-                    )
-                }
+                // ⚠ Add to album and Move to trash moved to the bottom bar (ED-D7); the menu keeps
+                // only what has no bar slot.
             }
         }
     }
 }
+
+/**
+ * The viewer's bottom bar — **Edit · Add to · Bin** (`photos-editing.md` ED-D7, Google's §1.1 bar).
+ *
+ * ⚠⚠ **No Share slot** until Share exists: a button that does nothing is the line-with-no-route rule
+ * (`control-cross-app-open.md` §5g.2). Share joins first in line when it ships.
+ *
+ * ⚠ Add to and Bin are **disabled**, not hidden, for a photo with no `contentId` (the album and trash
+ * ops refuse it) — the star's rule: a control that vanishes on some photographs reads as a bug.
+ */
+@Composable
+private fun ViewerBottomBar(
+    state: PhotoViewerUiState,
+    current: Photo?,
+    onEdit: ((Photo) -> Unit)?,
+    onAddToAlbum: ((Photo) -> Unit)?,
+    onTrash: ((Photo) -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+    ) {
+        onEdit?.let { edit ->
+            BarAction(
+                label = "Edit",
+                icon = Icons.Outlined.Tune,
+                enabled = current != null && !current.isVideo && !state.writing,
+                testTag = VIEWER_EDIT_TAG,
+            ) { current?.let(edit) }
+        }
+        onAddToAlbum?.let { add ->
+            BarAction(
+                label = "Add to",
+                icon = Icons.Outlined.LibraryAdd,
+                enabled = state.canFavourite && !state.writing,
+            ) { current?.let(add) }
+        }
+        onTrash?.let { trash ->
+            BarAction(
+                label = "Bin",
+                icon = Icons.Outlined.Delete,
+                enabled = state.canFavourite && !state.writing,
+            ) { current?.let(trash) }
+        }
+    }
+}
+
+@Composable
+private fun BarAction(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    enabled: Boolean,
+    testTag: String? = null,
+    onClick: () -> Unit,
+) {
+    val tint = if (enabled) Color.White else Color.White.copy(alpha = 0.38f)
+    androidx.compose.material3.TextButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = if (testTag != null) Modifier.testTag(testTag) else Modifier,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(icon, contentDescription = null, tint = tint)
+            Text(label, style = MaterialTheme.typography.labelMedium, color = tint)
+        }
+    }
+}
+
+/** The bottom bar's Edit button. */
+const val VIEWER_EDIT_TAG = "viewer-edit"
+const val VIEWER_REVERT_TAG = "viewer-revert-edit"
 
 /**
  * One photograph, full bleed.
@@ -582,8 +693,10 @@ private fun PhotoPage(
         // ⚠ Keyed on settling, so swiping away part-way through cancels the pending wait rather
         // than letting it fire late; latched once earned, so a loader that finishes its reads after
         // the user has been staring for five seconds is not made to wait another one.
-        var dwelt by remember(photo.path, requestPx) { mutableStateOf(false) }
-        LaunchedEffect(photo.path, requestPx, isSettled) {
+        // ⚠ ED-3: everything here reads [Photo.previewPath] — an edited photo is drawn by its
+        // rendition, or not at all (`photos-editing.md` §12.4); never its original as a fallback.
+        var dwelt by remember(photo.previewPath, requestPx) { mutableStateOf(false) }
+        LaunchedEffect(photo.previewPath, requestPx, isSettled) {
             if (!isSettled) return@LaunchedEffect
             delay(DWELL_MS)
             dwelt = true
@@ -592,12 +705,12 @@ private fun PhotoPage(
         // Without it this flow never completes, so `mayMint.firstOrNull()` in a collector that is
         // *not* going to settle suspends for ever and the `Absent` branch below it is unreachable —
         // the page spins instead of saying the photograph is not here. One emission, then done.
-        val mayMint = remember(photo.path, requestPx) {
+        val mayMint = remember(photo.previewPath, requestPx) {
             snapshotFlow { dwelt }.filter { it }.take(1).map { }
         }
 
-        val hero by produceState<HeroState>(HeroState.Loading, photo.path, requestPx) {
-            val shown = (value as? HeroState.Ready)?.takeIf { it.path == photo.path }
+        val hero by produceState<HeroState>(HeroState.Loading, photo.previewPath, requestPx) {
+            val shown = (value as? HeroState.Ready)?.takeIf { it.path == photo.previewPath }
             if (shown == null) value = HeroState.Loading
             var drew = false
             // ⚠⚠ **The dwell, handed to the loader rather than run beside it** (D-18, X-4). A page
@@ -607,7 +720,7 @@ private fun PhotoPage(
             // flow, so it goes through the same comparison and the same state as every other answer
             // — the alternative, a second state drawn over the top, lets a mint replace a
             // *sharper* render on a byte holder and leaves one that succeeded never shown at all.
-            loadHero(photo.path, requestPx, mayMint).collect { bytes ->
+            loadHero(photo.previewPath, requestPx, mayMint).collect { bytes ->
                 // ⚠⚠ Decoded at the size the page DRAWS, never the rung's own 2048 px (§4.5).
                 // A 2048 px class is 16 MiB square at `ARGB_8888` and the pager keeps three
                 // pages composed; at a ~1440 px phone viewport this is the difference between
@@ -615,7 +728,7 @@ private fun PhotoPage(
                 // `decodeSampleSize` stops one step short and scales the remainder exactly.
                 bytes.decodePreviewBitmap(maxEdge = requestPx)?.let { bitmap ->
                     drew = true
-                    value = HeroState.Ready(photo.path, bitmap)
+                    value = HeroState.Ready(photo.previewPath, bitmap)
                 }
             }
             // Nothing decodable at all: keep this photograph's own last picture if it had one, as a
@@ -1078,9 +1191,10 @@ typealias HeroLoader = (path: String, requestPx: Int, mayMint: Flow<Unit>) -> Fl
 
 /**
  * How long a photograph must be **settled** on screen before this device will spend a download on
- * sharpening it (D-18). ⚠ A swipe past is not a look.
+ * sharpening it (D-18). ⚠ A swipe past is not a look. `internal` so `ViewerDwellMintTest` steps
+ * its clock by this rather than by a guess.
  */
-private const val DWELL_MS = 1_000L
+internal const val DWELL_MS = 1_000L
 
 /**
  * Who owns the gesture in progress. ⚠⚠ Latched once and never revised, which is the point: an owner

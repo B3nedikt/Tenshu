@@ -8,6 +8,77 @@ architectural conventions — they are things that should be fixed or revisited 
 
 ## Platform / client wiring
 
+### ⚠⚠ The desktop tray's *Pause* holds file content only — metadata push and pull keep running (2026-11-13)
+
+Desktop composes `SyncPauseState` into the **policy** `syncGate` (`control-shared-proxy` desktop
+`PlatformProxyModule`: `!paused && constraintGate.shouldSync()`). Since `sync-metered-plane-split.md`
+that gate is read-only to `SyncScheduler` — it gates the content plane and is only *reported* by the
+tick — so a tray reading *Paused* still pushes every metadata block and pulls. `bgproc` §5.3's
+"pausing skips the whole drain/pull cycle" (`core-background-processing.md`, Phase 6 Slice C) has
+been false since that split; and a paused tick with pending content reports *deferred*. **Fix:** pass
+the pause as `initSyncService(pauseGate = …)` instead, as web does (`web-apex-home.md` §4.7) — the
+scheduler then skips the whole tick and the observer's content gate composes it. Found while building
+web Pause/Resume; not changed there because the tray is native-only and owes its own device check.
+
+### ⚠ The offerer is not told its approval was refused (2026-11-11)
+
+When the relay refuses an offer-flow approval — F2′ (the offerer is a removed identity), or the
+approver's capability revoked — the refusal lands on the **approver's** `POST /sync/pairing/offer-response`
+and nothing is queued for the offerer, which keeps showing its code until the window closes and then
+says *"Couldn't create a pairing code"*. Only the delivery re-check (removal between approval and
+fetch) reaches the offerer, typed since `admission-revocation-names-the-capability.md` §7i.5. Closing
+it needs a wire channel (a refused status the approver posts, or the relay storing the refusal against
+the hash) — a relay change, so `RELAY_PROTOCOL_VERSION`-scale. Mitigated: *Forget this device* now
+re-mints in-process (§7i.5), so the common route into this state is gone; the approver's screen says
+what happened. ⚠ The web offerer (`tenshu-sdk-js` `Pairing.kt`) also renders the delivery-time refusal
+as its generic poll error, not a named kind.
+
+### A legacy-stripped admittee's refusal copy omits Start fresh (2026-11-11)
+
+Before `admission-revocation-names-the-capability.md` §7j.10, removing a device as an A1 holder also
+revoked the A33 keys of every device it had admitted, kept or not. Those revocations stay in the
+relay's ledger, and the relay correctly refuses a member whose own key is revoked — so such a device
+is a member that can never admit: the relay's approver refusal is id-scoped (§7j.10.2), so no re-key
+— self-made or a P4 re-mint — gets it out. The approver sees `PairingError.ApproverRevoked`
+— *"Remove it and pair it again from another device"* (`pairing_error_approver_revoked`, iOS
+`ControlSurface`, apex `approverRevoked`). ⚠ That only works with a **new identity**: F2′ bars the
+removed id, so the device must *Start fresh* (RG-1) before pairing. Fix: say so in the copy (all
+three surfaces + de). (A re-grant cannot fix it: the id is revoked, not the key.)
+Low today — production holds test data — but every realm that ran the old removal can hold one.
+
+### ⚠ A shared-realm device refused with 401 never re-registers (2026-11-09)
+
+A shared realm registers its devices at the relay once: the owner's at creation
+(`SharedRealmBootstrapper.admitKnownDevices`), a member's when the grant syncs in
+(`MemberSelfBindObserver`, once per session). After that, a 401 on that realm only backs off
+(`SyncScheduler.pullSharedRealms`) — nothing re-admits the device, though `/admit-device` and
+`/sync/realm-member/admit` would both accept it. So a lost registration (relay wipe, a bug, or the
+eviction closed by threat model **T-GR-08**) silently stops that shared folder syncing on that device
+until repaired by hand. The personal realm has self-repair (`reregisterThisDevice` /
+`reassertGenesis`); shared realms have none.
+**Fix:** on a shared-realm 401, re-run the matching admission — the owner path for a realm this
+device holds the master for, the member binding for one it holds an A26 for — behind the existing
+per-realm backoff. ~1 day incl. tests.
+
+### ⚠⚠ No gate runs the R8 build — the release checks are structural and table-driven (2026-11-11)
+
+Every Android release build is R8-processed; the debug build, every unit test and
+`scripts/android-smoke.sh` are not. Two classes of R8 breakage have shipped this way — native code
+naming a stripped class (2026-10-22, ONNX Runtime) and Flogger's frame-counting caller finder
+inlined, which stopped MediaPipe's `Graph` from initialising and face detection from ever running in
+Control 1.0.2 (2026-11-11). `android-release.md` *R8 and native code* has both.
+
+- **What guards it now:** `scripts/lib/check_jni_classes.py` and `scripts/lib/check_stack_frames.py`,
+  run by `android-release.sh` on every bundle. The first reads the `.so` files, so it generalises; the
+  second checks only the methods in its `FRAME_COUNTED` table, so a new stack-walking or reflective
+  library passes it unseen.
+- **The behavioural check is manual:** `ReleaseStackWalkerInstrumentedTest`, under
+  `-Ptenshu.control.testBuildType=release`, runs MediaPipe inside the R8 build on an emulator. Nothing
+  runs it automatically, and it covers MediaPipe only.
+- **Follow-up:** a release-variant smoke lane — install the R8 builds and drive each app's
+  reflective/native features (index, scan, map render) — would close the class. Its cost is a second
+  full set of release builds per smoke run.
+
 ### ⚠ Share-link bytes are not charged to the owner's quota — D7 was decided, never built (2026-11-06)
 
 `drive-folder-link-sharing.md` **D7** says shared bytes count against the owner's quota. The relay does
@@ -366,6 +437,29 @@ maintainer's "move only big photos out". A card whose bulk is a giant `NOTE`, `L
 mechanism is property-agnostic, only the name test changes, and it owes no bump (the placeholder
 already exists) — and refuse at import, with a typed error, a card whose remaining text alone is over
 `ROW_MAX`. Q0 (w) on a real phone says whether any user has one.
+
+### ⚠ A delete during the lock window stays device-local (2026-11-10)
+
+`TombstoneEmitter.emit` answers `null` both when this device belongs to no realm and when the realm is
+merely locked or still loading its keys — and the callers delete anyway, so a delete made in that
+window never reaches the peers and nothing retries it. `RemoveFromAlbum`, `ClearTrashedPhoto`,
+`ClearPhotoEdit`, `DeleteAlbum` (whose `emitAll` answer it ignores), the calendar deletes and
+`DeleteRoutine` all do this. **Recommendation:** route them through `emitAll`, whose `null` ≠ empty
+contract tells the two states apart, and refuse on `null`, in one PR across the services.
+⚠ Decide the web case first: making `DeleteAlbum` refuse broke `PhotosLibraryContractTest`'s album
+delete in `:tenshu-sdk-js` — the shared JS test runtime answers `null` there, and a real web session
+may too.
+
+### ⚠ `SchemaMigrationRegistry.verify()` passes a service's first bump with no step (2026-11-10)
+
+`verify()` judges a chain only for a service that registered at least one step, so a service bumped
+from the v1 release baseline with none raises nothing at store open — and its derived floor then wipes
+every v1 store. `ServiceMigrationChainsReachTheirVersionTest.aServiceAboveTheBaseline_registersAChainAtAll`
+now catches it in the gate (`photos-editing.md` §12.9); the runtime check itself is unchanged.
+⚠ Not a one-line fix: at runtime an empty chain above v1 is indistinguishable from the legal cut-off
+— the floor is *derived* from the steps and deleting all of them is how a floor reaches current
+(`core-schema-evolution.md` §4, §8.3.6). Refusing it means declaring a per-service baseline or floor
+the check can compare against, which is a schema-evolution design change, not a guard.
 
 ### ⚠⚠ Three contact deletes are device-local: unlink, clear photo, and merge's source person (2026-10-31)
 
@@ -818,12 +912,20 @@ on the proxy side depends on the id being derivable from the chain (it is carrie
 `Stream.Params.STREAM_ID`). Sized: small, `:core-common` only, plus a `StreamRegistry`-level test
 that two registrations of one chain survive the other's removal.
 
-### `StreamRegistry`'s per-array bookkeeping is shared by streams that hold different locks (2026-10-07)
+### ✅ `StreamRegistry`'s per-array bookkeeping is shared by streams that hold different locks (2026-10-07) — RESOLVED 2026-11-11
 
 **Files**: `core-common/.../proxy/StreamRegistry.kt` — `refToStreamListeners`, `refToStreamCount`,
 `refToListenerHandle`, `streamIdToNestedRefs`.
 
-**Not fixed.** `onUpdate` runs under a *per-stream* mutex
+**Resolved** (`core-client-resubscription.md` §4.9, R10): every map is under one registry lock, held
+never across a suspension or a send; the order is registry → database, and `triggerUpdate` reads a
+copy-on-write snapshot instead of taking the lock, so the inversion below cannot happen. ⚠ It was **not rare**: the per-stream
+maps (`streamIdToRegistration`, `streamIdToUpdateCallback`) raced too, between any two streams that
+*subscribe* at once — a `combine` of reads does that on every screen open. A lost registration token
+was a read that never emitted: Contacts on the iOS simulator lost 12 lists in 150 assemblies. Guards:
+`StreamRegistryConcurrentRegistrationTest` (JVM), `ContactsConcurrentSubscribeTest` (iOS).
+
+What follows is the entry as written. `onUpdate` runs under a *per-stream* mutex
 and calls `registerRefForStream` / `unregisterRefForStream`, which mutate plain `mutableMapOf`s
 keyed by **array** — shared by every stream of the session. `triggerUpdate` reads the same maps
 from whichever thread performed the write, and `setDatabaseListener` / `removeDatabaseListener`
@@ -1372,7 +1474,14 @@ That trade is a maintainer decision, deliberately not made here.
 
 ### Re-rooted sleepers survive their admitter's removal (S1 residual)
 
-S1 refuses any admission chain that still runs through a removed device. But P4's automatic re-root
+⚠⚠ **Widened by §7j (2026-11-11):** the relay no longer refuses a chain through a removed *ancestor*
+at all (`admission-revocation-names-the-capability.md` §7j), so *every* sleeper — re-rooted or not —
+now survives its admitter's removal until the user removes it. The accepted mitigation is the removal
+flow listing the removed device's admittees (keep/remove per device, default keep); it reads the same
+self-written `admittedByDeviceId`, so a sleeper that blanked it is unlisted (the surface says how many
+rows record no admitter) and stays removable by id. The design question below now covers both cases.
+
+S1 refused any admission chain that still ran through a removed device. But P4's automatic re-root
 (`AdmissionMigrationObserver.maybeMint`) mints a depth-1 `[S ← A1]` cert for **any** device that
 announces a key and has a `Device` row, so a sleeper S admitted by a malicious D is flattened off D's
 chain, and removing D no longer touches it. The client's subtree strip cannot catch it either: it walks
@@ -1543,6 +1652,11 @@ Timed out waiting for the paired terminal on the desktop; last state =
 PairingWizardUiState(mode=Show, …, offerUri=tenshu://offer?…, offerSas=null, offerPaired=false,
                      step=ScanQr, …)
 ```
+
+⚠ Since 2026-11-14 the class steps every poll (`StepPacer`, `docs/testing.md` §12): after the
+phone's terminal the desktop gets exactly **one** status poll. A recurrence now names that single
+poll rather than a 20 s window of them, which separates "the status had not flipped when the relay
+was asked" from "every poll failed". Not a fix, and not evidence either way yet.
 
 The phone reached its terminal (the preceding `awaitState` passed); the **desktop never observed the
 pairing** inside `awaitState`'s 20 s budget. The offerer polled `getOfferStatus` every 2 s, so ~10
@@ -2541,7 +2655,7 @@ intermittently billing-blocked (entry above), so the local gate is the gate.
 
 | Test | Module | State |
 |---|---|---|
-| `FilesPagingIntegrationTest` hang (three methods) | `:drive-shared-ui` | ~8 % of gates; § *The hang, narrowed to one seam* below |
+| `FilesPagingIntegrationTest` hang (three methods) | `:drive-shared-ui` | **watch**. Mechanism inferred, not forced: a teardown race inside paging-testing's `asSnapshot` that needs a second generation. That trigger has been gone from every `asSnapshot` site since `fromTheObservedGeneration` (2026-11-13); § *The hang, narrowed to one seam* below |
 | `ContactHandshakeSystemTest` `COMPLETED` vs `REDEEMED` | `:system-test-utils` | own entry; three of four routes ruled out structurally. ⚠ **2026-11-01: red 2/10 on master** (macOS, `--rerun`, load < 12) — about 1 in 5, far above the earlier 3/23; worth re-diagnosing |
 | `SharesPage.test.tsx` (~2/8) | `web/apex` | own entry; the forced-slow-revoke hypothesis was tested and **falsified**, mechanism unknown |
 | `anAbsentThumbnailIsNotRemembered_becauseItMayArriveLater` | `:photos-shared-ui` | a **reporter** (`UncaughtExceptionsBeforeTest`); own entry — ⚠⚠ the obvious mechanism was tested and does not hold |
@@ -2549,9 +2663,7 @@ intermittently billing-blocked (entry above), so the local gate is the gate.
 | `SyncLaneTest > bulkSaves_collapseToCeilOfCapBlocks` | `:sync-service-proxy` | the trailing `assertEquals(0, journalDeltas().size)` (*expected:<0> but was:<1>*) after `awaitEmitIdle()` — a drain-completion assumption, not a wrong count; 1/3 gates once, mechanism unread |
 | `MultiProxySyncIntegrationTest` (reporter shape) | `:drive-shared-ui` | swept (P3) but never tied to a named leaker; watch |
 | `PairingVmFlowSystemTest > offerFlow_…` | `:system-test-utils` | seen once; its swallowing poll is now `OfferPairingMonitor` and its teardown joins every scope (P0) |
-| `DelegatedAdmissionSystemTest > delegatedAdmission_fullLifecycle_admitThenSubtreeRevoke` | `:system-test-utils` | once under load (*"removal must master-sign revocations for B AND its lineage subtree"*), green on rerun and alone; interleaving never forced |
-| `FileDetailScreenTest > testTwoUploadsShowCorrectDetailImage` | `:drive-shared-ui` | `ComposeTimeoutException` from a 1 000 ms `waitUntil` inside a 4–6 s test — the tightest margin in the population |
-| `S3BlobStoreRealS3ContractTest` / `S3BlobStoreContractTest` (test varies) | `:sync-relay-server` | ⚠ always **transport-level** (403, read timeout, invalid HTTP response) out of the in-JVM S3Mock, never an assertion. Frequent in a **cold worktree**, seen once warm. ⚠ A red here on a new worktree is not evidence about your change until a primary-checkout baseline has run. ⚠ The 1 000-key batching is pinned by the fake's `deleteAll_issuesOneRequestPerThousandKeys_ratherThanOnePerKey`, not at the S3Mock layer: S3Mock accepts an oversized `DeleteObjects`, so it could catch nothing there |
+| `DelegatedAdmissionSystemTest > delegatedAdmission_fullLifecycle_admitThenSubtreeRevoke` | `:system-test-utils` | once under load (*"removal must master-sign revocations for B AND its lineage subtree"*), green on rerun and alone; interleaving never forced. ⚠ That assertion no longer exists (§7j.10 retired the subtree strip; the case is now `…_admitThenRemoveTheAdmitter_keptAdmitteeStillAdmits`), and since 2026-11-14 the class runs stepped (`docs/testing.md` §12), so a recurrence of its successor is a fixed sequence of ticks |
 | `SyncCursorStoreDesyncSystemTest` | `:system-test-utils` | 60 s `advanceUntil` timeout on waits that take 0.5–2 s — a **hang**, not slowness. Joiner polls at 100 ms, so a lost wake cannot explain it; a probe on `SyncScheduler`'s loop saw it never stall, throw or die across six gates |
 | `SyncMetadataOperationTest > testSavingSyncableEntityGeneratesBlock` | `:sync-service-proxy` | once; green in three forced module reruns |
 
@@ -2593,11 +2705,110 @@ with it, same forcing both arms):
   lane lifecycle by `RemoteBinaryTaskExecutorRebindTest` / `…LaneLifecycleTest`) and
   `StreamInteractorImpl` delivering outside its mutex (pinned by
   `StreamInteractorImplDeliveryOrderTest`). The constraints are on `StreamElementForwarding.kt`.
+- `FilesListingEfficiencyTest.openAndScroll_isOnePassPlusPageWindows` (public Linux CI:
+  `IndexOutOfBoundsException: Index: 20, Size: 20` at `PageStore.checkIndex`, out of
+  `SnapshotLoader.awaitLoad`) — not load: a `pagingSource` listing **always** emits a second
+  generation when its change observer is confirmed, one proxy round trip after the first read, and
+  paging-testing's `SnapshotLoader` holds an index across that. A slow machine put the confirmation
+  inside the scroll. `boundedSnapshot` now starts from the observed generation
+  (`fromTheObservedGeneration`, `:core-paging`); pinned by `ObservedGenerationSnapshotTest`, whose
+  forced arm throws the CI exception deterministically. ⚠ It also explains the efficiency test's
+  old "5 or 7 windows" spread: with one generation the count is 1189 / 1219, the same every run.
+  ⚠ The paging hang below now runs without the provisional generation at every `boundedSnapshot`
+  site — so a hang that needs it can no longer occur there, and one that recurs does not.
+- `FilesScreenIntegrationTest.testTwoUploadsShowCorrectDetailImage` (filed as `FileDetailScreenTest`)
+  and `….testFileUploadConflictShowsDialog` — a Compose `waitUntil` on state produced on threads
+  Compose cannot see: the proxy (`Dispatchers.Default`) and the Swing EDT (`viewModelScope`, and
+  paging-compose's presenter, which hops to `Dispatchers.Main`). So `waitForIdle()` returned with an
+  upload still in flight, and only a real-time budget stood between the test and its assertion. The
+  class now registers `RepositoryIdling`, an `IdlingResource` busy while a repository call is in
+  flight, while a live listing owes the emission a write implies, and until an EDT barrier finds the
+  queue empty; assertions follow actions with no wait of their own. ⚠⚠ It needs
+  `composeDesktopVmTest`: the plain v2 `runComposeUiTest` never polls an idling resource
+  (`registerIdlingResource` returns `false`). Forced pair: an 11 s real-time upload fails both old
+  tests (`ComposeTimeoutException`, 10 000 ms) and passes both new ones; `testASlowUploadIsAwaitedNotTimed`
+  holds an upload for ten idle polls and goes red with the resource unregistered. ⚠ The detail
+  bitmap is still a condition wait: `ImagePreviewViewModel` decodes on `Dispatchers.Default`.
 - `DefaultRegionDownloaderTest` — ⚠⚠ the deschedule in `resumedProgressStartsFromTheStagedBytesNotZero`
   is **load-bearing**: `progress` is a conflated StateFlow, and without it the assertion stops
   testing anything. The test's comments carry the rule.
 - `UnixSocketServer.start()` blocks until bound, pinned by `UnixSocketServerBindContractTest`
   (fails 5/5 against an unbound start with no forcing).
+- `S3BlobStoreContractTest` (any method; the gate saw `S3Exception: Status Code: 404, Request ID:
+  null`) — not load: the fake S3 bound `0.0.0.0` while the SDK dialed `127.0.0.1`. ⚠⚠ **On macOS a
+  wildcard listener and another process's loopback listener share a port** (`SO_REUSEADDR`, in either
+  order), and loopback connections go to the specific one. Ephemeral ports are handed out
+  sequentially, so over a gate the cursor passes every local loopback listener (the Gradle daemon's,
+  IDE tools'). Captured by `lsof` at the failure: the daemon on `127.0.0.1:P` and the fake on `*:P`;
+  the fake logged no request. 4 in ~4 500 runs before, 0 in 4 750 after binding `127.0.0.1`. Pinned
+  by `aForeignLoopbackListener_cannotShareTheFakesPort`, red against the wildcard bind on macOS (a
+  no-op on Linux, which refuses the decoy bind either way). ⚠ A
+  "free-port" probe proves nothing here: holders taken in a block push the cursor past themselves.
+- `S3BlobStoreRealS3ContractTest` (test varied; always **transport-level** out of the in-JVM S3Mock —
+  403, read timeout, invalid HTTP response — never an assertion; frequent in a cold worktree) — the
+  same wildcard-vs-loopback family as the member above. S3Mock adds its HTTP connector with
+  `Connector.setPort` alone, so it binds the wildcard whatever `server.address` says, and the suite
+  dialed it at `127.0.0.1`. ⚠⚠ The suite now dials the **HTTPS** connector, which is Spring Boot's own
+  and the only one `server.address` reaches. It binds `127.0.0.1` on port 0, and the client trusts
+  S3Mock's self-signed certificate (`S3BlobStore.clientFor`'s `httpClient` parameter, which
+  production never passes). Port 0 also retires S3Mock's default fixed HTTPS port 9191, which every
+  per-test start used to bind. Pinned by `theDialledPort_isLoopbackOnly_soNoOtherListenerCanShareIt`,
+  which runs two probes. A `127.0.0.1` decoy is the mechanism itself, but it only discriminates on
+  macOS. A connect on a non-loopback interface discriminates on Linux and macOS alike: the wildcard
+  HTTP connector answers there and the dialled port must not. That HTTP connector is the forced arm,
+  asserted in the same run. Pointed at the old HTTP dial, the test is red on Linux with *"answered on
+  /192.0.2.2, so it is bound to the wildcard"*. ⚠ Unlike the member above, no `lsof` was captured at
+  one of this suite's failures, so the mechanism is inferred, not observed. If it reds again with a
+  transport error, that is a new mechanism, not this one returning. ⚠ The 1 000-key batching is pinned
+  by the fake's `deleteAll_issuesOneRequestPerThousandKeys_ratherThanOnePerKey`, not at the S3Mock
+  layer, because S3Mock accepts an oversized `DeleteObjects`.
+- `OperatorRouteNetworkExposureTest` — an exposure in the same family, never seen red. It bound
+  `0.0.0.0` to model the container and dialed `127.0.0.1` for its positive arm, so on macOS a foreign
+  loopback listener on the same port could answer that arm. ⚠⚠ It now binds the two addresses it
+  dials, one connector each on port 0, and not the wildcard. That does not weaken it: the guard reads
+  the raw socket peer (`rawPeerIsLoopback`, `call.request.local.remoteAddress`), which is the same
+  whichever listener accepted the connection, and `RelayConfig.bindHost` is read only by production
+  `main`. The forged-header request from the non-loopback address still gets 404, as threat-model
+  §8.10 states. Pinned by `eachDialledPort_isBoundToItsAddressAlone`, which uses the same two probes as
+  the S3Mock member above. Its forced arm is a wildcard socket in the same run, which must answer on
+  the non-loopback address. With the old wildcard connector restored, the test is red on Linux with
+  *"the loopback connector answered on 192.0.2.2, so it is bound to the wildcard"*.
+- `EventsFeedIntegrationTest` (`UncaughtExceptionsBeforeTest` carrying a `NoSuchFileException` on
+  `~/.tenshu/app.tenshu.control.test/secrets.enc.tmp`, macOS, 2026-11-11, twice, each time beside
+  another worktree's gate) — not load: **desktop test JVMs ran in the developer's real home**. The
+  integration harnesses keep the real `SecureStorageDelegate`, which resolves
+  `DesktopAppPaths.dataDir(clientId)` → `~/.tenshu/<appId>`, and on macOS (Keychain present) it
+  persists; two runs shared one fixed `secrets.enc.tmp` and one renamed it away under the other.
+  Fixed twice: every desktop/JVM `Test` task now starts with `user.home` at a fresh per-run
+  directory (root `build.gradle.kts`; `docs/testing.md` §7.2), and `DesktopMasterKeyStore.persist`
+  writes a unique temp file per write. Pinned by
+  `concurrentWritersOnOneDirectory_neverCollideOnTheTempFile` (red against the fixed name with the
+  production exception, no forcing) and `TestHomeIsolationTest` (red 3/3 with the build block
+  removed). ⚠ Still shared: the macOS login Keychain item `<appId>.master-key-store` — two runs
+  that both *create* it race, and the loser's blob reads as empty. Not seen red.
+
+- `ScheduleRunGuardTest.aPeriodicKeyReRegisteredDuringItsRunStartsItsTimingAfresh` (`:sync-service-proxy`;
+  *the new registration fires in its own right, not a period later expected:<1> but was:<0>*, once in a
+  `run-gate.sh --quick`, 2026-11-13) — not load as such, and not the stood-down logic it tests: the
+  completion stood down correctly, then the next tick skipped the key as **still in flight**.
+  `ScheduleDrainLoop` freed a run's key only from the job's completion handler, and kotlinx-coroutines
+  makes a job's state final *before* it runs its handlers, so a `join()` that arrives in that window
+  returns at once with the key still held. The run's body now releases its own key at its end (the
+  handler stays, for a run cancelled before its body starts); `ScheduleDrainLoop.claim`'s KDoc has the
+  argument. ⚠ Forced by amplification, not structurally: the case looped 300 times under six CPU
+  burners went red 3/3 without the release and green 3/3 (900 iterations) with it. A 200 ms sleep
+  inside the handler does **not** force it — that holds a join which suspended *before* completion,
+  and those are resumed after the handler in order. Production cost was one tick of delay per run.
+
+- `DelegatedAdmissionSystemTest.aKeptAdmitteeOnADeepChain_stillAdmits_afterItsAdmitterIsRemovedAndRevoked`
+  (`:system-test-utils`; *"C approved on the deep chain expected:<2> but was:<1>"*, once in a
+  `run-gate.sh --quick` and 1 in 3 alone on master, 2026-11-14) — not load: the case needs the A1
+  host never to ingest C's re-root announcement, and expressed that as a one-hour
+  `pollingIntervalMs`. A polled scheduler still ticks on `start()` and on every local-save wake, and
+  one host tick after C's announcement lands flattens C's chain to depth 1. Forced: one
+  `host.syncScheduler.drainNow()` after C's admission is red 3/3 with the gate's message. Fixed by
+  running the class stepped: `pair(…)` ticks only the two devices pairing, so the host is never
+  ticked after pairing B. Green 5/5 under six CPU burners.
 
 **The method — each rule below was learned by getting it wrong:**
 
@@ -2641,13 +2852,12 @@ with it, same forcing both arms):
   failures with `exceptionFormat = FULL` + `showCauses` — ⚠ the half that carries the original
   throw inside an `UncaughtExceptionsBeforeTest`.
 
-#### The hang, narrowed to one seam — cause NOT yet proven
+#### The hang, narrowed to one seam — mechanism inferred, trigger removed, not forced
 
 `FilesPagingIntegrationTest` (`folderRow_carriesChildCount_withoutProjectingChildren`,
-`pagedListingIsMetadataOnly_previewLoadsPerRow`, `pagedListingReturnsUploadedFiles`) times out at 30 s
-in `boundedSnapshot`, ~8 % of gates (8 in 102), once at module scope (1 in 8, against master's
-0 in 28 — inconclusive). Three methods, one shape: the hang belongs to the pipeline, not a fixture.
-⚠ The 30 s answer is **not** a bigger number: the call takes 0.09 s.
+`pagedListingIsMetadataOnly_previewLoadsPerRow`, `pagedListingReturnsUploadedFiles`) timed out at 30 s
+in `boundedSnapshot` in ~8 % of gates (8 in 102), and once at module scope (1 in 8, against master's
+0 in 28). Three methods, one shape. ⚠ The 30 s answer is **not** a bigger number: the call takes 0.09 s.
 
 | Measurement | Result | What it rules out |
 |---|---|---|
@@ -2655,23 +2865,58 @@ in `boundedSnapshot`, ~8 % of gates (8 in 102), once at module scope (1 in 8, ag
 | `load()` enter / `getAll` begin / returned | every load returned a page | a stuck read |
 | threads at timeout | every dispatcher worker parked, no `load` on any stack | a busy loop |
 
-So the page loads and the differ never settles: the hang is in the presentation / load-state path.
+**The mechanism (inferred, 2026-11-14).** The code is paging-testing 3.5.3's `asSnapshot`
+(`PagerFlowSnapshot.kt`), `SnapshotLoader.onDataSetChanged`, and paging-common's
+`Flow<CombinedLoadStates>.awaitNotLoading()`, which is `debounce(1).filter { isIdle || hasError }`.
 
-❌ **The second generation is not the trigger — do not spend gates on it again.** Holding the first
-refresh open so the subscribe tick lands mid-refresh gives two generations and settles 3/3; the
-probe's healthy control at the hang site shows the same. Any theory has to explain why that shape
-sometimes does not settle. ⚠ Do not suppress or delay that subscribe tick: `debounceExceptFirst`
-passes it through undebounced on purpose, because debouncing it re-anchored a user who scrolled
-within 400 ms of opening a folder (`IndexOutOfBoundsException` out of `SnapshotLoader.awaitLoad`).
+1. Each generation's `Refresh` event makes `SnapshotLoader` **launch a child** in `asSnapshot`'s own
+   `coroutineScope`. The child calls `presenter[i]`, then `awaitNotLoading()`, then `peek`, then
+   `awaitNotLoading()` again.
+2. `asSnapshot`'s main body runs its own two `awaitNotLoading()` calls. Then its `finally` runs
+   `collectPagingData.cancelAndJoin()`, **which stops feeding the presenter**.
+3. If the main body settles on generation 1's idle state, and generation 2's `refresh = Loading`
+   reaches the presenter inside the child's still-open 1 ms debounce, the main body tears down the
+   collector. The presenter is frozen at `Loading`. The child filters for an idle state that can no
+   longer arrive, and `coroutineScope` waits for it for ever.
+
+That explains every row of the table: two generations, then silence, every load returned, nothing on
+any stack. It is a race between two 1 ms timers, so it is load-sensitive and rare.
+
+❌ **Narrowed, not withdrawn: a second generation is required, but only one that lands after
+`asSnapshot` has settled on the first.** Holding the first refresh open, so that the subscribe tick
+lands *mid-refresh*, gives two generations and settles 3/3. Both debounces see generation 2's
+`Loading` and wait for its idle state together. ⚠ Do not suppress or delay that subscribe tick:
+`debounceExceptFirst` passes it through undebounced on purpose, because debouncing it re-anchored a
+user who scrolled within 400 ms of opening a folder (`IndexOutOfBoundsException` out of
+`SnapshotLoader.awaitLoad`).
+
+**Reproduced, not forced.** The runs below used temporary loops, deleted afterwards, on a 4-core
+Linux container. "Under load" means all cores saturated by busy loops.
+
+| Setup | bare `asSnapshot` (two generations) | through `fromTheObservedGeneration` (one) |
+|---|---|---|
+| Drive upload-then-list, the hung methods' shape, no load | 0 / 450 (with `boundedSnapshot` and the probe) | — |
+| Same, under load | **3** / ~6 000, one captured at generations `[1, 7]` | 0 / 1 150 |
+| A fake `Pager` on real threads, second generation 0–4 ms later, under load | **1** / 30 000 (at 1.3 ms) | 0 / 30 000 |
+
+⚠⚠ **It cannot be forced on virtual time, so do not try that again.** Same-instant work in
+`TestCoroutineScheduler` runs in a fixed order, and the window never opens: 0 hangs in 28 shapes,
+bare or filtered. A real-time sweep also needs a real deadline. A virtual `withTimeout` fires as soon
+as the listing waits on a real-thread read, which reads as a hang on nearly every run. ⚠ Installing
+`kotlinx-coroutines-debug`'s `DebugProbes` hid it as well: 0 / 2 000.
+
+**Why it is watch, not open.** `boundedSnapshot` starts from the observed generation, so every
+`asSnapshot` site sees one generation and the trigger cannot occur. The three methods above drive a
+`PagingSettleProbe`, which has its own presenter and none of `asSnapshot`'s teardown. ⚠ The evidence
+for "removed" is statistical (3 against 0, and 1 against 0), not a forced pair. **A hang that
+recurs at a `boundedSnapshot` site, or anywhere in the probe, is a different mechanism**: read its
+timeline before suspecting this one.
 
 **The instrument**: `PagingSettleProbe` + `FilesPagingSettleProbeTest` record a timestamped timeline
-of generations, `CombinedLoadStates` and `PagingDataEvent`s and print it on timeout. It is wired into
-`FilesPagingIntegrationTest` at the two sites that hung first; the others keep `boundedSnapshot` so
-the real `asSnapshot` path stays in the population. ⚠ The probe has never caught a hang. Arm a
-newly-hit method rather than converting the whole class — if the presenter path does not hang,
-converting every site hides the bug. ⚠ `FilesPagingIntegrationTest`'s `collectorScope` keeps its bare
-`cancel()` on purpose: a join there turns a caught hang into a hung test. Whether the defect is ours
-or paging 3.5.0's is undetermined.
+of generations, `CombinedLoadStates` and `PagingDataEvent`s and print it on timeout. It stays wired
+into the three methods so that a recurrence hands over its timeline. ⚠ The probe has never caught a
+hang. ⚠ `FilesPagingIntegrationTest`'s `collectorScope` keeps its bare `cancel()` on purpose: a join
+there turns a caught hang into a hung test.
 ### The hub's sync cadence override never reached its scheduler — `it` shadowed inside a Koin definition
 
 **File**: `hub/src/main/kotlin/app/tenshu/hub/HubRuntime.kt` (`assemble`), read by
@@ -2734,11 +2979,49 @@ succeeded. Pinned by
 `HomeDeviceControlSystemTest.aStateReportRacingItsOwnCommandDoesNotEraseTheEchoedOutcome`, which parks
 the report between its snapshot and its save (red without the lock). The test's waits go through
 `awaitStep`, which names the step and dumps the light, the executed count and the echoed row, so a
-gate sighting is attributable from the log alone.
+gate sighting is attributable from the log alone. Every other suspend call in the class (bootstrap,
+hub start, the two pairing ops) and **every teardown step** run under `bounded`, which names the
+call — see the next entry for why teardown is the one that matters.
 
 ⚠ **Not checked**: `Zigbee2MqttBridge` reports state over MQTT after a command is published and
 returns no `newState` from `execute` — the same two writers with a wider gap between them. The lock
 covers it by construction; no test forces that bridge's ordering.
+
+### A Mac idle probe that never returned wedged the process's shutdown
+
+**Files**: `macos-helpers/src/main/kotlin/app/tenshu/macos/MacPowerProbe.kt`,
+`BoundedNativeCall.kt`; consumer `inference-service-proxy/.../DesktopIndexingConditions.kt`.
+
+On 2026-11-09 `HomeDeviceControlSystemTest.aStateReportRacingItsOwnCommandDoesNotEraseTheEchoedOutcome`
+sat 17 minutes in `runBlocking` at ~0% CPU, holding the gate lock. ⚠⚠ **Not the race it pins.** The
+thread dump has no test worker thread left alive; the one busy coroutine is a scheduled
+`MediaIndexPass` inside `MacPowerProbe.secondsSinceLastInput` → `CGEventSourceSecondsSinceLastEventType`,
+asked by `MediaIndexRunner.runToCompletion` under its `Mutex`. That worker had 61 ms of CPU against
+1.4–1.7 s for its same-age siblings, and carried a low coroutine id: it entered the downcall early and
+never came back. A downcall cannot be cancelled, so `HubRuntime.shutdown` →
+`ClientRegistry.shutdownAndJoin` joined it for ever — from the test's unbounded `finally`.
+
+Product, not harness: Control desktop wires the same `DesktopIndexingConditions` and has the same join
+on its own shutdown. Each of the three probe calls (two IOKit, one CoreGraphics — all Mach IPC) now
+runs on its own daemon thread with a 2 s bound; no answer in time is `null`, the documented unknown
+that the scheduled bar reads as *no*. ⚠ While a timed-out call is still stuck, later calls answer
+`null` at once instead of queueing, so a wedged function costs one thread, not one per image (the
+indexer re-asks per image). A call that is merely slow (in flight, not yet timed out) is shared with
+later callers, never answered `null` early — the manual bar reads a `null` battery as *fine*. Symbol
+lookup and linking run before the bound, so a cold JVM does not spend it. Pinned by
+`BoundedNativeCallTest`.
+
+Proof by mutation: the idle probe made to sleep for ever **inline** (the old shape) gives two passing
+bodies and then `'shutting the hub runtime down' did not return within 30s` on both tests — the
+2026-11-09 hang, now named rather than silent. The same for-ever sleep inside `BoundedNativeCall`
+passes both.
+
+⚠ **Open — why the call blocked is unknown.** It does not reproduce: a fresh JVM answers in ~80 ms,
+and 16 threads × 200 concurrent calls × 5 runs all returned. The display was on; the battery was
+draining to its warning level at the time, which is the only machine state on record.
+⚠ **Open — hub system tests still read the real Mac.** A genuinely idle Mac on AC power starts real
+index passes inside `:hub:test`. Nothing in this class needs the indexer; a test-only
+`IndexingConditions` that says no would take the machine out of the result.
 
 ### A session that lost the mint race kept the whole sync runtime alive — `ClientRegistry.getExecutionContext` minted twice
 
@@ -2786,10 +3069,11 @@ turns an un-diagnosable infinite gate into a red test with a stack; it does not 
 pass. `FilesPagingIntegrationTest`'s `boundedSnapshot` carries the idiom and the "do not raise this"
 rule: the margin is ~300× a measured 0.09 s, so if it fires that is a dropped signal, not a slow box.
 
-⚠ **The listing-never-settles hang itself is still undiagnosed.** The three call sites that have hung
-(two in a gate, `pagedListingReturnsUploadedFiles` at module scope) drive a `PagingSettleProbe`
-(`settledItemsWithTimeline`) so the next hang prints the differ's load-state timeline; the rest keep
-`boundedSnapshot`, so the real `asSnapshot` path stays exercised. The two known ways a Tenshu listing
+⚠ **The listing-never-settles hang itself: mechanism inferred, trigger removed, not forced.** It is a
+teardown race inside paging-testing's `asSnapshot` that needs a second generation (§ *The hang,
+narrowed to one seam*). The three call sites that hung drive a `PagingSettleProbe`
+(`settledItemsWithTimeline`), and the rest use `boundedSnapshot`, which starts from the observed
+generation. The two known ways a Tenshu listing
 never settles were both product bugs — the subscribe-window write loss (next entry) and
 `TenshuPagingPresenter`'s clobbered `_refreshSettled` latch — so a third occurrence of that shape is
 the first thing to check, not a timing story.
@@ -2818,11 +3102,12 @@ register (`PagingUtil.reloadSignals` KDoc). What the same gate-flake investigati
   a `withTimeout`, so a failure means the reorder never arrived, not a wrong sort; the step normally
   takes ~62 ms of its 10 000 (161×). 0/9 under CPU burners — it needs whole-gate load. Its fixture was
   fixed separately so all four asserted orders are distinct; that does not close the hang.
-- ⚠ **If `FilesScreenIntegrationTest.testFileUploadConflictShowsDialog` fires, treat it as informative,
-  not as load.** `ComposeUiTest.waitUntil` advances a *virtual* frame clock but bounds itself on *real*
-  `System.nanoTime` (default 1 000 ms), so load can shrink the budget — but its three waits measured
-  413 / 322 / 158 ms under 6 burners on a 4-core box. Widening it would muffle the next real failure;
-  the real fix, if that path ever gets slow, is to await the upload's `TaskHandle`, then `waitForIdle()`.
+- ✅ **`FilesScreenIntegrationTest.testFileUploadConflictShowsDialog` no longer polls.**
+  `ComposeUiTest.waitUntil` advances a *virtual* frame clock but bounds itself on *real*
+  `System.nanoTime`, so load shrank the budget. ⚠ Awaiting the upload's return and then
+  `waitForIdle()` was not enough by itself: the listing re-emits from the proxy, and paging-compose
+  presents on the EDT, both after the call returns and both invisible to `waitForIdle()`. The
+  `IdlingResource` covers all three (closed member above).
 - ⚠ **A leaked coroutine fails an unrelated test, and the report names the innocent one.**
   `kotlinx-coroutines-test` installs `ExceptionCollector` as a JVM-global `CoroutineExceptionHandler`
   service, so an uncaught throw from a coroutine leaked by a *finished* test is replayed into the next
@@ -5170,6 +5455,69 @@ construction**. Lifting it for the pairing path is the slice that would catch th
 
 ---
 
+### ⚠ Contacts iOS test binary never exits; `viewModelsBind…` times out (2026-11-10) — hang FIXED; a separate list race remains
+
+**Seen** on the maintainer's Mac: `iosTestCheck`'s `tenshu-sdk-ios-contacts` `test.kexe` wrote its
+result XML and then never exited (idle, re-parented to PID 1; Gradle sat to its 83-min timeout). A
+rerun failed `ContactsLocalRuntimeTest.viewModelsBindWhateverRepositoryIsInstalled` on
+`TimeoutCancellationException` (1 of 9); a second rerun passed 9/9.
+
+**What the test was doing that no sibling does** — the probable cause, **not proven**:
+
+1. **Its view model was never cancelled, and `Main` was reset under it.** It is the only
+   `*LocalRuntimeTest` that binds a view model to a *live* runtime and swaps `Main` around it. The
+   model's two collectors outlived the test, and after `resetMain()` their next resume went to the
+   real GCD main queue — which a K/N test binary never drains. `docs/testing.md` §11 is this rule;
+   the Contacts test predated it.
+   ⚠ On desktop the same leak is **invisible**: `Main` there is a draining Swing EDT, so a leaked
+   model keeps updating. Measured, not assumed — a JVM harness over the production
+   `buildProxyModule()` graph saw the leaked model receive a write made after `resetMain()`.
+2. **No assembly was ever stopped.** On a test replica `assembleBase` hands no graph to a host, and
+   the Contacts reach scope is cancelled only from `onCurrentGraphStop`, which only a host calls. So
+   by the last test, eight full production proxy graphs and their probes are running on K/N's
+   fixed-size `Dispatchers.Default`, and the binary exits with all of them live.
+3. **The write was not asserted**, so a failed `createContact` and a model that missed a stored row
+   were the same timeout.
+
+**Ruled out:** a cross-process shared path or socket. `TestReplicas` has been in-memory since
+2026-11-05, replica names are random, secure storage is `InMemorySecureStorageDelegate`, and the
+in-process path has no socket — the orphan from the hung run held nothing the rerun needed. Also
+ruled out on JVM: the read path. Over the production graph, with the real repository + reachability
+engine + `ContactListViewModel` under an Unconfined `Main`: 0 stalls in 60 runs, 0 failed writes;
+over `TestProxy`, 0 in 150.
+
+**Fix:** `ContactsLocalRuntime.Assembly.close()` (tests only: probe, then the graph's root
+cancelled + joined, then the Koin close); the test closes every assembly in `@AfterTest`, owns its
+view model with `OwnedViewModels` and joins it **before** `resetMain()`, redirects `Main` to
+`Dispatchers.Default` (Drive's precedent — a test dispatcher's virtual clock is advanced by nobody
+here), asserts the write, and on timeout says whether a fresh repository read sees the row.
+
+⭐ **Verified on a Mac, 2026-11-11:** 15 × `./gradlew :tenshu-sdk-ios-contacts:iosSimulatorArm64Test
+--rerun` and one `./gradlew iosTestCheck --continue` — the binary exited every time; the hang is gone.
+⚠⚠ **2 of the 15 runs still failed**, and the new diagnostic named a different bug: *"the row IS
+committed — a FRESH subscription sees [...], so the first subscription missed its invalidation
+(subscribe-window race)"*. A reactive read that misses a write committed between its first read and
+its listener is a product race, not a test leak; it is being fixed on its own (the reactive-read
+subscribe window). Until it lands, `aWrittenContactIsReadBack` / `viewModelsBind…` stay flaky (~1 in 7).
+⚠ **And it can still hang — inside a test, not at exit.** A later run hung in
+`installingARuntimeReplacesTheNotConnectedSurface` on `contacts().first()` (no timeout): `sample` showed
+main parked in `runBlocking`, workers idle — the read's FIRST value never arrived. Same defect class,
+same fix.
+⭐ **Both are the `StreamRegistry` race, FIXED (2026-11-11, `core-client-resubscription.md` §4.9).**
+Not a subscribe window: `contacts()`'s four reads subscribe concurrently, and an unguarded map lost
+one stream's registration token, so that stream sent **no first snapshot** — the remaining
+`aWrittenContactIsReadBack` / `viewModelsBind…` failures and the in-test hang alike. Measured over
+20 suite runs each side: `ContactsLocalRuntimeTest` failed 3/20 before (two of them first-emission
+timeouts), 0/20 after. Its `.first()` calls are now bounded (`firstBounded()`), so a regression
+fails instead of hanging the binary.
+
+**Swept 2026-11-11:** every view model the `tenshu-sdk-ios-*` tests build is now owned
+(`docs/testing.md` §11.4) — 69 unowned constructions across Calendar, Control, Drive, Fit, Home,
+Photos and Timeline — and `scripts/check-owned-view-models.py` covers those modules, surface factories
+included. ⚠ Unverified on iOS, like the fix above, until the Mac runs owed in that PR. ⚠ Still open:
+every other `*LocalRuntimeTest` leaks its assemblies the way Contacts' did, and on device nothing
+cancels a Drive surface's models when its screen goes away (`DriveReadSurface.Bound` has no close).
+
 ### ⚠⚠ Contacts-on-iOS: the row is WRITTEN but never linked into its collection (2026-09-06)
 
 **Cause, closed:** service-relation membership is written by `RelationMaintainer`, a data observer
@@ -6780,25 +7128,202 @@ change. Nothing is lost and a scroll corrects it.
 
 ## Testing
 
-### Three modules are excluded from the JS test line — eight failures nobody has looked at (2026-09-23)
+### Public CI was red on every run from the first release — four reds behind one another, each hiding the next (2026-11-12)
 
-`scripts/run-gate.sh` runs the Kotlin/JS **test** line, but `JS_TEST_EXCLUSIONS` skips three
-modules. They were already red the first time the lane ever ran, because nothing had been running them:
+The public repository's `CI` (`android.yml`: `./gradlew check`) and `iOS` (`ios.yml`) lanes failed
+on every run from the first public release (2026-11-06) on: master, every sync PR, the Windows-port
+branch. Internal CI is dark, so nothing saw it before the export did. ⚠⚠ `check` runs **without
+`--continue`**, so each run showed only the first red Gradle reached, and which one that was moved
+with task ordering. A local `./gradlew check --continue` is what lists them all.
 
-- `basemap-core`: `BasemapStyleTest.roadLabelsGateRoadClassOnCameraZoomNotTileZoom`
-- `inference-service-proxy`: `DefaultFaceTemplateStoreTest.theBoxSurvivesAReopen`,
-  `ModelDownloadProgressTest.theStreamKeepsWaitingWhileADownloadIsActuallyInFlight`
-- `routine-service-proxy`: five of the nine `RoutineMultiDeviceTest` tests:
-  `only_the_claimed_executor_fires`, `the_hub_wins_the_claim_over_a_desktop`,
-  `a_peer_fires_after_the_grace_window_when_the_primary_never_did`,
-  `the_fallback_stands_down_once_the_primarys_receipt_exists`,
-  `a_race_inside_the_grace_window_collapses_onto_one_row`
+**`CI` — the JS suites (three fixed, one excluded):**
 
-All of them fail under `[js, browser, ChromeHeadless]`. ⚠ They are **not** known to be JS defects. They may be tests
-that assume a JVM-shaped environment. Nobody has diagnosed them.
+1. **`:app-notify` `AppleAlertScheduleTest` — Mocha's 2 s default.** The console line reads only
+   `Error`. The uploaded `unit-test-report` artifact has the real one, *"Timeout of 2000ms
+   exceeded"*. The first `TimeZone.of("Europe/Berlin")` makes kotlinx-datetime parse the whole js-joda
+   tz database: 168 ms on a dev Mac (5 ms on the JVM), and past 2 s on GitHub's 2-core Linux runner.
+   Whichever test runs first pays it. The 30 s ceiling `:tenshu-sdk-js` already had for the same
+   class of cost lived in that module's own `karma.config.d/`, and Kotlin reads **one** config
+   directory per test task. ⇒ One shared `gradle/karma.config.d/`, applied to every Karma run from
+   the root build. A module's own `karma.config.d/` would be silently ignored, so the build refuses
+   one. Pinned by reverting it: a 3 s synchronous test fails with CI's exact message without the
+   snippet and passes with it.
+2. **`:basemap-core` `BasemapStyleTest.roadLabelsGateRoadClassOnCameraZoomNotTileZoom` — a real
+   JS-only test bug.** `Regex("""\["zoom"]""")`: Kotlin/JS compiles a `Regex` with the `u` flag,
+   where a lone `]` is a `SyntaxError`, and the JVM accepts it. Fails on macOS too. ⚠ Any
+   `commonMain`/`commonTest` regex with an unescaped `]`, `{` or `}` has the same split.
+3. **`:routine-service-proxy` (9 tests) — no time-zone database in the JS test bundle.**
+   `FiringCalculator` resolves a routine's zone with
+   `runCatching { TimeZone.of(id) }.getOrNull() ?: return null`, so on JS a "06:00 Europe/Berlin"
+   routine **silently never fires**: zero runs, no exception. Production web is unaffected, because
+   `:tenshu-sdk-js` bundles the database in `jsMain`. ⇒ The `:app-notify` remedy in `jsTest`.
+   ⚠⚠ The swallow is the hazard that outlives the fix: any runtime without the database computes
+   *no firing* rather than failing.
+4. **`:inference-service-proxy` — fixed, off the list (2026-11-12).** Two causes, neither a shipped
+   defect, because no inference backend is wired on web. Both are the same fact: a Kotlin/JS
+   `Float` is a 64-bit double in memory, **a literal included** (`0.2f` is the double `0.2`), and
+   only a `FloatArray` store or a bit conversion rounds it to float32.
+   (a) The face-template log stores float32, so a row reopened as `0.10999999940395355` where memory
+   held `0.11` (`DefaultFaceTemplateStoreTest`, all 21 `LogStrikesCrashPointsTest` cases). Fixed
+   twice, for two invariants: `DefaultFaceTemplateStore.put` holds the box rounded as the log will
+   replay it (a read before a restart equals one after), and `FaceBox` compares by `toBits` (equal at
+   the precision it is stored at; off JS exactly the generated data-class equality). ⚠ Rounding in
+   `FaceBox`'s constructor was tried and is wrong: the value then no longer equals the literal it
+   was built from (`FaceMeshTest.theBoxIsTheMeshExtent` went red).
+   (b) The SigLIP tensor golden (`ImagePreprocessingGoldenTest`, `PreflightProbeImageTest`).
+   ⚖️ **Decision: JS matches bit-for-bit, the golden is not JVM/Native-only.** `ImagePreprocessing`
+   rounds each step with `asFloat32()` (`Float.fromBits(toRawBits())`), a bit move on the JVM and
+   Native, so the golden held there unchanged and now holds on JS. One digest for every target
+   costs nothing and keeps a JS red meaning a real divergence. A JS-only carve-out would have
+   left web free to make different vectors the day an inference backend is wired there.
+
+⇒ **`scripts/js-test-exclusions.txt` is the one list**, read by `run-gate.sh` *and* by
+`android.yml`'s `check` step. ⚠⚠ The root cause of a whole week of red was two copies: the gate
+skipped three modules while public CI ran exactly those three. ⚠ The two exclude different task
+names. The gate runs `jsTest` and drops `:m:jsTest`, while `check` reaches the browser run through
+`allTests → jsBrowserTest` directly, so the workflow drops `:m:jsBrowserTest`. A `--dry-run` showed
+`-x :m:jsTest` leaving it in.
+
+**`CI` — next in line behind the JS suites: `lintDebug` on four apps — fixed.** Lint errors abort
+`check` on Linux too, and each one was a real Android defect, not lint noise:
+- `control`: ⚠⚠ **nothing ever requested `POST_NOTIFICATIONS`.** An app targeting 33+ starts with
+  notifications off, and Control is the process that posts for the suite: Calendar's reminders (it
+  owns the alarm, CA-5f), pairing requests, the schema-fence warning and the foreground-service text.
+  On Android 13+ all of them were silently dropped. ⇒ `MainActivity` asks once, on a genuine launch.
+  The two `MissingPermission` hits came from a `@SuppressLint` that had drifted onto the wrong
+  declaration in `ProxyService`. Both re-posts now go through one helper that checks the grant. The
+  three `MissingClass` hits were runtime-present classes (the merged APK carries them) missing
+  from Control's *compile* classpath. `:app-notify` and `work-runtime` are now direct dependencies,
+  and the one `tools:node="remove"` entry (datatransport's `TransportBackendDiscovery`) gets a
+  scoped `tools:ignore`.
+- `calendar-android`: `NotificationPermission` was a **false lead** on the app. Calendar never builds
+  `AndroidNotificationPresenter`; only Control's DI does. The real defect was Control's, above.
+  Declaring the permission in Calendar would have been the wrong process asking. ⇒
+  `calendar-android/lint.xml` ignores that one class's message, so a `notify()` written in Calendar
+  itself is still caught.
+- `mia-android`: `NewApi`. `createOnDeviceSpeechRecognizer` (API 31) is now behind the same API-33
+  gate as `isAvailable`, inside `create()` itself. Below it the answer is no recogniser, never the
+  online `createSpeechRecognizer`.
+- `timeline-android`: `CoarseFineLocation`. Android 12+ ignores a FINE request made without COARSE.
+  Both are now declared and requested together. An *Approximate*-only grant counts as a refusal,
+  because capture reads precise fixes only, and a toast says why the toggle went back off.
+⚠ Drive's `AndroidNewFolderAnnouncer` KDoc says the app shell requests `POST_NOTIFICATIONS`. No
+code in `drive-android` does. Same defect class, not fixed here.
+
+**macOS-only `check`: `:file-service-proxy:compileTestKotlinIosX64` — fixed.** A backtick test name
+with a `,` (illegal on Kotlin/Native) and `"%.1f".format(…)` (JVM-only) in `commonTest`. Nothing
+gated it: proxy modules skip only the *simulator* test compile (`build.gradle.kts`,
+`proxyOnlyOffIos`), Linux CI compiles no iOS, and `ios.yml` runs `iosSimulatorArm64Test` rather
+than `check`. Only a local `check` on a Mac reaches `iosX64`/`iosArm64` test compiles.
+
+**`CI` — next behind the lint reds: `:core-common:desktopTest`, every Unix-socket IPC test
+(fixed).** All 11 failed on the Linux runner with `Could not connect to Tenshu Control Proxy`, and
+passed on macOS. `SocketDirectory.inspect` refused any directory owned by another user *before* its
+sticky-`/tmp` carve-out ran, and `/tmp` is owned by **root** on Linux. So the client refused every
+test socket with *"/tmp is owned by 'root', not 'runner'"*, printed to the test's stderr, which the
+console never shows. macOS's `$TMPDIR` is owned by the user, and the existing sticky test built a
+sticky directory the test user owns, so neither saw it. ⇒ Root-owned counts as ours; the mode
+checks still apply. Reproduced and verified in a Linux container (JDK 17, user `runner`) by running
+the Mac-built test classes there: 5 of 18 failing before, 40/40 transport tests passing after.
+`inspect_warnsButDoesNotRefuseTheRealRootOwnedTmp` reads the real `/tmp`, which is root-owned and
+sticky on macOS too, so it fails on a Mac without the fix. ⚠ This was a product defect as well:
+a Linux user with `TENSHU_IPC_DIR` under `/tmp` could never connect.
+
+**Every JVM test on Linux, run ahead of CI (2026-11-13).** Public CI's `check` stops at the first
+red, so the reds were surfacing one sync at a time. To see them all at once without CI, each JVM
+test task's classpath and JVM args were dumped from the Mac build, and every test class was run under
+JUnit in Linux containers (`eclipse-temurin` 17/21/25, as user `runner`, with libGL/EGL/fontconfig
+and skiko's `linux-arm64` runtime in place of the macOS one). Covered: all 161 `desktopTest` /
+`jvmTest` / `test` tasks except `macos-helpers` (macOS-only). Result: green apart from the
+Unix-socket refusal above and two test defects, both fixed:
+- `timeline-shared-ui`: **class-order dependence.** `ImportRowLayoutTest`'s composition-scoped
+  `KoinApplication` leaves a *global* Koin started, and `TimelineEmptyStateRenderTest.render`'s
+  `startKoin` then throws `KoinApplicationAlreadyStartedException`. Gradle runs classes in
+  filesystem order, and macOS happened to put `home/` before `settings/`. In the other order it
+  fails on any OS. ⇒ `ImportRowLayoutTest` stops Koin after each test.
+- `control-shared-logic` `ModelsLedgerTest.aDownloadAndARemovalOfOneModelNeverRunTogetherOnRealThreads`:
+  **intermittent** (1 of 9 Linux runs). A press is answered from inside its call, which releases its
+  claim in a `finally` a moment later, so one read right after the last answer could still see a row
+  fetching. ⇒ It now awaits the settled state, bounded by the test's own timeout.
+⚠ Not covered by this method: Android unit tests (`testAndroidHostTest`), JS (Chrome), and lint.
+Also not reproduced: whatever depends on x86-64 specifically, since the containers are arm64.
+
+**`iOS` — wall-clock races on a 3-core macOS runner; a different test each run:**
+
+- `ReplicaProtectionTest` (four different cases across four runs). Sixteen cases started a holder
+  thread and then `usleep(100_000u)`, *assuming* it was inside the gate before releasing a token with
+  a 100 ms drain. On the runner it had not got in yet, the drain found nothing admitted, and the next
+  assertion failed. ⇒ `Setup.holdAccess(…)` returns only once the holder is inside. ⚠ The holds
+  themselves (300–400 ms after entry) are still wall clock. A runner slow enough to need more than
+  ~300 ms between the drain timing out and the next `acquire` still races. Measured with 14 busy
+  loops on a 14-core Mac (load ~100): the old file failed 1 of 2 runs, the new one 0 of 5.
+- `ContactPhotoRowMaxSharedReplicaTest` — `UncompletedCoroutinesError`, `runTest`'s 60 s default
+  overrun by a real 2 MB seal-and-write through SQLite on a debug K/N build. ⇒ 5 min.
+- **`MomentSliceRowMaxSharedReplicaTest.aSliceOverRowMaxAppliesRowByRow` — fixed:
+  `HoldCeilingExceeded` (1000 ms ≥ `HOLD_MAX`).** Measured, the apply's own writes were never the
+  hold: each saved moment's transaction stayed under 20 ms. The long accesses were
+  `PlaceRoleInferencePass.inferNow`, run **inline every fifth saved visit**, each a whole-`MOMENTS`
+  `readOrderedWindow` in one access (one `BEGIN IMMEDIATE`), about 2 statements per member. For the
+  600-visit slice that was 125 such accesses growing to ~133 ms on a dev-Mac simulator: O(N²),
+  76,441 row reads (127 per entry). One of them crossed 1 s on the 3-core runner. ⇒ The pass is
+  coalesced on a fixed 1 s cadence (`COALESCE_MS`), the `MomentReconciliationPass` shape; the test
+  went from 23 s to 2 s. `MomentSliceSnapshotProducerTest.applySlice_readsTheStoreLinearlyInTheSliceItApplies`
+  (≤ 20 reads per entry) and `PlaceRoleInferencePassTest.theProductionWiringRunsThePass` (nothing
+  inferred inline) fail without it. ⚠ Any sync burst of visits paid the same N/5 scans, not just a
+  slice.
+- ⚠ **FIXED outside transactions (2026-11-12) — a whole-relation read was one access on the
+  SQLite replica, so `HOLD_MAX` capped the relation's size.** `readArray` read every member inside
+  one `lock.withLock`, i.e. one write-locked transaction: at ~0.11 ms per statement and 2 per member
+  (debug simulator, measured above), ~4–5k members per second, so a `MOMENTS` (or any) relation past
+  that, read whole by an observer pass, a slice encode or a listing, fenced the store
+  `COMMIT_FAILED` with no burst needed. Every relation read in `DatabaseImpl` now pages: the first
+  access snapshots the member hashes, each later access resolves 512 of them
+  (`core-ordered-window-fusion.md` §6.1, which has the table of what a write between pages can do —
+  never a duplicate, never a stable member lost). `PagedArrayReadTest` pins it on the JVM.
+  `WholeRelationReadSharedReplicaTest` (`./gradlew :tenshu-sdk-ios-core:iosSimulatorArm64Test`)
+  pins it on the simulator over the real `SharedReplicaStore` (3/3 green 2026-11-13, control
+  included). ⚠ A
+  relation read whole **inside** `transaction { }` still costs O(members) of that one transaction;
+  paging cannot help it. The `MOMENTS` read a synced `Place` reached that way (`PlaceReconciler` →
+  `VisitTimeCorroboration`) is off the save path since 2026-11-13 — coalesced on `sessionScope`,
+  pinned by `PlaceReconcilerTest.aSyncedPlaceIsNotReconciledInsideTheIngestTransaction`. The
+  remaining in-transaction growing reads are the next entry. Unmeasured on a device.
+- ⚠ **Synchronous observers and mergers that read a growing relation inside a transaction
+  (audited 2026-11-13).** Every `DataObserver` and `SemanticMerger` runs inside the writer's
+  transaction — for a peer's block, `SyncProcessor.resolveConflictAndSave`; for a delete,
+  `ExecutionContext.deleteData`'s lock — so on the iOS replica each read below is bounded by
+  `HOLD_MAX`, not by paging (`core-ordered-window-fusion.md` §6.1). Open, unmeasured on a device:
+  - **`FolderMerger`** (`file-service-proxy`): `resolveListField(FILES)` loads every child `File` of
+    both sides, then `purgeDeadMembers` does a tombstone lookup + `getData` per child — O(children)
+    per ingested `Folder` block. A camera folder holds thousands.
+  - **`FileHistoryPolicyObserver.cascadeDeleteHistory`** (`FileServiceProxyInitialization.kt`):
+    reads the whole realm-wide `MODIFICATIONS` relation once per `File` delete, ingested tombstones
+    included; `enforceRetention` does the same read on every local USER modification save.
+  - **`DeletedFolderSubtreeReaper`** (same file): reads all children and deletes recursively inside
+    the delete — and each child delete repeats the `MODIFICATIONS` read above.
+  - **`RelationMaintainer.memberCount`** (`core-common`): reads the relation's whole member-hash list
+    per saved member (and `addToArray` rewrites it) — cheap per row, but linear in `MOMENTS` /
+    `HEALTH_SAMPLES` / `WORKOUTS` on every ingested row.
+  Everything else either type-gates to a rare type with point/small reads or hands its work to
+  `sessionScope` (`MomentReconciliationPass`, `PlaceRoleInferencePass`, `PlaceReconciler`,
+  `ReminderRearmObserver`).
+- Run 43294443544 shows "cancelled" at 20 min with no failed step: GitHub cancelled the job, which
+  says nothing about the code.
+
+**`Web CI`** — its one red (`support-pages/screens.test.ts`, landing lists) was a test lagging a
+capture change, fixed on master since.
+
+### Modules excluded from the JS test line (2026-09-23; list moved, then emptied, 2026-11-12)
+
+The list is `scripts/js-test-exclusions.txt`, read by both `scripts/run-gate.sh` and the public
+CI's `check`. It was three modules, red the first time the lane ever ran because nothing had been
+running them. Two are fixed (see the entry above): `basemap-core` (a JS-only regex) and
+`routine-service-proxy` (no tz database in the test bundle), and so is the third,
+`inference-service-proxy` (Kotlin/JS `Float` is not float32). **The list is empty**: every module's
+JS tests run in the gate and in public CI.
 
 ⚠⚠ **An exclusion list is a latch.** The gate prints the list on every run, but nothing forces
-anyone to shorten it. Take a module off `JS_TEST_EXCLUSIONS` as soon as it goes green. The lane's own
+anyone to shorten it. Take a module off as soon as it goes green. The lane's own
 motivating case: `GetPreview` was registered and unimplemented on JS for months, so every browser upload
 silently minted no thumbnail. A JS test line is what catches that class, so an excluded module is
 not covered against it. A per-platform op-coverage guard in `jsTest` is worth deriving against the
@@ -7181,7 +7706,7 @@ re-run — an idle-box A/B proves nothing, see below):
    `inviteStore.all()` takes *before* the `pendingResponses()` relay round trip cannot be written
    back by a second pickup racing the completion op. ⚠ `tickOnce` itself does **not** take the
    mutex, so a caller that invokes it directly bypasses this — `TestSystem.advanceUntil` does not
-   (it only polls a predicate; `:system-test-utils` never calls `tickOnce`/`drainNow`).
+   (it only polls a predicate), and the harness's stepped mode (`docs/testing.md` §12) steps devices through `drainNow`, never `tickOnce`.
 2. **A later pickup pass that snapshots the row while it is `REDEEMED` does not rewrite it.** The
    write is guarded by `row.status == PENDING || row.claimedFingerprint != claimedFingerprint`
    (`InviteResponsePickup.kt`), and the earlier flip stored that same fingerprint — so the guard is
@@ -7582,8 +8107,8 @@ ignores every write from the moment of the load); **no real jetsam ran**. Settle
 bound 2; a load the scene left under is transient (`SceneLeft`); the compile is bracketed; a fail
 of interrupted loads alone has one *Try again*. Open: a phone must show that the scene's write
 lands before iOS suspends Photos. ⭐ The backend's own opens after `Ready` (`warmText`, the index
-pass) are bracketed since 5e-1 (§14.19.3), in a file per tower. ⚠ Open, the maintainer's: *Try
-again* has no cap on presses (§14.18.16 item 10).
+pass) are bracketed since 5e-1 (§14.19.3), in a file per tower. ✅ *Try again* is capped at one
+press per key since 2026-11-09 (`PreflightPolicy.LOAD_AGAIN_PRESSES`, §14.18.16 item 10).
 
 ### Control's Models screen on Android and desktop: eight things read and not fixed (2026-10-13) — OPEN
 
@@ -7763,26 +8288,6 @@ which is off, except where a line says otherwise.
    never lists its directory. After case 3, or after a commit over bytes that were not JSON,
    models installed more than one process ago stay on disk, several hundred MB each, with no
    route to remove them but clearing the app's data.
-
----
-
-### `SEMANTIC_RELEVANCE_FLOOR` is a carried-over cosine, never measured on the pinned checkpoint (2026-10-11)
-
-`photosLike` drops a photograph below cosine **0.09149529**, written
-`PhotosLikeImplementation.SEMANTIC_RELEVANCE_FLOOR = 0.061245844`. Nobody measured that number. It
-is where `p ≥ 0.10` fell under the `-224` checkpoint's score constants, which
-`VisionModel.PinnedSigLip` carried by mistake until 2026-10-11; when the constants were corrected
-to the pinned checkpoint's (110.995995, −12.885268) the floor was restated so that no search result
-changed. `0.10` itself was the middle of a band read on the `-224` checkpoint.
-
-**Owed:** a floor measured on `-256-multilingual`, on labelled queries. A true `p ≥ 0.10` there is
-cosine ≥ 0.0963, stricter than today; `models.md` §3.9.4 has 17 of 36 queries clearing nothing at
-the current cut, several with a correct top-1 at cosine 0.06–0.09, so the direction is not obvious.
-⚠ Not a stored-shape change: the probability is computed per query and never written.
-
-⚠ The constants cannot be checked in a gate (no weights). `PinnedSigLipCalibrationPinTest` holds
-them beside their provenance; `label-eval.py evaluate --source` re-reads the bytes. Detail:
-`models.md` §3.10.8, `inference-service.md` §35.1.
 
 ---
 

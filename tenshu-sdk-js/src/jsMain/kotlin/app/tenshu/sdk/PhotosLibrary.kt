@@ -34,6 +34,7 @@ import org.tenshu.core.file.PixelWidth
 import org.tenshu.core.file.TRASH_ROOT
 import org.tenshu.core.file.createdAt
 import org.tenshu.core.file.files
+import org.tenshu.core.file.category
 import org.tenshu.core.file.isMedia
 import org.tenshu.core.file.notTrashed
 import org.tenshu.core.file.path
@@ -127,9 +128,28 @@ internal fun FeedKey.afterCursor(cursor: FeedCursor): Boolean = when {
 internal fun exclusiveEndFor(beforeMs: Long): Long =
     if (beforeMs == Long.MAX_VALUE) beforeMs else beforeMs + 1
 
+/**
+ * Which media a feed holds: the library (photos and videos), or the Videos collection
+ * (web-apps-layout.md L5). A filter on the same walk — the order, the cursor and the window rules are
+ * the library's, so a cursor means the same thing in both.
+ */
+internal enum class FeedKind {
+    ALL,
+    VIDEOS;
+
+    companion object {
+        /** `null`/`''`/`all` → [ALL], `videos` → [VIDEOS]; anything else is not a kind (null). */
+        fun parse(raw: String?): FeedKind? = when (raw) {
+            null, "", "all" -> ALL
+            "videos" -> VIDEOS
+            else -> null
+        }
+    }
+}
+
 /** Rule 1: the feed's membership, in rule 3's total order, over `[fromMs, beforeMs]`. */
-internal fun TList<File>.feedWindow(beforeMs: Long, fromMs: Long = 0L): TList<File> = this
-    .filter<File> { isMedia() }
+internal fun TList<File>.feedWindow(beforeMs: Long, fromMs: Long = 0L, kind: FeedKind = FeedKind.ALL): TList<File> = this
+    .filter<File> { if (kind == FeedKind.VIDEOS) category equalTo FileCategory.Video else isMedia() }
     .filter<File> { createdAt.inRange(fromMs, exclusiveEndFor(beforeMs)) }
     .filter<File> { notTrashed() }
     .sortByDescending(File.CreatedAt)
@@ -151,8 +171,12 @@ internal fun <T : Data> ListBuilder<Selector<T>>.photoRowProjection() {
     )
 }
 
-/** Rule 4: `null` for a row with no capture time. */
-internal fun Entity<File>.photoOf(): PhotoJs? {
+/**
+ * Rule 4: `null` for a row with no capture time. [renditions] — every `PhotoEdit`'s rendition by the
+ * original's content id — is required, never defaulted: a caller that forgot it would show an edited
+ * photo's original (`photos-editing.md` §12.4).
+ */
+internal fun Entity<File>.photoOf(renditions: Map<String, String>): PhotoJs? {
     val capturedAt = get(File.CreatedAt)?.get() ?: return null
     val path = this.path.get()
     return PhotoJs(
@@ -166,6 +190,7 @@ internal fun Entity<File>.photoOf(): PhotoJs? {
         lngE7 = get(File.CaptureLngE7)?.get()?.toDouble(),
         pixelWidth = get(File.PixelWidth)?.get()?.toInt(),
         pixelHeight = get(File.PixelHeight)?.get()?.toInt(),
+        renditionPath = get(File.ContentId)?.get()?.takeIf { it.isNotEmpty() }?.let { renditions[it] },
     )
 }
 
@@ -203,6 +228,8 @@ internal object PhotosWebErrorKeys {
     val BAD_CURSOR = ErrorCopyKey("error_photos_bad_cursor")
     /** `pageSize` outside `1..MAX_FEED_PAGE_SIZE` — never ship the whole library in one message. */
     val BAD_PAGE_SIZE = ErrorCopyKey("error_photos_bad_page_size")
+    /** A feed `kind` other than `all` / `videos` — a caller bug, said loudly (never "everything"). */
+    val BAD_KIND = ErrorCopyKey("error_photos_bad_kind")
     /** An album id no `Album` row has. Writes would otherwise no-op (or orphan entries) silently. */
     val UNKNOWN_ALBUM = ErrorCopyKey("error_photos_unknown_album")
     /** A path with no media file at it, for an op that needs one (add to album, trash). */
@@ -235,6 +262,12 @@ class PhotoJs internal constructor(
     val lngE7: Double?,
     val pixelWidth: Int?,
     val pixelHeight: Int?,
+    /**
+     * ED-3 (`photos-editing.md` §12): where this photo's non-destructive edit is baked, or `null`.
+     * ⚠⚠ A tile or viewer draws THIS when it is set — never [path], which for a redacted edit is the
+     * very picture the edit hides (§12.4).
+     */
+    val renditionPath: String?,
 )
 
 @JsExport

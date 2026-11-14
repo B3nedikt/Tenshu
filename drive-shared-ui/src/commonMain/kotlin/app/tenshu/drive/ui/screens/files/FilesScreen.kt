@@ -1,5 +1,8 @@
 package app.tenshu.drive.ui.screens.files
 
+import app.tenshu.ui.feedback.SyncActivityCapsule
+import app.tenshu.ui.feedback.rememberSyncActivity
+import org.tenshu.sync.common.SyncActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -75,6 +78,7 @@ fun FilesScreen(
     val selectedPaths by viewModel.selectedPaths.collectAsState()
     val syncRules by viewModel.syncRules.collectAsState()
     val syncBanner by viewModel.syncBanner.collectAsState()
+    val syncActivity = rememberSyncActivity(viewModel.catchingUp)
     val changeLost by viewModel.changeLost.collectAsState()
     val sort by viewModel.sort.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
@@ -151,6 +155,7 @@ fun FilesScreen(
         selectedPaths = selectedPaths,
         syncRules = syncRules,
         syncBanner = syncBanner,
+        syncActivity = syncActivity,
         changeLost = changeLost,
         onDismissChangeLost = viewModel::dismissChangeLost,
         sort = sort,
@@ -200,6 +205,7 @@ fun FilesScreenContent(
     selectedPaths: Set<String>,
     syncRules: SyncRuleSet = SyncRuleSet.Default,
     syncBanner: SyncBannerState? = null,
+    syncActivity: SyncActivity = SyncActivity.Idle,
     changeLost: ChangeLostModel? = null,
     onDismissChangeLost: (String) -> Unit = {},
     sort: FileSort = FileSort.Default,
@@ -306,6 +312,12 @@ fun FilesScreenContent(
                 onUploadImages = onUploadImages
             )
         }
+        // SS-2 (`suite-sync-status.md`): "Syncing…" while Control pulls. Uploads stay in the banner
+        // above; any banner, or the selection bar, hides it.
+        SyncActivityCapsule(
+            activity = syncActivity,
+            hidden = syncBanner != null || selectedPaths.isNotEmpty(),
+        )
     }
 }
 

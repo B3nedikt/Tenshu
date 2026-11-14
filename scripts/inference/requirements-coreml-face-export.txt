@@ -1,0 +1,20 @@
+# The toolchain `export-coreml-face-embedder.py` converts and self-checks with, and refuses to run
+# outside of. Python 3.13.
+#
+# The SigLIP export's set first: one coremltools / torch / numpy pairing for every Core ML artifact
+# in the catalog, so a bump is one decision (its own comments say why each pin is where it is).
+# `transformers` comes along with it and is not used here.
+-r requirements-coreml-export.txt
+
+# What the face embedder needs beyond that set (`ios-face-grouping.md` §10.2, the F1a route):
+#
+# ⚠ ONNX → PyTorch. coremltools has no ONNX frontend, so the graph is rebuilt as torch modules and
+# traced. onnx2torch's op mapping decides the traced graph, and with it the archive's bytes.
+onnx==1.23.2
+onnx2torch==1.5.15
+# The fp32 reference the self-check compares against. ⚠ Not the apps' version
+# (`gradle/libs.versions.toml` holds 1.22.0): the reference is the fp32 source graph on the CPU
+# provider, where no quantised kernel is involved. 1.31.1 is what F1a measured with.
+onnxruntime==1.31.1
+# Slices the public synthetic face grid (`--faces`) for the self-check. Never part of the artifact.
+pillow==13.0.0

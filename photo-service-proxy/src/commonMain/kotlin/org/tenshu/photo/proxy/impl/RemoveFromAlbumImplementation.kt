@@ -10,9 +10,17 @@ import org.tenshu.core.common.proxy.executor.read
 import org.tenshu.core.entity.DataId
 import org.tenshu.photo.AlbumEntry
 import org.tenshu.photo.RemoveFromAlbum
+import org.tenshu.sync.common.TombstoneEmitter
 
-/** Removes one entry. ⚠ The photograph itself is not reachable from here — see [RemoveFromAlbum]. */
-internal class RemoveFromAlbumImplementation : SyncOperationImplementation {
+/**
+ * Removes one entry. ⚠ The photograph itself is not reachable from here — see [RemoveFromAlbum].
+ *
+ * ⚠⚠ The tombstone is the op's own duty (`SyncObserver.onDataDeleted` is a no-op): without it the
+ * photo stays in the album on every other device.
+ */
+internal class RemoveFromAlbumImplementation(
+    private val tombstoneEmitter: TombstoneEmitter? = null,
+) : SyncOperationImplementation {
 
     @Suppress("UNCHECKED_CAST")
     override fun <T : Data?> execute(
@@ -25,13 +33,13 @@ internal class RemoveFromAlbumImplementation : SyncOperationImplementation {
         val albumId: TString = params.read(RemoveFromAlbum.Params.ALBUM_ID)
         val contentId: TString = params.read(RemoveFromAlbum.Params.CONTENT_ID)
 
-        executionContext.deleteData(
-            DataId.StringDataId.create(
-                context = executionContext.context,
-                type = AlbumEntry.ID,
-                keyValue = AlbumEntry.keyOf(albumId.get(), contentId.get()),
-            )
+        val entryId = DataId.StringDataId.create(
+            context = executionContext.context,
+            type = AlbumEntry.ID,
+            keyValue = AlbumEntry.keyOf(albumId.get(), contentId.get()),
         )
+        executionContext.deleteData(entryId)
+        tombstoneEmitter?.emit(targetEntityId = entryId, targetEntityType = AlbumEntry.ID)
         return null as T
     }
 }

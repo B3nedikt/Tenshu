@@ -10,6 +10,7 @@ import org.tenshu.core.common.proxy.executor.OperationImplementationFactory
 import org.tenshu.core.common.proxy.db.StoreWipeNotFinished
 import org.tenshu.core.common.util.runCatchingCancellable
 import org.tenshu.sync.common.SyncManager
+import org.tenshu.sync.proxy.RealmRegistry
 import org.tenshu.sync.proxy.pendingTombstoneCount
 import org.tenshu.sync.proxy.purgeOutboundQueues
 import org.tenshu.sync.RevokeDevice
@@ -41,7 +42,7 @@ internal class ForgetThisDeviceImplementation(
     /**
      * Builds the real [RevokeDeviceImplementation], not a re-implementation of it. The retire step
      * must stay byte-identical to an ordinary removal — same tombstone, same `revokedDeviceId`,
-     * same subtree revocations — or a device that forgets itself would leave the realm in a subtly
+     * same key revocations — or a device that forgets itself would leave the realm in a subtly
      * different state from one removed by a peer.
      *
      * ⚠ A **factory** rather than an instance so each run can bind its own strip-failure observer;
@@ -49,15 +50,37 @@ internal class ForgetThisDeviceImplementation(
      */
     private val revokeDevice: (onRelayStripFailed: () -> Unit) -> AsyncOperationImplementation,
     private val nowMs: () -> Long,
+    /**
+     * The shared realms this device runs, each a [org.tenshu.sync.proxy.RealmRuntime] holding its
+     * own copy of this device's id and A4 pair (or a per-realm key) and its own pull cursor.
+     * `null` where shared realms are not wired.
+     */
+    private val realmRegistry: RealmRegistry? = null,
+    /**
+     * Whether the relay is refusing this device's identity right now
+     * (`SyncScheduler.relayRefusesThisDevice`). Polled by the retirement wait; see its short-circuit.
+     * `{ false }` where no scheduler is reachable, which keeps the bounded wait as the only exit.
+     */
+    private val relayRefusesThisDevice: () -> Boolean = { false },
 ) : AsyncOperationImplementation {
 
-    @Suppress("UNCHECKED_CAST")
     override suspend fun <T : Data?> execute(
         executionContext: ExecutionContext,
         operationContext: OperationContext?,
         implementationFactory: OperationImplementationFactory,
         caller: Any?,
         params: Map<String, Data>?,
+    ): T {
+        // ⚠⚠ No shared realm may register for the whole forget, and none survives it — see
+        // [RealmRegistry.whileForgetting]. Step 2b below stops the ones already running.
+        val registry = realmRegistry ?: return forget(executionContext, implementationFactory)
+        return registry.whileForgetting { forget(executionContext, implementationFactory) }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private suspend fun <T : Data?> forget(
+        executionContext: ExecutionContext,
+        implementationFactory: OperationImplementationFactory,
     ): T {
         // 1 — leave the realm before destroying the means to say so.
         val retirement = runCatchingCancellable { retireThisDeviceRow(executionContext, implementationFactory) }
@@ -68,6 +91,14 @@ internal class ForgetThisDeviceImplementation(
         val queued = runCatching {
             executionContext.purgeOutboundQueues(syncManager.residentOwnerId)
         }.getOrNull()
+
+        // 2b — stop every shared realm. ⚠⚠ Each runtime holds its own copy of the identity being
+        // forgotten and its own in-memory cursor: left registered, the scheduler goes on pushing
+        // under the old id and key and pulls the realm straight back into the store wiped below
+        // (§7i.5). Before the wipe, so nothing refills it; the next membership to sync in
+        // registers afresh under the new identity.
+        val sharedRealmsStopped = realmRegistry?.unregisterAll() ?: 0
+        if (sharedRealmsStopped > 0) println("forgetThisDevice -> $sharedRealmsStopped shared realm(s) stopped")
 
         // 3 — the local copy of realm data (RG-3 / D3, decided 2026-08-23).
         //
@@ -102,12 +133,25 @@ internal class ForgetThisDeviceImplementation(
         }
 
         // 4 — the identity itself (its cursor reset tolerates a fenced handle, B.14 (192)).
-        syncManager.forgetThisDevice()
-
         // ⚠ Reported, never assumed. `WipeableObjectStore` is an optional capability, so a store that
         // cannot wipe says so here rather than leaving a silent half reset behind.
         val storeNote = if (storeDropped) "local store dropped" else "⚠ local store NOT dropped"
-        return TStringDto("forgotten — $retirement; $queueNote; $storeNote") as T
+
+        // ⚠⚠ Reports a clean forget only once the NEW key is at rest (threat model A4, *lifecycle*):
+        // a key held in memory alone would be paired, then replaced by a restart, orphaning the
+        // admitted id at the relay. ⚠ Not "not finished": custody is already gone, so a repeated
+        // forget would NOT report a leftover row — the row and the store are reported beside it.
+        val keyNote = try {
+            syncManager.forgetThisDevice()
+            null
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (failure: Throwable) {
+            println("forgetThisDevice -> the new device key could not be saved: $failure")
+            "⚠ $NEW_KEY_NOT_SAVED"
+        }
+        val tail = listOfNotNull(storeNote, keyNote).joinToString("; ")
+        return TStringDto("forgotten — $retirement; $queueNote; $tail") as T
     }
 
     private suspend fun retireThisDeviceRow(
@@ -157,9 +201,21 @@ internal class ForgetThisDeviceImplementation(
         // ⚠⚠ "Actually left" is directly observable: `SyncScheduler` drains PENDING_TOMBSTONES and
         // removes what it pushed, so an empty array is the honest signal. Bounded — a device with no
         // connectivity must still be able to forget itself.
+        //
+        // ⚠⚠ The second short-circuit, for the device the strip cannot speak for: a **joiner** holds
+        // no A1, so `RevokeDevice` never tries the strip and [relayStripFailed] stays false even when
+        // the relay has stopped accepting this device (already removed by its owner, or forgotten by
+        // the relay). Its tombstone push is then refused on every attempt, and the wait used to run
+        // all [RETIREMENT_PUSH_TIMEOUT_MS] for it. The scheduler knows: a `401` it cannot repair holds
+        // [relayRefusesThisDevice]. Checked on every poll, after the queue, because the scheduler may
+        // meet that `401` while we wait, and because a queue that already emptied is a confirmed
+        // removal whatever the relay says afterwards. [UNCONFIRMED] for the reason the strip branch
+        // gives: we stopped waiting, and cannot tell "the owner already retired this row" from "the
+        // relay forgot us and the row is still there".
         val deadline = nowMs() + RETIREMENT_PUSH_TIMEOUT_MS
         while (nowMs() < deadline) {
             if (executionContext.pendingTombstoneCount() == 0) return "removed from your realm"
+            if (relayRefusesThisDevice()) return UNCONFIRMED
             delay(RETIREMENT_POLL_MS)
         }
         return LEFTOVER_ROW
@@ -180,6 +236,10 @@ internal class ForgetThisDeviceImplementation(
          * refused us, so we never learned whether the tombstone landed — asserting the row is still
          * there would send the user to fix something that may already be fine.
          */
+        /** ⚠ Its phrase is matched by Control's Welcome notice (`FORGET_OUTCOME_KEY_NOT_SAVED`). */
+        const val NEW_KEY_NOT_SAVED =
+            "new device key NOT saved — quit and reopen Tenshu Control before pairing"
+
         const val UNCONFIRMED =
             "⚠ could not confirm this device left your realm — check your devices from another one"
     }

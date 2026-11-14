@@ -1,5 +1,13 @@
 package app.tenshu.maps.ui
 
+import app.tenshu.ui.feedback.SyncActivityCapsule
+import app.tenshu.ui.feedback.rememberSyncActivity
+import org.tenshu.sync.client.anyCatchUpHeartbeat
+import app.tenshu.reachability.SuiteSyncProblem
+import app.tenshu.ui.feedback.SuiteSyncBanner
+import app.tenshu.ui.feedback.rememberSuiteSyncProblem
+import org.tenshu.sync.client.syncConnectivity
+import org.tenshu.sync.client.syncService
 import app.tenshu.maps.shared.resources.maps_update_action
 import app.tenshu.ui.feedback.appControlCheckingLabel
 import kotlinx.coroutines.flow.emptyFlow
@@ -114,6 +122,16 @@ fun App(
     // inset below depends on it; read inside the host, the storage banner draws under the status
     // bar.
     val storageState = rememberRealmStorageState()
+    // ⚠⚠ One strip for the app (`suite-sync-status.md` SS-1): Control's state, this device's sync
+    // health and storage, in one order. Control's banner below keeps this app's own words.
+    val tenshuClient: TenshuClient = koinInject()
+    val connectivity = remember(tenshuClient) { tenshuClient.syncService.syncConnectivity() }
+    val syncProblem = rememberSuiteSyncProblem(unreachableReason, storageState, connectivity)
+    // SS-2 (`suite-sync-status.md`): "Syncing…" while Control pulls, through its heartbeat so a
+    // killed Control's stale flag never sticks.
+    val catchingUp = remember(tenshuClient) { tenshuClient.syncService.anyCatchUpHeartbeat() }
+    val syncActivity = rememberSyncActivity(catchingUp)
+    val controlReason = (syncProblem as? SuiteSyncProblem.Control)?.reason
 
     // ⚠⚠ **The wall replaces the app, it does not sit on top of it** (ADR 0025 §Decision 1,
     // amended). Without Control there is no realm to read, so every surface underneath a banner is
@@ -170,7 +188,7 @@ fun App(
             // battery icons. ⚠ BOTH banners count: a storage banner is just as much the top element
             // as the reachability one.
             .then(
-                if (unreachableReason != null || storageState !is RealmStorageState.Ok) {
+                if (syncProblem != SuiteSyncProblem.None) {
                     Modifier.windowInsetsPadding(WindowInsets.statusBars)
                 } else {
                     Modifier
@@ -180,7 +198,7 @@ fun App(
         // WARN: gated on the REASON, not `controlReachable == false`. A fenced device
         // answers every read - its state stays true - so that condition could never
         // fire for the one case where the app is silently receiving nothing (a fenced device).
-        if (unreachableReason != null) {
+        if (controlReason != null) {
             // ⚠⚠ The app to name is frequently NOT Maps: on Android and desktop one
             // Control-owned proxy serves every app, so a version disagreement is usually
             // Control's to fix and telling the user to update Maps is a dead end.
@@ -188,9 +206,9 @@ fun App(
             // in the store must NOT be told "install it the way you installed this app", because
             // that way does not work (ADR 0025 §Decision 6).
             val installRoute = rememberControlInstallRoute()
-            val action = rememberControlBannerAction(unreachableReason, installRoute)
+            val action = rememberControlBannerAction(controlReason, installRoute)
             ErrorBanner(
-                text = when (val r = unreachableReason) {
+                text = when (val r = controlReason) {
                     is UnreachableReason.Skew -> when (r.update) {
                         UpdateTarget.CONTROL -> stringResource(Res.string.maps_skew_update_control)
                         UpdateTarget.THIS_APP -> stringResource(Res.string.maps_skew_update_this_app)
@@ -216,7 +234,7 @@ fun App(
                     }
                     UnreachableReason.Transport, null -> stringResource(Res.string.maps_control_unreachable_text)
                 },
-                icon = controlBannerIcon(unreachableReason),
+                icon = controlBannerIcon(controlReason),
                 actionLabel = action?.let {
                     when (it.kind) {
                         ControlBannerAction.Kind.OPEN_CONTROL ->
@@ -230,14 +248,21 @@ fun App(
                 onAction = action?.onClick,
             )
         }
-        // ⚠ Below the reachability banner, not instead of it: "Control is gone" and "the realm
-        // cannot sync" are different facts and a user can be owed both. ⚠⚠ Suppressed while Control
-        // is unreachable. Both facts are real, but the storage one is not actionable while the
-        // first is true — its *Manage storage* button opens a Control that is not answering — and
-        // two stacked bars push the app's own header off the top of the screen.
-        if (unreachableReason == null) RealmStorageBannerHost(storageState)
+        // One problem, one bar (two stacked pushed the header off screen): Control's banner is drawn
+        // just above in this app's words when it is the problem; any other problem is drawn here.
+        SuiteSyncBanner(
+            problem = syncProblem,
+            controlBanner = {},
+            storageBanner = { RealmStorageBannerHost(it) },
+        )
         Box(Modifier.weight(1f).fillMaxWidth()) {
             NavContent(backStack, today, ::pop, ::push)
+            // Over the screens, never beside them; a problem strip, or a screen that is not a tab, hides it.
+            SyncActivityCapsule(
+                activity = syncActivity,
+                // Maps has no tab marker: Places is its one root, and every other screen is a detail.
+                hidden = syncProblem != SuiteSyncProblem.None || backStack.last() != Destination.Places,
+            )
         }
     }
 }

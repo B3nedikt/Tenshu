@@ -1,16 +1,19 @@
 // /control/apps/:appId — per-app detail per `web-control-plane.md` §4.2
 // + `control-ia.md` §4.2. Reads the live `AppRegistry`: declared permissions
-// with an interactive tri-state grant control (granted / denied / ask each
-// time + last-used), service cross-links to §6 Services, install date, version,
-// and the per-app actions (revoke-all, uninstall). Writes go to the mock
-// registry today and to the real `Apps.installed()` SDK surface once it lands —
-// the page is unchanged by that swap.
+// with a tri-state grant control (display state on the web — `appRegistry.ts`),
+// service cross-links to §6 Services, version, and — from the realm's
+// `AppRegistration` rows — the install date and the devices it runs on
+// (web-apex-home.md §4.7).
+//
+// ⚠⚠ Removal is ALL devices or nothing: the browser holds no registration of
+// its own, so "this device" would be a silent no-op. The app stays openable on
+// the web afterwards, so the page stays where it is.
 import { useState } from 'react'
-import { Link, Navigate, useNavigate, useParams } from 'react-router'
+import { Link, Navigate, useParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
-import { useAppDetail, useAppRegistry } from './appRegistryContext'
-import { type GrantState, type UninstallScope } from './appRegistry'
+import { useAppDetail, useAppRegistrations, useAppRegistry } from './appRegistryContext'
+import { type AppRegistrationInfo, type GrantState, type RegistrationsState } from './appRegistry'
 import { type AppPermission, type AppServiceLink, type PermissionState } from './manifest'
 
 const GRANT_OPTION_STATES: readonly GrantState[] = ['granted', 'denied', 'askEachTime']
@@ -19,12 +22,24 @@ export function AppDetailPage() {
   const { t } = useTranslation('control')
   const { appId } = useParams<{ readonly appId: string }>()
   const registry = useAppRegistry()
-  const navigate = useNavigate()
   const app = useAppDetail(appId ?? '')
-  const [confirmingUninstall, setConfirmingUninstall] = useState(false)
+  const registrations = useAppRegistrations()
+  const [confirmingRemoval, setConfirmingRemoval] = useState(false)
+  const [removing, setRemoving] = useState(false)
+  const [removalFailed, setRemovalFailed] = useState(false)
 
   if (appId === undefined) return <Navigate to="/control/apps" replace />
   if (app === null) return <NotFound id={appId} />
+  const registration = registrations.kind === 'ready' ? (registrations.byApp.get(app.id) ?? null) : undefined
+
+  async function remove(id: string) {
+    setRemoving(true)
+    setRemovalFailed(false)
+    const ok = await registry.removeFromAllDevices(id)
+    setRemoving(false)
+    setConfirmingRemoval(false)
+    if (!ok) setRemovalFailed(true)
+  }
 
   return (
     <div>
@@ -49,7 +64,7 @@ export function AppDetailPage() {
 
       <dl className="mt-6 grid gap-4 sm:grid-cols-3">
         <MetaCell term={t('apps.detail.meta.version')} value={`v${app.version}`} />
-        <MetaCell term={t('apps.detail.meta.installed')} value={new Date(app.installedAtMs).toLocaleDateString()} />
+        <MetaCell term={t('apps.detail.meta.installed')} value={installedValue(registration, t)} />
         <MetaCell term={t('apps.detail.meta.launchPath')} value={app.launchPath} mono />
       </dl>
 
@@ -86,6 +101,11 @@ export function AppDetailPage() {
         </ul>
       </section>
 
+      <section className="mt-8">
+        <SectionHeader>{t('apps.detail.devices.title')}</SectionHeader>
+        <DevicesBody registrations={registrations} registration={registration} />
+      </section>
+
       <section className="mt-10">
         <SectionHeader>{t('apps.detail.perAppActions')}</SectionHeader>
         <div className="mt-3 flex flex-wrap gap-3">
@@ -96,24 +116,30 @@ export function AppDetailPage() {
           >
             {t('apps.detail.revokeAll')}
           </button>
-          <button
-            type="button"
-            onClick={() => setConfirmingUninstall(true)}
-            className="rounded-md bg-danger px-3 py-1.5 text-sm font-medium text-white hover:bg-danger/90"
-          >
-            {t('apps.detail.uninstall')}
-          </button>
+          {/* Only with something to remove: no device holds a row while loading, failed or unused. */}
+          {registration != null && (
+            <button
+              type="button"
+              onClick={() => setConfirmingRemoval(true)}
+              className="rounded-md bg-danger px-3 py-1.5 text-sm font-medium text-white hover:bg-danger/90"
+            >
+              {t('apps.detail.uninstall')}
+            </button>
+          )}
         </div>
+        {removalFailed && (
+          <p role="alert" className="mt-3 text-sm text-danger">
+            {t('apps.detail.uninstallConfirm.failed', { appName: app.label })}
+          </p>
+        )}
       </section>
 
-      {confirmingUninstall && (
+      {confirmingRemoval && (
         <UninstallConfirm
           appName={app.label}
-          onCancel={() => setConfirmingUninstall(false)}
-          onConfirm={scope => {
-            registry.uninstall(app.id, scope)
-            navigate('/control/apps')
-          }}
+          busy={removing}
+          onCancel={() => setConfirmingRemoval(false)}
+          onConfirm={() => void remove(app.id)}
         />
       )}
     </div>
@@ -257,15 +283,16 @@ function ServiceRow({ link }: { readonly link: AppServiceLink }) {
 
 function UninstallConfirm({
   appName,
+  busy,
   onCancel,
   onConfirm,
 }: {
   readonly appName: string
+  readonly busy: boolean
   readonly onCancel: () => void
-  readonly onConfirm: (scope: UninstallScope) => void
+  readonly onConfirm: () => void
 }) {
   const { t } = useTranslation('control')
-  const [scope, setScope] = useState<UninstallScope>('thisDevice')
   return (
     <div
       role="dialog"
@@ -274,19 +301,7 @@ function UninstallConfirm({
     >
       <div className="w-full max-w-md rounded-lg bg-surface p-6 shadow-xl">
         <h2 className="text-lg font-medium">{t('apps.detail.uninstallConfirm.title', { appName })}</h2>
-        <fieldset className="mt-4 space-y-2">
-          <ScopeOption
-            checked={scope === 'thisDevice'}
-            label={t('apps.detail.uninstallConfirm.thisDevice')}
-            onSelect={() => setScope('thisDevice')}
-          />
-          <ScopeOption
-            checked={scope === 'allDevices'}
-            label={t('apps.detail.uninstallConfirm.allDevices')}
-            onSelect={() => setScope('allDevices')}
-          />
-        </fieldset>
-        <p className="mt-3 text-xs text-text-2">{t('apps.detail.uninstallConfirm.note')}</p>
+        <p className="mt-3 text-sm text-text-2">{t('apps.detail.uninstallConfirm.note')}</p>
         <div className="mt-5 flex justify-end gap-2">
           <button
             type="button"
@@ -297,8 +312,11 @@ function UninstallConfirm({
           </button>
           <button
             type="button"
-            onClick={() => onConfirm(scope)}
-            className="rounded-md bg-danger px-3 py-1.5 text-sm font-medium text-white hover:bg-danger/90"
+            aria-disabled={busy || undefined}
+            onClick={() => {
+              if (!busy) onConfirm()
+            }}
+            className="rounded-md bg-danger px-3 py-1.5 text-sm font-medium text-white hover:bg-danger/90 aria-disabled:opacity-50"
           >
             {t('apps.detail.uninstallConfirm.remove')}
           </button>
@@ -308,19 +326,37 @@ function UninstallConfirm({
   )
 }
 
-function ScopeOption({
-  checked,
-  label,
-  onSelect,
+/** `undefined` = no answer (loading / failed) → a dash, never a guessed date. */
+function installedValue(registration: AppRegistrationInfo | null | undefined, t: TFunction): string {
+  if (registration === undefined) return '—'
+  if (registration === null) return t('apps.detail.meta.notInstalled')
+  return new Date(registration.installedAtMs).toLocaleDateString()
+}
+
+function DevicesBody({
+  registrations,
+  registration,
 }: {
-  readonly checked: boolean
-  readonly label: string
-  readonly onSelect: () => void
+  readonly registrations: RegistrationsState
+  readonly registration: AppRegistrationInfo | null | undefined
 }) {
+  const { t } = useTranslation('control')
+  if (registrations.kind === 'loading') {
+    return <p className="mt-1 text-xs text-text-2">{t('apps.detail.devices.loading')}</p>
+  }
+  if (registration === undefined) {
+    return <p className="mt-1 text-xs text-text-2">{t('apps.detail.devices.unavailable')}</p>
+  }
+  if (registration === null) {
+    return <p className="mt-1 text-xs text-text-2">{t('apps.detail.devices.none')}</p>
+  }
   return (
-    <label className="flex items-center gap-2 text-sm text-text">
-      <input type="radio" name="uninstall-scope" checked={checked} onChange={onSelect} />
-      {label}
-    </label>
+    <ul className="mt-3 divide-y divide-line rounded-md border border-line">
+      {registration.devices.map(device => (
+        <li key={device.deviceId} className="px-4 py-3 text-sm text-text">
+          {device.name ?? t('apps.detail.devices.unknownDevice')}
+        </li>
+      ))}
+    </ul>
   )
 }

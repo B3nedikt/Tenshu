@@ -74,14 +74,12 @@ import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import androidx.lifecycle.viewModelScope
 import app.tenshu.control.ui.screens.models.CapabilityConsent
 import app.tenshu.control.ui.screens.models.ClientModelsDevices
 import app.tenshu.control.ui.screens.models.ModelsMessage
 import app.tenshu.control.ui.screens.models.ModelsRepository
 import app.tenshu.control.ui.screens.models.ModelsViewModel
 import app.tenshu.control.ui.screens.models.OnDeviceModelsCapabilities
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.toList
@@ -90,6 +88,8 @@ import org.tenshu.core.common.proxy.ClientRegistry
 import org.tenshu.inference.proxy.hasInferenceConsent
 import app.tenshu.photos.ui.screens.search.ModelsSwitchHome
 import app.tenshu.photos.model.SemanticSearchStatus
+import org.tenshu.viewmodel.test.OwnedViewModels
+import org.tenshu.viewmodel.test.vmBlocking
 
 /**
  * `ios-on-device-inference.md` §14.11: the model download **as Photos' graph
@@ -144,12 +144,19 @@ class PhotosModelDownloadTest {
     private val eightGigabytes = 8L * 1024 * 1024 * 1024
     private val admittedPhone = PhotosLocalRuntime.OnDeviceAiInputs(buildFlag = true, osMajorVersion = 17, physicalMemoryBytes = eightGigabytes)
 
+    /**
+     * This test's phone's shared replica, one per test: a relaunch is on the same store. ⚠ Its
+     * epoch is half the inference realm stamp, so a new replica per process would be a store
+     * replaced between launches, and the index would be cleared.
+     */
+    private val replica: String = temp("photos-dl-replica")
+
     private fun photos(
         root: String,
         onDeviceAi: PhotosLocalRuntime.OnDeviceAiInputs? = admittedPhone,
         overrides: Module? = null,
     ): PhotosLocalRuntime.Assembly = PhotosLocalRuntime.assemble(
-        replicaDirectory = temp("photos-dl-replica"),
+        replicaDirectory = replica,
         secureStorage = InMemorySecureStorageDelegate(),
         handedOffMaterial = material(),
         relayBaseUrl = "http://127.0.0.1:1",
@@ -562,6 +569,55 @@ class PhotosModelDownloadTest {
         assertTrue(PhotosModelDownloads.leftBehind(root))
     }
 
+    /**
+     * ⚠⚠ §14.18.16 item 5, the Kotlin half of the drain, in the order `PhotosIosApp.init` and
+     * `ModelDownload.drain` run it on a flag-off build: the build offers nothing, finds that an
+     * enabled one downloaded here, names every task its session still holds for cancelling, lets
+     * none of them speak, and deletes what they delivered. Then an enabled build again (the flag
+     * turned back on, or an update): it resumes from the journal the drain left and fetches again
+     * exactly what the drain cancelled or deleted, on the download's own Wi-Fi-only choice.
+     * ⚠ What stays the phone's: that a flag-off build's `getAllTasks` lists an enabled build's
+     * tasks at all, and that cancelling them ends the relaunches (`pio7-phone-session.md`).
+     */
+    @Test
+    fun aFlagOffBuildDrainsWhatAnEnabledOneLeftAndTheNextEnabledBuildResumesFromTheJournal() = runBlocking {
+        val root = temp("photos-drain")
+        // The enabled build journalled the download and was replaced: vision arrived, the other two
+        // are still running in the session, as tasks 7 and 8.
+        journal(root, generation)
+        val vision: String = refOf(generation, ModelArtifactRole.VISION)
+        assertTrue(deliver(root, vision, generation.getValue(ModelArtifactRole.VISION)))
+        val running = listOf(
+            org.tenshu.inference.proxy.catalog.ModelSessionTransfer(7, refOf(generation, ModelArtifactRole.TEXT)),
+            org.tenshu.inference.proxy.catalog.ModelSessionTransfer(8, refOf(generation, ModelArtifactRole.VOCABULARY)),
+        )
+
+        // This test binary's Info.plist says nothing, which is a flag-off build's answer.
+        assertFalse(PhotosLocalRuntime.modelDownloadsOffered(), "the premise: this build offers a model")
+        assertTrue(PhotosModelDownloads.leftBehind(root), "a build that offers nothing would not attach the session")
+        val ledger = org.tenshu.inference.proxy.catalog.ModelTransferLedger(offered = PhotosLocalRuntime.modelDownloadsOffered())
+        assertEquals(listOf(7L, 8L), ledger.notOffered(running), "a task was left running for a build that installs nothing")
+        assertFalse(ledger.speaksFor(7, running[0].ref), "a drained task may still deliver")
+        assertNull(ledger.completed(8, running[1].ref, cancelled = false), "a drained task's end was reported")
+        assertEquals(emptySet(), PhotosModelDownloads.discardDelivered(root))
+        assertEquals(emptySet<String>(), PhotosModelDownloads.deliveredRefs(root))
+        assertTrue(journalText(root).orEmpty().contains(vision), "the drain took the journal with it")
+
+        // An enabled build over the drained phone: nothing is live in the session any more.
+        val session = Session()
+        val photos = photos(root, overrides = over(session))
+        assertTrue(PhotosLocalRuntime.checkInferenceStores(photos))
+        PhotosOnDeviceAi.recheck(photos.koin, launch = true)
+
+        assertEquals(
+            generation.keys.map { refOf(generation, it) }.toSet(),
+            session.started.map { it.ref }.toSet(),
+            "the next enabled build did not fetch again what the drain cancelled and deleted",
+        )
+        assertTrue(session.started.none { it.allowsCellular }, "a Wi-Fi-only download came back allowing cellular")
+        assertTrue(photos.store().installed().isEmpty())
+    }
+
     // ─── What the Models screen reads (§14.18): one source, bound under its interface ──────────
 
     @Test
@@ -686,12 +742,12 @@ class PhotosModelDownloadTest {
 
     /** §1.8: where a backend is bound the search bar's consent line names Photos' own Settings. */
     @Test
-    fun theSearchBarsConsentLineNamesPhotosOwnSettingsWhereABackendIsBound() {
+    fun theSearchBarsConsentLineNamesPhotosOwnSettingsWhereABackendIsBound() = vmBlocking { owned ->
         PhotosSurface.installOnDeviceAi { false }
-        assertEquals(ModelsSwitchHome.THIS_APP, PhotosSurface.search("iPhone").state.value.modelsSwitch)
+        assertEquals(ModelsSwitchHome.THIS_APP, owned.own(PhotosSurface.search("iPhone")).state.value.modelsSwitch)
         // With none bound the proxy is never asked, so no such line can be reached.
         PhotosSurface.installNotConnected()
-        assertIs<SemanticSearchStatus.NotBuiltHere>(PhotosSurface.search("iPhone").state.value.semanticStatus)
+        assertIs<SemanticSearchStatus.NotBuiltHere>(owned.own(PhotosSurface.search("iPhone")).state.value.semanticStatus)
     }
 
     /**
@@ -763,7 +819,8 @@ class PhotosModelDownloadTest {
         val photos = photos(root, overrides = over(session))
         assertTrue(PhotosLocalRuntime.checkInferenceStores(photos))
         PhotosSurface.installModels(photos.modelsRepository)
-        val vm: ModelsViewModel = PhotosSurface.models().viewModel
+        val owned = OwnedViewModels()
+        val vm: ModelsViewModel = owned.own(PhotosSurface.models().viewModel)
         fun setup(): ModelSetup? = vm.uiState.value.models.singleOrNull()?.setup
         try {
             // The screen's own open asks for the check, which reads the journal: no tap, and the download is shown.
@@ -798,17 +855,15 @@ class PhotosModelDownloadTest {
             PhotosOnDeviceAi.retire(photos.koin)
             eventually("a retired graph was not said: ${vm.uiState.value}") { vm.uiState.value.availability == ModelsAvailability.NotConnected }
             PhotosSurface.installNotConnected()
-            val after: ModelsViewModel = PhotosSurface.models().viewModel
-            try {
-                // ⚠ The build flag of the test host is off: with no runtime the screen says nothing is offered here.
-                eventually("no runtime was not said: ${after.uiState.value}") { after.uiState.value.availability !is ModelsAvailability.Loading }
-                assertTrue(after.uiState.value.availability is ModelsAvailability.NotOffered || after.uiState.value.availability == ModelsAvailability.NotConnected)
-            } finally {
-                after.viewModelScope.cancel()
-            }
+            val after: ModelsViewModel = owned.own(PhotosSurface.models().viewModel)
+            // ⚠ The build flag of the test host is off: with no runtime the screen says nothing is offered here.
+            eventually("no runtime was not said: ${after.uiState.value}") { after.uiState.value.availability !is ModelsAvailability.Loading }
+            assertTrue(after.uiState.value.availability is ModelsAvailability.NotOffered || after.uiState.value.availability == ModelsAvailability.NotConnected)
         } finally {
-            vm.viewModelScope.cancel()
+            // Reverse order: `after`, then `vm`.
+            owned.closeAll()
         }
+        owned.assertNothingActive()
     }
 }
 

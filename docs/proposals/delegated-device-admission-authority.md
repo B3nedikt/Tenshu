@@ -198,7 +198,8 @@ keeps minting admissions.
 - **Per-cert revocation set** on the relay, keyed by `deviceId` (or cert hash),
   master-signed by an A1-holder (mirrors GR's master-signed revoke). Verified in
   §4.4.
-- **Subtree question (§7 Q3):** revoking X should arguably revoke every device X
+- ⚠ *Superseded by `admission-revocation-names-the-capability.md` §7j.10 — no subtree revocation.*
+  **Subtree question (§7 Q3):** revoking X should arguably revoke every device X
   admitted (its subtree), since those were vouched for by X. v1 can take the
   conservative line — **revoke the subtree** — computed from the synced `Device`
   rows' recorded parent (add `admittedByDeviceId` to the Device schema). A
@@ -246,6 +247,10 @@ scans) is **related in surface, orthogonal in concern**:
   that observes the announcement re-mints a depth-1 grant, which the device
   adopts because it's flatter. No timer, no scheduled pass — depth self-heals
   whenever an owner device is online.
+- ⚠⚠ **Q3 is SUPERSEDED (2026-11-11) by `admission-revocation-names-the-capability.md` §7j.10:**
+  removal revokes only the removed device's own key; its admittees are kept or removed per device in
+  the removal dialog, and the relay checks revocation on the approver (`chain[0]`) only. What follows
+  is history.
 - **Q3 — Revocation granularity. RESOLVED (P5): conservative subtree.**
   Removing a device master-signs revocations for it AND every transitive
   descendant per `admittedByDeviceId` — including re-rooted ones, because the
@@ -419,6 +424,9 @@ realm is lost only if every device *and* the phrase are lost.
   custody note updated in the same PR.
 
 ### P5 as-built
+
+⚠⚠ *The subtree strip below was retired by `admission-revocation-names-the-capability.md` §7j.10
+(2026-11-11): `RevokeDevice` now revokes the removed device's own key(s) only.*
 
 - **Rides the existing removal, adds no ceremony:** `RevokeDevice` computes
   the `admittedByDeviceId` subtree from the synced Device rows *before* the

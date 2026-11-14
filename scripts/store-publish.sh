@@ -220,6 +220,9 @@ NAME = re.compile(r"^\d\d-[a-z0-9-]+\.png$")
 # the folder plus the screen name, so the key form follows the path — and has to match the generator's
 # MANIFEST_KEY_RE (web/apex/support-pages/generate.ts), which check-store-assets.py also enforces.
 APPEARANCE_DIRS = {"dark"}
+# ⚠ Never published: the promo set's captures are the maintainer's own photos
+# (store-screenshots.md §9, "The promo set"). Its device folder is skipped wherever it is found.
+PRIVATE_DEVICES = {"phonepromo"}
 objects = {}
 
 def png_size(path):
@@ -239,6 +242,8 @@ for app in apps:
     if os.path.isdir(shots):
         for dirpath, _dirs, files in os.walk(shots):
             rel = os.path.relpath(dirpath, shots).split(os.sep)
+            if len(rel) >= 2 and rel[1] in PRIVATE_DEVICES:
+                continue
             pngs = sorted(f for f in files if NAME.match(f))
             if not pngs:
                 continue

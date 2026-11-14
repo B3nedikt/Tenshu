@@ -119,6 +119,10 @@ object FileSystem {
     // Returns the same [FileRowJs] rows as [list]. Cost note: `traverse()` walks the whole drive per call
     // — fine for normal drives; a maintained flat index is the optimisation if it
     // gets hot (same caveat as native).
+    //
+    // ⚠⚠ A failed read REJECTS; it is never an empty array. Folding it to `[]` made Drive's Home and
+    // the apex overview's Drive card both say "no files yet" on a broken read — the failure-as-empty
+    // lie `web-apex-home.md` §3.6 forbids. Both callers already have an error state for a rejection.
     fun recentFiles(limit: Int): Promise<Array<FileRowJs>> = GlobalScope.promise {
         JsRuntime.awaitReady()
         val client = JsRuntime.tenshuClient
@@ -131,7 +135,7 @@ object FileSystem {
             .first()
             .fold(
                 onSuccess = { files -> files.toList().map { fileRowOf(it) }.toTypedArray() },
-                onFailure = { emptyArray() },
+                onFailure = { error -> throw IllegalStateException("recentFiles failed: $error") },
             )
     }
 

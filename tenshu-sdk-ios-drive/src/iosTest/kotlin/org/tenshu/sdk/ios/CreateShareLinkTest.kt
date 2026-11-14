@@ -9,8 +9,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import org.tenshu.viewmodel.test.vmTest
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -28,9 +28,9 @@ class CreateShareLinkTest {
     @AfterTest fun tearDown() = Dispatchers.resetMain()
 
     @Test
-    fun generate_link_calls_the_repo_and_surfaces_the_url() = runTest(dispatcher) {
+    fun generate_link_calls_the_repo_and_surfaces_the_url() = vmTest(dispatcher) { vms ->
         val fake = FakeFilesRepository()
-        val vm = DriveShareSurface.createShareLink(fake, "/budget.pdf")
+        val vm = vms.own(DriveShareSurface.createShareLink(fake, "/budget.pdf"))
 
         vm.onGenerateLinkClicked()
         advanceUntilIdle()
@@ -42,9 +42,9 @@ class CreateShareLinkTest {
     }
 
     @Test
-    fun a_failed_generate_surfaces_an_error_and_no_link() = runTest(dispatcher) {
+    fun a_failed_generate_surfaces_an_error_and_no_link() = vmTest(dispatcher) { vms ->
         val fake = FakeFilesRepository(shareLinkResult = RepositoryResult.Error(RepositoryError.Unknown(ErrorCopyKey.UNEXPECTED)))
-        val vm = DriveShareSurface.createShareLink(fake, "/budget.pdf")
+        val vm = vms.own(DriveShareSurface.createShareLink(fake, "/budget.pdf"))
 
         vm.onGenerateLinkClicked()
         advanceUntilIdle()

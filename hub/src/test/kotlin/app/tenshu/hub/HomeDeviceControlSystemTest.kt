@@ -75,23 +75,33 @@ class HomeDeviceControlSystemTest {
     fun tappingTheSwitchMovesTheLightAndTheOutcomeResolvesTheRow() = runBlocking {
         val system = TestSystem.builder().build()
         val dataRoot = createTempDirectory("hub-home-control-test").toFile()
-        var runtime: HubRuntime? = null
-        var host: DeviceBridgeHost? = null
-        try {
+        // Set as each is started, so teardown stops exactly what this run got to.
+        var startedRuntime: HubRuntime? = null
+        var startedHost: DeviceBridgeHost? = null
+        withBoundedTeardown({
+            step("stopping the device bridge host") { startedHost?.stop() }
+            step("shutting the hub runtime down") { startedRuntime?.shutdown() }
+            step("shutting the test system down") { system.shutdown() }
+            step("deleting the hub's data root") { dataRoot.deleteRecursively() }
+        }) {
             val phone = system.client("phone", TestClientRole.RealmHost, pollingIntervalMs = 200)
-            assertTrue(phone.bootstrapAsHost(deviceName = "Phone") is TResult.Success)
+            bounded("bootstrapping the phone as realm host") {
+                assertTrue(phone.bootstrapAsHost(deviceName = "Phone") is TResult.Success)
+            }
 
-            runtime = assembleHub(system, dataRoot)
-            runtime.start()
+            val runtime = assembleHub(system, dataRoot)
+            startedRuntime = runtime
+            bounded("starting the hub runtime") { runtime.start() }
             pairViaOfferFlow(phone, runtime)
 
             // Drift disabled: the sensor is not this test's subject.
             val bridge = SimulatedDeviceBridge(sensorTickMs = 60L * 60 * 1000)
-            host = DeviceBridgeHost(
+            val host = DeviceBridgeHost(
                 runtime = runtime,
                 bridge = bridge,
                 publishGate = DeviceStatePublishGate(minIntervalMs = 400),
             )
+            startedHost = host
             host.start()
 
             // Home's Devices tab as the apps assemble it: the mock household
@@ -166,11 +176,6 @@ class HomeDeviceControlSystemTest {
                 val c = model.uiState.value.controls[SimulatedDeviceBridge.LIGHT_ID]
                 c?.status == DeviceCommandStatus.Idle && c.levelPercent == 45
             }
-        } finally {
-            host?.stop()
-            runtime?.shutdown()
-            system.shutdown()
-            dataRoot.deleteRecursively()
         }
     }
 
@@ -189,14 +194,22 @@ class HomeDeviceControlSystemTest {
     fun aStateReportRacingItsOwnCommandDoesNotEraseTheEchoedOutcome() = runBlocking {
         val system = TestSystem.builder().build()
         val dataRoot = createTempDirectory("hub-home-control-race-test").toFile()
-        var runtime: HubRuntime? = null
+        var startedRuntime: HubRuntime? = null
         // Releases a parked report whatever way this test ends, so it never outlives it.
         val abandoned = AtomicBoolean(false)
-        try {
+        withBoundedTeardown({
+            step("releasing a parked report") { abandoned.set(true) }
+            step("shutting the hub runtime down") { startedRuntime?.shutdown() }
+            step("shutting the test system down") { system.shutdown() }
+            step("deleting the hub's data root") { dataRoot.deleteRecursively() }
+        }) {
             val phone = system.client("phone", TestClientRole.RealmHost, pollingIntervalMs = 200)
-            assertTrue(phone.bootstrapAsHost(deviceName = "Phone") is TResult.Success)
-            runtime = assembleHub(system, dataRoot)
-            runtime.start()
+            bounded("bootstrapping the phone as realm host") {
+                assertTrue(phone.bootstrapAsHost(deviceName = "Phone") is TResult.Success)
+            }
+            val runtime = assembleHub(system, dataRoot)
+            startedRuntime = runtime
+            bounded("starting the hub runtime") { runtime.start() }
             pairViaOfferFlow(phone, runtime)
 
             val bridge = SimulatedDeviceBridge(sensorTickMs = 60L * 60 * 1000)
@@ -319,11 +332,45 @@ class HomeDeviceControlSystemTest {
                 row?.lastCommandId?.get() to row?.lastCommandOutcome?.get(),
                 "the state report erased the outcome the issuer is waiting for",
             )
-        } finally {
-            abandoned.set(true)
-            runtime?.shutdown()
-            system.shutdown()
-            dataRoot.deleteRecursively()
+        }
+    }
+
+    /**
+     * Runs [body], then every teardown step in order, each under [bounded] — so a teardown that
+     * cannot finish fails the test naming that step, never hangs it.
+     *
+     * ⚠⚠ Teardown is where a wedged process shows: `shutdownAndJoin` joins every session's work, and
+     * a coroutine stuck where cancellation cannot reach (a native call) never lets go. Unbounded, that
+     * parked this class in `runBlocking` for 17 minutes holding the gate lock (`docs/tech-debt.md`,
+     * "A Mac idle probe that never returned"). A teardown failure never replaces the body's own: it
+     * rides along as suppressed.
+     */
+    private suspend fun withBoundedTeardown(
+        teardown: Teardown.() -> Unit,
+        body: suspend () -> Unit,
+    ) {
+        val failure = runCatching { body() }.exceptionOrNull()
+        var teardownFailure: Throwable? = null
+        for ((what, step) in Teardown().apply(teardown).steps) {
+            try {
+                bounded(what) { step() }
+            } catch (t: Throwable) {
+                when {
+                    failure != null -> failure.addSuppressed(t)
+                    teardownFailure == null -> teardownFailure = t
+                    else -> teardownFailure.addSuppressed(t)
+                }
+            }
+        }
+        (failure ?: teardownFailure)?.let { throw it }
+    }
+
+    /** The teardown steps of [withBoundedTeardown], run in the order they are listed. */
+    private class Teardown {
+        val steps = mutableListOf<Pair<String, suspend () -> Unit>>()
+
+        fun step(what: String, action: suspend () -> Unit) {
+            steps += what to action
         }
     }
 
@@ -409,10 +456,14 @@ class HomeDeviceControlSystemTest {
             val armed = lines.toList().filter { it.startsWith("[") }
             throw AssertionError("CLI never printed an offer URI within 10s; armed=$armed", e)
         }
-        val promptResult = phone.tenshuClient.syncService.respondToPairingOffer(offerUri)
+        val promptResult = bounded("the phone responding to the hub's offer") {
+            phone.tenshuClient.syncService.respondToPairingOffer(offerUri)
+        }
         assertTrue(promptResult is TResult.Success, "respondToPairingOffer failed: $promptResult")
-        val approve = phone.tenshuClient.syncService
-            .approvePairingOffer(promptResult.getOrNull()!!.pairingSecretHash.get())
+        val approve = bounded("the phone approving the hub's offer") {
+            phone.tenshuClient.syncService
+                .approvePairingOffer(promptResult.getOrNull()!!.pairingSecretHash.get())
+        }
         assertTrue(approve is TResult.Success, "approvePairingOffer failed: $approve")
         // ⚠⚠ 45 s against the CLI's own 30 s, and NOT the same number. `runOnce`'s budget
         // now covers the WHOLE session, arming included; it used to cover

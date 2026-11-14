@@ -142,6 +142,8 @@ kotlin {
                 api(libs.koinCore)
                 api(libs.koinMultiplatform)
                 implementation(libs.kotlinx.coroutines)
+                // `StreamRegistry`'s state lock — the lock primitives only, no plugin.
+                implementation(libs.kotlinx.atomicfu)
                 implementation(libs.kotlinx.io)
                 implementation(libs.kotlinx.datetime)
             }

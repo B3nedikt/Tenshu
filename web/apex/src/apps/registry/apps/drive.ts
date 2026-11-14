@@ -1,7 +1,7 @@
 // Drive — the first app on its own origin (ADR 0020; web-app-suite.md F2). Everything the apex knows
 // about it: origin, gateway allowlist, route, Apps-section entry.
 import type { ProxyMethodAllowlist } from '@tenshu/sdk/bridge'
-import { appOrigin, SESSION_METHODS, V1_INSTALL_AT_MS, type HostedApp } from '../types'
+import { appOrigin, SESSION_METHODS, type AppGlance, type HostedApp } from '../types'
 
 declare global {
   interface ImportMetaEnv {
@@ -72,6 +72,50 @@ const DRIVE_METHODS: ProxyMethodAllowlist = [
 
 const PROD_ORIGIN = 'https://drive.tenshu.app'
 
+const RECENT_ROWS = 6
+
+// The overview card (web-apex-home.md §3.6): recent files + the storage bar. Both methods are on
+// DRIVE_METHODS above — the card's `call` refuses anything that is not.
+const glance: AppGlance = {
+  size: 'wide',
+  subtitle: 'recents',
+  async load(call) {
+    // ⚠ The storage bar is garnish: its failure drops the bar, it does not fail the card.
+    const [files, storage] = await Promise.all([
+      call('fs.recentFiles', { limit: RECENT_ROWS + 4 }),
+      call('storage.status').catch(() => null),
+    ])
+    const rows = (files as readonly RecentFile[])
+      .filter(f => !f.isFolder)
+      .slice(0, RECENT_ROWS)
+      .map(f => {
+        const name = f.path.slice(f.path.lastIndexOf('/') + 1)
+        const dot = name.lastIndexOf('.')
+        const ext = dot > 0 ? name.slice(dot + 1).toUpperCase() : ''
+        return { title: name, badge: ext.length <= 4 ? ext : '', timeMs: f.lastModified, sizeBytes: f.size }
+      })
+    const s = storage as StorageStatus | null
+    return {
+      layout: 'list',
+      rows,
+      usage: s !== null && s.hasStorage ? { usedBytes: s.usedBytes, limitBytes: s.limitBytes } : null,
+    }
+  },
+}
+
+// The two answers the card reads — the bridge's `NativeFile` / `NativeStorageStatus`, narrowed.
+interface RecentFile {
+  readonly path: string
+  readonly size: number
+  readonly lastModified: number
+  readonly isFolder: boolean
+}
+interface StorageStatus {
+  readonly hasStorage: boolean
+  readonly usedBytes: number
+  readonly limitBytes: number
+}
+
 export const drive: HostedApp = {
   id: 'drive',
   order: 10,
@@ -82,14 +126,15 @@ export const drive: HostedApp = {
   origin: () => appOrigin(import.meta.env.VITE_DRIVE_ORIGIN, PROD_ORIGIN, 5174),
   methods: DRIVE_METHODS,
   // The embedded app owns its own in-app navigation.
-  routePath: 'drive/files/*',
+  routePath: 'drive/*',
+  sections: ['', 'files', 'search', 'shared', 'incoming', 'people', 'settings'],
+  glance,
   manifest: {
     id: 'drive',
     label: 'Drive',
     description: 'Your end-to-end encrypted file system.',
     version: '0.1.0',
-    installedAtMs: V1_INSTALL_AT_MS,
-    launchPath: '/drive/files',
+    launchPath: '/drive',
     permissions: [
       {
         id: 'files.read',

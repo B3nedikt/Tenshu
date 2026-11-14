@@ -4,6 +4,9 @@ import org.tenshu.core.common.RelayRefusal
 import org.tenshu.core.TResult
 import org.tenshu.core.TenshuException
 import org.tenshu.core.messageOrNull
+import org.tenshu.core.core.TContext
+import org.tenshu.sync.PairingDeviceRemovedError
+import org.tenshu.sync.PairingApproverRevokedError
 
 /**
  * Stable marker [RestSyncRelay] embeds in the error message of any relay response rejected with
@@ -92,14 +95,48 @@ internal fun TResult.Failure<*>.isRelayRateLimited(): Boolean =
  */
 internal const val DEVICE_REMOVED_REJECTION_MARKER = "relay-device-removed-403"
 
+/**
+ * Marker [RestSyncRelay] embeds when an admit route is refused **403 Forbidden** with the
+ * [RelayRefusal.ADMISSION_REVOKED] token — the **approver** may no longer admit: its A33
+ * capability, or a link of its chain, is revoked, or the approver itself was removed
+ * (`admission-revocation-names-the-capability.md` §7j). The other `403` of
+ * [DEVICE_REMOVED_REJECTION_MARKER], about the *other* device.
+ *
+ * ⚠ Terminal for this capability: a retry or the A1 self-heal cannot clear it (an A1 holder never
+ * presents a chain, so never reaches it). The remedy is a fresh admission from another member.
+ */
+internal const val ADMISSION_REVOKED_REJECTION_MARKER = "relay-admission-revoked-403"
+
+/**
+ * On an admit route (the approver's `POST /sync/pairing/response` or `/offer-response`), turn a
+ * relay refusal that carries a typed token into its typed error, so the approver's screen says what
+ * happened instead of the generic error, which every retry then repeated:
+ *  - [DEVICE_REMOVED_REJECTION_MARKER] → [PairingDeviceRemovedError] — the device being added was
+ *    removed before (§7h);
+ *  - [ADMISSION_REVOKED_REJECTION_MARKER] → [PairingApproverRevokedError] — this device may no
+ *    longer add devices (§7j.5).
+ *
+ * ⚠ Only meaningful on those two routes, where the refused identity is the device being admitted
+ * or the approver's own capability.
+ */
+internal fun TResult<*>.throwIfTypedAdmitRefusal(context: TContext) {
+    if (this !is TResult.Failure<*>) return
+    val failure = TenshuException(error)
+    if (failure.isDeviceRemoved()) throw TenshuException(PairingDeviceRemovedError.create(context))
+    if (failure.carriesMarker(ADMISSION_REVOKED_REJECTION_MARKER)) {
+        throw TenshuException(PairingApproverRevokedError.create(context))
+    }
+}
+
 /** True if [this] carries [DEVICE_REMOVED_REJECTION_MARKER] anywhere in its cause chain. */
-internal fun Throwable.isDeviceRemoved(): Boolean {
+internal fun Throwable.isDeviceRemoved(): Boolean = carriesMarker(DEVICE_REMOVED_REJECTION_MARKER)
+
+/** True if [this] carries [marker] anywhere in its cause chain. */
+private fun Throwable.carriesMarker(marker: String): Boolean {
     var t: Throwable? = this
     while (t != null) {
-        if (t is TenshuException && t.error.messageOrNull()?.contains(DEVICE_REMOVED_REJECTION_MARKER) == true) {
-            return true
-        }
-        if (t.message?.contains(DEVICE_REMOVED_REJECTION_MARKER) == true) return true
+        if (t is TenshuException && t.error.messageOrNull()?.contains(marker) == true) return true
+        if (t.message?.contains(marker) == true) return true
         t = t.cause
     }
     return false

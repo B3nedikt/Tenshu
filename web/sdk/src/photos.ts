@@ -23,6 +23,7 @@ export interface PhotosFailure {
 export const PhotosErrorKind = {
   badCursor: 'error_photos_bad_cursor',
   badPageSize: 'error_photos_bad_page_size',
+  badKind: 'error_photos_bad_kind',
   unknownAlbum: 'error_photos_unknown_album',
   notFound: 'error_photos_not_found',
   noContentId: 'error_photos_no_content_id',
@@ -46,6 +47,9 @@ export interface Photo {
   readonly lngE7: number | null
   readonly pixelWidth: number | null
   readonly pixelHeight: number | null
+  // ED-3: where the photo's edit is baked. ⚠⚠ A tile or viewer draws this when it is set, never
+  // `path` — the original of a redacted edit is what the edit hides (photos-editing.md §12.4).
+  readonly renditionPath?: string | null
 }
 
 export interface PhotoAlbum {

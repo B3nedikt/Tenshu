@@ -1,7 +1,7 @@
 // Contacts — the second app on its own origin (web-app-suite.md Wave 1, run B1). Everything the
 // apex knows about it: origin, gateway allowlist, route, Apps-section entry.
 import type { ProxyMethodAllowlist } from '@tenshu/sdk/bridge'
-import { appOrigin, SESSION_METHODS, V1_INSTALL_AT_MS, type HostedApp } from '../types'
+import { appOrigin, SESSION_METHODS, type HostedApp } from '../types'
 
 declare global {
   interface ImportMetaEnv {
@@ -56,6 +56,7 @@ export const contacts: HostedApp = {
   origin: () => appOrigin(import.meta.env.VITE_CONTACTS_ORIGIN, PROD_ORIGIN, 5175),
   methods: CONTACTS_METHODS,
   routePath: 'contacts/*',
+  sections: ['', 'invites', 'duplicates', 'profile'],
   // ⚠ The permissions listed here are DISPLAY data, like Drive's — what the app can actually call
   // is `methods` above (F5).
   manifest: {
@@ -63,7 +64,6 @@ export const contacts: HostedApp = {
     label: 'Contacts',
     description: 'The people you know, end-to-end encrypted.',
     version: '0.1.0',
-    installedAtMs: V1_INSTALL_AT_MS,
     launchPath: '/contacts',
     permissions: [
       {

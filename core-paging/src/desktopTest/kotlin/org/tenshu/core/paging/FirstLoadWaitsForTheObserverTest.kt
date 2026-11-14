@@ -223,9 +223,12 @@ class FirstLoadWaitsForTheObserverTest {
 }
 
 /** What the listing asked of the "proxy". */
-private class Reads {
+internal class Reads {
     var pages = 0
     val takes = mutableListOf<Int>()
+
+    /** Called with each window's offset as the listing builds the read — a hook to act mid-scroll. */
+    var onDrop: (Int) -> Unit = {}
 
     /** Every page read answers a failure — Control is not there. */
     var fail = false
@@ -235,7 +238,7 @@ private class Reads {
  * A slicing [TList] whose root also serves `stream/start` — with the confirmation held until the
  * test delivers it ([confirmSubscribe]), which is how a proxy across a process boundary answers.
  */
-private class ObservedList(
+internal class ObservedList(
     override val context: TContext,
     val rows: MutableList<String>,
     private val provider: () -> List<String> = { rows },
@@ -268,7 +271,10 @@ private class ObservedList(
                 override val schema: OperationSchema get() = Drop.Schema
                 override fun <V : Data> getField(reference: String): V = assertNotReached()
                 override fun <V : Data> getOptionalField(reference: String): V? = null
-                override fun drop(n: Int): TList<TString> = derived { provider().drop(n) }
+                override fun drop(n: Int): TList<TString> {
+                    reads.onDrop(n)
+                    return derived { provider().drop(n) }
+                }
             },
             Take.ID to object : Take<TString> {
                 override val schema: OperationSchema get() = Take.Schema

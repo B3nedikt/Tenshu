@@ -45,6 +45,17 @@ class SqliteMembershipStore(private val db: RelayDatabase) : MembershipRegistry 
             }
         }
 
+    override fun isMemberDevice(realmId: String, deviceId: String): Boolean =
+        db.withConnection { conn ->
+            conn.prepareStatement(
+                "SELECT 1 FROM member_admission WHERE realm_id = ? AND device_id = ? LIMIT 1"
+            ).use { ps ->
+                ps.setString(1, realmId)
+                ps.setString(2, deviceId)
+                ps.executeQuery().use { rs -> rs.next() }
+            }
+        }
+
     override fun clearAdmissions(realmId: String, memberAuthorityPublicKey: ByteArray) =
         db.withConnection { conn ->
             conn.prepareStatement(

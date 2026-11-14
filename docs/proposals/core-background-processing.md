@@ -129,7 +129,7 @@ the CLAUDE.md-flagged "UI rendering of `SyncManager.divergenceWarning`" downstre
 desktop. The tray **Pause/Resume-sync** control + the §5.3 **`PAUSED`** state **landed
 2026-07-08**: a device-local `SyncPauseState` (Koin single, persisted via
 `DesktopControlSettings`) composed *ahead* of `ConstraintSyncGate` in the desktop `syncGate`
-so pausing skips the whole in-process drain/pull cycle; `setSyncPaused` bridge method + a tray
+so pausing skips the whole in-process drain/pull cycle (⚠ no longer true — `tech-debt.md` *"The desktop tray's Pause holds file content only"*); `setSyncPaused` bridge method + a tray
 button. **Slice C is now complete on macOS** — remaining Slice-C scope is only Linux/Windows
 daemons (macOS-only so far). Layer 3
 is **not** a single
@@ -2156,7 +2156,7 @@ also landed 2026-07-08:** a device-local `SyncPauseState` (`:control-shared-logi
 registered by `control-desktop` `Main.kt`, persisted via `DesktopControlSettings` — *not* the
 preference-service, since pausing is per-device) composed **ahead of** `ConstraintSyncGate` in
 the desktop `syncGate` (`!paused && constraintAllowsSync(...)`), so pausing skips the whole
-in-process drain/pull cycle; a `setSyncPaused` bridge method + a tray button toggle it, and the
+in-process drain/pull cycle (⚠ false since `sync-metered-plane-split.md` — see `tech-debt.md`); a `setSyncPaused` bridge method + a tray button toggle it, and the
 same single is read by `getSyncState` so the state label follows. Tests: `SyncStateCodeTest`
 (precedence incl. `PAUSED`); `:control-desktop:buildTrayAgent` (swiftc) + `compileKotlinJvm`
 green. **Slice C is complete on macOS.** Still open (out of Slice C's macOS scope):

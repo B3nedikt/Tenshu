@@ -63,7 +63,9 @@ val OnDeviceModelsCapabilities = ModelsCapabilities(
     cellularChoice = true,
     oneDownloadAtATime = false,
     spaceReturns = ModelsCapabilities.SpaceReturns.TOWERS_AT_ONCE,
-    // ⚠ Search alone: no face backend exists there, and a switch that changes nothing is not offered.
+    // ⚠ Search alone here; a graph says what it bound ([OnDeviceModelsRepository.over]'s
+    // `features`): a face switch is offered only beside a face backend, and a switch that changes
+    // nothing is not offered.
     features = listOf(InferenceCapability.SEMANTIC_IMAGE_SEARCH),
     indexing = true,
     // ⚠ Whether the roster reads is said per read (`null` is *not known*), not here.
@@ -349,6 +351,8 @@ class OnDeviceModelsRepository(
 
     override fun storedIndex(): Flow<StoredIndex?> = indexing?.stored ?: standing(null)
 
+    override fun indexContinued(): Flow<Boolean> = indexing?.continued ?: standing(false)
+
     override suspend fun startIndexing(): IndexStartOutcome = indexing?.let { indexNowOrFailed(it) } ?: IndexStartOutcome.Failed
 
     /** ⚠ A throw is a failure nobody named, never an escape. Its own function: K/N's third face (`tech-debt.md`). */
@@ -368,19 +372,27 @@ class OnDeviceModelsRepository(
         /**
          * Over a graph's source and Photos' own client: the operation for a removal, the rows for
          * consent and for the pause, and the graph's foreground pass ([indexing]) where it has one.
+         *
+         * @param features the capabilities **the graph bound a backend for**, in the order shown
+         *   (`ios-face-grouping.md` F5). ⚠⚠ Derived from the graph, never a constant: a consent row
+         *   is offered for each, so a face switch with no face backend would change nothing.
          */
         fun over(
             source: OnDeviceModelSource?,
             client: TenshuClient,
             scope: CoroutineScope,
+            features: List<InferenceCapability>,
             indexing: OnDeviceIndexSource? = null,
+            /** [ModelsCapabilities.modelFeatures]: which feature each model the graph prepares serves. */
+            modelFeatures: Map<String, InferenceCapability> = emptyMap(),
         ): OnDeviceModelsRepository {
+            val capabilities: ModelsCapabilities = OnDeviceModelsCapabilities.copy(features = features, modelFeatures = modelFeatures)
             // ⚠⚠ Off the caller's thread: Photos' client is in-process (see [ClientModelsConsents.work]).
-            val consents = ClientModelsConsents(client, ClientModelsDevices(client), OnDeviceModelsCapabilities.features, work = Dispatchers.Default)
+            val consents = ClientModelsConsents(client, ClientModelsDevices(client), capabilities.features, work = Dispatchers.Default)
             return OnDeviceModelsRepository(
                 source = source,
                 notOffered = null,
-                capabilities = OnDeviceModelsCapabilities,
+                capabilities = capabilities,
                 remove = { modelId ->
                     client.inferenceService.deleteModel(modelId).fold(
                         onSuccess = { ModelDeleteOutcome.Removed },

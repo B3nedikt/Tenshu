@@ -48,6 +48,12 @@ val platformClientModule: Module = module {
     // write a selection this process never acts on.
     single<MediaSourceProvider> { AndroidMediaSourceProvider(get()) }
     single<BackupPreferences> { TenshuBackupPreferences(get()) }
+    // ED-1: an edited copy is uploaded from a cache file, never inline (`AndroidEditedCopyUpload`).
+    single<app.tenshu.photos.data.EditedCopyUpload> { app.tenshu.photos.edit.AndroidEditedCopyUpload(get()) }
+    // ⚠⚠ What `uploadSourceFile` hands the file to Control with (its descriptor goes over the
+    // transport ahead of the call). Without it the upload fails before any IPC — found on the
+    // emulator, where every save said "couldn't save" (`photos-editing.md` §9.2).
+    single<org.tenshu.core.FileUploader> { org.tenshu.core.common.transport.TransportFileUploader(get()) }
 
     single { ParcelFileDescriptorCache() }
     single { SharedMemoryCache() }

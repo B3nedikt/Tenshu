@@ -39,7 +39,15 @@ import kotlin.math.roundToInt
  * dimensions, `inSampleSize` stays 1, and the decode is identical to the naive path.
  */
 actual fun decodeToImageBitmap(data: ByteArray, maxEdge: Int): ImageBitmap? =
-    decodeStored(data, maxEdge)?.upright(exifOrientation(data))?.asImageBitmap()
+    decodeStored(data, maxEdge)?.upright(exifOrientation(data), strict = false)?.asImageBitmap()
+
+/**
+ * ⚠⚠ The one place the raw fallback below is wrong: a bitmap that will be **stored**. When the
+ * rotated copy cannot be allocated this answers `null` rather than the stored-order bitmap, which
+ * a viewer may show for a moment but an edit would save sideways for ever.
+ */
+actual fun decodeToUprightImageBitmap(data: ByteArray, maxEdge: Int): ImageBitmap? =
+    decodeStored(data, maxEdge)?.upright(exifOrientation(data), strict = true)?.asImageBitmap()
 
 /**
  * ⚠⚠ **`BitmapFactory` ignores EXIF orientation** — for HEIC too — while Skia, which decodes on
@@ -57,7 +65,7 @@ private fun exifOrientation(data: ByteArray): Int = runCatching {
  * turned clockwise. Itself when nothing changes. Applied after the downsample, so it costs the
  * drawn size, never the source's.
  */
-private fun Bitmap.upright(orientation: Int): Bitmap {
+private fun Bitmap.upright(orientation: Int, strict: Boolean): Bitmap? {
     val (mirror, degrees) = when (orientation) {
         ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> true to 0f
         ExifInterface.ORIENTATION_ROTATE_180 -> false to 180f
@@ -72,8 +80,12 @@ private fun Bitmap.upright(orientation: Int): Bitmap {
         if (mirror) postScale(-1f, 1f)
         postRotate(degrees)
     }
-    val turned = runCatching { Bitmap.createBitmap(this, 0, 0, width, height, matrix, true) }.getOrNull()
-        ?: return this
+    // ⚠ `Throwable`, not `Exception`: the failure this guards is an `OutOfMemoryError`.
+    val turned = try {
+        Bitmap.createBitmap(this, 0, 0, width, height, matrix, true)
+    } catch (e: Throwable) {
+        null
+    } ?: return if (strict) { recycle(); null } else this
     if (turned !== this) recycle()
     return turned
 }

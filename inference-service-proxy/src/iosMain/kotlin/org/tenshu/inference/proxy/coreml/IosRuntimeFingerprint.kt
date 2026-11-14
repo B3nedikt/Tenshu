@@ -76,14 +76,17 @@ fun iosPreflightKeyOf(
 }
 
 /**
- * `1.0 (1)`: the bundle's marketing version and build. A process with no bundle has neither.
+ * `1.0.1 (202611091200)`: the bundle's marketing version and build. A process with no bundle has
+ * neither.
  *
- * ⚠⚠ Constant across every build today: `photos-ios/project.yml` sets no version, so xcodegen
- * writes `1.0` and `1` (`ios-drive-parity.md` records the same of Drive). It tells two builds
- * apart only once shipped builds are numbered; see [PreflightKey.appBuild].
+ * ⚠⚠ Distinct per **archived** build only: `scripts/ios-archive.sh` passes every archive its own
+ * `CURRENT_PROJECT_VERSION` (the UTC minute, so it also grows), which is what TestFlight and the
+ * App Store install. A development build from Xcode or `xcodebuild` reads the constant `1` of
+ * `ios-release/release.yml`, so between two development builds [PREFLIGHT_REVISION] alone voids
+ * a pass (`ios-on-device-inference.md` §14.18.16 item 3); see [PreflightKey.appBuild].
  */
 @OptIn(BetaInteropApi::class)
-private fun currentAppBuild(): String = autoreleasepool {
+internal fun currentAppBuild(): String = autoreleasepool {
     val bundle: NSBundle = NSBundle.mainBundle
     val version: String? = bundle.objectForInfoDictionaryKey("CFBundleShortVersionString") as? String
     val build: String? = bundle.objectForInfoDictionaryKey("CFBundleVersion") as? String
@@ -95,5 +98,5 @@ private fun InstalledModelData.digestOf(role: String): String? =
 
 /** `Version 27.0 (Build 24A434)`: the build is what a new Core ML compiler arrives with. */
 @OptIn(BetaInteropApi::class)
-private fun currentOsBuild(): String =
+internal fun currentOsBuild(): String =
     autoreleasepool { NSProcessInfo.processInfo.operatingSystemVersionString }

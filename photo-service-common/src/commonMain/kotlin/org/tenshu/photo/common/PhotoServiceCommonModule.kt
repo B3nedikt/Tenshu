@@ -2,6 +2,8 @@ package org.tenshu.photo.common
 
 import org.tenshu.core.common.module.composite
 import org.tenshu.core.common.module.operation
+import org.tenshu.core.common.module.schemaMigration
+import org.tenshu.core.common.schema.migration.schemaMigration
 import org.tenshu.core.common.module.service
 import org.tenshu.core.common.module.tModule
 import org.tenshu.core.common.module.trait
@@ -19,7 +21,11 @@ import org.tenshu.photo.AlbumDataIdProvider
 import org.tenshu.photo.AlbumEntry
 import org.tenshu.photo.AlbumEntryDataIdProvider
 import org.tenshu.photo.DeleteAlbum
+import org.tenshu.photo.ClearPhotoEdit
+import org.tenshu.photo.PhotoEdit
+import org.tenshu.photo.PhotoEditDataIdProvider
 import org.tenshu.photo.PhotoFlags
+import org.tenshu.photo.SetPhotoEdit
 import org.tenshu.photo.PhotoFlagsDataIdProvider
 import org.tenshu.photo.PhotoService
 import org.tenshu.photo.RemoveFromAlbum
@@ -31,6 +37,9 @@ import org.tenshu.photo.common.impl.AlbumEntryDataIdProviderImpl
 import org.tenshu.photo.common.impl.AlbumEntryDto
 import org.tenshu.photo.common.impl.AlbumEntryRo
 import org.tenshu.photo.common.impl.AlbumRo
+import org.tenshu.photo.common.impl.PhotoEditDataIdProviderImpl
+import org.tenshu.photo.common.impl.PhotoEditDto
+import org.tenshu.photo.common.impl.PhotoEditRo
 import org.tenshu.photo.common.impl.PhotoFlagsDataIdProviderImpl
 import org.tenshu.photo.common.impl.PhotoFlagsDto
 import org.tenshu.photo.common.impl.PhotoFlagsRo
@@ -43,9 +52,8 @@ import org.tenshu.photo.common.impl.PhotoFlagsRo
  * opaque `error/internal` naming nothing — the `GetWorkoutStreamsRo` lesson, restated in each
  * `*Ro` here.
  *
- * ⚠ **No `schemaMigration` chain**, and that is correct exactly once: `PhotoService` is at version
- * 1, so there is no earlier shape to migrate *from* and the derived floor starts here. Every later
- * reshape owes both a bump and a step (HR #9).
+ * ⚠⚠ **The migration chain starts at v1, the release baseline** (HR #9). Every reshape owes both a
+ * bump and a step, and post-release a step is never deleted — a bump with no step wipes the store.
  */
 val photoServiceCommonModule = tModule {
 
@@ -117,7 +125,30 @@ val photoServiceCommonModule = tModule {
         }
     )
 
+    composite(
+        interfaceClass = PhotoEdit::class,
+        dataSchema = PhotoEdit.Schema,
+        dtoFactory = ::PhotoEditDto,
+        roFactory = { chain, ctx ->
+            PhotoEditRo(requestChain = chain, context = ctx, schema = PhotoEdit.Schema)
+        }
+    )
+
+    trait(
+        dataSchema = PhotoEdit.Schema,
+        traitSchema = PhotoEditDataIdProvider.Schema,
+        traitFactory = { context, schema ->
+            PhotoEditDataIdProviderImpl(context, schema as StringDataIdProviderSchema)
+        }
+    )
+
     service(PhotoService.Schema)
+
+    // HR #9: v2 (ED-3, `photos-editing.md` §12) — the `PhotoEdit` type and the `photoEdits`
+    // relation. Empty because it is additive: a new type and a new relation, no existing field
+    // moved, so a v1 row reads as it was. The registration is what keeps a v1 store migrating
+    // instead of wiping (`ServiceMigrationChainsReachTheirVersionTest`). ⚠ Never delete it.
+    schemaMigration(schemaMigration(PhotoService.ID, fromVersion = 1) {})
 
     operation(SaveAlbum.Schema)
     operation(DeleteAlbum.Schema)
@@ -126,4 +157,6 @@ val photoServiceCommonModule = tModule {
     operation(SetPhotoFlags.Schema)
     operation(RecordTrashedPhoto.Schema)
     operation(ClearTrashedPhoto.Schema)
+    operation(SetPhotoEdit.Schema)
+    operation(ClearPhotoEdit.Schema)
 }

@@ -71,6 +71,22 @@ class RewriteRefs(unittest.TestCase):
         self.assertEqual(rw(once), once)
 
 
+class PublicSubject(unittest.TestCase):
+    """A sync's message is read by people who cannot open the internal repository."""
+
+    def test_internal_pr_numbers_are_dropped_not_qualified(self):
+        cases = {
+            "SS-4 designed (B3nedikt/TenshuInternal#3232)": "SS-4 designed",
+            "x (B3nedikt/TenshuInternal#3200, B3nedikt/TenshuInternal#3201)": "x",
+            "fix leak B3nedikt/TenshuInternal#2812: one gate": "fix leak an internal change: one gate",
+            "fixed by B3nedikt/TenshuInternal#2960/#2994 now": "fixed by an internal change now",
+            "colour #333 stays": "colour #333 stays",
+            "Fix https://github.com/B3nedikt/TenshuInternal/pull/1200 regression": "Fix an internal change regression",
+        }
+        for subject, want in cases.items():
+            self.assertEqual(pe.public_subject(subject, RULES), want, subject)
+
+
 class Transforms(unittest.TestCase):
     def test_skip_globs_disable_reference_rewriting(self):
         self.assertEqual(pe.transform_text("a/site.css", "#1234", RULES), "#1234")
@@ -218,9 +234,61 @@ class PublishFlow(WithInternal):
         with open(os.path.join(self.tree, "docs", "a.md"), "w") as f:
             f.write(text)
 
-    def publish(self, sha, allow_drift=False):
+    def publish(self, sha, allow_drift=False, summary=None):
         with redirect_stdout(io.StringIO()):
-            pe.publish(self.tree, self.clone, sha, RULES, allow_drift)
+            pe.publish(self.tree, self.clone, sha, RULES, allow_drift, summary)
+
+    def sync_with_a_new_doc(self, summary=None):
+        self.publish(self.first)
+        with open(os.path.join(self.tree, "docs", "new-design.md"), "w") as f:
+            f.write("design\n")
+        git(self.clone, "switch", "-q", "main")
+        self.publish(self.head, summary=summary)
+        return git(self.clone, "log", "-1", "--format=%B")
+
+    def test_draft_names_new_docs_and_no_internal_pr(self):
+        body = self.sync_with_a_new_doc()
+        self.assertIn("New design docs:\n- docs/new-design.md", body)
+        self.assertIn("Changes:\n- internal change 2", body)
+        self.assertNotIn("TenshuInternal", body)
+
+    def test_pr_body_links_docs_pinned_to_the_sync_commit(self):
+        self.sync_with_a_new_doc()
+        commit = git(self.clone, "rev-parse", "HEAD")
+        with open(os.path.join(self.clone, ".git", "SYNC_PR_BODY.md")) as f:
+            body = f.read()
+        self.assertIn(f"[docs/new-design.md](https://github.com/B3nedikt/Tenshu/blob/{commit}/docs/new-design.md)", body)
+        self.assertNotIn(pe.TRAILER, body)
+        self.assertFalse(body.startswith("Sync from"), body)
+
+    def test_summary_replaces_the_draft_and_keeps_subject_and_trailer(self):
+        body = self.sync_with_a_new_doc(summary="Editor and sync status. Details: docs/new-design.md\n")
+        self.assertTrue(body.startswith("Sync from the internal repository ("), body)
+        self.assertIn("Editor and sync status. Details: docs/new-design.md", body)
+        self.assertNotIn("internal change 2", body)
+        self.assertIn(f"{pe.TRAILER}: {self.head}", body)
+        self.assertEqual(pe.last_sync(self.clone, git(self.clone, "branch", "--show-current"))[1], self.head)
+
+    def test_pr_body_links_bare_and_code_span_paths_once(self):
+        self.sync_with_a_new_doc(summary="See docs/new-design.md, (`docs/new-design.md`) and "
+                                         "[it](docs/new-design.md); docs/missing.md stays plain.")
+        commit = git(self.clone, "rev-parse", "HEAD")
+        url = f"https://github.com/B3nedikt/Tenshu/blob/{commit}/docs/new-design.md"
+        with open(os.path.join(self.clone, ".git", "SYNC_PR_BODY.md")) as f:
+            body = f.read()
+        self.assertIn(f"See [docs/new-design.md]({url}), ([`docs/new-design.md`]({url}))", body)
+        self.assertIn("[it](docs/new-design.md);", body)
+        self.assertIn(" docs/missing.md stays plain", body)
+
+    def test_summary_coordinates_are_coarsened_like_any_message(self):
+        body = self.sync_with_a_new_doc(summary="Tested at 48.1453921 near home.")
+        self.assertIn("48.15", body)
+        self.assertNotIn("48.1453921", body)
+
+    def test_summary_linking_an_internal_pr_is_refused(self):
+        with self.assertRaises(SystemExit) as e:
+            self.sync_with_a_new_doc(summary="Fixed the leak (B3nedikt/TenshuInternal#2812).")
+        self.assertIn("internal PR", str(e.exception))
 
     def commit_on_main(self, name, message, merge_from=None):
         git(self.clone, "switch", "-q", "main")

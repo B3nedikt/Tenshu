@@ -391,8 +391,10 @@ fun startAppIntegrationKoin(
 
 /**
  * The globally-installed variant, for the Compose tests whose composition resolves through
- * `GlobalContext`. Behaviour is exactly what [startAppIntegrationKoin] used to have, defensive
- * `stopKoin()` included; pair it with [stopAppIntegrationKoin].
+ * `GlobalContext`; pair it with [stopAppIntegrationKoin] in the test's teardown. ⚠ No defensive
+ * `stopKoin()` first, for the reason [startAppIntegrationKoin] gives: a Koin left running by an
+ * earlier class must fail here, loudly, rather than be torn down silently
+ * (`scripts/check-test-koin.py`).
  */
 fun startGlobalAppIntegrationKoin(
     clientId: String = "app.tenshu.drive.test",
@@ -401,7 +403,6 @@ fun startGlobalAppIntegrationKoin(
     /** Control's answer to "does this device have a realm" — a test may hold it to see the gate. */
     controlHasRealm: suspend () -> Boolean? = { true },
 ): TenshuClient {
-    stopKoin()
     val koinApp = startKoin {
         allowOverride(true)
         modules(

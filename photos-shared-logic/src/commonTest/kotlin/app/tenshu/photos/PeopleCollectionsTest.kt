@@ -1,6 +1,12 @@
 package app.tenshu.photos
 
 import app.tenshu.photos.data.MockPhotosRepository
+import kotlin.test.assertNull
+import app.tenshu.photos.ui.screens.collections.SmartAlbum
+import app.tenshu.photos.edit.Redaction
+import app.tenshu.photos.edit.NormPoint
+import app.tenshu.photos.edit.MarkupEdit
+import app.tenshu.photos.edit.EditRecipe
 import app.tenshu.photos.model.FaceGroup
 import kotlin.test.assertNotNull
 import app.tenshu.photos.model.FaceRegion
@@ -272,9 +278,9 @@ class PeopleCollectionsTest {
         testScheduler.advanceUntilIdle()
 
         // ⚠⚠⚠ The cross-feature bug this test exists for. A name is a `MediaLabel` exactly like a
-        // tag, and `groupPhotosByLabel` deliberately merges across capabilities — so without the
-        // exclusion, naming Anna mints a **Things card called "Anna"** beside "Dog", holding the
-        // same photographs as her People card under a heading that means "what a model saw".
+        // tag, so without `THING_CAPABILITIES`' allowlist naming Anna would mint a **Things card
+        // called "Anna"** beside "Dog", holding the same photographs as her People card under a
+        // heading that means "what a model saw".
         assertEquals(listOf("Dog"), vm.state.value.things.map { it.title })
     }
 
@@ -824,5 +830,85 @@ class PeopleCollectionsTest {
         val anna = vm.state.value.people.first { it.title == "Anna" }
         val cover = assertNotNull(anna.coverFace)
         assertEquals(0.1f, cover.region.right - cover.region.left, 0.0001f)
+    }
+
+    // ---- photos-editing.md §12.13: an edited photo never supplies an avatar ----------------------
+
+    /** A recipe that blacks out a box over the face — Markup → Redact. */
+    private val redactTheFace = EditRecipe(
+        markup = MarkupEdit(
+            listOf(Redaction(1, listOf(NormPoint(0.1f, 0.1f), NormPoint(0.5f, 0.1f), NormPoint(0.5f, 0.5f), NormPoint(0.1f, 0.5f)))),
+        ),
+    )
+
+    /** Every path a People surface could cut or draw a face from: the card, the header, iOS's cover. */
+    private fun SmartAlbum.avatarPaths() = listOfNotNull(coverFace?.path, coverPath)
+
+    /**
+     * ⚠⚠ The redaction gap (§12.13): the face box is a fraction of the ORIGINAL, so an avatar cut
+     * from an edited photo is cut from its original — the face the user blacked out. The edited
+     * photo has the LARGEST face, so the old rule would pick it.
+     */
+    @Test
+    fun aPhotoWithARedactingEdit_neverSuppliesAnAvatarCutFromItsOriginal() = vmTest(dispatcher) { vms ->
+        val repo = repoWith(
+            FaceGroup(
+                "g1", listOf("/a.jpg", "/b.jpg"),
+                faces = listOf(faceAt("/a.jpg", 0.4f), faceAt("/b.jpg", 0.1f)),
+            ),
+        )
+        val vm = vms.own(CollectionsViewModel(repo, yearOf = { 2026 }))
+        testScheduler.advanceUntilIdle()
+        assertEquals("/a.jpg", vm.state.value.people.single().coverFace?.path, "precondition: the largest face covers")
+
+        val edited = assertNotNull(repo.saveEdit(photo("a"), redactTheFace, byteArrayOf(1)))
+        assertTrue(assertNotNull(repo.photoEdit("a")).redacted, "precondition: the edit redacts")
+        vm.refresh()
+        testScheduler.advanceUntilIdle()
+
+        val person = vm.state.value.people.single()
+        assertEquals("/b.jpg", person.coverFace?.path, "the next-largest unedited face covers instead")
+        assertTrue("/a.jpg" !in person.avatarPaths(), "no avatar is cut from the redacted original")
+        // ⚠ Membership is untouched: the edited photo is still this person's, drawn by its rendition.
+        assertEquals(edited.renditionPath, person.photos.single { it.contentId == "a" }.previewPath)
+    }
+
+    /** With no unedited face, the person has no face crop at all — the card draws the rendition, whole. */
+    @Test
+    fun aPersonWhoseOnlyFaceIsEdited_hasNoFaceCrop_andCoversWithTheRendition() = vmTest(dispatcher) { vms ->
+        val repo = repoWith(FaceGroup("g1", listOf("/a.jpg"), faces = listOf(faceAt("/a.jpg", 0.4f))))
+        repo.label("/a.jpg", "Anna", capability = InferenceCapability.FACE_CLUSTERING.id)
+        val edited = assertNotNull(repo.saveEdit(photo("a"), redactTheFace, byteArrayOf(1)))
+        val vm = vms.own(CollectionsViewModel(repo, yearOf = { 2026 }))
+        testScheduler.advanceUntilIdle()
+
+        val anna = vm.state.value.people.single()
+        assertNull(anna.coverFace, "no face crop: the box belongs to the original")
+        assertEquals(edited.renditionPath, anna.coverPath)
+    }
+
+    /** ⚠ Derived, never stored: a revert makes the face a candidate again; a re-edit keeps it out. */
+    @Test
+    fun aRevertedPhotoCoversAgain_andAReEditedOneStaysOut() = vmTest(dispatcher) { vms ->
+        val repo = repoWith(
+            FaceGroup(
+                "g1", listOf("/a.jpg", "/b.jpg"),
+                faces = listOf(faceAt("/a.jpg", 0.4f), faceAt("/b.jpg", 0.1f)),
+            ),
+        )
+        val edited = assertNotNull(repo.saveEdit(photo("a"), redactTheFace, byteArrayOf(1)))
+        val vm = vms.own(CollectionsViewModel(repo, yearOf = { 2026 }))
+        testScheduler.advanceUntilIdle()
+        assertEquals("/b.jpg", vm.state.value.people.single().coverFace?.path)
+
+        assertNotNull(repo.revertEdit(edited))
+        vm.refresh()
+        testScheduler.advanceUntilIdle()
+        assertEquals("/a.jpg", vm.state.value.people.single().coverFace?.path, "reverted: the original is the photo again")
+
+        assertNotNull(repo.saveEdit(photo("a"), redactTheFace, byteArrayOf(2)))
+        vm.refresh()
+        testScheduler.advanceUntilIdle()
+        assertEquals("/b.jpg", vm.state.value.people.single().coverFace?.path, "re-edited: out again")
     }
 }

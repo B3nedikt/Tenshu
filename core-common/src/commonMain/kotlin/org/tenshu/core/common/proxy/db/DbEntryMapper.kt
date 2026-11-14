@@ -531,8 +531,31 @@ class DbEntryMapper(
             val to = (from.toLong() + limit.toLong()).coerceAtMost(entry.fields.size.toLong()).toInt()
             entry.fields.subList(from, to)
         }
-        return fields.asSequence().mapNotNull { hashId ->
-            val hash = (hashId as ObjectStore.DbValue.LongValue).value
+        return deserializeMembers(
+            memberHashes = fields.map { (it as ObjectStore.DbValue.LongValue).value },
+            getEntry = getEntry,
+            asEntity = asEntity,
+            getDataId = getDataId,
+            projection = projection,
+            getMemberEntry = getMemberEntry,
+        )
+    }
+
+    /**
+     * [deserializeArray] over member hashes the caller already holds — the array's own row is not
+     * read. The paged relation read (`DatabaseImpl.readArray`) snapshots the member list once and
+     * resolves it a page per store access through this. Same skip-on-null contract for
+     * [getMemberEntry]; lazy, like [deserializeArray].
+     */
+    fun deserializeMembers(
+        memberHashes: List<Long>,
+        getEntry: (dataIdHash: Long) -> ObjectStore.DbEntry,
+        asEntity: Boolean = false,
+        getDataId: (hash: Long) -> DataId? = { null },
+        projection: Projection? = null,
+        getMemberEntry: (dataIdHash: Long) -> ObjectStore.DbEntry? = getEntry,
+    ): Sequence<Data> {
+        return memberHashes.asSequence().mapNotNull { hash ->
             val arrayEntry = getMemberEntry(hash) ?: return@mapNotNull null
 
             deSerialize(

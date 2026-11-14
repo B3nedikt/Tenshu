@@ -39,6 +39,14 @@ fun SyncService.syncHealth(): Flow<SyncHealthStatus?> =
     }
 
 /**
+ * Just [SyncHealthStatus.connectivity] from [syncHealth], `null` until known — what every app's sync
+ * strip reads (`suite-sync-status.md` SS-1, `app.tenshu.reachability.evaluateSuiteSyncProblem`).
+ */
+fun SyncService.syncConnectivity(): Flow<String?> =
+    // Distinct: the row is rewritten whenever its other figures move.
+    syncHealth().map { it?.connectivity?.get() }.distinctUntilChanged()
+
+/**
  * Reactive schema pull-fence read (`core-schema-evolution.md` §7.3): the
  * single [SchemaFenceStatus] projected from the single-row
  * [SyncService.schemaFenceStatuses] relation. `null` until the proxy has evaluated

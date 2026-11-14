@@ -49,7 +49,7 @@ class MediaIndexPassTest {
                 deviceId = thisDevice,
                 indexer = MediaIndexer(
                     registry = registry,
-                    deviceId = thisDevice,
+                    deviceId = { thisDevice },
                     embeddings = embeddings,
                     // A device plugged in and unattended by default — the pass's own gate is
                     // MediaIndexerTest's.

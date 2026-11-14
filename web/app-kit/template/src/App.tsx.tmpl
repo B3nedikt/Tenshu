@@ -8,13 +8,11 @@ export default function App() {
   const { t } = useTranslation()
 
   return (
-    <div className="min-h-screen bg-surface">
-      <main className="mx-auto max-w-3xl px-6 py-10">
-        <header className="mb-6">
-          <h1 className="text-2xl font-semibold tracking-tight text-text">{t('app.title')}</h1>
-          <p className="mt-1 text-sm text-text-2">{t('app.tagline')}</p>
-        </header>
-
+    // No headline and no width cap: the apex top bar names the app, and the frame is the app's to
+    // fill. Once there are several sections, render them through `AppLayout` from
+    // '@tenshu/app-kit/ui' (web-apps-layout.md §3.1).
+    <div className="flex h-dvh flex-col bg-surface">
+      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4 min-[900px]:px-7 min-[900px]:py-5">
         {/* First: in a tab without the runtime, every other read fails too. */}
         <RuntimeBanner />
 

@@ -1121,6 +1121,22 @@ The Photos switch is seeded from the preference's own default rather than `false
 renders in the position that would misdescribe the drain while the stored row resolves — the same
 seeded-read trap `BackupPreferences` documents, applied to a switch instead of a list.
 
+### 16.6a ⚠⚠ A skip is counted, not silent (2026-11-08)
+
+A run whose every file the realm already held used to summarise as "Backed up 0 files" for five
+seconds, then "Up to date", over an **empty** `/Backup/<device>/<folder>` — found while recording
+the promo video, where the files pushed into a test folder were copies of the realm's seed photos.
+The skip was correct; the run looked broken. Two rules now hold it:
+
+- `BackupState.JustFinished.alreadyInRealm` counts the `ContentPresence.Held` skips (only those —
+  the cursor, `seenUris` and the data plane's path skip are this device's own bookkeeping, not
+  news). Every surface renders it on a clean run: "Nothing new to back up · 3 already in your Drive";
+  a run with failures still reports only uploaded and failed.
+- The destination is ensured before a bucket's first **upload**, not before its first candidate,
+  so a bucket of nothing-new leaves no empty folder behind.
+
+`aRunWhoseEveryFileIsAlreadyInTheRealm_saysSo_andCreatesNoEmptyFolder` holds both.
+
 ### 16.7 Not in this slice
 
 - **The feed's "N copies" badge.** PH-D2 allows one *"once PH-G3's index exists"*. It does now, but
@@ -1887,6 +1903,11 @@ some future release is advertising — the argument that kept two dead tabs out 
 is that IN-3b becomes a backend swap on the Photos side too: the twelve tests in
 `LabelCollectionsTest` describe what the user gets the day rows appear, and none of it has to be
 written then.
+
+⚠⚠ **Only `CONTENT_TAGGING` labels are Things — an allowlist** (`THING_CAPABILITIES`, 2026-11-11).
+Person names are `MediaLabel` rows too, and pet names will be under a capability today's builds do not
+know, so excluding only people would show a pet's name as a Thing on every older build
+(`photos-pets.md` §3).
 
 **One product floor, and one deliberately absent.** A label needs **two** photos to be a collection
 — one photograph is a search result, and the tab has a search. That is a display judgement Photos

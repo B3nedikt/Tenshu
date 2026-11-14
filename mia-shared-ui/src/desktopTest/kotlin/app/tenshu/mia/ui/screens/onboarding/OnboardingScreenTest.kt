@@ -7,6 +7,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import app.tenshu.mia.data.InMemoryOnboardingStore
 import app.tenshu.ui.theme.TenshuTheme
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.first
@@ -23,10 +25,16 @@ import app.tenshu.mia.composeVmTest
 @OptIn(ExperimentalTestApi::class)
 class OnboardingScreenTest {
 
+    @BeforeTest
+    fun startEmptyKoin() {
+        startKoin { }
+    }
+
+    @AfterTest
+    fun stopKoinAfterEachTest() = stopKoin()
+
     @Test
     fun walkThroughAndCompletePersistsTheFlag() = composeVmTest { vms ->
-        stopKoin()
-        startKoin { }
         val store = InMemoryOnboardingStore()
         val vm = vms.own(OnboardingViewModel(store))
         setContent {
@@ -51,6 +59,5 @@ class OnboardingScreenTest {
 
         waitUntil { runBlocking { store.onboarded().first() } }
         assertTrue(runBlocking { store.onboarded().first() })
-        stopKoin()
     }
 }

@@ -20,6 +20,7 @@ import org.tenshu.sync.proxy.admissionStamp
 import org.tenshu.sync.proxy.ContentPropertyTagger
 import org.tenshu.sync.proxy.flushPendingBlocks
 import org.tenshu.sync.proxy.isPairingResponseConsumed
+import org.tenshu.sync.proxy.throwIfTypedAdmitRefusal
 import org.tenshu.sync.proxy.security.PairingRendezvous
 
 internal class ApprovePairingRequestImplementation(
@@ -131,6 +132,11 @@ internal class ApprovePairingRequestImplementation(
         // mailbox that never filled and timed out on the SAS screen.
         var responseResult = postResponse()
 
+        // The relay refuses the JOINER: it was removed from this realm and is back under the same
+        // identity (F2′). Terminal, so neither the retry nor the self-heal below can change it. The
+        // same for a refusal of THIS device's admission capability (`admission-revoked`, §7j.5).
+        responseResult.throwIfTypedAdmitRefusal(executionContext.context)
+
         // One retry, for EVERY admitter. Its main job is a lost reply: the post landed, the
         // answer did not, and the joiner may already have fetched and acked — the retry then
         // reads "consumed" as delivered (see `postResponse`). That case is the same for a
@@ -152,6 +158,9 @@ internal class ApprovePairingRequestImplementation(
         if (responseResult is TResult.Failure<*> && !responseResult.isPairingResponseConsumed()) {
             pairingAdmission.resolveMasterKeyPair()?.let { reBootstrapRealm(it) }
             responseResult = postResponse()
+            // The first post may have failed for another reason (a 5xx, a timeout, a forgotten
+            // realm), so the refusal of the joiner can first appear here.
+            responseResult.throwIfTypedAdmitRefusal(executionContext.context)
         }
         if (responseResult is TResult.Failure<*>) {
             throw TenshuException(responseResult.error)

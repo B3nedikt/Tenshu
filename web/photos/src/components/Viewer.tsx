@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Photo } from '@tenshu/sdk/photos'
@@ -14,8 +14,8 @@ import {
 } from '../lib/proxy'
 import { queryKeys } from '../lib/queryKeys'
 import { attempt, type Outcome } from '../lib/errors'
-import { formatCoordinate, formatDuration, heroPreviewRequestPx, stillPlan, videoMime } from '../lib/media'
-import { bytesToBlob } from '../lib/thumbnails'
+import { formatCoordinate, formatDuration, heroPreviewRequestPx, previewPathOf, stillPlan, videoMime } from '../lib/media'
+import { bytesToBlob, useOnScreen, useThumbnail } from '../lib/thumbnails'
 import { useMotionClip } from '../lib/motion'
 import { openVideoStream, type VideoStream } from '../lib/videoStream'
 import { downloadOriginal, type DownloadOutcome } from '../lib/download'
@@ -24,26 +24,35 @@ import { Button, ErrorText, OutcomeText } from './ui'
 
 // A horizontal drag this long (CSS px) is a swipe to the neighbour.
 const SWIPE_PX = 50
+// The filmstrip draws this many neighbours each side of the open photograph — never the whole
+// list, which in the feed can be 10k rows.
+export const FILMSTRIP_RADIUS = 30
 
 export interface ViewerProps {
   readonly total: number
   readonly photoAt: (index: number) => Photo | undefined
   // Page the list in when the neighbour is not loaded yet (the feed).
   readonly need?: (index: number) => void
-  readonly startIndex: number
+  // Uncontrolled: where to start; the viewer then keeps its own place.
+  readonly startIndex?: number
+  // Controlled (the app's URL, D6): the open index, and [onMove] when the viewer steps to another.
+  readonly index?: number
+  readonly onMove?: (index: number) => void
   // Opened from an album: offers "Remove from album".
   readonly albumId?: string
   readonly onClose: (index: number) => void
   // After a trash: the list it was in has changed (the feed refetches).
-  readonly onTrashed?: () => void
+  // With the trashed photograph, so the grid can drop it from its selection.
+  readonly onTrashed?: (photo: Photo) => void
 }
 
-// The full-screen viewer: the largest stored rung (never a decoded original), keyboard ← → Esc and
-// swipe navigation, the stored details, favourite, albums, trash, and for a video its MOTION loop
-// then playback through Drive's streaming path.
-export function Viewer({ total, photoAt, need, startIndex, albumId, onClose, onTrashed }: ViewerProps) {
+// The full-screen viewer: the largest stored rung (never a decoded original), keyboard ← → Esc
+// Space and swipe navigation, a filmstrip of the neighbours, the stored details, favourite, albums,
+// trash, and for a video its MOTION loop then playback through Drive's streaming path.
+export function Viewer({ total, photoAt, need, startIndex = 0, index: controlled, onMove, albumId, onClose, onTrashed }: ViewerProps) {
   const { t } = useTranslation()
-  const [requested, setIndex] = useState(startIndex)
+  const [own, setOwn] = useState(startIndex)
+  const requested = controlled ?? own
   // ⚠ The list can shrink under the viewer (unfavourite the last favourite; remove from an album):
   // the index follows it in, and an emptied list closes the viewer.
   const index = Math.max(0, Math.min(requested, total - 1))
@@ -51,11 +60,27 @@ export function Viewer({ total, photoAt, need, startIndex, albumId, onClose, onT
   const [picking, setPicking] = useState(false)
   const [outcome, setOutcome] = useState<Outcome>(null)
   const swipeFrom = useRef<number | null>(null)
+  const root = useRef<HTMLDivElement>(null)
   const photo = photoAt(index)
 
+  // The filmstrip's far end: asking for it pages the feed forward (keyset: always in order).
   useEffect(() => {
-    need?.(Math.min(total - 1, index + 1))
+    if (total > 0) need?.(Math.min(total - 1, index + FILMSTRIP_RADIUS))
   }, [need, index, total])
+
+  // Focus moves into the viewer, so its keys are its own and the grid's stay with the grid.
+  useEffect(() => {
+    root.current?.focus({ preventScroll: true })
+    // ⚠ Twice: a Radix menu whose "Open" mounted this viewer hands focus back to its trigger in a
+    // setTimeout(0) after it closes — later than this effect — which would leave every viewer key dead
+    // (focus behind the viewer, where neither the viewer nor the grid takes keys). The second focus
+    // runs after that timer (scheduled later), and only if focus is not already inside.
+    const retake = window.setTimeout(() => {
+      const el = root.current
+      if (el && !el.contains(document.activeElement)) el.focus({ preventScroll: true })
+    }, 0)
+    return () => window.clearTimeout(retake)
+  }, [])
 
   const closeEmpty = useRef(onClose)
   useEffect(() => {
@@ -65,12 +90,13 @@ export function Viewer({ total, photoAt, need, startIndex, albumId, onClose, onT
     if (total === 0) closeEmpty.current(0)
   }, [total])
 
-  function go(delta: number) {
-    const next = index + delta
-    if (next < 0 || next >= total) return
-    setIndex(next)
+  function jump(next: number) {
+    if (next < 0 || next >= total || next === index) return
+    if (onMove) onMove(next)
+    else setOwn(next)
     setOutcome(null)
   }
+  const go = (delta: number) => jump(index + delta)
 
   // Latest `go`/`onClose` for the one keydown listener.
   // ⚠ Not while the album picker is open: its Escape closes the picker, not the viewer.
@@ -78,12 +104,23 @@ export function Viewer({ total, photoAt, need, startIndex, albumId, onClose, onT
   useEffect(() => {
     keys.current = { go, close: () => onClose(index), blocked: picking }
   })
+  // ⚠⚠ Drive's FileViewer rules (web-apps-layout.md §4.3): skip a key already handled (a Radix
+  // dialog or menu, or the grid whose Enter/Space just opened this viewer — React can install this
+  // listener before that same event reaches the window), and a key from outside the viewer (the
+  // album picker is portalled out of it). Space and ←/→ on a focused video are the player's.
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       if (event.defaultPrevented || keys.current.blocked) return
+      const target = event.target as HTMLElement | null
+      const el = root.current
+      if (target instanceof Node && target !== document.body && el && !el.contains(target)) return
+      const tag = target?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) return
+      if (tag === 'VIDEO' && (event.key === ' ' || event.key === 'ArrowLeft' || event.key === 'ArrowRight')) return
       if (event.key === 'ArrowRight') keys.current.go(1)
       else if (event.key === 'ArrowLeft') keys.current.go(-1)
-      else if (event.key === 'Escape') keys.current.close()
+      // Space toggles the viewer (§3.2 Quick Look); preventDefault, or a focused button is clicked.
+      else if (event.key === 'Escape' || event.key === ' ') keys.current.close()
       else return
       event.preventDefault()
     }
@@ -97,16 +134,18 @@ export function Viewer({ total, photoAt, need, startIndex, albumId, onClose, onT
       setOutcome(result)
       return
     }
-    onTrashed?.()
+    onTrashed?.(target)
     onClose(index)
   }
 
   return (
     <div
+      ref={root}
       role="dialog"
       aria-modal="true"
       aria-label={photo?.name ?? t('viewer.title')}
-      className="fixed inset-0 z-20 flex bg-black text-white"
+      tabIndex={-1}
+      className="fixed inset-0 z-20 flex bg-black text-white focus:outline-none"
       onPointerDown={(e) => {
         swipeFrom.current = e.clientX
       }}
@@ -125,6 +164,7 @@ export function Viewer({ total, photoAt, need, startIndex, albumId, onClose, onT
             {t('viewer.back')}
           </Button>
           <span className="min-w-0 flex-1 truncate text-sm text-white/80">{photo?.name}</span>
+          <span className="shrink-0 text-xs text-white/50">{t('viewer.position', { index: index + 1, total })}</span>
           {photo && <ViewerActions photo={photo} albumId={albumId} onAdd={() => setPicking(true)} onTrash={() => void trash(photo)} onOutcome={setOutcome} />}
           <Button variant="ghost" className="text-white hover:bg-white/10" aria-pressed={showDetails} onClick={() => setShowDetails((v) => !v)}>
             {t('viewer.details')}
@@ -160,6 +200,7 @@ export function Viewer({ total, photoAt, need, startIndex, albumId, onClose, onT
             ›
           </button>
         </div>
+        <Filmstrip total={total} photoAt={photoAt} current={index} onNavigate={jump} />
       </div>
       {showDetails && photo && <DetailsPanel photo={photo} />}
       {picking && photo && (
@@ -169,6 +210,94 @@ export function Viewer({ total, photoAt, need, startIndex, albumId, onClose, onT
         />
       )}
     </div>
+  )
+}
+
+// The neighbours along the bottom (§3.2): a window of ±FILMSTRIP_RADIUS around the open photograph,
+// each a button named by the file, the current one ringed and `aria-current`. A neighbour not
+// loaded yet is a placeholder; the viewer's `need` pages it in.
+function Filmstrip({
+  total,
+  photoAt,
+  current,
+  onNavigate,
+}: {
+  total: number
+  photoAt: (index: number) => Photo | undefined
+  current: number
+  onNavigate: (index: number) => void
+}) {
+  const { t } = useTranslation()
+  const currentRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    // ⚠ jsdom has no scrollIntoView.
+    const el = currentRef.current
+    if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'nearest', inline: 'center' })
+  }, [current])
+  if (total <= 1) return null
+  const from = Math.max(0, current - FILMSTRIP_RADIUS)
+  const to = Math.min(total - 1, current + FILMSTRIP_RADIUS)
+  const indices = Array.from({ length: to - from + 1 }, (_, k) => from + k)
+  return (
+    <nav
+      aria-label={t('viewer.filmstrip')}
+      className="border-t border-white/10 px-3 py-2"
+      // A drag along the strip scrolls it; it is not a swipe to the neighbour.
+      onPointerDown={(e) => e.stopPropagation()}
+      onPointerUp={(e) => e.stopPropagation()}
+    >
+      <ul className="flex items-center gap-1.5 overflow-x-auto">
+        {indices.map((i) => {
+          const neighbour = photoAt(i)
+          return (
+            <li key={neighbour?.path ?? `i${i}`} className="shrink-0">
+              {neighbour ? (
+                <FilmstripItem
+                  ref={i === current ? currentRef : undefined}
+                  photo={neighbour}
+                  current={i === current}
+                  onClick={() => onNavigate(i)}
+                />
+              ) : (
+                <span aria-hidden className="block h-12 w-10 rounded bg-white/5" />
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </nav>
+  )
+}
+
+function FilmstripItem({
+  ref,
+  photo,
+  current,
+  onClick,
+}: {
+  ref?: Ref<HTMLButtonElement>
+  photo: Photo
+  current: boolean
+  onClick: () => void
+}) {
+  const own = useRef<HTMLButtonElement>(null)
+  const onScreen = useOnScreen(own)
+  const url = useThumbnail(previewPathOf(photo), onScreen)
+  return (
+    <button
+      ref={(el) => {
+        own.current = el
+        if (typeof ref === 'function') ref(el)
+        else if (ref) ref.current = el
+      }}
+      type="button"
+      aria-label={photo.name}
+      aria-current={current ? 'true' : undefined}
+      onClick={onClick}
+      className={`block h-12 overflow-hidden rounded bg-white/5 ${current ? 'w-16 ring-2 ring-white' : 'w-10 opacity-70 hover:opacity-100'}`}
+    >
+      {url && <img src={url} alt="" draggable={false} className="size-full object-cover" />}
+    </button>
   )
 }
 
@@ -251,8 +380,9 @@ function StillStage({ photo, offerDownload = true }: { photo: Photo; offerDownlo
   const viewport = useViewportPx()
   const px = heroPreviewRequestPx(viewport.width, viewport.height, photo.pixelWidth, photo.pixelHeight)
   const preview = useQuery({
-    queryKey: queryKeys.largePreview(photo.path, px),
-    queryFn: () => getLargePreview(photo.path, px),
+    // ⚠ ED-3: the edit's rendition when there is one — never the original (§12.4).
+    queryKey: queryKeys.largePreview(previewPathOf(photo), px),
+    queryFn: () => getLargePreview(previewPathOf(photo), px),
     // ⚠ An absent rung is often a wait (it syncs from the minting device): not cached for the
     // session, so reopening asks again.
     staleTime: 0,
@@ -300,7 +430,9 @@ function DownloadOriginal({ photo }: { photo: Photo }) {
         disabled={state === 'working'}
         onClick={async () => {
           setState('working')
-          setState(await downloadOriginal(photo.path, photo.name))
+          // ⚠⚠ ED-3: an edited photo hands out its RENDITION, never the original as a fallback — the
+          // original of a redacted edit is what the edit hides (photos-editing.md §12.4).
+          setState(await downloadOriginal(previewPathOf(photo), photo.name))
         }}
       >
         {state === 'working' ? t('common.working') : t('viewer.downloadOriginal')}
@@ -338,7 +470,19 @@ function VideoStage({ photo }: { photo: Photo }) {
   }
 
   if (stream) {
-    return <video src={stream.url} controls autoPlay playsInline className="max-h-full max-w-full" aria-label={photo.name} />
+    // Focused once it mounts: Play's button is gone, and with focus on <body> Space would close the
+    // viewer and ←/→ leave the video, instead of pausing and seeking it.
+    return (
+      <video
+        ref={(el) => el?.focus({ preventScroll: true })}
+        src={stream.url}
+        controls
+        autoPlay
+        playsInline
+        className="max-h-full max-w-full"
+        aria-label={photo.name}
+      />
+    )
   }
   return (
     <div className="flex flex-col items-center gap-3">

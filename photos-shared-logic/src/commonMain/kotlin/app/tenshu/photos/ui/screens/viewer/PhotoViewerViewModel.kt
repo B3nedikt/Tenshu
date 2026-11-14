@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.tenshu.core.common.util.runCatchingCancellable
 
 /**
  * What the viewer knows that is not a picture (`photos-app.md` S3, `photos-viewer-about-screen.md`).
@@ -151,7 +152,12 @@ class PhotoViewerViewModel(
      */
     fun onPhotoShown(photo: Photo) {
         val current = _state.value
-        if (current.photo.path == photo.path) return
+        if (current.photo.path == photo.path) {
+            // ⚠ The same photograph, re-mapped — an edit saved or reverted (ED-3) changes its
+            // rendition and nothing the sheet shows, so no re-read.
+            if (current.photo != photo) _state.value = current.copy(photo = photo)
+            return
+        }
         _state.value = current.copy(
             photo = photo,
             details = null,
@@ -280,6 +286,30 @@ class PhotoViewerViewModel(
      */
     fun addToAlbum(albumId: String, photo: Photo, onDone: (Boolean) -> Unit) {
         write(onDone, photo) { repository.addToAlbum(albumId, it) }
+    }
+
+    /**
+     * *Revert to original* (ED-3): forget the edit of the photograph on screen. [onDone] gets the
+     * photo as it now reads — no rendition — or `null` when nothing changed.
+     *
+     * ⚠ The shells ask first: the edit's recipe goes with the row, so a revert cannot be undone.
+     */
+    fun revertEdit(onDone: (Photo?) -> Unit) {
+        val current = _state.value
+        if (current.writing || !current.photo.isEdited) return
+        _state.value = current.copy(writing = true)
+        val photo = current.photo
+        viewModelScope.launch {
+            val reverted = try {
+                runCatchingCancellable { repository.revertEdit(photo) }.getOrNull()
+            } finally {
+                _state.value = _state.value.copy(writing = false)
+            }
+            if (reverted != null && _state.value.photo.path == photo.path) {
+                _state.value = _state.value.copy(photo = reverted)
+            }
+            onDone(reverted)
+        }
     }
 
     private fun write(onDone: (Boolean) -> Unit, target: Photo? = null, one: suspend (Photo) -> Boolean) {

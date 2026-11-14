@@ -1,11 +1,15 @@
-import { useCallback, useLayoutEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { useCallback, useLayoutEffect, useRef } from 'react'
+import { useAppRoute } from '@tenshu/app-kit/route'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { RuntimeBanner } from './components/RuntimeBanner'
 import { PlacesView } from './components/PlacesView'
 import { PlaceDetail } from './components/PlaceDetail'
 import { LiveProvider } from './lib/live'
-import type { Detail } from './lib/nav'
+import { detailOf, fragmentOf, type Detail } from './lib/nav'
+
+// One section, so always `/` (the registry's `sections` is `['']`). Module-level: `useAppRoute`
+// re-subscribes when its section list changes identity.
+const SECTIONS = ['map'] as const
 
 // Maps on the web (web-app-suite.md). No backend of its own: every view reads
 // and writes through the apex bridge (`lib/proxy.ts`), and the places stream is subscribed once,
@@ -14,30 +18,36 @@ import type { Detail } from './lib/nav'
 // places / notes / lists (no store), no add-by-pin or "my location", no world search, no offline
 // regions, no map-provider links, no Contribute, no photo strip.
 export default function App() {
-  const { t } = useTranslation()
-  const [open, setOpen] = useState<Detail | null>(null)
+  // The open place is the URL fragment, `place=<id>` (`lib/nav.ts`), so a reload or Back keeps it.
+  // The detail loads by id alone — nothing from the list click is needed to show it.
+  const { fragment, open: openDetail, back } = useAppRoute(SECTIONS, 'map')
+  const open = detailOf(fragment)
+  const openId = open?.id ?? null
+  // ⚠ The scroller is this <main>, not the window: the shell is a full-height column, so the
+  // window never scrolls and `window.scrollY` reads 0 forever.
+  const scroller = useRef<HTMLElement>(null)
   // Where the list was scrolled when a place opened; Back puts it back.
   const listScroll = useRef(0)
 
   const openPlace = useCallback((detail: Detail) => {
-    listScroll.current = window.scrollY
-    setOpen(detail)
-  }, [])
+    listScroll.current = scroller.current?.scrollTop ?? 0
+    // The detail takes over the list, so it is a history entry: browser Back closes it
+    // (web-apps-layout.md §4.2).
+    openDetail(fragmentOf(detail))
+  }, [openDetail])
 
   // ⚠ After the commit that swaps the screens, so the list is laid out again before it scrolls.
   useLayoutEffect(() => {
-    window.scrollTo(0, open ? 0 : listScroll.current)
-  }, [open])
+    if (scroller.current) scroller.current.scrollTop = openId ? 0 : listScroll.current
+  }, [openId])
 
   return (
     <LiveProvider>
-      <div className="min-h-screen bg-surface">
-        <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-          <header className="mb-6">
-            <h1 className="text-2xl font-semibold tracking-tight text-text">{t('app.title')}</h1>
-            <p className="mt-1 text-sm text-text-2">{t('app.tagline')}</p>
-          </header>
-
+      {/* No sections, so no sidebar (web-apps-layout.md §3.1): a full-window column whose <main>
+          scrolls, so the list and its map get the whole width. No headline — the apex top bar
+          already names the app. */}
+      <div className="flex h-dvh flex-col bg-surface text-text">
+        <main ref={scroller} className="min-h-0 flex-1 overflow-y-auto px-4 py-4 min-[900px]:px-7 min-[900px]:py-5">
           {/* First: in a tab without the runtime, every other read fails too. */}
           <RuntimeBanner />
 
@@ -51,7 +61,7 @@ export default function App() {
           {/* Keyed by place, so a crashed detail recovers on navigation. */}
           {open && (
             <ErrorBoundary key={`place:${open.id}`}>
-              <PlaceDetail placeId={open.id} onBack={() => setOpen(null)} />
+              <PlaceDetail placeId={open.id} onBack={() => back()} />
             </ErrorBoundary>
           )}
         </main>

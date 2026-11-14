@@ -27,7 +27,7 @@ import org.koin.core.context.GlobalContext
  * WITHOUT re-navigating (not only after switching to Home and back).
  *
  * The other listing tests do not cover this path:
- *  - [FilesScreenIntegrationTest] swaps in a static `StaticPagingFilesRepository`,
+ *  - [FilesScreenIntegrationTest] swaps in a static `IdlingFilesRepository`,
  *    routing around the real `pagingSource` observer entirely.
  *  - [FilesPagingIntegrationTest] exercises the real repository flow (and proves
  *    it IS reactive — `pagedListingEmitsNewGenerationWhenFolderCreatedWhileCollecting`),

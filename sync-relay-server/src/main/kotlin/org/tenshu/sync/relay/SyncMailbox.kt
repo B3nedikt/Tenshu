@@ -74,6 +74,13 @@ class SyncMailbox(
     private val arrivalCounter = AtomicLong(0L)
 
     /**
+     * The seq of the last block or tombstone this mailbox accepted, across every realm; 0 before
+     * the first. Read-only, and read by nothing on the request path: an in-process test harness
+     * reads it to tell whether a round of device ticks pushed anything at all.
+     */
+    val lastArrivalSeq: Long get() = arrivalCounter.get()
+
+    /**
      * Internal storage shape: `(arrivalSeq, block)` pairs. seq is strictly monotonic
      * per [arrivalCounter]; insertion order through `add` matches seq order so the
      * list never needs explicit sort.

@@ -222,7 +222,11 @@ concurrency:
 jobs:
   build:
     name: typecheck + lint + test + build
-    runs-on: ubuntu-latest
+    # ⚠ Pinned, not `ubuntu-latest`: GitHub moves that label to Ubuntu 26.04 from 2026-10-19, and
+    # the pinned Playwright refuses to install its browser there ("does not support
+    # chromium-headless-shell on ubuntu26.04-x64"). Move the pin on purpose, with the tools that
+    # need it, rather than finding out from a red run.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -240,7 +244,12 @@ jobs:
             25
             17
           distribution: "temurin"
-          cache: gradle
+
+      # Gradle's own cache action: Gradle's user home (dependencies, wrapper, and the local BUILD
+      # cache). It replaces setup-java's `cache: gradle`, which kept dependencies only. ⚠ By default
+      # only the default branch WRITES the cache; PRs read it.
+      - name: Set up Gradle (dependency + build cache)
+        uses: gradle/actions/setup-gradle@v4
 
       # ⚠ setup-java installs into the hosted tool cache, which is NOT a location Gradle's
       # toolchain auto-detection scans — so the 25 above is invisible to `launcherFor` without

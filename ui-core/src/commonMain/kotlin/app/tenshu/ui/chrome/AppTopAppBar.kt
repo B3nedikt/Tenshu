@@ -80,6 +80,11 @@ import androidx.compose.ui.tooling.preview.Preview
  * rest — the container is `Surface`, exactly as it renders today — so adopting
  * it changes nothing until the user actually scrolls.
  *
+ * ⚠ The exception is a long feed whose bottom nav is the small floating pill
+ * (`CompactNavStyle.Floating`): there little chrome moves and the reclaimed rows
+ * are the point. Photos' feed header is `enterAlways`, on phones only and never
+ * while selecting (`PhotosFeedTopAppBar`'s caller). Elsewhere, stay pinned.
+ *
  * ⚠ `exitUntilCollapsedScrollBehavior` **does** work on this small bar: there is
  * no headline to collapse, so it slides the whole 64.dp row away with the content
  * and brings it back only once the content is at the top again — a page that

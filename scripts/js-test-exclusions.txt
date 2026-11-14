@@ -1,0 +1,14 @@
+# Modules whose Kotlin/JS (browser) tests are known red and so are NOT run — by the local gate
+# (`scripts/run-gate.sh`) AND by the public CI's `check` (`.github/workflows/android.yml`). One
+# Gradle project name per line; `#` starts a comment.
+#
+# ⚠⚠ ONE list, read by both. While the gate kept its own copy, public CI ran exactly the suites the
+# gate skipped and was red on every run from the first public release on (docs/tech-debt.md
+# "Public CI was red on every run").
+#
+# ⚠⚠ An exclusion is a latch: take a module off the moment it goes green. Why each one is here
+# lives in docs/tech-debt.md ("Modules excluded from the JS test line").
+#
+# ⚠ A misspelt name is a hard Gradle failure ("Cannot locate excluded tasks"), not a silent no-op.
+#
+# Empty since 2026-11-12. Keep it empty: a new entry needs its own tech-debt.md line.

@@ -1,13 +1,11 @@
 package org.tenshu.core.common.proxy
 
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import org.tenshu.core.collection.list.Stream
 import org.tenshu.core.collection.list.changes
 import org.tenshu.core.collection.list.toList
@@ -22,7 +20,6 @@ import org.tenshu.core.common.syntheticServiceModule
 import org.tenshu.core.security.BootstrapSyncCryptoManager
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -51,12 +48,12 @@ class StreamSubscribeRetryTest {
         val proxy = proxy(backgroundScope, subscribeFails)
 
         val ticks = MutableStateFlow(0)
-        backgroundScope.launch(Dispatchers.Default) {
+        backgroundScope.launch {
             proxy.client.syntheticService.items.changes().collect { ticks.value++ }
         }
 
-        // Give the first attempt time to fail and the retry loop time to spin at least once.
-        withContext(Dispatchers.Default) { delay(1_500) }
+        // Virtual time: the first attempt fails at t = 0 and the retry at t = 1 s fails too.
+        delay(1_500)
         assertEquals(0, ticks.value, "a failed subscribe must not fabricate change signals")
 
         subscribeFails.value = false
@@ -83,7 +80,7 @@ class StreamSubscribeRetryTest {
 
         val results = MutableStateFlow<List<String>>(emptyList())
         val failures = MutableStateFlow(0)
-        backgroundScope.launch(Dispatchers.Default) {
+        backgroundScope.launch {
             proxy.client.syntheticService.items.flow().collect { result ->
                 result.fold(
                     onSuccess = { results.value = it.toList().map { d -> d.name.get() } },
@@ -124,6 +121,7 @@ class StreamSubscribeRetryTest {
         val proxy = InProcessProxy(
             clientId = "subscribe-refused-client",
             serviceScope = backgroundScope,
+            clientScope = backgroundScope,
             syncCryptoManager = BootstrapSyncCryptoManager(),
             operationImplementationFactory = OperationImplementationFactory { id ->
                 if (id == Stream.ID) RefusingStream(refuse, subscribes, implementationFactory(id)!!)
@@ -140,7 +138,7 @@ class StreamSubscribeRetryTest {
 
         val results = MutableStateFlow<List<String>>(emptyList())
         val failures = MutableStateFlow(0)
-        backgroundScope.launch(Dispatchers.Default) {
+        backgroundScope.launch {
             proxy.client.syntheticService.items.flow().collect { result ->
                 result.fold(
                     onSuccess = { results.value = it.toList().map { d -> d.name.get() } },
@@ -149,10 +147,13 @@ class StreamSubscribeRetryTest {
             }
         }
 
-        // 1 s backoff each time would be ~8 subscribes in this window; 1, 2, 4 s is 4 (t = 0, 1, 3, 7).
-        withContext(Dispatchers.Default) { delay(7_500) }
+        // 1 s backoff each time would be 8 subscribes in this window; 1, 2, 4 s is 4 (t = 0, 1, 3, 7).
+        // ⚠ Exactly 4, because the whole stack runs on this test's scheduler (the proxy's
+        // `clientScope` and `serviceScope` are `backgroundScope`): on a real dispatcher this was a
+        // real 7.5 s wait read as a range, `3..5`, which is a wall-clock bound by another name.
+        delay(7_500)
         val attempts = subscribes.value
-        assertTrue(attempts in 3..5, "expected a backing-off retry, saw $attempts subscribes in 7.5 s")
+        assertEquals(4, attempts, "expected a backing-off retry at t = 0, 1, 3 and 7 s")
         assertEquals(1, failures.value, "one failure run, one report")
 
         // It still recovers once the snapshot can be delivered, and a later run is reported again.
@@ -191,16 +192,17 @@ class StreamSubscribeRetryTest {
         }
     }
 
-    private suspend fun <T> await(state: MutableStateFlow<T>, predicate: (T) -> Boolean) =
-        withContext(Dispatchers.Default) {
-            withTimeout(WAIT_MS) { while (!predicate(state.value)) delay(POLL_MS) }
-        }
+    /** Bounded by `runTest`'s own [TIMEOUT]; on virtual time a deadline here would fire at once. */
+    private suspend fun <T> await(state: MutableStateFlow<T>, predicate: (T) -> Boolean) {
+        state.first(predicate)
+    }
 
     private fun proxy(scope: CoroutineScope, subscribeFails: MutableStateFlow<Boolean>) =
         InProcessProxy(
             clientId = "subscribe-retry-client",
             serviceScope = scope,
-        syncCryptoManager = BootstrapSyncCryptoManager(),
+            clientScope = scope,
+            syncCryptoManager = BootstrapSyncCryptoManager(),
             operationImplementationFactory = OperationImplementationFactory { id ->
                 if (id == Stream.ID && subscribeFails.value) null else implementationFactory(id)
             },
@@ -214,8 +216,7 @@ class StreamSubscribeRetryTest {
         )
 
     private companion object {
+        /** A hang guard, not a budget: every wait in this class is virtual time. */
         val TIMEOUT = 60.seconds
-        const val WAIT_MS = 20_000L
-        const val POLL_MS = 10L
     }
 }

@@ -94,7 +94,7 @@ class MediaIndexScheduleTest {
                         registry = registry,
                         embeddings = embeddings,
                         deviceId = "device-a",
-                        indexer = MediaIndexer(registry = registry, deviceId = "device-a", embeddings = embeddings, conditions = IndexingConditions { true }),
+                        indexer = MediaIndexer(registry = registry, deviceId = { "device-a" }, embeddings = embeddings, conditions = IndexingConditions { true }),
                         mediaSource = object : MediaSource {
                             override suspend fun media(executionContext: ExecutionContext): List<IndexableMedia> {
                                 walked += "library"

@@ -39,6 +39,7 @@ import org.tenshu.core.common.schema.currentVersionVector
 import org.tenshu.sync.common.RealmContext
 import org.tenshu.sync.common.RealmSchemaEpoch
 import org.tenshu.sync.common.syncServiceCommonModule
+import org.tenshu.sync.proxy.impl.ForgetThisDeviceImplementation
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -192,6 +193,105 @@ class MultiRealmPullIsolationTest {
             1,
             refusing.getChangesCalls,
             "a refused shared realm must back off after its first 401, not pull on every tick",
+        )
+    }
+
+    /**
+     * ⚠⚠ "Forget this device" stops every shared realm (`admission-revocation-names-the-capability.md`
+     * §7i.5). Each runtime holds its own copy of the forgotten identity and an in-memory cursor:
+     * left registered, the scheduler went on pulling under the old id and key — straight back into
+     * the store the forget had just wiped — and pushing the realm's queue as a removed device.
+     */
+    @Test
+    fun forgetThisDevice_stopsEverySharedRealm_soNoDrainOrPullRunsUnderTheOldIdentity() = runTest {
+        val fixture = fixture()
+        val relay = CountingSharedRelay(MockSyncRelay(fixture.proxy.tContext))
+        relay.delegate.pushBlock(fixture.sharedBlock)
+        fixture.components.realmRegistry.register(fixture.sharedRealm, relay)
+        val oldId = fixture.syncManager.currentDeviceId
+
+        ForgetThisDeviceImplementation(
+            syncManager = fixture.syncManager,
+            revokeDevice = { _ -> NoOpRevoke() },
+            nowMs = { 0L },
+            realmRegistry = fixture.components.realmRegistry,
+        ).execute<Data?>(fixture.proxy.executionContext, null, fixture.proxy.executionContext.implementationFactory, null, null)
+        fixture.components.scheduler.tickOnce()
+
+        assertEquals(0, relay.getChangesCalls, "no shared-realm pull may run after Forget")
+        assertEquals(0, relay.pushCalls, "nor a shared-realm push")
+        assertTrue(fixture.components.realmRegistry.sharedRealms().isEmpty(), "every shared runtime is gone")
+        assertTrue(
+            fixture.components.realmRegistry.sharedRealms().none { it.deviceId == oldId },
+            "no context holds the forgotten id",
+        )
+        assertNull(
+            fixture.proxy.executionContext.database.getData(fixture.sharedEntityDataId),
+            "the wiped store must not be refilled from the realm the device left",
+        )
+    }
+
+    /**
+     * ⚠⚠ A membership that arrives while the forget runs — the personal pull goes on until custody
+     * is cleared — must not register a runtime under the identity being forgotten: it would
+     * survive the forget and fail on the zeroed key forever.
+     */
+    @Test
+    fun aMembershipArrivingMidForget_registersNothing() = runTest {
+        val fixture = fixture()
+        val registry = fixture.components.realmRegistry
+        val relay = CountingSharedRelay(MockSyncRelay(fixture.proxy.tContext))
+        var registeredDuringForget: Boolean? = null
+
+        ForgetThisDeviceImplementation(
+            syncManager = fixture.syncManager,
+            // Runs inside the forget, where `SharedRealmJoinObserver` would fire on a pulled row.
+            revokeDevice = { _ ->
+                object : org.tenshu.core.common.proxy.executor.AsyncOperationImplementation {
+                    @Suppress("UNCHECKED_CAST")
+                    override suspend fun <T : Data?> execute(
+                        executionContext: ExecutionContext,
+                        operationContext: OperationContext?,
+                        implementationFactory: OperationImplementationFactory,
+                        caller: Any?,
+                        params: Map<String, Data>?,
+                    ): T {
+                        registry.register(fixture.sharedRealm, relay)
+                        registeredDuringForget = registry.isRegistered(fixture.sharedRealm.ownerId)
+                        return null as T
+                    }
+                }
+            },
+            nowMs = { 0L },
+            realmRegistry = registry,
+        ).execute<Data?>(fixture.proxy.executionContext, null, fixture.proxy.executionContext.implementationFactory, null, null)
+
+        assertEquals(false, registeredDuringForget, "registration is refused while a forget runs")
+        assertTrue(registry.sharedRealms().isEmpty(), "and no runtime survives the forget")
+        fixture.components.scheduler.tickOnce()
+        assertEquals(0, relay.getChangesCalls)
+        // After the forget the registry takes registrations again (the next realm's memberships).
+        registry.register(fixture.sharedRealm, relay)
+        assertTrue(registry.isRegistered(fixture.sharedRealm.ownerId), "the fence lifts when the forget ends")
+    }
+
+    /** A pull whose realm is unregistered while its fetch is in flight applies nothing. */
+    @Test
+    fun aSharedRealmUnregisteredMidFetch_appliesNothing() = runTest {
+        val fixture = fixture()
+        val registry = fixture.components.realmRegistry
+        val relay = CountingSharedRelay(MockSyncRelay(fixture.proxy.tContext)) {
+            registry.unregisterAll()
+        }
+        relay.delegate.pushBlock(fixture.sharedBlock)
+        registry.register(fixture.sharedRealm, relay)
+
+        fixture.components.scheduler.tickOnce()
+
+        assertEquals(1, relay.getChangesCalls, "precondition: the fetch ran")
+        assertNull(
+            fixture.proxy.executionContext.database.getData(fixture.sharedEntityDataId),
+            "a fetch answered after its realm was forgotten must not be applied",
         )
     }
 
@@ -366,4 +466,40 @@ private class RefusingSharedRelay(
             GenericError.create(context, "$UNAUTHORIZED_REJECTION_MARKER: 401 — Invalid token"),
         )
     }
+}
+
+/** Counts relay calls; [onGetChanges] runs inside the fetch (to unregister mid-flight). */
+private class CountingSharedRelay(
+    val delegate: MockSyncRelay,
+    private val onGetChanges: () -> Unit = {},
+) : SyncRelay by delegate {
+    var getChangesCalls = 0
+        private set
+    var pushCalls = 0
+        private set
+
+    override suspend fun getChanges(sinceTimestamp: Long, tip: SignedHlcTip): TResult<ChangesResponse> {
+        getChangesCalls++
+        onGetChanges()
+        return delegate.getChanges(sinceTimestamp, tip)
+    }
+
+    override suspend fun pushBlock(
+        block: SyncBlock,
+        edges: List<org.tenshu.core.common.content.ContentEdge>,
+    ): TResult<Data?> {
+        pushCalls++
+        return delegate.pushBlock(block, edges)
+    }
+}
+
+private class NoOpRevoke : org.tenshu.core.common.proxy.executor.AsyncOperationImplementation {
+    @Suppress("UNCHECKED_CAST")
+    override suspend fun <T : Data?> execute(
+        executionContext: ExecutionContext,
+        operationContext: OperationContext?,
+        implementationFactory: OperationImplementationFactory,
+        caller: Any?,
+        params: Map<String, Data>?,
+    ): T = null as T
 }
