@@ -512,11 +512,15 @@ class SharedRealmGrantManager(
             // The join observer skipped (already registered), so re-register manually
             // with the new keys, reusing the existing per-realm device key + relay kind.
             val existing = realmRegistry.runtimeFor(realmId)?.context
+            // ⚠ The pair travels together: the existing context's (a per-realm key), else one
+            // snapshot of this device's — never an id from one and a key from the other.
+            val identity = existing?.let { SyncManager.DeviceKeyIdentity(it.deviceId, it.deviceSigningKeyPair) }
+                ?: syncManager.currentDeviceIdentity()
             val newContext = RealmContext(
                 ownerId = realmId,
-                deviceId = existing?.deviceId ?: syncManager.currentDeviceId,
+                deviceId = identity.deviceId,
                 derivedKeys = cryptoManager.deriveSharedRealmKeys(newKr),
-                deviceSigningKeyPair = existing?.deviceSigningKeyPair ?: syncManager.getDeviceSigningKeyPair(),
+                deviceSigningKeyPair = identity.signingKeyPair,
                 masterKeyPair = masterKeyPair,
                 retiredKeys = buildRealmKeyring(executionContext, cryptoManager, realmId, myEnc.privateKey),
             )

@@ -8,8 +8,6 @@ import app.tenshu.calendar.data.external.ExternalSnapshot
 import app.tenshu.calendar.data.external.ExternalSourceKind
 import app.tenshu.calendar.data.external.InMemoryMirrorDigestStore
 import app.tenshu.calendar.data.external.MirrorRefresher
-import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.LocalDate
 import org.tenshu.calendar.Calendar
@@ -35,20 +33,11 @@ import org.tenshu.calendar.saveReminder
 import org.tenshu.calendar.saveSubscription
 import org.tenshu.calendar.setReminderState
 import org.tenshu.core.TResult
-import org.tenshu.core.collection.list.toList
 import org.tenshu.core.entity.DataId
-import org.tenshu.sync.approvePairingRequest
-import org.tenshu.sync.client.syncService
-import org.tenshu.sync.getPairingStatus
-import org.tenshu.sync.getPendingPairingRequests
-import org.tenshu.sync.initiatePairing
-import org.tenshu.sync.startPairing
 import kotlin.test.Test
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kotlin.test.fail
-import kotlin.time.Duration.Companion.seconds
 
 /**
  * **A Calendar delete reaches every device** (`tech-debt.md` *"Calendar deletes emit no
@@ -67,6 +56,14 @@ import kotlin.time.Duration.Companion.seconds
  *
  * Rows are read straight off the tablet's store by key, so the assertion is about the row and not
  * about any read path that might filter it.
+ *
+ * ## Stepped
+ *
+ * The system is stepped (`TestSystem` KDoc, `docs/testing.md` §12): nothing syncs unless the test
+ * syncs it. "Stays gone" used to be a 3 s real-time settle after the delete arrived — about fifteen
+ * polls — and is now [TestSystem.syncUntilQuiet]: rounds on both devices until two in a row push
+ * nothing. A resurrection is a later tick's push, so two rounds with no push on either device are
+ * the claim itself rather than a hope that fifteen polls were enough.
  */
 class CalendarDeleteSyncSystemTest {
 
@@ -237,11 +234,11 @@ class CalendarDeleteSyncSystemTest {
     )
 
     private fun twoDevices(block: suspend (phone: TestClient, tablet: TestClient) -> Unit) = runBlocking {
-        val system = TestSystem.builder().build()
+        val system = TestSystem.builder().stepped().build()
         try {
-            val phone = system.client("phone", TestClientRole.RealmHost, pollingIntervalMs = 200)
-            val tablet = system.client("tablet", TestClientRole.JoiningDevice, pollingIntervalMs = 200)
-            pair(system, host = phone, joiner = tablet)
+            val phone = system.client("phone", TestClientRole.RealmHost)
+            val tablet = system.client("tablet", TestClientRole.JoiningDevice)
+            system.pair(host = phone, joiner = tablet, hostName = "Phone", joinerName = "Tablet")
             this@CalendarDeleteSyncSystemTest.system = system
             block(phone, tablet)
         } finally {
@@ -258,53 +255,24 @@ class CalendarDeleteSyncSystemTest {
 
     /** The precondition: the peer holds every row, so its absence later is the delete's doing. */
     private suspend fun awaitPresent(peer: TestClient, rows: List<Pair<String, String>>) {
-        awaitOrFail("the tablet holds every row before the delete: $rows") {
+        system.syncUntil("the tablet holds every row before the delete: $rows") {
             rows.all { (type, key) -> rowOn(peer, type, key) != null }
         }
     }
 
     private suspend fun assertGoneAndStaysGone(peer: TestClient, rows: List<Pair<String, String>>) {
-        awaitOrFail(
+        system.syncUntil(
             "the delete reached the tablet; still there: " +
                 rows.filter { (type, key) -> rowOn(peer, type, key) != null }
         ) { rows.all { (type, key) -> rowOn(peer, type, key) == null } }
-        // ⚠ And stays gone: a resurrection is a later tick's event.
-        delay(SETTLE)
+        // ⚠ And stays gone: a resurrection is a later tick's push, so tick both devices until two
+        // rounds in a row push nothing, then look again.
+        system.syncUntilQuiet()
         rows.forEach { (type, key) -> assertNull(rowOn(peer, type, key), "[tablet] $type $key is still gone") }
-    }
-
-    private suspend fun awaitOrFail(what: String, condition: suspend () -> Boolean) {
-        try {
-            system.advanceUntil(timeout = 30.seconds) { condition() }
-        } catch (_: TimeoutCancellationException) {
-            fail("Timed out waiting until $what")
-        }
     }
 
     private fun TResult<*>.orFail(what: String) {
         assertTrue(this is TResult.Success<*>, "$what failed: $this")
-    }
-
-    private suspend fun pair(system: TestSystem, host: TestClient, joiner: TestClient) {
-        host.bootstrapAsHost(deviceName = "Phone")
-        host.tenshuClient.syncService.startPairing()
-        val parsed = PairingUri.parse(host.syncManager.getPairingString()!!)
-        joiner.tenshuClient.syncService.initiatePairing(
-            ownerId = parsed.ownerId,
-            pairingSecret = parsed.secret,
-            deviceName = "Tablet",
-            otherDevicePublicKey = parsed.hostPairingPublicKey,
-        )
-        val request = host.tenshuClient.syncService.getPendingPairingRequests()
-            .let { it.valueOrFail("getPendingPairingRequests")!!.toList().single() }
-        host.tenshuClient.syncService.approvePairingRequest(request.deviceId.get())
-        system.advanceUntil(timeout = 60.seconds) {
-            val status = joiner.tenshuClient.syncService.getPairingStatus(
-                pairingSecret = parsed.secret,
-                otherDevicePublicKey = parsed.hostPairingPublicKey,
-            )
-            status is TResult.Success && status.value?.get() == true
-        }
     }
 
     private companion object {
@@ -324,8 +292,5 @@ class CalendarDeleteSyncSystemTest {
             colorArgb = null,
             holdsEvents = true,
         )
-
-        /** How long a state must hold before it is believed. ~15 ticks at 200 ms. */
-        val SETTLE = 3.seconds
     }
 }

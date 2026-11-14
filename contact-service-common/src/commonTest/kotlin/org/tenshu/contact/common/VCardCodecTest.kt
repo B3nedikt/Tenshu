@@ -62,6 +62,68 @@ class VCardCodecTest {
     }
 
     @Test
+    fun `a quoted-printable soft break is joined even when a fold splits the encoding param`() {
+        // The QP marker is found across a fold, and a soft break after it still joins the lines.
+        val card = "BEGIN:VCARD\r\nVERSION:2.1\r\n" +
+            "NOTE;CHARSET=UTF-8;ENCODING=QUOTED-PRI\r\n NTABLE:caf=C3=A9 =\r\nau lait\r\nEND:VCARD\r\n"
+        assertEquals("café au lait", decodeText(parseVCard(card).single()))
+    }
+
+    @Test
+    fun `a trailing equals sign outside quoted-printable is kept and not taken for a soft break`() {
+        val card = "BEGIN:VCARD\r\nVERSION:3.0\r\nNOTE:a=\r\nUID:x\r\nEND:VCARD\r\n"
+        val properties = parseVCard(card)
+        assertEquals("a=", properties.single { it.name == "NOTE" }.value)
+        assertEquals("x", properties.single { it.name == "UID" }.value)
+    }
+
+    /**
+     * A big `PHOTO` is megabytes of base64 folded into tens of thousands of lines. Unfolding it used to
+     * re-copy the whole logical line per continuation — quadratic, 15–30 s for one 2 MiB photo, which
+     * timed out `ContactPhotoContentPlaneTest` under load.
+     *
+     * ⚠ Judged by how the time GROWS, not by a wall-clock bound: a debug Kotlin/Native build on a CI
+     * simulator is slow enough to miss any fixed limit with the linear code. Four times the input
+     * costs about four times as long when linear and about sixteen times when quadratic, so the
+     * bound sits between the two. A big parse that is fast in absolute terms passes outright, so
+     * millisecond noise on a quick machine cannot fail it.
+     */
+    @Test
+    fun `unfolding a multi-megabyte photo is linear`() {
+        fun cardOf(chars: Int): Pair<String, String> {
+            val base64 = buildString { repeat(chars) { append('A' + it % 26) } } + "=="
+            val card = buildString {
+                append("BEGIN:VCARD\r\nVERSION:3.0\r\nPHOTO;ENCODING=b;TYPE=JPEG:")
+                var index = 0
+                while (index < base64.length) {
+                    if (index > 0) append("\r\n ")
+                    val end = minOf(index + 74, base64.length)
+                    append(base64, index, end)
+                    index = end
+                }
+                append("\r\nEND:VCARD\r\n")
+            }
+            return base64 to card
+        }
+        fun timeToUnfold(chars: Int): kotlin.time.Duration {
+            val (base64, card) = cardOf(chars)
+            val started = kotlin.time.TimeSource.Monotonic.markNow()
+            val photo = parseVCard(card).single()
+            val elapsed = started.elapsedNow()
+            assertEquals(base64, photo.value)
+            return elapsed
+        }
+
+        timeToUnfold(100_000) // warm-up
+        val small = timeToUnfold(750_000)
+        val big = timeToUnfold(3_000_000)
+
+        val fastOutright = big < kotlin.time.Duration.parse("1s")
+        val ratio = big / small.coerceAtLeast(kotlin.time.Duration.parse("1ms"))
+        assertTrue(fastOutright || ratio < 8.0, "4× the input took ${ratio}× as long ($small → $big): not linear")
+    }
+
+    @Test
     fun `reads the editable projection`() {
         val card = readContactCard(appleish)
 

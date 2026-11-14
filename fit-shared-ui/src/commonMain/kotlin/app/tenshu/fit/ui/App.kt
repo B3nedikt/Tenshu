@@ -1,5 +1,13 @@
 package app.tenshu.fit.ui
 
+import app.tenshu.ui.feedback.SyncActivityCapsule
+import app.tenshu.ui.feedback.rememberSyncActivity
+import org.tenshu.sync.client.anyCatchUpHeartbeat
+import app.tenshu.reachability.SuiteSyncProblem
+import app.tenshu.ui.feedback.SuiteSyncBanner
+import app.tenshu.ui.feedback.rememberSuiteSyncProblem
+import org.tenshu.sync.client.syncConnectivity
+import org.tenshu.sync.client.syncService
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
@@ -293,16 +301,22 @@ private fun MainShell(appViewModel: AppViewModel, openTargets: Flow<DataId>) {
         // `controlReachable` is true and draws UNDERNEATH the status bar with the clock on top of
         // its text.
         val storageState = rememberRealmStorageState()
-        val storageBannerVisible =
-            storageState !is RealmStorageState.Ok && current != Destination.RecordLive
-        // ⚠⚠ Gated on the REASON, not on `controlReachable == false`. A fenced device answers every
-        // read, so `controlReachable` stays `true`; gated on it, the fence banner would render with
-        // no inset — the same status-bar collision.
-        val bannerVisible = unreachableReason != null && current != Destination.RecordLive
+        // ⚠⚠ One strip for the app (`suite-sync-status.md` SS-1): Control's state, this device's
+        // sync health and storage, in one order. Gated on the PROBLEM, not on
+        // `controlReachable == false`: a fenced device answers every read, so `controlReachable`
+        // stays `true`, and a strip drawn without the inset collides with the status bar.
+        val tenshuClient: TenshuClient = koinInject()
+        val connectivity = remember(tenshuClient) { tenshuClient.syncService.syncConnectivity() }
+        val syncProblem = rememberSuiteSyncProblem(unreachableReason, storageState, connectivity)
+        // SS-2 (`suite-sync-status.md`): "Syncing…" while Control pulls, through its heartbeat so a
+        // killed Control's stale flag never sticks.
+        val catchingUp = remember(tenshuClient) { tenshuClient.syncService.anyCatchUpHeartbeat() }
+        val syncActivity = rememberSyncActivity(catchingUp)
+        val bannerVisible = syncProblem != SuiteSyncProblem.None && current != Destination.RecordLive
         Column(
             Modifier.fillMaxSize()
                 .then(
-                    if (bannerVisible || storageBannerVisible) {
+                    if (bannerVisible) {
                         Modifier.windowInsetsPadding(WindowInsets.statusBars)
                     } else {
                         Modifier
@@ -313,20 +327,16 @@ private fun MainShell(appViewModel: AppViewModel, openTargets: Flow<DataId>) {
             // shell-level — one banner for the whole app. Suppressed on the always-dark
             // live-record surface; a failed save there has its own affordance (§9.13 dialogs).
             if (bannerVisible) {
-                ControlUnreachableBanner(reason = unreachableReason)
-            }
-            // ⚠ Below the reachability banner, not instead of it: "Control is gone" and "the realm
-            // cannot sync" are different facts and a user can be owed both. Suppressed on the
-            // live-record surface for the same reason the banner above is — that screen is
-            // always-dark and owns its own affordances.
-            // ⚠⚠ And suppressed while Control is unreachable at all, reversing the rule above:
-            // both facts are real, but the storage one is not actionable while the first is true —
-            // its *Manage storage* button opens a Control that is not answering.
-            if (storageBannerVisible && unreachableReason == null) {
-                RealmStorageBannerHost(storageState)
+                SuiteSyncBanner(
+                    problem = syncProblem,
+                    controlBanner = { ControlUnreachableBanner(reason = it) },
+                    storageBanner = { RealmStorageBannerHost(it) },
+                )
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 NavContent(backStack, ::pop, ::push, ::selectTop)
+                // Over the screens, never beside them; a problem strip, or a screen that is not a tab, hides it.
+                SyncActivityCapsule(activity = syncActivity, hidden = syncProblem != SuiteSyncProblem.None || current !is Destination.TopLevel)
             }
         }
         // ⚠ Inside the scaffold, so it cannot appear over the live-record surface's own dialogs

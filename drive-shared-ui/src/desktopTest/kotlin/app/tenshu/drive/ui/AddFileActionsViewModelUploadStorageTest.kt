@@ -118,7 +118,7 @@ class AddFileActionsViewModelUploadStorageTest {
         advanceUntilIdle()
         assertEquals("a.txt", vm.uiState.value.uploadConflict?.fileName)
 
-        vm.resolveConflictKeepBoth()
+        vm.keepBothShown()
         advanceUntilIdle()
 
         // The dialog closes either way; before, that was ALL that happened, so Keep both looked
@@ -141,7 +141,7 @@ class AddFileActionsViewModelUploadStorageTest {
 
         vm.uploadFile("file:///tmp/a.txt", "/dest")
         advanceUntilIdle()
-        vm.resolveConflictKeepBoth()
+        vm.keepBothShown()
         advanceUntilIdle()
 
         // Its own message: "couldn't upload" after 99 silent attempts would not tell the user
@@ -169,12 +169,116 @@ class AddFileActionsViewModelUploadStorageTest {
 
         vm.uploadFile("file:///tmp/a.txt", "/dest")
         advanceUntilIdle()
-        vm.resolveConflictKeepBoth()
+        vm.keepBothShown()
         advanceUntilIdle()
 
         assertEquals("a (2).txt", repo.uploadCalls.last().third)
         assertNull(vm.uiState.value.uploadError, "a Keep both that landed reports nothing")
         assertNull(vm.uiState.value.uploadConflict)
+    }
+
+    private fun OwnedViewModels.conflictViewModel(taken: Set<String>): Pair<AddFileActionsViewModel, FakeFilesRepository> {
+        val repo = FakeFilesRepository(
+            uploadResultFor = { fileName ->
+                if (fileName in taken) RepositoryResult.Error(RepositoryError.AlreadyExists)
+                else RepositoryResult.Success(Unit)
+            }
+        )
+        val controller = FolderUploadController(repo, ownScope(CoroutineScope(Dispatchers.Unconfined)))
+        return own(AddFileActionsViewModel(repo, controller)) to repo
+    }
+
+    @Test
+    fun multiPick_everyConflictIsOfferedInTurn() = vmTest { vms ->
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val (vm, _) = vms.conflictViewModel(taken = setOf("a.txt", "b.txt"))
+
+        // One multi-select pick: two collisions launched together.
+        vm.uploadFile("file:///tmp/a.txt", "/dest")
+        vm.uploadFile("file:///tmp/b.txt", "/dest")
+        advanceUntilIdle()
+
+        // Before the queue the second overwrote the first, so a.txt was skipped without a choice.
+        assertEquals("a.txt", vm.uiState.value.uploadConflict?.fileName)
+        vm.cancelShown()
+        assertEquals("b.txt", vm.uiState.value.uploadConflict?.fileName, "the next one waits its turn")
+        vm.cancelShown()
+        assertNull(vm.uiState.value.uploadConflict)
+    }
+
+    @Test
+    fun multiPick_aLaterSuccessDoesNotDismissAnOpenConflict() = vmTest { vms ->
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val (vm, _) = vms.conflictViewModel(taken = setOf("a.txt"))
+
+        vm.uploadFile("file:///tmp/a.txt", "/dest")
+        vm.uploadFile("file:///tmp/c.txt", "/dest")
+        advanceUntilIdle()
+
+        assertEquals(
+            "a.txt",
+            vm.uiState.value.uploadConflict?.fileName,
+            "c.txt landing is about another file; a.txt still needs an answer"
+        )
+    }
+
+    @Test
+    fun multiPick_keepBothMovesOnToTheNextConflict() = vmTest { vms ->
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val (vm, repo) = vms.conflictViewModel(taken = setOf("a.txt", "b.txt"))
+
+        vm.uploadFile("file:///tmp/a.txt", "/dest")
+        vm.uploadFile("file:///tmp/b.txt", "/dest")
+        advanceUntilIdle()
+
+        vm.keepBothShown()
+        advanceUntilIdle()
+        assertEquals("a (1).txt", repo.uploadCalls.last().third)
+        assertEquals("b.txt", vm.uiState.value.uploadConflict?.fileName)
+
+        vm.keepBothShown()
+        advanceUntilIdle()
+        assertEquals("b (1).txt", repo.uploadCalls.last().third)
+        assertNull(vm.uiState.value.uploadConflict)
+    }
+
+    @Test
+    fun aRepeatedAnswerDoesNotConsumeTheNextConflict() = vmTest { vms ->
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val (vm, _) = vms.conflictViewModel(taken = setOf("a.txt", "b.txt"))
+        vm.uploadFile("file:///tmp/a.txt", "/dest")
+        vm.uploadFile("file:///tmp/b.txt", "/dest")
+        advanceUntilIdle()
+
+        // iOS answers twice: the Cancel button, then the alert's dismissal.
+        val a = vm.uiState.value.uploadConflict!!.id
+        vm.cancelConflict(a)
+        vm.cancelConflict(a)
+
+        assertEquals("b.txt", vm.uiState.value.uploadConflict?.fileName, "b.txt still gets its choice")
+    }
+
+    @Test
+    fun aLateAnswerAfterKeepBothDoesNotConsumeTheNextConflict() = vmTest { vms ->
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val (vm, repo) = vms.conflictViewModel(taken = setOf("a.txt", "b.txt"))
+        vm.uploadFile("file:///tmp/a.txt", "/dest")
+        vm.uploadFile("file:///tmp/b.txt", "/dest")
+        advanceUntilIdle()
+
+        // Keep both, then the dismissal (or a second tap) for the same alert before the retry ran.
+        val a = vm.uiState.value.uploadConflict!!.id
+        vm.resolveConflictKeepBoth(a)
+        vm.cancelConflict(a)
+        vm.resolveConflictKeepBoth(a)
+        advanceUntilIdle()
+
+        assertEquals("b.txt", vm.uiState.value.uploadConflict?.fileName)
+        assertEquals(
+            1,
+            repo.uploadCalls.count { it.third == "a (1).txt" },
+            "one Keep both, one retry — a repeat must not upload a second copy"
+        )
     }
 
     @Test
@@ -190,4 +294,10 @@ class AddFileActionsViewModelUploadStorageTest {
         assertEquals(AddFileActionsViewModel.ERROR_UPLOAD_FAILED, vm.uiState.value.uploadError)
         assertEquals(0, repo.uploadCalls.size, "nothing was attempted")
     }
+
+    private fun AddFileActionsViewModel.keepBothShown() =
+        resolveConflictKeepBoth(uiState.value.uploadConflict!!.id)
+
+    private fun AddFileActionsViewModel.cancelShown() =
+        cancelConflict(uiState.value.uploadConflict!!.id)
 }

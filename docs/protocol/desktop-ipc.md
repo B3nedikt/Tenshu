@@ -240,7 +240,11 @@ To ensure that only authorized Tenshu apps can talk to the Proxy:
   connects to a path, so the directory's mode is its only evidence that the socket was placed
   there by the user's own daemon. `SocketDirectory.inspect` grades it — a directory another user
   can **write** to is a refusal (that is the squatting vector), while world-writable-but-sticky
-  (`/tmp`) and merely-traversable (`0755`) warn. ⚠ Warning rather than refusing on `0755` is
+  (`/tmp`) and merely-traversable (`0755`) warn. A directory owned by another user is refused,
+  **except root's**: root can replace anything whatever the mode, so owning `/tmp` grants it
+  nothing new. ⚠ Without that exception the sticky carve-out never ran, because `/tmp` is root-owned
+  on Linux, and every Unix-socket test failed on a Linux CI runner while macOS (whose `$TMPDIR`
+  the user owns) passed. ⚠ Warning rather than refusing on `0755` is
   deliberate: the daemon repairs the mode on start and the reconnect loop retries, so a user
   carrying an old directory self-heals instead of being locked out.
 * **Handshake — as built (macOS; see the platform note below)**:

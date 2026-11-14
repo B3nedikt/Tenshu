@@ -13,4 +13,13 @@ export interface Notification {
   readonly timestamp: number
 }
 
+// One display event for the apex bell (`Notifications.observeRecent`). See `native/core.d.ts`.
+export interface RecentNotification {
+  readonly id: string
+  readonly timestamp: number
+  readonly kind: string
+  readonly name: string
+  readonly otherCount: number
+}
+
 export const Notifications = bundle.Notifications.getInstance()

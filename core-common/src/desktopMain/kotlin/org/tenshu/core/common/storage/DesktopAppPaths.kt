@@ -47,10 +47,36 @@ object DesktopAppPaths {
     const val DIR_PROPERTY = "tenshu.data.dir"
     const val DIR_ENV = "TENSHU_DATA_DIR"
 
+    /**
+     * The developer's REAL home, set only in test JVMs (root `build.gradle.kts`, which also points
+     * `user.home` at a throwaway directory). When present, [root] refuses to resolve into it.
+     */
+    const val TEST_REAL_HOME_PROPERTY = "tenshu.test.realHome"
+
     /** Base directory holding all Tenshu desktop app data. */
     fun root(): File {
-        explicitDir()?.let { return File(it) }
-        return groupContainer() ?: legacyRoot()
+        val resolved = explicitDir()?.let(::File) ?: groupContainer() ?: legacyRoot()
+        return checkNotRealHomeUnderTest(resolved)
+    }
+
+    /**
+     * ⚠⚠ Test-isolation guard. Every desktop/JVM test task runs with `user.home` redirected to a
+     * per-run temp directory, so two test runs on one machine (parallel worktree gates) never
+     * share `~/.tenshu/<appId>` — they used to, and collided on its files. This makes a test that
+     * still reaches the real data roots fail HERE, naming the path, instead of as a flake in some
+     * other run. Production never sets the property, so it never pays for the check.
+     */
+    private fun checkNotRealHomeUnderTest(root: File): File {
+        val realHome = System.getProperty(TEST_REAL_HOME_PROPERTY)?.takeIf { it.isNotBlank() } ?: return root
+        val forbidden = listOf(File(realHome, ".tenshu"), File(realHome, "Library"))
+            .map { it.absoluteFile.normalize() }
+        val candidate = root.absoluteFile.normalize()
+        check(forbidden.none { candidate.startsWith(it) }) {
+            "A test resolved the desktop data root to $candidate, inside the developer's real home " +
+                "($realHome). Tests must stay inside the per-run home the build gives them " +
+                "(user.home=${System.getProperty("user.home")}); see root build.gradle.kts."
+        }
+        return root
     }
 
     /**

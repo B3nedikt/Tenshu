@@ -2,6 +2,7 @@ package app.tenshu.control.inference
 
 import app.tenshu.control.ui.screens.models.IndexStartOutcome
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 
 /**
  * Where the pass a person asked for stands on a phone that indexes **only while the app is in
@@ -58,6 +59,15 @@ interface OnDeviceIndexSource {
 
     /** ⚠ Never completes. */
     val stored: Flow<StoredIndex>
+
+    /**
+     * Whether a continued task **carries** the running pass — on iOS 26+, a launched
+     * `BGContinuedProcessingTask` (`ios-on-device-inference.md` §15) — so that leaving the app does
+     * not stop it. ⚠⚠ Only a launched task: a request submitted and not yet answered, or refused,
+     * leaves the pass one a leave stops (§15.2). ⚠ Defaulted to *never*, which is every platform
+     * with no continuation (below iOS 26, Android, desktop). Never completes.
+     */
+    val continued: Flow<Boolean> get() = flowOf(false)
 
     /**
      * *Index now*, through the start operation. ⚠ Returns when the pass has started, been

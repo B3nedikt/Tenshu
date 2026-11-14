@@ -3,6 +3,7 @@
 package app.tenshu.sdk
 
 import app.tenshu.sdk.internal.JsRuntime
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.flow.collect
@@ -72,6 +73,28 @@ object SyncHealth {
             JsRuntime.tenshuClient.syncService.syncHealth().collect { row ->
                 callback(row?.toJs())
             }
+        }
+        return { job.cancel() }
+    }
+
+    /**
+     * [observe], with an end: [onEnd] fires ONCE when the stream can no longer deliver — the runtime
+     * failed to start, the flow threw, or it completed — and never for the caller's own cancel.
+     * ⚠ Without it a dead stream leaves a reader on its last row: the apex's sync pill would keep
+     * saying "Synced" forever. [observe] keeps its old shape for the `sync.health.observe` bridge.
+     */
+    fun observeUntilEnd(callback: (SyncHealthJs?) -> Unit, onEnd: (String) -> Unit): () -> Unit {
+        val job = GlobalScope.launch {
+            val reason = try {
+                JsRuntime.awaitReady()
+                JsRuntime.tenshuClient.syncService.syncHealth().collect { row -> callback(row?.toJs()) }
+                "observe_ended"
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                e.message ?: e.toString()
+            }
+            onEnd(reason)
         }
         return { job.cancel() }
     }

@@ -41,7 +41,7 @@ interface FileSystemInstance {
   list(path: string): Promise<NativeFile[]>
   // The `limit` most-recently-modified entries across the whole drive,
   // newest first (the Home "recent" surface). Same walker shape as `list`.
-  // Mirrors the native `FilesRepository.recentFiles`.
+  // Mirrors the native `FilesRepository.recentFiles`. ⚠ Rejects on a failed read — never `[]` for one.
   recentFiles(limit: number): Promise<NativeFile[]>
   // W4: files whose NAME contains `query`, case-insensitively, anywhere in the drive. Empty
   // query resolves []. The predicate runs proxy-side — no client-side re-filter.

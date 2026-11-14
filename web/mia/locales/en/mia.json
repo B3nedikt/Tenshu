@@ -1,8 +1,4 @@
 {
-  "app": {
-    "title": "Mia",
-    "tagline": "Ask about your own data — answered on this device, end-to-end encrypted."
-  },
   "runtime": {
     "connectingTitle": "Still connecting to Tenshu…",
     "connectingBody": "The Tenshu tab hosting Mia is busy. Mia will load as soon as it answers.",
@@ -19,7 +15,7 @@
     "reload": "Reload"
   },
   "tabs": {
-    "label": "Mia",
+    "label": "Mia sections",
     "chat": "Chat",
     "history": "History",
     "grants": "What Mia can read"

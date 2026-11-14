@@ -39,6 +39,9 @@ import org.tenshu.identity.Device
 import org.tenshu.sync.OfferPairingSession
 import org.tenshu.sync.OfferStatus
 import org.tenshu.sync.GetPendingPairingRequests
+import org.tenshu.core.common.impl.CompositeDto
+import org.tenshu.sync.PairingDeviceRemovedError
+import org.tenshu.sync.PairingApproverRevokedError
 import org.tenshu.sync.PairingInitiation
 import org.tenshu.sync.PairingOfferApprovalPrompt
 import org.tenshu.sync.PairingRequest
@@ -283,6 +286,52 @@ class PairingWizardViewModelTest {
         val state = vm.uiState.value
         assertIs<PairingError.Unexpected>(state.error)
         assertEquals(PairingStep.ResponderApproval, state.step, "a failed admit keeps the prompt up to retry")
+        assertFalse(state.isLoading)
+    }
+
+    /**
+     * The relay refuses THIS device's approval — its admission capability was revoked (§7j.5).
+     * ⚠ Never the generic error: both approvers showed "Something went wrong" on 2026-11-11.
+     */
+    @Test
+    fun approveOffer_approversCapabilityRevoked_saysSo() = vmTest { vms ->
+        val prompt = PairingOfferApprovalPrompt.create(context, "hash-1", "Desktop", "011617")
+        val repo = FakeSyncRepository(
+            offerPromptResult = ResultSuccessDto(prompt),
+            approveOfferResult = ResultFailureDto(ApproverRevokedErrorDto()),
+        )
+        val vm = vms.own(PairingWizardViewModel(repo, HostPairingMonitor(repo, scope = backgroundScope)))
+
+        vm.onQrScanned(TEST_OFFER_URI)
+        advanceUntilIdle()
+        vm.approveOffer()
+        advanceUntilIdle()
+
+        assertEquals(PairingError.ApproverRevoked, vm.uiState.value.error)
+    }
+
+    /**
+     * The relay refuses the device being added because it was removed from this realm before.
+     * ⚠ Must not render as the generic error: that said nothing, and every retry was refused the
+     * same way (`admission-revocation-names-the-capability.md` §7h).
+     */
+    @Test
+    fun approveOffer_deviceBeingAddedWasRemoved_saysSo() = vmTest { vms ->
+        val prompt = PairingOfferApprovalPrompt.create(context, "hash-1", "Desktop", "011617")
+        val repo = FakeSyncRepository(
+            offerPromptResult = ResultSuccessDto(prompt),
+            approveOfferResult = ResultFailureDto(DeviceRemovedErrorDto()),
+        )
+        val vm = vms.own(PairingWizardViewModel(repo, HostPairingMonitor(repo, scope = backgroundScope)))
+
+        vm.onQrScanned(TEST_OFFER_URI)
+        advanceUntilIdle()
+        vm.approveOffer()
+        advanceUntilIdle()
+
+        val state = vm.uiState.value
+        assertEquals(PairingError.DeviceRemoved, state.error)
+        assertEquals(PairingStep.ResponderApproval, state.step)
         assertFalse(state.isLoading)
     }
 
@@ -1244,6 +1293,55 @@ class PairingWizardViewModelTest {
         assertNull(state.offerUri, "a denied offer's QR must leave the screen")
     }
 
+    /**
+     * F2′ on the offerer: the relay refused THIS device as a removed identity. Its own terminal —
+     * not "connection lost" polled until the window closes, and not "failed" with a retry that every
+     * attempt repeats (`admission-revocation-names-the-capability.md` §7i.5).
+     */
+    @Test
+    fun offerRefusedAsThisDeviceRemoved_surfacesItsOwnTerminal() = vmTest { vms ->
+        val repo = FakeSyncRepository(syncStatus = unpairedStatus(), offerSession = offerSession())
+        val vm = vms.own(PairingWizardViewModel(repo, HostPairingMonitor(repo, scope = backgroundScope), backgroundScope))
+
+        vm.onSelectShow()
+        runCurrent()
+
+        repo.offerStatusResult = ResultFailureDto(org.tenshu.sync.PairingThisDeviceRemovedError.create(context))
+        advanceTimeBy(2_100L)
+        runCurrent()
+
+        val state = vm.uiState.value
+        assertTrue(state.offerRemoved, "a removed identity is told as such")
+        assertFalse(state.offerFailed, "not the retry terminal — a retry is refused identically")
+        assertNull(state.offerUri, "the dead code leaves the screen")
+    }
+
+    /**
+     * The refusal can land after SCANNED. The SAS must go with it, or the scanned step — shown
+     * whenever a SAS is present — keeps the user on a code nothing will ever answer.
+     */
+    @Test
+    fun offerRefusedAsThisDeviceRemoved_afterScanned_leavesTheScannedStep() = vmTest { vms ->
+        val repo = FakeSyncRepository(syncStatus = unpairedStatus(), offerSession = offerSession())
+        val vm = vms.own(PairingWizardViewModel(repo, HostPairingMonitor(repo, scope = backgroundScope), backgroundScope))
+
+        vm.onSelectShow()
+        runCurrent()
+        repo.offerStatusResult = ResultSuccessDto(OfferStatus.create(context, OfferStatus.SCANNED, sas = "482913"))
+        advanceTimeBy(2_100L)
+        runCurrent()
+        assertTrue(vm.uiState.value.offerScanned, "precondition: on the scanned step")
+
+        repo.offerStatusResult = ResultFailureDto(org.tenshu.sync.PairingThisDeviceRemovedError.create(context))
+        advanceTimeBy(2_100L)
+        runCurrent()
+
+        val state = vm.uiState.value
+        assertTrue(state.offerRemoved)
+        assertFalse(state.offerScanned, "the scanned step must not outrank the refusal")
+        assertNull(state.offerSas)
+    }
+
     @Test
     fun offerMintFails_surfacesFailedTerminal() = vmTest { vms ->
         // offerSession = null → offerPairing resolves Success(null) = mint failure.
@@ -1571,3 +1669,14 @@ internal class FakeSyncRepository(
     override suspend fun relaxToHeadless(): TResult<TBoolean> =
         ResultSuccessDto(TBooleanDto(true))
 }
+
+/**
+ * Mirrors `:sync-service-common`'s `PairingDeviceRemovedErrorDto`, which is `internal`. Fieldless,
+ * like the real one — the ViewModel matches on the type and reads nothing else.
+ */
+private class DeviceRemovedErrorDto :
+    PairingDeviceRemovedError, CompositeDto(emptyList())
+
+/** Mirrors `:sync-service-common`'s internal `PairingApproverRevokedErrorDto`. Fieldless. */
+private class ApproverRevokedErrorDto :
+    PairingApproverRevokedError, CompositeDto(emptyList())

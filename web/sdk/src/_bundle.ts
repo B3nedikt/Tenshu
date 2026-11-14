@@ -19,6 +19,7 @@
 /// <reference path="./native.d.ts" />
 
 export {
+  Apps,
   Bip39,
   Calendar,
   Contacts,
@@ -35,6 +36,7 @@ export {
   Membership,
   Mia,
   Notifications,
+  Overview,
   Pairing,
   Photos,
   Realm,

@@ -5,6 +5,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
@@ -94,6 +95,47 @@ class ContinuedIndexingTest {
         assertEquals(listOf(true), task.completions)
         assertFalse(bridge.holdsPass(), "a finished task still holds the pass")
         assertEquals(listOf("submit", "settled", "released", "complete true"), events, "released after the task was completed, or settled after the release")
+    }
+
+    /**
+     * ⚠⚠ What the Models screen's running line follows (§15.7 Q2): LIVE only once the task launched.
+     * Accepted-but-not-launched is still SUBMITTED, and a refusal goes back to NONE.
+     */
+    @Test
+    fun theStandingsFollowTheClaimAcceptedRefusedAndWithNoScheduler() = runTest {
+        val seen = mutableListOf<ContinuationStanding>()
+        pass(1)
+        val accepted = bridge()
+        val watch = CoroutineScope(UnconfinedTestDispatcher(testScheduler) + Job())
+        watch.launch { accepted.standings.collect { seen += it } }
+        accepted.offer(1)
+        accepted.answered(submitted.single(), accepted = true)
+        accepted.launched(submitted.single(), Task(events))
+        runCurrent()
+        assertEquals(listOf(ContinuationStanding.NONE, ContinuationStanding.SUBMITTED, ContinuationStanding.LIVE), seen)
+
+        seen.clear()
+        pass(2)
+        answerAtSubmit = false
+        val refused = bridge()
+        watch.launch { refused.standings.collect { seen += it } }
+        refused.offer(2)
+        runCurrent()
+        assertEquals(ContinuationStanding.NONE, seen.last(), "a refused request still claims the pass")
+        assertFalse(ContinuationStanding.LIVE in seen)
+
+        // Below iOS 26 (or the flag off): no scheduler, and nothing is ever claimed.
+        seen.clear()
+        pass(3)
+        val none = ContinuedIndexing(
+            scope = watch, scheduler = { null }, outcomeOf = { outcomes[it] }, progress = { bar },
+            settled = {}, released = {}, identifierPrefix = "app.test.indexnow.", newSuffix = { "n" },
+        )
+        watch.launch { none.standings.collect { seen += it } }
+        none.offer(3)
+        runCurrent()
+        assertEquals(listOf(ContinuationStanding.NONE), seen)
+        watch.cancel()
     }
 
     /** ⚠⚠ The runner's outcome tells a throw from a finish; the holder's `null` cannot. */

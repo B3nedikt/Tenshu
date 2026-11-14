@@ -30,7 +30,8 @@ import kotlinx.coroutines.withTimeoutOrNull
  * **The transport answers first, when it can.** [transportConnected] is `TenshuClient.proxyConnected`
  * (`core-client-resubscription.md` §4.3) — the client-local fact of whether the IPC channel is up.
  * It is **authoritative in one direction only**: `false` means unreachable *now*, with no probe
- * and no 5-second wait, because no call can cross a dead channel. `true` proves nothing — a
+ * and no 5-second wait, because no call can cross a dead channel — except at launch, where a
+ * channel that has not connected *yet* also reads `false` ([firstConnectGraceMs]). `true` proves nothing — a
  * connected proxy still refuses every read when the two sides disagree on a schema version (the
  * announce gate), which is the "Can't reach Control" case that is not a transport failure at all.
  * So a reconnect is treated as a *reason to re-check*, never as an answer: it wakes the probe
@@ -172,6 +173,21 @@ class ControlReachability(
      * Absent (iOS route-1, tests, previews), [UnreachableReason.NotSetUp] never fires.
      */
     private val controlHasRealm: RealmProbe,
+    /**
+     * How long a transport `false` is held back while there is **no verdict yet** ([state] `null`).
+     *
+     * ⚠⚠ At launch the channel reads `false` because it has not connected *yet*, not because it is
+     * down: Android's Binder transport starts `isConnected = false` and reports that the moment the
+     * client registers, ~0.3 s before `onServiceConnected` lands. Taken as authoritative, every cold
+     * start flashed *"Can't reach Tenshu Control"* for that window (and, in Photos, a nav entry
+     * composed inside it kept the banner for good). A connect inside the grace cancels it, so the
+     * launch goes straight from unknown to the probe's answer.
+     *
+     * ⚠ Only before the first verdict. A drop once Control has answered is still reported at once —
+     * that is the case [transportConnected] exists for. And a Control that never binds (absent,
+     * disabled) is still reported, [FIRST_CONNECT_GRACE_MS] late.
+     */
+    private val firstConnectGraceMs: Long = FIRST_CONNECT_GRACE_MS,
 ) {
 
     private val _state = MutableStateFlow<Boolean?>(null)
@@ -457,11 +473,14 @@ class ControlReachability(
         scope?.launch {
             transportConnected?.let { connected ->
                 launch {
-                    connected.collect { up ->
+                    // ⚠ `collectLatest`: a connect cancels a launch-time `false` still in its grace.
+                    connected.collectLatest { up ->
                         if (up) {
                             // Not an answer, only a reason to ask again — see the class doc.
                             wake.trySend(Unit)
                         } else {
+                            // Not connected *yet* is not down — see [firstConnectGraceMs].
+                            if (_state.value == null) delay(firstConnectGraceMs)
                             // Authoritative: nothing can reach a proxy across a dead channel.
                             _state.value = false
                         }
@@ -668,12 +687,19 @@ class ControlReachability(
         return false
     }
 
-    private companion object {
+    internal companion object {
         /** A realm read is two local proxy round trips; one hung past this is "cannot tell". */
         const val REALM_READ_TIMEOUT_MS = 15_000L
 
         /** Retry delays while PENDING after a read that could not answer; then the normal poll. */
         val PENDING_RETRY_BACKOFF_MS = longArrayOf(250L, 500L, 1_000L, 2_000L)
+
+        /**
+         * The launch grace for a not-yet-connected transport ([firstConnectGraceMs]). Measured on a
+         * phone: the Binder connects ~0.3 s after the first bind with Control already running; 2 s
+         * also covers a Control that has to start for the bind.
+         */
+        const val FIRST_CONNECT_GRACE_MS: Long = 2_000L
     }
 
     /** Waits out [probeIntervalMs], or returns early on a wake: a reconnect, an answer, or [recheck]. */

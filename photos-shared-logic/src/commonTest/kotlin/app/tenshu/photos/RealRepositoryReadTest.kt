@@ -1,6 +1,8 @@
 package app.tenshu.photos
 
 import org.tenshu.photo.saveAlbum
+import org.tenshu.photo.clearPhotoEdit
+import org.tenshu.photo.setPhotoEdit
 import org.tenshu.photo.client.photoService
 import app.tenshu.photos.data.AlbumsResult
 import app.tenshu.photos.data.TrashResult
@@ -8,11 +10,16 @@ import org.tenshu.core.TResult
 import org.tenshu.core.file.system.uploadFile
 import org.tenshu.core.file.system.replaceFile
 import org.tenshu.core.file.system.moveFile
+import org.tenshu.core.file.system.createFolder
 import androidx.paging.testing.asSnapshot
 import app.tenshu.photos.data.PhotoPageResult
 import app.tenshu.photos.data.TenshuPhotosRepository
+import app.tenshu.photos.data.EditedCopyUpload
+import app.tenshu.photos.data.InlineEditedCopyUpload
 import app.tenshu.photos.data.DuplicatesResult
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.tenshu.core.common.DefaultTenshuClient
@@ -48,6 +55,12 @@ import org.tenshu.core.file.createdAt
 import org.tenshu.core.file.files
 import org.tenshu.core.equalTo
 import org.tenshu.core.inRange
+import app.tenshu.photos.edit.EditRecipe
+import app.tenshu.photos.edit.MarkupEdit
+import app.tenshu.photos.edit.NormPoint
+import app.tenshu.photos.edit.Redaction
+import app.tenshu.photos.edit.TransformEdit
+import org.tenshu.core.file.EDIT_RENDITIONS_ROOT
 import kotlin.test.Ignore
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -632,6 +645,16 @@ class RealRepositoryReadTest {
             )
         }
 
+        // ⚠⚠ An edit decides which photos may supply a person's avatar (`photos-editing.md` §12.13),
+        // so the row alone — no rendition file, nothing for the feed to see — must move the watch.
+        moved("an edit") {
+            assertTrue(
+                stack.client.photoService.setPhotoEdit(photo.contentId, "{\"v\":1}", "$EDIT_RENDITIONS_ROOT/x.jpg", true)
+                    is TResult.Success<*>,
+            )
+        }
+        moved("a revert") { assertTrue(stack.client.photoService.clearPhotoEdit(photo.contentId) is TResult.Success<*>) }
+
         // Nothing changed: it stays where it is.
         settle()
         assertEquals(seen, watch.revision.value)
@@ -688,6 +711,141 @@ class RealRepositoryReadTest {
         val albums = stack.repository.albums()
         assertTrue(albums is AlbumsResult.Albums, "got $albums")
         assertEquals(listOf(1), albums.albums.map { it.photoCount })
+    }
+
+    /**
+     * ⚠⚠ ED-1's *Save as copy*, through the real upload op (`photos-editing.md` §3.2 A, ED-D1).
+     *
+     * The copy keeps the original's capture time and place — the re-encoded bytes carry no EXIF, so
+     * only the two `UploadFile` params can — and the original's identity does not move: its
+     * `contentId`, its favourite, its album entry and its bytes are exactly as they were. That last
+     * half is the whole reason an edit is a copy rather than an overwrite (§3.1).
+     */
+    @Test
+    fun anEditedCopyKeepsTheOriginalsTimeAndPlace_andLeavesTheOriginalUntouched() = runTest {
+        val stack = Stack(this)
+        val originalBytes = byteArrayOf(9, 8, 7, 6)
+        // The folder first: an upload into a folder with no row is refused.
+        assertTrue(stack.client.fileService.defaultFileSystem.createFolder("/Camera") is TResult.Success)
+        assertTrue(
+            stack.client.fileService.defaultFileSystem.uploadFile(
+                "/Camera", "IMG_0001.jpg", originalBytes,
+                sourceModifiedAt = 5_000L, captureLatE7 = 488_566_000L, captureLngE7 = 23_522_000L,
+            ) is TResult.Success,
+        )
+        val original = (stack.repository.feedPage(beforeMs = Long.MAX_VALUE, pageSize = 10)
+            as PhotoPageResult.Page).photos.single()
+        assertEquals(488_566_000L, original.latE7, "seeded with a place")
+        assertTrue(original.contentId.isNotEmpty())
+        assertTrue(stack.repository.setFavourite(original.contentId, true))
+        val albumId = requireNotNull(stack.repository.createAlbum("Paris"))
+        assertTrue(stack.repository.addToAlbum(albumId, original))
+
+        assertEquals(originalBytes.toList(), stack.repository.originalBytes(original.path)?.toList(), "the editor reads the original")
+
+        val copy = requireNotNull(stack.repository.saveEditedCopy(original, byteArrayOf(1, 1, 1)))
+        assertEquals("/Camera/IMG_0001-edited.jpg", copy.path)
+
+        // The copy, as the FEED reads it back — capture time and place from the upload params.
+        val feed = (stack.repository.feedPage(beforeMs = Long.MAX_VALUE, pageSize = 10) as PhotoPageResult.Page).photos
+        val copyRow = feed.single { it.path == copy.path }
+        assertEquals(5_000L, copyRow.capturedAtMs, "sits beside the original in the feed")
+        assertEquals(488_566_000L, copyRow.latE7)
+        assertEquals(23_522_000L, copyRow.lngE7)
+        assertTrue(copyRow.contentId.isNotEmpty() && copyRow.contentId != original.contentId, "a new photograph")
+
+        // The original: same identity, still favourited, still the album's only entry, same bytes.
+        val originalRow = feed.single { it.path == original.path }
+        assertEquals(original.contentId, originalRow.contentId, "contentId never re-minted")
+        assertEquals(true, stack.repository.isFavourite(original.contentId))
+        assertEquals(false, stack.repository.isFavourite(copyRow.contentId), "the copy starts unflagged")
+        val inAlbum = (stack.repository.albumPhotos(albumId) as PhotoPageResult.Page).photos
+        assertEquals(listOf(original.path), inAlbum.map { it.path })
+        assertEquals(listOf(original.contentId), inAlbum.map { it.contentId })
+        assertEquals(originalBytes.toList(), stack.repository.originalBytes(original.path)?.toList())
+
+        // A second save never overwrites the first copy.
+        val second = requireNotNull(stack.repository.saveEditedCopy(original, byteArrayOf(2, 2)))
+        assertEquals("/Camera/IMG_0001-edited-2.jpg", second.path)
+        assertEquals(listOf<Byte>(1, 1, 1), stack.repository.originalBytes(copy.path)?.toList())
+    }
+
+    /**
+     * ⚠⚠ The save returns once the copy is ON THE DEVICE (`photos-editing.md` §9.6). The upload op
+     * here writes the copy, then never returns — as `UploadFile` does while Control's inline content
+     * push waits on an unreachable relay — so a save that awaited the op would hang. And a name
+     * already in use is skipped BEFORE the upload: the early return takes any row at the path as
+     * the copy, so an existing `-edited.jpg` must never be mistaken for it.
+     */
+    @Test
+    fun aSaveReturnsOnceTheCopyIsWritten_whileTheUploadOpIsStillPushing() = runTest {
+        val stack = Stack(this)
+        stack.seedPhotoAt("IMG_0003.jpg", capturedAtMs = 9_000L)
+        stack.seedPhotoAt("IMG_0003-edited.jpg", capturedAtMs = 1_000L)
+        val original = (stack.repository.feedPage(beforeMs = Long.MAX_VALUE, pageSize = 10) as PhotoPageResult.Page)
+            .photos.single { it.path == "/IMG_0003.jpg" }
+        val pushing = kotlinx.coroutines.CompletableDeferred<Unit>()
+        // ⚠ Counted at the START: the save may return before the real op does — that is the point.
+        var uploadsStarted = 0
+        val repository = TenshuPhotosRepository(
+            stack.client, clockMs = { 1_000L }, reachability = null /* test */,
+            copyUpload = EditedCopyUpload { client, folder, fileName, bytes, capturedAtMs, latE7, lngE7 ->
+                uploadsStarted++
+                InlineEditedCopyUpload.upload(client, folder, fileName, bytes, capturedAtMs, latE7, lngE7)
+                    .also { pushing.await() }
+            },
+            copyUploadScope = backgroundScope,
+        )
+
+        val copy = requireNotNull(repository.saveEditedCopy(original, byteArrayOf(4, 4)))
+
+        assertEquals("/IMG_0003-edited-2.jpg", copy.path, "the name in use was skipped, not taken for the copy")
+        assertEquals(1, uploadsStarted, "one upload — the name in use never reached the op — and it is still running")
+        assertTrue(!pushing.isCompleted)
+        assertEquals(9_000L, copy.capturedAtMs)
+        assertEquals(listOf<Byte>(4, 4), repository.originalBytes(copy.path)?.toList(), "the copy reads back at once")
+        assertEquals(listOf<Byte>(1, 2, 3), repository.originalBytes("/IMG_0003-edited.jpg")?.toList(), "the file in the way is untouched")
+        val feed = (repository.feedPage(beforeMs = Long.MAX_VALUE, pageSize = 10) as PhotoPageResult.Page).photos
+        assertTrue(feed.any { it.path == copy.path }, "the copy is in the feed while its push is pending")
+        pushing.complete(Unit)
+    }
+
+    /**
+     * ⚠ The upload's scope torn down mid-save (a graph teardown) ends the save as a failure — a
+     * rethrown cancellation of someone else's scope would leave the editor's spinner up for good.
+     */
+    @Test
+    fun aSaveWhoseUploadScopeIsTornDownFails_ratherThanHanging() = runTest {
+        val stack = Stack(this)
+        stack.seedPhotoAt("IMG_0004.jpg", capturedAtMs = 9_000L)
+        val original = (stack.repository.feedPage(beforeMs = Long.MAX_VALUE, pageSize = 10) as PhotoPageResult.Page)
+            .photos.single()
+        val uploadScope = CoroutineScope(backgroundScope.coroutineContext + kotlinx.coroutines.Job())
+        val started = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val repository = TenshuPhotosRepository(
+            stack.client, clockMs = { 1_000L }, reachability = null /* test */,
+            copyUpload = EditedCopyUpload { _, _, _, _, _, _, _ -> started.complete(Unit); kotlinx.coroutines.awaitCancellation() },
+            copyUploadScope = uploadScope,
+        )
+        val save = async { repository.saveEditedCopy(original, byteArrayOf(5)) }
+        started.await()
+        uploadScope.cancel()
+        assertEquals(null, save.await())
+    }
+
+    /** ⚠ A photograph with no place gets none — never half a coordinate, never a guess. */
+    @Test
+    fun anEditedCopyOfAPhotographWithNoPlaceHasNone() = runTest {
+        val stack = Stack(this)
+        stack.seedPhotoAt("IMG_0002.jpg", capturedAtMs = 7_000L)
+        val original = (stack.repository.feedPage(beforeMs = Long.MAX_VALUE, pageSize = 10)
+            as PhotoPageResult.Page).photos.single()
+        val copy = requireNotNull(stack.repository.saveEditedCopy(original, byteArrayOf(3)))
+        val row = (stack.repository.feedPage(beforeMs = Long.MAX_VALUE, pageSize = 10) as PhotoPageResult.Page)
+            .photos.single { it.path == copy.path }
+        assertEquals(7_000L, row.capturedAtMs)
+        assertEquals(null, row.latE7)
+        assertEquals(null, row.lngE7)
     }
 
     @Test
@@ -1058,5 +1216,165 @@ class RealRepositoryReadTest {
         return byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A) +
             u32(13) + "IHDR".encodeToByteArray() + u32(width) + u32(height) +
             byteArrayOf(8, 2, 0, 0, 0) + u32(0)
+    }
+
+    // ── ED-3: the non-destructive edit (`photos-editing.md` §12) ───────────────────────────────
+
+    private val turnedAndRedacted = EditRecipe(
+        transform = TransformEdit(quarterTurns = 1),
+        markup = MarkupEdit(
+            listOf(Redaction(1, listOf(NormPoint(0.1f, 0.1f), NormPoint(0.4f, 0.1f), NormPoint(0.4f, 0.3f), NormPoint(0.1f, 0.3f)))),
+        ),
+    )
+
+    /**
+     * ⚠⚠ The point of ED-3 (§3.1): the photograph keeps its bytes and its `contentId`, so its
+     * favourite and its album membership are untouched — and the feed, the album and the covers draw
+     * the rendition, which is never listed as a photograph of its own (it lives under the trash).
+     */
+    @Test
+    fun aSavedEdit_keepsThePhotosIdentity_andEveryReadShowsItsRendition() = runTest {
+        val stack = Stack(this)
+        val originalBytes = byteArrayOf(9, 8, 7, 6)
+        assertTrue(stack.client.fileService.defaultFileSystem.createFolder("/Camera") is TResult.Success)
+        assertTrue(
+            stack.client.fileService.defaultFileSystem.uploadFile("/Camera", "IMG_0001.jpg", originalBytes, sourceModifiedAt = 5_000L)
+                is TResult.Success,
+        )
+        val original = (stack.repository.feedPage(beforeMs = Long.MAX_VALUE, pageSize = 10) as PhotoPageResult.Page).photos.single()
+        assertEquals(null, original.renditionPath)
+        assertTrue(stack.repository.setFavourite(original.contentId, true))
+        val albumId = requireNotNull(stack.repository.createAlbum("Paris"))
+        assertTrue(stack.repository.addToAlbum(albumId, original))
+
+        val saved = requireNotNull(stack.repository.saveEdit(original, turnedAndRedacted, byteArrayOf(7, 7)))
+
+        assertEquals(original.path, saved.path, "the photo itself, not a copy")
+        assertEquals(original.contentId, saved.contentId, "contentId never re-minted")
+        val rendition = requireNotNull(saved.renditionPath)
+        assertTrue(rendition.startsWith("$EDIT_RENDITIONS_ROOT/"), rendition)
+
+        val feed = (stack.repository.feedPage(beforeMs = Long.MAX_VALUE, pageSize = 10) as PhotoPageResult.Page).photos
+        assertEquals(listOf(original.path), feed.map { it.path }, "the rendition is never a photograph of its own")
+        assertEquals(rendition, feed.single().previewPath, "the feed draws the rendition")
+        assertEquals(1, stack.repository.feedCaptureTimes()?.size)
+        assertEquals(listOf(original.path), stack.repository.allPhotosRead()?.map { it.path })
+
+        assertEquals(true, stack.repository.isFavourite(original.contentId), "the favourite survives")
+        val inAlbum = (stack.repository.albumPhotos(albumId) as PhotoPageResult.Page).photos.single()
+        assertEquals(original.contentId, inAlbum.contentId)
+        assertEquals(rendition, inAlbum.renditionPath, "the album draws the edit too")
+        val cover = (stack.repository.albums() as AlbumsResult.Albums).albums.single().coverPath
+        assertEquals(rendition, cover, "and so does its cover")
+
+        assertEquals(originalBytes.toList(), stack.repository.originalBytes(original.path)?.toList(), "the original's bytes are untouched")
+        assertEquals(listOf<Byte>(7, 7), stack.repository.originalBytes(rendition)?.toList(), "the rendition holds the baked bytes")
+        val stored = requireNotNull(stack.repository.photoEdit(original.contentId))
+        assertEquals(turnedAndRedacted, stored.recipe, "the recipe re-opens as it was saved")
+        assertEquals(rendition, stored.renditionPath)
+        assertTrue(stored.redacted)
+
+        // A relaunch: a fresh repository over the same store maps the edit before its first page.
+        val relaunched = TenshuPhotosRepository(stack.client, clockMs = { 1_000L }, reachability = null /* test */)
+        val again = (relaunched.feedPage(beforeMs = Long.MAX_VALUE, pageSize = 10) as PhotoPageResult.Page).photos.single()
+        assertEquals(rendition, again.renditionPath, "never the original on a cold start")
+    }
+
+    /** §12.13: what a stale cache checks its covers against — the edit index's keys, nothing else. */
+    @Test
+    fun editedContentIds_namesTheEditedPhoto_untilTheEditIsReverted() = runTest {
+        val stack = Stack(this)
+        stack.seedPhotoAt("IMG_0007.jpg", capturedAtMs = 9_000L)
+        stack.seedPhotoAt("IMG_0009.jpg", capturedAtMs = 7_000L)
+        val photos = (stack.repository.feedPage(beforeMs = Long.MAX_VALUE, pageSize = 10) as PhotoPageResult.Page).photos
+        val original = photos.first { it.path == "/IMG_0007.jpg" }
+        assertEquals(emptySet(), stack.repository.editedContentIds(), "nothing is edited")
+
+        requireNotNull(stack.repository.saveEdit(original, turnedAndRedacted, byteArrayOf(1)))
+        assertEquals(setOf(original.contentId), stack.repository.editedContentIds(), "the edited photo only")
+
+        requireNotNull(stack.repository.revertEdit(original))
+        assertEquals(emptySet(), stack.repository.editedContentIds())
+    }
+
+    /** A re-edit replaces the rendition (the old one is deleted); a revert restores the original and keeps the favourite. */
+    @Test
+    fun aReEditReplacesTheRendition_andRevertRestoresTheOriginal() = runTest {
+        val stack = Stack(this)
+        stack.seedPhotoAt("IMG_0005.jpg", capturedAtMs = 9_000L)
+        val original = (stack.repository.feedPage(beforeMs = Long.MAX_VALUE, pageSize = 10) as PhotoPageResult.Page).photos.single()
+        assertTrue(stack.repository.setFavourite(original.contentId, true))
+
+        val first = requireNotNull(stack.repository.saveEdit(original, turnedAndRedacted, byteArrayOf(1))?.renditionPath)
+        val reEdit = turnedAndRedacted.copy(transform = TransformEdit(quarterTurns = 2))
+        val second = requireNotNull(stack.repository.saveEdit(original, reEdit, byteArrayOf(2))?.renditionPath)
+        assertTrue(first != second, "a fresh rendition per save")
+        assertEquals(null, stack.repository.originalBytes(first), "the superseded rendition is deleted")
+        // ⚠⚠ A deleted rendition's name is never taken again: every preview cache is keyed by path,
+        // so a reused name would draw the old edit from cache (review finding).
+        val third = requireNotNull(stack.repository.saveEdit(original, turnedAndRedacted, byteArrayOf(3))?.renditionPath)
+        assertTrue(third != first && third != second, "names: $first, $second, $third")
+        val fourth = requireNotNull(stack.repository.saveEdit(original, reEdit, byteArrayOf(4))?.renditionPath)
+        assertTrue(fourth !in setOf(first, second, third))
+        val second2 = fourth
+        assertEquals(reEdit, stack.repository.photoEdit(original.contentId)?.recipe)
+
+        val reverted = requireNotNull(stack.repository.revertEdit(original))
+        assertEquals(null, reverted.renditionPath)
+        assertEquals(null, stack.repository.photoEdit(original.contentId), "the row is gone")
+        assertEquals(null, stack.repository.originalBytes(second2), "and its rendition with it")
+        val row = (stack.repository.feedPage(beforeMs = Long.MAX_VALUE, pageSize = 10) as PhotoPageResult.Page).photos.single()
+        assertEquals(original.path, row.previewPath, "the original again")
+        assertEquals(true, stack.repository.isFavourite(original.contentId), "the favourite survives a revert")
+
+        // Saving the original itself (every tool back to nothing) is a revert too (ED-D11).
+        requireNotNull(stack.repository.saveEdit(original, turnedAndRedacted, byteArrayOf(3)))
+        assertEquals(null, requireNotNull(stack.repository.saveEdit(original, EditRecipe(), byteArrayOf(4))).renditionPath)
+        assertEquals(null, stack.repository.photoEdit(original.contentId))
+    }
+
+    /**
+     * ⚠⚠ §12.4's rollback: the row is written before the rendition is uploaded, so a refused upload
+     * (quota, a transport failure) must put the previous edit back — never leave a row pointing at a
+     * rendition that was never stored, which every device would show as a placeholder for good.
+     */
+    @Test
+    fun aRefusedRenditionUpload_leavesThePreviousEditStanding() = runTest {
+        val stack = Stack(this)
+        stack.seedPhotoAt("IMG_0006.jpg", capturedAtMs = 9_000L)
+        val original = (stack.repository.feedPage(beforeMs = Long.MAX_VALUE, pageSize = 10) as PhotoPageResult.Page).photos.single()
+        val first = requireNotNull(stack.repository.saveEdit(original, turnedAndRedacted, byteArrayOf(1))?.renditionPath)
+
+        // An upload that is refused — into a folder that does not exist, so not "name taken".
+        val refusing = TenshuPhotosRepository(
+            stack.client, clockMs = { 1_000L }, reachability = null /* test */,
+            copyUpload = EditedCopyUpload { client, _, fileName, bytes, capturedAtMs, latE7, lngE7 ->
+                InlineEditedCopyUpload.upload(client, "/no/such/folder", fileName, bytes, capturedAtMs, latE7, lngE7)
+            },
+        )
+        assertEquals(null, refusing.saveEdit(original, turnedAndRedacted.copy(markup = MarkupEdit()), byteArrayOf(2)))
+        val stored = requireNotNull(refusing.photoEdit(original.contentId))
+        assertEquals(turnedAndRedacted, stored.recipe, "the previous edit stands")
+        assertEquals(first, stored.renditionPath)
+        assertEquals(listOf<Byte>(1), refusing.originalBytes(first)?.toList())
+        assertEquals(first, (refusing.feedPage(beforeMs = Long.MAX_VALUE, pageSize = 10) as PhotoPageResult.Page).photos.single().renditionPath)
+
+        // And on a photo with no edit, the failed save leaves none.
+        stack.seedPhotoAt("IMG_0007.jpg", capturedAtMs = 8_000L)
+        val plain = (refusing.feedPage(beforeMs = Long.MAX_VALUE, pageSize = 10) as PhotoPageResult.Page).photos.single { it.path == "/IMG_0007.jpg" }
+        assertEquals(null, refusing.saveEdit(plain, turnedAndRedacted, byteArrayOf(3)))
+        assertEquals(null, refusing.photoEdit(plain.contentId))
+    }
+
+    /** A photo deleted for good takes its edit and rendition with it (§12.6). */
+    @Test
+    fun deletingAnEditedPhotoForGood_dropsItsEdit() = runTest {
+        val stack = Stack(this)
+        stack.seedPhotoAt("IMG_0008.jpg", capturedAtMs = 9_000L)
+        val original = (stack.repository.feedPage(beforeMs = Long.MAX_VALUE, pageSize = 10) as PhotoPageResult.Page).photos.single()
+        val rendition = requireNotNull(stack.repository.saveEdit(original, turnedAndRedacted, byteArrayOf(1))?.renditionPath)
+        assertTrue(stack.repository.deletePermanently(original))
+        assertEquals(null, stack.repository.photoEdit(original.contentId))
+        assertEquals(null, stack.repository.originalBytes(rendition))
     }
 }

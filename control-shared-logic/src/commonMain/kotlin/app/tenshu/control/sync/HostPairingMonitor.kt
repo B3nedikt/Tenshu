@@ -48,6 +48,13 @@ import org.tenshu.sync.PairingRequest
 class HostPairingMonitor(
     private val syncRepository: SyncRepository,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+    /** The pause between two polls for pending requests. A parameter so a test on real time can shorten it. */
+    private val pollIntervalMs: Long = POLL_INTERVAL_MS,
+    /**
+     * The pause itself, after each poll: [pollIntervalMs] of real time by default. A parameter so a
+     * test can decide when the next poll happens rather than wait for it (`PairingVmFlowSystemTest`).
+     */
+    private val pacePoll: suspend () -> Unit = { delay(pollIntervalMs) },
 ) {
 
     /** The pending pairing request awaiting approval, or null when none. Drives the global
@@ -265,7 +272,7 @@ class HostPairingMonitor(
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
-                delay(2000)
+                pacePoll()
             }
         }
     }
@@ -476,6 +483,9 @@ class HostPairingMonitor(
     private companion object {
         /** Min gap between device re-registration attempts (poll cadence is 2s). */
         const val REREGISTER_BACKOFF_MS = 15_000L
+
+        /** How often a live session asks the relay for pending pairing requests. */
+        const val POLL_INTERVAL_MS = 2_000L
 
         /**
          * Bounded waiting window before a host session self-destructs (§3.5). 2 minutes:

@@ -81,6 +81,8 @@ tasks.withType<org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeSimu
     listOf(
         "tenshu.inference.tokenizer" to "TENSHU_INFERENCE_TOKENIZER",
         "tenshu.inference.coremlExport" to "TENSHU_COREML_EXPORT",
+        // A directory `scripts/inference/export-coreml-face-embedder.py` wrote (ios-face-grouping.md §12).
+        "tenshu.inference.coremlFaceExport" to "TENSHU_COREML_FACE_EXPORT",
     ).forEach { (property, variable) ->
         val value = providers.systemProperty(property).orNull ?: return@forEach
         environment("SIMCTL_CHILD_$variable", value)
@@ -104,6 +106,9 @@ kotlin {
         withDeviceTest {
             instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         }
+        // ⚠ IN-6 F3: the golden of `MediaPipeFaceBackend`'s resample runs against a real `Bitmap`,
+        // which only Robolectric can host on the JVM (`ios-face-grouping.md` §13).
+        withHostTest { }
     }
 
     jvm()
@@ -201,6 +206,13 @@ kotlin {
                 // IN-6's detector half — the harness's own copy, which predates the shipped one in
                 // androidMain and is kept so the measurement runs on the same pinned version.
                 implementation(libs.mediapipeTasksVision)
+            }
+        }
+        getByName("androidHostTest") {
+            dependencies {
+                implementation(libs.junit)
+                implementation(libs.robolectric)
+                implementation(libs.testCoreKtx)
             }
         }
         getByName("commonTest") {

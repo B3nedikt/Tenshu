@@ -123,6 +123,15 @@ class AdmissionMigrationObserver(
 
     // ---- duty 2: owner mints a depth-1 grant for a verified announcement ----
 
+    /**
+     * ⚠ Mints for any verified announcement of a device whose row this replica still holds — it can
+     * know nothing else about removal: admission revocations live only in the relay's ledger (no
+     * read route), and the `Device` tombstone, once applied, already deletes the row this reads. So
+     * an A1 holder that has not yet applied a removed device's tombstone WILL mint it a fresh key;
+     * the relay refuses that cert as an approver because its refusal is id-scoped for the approver
+     * (`admission-revocation-names-the-capability.md` §7j.10.2). Do not "fix" this by refusing
+     * re-keys here: the device's own rows are self-written, so any local signal is forgeable.
+     */
     private fun maybeMint(deviceId: String) {
         val master = syncManager.currentMasterKeyPair ?: return
         val ownerId = syncManager.currentOwnerId ?: return

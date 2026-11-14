@@ -107,11 +107,31 @@ object TrayLiveness {
         return days * 86_400 + hours * 3_600 + minutes * 60 + seconds
     }
 
+    /**
+     * A `pgrep -f` pattern (POSIX extended regex) matching a command line that is exactly
+     * [trayPath] — the tray is spawned with no arguments. Anchored and escaped, so a process
+     * that only mentions the path in its arguments is never mistaken for the tray.
+     */
+    fun trayPgrepPattern(trayPath: String): String =
+        "^" + trayPath.replace(Regex("""[.\[\]()*+?^$|{}\\]""")) { "\\" + it.value } + "$"
+
     fun heartbeatFile(socketDir: File): File = File(socketDir, HEARTBEAT_FILE)
 
     /** Reads the heartbeat, or null when absent/unreadable/malformed. */
     fun readHeartbeat(socketDir: File): Heartbeat? =
         runCatching { Heartbeat.parse(heartbeatFile(socketDir).readText()) }.getOrNull()
+
+    /**
+     * True when a tray is ticking with its icon placed. Says nothing about *which* bundle's
+     * tray it is — the heartbeat file is shared by every install channel — which is exactly
+     * what a Control that defers to another one needs: it must not add a second icon beside a
+     * working one, whoever owns it.
+     */
+    fun isHealthy(heartbeat: Heartbeat?, nowEpochMillis: Long): Boolean {
+        if (heartbeat == null || !heartbeat.visible) return false
+        val ageSeconds = ((nowEpochMillis - heartbeat.atEpochMillis) / 1000).coerceAtLeast(0)
+        return ageSeconds <= STALE_AFTER_SECONDS
+    }
 
     /**
      * The §4.2 table.

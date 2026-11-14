@@ -10,7 +10,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import org.tenshu.core.common.TenshuClient
 import org.tenshu.core.get
 import org.tenshu.sync.SyncHealthStatus
-import org.tenshu.sync.client.syncHealth
+import org.tenshu.sync.client.syncConnectivity
 import org.tenshu.sync.client.syncService
 import org.tenshu.sync.getSyncStatus
 
@@ -27,8 +27,14 @@ import org.tenshu.sync.getSyncStatus
  */
 fun controlCurrentRealm(client: TenshuClient): CurrentRealm = healthCheckedRealm(
     ownerId = { client.syncService.getSyncStatus().get().ownerId?.get() },
-    connectivity = client.syncService.syncHealth().map { it?.connectivity?.get() },
+    connectivity = syncConnectivity(client),
 )
+
+/**
+ * Control's sync-health `connectivity`, `null` until known — the one stream both the Collections
+ * snapshot (above) and the app's sync strip (`suite-sync-status.md` SS-1) read.
+ */
+fun syncConnectivity(client: TenshuClient): Flow<String?> = client.syncService.syncConnectivity()
 
 /**
  * A [CurrentRealm] over the owner read and the sync-health connectivity stream.

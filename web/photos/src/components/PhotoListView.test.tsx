@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { album, photo, proxy, resetProxy, streams } from '../test/proxyMock'
@@ -33,8 +33,8 @@ describe('Favourites', () => {
   })
 })
 
-describe('Multi-select in the feed', () => {
-  it('adds the picked photographs to an album and favourites, skipping none silently', async () => {
+describe('Selection bar in the feed', () => {
+  it('adds the selected photographs to an album and favourites, skipping none silently', async () => {
     const photos = [photo({ name: 'x.jpg' }), photo({ name: 'y.jpg' })]
     const trip = album({ name: 'Trip' })
     proxy.captureTimes.mockResolvedValue({ ok: true, times: photos.map((p) => p.capturedAtMs) })
@@ -43,9 +43,11 @@ describe('Multi-select in the feed', () => {
     proxy.addToAlbum.mockResolvedValueOnce({ ok: true }).mockResolvedValueOnce({ ok: false, error: { kind: 'error_photos_not_a_photo' } })
     renderWithProviders(<FeedView />)
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Select' }))
-    await userEvent.click(await screen.findByRole('button', { name: /x\.jpg/ }))
-    await userEvent.click(screen.getByRole('button', { name: /y\.jpg/ }))
+    // No Select mode: a click selects, ⌘-click adds.
+    expect(screen.queryByRole('button', { name: 'Select' })).toBeNull()
+    await userEvent.click(await screen.findByRole('button', { name: /^Photo x\.jpg/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Photo y\.jpg/ }), { metaKey: true })
+    expect(screen.getByText('2 selected')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Add to album' }))
     await userEvent.click(await screen.findByRole('button', { name: /Trip/ }))
 
@@ -60,14 +62,19 @@ describe('Multi-select in the feed', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Add to favourites' }))
     await waitFor(() => expect(proxy.setFavourite).toHaveBeenCalledTimes(2))
     expect(proxy.setFavourite).toHaveBeenCalledWith(photos[0]!.contentId, true)
+    // A whole batch done clears the selection, and the bar goes with it.
+    await waitFor(() => expect(screen.queryByText(/selected/)).toBeNull())
   })
 
-  it('a tile click opens the viewer outside select mode', async () => {
-    const photos = [photo({ name: 'open-me.jpg' })]
+  it('the ✕ clears the selection', async () => {
+    const photos = [photo({ name: 'only.jpg' })]
     proxy.captureTimes.mockResolvedValue({ ok: true, times: photos.map((p) => p.capturedAtMs) })
     proxy.feedPage.mockResolvedValue({ ok: true, photos, nextCursor: null })
     renderWithProviders(<FeedView />)
-    await userEvent.click(await screen.findByRole('button', { name: /open-me\.jpg/ }))
-    expect(screen.getByRole('dialog', { name: 'open-me.jpg' })).toBeInTheDocument()
+    await userEvent.click(await screen.findByRole('button', { name: /^Photo only\.jpg/ }))
+    expect(screen.getByText('1 selected')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Clear selection' }))
+    expect(screen.queryByText('1 selected')).toBeNull()
+    expect(screen.getByRole('button', { name: /^Photo only\.jpg/ })).toHaveAttribute('aria-pressed', 'false')
   })
 })

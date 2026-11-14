@@ -79,6 +79,7 @@ import app.tenshu.control.ui.screens.sync.PairingStep
 import app.tenshu.control.ui.screens.sync.PairingWizardUiState
 import app.tenshu.control.ui.screens.sync.PairingWizardViewModel
 import app.tenshu.control.ui.screens.sync.SyncDashboardUiState
+import app.tenshu.control.ui.screens.sync.removalAdmittees
 import app.tenshu.control.ui.screens.sync.formatLastSeen
 import org.tenshu.identity.deviceDisplayLabel
 import app.tenshu.control.ui.screens.sync.SyncDashboardViewModel
@@ -958,8 +959,26 @@ object ControlSurface {
             "This device is no longer recognised by the relay, so it can't add another device. " +
                 "Pair this device again, then retry."
         PairingError.NoAuthority -> "This device can't add other devices yet. Finish setting it up first."
+        PairingError.DeviceRemoved ->
+            "That device was removed from your realm before, so it can't rejoin as the same device. " +
+                "To add it again, choose \"Forget this device\" on it, then pair again."
+        PairingError.ApproverRevoked ->
+            "This device can no longer add devices. Remove it and pair it again from another device."
+        PairingError.ThisDeviceRemoved -> THIS_DEVICE_REMOVED_COPY
         is PairingError.Unexpected -> ErrorCopySurface.labelForKey(error.copyKey)
     }
+
+    /**
+     * The offerer's terminal when the relay refuses THIS device as a removed identity
+     * (`PairingWizardUiState.offerRemoved`) — the same sentence [PairingError.ThisDeviceRemoved]
+     * renders, so `PairingView` reads one copy.
+     */
+    fun offerRemovedMessage(state: PairingWizardUiState): String? =
+        if (state.offerRemoved) THIS_DEVICE_REMOVED_COPY else null
+
+    private const val THIS_DEVICE_REMOVED_COPY =
+        "This device was removed from that realm before, so it can't rejoin as the same device. " +
+            "Choose \"Forget this device\", then pair again."
 
     // ---- Host-side pairing approval, app-global ---------------------------------------------
     //
@@ -1088,6 +1107,24 @@ object ControlSurface {
             )
         }
     }
+
+    /** One admittee offered on the removal sheet (§7j.4): id plus display label. */
+    data class RemovalAdmitteeRow(val id: String, val name: String)
+
+    /**
+     * The devices [deviceId] admitted, for the removal sheet to ask about
+     * (`admission-revocation-names-the-capability.md` §7j.4) — the shared [removalAdmittees], so
+     * this and the Compose dialog list the same devices.
+     */
+    fun removalAdmitteeRows(state: SyncDashboardUiState, deviceId: String): List<RemovalAdmitteeRow> =
+        removalAdmittees(state.devices, deviceId, state.currentDeviceId).admittees.map { device ->
+            val id = device.deviceId.get()
+            RemovalAdmitteeRow(id = id, name = deviceDisplayLabel(device.name.get(), state.deviceHardwareNames[id]))
+        }
+
+    /** How many roster rows record no admitter, so the sheet never implies its list is complete. */
+    fun removalUnlistedCount(state: SyncDashboardUiState, deviceId: String): Int =
+        removalAdmittees(state.devices, deviceId, state.currentDeviceId).unlistedCount
 
     // ---- Provisioning bridge ---------------------------------------------------------------
     //

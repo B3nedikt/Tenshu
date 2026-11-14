@@ -127,8 +127,14 @@ sync boundary is sharp.
   foreground. iOS decides when; `IndexingConditions` is advisory there, not a gate we own.
   ⚠ As built so far (`ios-on-device-inference.md` §14.19, 5e-1): the foreground half only, with
   the manual bar (in front, not hot, not Low Power Mode, not a low battery) read per photo and a
-  pass cancelled when Photos leaves the foreground; the scheduled bar is *never* until a
-  processing wake exists (after S0b-2).
+  pass cancelled when Photos leaves the foreground. ⭐ **And the overnight wake (PR-6, §16 there,
+  behind the same flag):** leaving Photos with a half's two switches on and photos left submits a
+  `BGProcessingTaskRequest` (`app.tenshu.photos.processing`, `requiresExternalPower`, no network);
+  when iOS grants it (charging, idle), the wake takes the shared store's task token, re-arms,
+  and runs the scheduled pass — the scheduled bar says yes **only inside the wake**, and there not at
+  `.serious`, in Low Power Mode or off the charger. A leave during the wake stops nothing; the wake's
+  end (or its expiry, which stops the pass at its next photo) lets both models go. A completed
+  library withdraws the request. 📱 its three nights are owed (`how-to/photos-processing-wake.md`).
 - **OCR (IN-5).** Apple Vision's `VNRecognizeTextRequest` per IN-D13 — the one capability where
   iOS can plausibly **lead** Android, since it needs no model delivery at all.
 - **Where the UI lives.** Control-on-iOS has no Models screen; see §7 Q2.
@@ -192,7 +198,7 @@ simulator). `📱` = needs the iPhone. Every 🖥/📱 step is a **handoff PR** 
 | **PIO-4** | Collections (all sections, album CRUD, album detail, Favourites), Trash, Duplicates, Search tab. AI-R lights up here with no extra work. | ☁ + 🖥 | **H3** |
 | **PIO-5** | Settings: sources + status, the PhotoKit album picker (limited-library access handled), skip-duplicates, play-videos, "backup runs in Drive" copy + open-Drive link. | ☁ + 📱 | **H3** — PhotoKit needs a real library |
 | **PIO-6** | Video: M6 (`AVAssetExportSession` motion rung in `file-service-proxy` `iosMain`) and viewer playback with `AVPlayer`, designed with Android's M2 so both land one design. | ☁ + 📱 | **H4** |
-| **PIO-7** | AI-L: a Core ML backend in Kotlin/Native over a second, fp16 catalog artifact (no ONNX Runtime on iOS), `IosImageDecoder`, `IosIndexingConditions`, `BGProcessingTask` + `BGTaskSchedulerPermittedIdentifiers`, Photos-owned stores (PIO-D10), Models + consent screen, *Index now*. Starts with **IN-3m-iOS**: the latency harness on an iPhone, on the real corpus with decode timing (⚠ **still open**: a partial run of 2026-10-07 read 33 ms a photo with decode in one short pass per row; the cold / warm / +20 min runs, the battery run, the post-reboot launch and the HEIC sample are owed, so H5 is not answered; `ios-on-device-inference.md` §9.7). **Planned in [`ios-on-device-inference.md`](ios-on-device-inference.md)** (PR-0 and PR-0b device spikes, done; then PR-1…PR-7; D1–D14; PR-7, *Index now* continuing on iOS 26+, built behind the flag, §15 there). ⭐ The spikes decided the runtime: native Core ML fp16 at ~6 ms an image, with retrieval that matches fp32 (§2.1, §2.2 there). ⚠⚠ Every 📱 step after the harness waits for the App Group build to be installable (`ios-scheduler-lease.md` S0b) | 📱 first, then ☁ | **H5** — measurement can say "do not ship" |
+| **PIO-7** | AI-L: a Core ML backend in Kotlin/Native over a second, fp16 catalog artifact (no ONNX Runtime on iOS), `IosImageDecoder`, `IosIndexingConditions`, `BGProcessingTask` + `BGTaskSchedulerPermittedIdentifiers`, Photos-owned stores (PIO-D10), Models + consent screen, *Index now*. Starts with **IN-3m-iOS**: the latency harness on an iPhone, on the real corpus with decode timing (⚠ **still open**: a partial run of 2026-10-07 read 33 ms a photo with decode in one short pass per row; the cold / warm / +20 min runs, the battery run, the post-reboot launch and the HEIC sample are owed, so H5 is not answered; `ios-on-device-inference.md` §9.7). **Planned in [`ios-on-device-inference.md`](ios-on-device-inference.md)** (PR-0 and PR-0b device spikes, done; then PR-1…PR-7; D1–D14; PR-7, *Index now* continuing on iOS 26+, built behind the flag, §15 there; PR-6, the overnight `BGProcessingTask`, built behind the flag, §16 there). ⭐ The spikes decided the runtime: native Core ML fp16 at ~6 ms an image, with retrieval that matches fp32 (§2.1, §2.2 there). ⚠⚠ Every 📱 step after the harness waits for the App Group build to be installable (`ios-scheduler-lease.md` S0b) | 📱 first, then ☁ | **H5** — measurement can say "do not ship" |
 | **PIO-8** | AI-F on iOS (people F5), after Android F2 + counsel + A40. OCR (IN-5) through Vision as an optional iOS-first capability. | ☁ + 📱 | ⚖️ + **H6** |
 | **PIO-9** | Ship: iPad pass (sidebar, Split View ⅓), Dynamic Type, VoiceOver labels, device matrix, then Drive's P7 route (App Attest, TestFlight). | 📱 | `ios-drive-parity.md` §19 |
 
@@ -998,9 +1004,15 @@ delete, remove a photograph (§8.16); (3) Trash and Duplicates, from Collections
 | "New album" — a name prompt → `createAlbum` | `CollectionsScreen` | The Albums row's one action; rename/delete are slice 2 |
 
 ⚠ Deferred, and recorded so they are not mistaken for done: ~~the **Duplicates tile**~~ (shown since
-slice 3b, with its screen — §8.18); a person's **header, naming and "Photos with…"**, and the **face crop** on a person's card
-(Compose crops to `FaceCover.region`; iOS centres the photograph) — People needs face grouping on iOS,
-PIO-8. People cards still show where names synced from another device give the library people.
+slice 3b, with its screen — §8.18); ~~a person's **header, naming and "Photos with…"**, and the **face crop** on a person's card
+(Compose crops to `FaceCover.region`; iOS centres the photograph)~~ — ✅ **built in F7**
+([`ios-face-grouping.md`](ios-face-grouping.md) §17): the card and the header cut the shared
+`faceCropSquare`, the page names through `CollectionsViewModel.nameGroup`, and the "With…" chip narrows
+to photographs of both — all behind both face flags, which stay off until F8. ⚠⚠ With the flags off
+none of it is drawn: People cards still show where names synced from another device give the library
+people, round and centred as before F7, and a person's page is the plain grid with no naming (it could
+never save there). With the flags on, a synced name keeps its whole photograph until this phone has a
+face of that person to cut.
 
 **Verified — `CollectionsUITests`, 4 of 4, on the fixture (two years, two empty fixed albums):** the tab
 shows Albums, Years and Favourites and no Duplicates tile; a year opens its photographs and one of them
@@ -2078,7 +2090,7 @@ What feeds it (`TenshuPhotosRepository`, given a `watchScope`):
 |---|---|
 | The files — years, videos, and what places / Things / People are joined against | **The feed's own change observer.** `:core-paging` calls `onReload` once per reload signal; the first is "observing from here", each later one a change. ⚠ Not a second observer: a signal-only stream re-evaluates the whole list per change (`tech-debt.md`), and two observers of one chain share a stream id. |
 | Albums, album entries, flags (favourites), places, labels | A signal-only stream each, over **the projection the read itself uses** (one definition, used by both), kept for the process. |
-| People (`faceGroups`) | No list to observe — the clusters are this device's. On iOS today there is no backend, so there are none; ⚠⚠ **PIO-7 owes this**: the indexer writes a marker label per file, which the labels stream sees, but nobody has checked a re-clustering that writes no label. |
+| People (`faceGroups`) | No list to observe — the clusters are this device's. ⚠⚠ **Not the watch — the index runner** (2026-11-11, as-built at the end of this section): the Core ML backend claims search and faces, not tagging, so a pass writes **no** `MediaLabel` marker and the watch never moves for it. The view model's `indexChanges` takes the installed graph's `faceChangingPasses(runner.faceChanges)` instead — a **counter**, never the conflated standing — treated as an edit (`toldChanged`). |
 
 ⚠⚠ **So `watching` needs a collected feed**, and the promise is exact: **Collections is never staler
 than the Library's own grid.** Opened before the Library has ever been built (`-photosStartTab
@@ -2115,8 +2127,9 @@ nothing Collections draws from a file changes in place today.
    the Compose shells, which call nothing else.
 6. The console says which it was: `Collections -> walk=skipped (clean)`, or the read timings.
 
-**What can still be missed, and how the user recovers.** (a) A re-clustering of faces that writes no
-label (above) — not possible on iOS while it has no face backend. (b) A change the feed itself never hears of — then
+**What can still be missed, and how the user recovers.** (a) ~~A re-clustering of faces that writes no
+label~~ — **closed 2026-11-11** (as-built at the end of this section), including a pass that ends
+between the view model's first walk starting and the runner being resolved. (b) A change the feed itself never hears of — then
 the Library is stale too. (c) A teardown: the watch stops watching when its scope is cancelled, so
 this fails safe; so does an observer that throws (caught, and the watch stops vouching — uncaught,
 it would end the process on Kotlin/Native). (d) ⚠ **A list stream that breaks mid-way keeps the
@@ -2157,7 +2170,10 @@ Binder, so it is not switched on by reading the code.
 change (`tech-debt.md`), the labels are the long list, and another device's indexer delivers them by
 the thousand. They are subscribed off the main thread, on one lane, and kept for the process — so
 the cost, whatever it is, is paid whether or not Collections is ever opened again.
-⚠ **Since PIO-7 5e-1 this device indexes too** (behind its off flag): the foreground pass writes one
+⚠ **Since PIO-7 5e-1 this device indexes too** (behind its off flag). ⚠ Corrected 2026-11-11: the
+Core ML backend does not claim tagging, so an iOS pass writes **no** marker — the cost named next applies
+only where a tagging backend is bound (and is why People needed the runner, as-built below). As first
+written: the foreground pass writes one
 `MediaLabel` marker per file, each re-evaluating the labels projection on the watch lane — roughly
 quadratic against the replica's lock over a pass — and with Collections on screen the tab walks about
 every 3.5 s (the 3 s ceiling + 500 ms settle) for as long as the pass runs. Measure this before the
@@ -2167,3 +2183,64 @@ or a failed subscribe rather than the observer's confirmation (`PagingUtil.first
 If that confirmation is then lost for good, `watching` stays true with no file observer — the Library
 is stale too, so the promise above still holds, but the cheap tightening is for `onReload` to say
 whether the tick was the confirmation, and count only that (`:core-paging`; not done here).
+
+**As built — People after an index pass (2026-11-11).** Found on the maintainer's iPhone with both face
+flags on: `faces.log` held templates, and every return logged `Collections -> walk=skipped (clean)` over
+the pre-pass People until a relaunch — a pass wrote templates (device-local) and no label (the Core ML
+backend does not tag), so nothing the watch observes moved.
+- `CollectionsViewModel(indexChanges: Flow<Unit>?)` — each emission is `indexChanged()`: `toldChanged`
+  is set **whether or not the watch is watching** (it cannot see this change at all), walked for through
+  the burst wait while shown, owed to the return while not. ⚠ Unlike `changed()`, never an immediate walk
+  with nobody looking, even watchless. ⚠ The change loop now runs when there is a watch **or** an
+  `indexChanges`.
+- iOS feeds it `PhotosSurface.faceIndexChanges()` → the installed `PhotosFaceGrouping.passChanges` →
+  `faceChangingPasses(MediaIndexRunner.faceChanges)` (`:inference-service-proxy`), the runner resolved on
+  `Dispatchers.Default` at first collect; the count at subscribe is the baseline.
+  - `MediaIndexer.faceStoreWrites` counts every change to the template store **at the write**: a
+    record accepted (with faces, ⚠⚠ **or the empty record of a faceless photograph** — a store of only
+    those answers People "nobody found", not `NOT_INDEXED`), a clear, a reconcile that dropped rows.
+  - `MediaIndexRunner.faceChanges` moves once per pass across which that count moved, in the pass's own
+    `finally` — so a pass that was stopped or threw counts what it wrote, and one that wrote nothing
+    (an iOS backgrounding over a current library) is no walk.
+  - ⚠⚠ **Not the standing** (as first built): `standing` is a conflated StateFlow, so a pass's
+    `Idle(ending)` followed at once by the next `Running` delivered only the latter to a reader on Main,
+    and an ending is published only over the pass's own `Running` (compare-and-set), which a cancel
+    racing a start loses. Either way pass N's change was lost and N+1 found everything current. A
+    conflated counter loses nothing: any later value still differs from the last seen.
+  - A grouping installed after the first (a graph rebuild) is itself one emission: the old graph's
+    last pass may have written after the new runner's baseline.
+  - ⚠⚠ **Resolving the runner is itself one emission**, never a silent baseline: the view model's
+    first refresh starts before the off-main lookup returns, so a pass ending in that window would
+    sit inside the baseline, and later passes over the rows it wrote move nothing — People stale on
+    every clean return. Cost: one extra walk per Collections construction (and per rebuild).
+    `aPassThatEndedBeforeTheRunnerResolvedIsStillWalkedFor`.
+  ⚠ The tab redraws when a pass ENDS, not during it: a first index of hours shows its People at the end.
+- Android/desktop pass `null`: no watch there, every return walks.
+- Tests: `CollectionsWalksOnlyWhenChangedTest` (the `aPass…`/`withoutAWatchAPass…` cases, and the
+  Android/desktop construction with no `indexChanges`), `RunnerFaceChangesTest` (templates, a faceless
+  first pass, stopped after/before writing, a refused clearing pass, the baseline, two passes with no
+  dispatch between), `MediaIndexerFacesTest` (`…MayHaveChangedPeople`, `aWithdrawalMidPassIsReportedAsCleared`),
+  `PhotosPeopleGroupingTest` (`aFaceStoreChangingPassOnTheRealGraphIsExactlyOneEmission` over the real
+  graph and chain, `aGroupingThatReplacesAnotherIsOneEmission`). ⚠ Each guard seen red once.
+- The same pass's `MediaIndexPass ->` line now carries `faces=on|off(noStore)|off(noBackend)|off(noConsent)|notAsked
+  facesSkipped=N`: with search running and faces not, those photographs were counted `current`, and the
+  line could not tell "faces not ready" from "faces done". In-process only — `IndexPassResult` is no
+  schema type, so no version moves.
+- ⚠⚠ **And the face half has its own failure counters** (`facesFailed`, `facesRejected`; found on an
+  Android phone the same day): its latch counted into the vector half's `embedFailed`/`rejected`, so a
+  pass with SigLIP fine and only the detector latched printed `embedded=1 … embedFailed=29`. Now
+  `embedFailed`/`rejected` are the vector half's only (`aLatchedFaceDetectorBesideAWorkingEmbedderIsTheFaceHalfsFailure`,
+  each of the three guards seen red).
+⚠ **Not verified on the phone yet** — owed to the next device pass (`ios-face-grouping.md` §17.6).
+
+### 8.23 People name suggestions on the person page (IN-6 F6c-s, 2026-11-11)
+
+The SwiftUI person page draws the shared `PersonPage.suggestedName` / `unconfirmedCount`
+(`photos-people-and-pets.md` §6a [F6c-s as built](photos-people-and-pets.md#f6c-s--name-suggestions-as-built-2026-11-11))
+as `NameSuggestionView` under the header — *"Is this Mia?"* with Yes / No on an unnamed group, or
+*"N photos matched by face on this device — not yet named Leo."* with Confirm / Not Leo on a display
+fold — answering through `CollectionsViewModel.acceptSuggestion` / `rejectSuggestion`. ⚠ Only where
+`PhotosSurface.personPage` reports a person, so only where `groupingRunsHere()`, and not while
+"With…" narrows the grid (`nameId` is nil then, as for naming). Every word is `PersonPageCopy`'s.
+Fixture: `-photosPeople suggest`; UI test `CollectionsUITests.testAnUnsureGroupIsAskedAndASureOneIsFoldedUntilNo`.
+⚠ Not verified on the phone yet — `ios-face-grouping.md` §17.6.

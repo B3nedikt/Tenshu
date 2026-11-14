@@ -21,6 +21,8 @@ import org.tenshu.core.toTString
 import org.tenshu.identity.Device
 import org.tenshu.identity.common.identityServiceCommonModule
 import org.tenshu.sync.ApprovePairingRequest
+import org.tenshu.sync.PairingDeviceRemovedError
+import org.tenshu.sync.PairingApproverRevokedError
 import org.tenshu.sync.PairingRequest
 import org.tenshu.sync.SyncBlock
 import org.tenshu.sync.common.SyncRelay
@@ -33,6 +35,7 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import org.tenshu.core.common.util.toStamp
 import org.tenshu.core.common.util.decodeHlcStamp
@@ -472,6 +475,66 @@ class ApprovePairingRequestImplementationTest {
     }
 
     @Test
+    fun joinerWasRemovedFromTheRealm_failsTyped_withoutRetryOrSelfHeal() = syncTest {
+        // F2′: the relay refuses the device being ADDED — it was removed from this realm and is
+        // back under the same identity. Terminal, so neither the retry nor the self-heal may run.
+        val deviceId = FIXTURE_JOINER_ID
+        syncManager.initialize("recovery-phrase")
+        syncManager.generatePairingContext()
+        val secret = syncManager.activePairingContext!!.secret
+        relay.pairingRequests.add(mockRequest(deviceId, secret))
+        showRequestToUser()
+        val deviceDataId = seedUnauthorizedDevice(deviceId)
+        relay.refuseJoinerAsRemovedFromPost = 1
+
+        val failure = assertFailsWith<TenshuException> { approve(deviceId) }
+
+        assertIs<PairingDeviceRemovedError>(failure.error, "the approver must be told the other device was removed")
+        assertEquals(1, relay.responsePosts, "a terminal refusal is not retried")
+        assertEquals(0, relay.createRealmCalls, "nor does it trigger the realm self-heal")
+        assertEquals(false, (testProxy.database.getData(deviceDataId) as? Device)?.isAuthorized?.get())
+    }
+
+    @Test
+    fun approversCapabilityRevoked_failsTyped_neverAsTheGenericError() = syncTest {
+        // §7j.5: the relay refuses THIS device's admission capability. The approver must be told
+        // so — "Something went wrong" is what both approvers showed on 2026-11-11.
+        val deviceId = FIXTURE_JOINER_ID
+        syncManager.initialize("recovery-phrase")
+        syncManager.generatePairingContext()
+        val secret = syncManager.activePairingContext!!.secret
+        relay.pairingRequests.add(mockRequest(deviceId, secret))
+        showRequestToUser()
+        val deviceDataId = seedUnauthorizedDevice(deviceId)
+        relay.refuseApproverAsRevoked = true
+
+        val failure = assertFailsWith<TenshuException> { approve(deviceId) }
+
+        assertIs<PairingApproverRevokedError>(failure.error)
+        assertEquals(1, relay.responsePosts, "a terminal refusal is not retried")
+        assertEquals(false, (testProxy.database.getData(deviceDataId) as? Device)?.isAuthorized?.get())
+    }
+
+    @Test
+    fun joinerRemovedRefusalOnTheRetry_isStillTyped() = syncTest {
+        // The first post fails for another reason, so the removal refusal first arrives on the
+        // retry — it must still reach the approver typed, not as the generic error.
+        val deviceId = FIXTURE_JOINER_ID
+        syncManager.initialize("recovery-phrase")
+        syncManager.generatePairingContext()
+        val secret = syncManager.activePairingContext!!.secret
+        relay.pairingRequests.add(mockRequest(deviceId, secret))
+        showRequestToUser()
+        seedUnauthorizedDevice(deviceId)
+        relay.refuseJoinerAsRemovedFromPost = 2
+
+        val failure = assertFailsWith<TenshuException> { approve(deviceId) }
+
+        assertIs<PairingDeviceRemovedError>(failure.error)
+        assertEquals(2, relay.responsePosts)
+    }
+
+    @Test
     fun stampsCurrentRealmEpoch_inDelegationAndFlippedEntity() = syncTest {
         // After two prior Device revocations, syncManager.currentRealmEpoch should be 2;
         // the approve flow must stamp that into both the master-delegation message AND
@@ -587,6 +650,14 @@ private class RecordingApproveRelay(private val context: TContext) : SyncRelay {
     var responsePosts = 0
         private set
 
+    /**
+     * F2′: from this response POST on (1-based), the relay refuses the joiner as a device removed
+     * from the realm (terminal `403`); earlier posts fail generically. 0 = never.
+     */
+    var refuseJoinerAsRemovedFromPost = 0
+    /** Every response post is refused `403 admission-revoked` (§7j.5) — the approver's capability. */
+    var refuseApproverAsRevoked = false
+
     private fun consumed(): TResult<Data?> = TResult.Failure.create(
         context,
         GenericError.create(context, "Response failed: $PAIRING_RESPONSE_CONSUMED_MARKER: 409"),
@@ -648,6 +719,24 @@ private class RecordingApproveRelay(private val context: TContext) : SyncRelay {
         admittedAtHlc: String?,
     ): TResult<Data?> {
         responsePosts++
+        if (refuseApproverAsRevoked) {
+            return TResult.Failure.create(
+                context,
+                GenericError.create(
+                    context,
+                    "Response failed: $ADMISSION_REVOKED_REJECTION_MARKER: 403 — admission-revoked: revoked",
+                ),
+            )
+        }
+        if (refuseJoinerAsRemovedFromPost > 0) {
+            val message = if (responsePosts >= refuseJoinerAsRemovedFromPost) {
+                // Shaped by the constant the production client attaches.
+                "Response failed: $DEVICE_REMOVED_REJECTION_MARKER: 403 — device-removed"
+            } else {
+                "Network error"
+            }
+            return TResult.Failure.create(context, GenericError.create(context, message))
+        }
         if (alwaysConsumed) return consumed()
         if (replyLostThenConsumed) {
             if (responsePosts > 1) return consumed()

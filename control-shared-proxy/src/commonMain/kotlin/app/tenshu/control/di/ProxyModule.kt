@@ -101,6 +101,7 @@ import app.tenshu.control.inference.IndexCoverageSource
 import app.tenshu.control.inference.IndexProgressSource
 import app.tenshu.control.inference.HolderIndexProgressSource
 import app.tenshu.control.inference.LastIndexCoverage
+import app.tenshu.control.inference.recordPass
 import app.tenshu.control.inference.ModelStoreAccess
 import app.tenshu.control.inference.ModelStoreAccessSource
 import app.tenshu.control.inference.modelStoreAccessOf
@@ -229,6 +230,9 @@ fun coreSchemaConfigurations(): List<ModuleConfiguration> = listOf(
 /** ⚠ A logical prefix under the `FileDatabase` root, like `"/regions"` and `"/models"`. */
 internal const val INFERENCE_EMBEDDINGS_PATH = "/inference/embeddings.log"
 
+/** IN-D6a's arrivals queue — device-local, a few hundred lines at most. */
+internal const val INFERENCE_ARRIVALS_PATH = "/inference/arrivals.queue"
+
 /**
  * IN-6's face templates — a SEPARATE log from the embeddings one.
  *
@@ -285,6 +289,10 @@ fun buildProxyModule(): org.koin.core.module.Module = module {
     // reads what `MediaIndexer` writes; two would give an empty People screen beside an index pass
     // that reports faces found, with no error on either side.
     single<FaceTemplateStore> { DefaultFaceTemplateStore(get(named(INFERENCE_FILE_DATABASE)), INFERENCE_FACES_PATH) }
+    // IN-D6a: the photographs that arrived and no batch has finished with — device-local, beside the
+    // other derived stores. ⚠ A `single`: the observer that fills it and the batch that drains it
+    // must hold one queue.
+    single { org.tenshu.inference.proxy.ArrivalQueue(get(named(INFERENCE_FILE_DATABASE)), INFERENCE_ARRIVALS_PATH) }
 
     // ⭐⭐ The MEASURED operating point (F2m, `photos-people-and-pets.md` §12.6) — 0.44 with
     // `minFaces = 2`, the threshold the one human-verified run was produced at. Its provenance and
@@ -396,9 +404,12 @@ fun buildProxyModule(): org.koin.core.module.Module = module {
     single<IndexProgressSource> { HolderIndexProgressSource(get()) }
 
     single {
+        // ⚠ A provider, read per pass: the id changes in this process on "Forget this device"
+        // (`SyncManagerImpl.forgetThisDevice` re-mints A4), and consent / pause rows are keyed on it.
+        val syncManager = get<SyncManager>()
         MediaIndexer(
             registry = get(),
-            deviceId = get<SyncManager>().currentDeviceId,
+            deviceId = { syncManager.currentDeviceId },
             embeddings = get(),
             progress = get(),
             // IN-6 F3. ⚠⚠ The SAME `FaceTemplateStore` singleton `faceGroups` reads, for the
@@ -431,11 +442,7 @@ fun buildProxyModule(): org.koin.core.module.Module = module {
             progress = get(),
             // "Indexed N of M — K aren't on this device" (2026-09-27), for Control's Models screen.
             onPassFinished = { result ->
-                get<LastIndexCoverage>().record(
-                    total = result.imagesVisited,
-                    notOnDevice = result.notOnDevice,
-                    ran = !result.deferred && !result.paused,
-                )
+                get<LastIndexCoverage>().recordPass(result)
             },
             // ⚠ Resolved per pass, never here: where the gate is a custody, it is built over this
             // runner's own cancel.

@@ -390,7 +390,13 @@ internal object SyncPlugin : JsRuntimePlugin {
             // origin stop overwriting the relay's single per-device tip slot with unrelated values.
             hlcWatermarkStore = runtime.hlcWatermarkStore,
             platformScheduler = NoOpPlatformScheduler,
+            // The browser's device-local pause switch (`web-apex-home.md` §4.7): closed, no tick
+            // runs and no content uploads until the user resumes.
+            pauseGate = SyncPause.gate,
         )
+        // Resuming should sync now, not after the rest of a tick. `notifyForegrounded` is the
+        // gate-respecting wake: it also re-tries a waiting content plane and bypasses nothing.
+        SyncPause.onResumed = { components.scheduler.notifyForegrounded() }
         runtime.tombstoneEmitterHolder.emitter = components.tombstoneEmitter
         // Publish the scheduler so `Devices.revokeSelf` can force a drain
         // (push the revocation tombstone) before the apex wipes local state.

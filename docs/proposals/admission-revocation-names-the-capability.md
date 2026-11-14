@@ -7,8 +7,8 @@ master-signed message.
 §7c–§7g and several landed. Read those, not this line, for what is built.
 ⭐ **§7d (length prefixes) and F5b (no keyless revocation) SHIPPED 2026-10-28** with the
 protocol-1 re-cut of the complete production reset — as-built in §7d.2, §7d.3 (B1: the pairing/realm family, same hole) and §7g.6 (incl. S1/S2).
-⭐ **§7i (workstream B) SHIPPED 2026-10-29** on the same re-cut: a device id is derived from its key.
-⚠ **Unstarted: §7h (F6)** — the F2′ refusal is a dead end for the honest user, and the
+⚠⚠ **§7j (2026-11-11, maintainer decision) REPLACES S1's ancestor rule (§7g): an approval a person confirms by SAS on any current member always works; only a *removed* identity, or a removed/revoked *approver*, is refused.** ⚠⚠ **§7j.10 (same day) finishes it: a device is a member (it can admit) or removed (it can do nothing) — removal no longer strips the removed device's admittees, and the relay checks revocation on the approver alone.** ⭐ **§7i (workstream B) SHIPPED 2026-10-29** on the same re-cut: a device id is derived from its key.
+⚠ **§7h (F6) partly built 2026-11-08** (as-built at the end of §7h.5) — the F2′ refusal is a dead end for the honest user, and the
 ledger's real benefit turns out to be *telling the approver*, not blocking. Added 2026-08-28.
 
 ---
@@ -678,6 +678,10 @@ fleet?"**
 construction, which is the point of the design; what is fixable is only whether the next user is
 told before the last copy goes.
 ### 5b.12 ⭐⭐ Making "a realm with no A1" unreachable — four links, and the safety net has a false premise
+
+⚠ *Forget this device* / *Start fresh* hand the **running process** a new identity, not only the next
+launch: before 2026-11-11 Desktop/Android kept the forgotten A4 key in memory and the pairing that
+follows was refused as a removed device — §7i.5.
 
 §5b.11 records how a realm lost its master identity. This is what to build so a real user cannot
 reach that state. ⚠ The distinction that matters throughout: **a device with no A1 is normal** —
@@ -1446,7 +1450,8 @@ alongside §7d:
   self-written own-device row (`PairingKeyInstaller`, `SyncProxyInitialization`'s self-heal,
   `CreateRealmImplementation`, `RecoveryClaimImplementation`) now carries the device's own A33
   public key when it holds one.
-* ⚠⚠ **S1 — the key-scoped rule has a blind spot, and the removal ledger closes it.** "A member with
+* ⚠⚠ **[Ancestor half SUPERSEDED by §7j, 2026-11-11 — the ledger now refuses the approver only.]**
+  **S1 — the key-scoped rule has a blind spot, and the removal ledger closes it.** "A member with
   no known key is skipped" means *known to the revoker*, whose view comes from rows a device writes
   about itself (whole-row LWW, no authorship check). A malicious device can blank its own
   `admissionPublicKey`; under F5b nothing could then strip it, and the "sleepers" it admitted would
@@ -1563,7 +1568,20 @@ first owes the other the sequencing.
 - **F6-4 — Start fresh reachable from the failure**, on the joiner, **after** F6-3 — the ordering
   in §7h.2 is the whole point, and shipping F6-4 first would be a regression dressed as a fix.
 
-⚠ **Not started.** No code, and the open question below decides F6-3's shape.
+⚠ **Partly built (2026-11-08): F6-2 without its argument, and F6-3's line without its date.**
+Found on a device: an Android approver tapped Approve ten times against a Mac it had removed, the
+relay answered `403` each time, and the screen said *"Something went wrong"*.
+- Both admit routes (`ApprovePairingOfferImplementation`, `ApprovePairingRequestImplementation`)
+  turn the `DEVICE_REMOVED_REJECTION_MARKER` refusal into the fieldless
+  `PairingDeviceRemovedError` (`throwIfAdmitteeRemoved`, `RelayUnauthorized.kt`), **before** the
+  A1 self-heal — re-registering the approver cannot fix the other device's removal.
+- Rendered as `PairingError.DeviceRemoved` on all three surfaces (wizard, host dialog, iOS
+  `ControlSurface`): a fact plus the remedy — *forget that device, then pair again* — per §7h.3.
+- ⚠ A new **composite**, not a `PairingFailure` member, on purpose: a new constant owes a
+  `SyncService` bump that fences every not-yet-updated peer (`core-schema-evolution.md` E2j-1b); a
+  fieldless composite is not even in the shape baseline. ⚠⚠ **Adding F6-1's `removedAt` field to
+  it later IS a reshape** — bump + migration then.
+- Still open: F6-1 (relay returns the date), the date in the copy, F6-3's acknowledgement, F6-4.
 
 ### 7h.6 Open question
 
@@ -1672,9 +1690,429 @@ pins that a forged row never reaches it. iOS: `DriveLocalRuntimeTest` pins that 
 the handed key's derivation — ⚠ only `iosTestCheck` runs it, not `run-gate.sh`, which is how it shipped
 red with workstream B (§7i).
 
+### ✅ 7i.5 As-built (2026-11-11) — *Forget this device* re-mints the identity in the running process
+
+**Found on the maintainer's Mac** (desktop Control built from master): after *Forget this device*
+(console `forgotten — removed from your realm; …; local store dropped`), pairing from the same
+process — offer flow, the Mac shows a code, the iPhone approves — was refused, `POST
+/sync/pairing/offer-response` → `403` on every approve; after quitting and reopening Control it was
+admitted at once. §7i.3's *"Start fresh forgets custody, mints a key and so a new id"* was true at
+rest and false in memory.
+
+**Root cause.** `SyncManagerImpl.forgetThisDevice` removed `DEVICE_SIGNING_KEY` / `DEVICE_ID` at rest
+but never touched the in-memory A4 pair (`deviceSigningKeyPair`, an atomic nothing cleared), and
+`currentDeviceId` was a `by lazy` — so were `hlcManager` and its id. Desktop and Android Control keep
+one proxy graph for the process (`ProxyGraphJob`: never closed there), and the app goes straight from
+Forget to Welcome to pairing, so the offer carried the **forgotten** id and key, and F2′ (§7c) refused
+the removed identity — correctly.
+
+**Fix.** `forgetThisDevice` ends by re-minting A4 — so the method returns holding the new identity
+before any pairing UI can start. `SyncManagerImpl` holds `(pair, derived id)` in **one** atomic
+(`currentDeviceIdentity()`, which signers use so a key and an id never come from two identities),
+written only under one lock, and a new pair is **persisted before it is published** — at first use
+and on Forget alike. ⚠⚠ A persist that fails publishes nothing: Forget reports *"⚠ new device key NOT saved — quit and
+reopen Tenshu Control before pairing"* beside its row and store notes (⚠ not *"not finished"*, which
+says custody was kept — here it is gone; Welcome shows its own `KeyNotSaved` notice and the others
+still), the next read takes the first-use path (persist or throw), and a
+pairing is refused rather than admitted under a key a restart would replace — the orphaned-id case
+of §7i.3. The old pair's private bytes are zeroed. Overlapping forgets end with memory and disk on
+the same key. `hlcManager` follows the id (the successor seeded from its predecessor — a raise,
+never a reset). Pairing sessions the old identity opened (host context, offer / responder sessions,
+join handshakes) are zeroed, in a `finally`.
+⚠⚠ **Shared realms too.** Each `RealmRegistry` runtime carries its own copy of the id and A4 (or a
+per-realm key) and an in-memory cursor; left registered, the scheduler kept pushing as the removed
+device and pulled the realm back into the store the forget had just wiped. `ForgetThisDeviceImplementation`
+runs inside `RealmRegistry.whileForgetting`: registration is refused for the whole forget (the personal
+pull runs until custody goes, and a membership it pulls would register under the old identity), every
+shared realm is unregistered before the wipe **and again at the end**, and the shared drain / pull drop
+a runtime unregistered mid-pass (a fetch answered after the forget applies nothing). Relay JWTs are
+minted from one `currentDeviceIdentity()` snapshot (`deviceJwtTokenProvider`). After a failed persist
+every id read throws until restart; the error recorder records `unknown-device` rather than throw. Threat model A4,
+*lifecycle* amendment. Every relay JWT is minted per call
+from `currentDeviceId` + `getDeviceSigningKeyPair()`, so it follows. Two graph singletons captured the
+id at construction and now read it per use: `MediaIndexer` (consent / pause rows are keyed on it) and
+the session `ErrorEventRecorder`.
+⚠ The in-process rebuild, not a graph rebuild: Desktop/Android have no teardown for their
+process-lifetime graph, and every other holder already read the id at call time.
+
+**Per platform.** Desktop + Android Control: the defect, fixed by the above (`:sync-service-proxy`,
+shared). iOS Control: **not affected** — `ControlSurface.wipeDeviceState` purges custody through its
+own delegate and then *rebuilds* Control's graph (B.16 (217)), so the new graph reads no key and mints
+one; when that rebuild fails it already asks for a relaunch. Web: not affected — the apex reloads the
+page after `Session.clear({purgeRealm})`; it gains the fix anyway, being the same class.
+
+**The joiner is told, when it can be.** The F2′ refusal of the post lands on the **approver**, who
+already gets §7h's copy. The joiner learns it only from the delivery re-check (`GET
+/offer-response`, the join flow's peek): that `403 device-removed` is now the typed
+`PairingThisDeviceRemovedError` (fieldless composite, no `SyncService` bump — the
+`PairingDeviceRemovedError` reasoning) instead of a generic error polled until the window closed;
+`AwaitPairing` stops retrying it; the wizard shows `offerRemoved` / `PairingError.ThisDeviceRemoved`
+— *"This device was removed from that realm before… Choose "Forget this device", then pair again."*
+(Compose en + de, iOS `PairingView`). ⚠ The common case — refused at the approver's post — still
+tells the offerer nothing (it waits out its window): the relay has no channel to the offerer for a
+refused approval. `tech-debt.md` *"The offerer is not told its approval was refused"*.
+
+**Tests.** `ForgetThisDeviceRemintsIdentityTest` (new key, new derived id, clock and plaintext cache
+follow, the next launch is the same new device, pairing sessions closed);
+`OfferPairingRoundTripTest.anOfferMadeRightAfterForget_presentsTheNewIdentity_andIsAdmitted` (a fake
+relay applying F2′ by id) and `…theDeliveryRefusesThisDeviceAsRemoved_failsTyped_andEndsTheOffer`;
+`…aNewKeyThatCannotBePersisted_isNeverHeld_andForgetSaysKeyNotSaved`,
+`…overlappingForgets_leaveMemoryAndDiskOnOneKey`;
+`MultiRealmPullIsolationTest.forgetThisDevice_stopsEverySharedRealm_soNoDrainOrPullRunsUnderTheOldIdentity`
+`…aSharedRealmUnregisteredMidFetch_appliesNothing` and `…aMembershipArrivingMidForget_registersNothing`;
+`ForgetThisDeviceOutcomeMarkerTest.aKeyThatCouldNotBeSaved_carriesItsOwnPhrase_andTheStoreNote` with
+`WelcomeScreenTest.forgetNoticesFor_mapsEveryOutcome` (`KeyNotSaved` beside the other notices);
+`DeviceJwtTokenProviderTest`; `ErrorEventRecorderDeviceIdTest`;
+`PairingWizardViewModelTest.offerRefusedAsThisDeviceRemoved_afterScanned_leavesTheScannedStep`;
+`PairingWizardViewModelTest.offerRefusedAsThisDeviceRemoved_surfacesItsOwnTerminal`; over the real relay
+`RelayAmnesiaRepairSystemTest.aDeviceRemovedBetweenApprovalAndFetch_isToldThisDeviceWasRemoved` (the
+relay's token and the client's marker together) and, end to end,
+`RelayAmnesiaRepairSystemTest.aForgottenDevice_rejoinsFromTheSameProcess_underANewIdentity`
+(removed, forgotten, re-paired without a restart: admitted under the new id; the old id still
+`wasRemoved` and never re-registered). F2′ itself is unchanged and stays pinned by
+`aRemovedDeviceCannotRejoinUnderTheSameIdentity`.
+
 ## 8. What this does not do
 
 * Does not change what a revocation *means* to the user.
 * Does not remove `RevokeDevice`'s epoch seeding — that stays correct until R5 retires the comparison.
 * ⚠ Does not address whether a revoked device should be able to *read* what it already has; scope is
   the admission capability only.
+
+
+## 7j. ⚠⚠ DECISION (2026-11-11): a SAS-confirmed approval always works — refuse only the silent rejoin
+
+**Decided by the maintainer, 2026-11-11, after the realm on this project locked itself.** Supersedes
+S1's ancestor rule (§7g: *"any chain with a removed link is `RejectRemovedLink` (→ 403)"*).
+
+### 7j.1 What happened
+
+The Mac was removed from the realm, earlier and deliberately. The iPhone had been admitted *by* the
+Mac, so its admission chain ran through the removed device; under S1 every approve it signed was
+refused (`POST /sync/pairing/response` → 403, seen in the relay log 2026-11-11 15:16Z and 15:20Z). No
+device held A1 (the phrase was not kept; joiners never receive it, §5b.11), so **no device could
+ever admit again** — the realm was alive for sync and dead for admission, with nothing the honest
+user could do but *Start fresh*. Both approvers showed "Something went wrong".
+
+### 7j.2 The principle
+
+What the removal machinery exists to stop is a **silent rejoin**: a removed device (stolen, lost, or
+a thief acting through it) getting back in, or keeping a foothold, **without the user's okay**. An
+approval a person performs on a current member — scanning a code, comparing the SAS, pressing
+Approve — *is* the user's okay. It must always work.
+
+### 7j.3 The rule
+
+The relay accepts an admission iff:
+1. the **new** device's id was never removed (F2′, unchanged — a removed identity never returns); and
+2. the **approver** — the leaf that signed the admission — is a current, non-removed member whose
+   capability key is not revoked (key-scoped revocation, §7g, unchanged). ⚠⚠ "Current" is enforced
+   by **binding**, not by the ledger alone: `chain[0].deviceId` must equal the device the route
+   authenticated as the poster — the JWT `sub` on `/pairing/response`, the `responderDeviceId` whose
+   registered A4 key verified `hostSignature` on `/offer-response` — and that device must be
+   registered at the relay now; at delivery, `chain[0]` must still be registered (§7j.9); and
+3. the chain is otherwise well-formed and rooted in the realm (signatures, A1 root, unchanged).
+
+**Removed.** The refusal of a chain because an *ancestor* link (not the approver) was removed —
+`wasRemoved` is no longer applied to interior links in `AdmissionChainVerifier.verifyChain` /
+`verifyAdmission`, at post time or in `queuedChainStillAdmits`.
+
+### 7j.4 Sleepers — handled where the user can see them
+
+S1 closed a real hole: devices a thief admitted through a stolen device before its removal
+("sleepers") kept admitting. Under §7j they keep their membership until the user acts, so the act
+moves to the UI:
+- **Removing a device lists the devices it admitted** (from the `Device` rows' admitter field / the
+  chains the remover can read) and asks, per device, *"<Mac> added <iPhone>. Keep trusting it?"* —
+  default **keep**; unticked ones are removed in the same action (F2′ applies to each).
+- A sleeper that blanked its own `admissionPublicKey` (S1's blind spot) is still removable **by id**
+  — the ledger is id-scoped — and it is listed in the device list like any member.
+- ⚠ Residual, accepted (Low): a sleeper the user chose to keep, or did not notice, can admit. ⚠⚠
+  Not "only through an approval a person confirms": **any current member device can admit**, and the
+  SAS is a client ceremony the relay cannot verify — true before §7j as well. What the relay does
+  enforce is the binding in §7j.3 rule 2: only a device that is itself a current, authenticated member
+  can present a chain whose leaf names it — the leaf's id is bound, its A33 key is not pinned (⚠ the threat-model residual this raised — a member regaining a capability stripped by key — is **superseded by §7j.10**: no member is stripped by key any more, so there is nothing to regain). So the exposure is that of any member device in a thief's
+  hands, which the user removes by id.
+- ⚠ The admittee list is **advisory**: `admittedByDeviceId` is self-written, so a device can blank it
+  or name a fabricated or departed admitter. Rows the list cannot place are counted and the copy says
+  so; each stays removable by id from the roster.
+
+### 7j.5 What the approver says
+
+A refused approve names its reason (the §7h `PairingDeviceRemovedError` pattern, extended):
+`ADMISSION_REVOKED` → *"This device can no longer add devices. Remove it and pair it again from
+another device."*; removed new device → §7h's existing copy. Never the generic error.
+
+### 7j.6 Keeping the way back
+
+When the last device that holds A1 (the phrase) would be lost — *Start fresh*, *Forget this device*,
+or a realm with no owner device — the UI says so before the action: *"No device will hold your
+recovery phrase. Save it now, or make another device an owner."* (§5b.11's question: does the user
+have the phrase outside the fleet?)
+
+### 7j.7 Shape
+
+- Relay: a **relaxation** — strictly more admissions accepted, none newly refused, no wire change, so
+  no `RELAY_PROTOCOL_VERSION` bump. ⚠ Needs a relay redeploy to take effect; coordinate with the OVH
+  migration in flight (`deploy/ovh-migration`). Until then, clients still see the 403.
+- Threat model: amended in the same PR (§8.17 sub-amendment).
+- Tests: a chain through a removed *ancestor* with a live approver → admitted; a removed *approver* →
+  refused; a removed *new device* → refused; a queued registration whose ancestor is removed after
+  queueing → still delivered; S1's sleeper with a blanked key → removable by id. The old
+  `aChainThroughARemovedAdmitter_returns403_withoutAnyRevocation` inverts.
+
+### ✅ 7j.8 As-built (2026-11-11)
+
+**Relay — one predicate moved, every call site re-decided.** `AdmissionChainVerifier.verifyChain`
+consults `isRemovedDevice` for `chain[0]` alone; the verdict is renamed `RejectRemovedApprover` (it
+still maps to `DelegationOutcome.REVOKED` → `403 admission-revoked`). ⚠⚠ *Superseded by §7j.10:* revocation
+was left **unchanged, covering every link** — §7j.3 rule 2 says "unchanged", and Q3's subtree revocation is deliberate:
+with an A1 holder the removal revokes the subtree by key and P4 re-mints past it; without one no
+revocation can be minted at all, so the incident shape (removal only) is exactly what this relaxes.
+Per site:
+
+| Site | Decision |
+|---|---|
+| `POST /sync/pairing/response` → `verifyAdmissionDelegation` | Approver-only removal check (via the verifier); F2′ on the new device unchanged. |
+| `POST /sync/pairing/response/peek` → `queuedChainStillAdmits` | Same predicate at delivery: an ancestor removed after the post **still delivers**; an approver removed after it does not (`chainAdmitterRemovedBody`, token `admission-revoked`, text reworded). F2′ re-check unchanged. |
+| `POST /sync/pairing/offer-response` (approved) | As `/response`. |
+| `GET /sync/pairing/offer-response` → `queuedChainStillAdmits` | As the peek. |
+| `/sync/realm-member/admit` (`MembershipChainVerifier`) | Untouched — it never consulted the removal ledger. |
+| `/sync/admit-device`, `/sync/recovery-claim`, `/sync/realm` | Untouched — A1-signed, no chain. |
+| Client `verifyChain` callers (`AdmissionMigrationObserver`, tests) | Untouched — they pass no ledger. |
+
+No wire field, route or body token changed ⇒ **no `RELAY_PROTOCOL_VERSION` bump** (confirmed: the
+`admission-revoked` / `device-removed` tokens are the same constants). HR 1: nothing decrypts. ⚠ The
+relaxation takes effect only on a **relay redeploy**; until then the 403 stands.
+
+**Client — the refusal is named.** `RestSyncRelay.statusWithReason` tags a `403 admission-revoked`
+with `ADMISSION_REVOKED_REJECTION_MARKER`; both approve ops call `throwIfTypedAdmitRefusal` (was
+`throwIfAdmitteeRemoved`), which maps it to the new fieldless composite `PairingApproverRevokedError`
+before the A1 self-heal. Rendered as `PairingError.ApproverRevoked` — wizard, host dialog, iOS
+`ControlSurface`, and the web apex (`approverRevoked` kind) — en + de. HR 9: a fieldless composite is
+outside the shape baseline, the `PairingDeviceRemovedError` reasoning; no `SyncService` bump.
+
+**Removal lists admittees (§7j.4).** `removalAdmittees` (`:control-shared-logic`) walks
+`Device.admittedByDeviceId` transitively from the removed device — the only admitter field synced
+rows carry (`AdmissionKeyAnnouncement` names a key, not an admitter; chains are not synced). Never
+offers this device. Compose `RevokeDeviceConfirmDialog` and an iOS sheet list each admittee as
+"Keep “X”", ticked by default; unticked ones go through `revokeDeviceAndAdmittees` in the same action,
+the removed device first. ⚠⚠ The field is self-written, so a row that records **no** admitter cannot
+be placed: the surface says how many (`unlistedCount`) instead of implying the list is complete, and
+such a row stays removable by id from the roster (F2′ is id-scoped).
+
+**Phrase warning (§7j.6).** Already built by §5b.12.2 on every Forget / Start-fresh path (Compose
+`ForgetDeviceDialog`, iOS `ReinstallPhraseRescueSheet` for both Settings → Forget and the reinstall
+gate's Start fresh): it shows the phrase when this device holds it and gates the confirm on an
+acknowledgement — keyed on *this device holds it*, never on a headcount (§5b.11). The only change: its
+closing clause said *"without it nobody can add devices to this realm again"*, which §7j made false;
+it now names what is actually lost, recovery. ⚠ Not built: a standing "no owner device" banner — that
+is §5b.12.1's, not this slice's.
+
+**Tests.** `AdmissionChainVerifierTest.aChainThroughARemovedAncestor_isAdmitted_whenTheApproverIsCurrent`
+(replaces `aChainThroughARemovedDevice_isRefused_evenWithNoRevocation`),
+`…aRemovedApprover_isRefused_evenWithNoRevocation`, `…aRevokedAncestor_stillRefuses_evenThoughARemovedOneDoesNot`;
+`PairingResponseAdmissionChainTest.aChainThroughARemovedAncestor_isAdmitted_whenTheApproverIsCurrent`
+(inverts `aChainThroughARemovedAdmitter_returns403_withoutAnyRevocation`),
+`…aRemovedApprover_returns403AdmissionRevoked_withoutAnyRevocation`,
+`…aRemovedNewDevice_returns403DeviceRemoved_evenFromACurrentApprover`,
+`…anAncestorRemovedBeforeTheJoinerFetches_stillDelivers`, `…anApproverRemovedBeforeTheJoinerFetches_registersNothing`;
+`PairingOfferRoutingTest.anApprovalThroughARemovedAncestor_isAdmitted_andDelivered`,
+`…anAncestorRemovedBeforeTheOffererFetches_stillDelivers`; client
+`ApprovePairingRequestImplementationTest.approversCapabilityRevoked_failsTyped_neverAsTheGenericError`,
+`OfferPairingRoundTripTest.approversCapabilityRevoked_failsTyped_withoutTheSelfHeal`,
+`RestSyncRelayUnauthorizedContractTest` (marker), `PairingWizardViewModelTest.approveOffer_approversCapabilityRevoked_saysSo`,
+`RemovalAdmitteesTest`, `SyncDashboardViewModelTest.revokeWithAdmittees_…`,
+`SyncDashboardScreenTest.removingADevice_listsItsAdmittees_…`. The sleeper-with-a-blanked-key case is
+pinned by the existing `RevokeDeviceAdmissionRevocationTest.revokingADeviceWithNoKnownKey_sendsNoKeylessRevocation_butStillRemoves`
+(removed by id) plus `RemovalAdmitteesTest.countsTheRowsWhoseAdmitterIsUnknown_…`.
+
+
+### ✅ 7j.9 Security fix round (2026-11-11) — the approver is bound to the poster
+
+**Found in review, before any redeploy.** §7j.3 rule 2 says the approver is a *current* member, but the
+first cut checked only that `chain[0]` was not in the removal ledger — nothing tied `chain[0]` to the
+device posting, or required it to be registered. A removed device D whose A33 key was never revoked
+(a realm with no A1 mints no revocations at all — exactly the realm §7j was written for — and a
+device can blank its own key) could mint a cert for a fabricated leaf X, or for a current honest id
+with a fresh key, and post `[X ← D ← A1]` under any realm JWT: D is merely an ancestor, X was never
+removed ⇒ admitted, and again at delivery. The S1 rule had hidden this, because it refused any chain
+through D; relaxing it exposed it. Rated MED (HIGH in a realm with no A1).
+
+**Fix (relay only, no wire change):** `approverBinding` in `SyncRouting.kt`, called from
+`verifyAdmissionDelegation` for every A33 chain — `chain[0].deviceId` must equal the authenticated
+poster (`requireOwnerAndDevice` → JWT `sub` on `/pairing/response`; the `responderDeviceId`
+authenticated by its registered A4 key over `hostSignature` on `/offer-response`), else **401**; and
+that device must be registered now, else **403 `admission-revoked`**. `queuedChainStillAdmits`
+re-checks at delivery that `chain[0]` is still registered. The poster's id is not stored separately in
+`PendingRegistration`: the post-time check makes it equal to `chain[0]`, which the queued chain
+already carries — so no change to the persisted offer-store row.
+⚠ Dev mode: `X-Dev-Owner` names no device, so a chain posted with it alone now fails closed; tests
+add `X-Dev-Device`.
+
+**Honest approvals are unaffected.** An A1 holder presents no chain (the binding does not apply). A
+delegated admitter presents its own chain (`PairingAdmission.admit` → `getAdmissionCertChain()`),
+whose `chain[0]` is the cert minted for this device under its key-derived id (§7i) — the same id its
+JWT carries.
+
+**Also in this round:** the admittee keep-choice tracks the ids the user *unticked* (a live roster
+could otherwise add an admittee that showed unticked and was removed unchosen); `unlistedCount` also
+counts rows naming an admitter that is not in the roster; the copy calls the list a guide.
+
+**Tests:** `PairingResponseAdmissionChainTest.aChainWhoseApproverIsNotThePoster_isRefused_andRegistersNothing`,
+`…aChainWhoseApproverIsNotRegistered_isRefused403`, `…aChainWithNoAuthenticatedPoster_isRefused`,
+`…aPosterUnregisteredBeforeTheJoinerFetches_registersNothing`;
+`PairingOfferRoutingTest.anApprovalWhoseChainNamesAnotherApprover_isRefused_andRegistersNothing`,
+`…aResponderUnregisteredBeforeTheOffererFetches_registersNothing`; the §7j honest-case tests stay green
+(an ancestor removed, the approver current and posting).
+`SyncDashboardScreenTest.anAdmitteeArrivingWhileTheDialogIsOpen_isKept_notRemoved`,
+`RemovalAdmitteesTest.aRowNamingAnAdmitterNotInTheRoster_isCountedAsUnlisted`.
+
+
+### ⚠⚠ 7j.10 DECISION (2026-11-11, maintainer): a device is a member or removed — no third state
+
+**The principle, restated:** an approval a person confirms by SAS on any current member always works;
+what is prevented is a silent rejoin. §7j relaxed only the *removed*-ancestor check, and two mechanisms
+still broke the principle in a realm that **has** an A1 holder:
+
+1. **Client — P5/Q3's subtree strip.** Removing a device D, when an A1 holder did it, master-signed an
+   `AdmissionRevocation` for every device D transitively admitted (`admittedByDeviceId`) — including the
+   ones the user **kept** in the §7j.4 removal dialog. A kept device stayed a member but could no longer
+   admit.
+2. **Relay — revocation checked on every chain link** (kept on purpose in §7j.8). Revoking D's own key
+   alone refused every approver whose chain still ran through D (an un-re-rooted depth-2 chain).
+
+**Decision: a device is either a member (it can admit) or removed (it can do nothing). There is no
+"member that cannot admit" state.**
+
+- **Client.** `RevokeDeviceImplementation` revokes **only the removed device's own A33 key(s)**. The
+  admittees the user unticks are removed by their own `RevokeDevice` call in the same action
+  (`revokeDeviceAndAdmittees` — tombstone, F2′ ledger, their own keys); kept ones are untouched. Q3's
+  subtree walk is deleted.
+- **Relay.** `AdmissionChainVerifier.verifyChain` checks the revocation list for `chain[0]` (the
+  approver) only — the same scope §7j gave the removal ledger. Everything else stands: the approver is
+  the authenticated poster and registered now (§7j.9 binding), not removed, its own key not revoked; a
+  removed new device is refused (F2′); the chain is well-formed and rooted in A1. At delivery
+  (`queuedChainStillAdmits`) the same: an ancestor revoked after the post still delivers; an approver
+  revoked after it does not.
+
+**What the residual becomes.** §7j's threat-model residual — *a current member M that also holds a
+removed device D's private A33 key can regain a capability stripped from M by key* — **disappears**:
+nothing strips a member by key any more, so there is nothing to regain. Re-examined honestly, a thief
+holding a removed device's private A33 key can still **sign** certs under it, but gains nothing a
+member lacks: the relay requires `chain[0].deviceId` = the authenticated poster (JWT `sub` on
+`/pairing/response`; the `responderDeviceId` whose registered A4 key verified `hostSignature` on
+`/offer-response`) and that device registered now (`approverBinding`), and re-checks registration at
+delivery. So any chain the thief can get accepted names a current member that it controls — which
+could admit with its own chain anyway. A *removed* device fails the binding (unregistered) whatever
+key it signs with. ⚠ **The removal itself has two steps:** the remover strips D's own key at once; the
+tombstone (removal ledger + unregister) lands on the next push, which can be long (offline remover,
+507/402 latch, rate limit). **Own-key revocation stops D as an approver immediately** — with the fix
+round below, a revocation of *any* key on a link naming D's id refuses, and a chain naming D twice
+is refused outright — and removal completes when the tombstone unregisters it. Inside the window D
+could present an acceptable chain only under *another* device's A33 private key, i.e. with a second
+device stolen (Low).
+
+**Explicit key revocation without removal — none exists, none is added.** The only caller of
+`SyncRelay.revokeAdmission` / `POST /sync/admission/revoke` is `RevokeDeviceImplementation` (no
+Compose, iOS, web or apex surface strips a device's admission capability while keeping it). The
+endpoint stays: removal's own-key strip uses it. P4 re-root is unaffected (it re-mints for an
+announced key; it never revokes) and so is delegated admission (A33 / §8.17).
+
+**Legacy state — devices stripped before §7j.10.** A realm in which an A1 holder removed a device
+under the old code holds revocations for that device's admittees' keys. Such an admittee is a member
+whose own key is revoked, so the relay (correctly, by its own-key rule) still refuses it as an
+approver, and the approver sees §7j.5's copy (*"Remove it and pair it again"*). ⚠⚠ **It stays refused
+for good:** P4 does not re-mint a depth-1 device (it announces only with no key or a deeper chain),
+and the client never rotates its own A33 key — re-keying under the old key is exactly what the fix
+round refuses. And *"pair it again"* works **only with a new identity** — *Start fresh* (RG-1) on that
+device first — because F2′ bars the same id once it is removed. The copy does not say so; tracked in
+`docs/tech-debt.md` *"A legacy-stripped admittee's refusal copy omits Start fresh"*. Not migrated: the
+production realm holds test data (no user is stranded), and a silent relay-side purge of
+master-signed revocations would be the wrong precedent.
+
+**Shape.** No wire field, route, body token or stored row changes ⇒ **no `RELAY_PROTOCOL_VERSION`
+bump**, no service-version bump (HR 9). HR 1: nothing decrypts. A relaxation (strictly more
+admissions accepted) — ⚠ it takes effect only on a **relay redeploy**; until then a kept device whose
+chain runs through a revoked ancestor is still refused. Client half (no more subtree strip) takes
+effect on the next client release, independently.
+
+**Tests.** Inverted: `AdmissionChainVerifierTest.aRevokedAncestor_doesNotRefuse_whenTheApproversOwnKeyIsValid`
+(was `aRevokedAncestor_stillRefuses_evenThoughARemovedOneDoesNot`), `…revokedIntermediateLink_doesNotRefuseTheApprover`
+(was `…_rejectsWholeSubtreeChain`); `PairingResponseAdmissionChainTest.aRevokedAndRemovedAncestor_isAdmitted_whenTheApproversOwnKeyIsValid`
+(was `revokedIntermediate_returns403_forTheWholeSubtreeChain`), `…anAncestorRevokedBeforeTheJoinerFetches_stillDelivers`;
+`RevokeDeviceAdmissionRevocationTest.a1Holder_revokesOnlyTheRemovedDevice_neverTheDevicesItAdmitted`
+(was `a1Holder_revokesTheWholeAdmissionSubtree_notSiblings`). Kept/added refusals:
+`AdmissionChainVerifierTest.revokedApproverKey_refuses`, `PairingResponseAdmissionChainTest.aRevokedApproverOnADeepChain_returns403_andDoesNotRegister`,
+`…anApproverRevokedBeforeTheJoinerFetches_registersNothing_evenWhileNotYetRemoved`, the §7j removed-approver /
+removed-new-device / §7j.9 binding tests; `PairingOfferRoutingTest.anApprovalThroughARevokedAndRemovedAncestor_isAdmitted_andDelivered`,
+`RevokeDeviceAdmissionRevocationTest.anUntickedAdmittee_isRemovedByItsOwnCall_withItsOwnKeyRevoked`. End to end (real relay,
+real Ed25519): `DelegatedAdmissionSystemTest.delegatedAdmission_fullLifecycle_admitThenRemoveTheAdmitter_keptAdmitteeStillAdmits`
+(re-rooted C kept after B's removal admits D; unticked C is fully removed) and
+`…aKeptAdmitteeOnADeepChain_stillAdmits_afterItsAdmitterIsRemovedAndRevoked` (C still on `[C ← B ← A1]`).
+
+#### ✅ 7j.10.1 Fix round (2026-11-11, review) — no self-re-key through the approver's own revoked key
+
+**Found in review before the redeploy (MED).** With revocation checked on `chain[0]` alone, a
+registered device D whose own key K_D was revoked could mint `D(K′)` under K_D and post
+`[D(K′), D(K_D), …, A1]` under its own JWT: `chain[0].deviceId` = the poster, D still registered, K′
+unrevoked, K_D now "only an ancestor", every signature valid, and nothing refused a repeated id. In
+the removal window (above) a stolen D could admit a sleeper that outlives D's unregistration; and
+any member whose own key was revoked (incl. a legacy-stripped admittee) could re-key itself.
+
+**Fix (`AdmissionChainVerifier.verifyChain`, so post time and `queuedChainStillAdmits` alike):**
+1. **A revocation of any link that names the approver's device id refuses** (`RejectRevoked` → 403
+   `admission-revoked`) — "the approver's own key" means every key the chain attributes to the
+   approver, not the leaf's alone. Other devices' links stay outside it (§7j.10).
+2. **A chain that names any device id twice is refused** (`RejectRepeatedDevice` → 403 `admission-revoked`, §7j.10.2), whatever the
+   revocation list says. No honest client builds one: `PairingAdmission.admit` prepends a cert for the
+   *new* device, whose id is key-derived (§7i) and which F2′ keeps from being a removed id; a P4 grant
+   is depth 1 (`AdmissionMigrationObserver.maybeMint`). ⚠ Edge: a current member re-paired *through its
+   own descendant* under the same id (an iOS reinstall that kept its Keychain and was never removed)
+   would receive such a chain; its later approvals are refused (403 `admission-revoked`, so it sees
+   §7j.5's typed copy). **The way out is a P4 re-root** — an A1 holder grants it a depth-1 chain for
+   its existing key, which no longer repeats — **or *Start fresh*** (a new identity). ⚠ In a realm with
+   **no A1 holder** nothing can re-root it, so *Start fresh* is the only remedy. Accepted — that path
+   is not a supported re-pairing.
+
+No wire, route or token change ⇒ still no `RELAY_PROTOCOL_VERSION` bump; the verdict enum is a plain
+Kotlin type, not a schema constant (no HR 9). **Tests:** `AdmissionChainVerifierTest.aSelfReKeyThroughTheApproversOwnRevokedKey_isRefusedAsRevoked`,
+`…aChainThatNamesADeviceTwice_isRefused_evenWithNoRevocation`; `PairingResponseAdmissionChainTest.aSelfReKeyThroughTheApproversOwnRevokedKey_returns403_andDoesNotRegister`,
+`…aChainThatNamesADeviceTwice_returns403AdmissionRevoked_andDoesNotRegister`, `…aQueuedSelfReKeyChain_isNotDelivered` (delivery: such a chain cannot
+queue through the route, so the re-check is pinned directly); `PairingOfferRoutingTest.aSelfReKeyThroughTheRespondersOwnRevokedKey_isRefused_andRegistersNothing`;
+`DelegatedAdmissionSystemTest.aRevokedApproverInTheRemovalWindow_cannotReKeyItselfToAdmit` (real relay, real Ed25519: the remover's master-signed
+key strip lands in the ledger, B's tombstone never does, so B is still registered; B installs the forged re-key and approves C ⇒
+refused, C never registers). The honest
+§7j.10 cases (another device's link revoked or removed; a kept admittee admits) stay green.
+
+#### ✅ 7j.10.2 Second fix round (2026-11-11, re-review) — the approver's refusal is id-scoped
+
+**Found (LOW): the P4 re-key in the window.** `AdmissionMigrationObserver.maybeMint` mints a depth-1
+grant for any verified announcement whose `Device` row it still holds. If the remover's tombstone is
+delayed, a *second* A1 holder that has not applied it still has D's row; D announces a fresh K′ and is
+granted `[D(K′)]` — depth 1, no repeated id, K′ unrevoked, D still registered ⇒ admitted.
+
+**Why not fix it in `maybeMint`.** The A1 holder cannot know locally: admission revocations live only
+in the relay's ledger (no read route), and once the tombstone is applied the row is gone and nothing
+is minted anyway. Every other local signal (the captured key on the `Device` row, a prior grant) is a
+row the device can rewrite about itself. So `maybeMint` is unchanged except for a comment saying so.
+
+**Fix (relay, `AdmissionChainVerifier.verifyChain`):** the approver's refusal is **id-scoped** —
+`isApproverRevoked`: any validly master-signed (non-keyless) revocation naming `chain[0].deviceId`
+refuses, **whatever key it names**. This subsumes §7j.10.1's "any link naming the approver's id" check
+and closes every re-key path at once (self-re-key, P4 re-mint, any future one). It is safe now and was
+not before: since §7j.10 a revocation is minted **only for a removed device**, so "a re-mint clears the
+revocation for free" (F1′/§7b.2) — whose purpose was keeping Q3's conservative subtree strip
+recoverable — would only ever free a removed device. `isRevoked` stays the key-exact predicate (S2's
+deviceId conjunct is untouched; `KeyScopedRevocationTest` unchanged). Other devices' links stay out
+of it (§7j.10). ⚠ Legacy stripped admittees can now not escape by any re-key either — *Start fresh*
+is their way out (tech-debt entry).
+
+**Also:** `RejectRepeatedDevice` maps to `DelegationOutcome.REVOKED` → 403 `admission-revoked`
+(was 401, which the offer route rendered as `AdmitterUnrecognised` and the join route as the generic
+error), so the approver sees §7j.5's copy. No wire change; no `RELAY_PROTOCOL_VERSION` bump.
+
+**Tests:** `AdmissionChainVerifierTest.aFreshKeyForARevokedApprover_isStillRefused`,
+`…revocationNamingAnotherKeyOfTheApprover_stillRefuses` (inverts `revocationNamingAnotherKey_doesNotRevoke_whateverItsEpoch`);
+`PairingResponseAdmissionChainTest.aP4ReMintForARevokedApprover_returns403_andDoesNotRegister`,
+`…aChainThatNamesADeviceTwice_returns403AdmissionRevoked_andDoesNotRegister` (was `…returns401…`).

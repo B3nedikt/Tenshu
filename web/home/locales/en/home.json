@@ -1,9 +1,6 @@
 {
-  "app": {
-    "title": "Home",
-    "tagline": "Your devices, automations and activity — view only, end-to-end encrypted."
-  },
   "nav": {
+    "label": "Home sections",
     "devices": "Home",
     "automations": "Automations",
     "activity": "Activity"

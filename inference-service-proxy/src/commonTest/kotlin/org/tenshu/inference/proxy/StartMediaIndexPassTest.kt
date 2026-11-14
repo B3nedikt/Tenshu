@@ -62,7 +62,7 @@ class StartMediaIndexPassTest {
         val embeddings = InMemoryEmbeddingStore()
         val indexer = MediaIndexer(
             registry = registry,
-            deviceId = thisDevice,
+            deviceId = { thisDevice },
             embeddings = embeddings,
             faces = faces,
             conditions = conditions,

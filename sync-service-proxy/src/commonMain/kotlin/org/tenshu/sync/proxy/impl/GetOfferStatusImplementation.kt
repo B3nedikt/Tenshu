@@ -11,8 +11,10 @@ import org.tenshu.core.common.proxy.executor.OperationImplementationFactory
 import org.tenshu.core.security.SyncCryptoManager
 import org.tenshu.sync.GetOfferStatus
 import org.tenshu.sync.OfferStatus
+import org.tenshu.sync.PairingThisDeviceRemovedError
 import org.tenshu.sync.common.SyncManager
 import org.tenshu.sync.common.SyncRelay
+import org.tenshu.sync.proxy.DEVICE_REMOVED_REJECTION_MARKER
 import org.tenshu.sync.proxy.security.derivePairingSas
 
 /**
@@ -43,10 +45,18 @@ internal class GetOfferStatusImplementation(
             ?: throw TenshuException(GenericError.create(ctx, "No active offer session"))
 
         val status: OfferStatus = when (val fetch = relay.getOfferResponse(hash)) {
-            is SyncRelay.OfferResponseFetch.Error ->
+            is SyncRelay.OfferResponseFetch.Error -> {
+                // ⚠ F2′ re-checked at delivery: THIS device was removed from the realm and the
+                // relay will never admit it under this identity. Terminal, so typed — a generic
+                // error here read as a transport blip and was polled on until the window closed.
+                if (fetch.message.contains(DEVICE_REMOVED_REJECTION_MARKER)) {
+                    syncManager.clearOfferSession(hash)
+                    throw TenshuException(PairingThisDeviceRemovedError.create(ctx))
+                }
                 // A genuine transport failure — surface it rather than silently poll on
                 // (mirrors PairingCompletion's Failure-vs-404 distinction).
                 throw TenshuException(GenericError.create(ctx, fetch.message))
+            }
 
             SyncRelay.OfferResponseFetch.NotFound ->
                 OfferStatus.create(ctx, OfferStatus.PENDING)

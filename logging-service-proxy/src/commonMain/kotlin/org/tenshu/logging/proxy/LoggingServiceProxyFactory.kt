@@ -22,7 +22,11 @@ import org.tenshu.core.common.proxy.ExecutionContext
  */
 fun loggingServiceProxyImplementationFactory(
     sessionExecutionContext: ExecutionContext,
-    deviceId: String,
+    /**
+     * Read at each recorded event. ⚠ A provider, because the session outlives a "Forget this
+     * device", which gives the process a new id (`SyncManager.forgetThisDevice`).
+     */
+    deviceId: () -> String,
     appId: String,
     appVersion: String = "dev",
     osLabel: String = "unknown",

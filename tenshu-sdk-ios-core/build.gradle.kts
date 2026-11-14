@@ -40,6 +40,9 @@ kotlin {
                 api(project(":sync-service-client"))
                 api(project(":storage-service-common"))
                 api(project(":storage-service-client"))
+                // `evaluateSuiteSyncProblem` + `withOfflineDelay` (`suite-sync-status.md` SS-1b): the
+                // strip's precedence, shared with every Compose app rather than spelled again here.
+                implementation(project(":app-reachability"))
                 // ⚠ Re-exported: `:tenshu-sdk-ios-fit` and `-timeline` name `org.tenshu.file.common`
                 // types without declaring the module themselves.
                 api(project(":file-service-common"))

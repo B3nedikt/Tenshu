@@ -38,6 +38,28 @@ import org.tenshu.systemtest.di.systemTestProxyModule
  * call [shutdown] in a `finally` block. [shutdown] cancels each client's
  * scheduler, closes its Koin scope, and stops the shared testApplication
  * (which fires `ApplicationStopped` and cancels the relay's GC sweep).
+ *
+ * ## Two ways to move sync forward
+ *
+ * **Polled** (the default): every device's `SyncScheduler` runs its real loop at
+ * [client]'s `pollingIntervalMs`, and a test waits for an outcome with [advanceUntil], which only
+ * polls a predicate. Convergence costs real ticks of real time, and *which* device reaches the
+ * relay first is whatever the two loops happened to do.
+ *
+ * **Stepped** ([TestSystemBuilder.stepped]): no loop starts, and nothing syncs until the test says
+ * so. [sync] ticks devices in the order the test names them, [syncUntil] repeats rounds until a
+ * predicate holds, [syncUntilQuiet] repeats them until nothing more moves. Every tick goes through
+ * the scheduler's own `tickMutex` (`drainNow`), never `tickOnce` directly
+ * (`docs/tech-debt.md` § "Residual Suite-Ordering Flake: ContactHandshakeSystemTest", route 1:
+ * cycle hooks such as the invite pickup rely on that mutex for their single-flight). So a race
+ * between two devices is an interleaving the test writes — "the move reaches the relay first" is
+ * `sync(mover)` before `sync(deleter)` — and a bound on convergence is a count of rounds, not a
+ * wall-clock budget.
+ *
+ * ⚠ Stepped mode stops the **sync** loops only. A device's view-model timers, derived views and
+ * observer fan-out still run on their own coroutines; a state computed from synced rows *after*
+ * ingest (a derived feed row, a VM's state) is still awaited, with [advanceUntil]. And where the
+ * real scheduler's cadence or backoff **is** the subject, stay polled (`docs/testing.md` §10).
  */
 class TestSystem internal constructor(
     internal val relayApp: TestApplication,
@@ -73,6 +95,16 @@ class TestSystem internal constructor(
      * with [org.tenshu.sync.relay.storage.ContentSweepJob.runOnce] on the plane's own clock. `null` otherwise.
      */
     val contentSweep: org.tenshu.sync.relay.storage.ContentSweepJob? = null,
+    /** Built with [TestSystemBuilder.stepped]: see the class KDoc. */
+    val stepped: Boolean = false,
+    /**
+     * Stepped mode's sync clock, shared by every device: the `nowMs` their sync runtimes read for
+     * `RejectionBackoff` windows, relay reachability and health stamps. It starts at real time when
+     * the system is built and then moves **only** when the test calls [TestSyncClock.advance], so
+     * "the backoff window has elapsed" is a step the test takes, like a tick. `null` in a polled
+     * system, whose devices read real time. See [TestSyncClock] for what it does not drive.
+     */
+    val syncClock: TestSyncClock? = null,
     private val onShutdown: () -> Unit = {},
 ) {
     private val _clients = mutableListOf<TestClient>()
@@ -91,7 +123,7 @@ class TestSystem internal constructor(
     fun client(
         deviceId: String,
         role: TestClientRole,
-        pollingIntervalMs: Long = 100,
+        pollingIntervalMs: Long = DEFAULT_POLLING_INTERVAL_MS,
         /** Commerce bearer token for `X-Entitlement`; `{ null }` = none, the default everywhere. */
         entitlementTokenProvider: suspend () -> String? = { null },
         /** See `systemTestPlatformModule`'s parameter of the same name. */
@@ -101,9 +133,15 @@ class TestSystem internal constructor(
         contentGate: org.tenshu.sync.common.SyncGate = org.tenshu.sync.common.SyncGate.AlwaysAllow,
         /** See `systemTestPlatformModule`'s parameter of the same name — the personal push gate. */
         storageGate: org.tenshu.sync.common.SyncGate = org.tenshu.sync.common.SyncGate.AlwaysAllow,
+        /** See `systemTestPlatformModule`'s parameter of the same name: `AwaitPairing`'s pause. */
+        pairingWaitPacer: (suspend () -> Unit)? = null,
     ): TestClient {
         require(_clients.none { it.deviceId == deviceId }) {
             "TestClient with deviceId=$deviceId already registered"
+        }
+        require(!stepped || pollingIntervalMs == DEFAULT_POLLING_INTERVAL_MS) {
+            "pollingIntervalMs=$pollingIntervalMs on '$deviceId' would be ignored: a stepped system starts no " +
+                "polling loop, so a device ticks only when the test syncs it"
         }
         val koinApp = koinApplication {
             modules(
@@ -112,14 +150,17 @@ class TestSystem internal constructor(
                     deviceId = deviceId,
                     relayHttpClient = relayHttpClient,
                     pollingIntervalMs = pollingIntervalMs,
+                    startBackgroundLoops = !stepped,
+                    syncNowMs = syncClock?.let { clock -> { clock.nowMs() } } ?: { System.currentTimeMillis() },
                     entitlementTokenProvider = entitlementTokenProvider,
                     operationDecorator = operationDecorator,
                     contentGate = contentGate,
                     storageGate = storageGate,
+                    pairingWaitPacer = pairingWaitPacer,
                 )
             )
         }
-        val client = TestClient(deviceId = deviceId, role = role, koinApp = koinApp)
+        val client = TestClient(deviceId = deviceId, role = role, koinApp = koinApp, stepped = stepped)
         _clients += client
         return client
     }
@@ -142,6 +183,94 @@ class TestSystem internal constructor(
             while (!predicate()) {
                 delay(pollInterval)
             }
+        }
+    }
+
+    /**
+     * Stepped mode: one tick on each of [devices], **in the order given**, each finishing before the
+     * next starts. `sync(phone, tablet)` means the phone pushes (and pulls) before the tablet pulls
+     * (and pushes) — the interleaving a polled test can only hope for.
+     *
+     * Each tick first waits for the device's queued saves to become blocks ([TestClient.stepOnce]),
+     * so a write the test made before this call is pushed by this call.
+     */
+    suspend fun sync(vararg devices: TestClient) {
+        requireStepped(devices.asList())
+        devices.forEach { it.stepOnce() }
+    }
+
+    /**
+     * Stepped mode: rounds of [sync] over [devices] (every client, in registration order, by
+     * default) until [predicate] holds. Checked before the first round, so a state that already
+     * holds costs no tick. Returns the number of rounds it took.
+     *
+     * Fails with [what] after [maxRounds] rounds. ⚠ That bound is a count of rounds, not a time, so
+     * a slow machine cannot reach it; a red here says the state was never reached by syncing.
+     */
+    suspend fun syncUntil(
+        what: String,
+        devices: List<TestClient> = clients,
+        maxRounds: Int = DEFAULT_MAX_ROUNDS,
+        predicate: suspend () -> Boolean,
+    ): Int {
+        requireStepped(devices)
+        var rounds = 0
+        while (!predicate()) {
+            if (rounds == maxRounds) {
+                throw AssertionError(
+                    "$what — not after $maxRounds stepped rounds of " +
+                        devices.joinToString(prefix = "[", postfix = "]") { it.deviceId },
+                )
+            }
+            devices.forEach { it.stepOnce() }
+            rounds++
+        }
+        return rounds
+    }
+
+    /**
+     * Stepped mode: rounds of [sync] over [devices] until **two consecutive rounds in which nothing
+     * moved** — the relay accepted no block or tombstone, and no device's tick left more to pull.
+     * Returns the number of rounds, both still ones included.
+     *
+     * Why two. After the first still round every device has ticked since the last push, so each
+     * has pulled everything there is. But a device that pulled in that round may have queued a
+     * reaction to what it ingested (a merge write, a cascade), and that reaction only pushes on the
+     * device's *next* tick. The second still round is that next tick for every device: nothing
+     * pushed, so nothing was waiting. That is also the stepped form of "and it **stays** that way":
+     * a resurrection is a later tick's push, and two still rounds are two ticks per device with none.
+     *
+     * ⚠ Blocks and tombstones are what it counts. Content-plane chunk uploads are not on the
+     * relay's arrival counter; a test about bytes awaits them by their own state.
+     */
+    suspend fun syncUntilQuiet(
+        devices: List<TestClient> = clients,
+        maxRounds: Int = DEFAULT_MAX_ROUNDS,
+    ): Int {
+        requireStepped(devices)
+        var stillRounds = 0
+        repeat(maxRounds) { round ->
+            val before = syncMailbox.lastArrivalSeq
+            var backlog = false
+            devices.forEach { if (it.stepOnce()) backlog = true }
+            stillRounds = if (!backlog && syncMailbox.lastArrivalSeq == before) stillRounds + 1 else 0
+            if (stillRounds == 2) return round + 1
+        }
+        throw AssertionError(
+            "sync never went quiet in $maxRounds stepped rounds of " +
+                devices.joinToString(prefix = "[", postfix = "]") { it.deviceId } +
+                " — something pushes, or has more to pull, on every round",
+        )
+    }
+
+    private fun requireStepped(devices: List<TestClient>) {
+        check(stepped) {
+            "sync/syncUntil/syncUntilQuiet are stepped-mode helpers; build with TestSystem.builder().stepped(). " +
+                "A polled system's loops would tick between the steps, so the order would not be the test's."
+        }
+        require(devices.isNotEmpty()) { "no devices to step" }
+        devices.forEach { device ->
+            require(_clients.any { it === device }) { "'${device.deviceId}' is not a client of this TestSystem" }
         }
     }
 
@@ -201,5 +330,15 @@ class TestSystem internal constructor(
 
     companion object {
         fun builder(): TestSystemBuilder = TestSystemBuilder()
+
+        /**
+         * [syncUntil] / [syncUntilQuiet]'s default round cap. A two-device exchange settles in two
+         * or three rounds (push, pull, the pull's own reaction); the margin is for multi-hop chains
+         * such as a pairing plus a first pull. It is a count, so it never trades a red for a slow box.
+         */
+        const val DEFAULT_MAX_ROUNDS = 25
+
+        /** [client]'s default cadence, in a polled system. Meaningless, and refused, in a stepped one. */
+        const val DEFAULT_POLLING_INTERVAL_MS = 100L
     }
 }

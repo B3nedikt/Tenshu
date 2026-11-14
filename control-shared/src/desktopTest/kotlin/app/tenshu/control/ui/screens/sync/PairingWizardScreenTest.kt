@@ -46,7 +46,6 @@ class PairingWizardScreenTest {
 
     @Before
     fun setup() {
-        stopKoin()
         mockSyncRepository = object : SyncRepository {
             override val devices = MutableStateFlow<List<Device>>(emptyList())
 

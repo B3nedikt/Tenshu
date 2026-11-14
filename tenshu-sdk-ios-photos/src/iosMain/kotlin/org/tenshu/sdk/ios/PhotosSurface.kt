@@ -5,17 +5,28 @@ package org.tenshu.sdk.ios
 import app.tenshu.control.ui.screens.models.ModelsRepository
 import app.tenshu.control.ui.screens.models.ModelsViewModel
 import app.tenshu.photos.data.AlbumsResult
+import app.tenshu.photos.edit.EditRecipe
+import app.tenshu.photos.edit.PhotoEditRenderer
+import app.tenshu.photos.edit.PhotoEditorViewModel
 import app.tenshu.photos.data.NotConnectedPhotosRepository
 import app.tenshu.photos.data.OffCallerPhotosRepository
 import app.tenshu.photos.data.PhotosRepository
 import app.tenshu.photos.data.heroPreviewRequestPx
 import app.tenshu.photos.data.tilePreviewRequestPx
+import app.tenshu.photos.model.FaceCover
 import app.tenshu.photos.model.MotionTurn
+import app.tenshu.photos.model.faceCropRequestPx
 import app.tenshu.photos.model.Photo
 import app.tenshu.photos.model.SemanticSearchStatus
 import app.tenshu.photos.time.PhotoDates
 import app.tenshu.photos.ui.screens.albumdetail.AlbumDetailViewModel
+import app.tenshu.photos.ui.screens.collections.CollectionSection
+import app.tenshu.photos.ui.screens.collections.CollectionsLayout
+import app.tenshu.photos.ui.screens.collections.CollectionsUiState
 import app.tenshu.photos.ui.screens.collections.CollectionsViewModel
+import app.tenshu.photos.ui.screens.collections.PersonPage
+import app.tenshu.photos.ui.screens.collections.SmartPage
+import app.tenshu.photos.ui.screens.collections.personPage
 import app.tenshu.photos.ui.screens.collections.CurrentRealm
 import app.tenshu.photos.ui.screens.collections.iosCollectionsSnapshotStore
 import app.tenshu.photos.ui.screens.collections.purge
@@ -41,6 +52,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.withIndex
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSData
@@ -103,6 +120,102 @@ object PhotosSurface {
     }
 
     /**
+     * Whether this phone groups faces, and when that changes; `null` while no face backend is bound
+     * in the installed runtime (either build flag off, or a static gate refused). Set once per install
+     * by [PhotosLocalRuntime] from what its assembly bound ([PhotosLocalRuntime.faceGrouping]).
+     */
+    private var faceGrouping: PhotosFaceGrouping? = null
+
+    /** Which [faceGrouping] is installed — what [faceGroupingChanges] follows across installs. */
+    private val faceGroupingInstalled = MutableStateFlow<PhotosFaceGrouping?>(null)
+
+    internal fun installFaceGrouping(grouping: PhotosFaceGrouping?) {
+        faceGrouping = grouping
+        faceGroupingInstalled.value = grouping
+    }
+
+    /**
+     * The Collections tab's `groupingRunsHere` (`ios-face-grouping.md` F7): ⚠⚠ the installed
+     * graph's answer, asked each time the tab lays out — never a literal. `true` only where this
+     * phone's graph binds the face backend (F5's `facesAdmitted`), its preflight has not found the
+     * phone unsuitable and the graph is not torn down. With either flag off it is `false`, and People
+     * draws exactly what it drew before F7.
+     */
+    fun groupingRunsHere(): Boolean = faceGrouping?.runsHere?.invoke() ?: false
+
+    /**
+     * Emits whenever [groupingRunsHere] (or the pending-model line) may have changed — an install, a
+     * teardown, the face readiness moving — so the tab lays out again: it otherwise recomputes only
+     * when the Collections state publishes. What it emits carries no meaning; ask [groupingRunsHere].
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun faceGroupingChanges(): Flow<Int> {
+        var count = 0
+        return faceGroupingInstalled.flatMapLatest { grouping -> grouping?.changes ?: flowOf(Unit) }
+            .map { ++count }
+    }
+
+    /**
+     * Emits when an index pass of the installed graph changed the face templates — what the
+     * Collections view model re-reads People for ([collections]; `ios-face-grouping.md` §17.6).
+     * ⚠ Follows installs, like [faceGroupingChanges]; nothing while no face backend is bound.
+     *
+     * ⚠⚠ **A grouping installed after the first is itself one emission** (a graph rebuild, B.16):
+     * the switch drops the old runner's counter, and the old graph's last pass — stopped by its
+     * teardown — may have written templates the new runner's baseline never saw. The grouping
+     * current at subscribe is the baseline, like each runner's own count.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    internal fun faceIndexChanges(): Flow<Unit> =
+        faceGroupingInstalled.withIndex().flatMapLatest { (index, grouping) ->
+            flow {
+                if (index > 0 && grouping != null) emit(Unit)
+                if (grouping != null) emitAll(grouping.passChanges)
+            }
+        }
+
+    /**
+     * The Collections tab, laid out — the shared [CollectionsLayout] with this phone's
+     * [groupingRunsHere], and People's line naming **Photos'** Settings → Models
+     * ([ModelsSwitchHome.THIS_APP]): Control-on-iOS has no such screen. While the face model is
+     * still being prepared or probed, the `NO_BACKEND` line says it is on its way, not "download it".
+     */
+    fun collectionsLayout(state: CollectionsUiState): CollectionsLayout =
+        CollectionsLayout.of(
+            state,
+            groupingRunsHere(),
+            ModelsSwitchHome.THIS_APP,
+            faceModelPending = faceGrouping?.modelPending?.invoke() ?: false,
+        )
+
+    /** A section page's failed-read line ([CollectionsLayout.sectionFailure]) with this phone's [groupingRunsHere]. */
+    fun sectionFailure(section: CollectionSection, state: CollectionsUiState): String? =
+        CollectionsLayout.sectionFailure(section, state, groupingRunsHere())
+
+    /**
+     * A derived section's page as a PERSON's ([personPage]) — ⚠⚠ only where this phone groups faces.
+     * With either flag off, `state.people` still holds names synced from another device, and a page
+     * that offered naming there could never save it (the face switch cannot exist while the flag is
+     * off): the page is then the plain grid it was before F7.
+     */
+    fun personPage(state: CollectionsUiState, smartId: String, page: SmartPage): PersonPage =
+        if (groupingRunsHere()) state.personPage(smartId, page) else PersonPage(null, null, null, null)
+
+    /**
+     * The bytes a person's face is cut from (IN-6 F6a; `ios-face-grouping.md` F7): the preview at the
+     * shared [faceCropRequestPx] for an avatar [edgePx] wide, so the FACE covers it — the size
+     * Compose's `FaceAvatar` asks for. Swift cuts the shared `faceCropSquare` from it.
+     */
+    suspend fun facePreview(cover: FaceCover, edgePx: Int): NSData? =
+        withContext(Dispatchers.Default) {
+            val px = faceCropRequestPx(edgePx, cover.region)
+            runCatching { repository.preview(cover.path, px, px) }.getOrNull()?.bytes?.toNSData()
+        }
+
+    /** The preview size [facePreview] asks for — what Swift decodes it down to. */
+    fun facePreviewPx(cover: FaceCover, edgePx: Int): Int = faceCropRequestPx(edgePx, cover.region)
+
+    /**
      * What the Models screen is built over, as the installed runtime provides it; with none
      * installed, why this phone is offered nothing, or *not connected*. ⚠ Never a fake, and
      * never an empty list.
@@ -128,6 +241,7 @@ object PhotosSurface {
     fun installNotConnected() {
         install(NotConnectedPhotosRepository())
         onDeviceAiUnsuitable = null
+        installFaceGrouping(null)
         installModels { PhotosLocalRuntime.modelsWithNoRuntime() }
     }
 
@@ -179,7 +293,12 @@ object PhotosSurface {
      * The `-photosFixture` render probe's library ([PhotosScreenshotFixture]). **DEV_HARNESS render
      * probes only** — the `ContactsSurface.installMock` precedent; no shipping path reaches it.
      */
-    fun installScreenshotFixture() = install(PhotosScreenshotFixture.repository())
+    fun installScreenshotFixture() {
+        install(PhotosScreenshotFixture.repository())
+        // `-photosPeople <state>`: this phone groups faces, as a build with both flags on would.
+        // ⚠ `syncedOnly` is the SHIPPED build's People: names synced from another device, no face backend.
+        installFaceGrouping(PhotosFaceGrouping.FIXTURE.takeIf { PhotosScreenshotFixture.peopleGroupsFaces })
+    }
 
     /**
      * The fixture's calls that were made ON THE MAIN THREAD since launch, by name — empty when none
@@ -268,6 +387,9 @@ object PhotosSurface {
         // ⚠⚠ Never the caller's context here (`photos-ios.md` §8.22): the route-1 repository's reads
         // are store queries on the thread that calls them, and the caller is the main thread.
         workDispatcher = WORK,
+        // ⚠⚠ A pass writes face templates and no label (`photos-ios.md` §8.22.3): the library watch
+        // cannot see it, so without this People kept its pre-pass state until a relaunch.
+        indexChanges = faceIndexChanges(),
     )
 
     /**
@@ -318,7 +440,9 @@ object PhotosSurface {
      * `noBackend` reads "there isn't a model yet" until one is ready — and "isn't available on this
      * iPhone yet" once the preflight found the phone unsuitable, the one case that line would lie in.
      * ⚠ The `noConsent` line names **Photos'** Settings → Models there ([ModelsSwitchHome.THIS_APP]):
-     * Control-on-iOS has no such switch.
+     * Control-on-iOS has no such switch. ⚠ The idle line says *"…or by what's in a photo"* only once
+     * the proxy answered that it ran (`PhotoSearchCopy.idle`), asked when the screen opens and each
+     * time it is shown again (`PhotoSearchViewModel.screenShown`).
      */
     fun search(device: String): PhotoSearchViewModel {
         val unsuitable: (() -> Boolean) = onDeviceAiUnsuitable
@@ -329,6 +453,9 @@ object PhotosSurface {
             onNoBackend = { if (unsuitable()) SemanticSearchStatus.NotBuiltHere(device) else null },
             // ⚠ The proxy that answers is this app's own, and so is the switch its refusal names.
             modelsSwitch = ModelsSwitchHome.THIS_APP,
+            // ⚠ So the idle line can say search by description works before anything is typed
+            // (`ios-on-device-inference.md` §1.8): the in-process proxy's own answer.
+            askOnOpen = true,
         )
     }
 
@@ -342,6 +469,29 @@ object PhotosSurface {
 
     /** The viewer's view model, seeded with the photograph tapped. The pager reports the rest. */
     fun viewerViewModel(photo: Photo): PhotoViewerViewModel = PhotoViewerViewModel(repository, photo)
+
+    /**
+     * The editor's view model (`photos-editing.md` ED-1, ED-2) — the same one Compose drives — with a
+     * **Core Image** renderer supplied by the shell (§4: Core Image on iOS), which draws the
+     * transform itself and the colour stages through [EditColorPipeline].
+     *
+     * ⚠⚠ [render] gets the ORIGINAL's bytes and must answer an **upright** JPEG with no orientation
+     * tag, or `nil` on failure (the save then says it could not save — nothing is uploaded). It is
+     * called off the main thread.
+     */
+    fun editor(photo: Photo, render: (NSData, EditRecipe) -> NSData?): PhotoEditorViewModel =
+        PhotoEditorViewModel(
+            repository,
+            photo,
+            PhotoEditRenderer { original, recipe ->
+                render(original.toNSData(), recipe)?.toByteArray()
+                    ?.takeIf { it.isNotEmpty() }
+                    ?: throw IllegalStateException("The edit could not be rendered")
+            },
+        )
+
+    /** The original's bytes once the editor holds them, for the shell's preview decode. */
+    fun editorOriginal(editor: PhotoEditorViewModel): NSData? = editor.originalBytes?.toNSData()
 
     /**
      * A grid tile's bytes, for a tile [tileEdgePx] device pixels on its long edge.

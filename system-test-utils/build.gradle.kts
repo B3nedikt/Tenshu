@@ -49,6 +49,8 @@ dependencies {
     // nothing would fail until the first reshape silently broke a peer.
     implementation(project(":photo-service-common"))
     implementation(project(":photo-service-client"))
+    // ED-3 (`photos-editing.md` §12): `PhotoEditSyncSystemTest` runs the photo ops on two devices.
+    implementation(project(":photo-service-proxy"))
     implementation(project(":calendar-service-client"))
     implementation(project(":calendar-service-proxy"))
     implementation(project(":preference-service"))

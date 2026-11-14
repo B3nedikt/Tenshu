@@ -1,6 +1,6 @@
 # Deterministic reactive invalidation — collapse by boundary, not by timer
 
-**Status:** **Draft v0.5 — design, §8 proposes a way through (2026-09-24).** v0.4 text follows. **Draft v0.4 — design, no code. Re-verified against master 2026-09-23; corrected under
+**Status:** **§8's P0a, P1 and P2 are on master (2026-11-11); P0b (on-device) and P3 are not.** **Draft v0.5 — design, §8 proposes a way through (2026-09-24).** v0.4 text follows. **Draft v0.4 — design, no code. Re-verified against master 2026-09-23; corrected under
 review over two passes, 2026-09-24.** Drafted 2026-08-05 and left unmerged on a branch 950
 commits behind. ⚠⚠ **Read §0.0 first.** Both halves of the proposed mechanism are down —
 §4's lane boundary was contradicted by shipped design (§0.2), and §4's origin filter rests on a
@@ -43,11 +43,11 @@ checked and what turned out wrong* is the point — but nothing here is buildabl
 | **P3** — retire or shrink `INVALIDATION_COOLDOWN_MS` | 🔴 **Blocked** | P1.1 + P2. Until then the cooldown keeps its correctness role whatever P0 returns (§4) |
 | §4 bullet 1 — collapse at the **lane boundary** | ⛔ **Withdrawn** — not blocked, *wrong* | Contradicted by shipped design (§0.2, B4) |
 | §4 bullet 2 — filter by **`origin`** | ⛔ **Withdrawn as written** | §0.6 — `SYNC_INGEST` marks "do not re-broadcast", not "my own echo" |
-| ⭐ **§8 — store-equality predicate** (v0.5) | 🟢 **P0a ✅, P1 ✅, P2 ✅ (JVM, stacked PRs)** | P0b (on-device: the ~280 ms wave, `SqliteObjectStore` cost), then P3 |
+| ⭐ **§8 — store-equality predicate** (v0.5) | 🟢 **P0a ✅, P1 ✅, P2 ✅ — on master (2026-11-11).** A byte-identical re-save no longer re-evaluates relation streams; the comparison is paid only for types a relation keys on (§8.4) | **P0b** (on-device: is the ~280 ms wave the redundant re-save; the comparison's cost on Android and iOS stores), then P3 |
 | §2 — the 2026-08 measurements | ⚠ Recorded history, **not** current | Probed against the unprojected chain Drive no longer observes (§0.4); re-probing folded into P0 |
 
-**Net:** run P0, which is a measurement and changes no behaviour. Everything downstream of it waits
-on a durable-state question (§0.7 F1) that this document raises and does **not** answer.
+**Net:** §8 answered the durable-state question (§0.7 F1) with store equality, and its P0a/P1/P2
+are on master. What remains is P0b on a device, then P3. The rows above it are the v0.4 record.
 
 ### 0.1 Re-verified against current code
 
@@ -756,8 +756,8 @@ calling the peer's write news — the two cases `WriteOrigin` cannot separate (�
 upload each, JVM `InMemoryObjectStore`, unprojected. Rename/overwrite echoes, `SqliteObjectStore`,
 and the ~280 ms on-device wave are P0b's.
 
-**P0b — confirm on a real device.** 🟠 Handed to an on-device session. ⚠ It now also has to check
-P1's production cost on `SqliteObjectStore` (below). Same fields, logged through
+**P0b — confirm on a real device.** 🟠 **Not done.** ⚠ It now also has to check
+P1's production cost on the device stores (Android's `SqliteObjectStore`, iOS's SQLite store, which has no row cache) — below. Same fields, logged through
 `:diagnostics`, against a live relay and the **projected** listing chain (§0.4). Its question is
 narrower than the old P0: *is the on-device ~280 ms wave the redundant re-save P0a finds?*
 
@@ -777,13 +777,25 @@ and `RelationMaintainer` skips **only** `notifyArrayMemberUpdated` when the save
 - ⚠⚠ **Audit for deliberate identical re-saves used as a refresh kick** (the readiness-tick
   shape). Anything that relied on "a re-save always notifies" stops working, silently.
 
-✅ **P1 built (2026-09-24, stacked PR).** `RelationMaintainer` is a `SaveOutcomeAwareDataObserver`;
+✅ **P1 merged (built 2026-09-24, revived onto master 2026-11-11).** `RelationMaintainer` is a `SaveOutcomeAwareDataObserver`;
 only its steady-state `notifyArrayMemberUpdated` is skipped on a redundant save.
 `RelationMaintainerWriteCountTest`'s re-save test was split: a **new value** still notifies once (the
 `DeviceState` case `Database.notifyArrayMemberUpdated`'s KDoc names), an **identical** re-save now
 notifies nobody. `FolderFilesRelationUpdateTest.aReSavedFileNowTellsOpenListings` was split the same
-way; it was the gate's only red. ⚠ Because `RelationMaintainer` is installed everywhere, every production save now
-pays the comparison (one `getObject` per written entry). Unmeasured on `SqliteObjectStore`.
+way; it was the gate's only red.
+⭐ **Revived with a per-type gate.** `RelationMaintainer` is installed everywhere, so as first built
+every production save paid the comparison. `SaveOutcomeAwareDataObserver.wantsSaveOutcome(data)`
+(default `true`) now lets it ask only for types a relation keys on, so `SyncMetadata`, tombstones and
+other bookkeeping rows take the plain `saveData` (pinned by
+`RelationMaintainerWriteCountTest.aTypeNoRelationKeysOn_doesNotPayTheStoreComparison`).
+A throwaway JVM micro-bench on `SqliteObjectStore` (20k rows, 64 KB row cache, warmed) measured fresh
+inserts 60 → 60 ms, overwrites 61 → 62 ms, identical re-saves 61 → 72 ms: an absent row costs nothing
+because `knownHashes` gates the read. ⚠ That is desktop JVM only; the device numbers are P0b's.
+The refresh-kick audit (pitfall above) found no production code relying on an identical re-save
+notifying a listing.
+⚠ A changed **identified** child reached through its parent is redundant too, and correctly so:
+`DbEntryMapper` writes such a child create-only, so the store does not change
+(`SaveDataReportingChangeTest`).
 
 **P2 — pin it at gate scope.** Tests that: a **peer's** write still invalidates an open listing; a
 self-echo does not; a rehydrating (wiped) store fills an open listing as it arrives (F1's case); and
@@ -791,17 +803,26 @@ the B4 ceiling test
 (`SortedFolderPagingIntegrationTest.continuousWritesDuringAScroll_rebuildWithinTheMaxWait_andNeverDuplicateARow`)
 stays green. `keysetPagingSource` consumers (Photos, Fit) ride the same path (§0.5).
 
-✅ **P2 built (2026-09-24, stacked PR): `ListingNotificationSystemTest`**, at the array-listener seam
-`StreamRegistry` hangs off. A peer's write notifies the host's root listing; the host's own echo does
-not (**without P1 it fails: `[USER, SYNC_INGEST]`**, so the test catches a regression); a wiped
-joiner refilling its own history notifies (F1's case).
+✅ **P2 merged (2026-11-11): `ListingNotificationSystemTest`**, at the array-listener seam
+`StreamRegistry` hangs off. The host's own echo does not notify its root listing (**without P1 it
+fails: `[USER, SYNC_INGEST]`**); a peer's **edit** of a row the host already lists does — the case that
+reaches the listener only through the gated branch, so silencing it or keying it on `SYNC_INGEST`
+turns the test red (both mutations checked). A peer's new file and a wiped joiner refilling its own
+history (F1's case) also reach the listing. ⚠ Those two cannot be broken by P1's gate: a membership
+change arrives through the ungated add and diff-fallback paths.
 ⚠ **Finding for §0.3:** the peer write and the refill reach the listener through
 `DatabaseImpl.setArrayListener`'s **diff fallback** (the parent folder's row rewrite), which always
 reports `WriteOrigin.USER` because the save's origin is not visible there. So even at the database
 seam `origin` is not reliable, which is one more reason §8 keys on store equality and not on origin.
-Gate (`scripts/run-gate.sh`, Linux, P2 head): 134 test tasks, 1,696 classes, JS lane green; red only
-on the test above, since fixed (`:file-service-proxy:jvmTest` 516/516). ⚠ iOS lane **not verified**
-(Linux); the change is `commonMain` only.
+Gate (`scripts/run-gate.sh`, macOS, the combined P0a+P1+P2 tree, 2026-11-11): 146 test tasks,
+2,195 classes, all green, incl. the three reactivity guards of `core-paging-scroll-restoration.md`;
+JS tests, JS lane and iOS lane green; `:control:mergeLibDexDebug` green. ⚠ No device run (P0b).
+⚠ **Its load flake was the test's own sampling race, not P1 (2026-11-11).** The joiner's
+`IngestProbe` was attached only after the host's echo was seen, but the host's echo lands *inside*
+`upload` and the joiner ingests the file exactly once, ~100 ms later on an idle box. Under load that
+one ingest could land before the probe existed, and the wait ran out its 30 s. Every probe is now
+attached before the write it waits on; a 1.5 s delay injected at the old attach point turns the old
+test red and leaves the fixed one green.
 
 **P3 — revisit `INVALIDATION_COOLDOWN_MS`** on P0b's numbers, unchanged from §5.
 `INVALIDATION_MAX_WAIT_MS` stays out of scope.

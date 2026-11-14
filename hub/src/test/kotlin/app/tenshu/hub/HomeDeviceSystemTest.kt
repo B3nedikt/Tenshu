@@ -52,6 +52,12 @@ import org.tenshu.systemtest.bootstrapAsHost
  *
  * The staleness window (HD-D7, 2 min) gets its own test: a command the hub
  * sees as older than the window must never actuate.
+ *
+ * ⚠ Nothing here proves "it did not happen" by waiting. A negative claim is made only after the
+ * hub has shown it **saw** the thing it then declined: the gate's decision for a command
+ * ([DeviceBridgeHost.handledCommand]), the last state through the publish gate
+ * ([DeviceBridgeHost.handledState]). A fixed wait proves neither — it passes just as well when
+ * the command never arrived.
  */
 class HomeDeviceSystemTest {
 
@@ -139,25 +145,41 @@ class HomeDeviceSystemTest {
             // 4. Exactly-once: re-delivering the SAME toggle row is a no-op —
             //    the issuer re-writes the identical commandId (same row key,
             //    fresh sync emission) and the hub's consumed journal drops it.
+            val firstIssue = host.handledCommand(toggleId)!!.issuedAtEpochMs
             assertTrue(
                 phone.tenshuClient.homeDeviceService
                     .toggleDevice(SimulatedDeviceBridge.LIGHT_ID, commandId = toggleId)
                         is TResult.Success,
             )
-            delay(2_000) // several sync cycles at the 200–250 ms test cadence
+            // The re-issue carries a fresh `issuedAt`: wait until the hub has decided on THAT one.
+            system.advanceUntil(timeout = 30.seconds, pollInterval = PROBE_POLL) {
+                (host.handledCommand(toggleId)?.issuedAtEpochMs ?: 0L) > firstIssue
+            }
+            assertEquals(
+                HubCommandGate.Decision.AlreadyConsumed,
+                host.handledCommand(toggleId)?.decision,
+                "the re-delivered command reached the hub and was dropped by the journal",
+            )
             assertEquals(2L, host.executedCommandCount, "re-delivered command must not re-execute")
             assertEquals(true, bridge.currentLight().on, "the light must not have re-toggled")
 
             // 5. Rate limit: sensor chatter INSIDE the 0.5 °C quantum writes
             //    no state row; crossing the quantum writes one.
-            delay(1_000) // let any in-flight publishes settle
-            val publishedBefore = host.publishedStateCount
+            // Settled: the host has decided on the sensor's current state and holds no flush.
             val tempBefore = bridge.currentSensor().temperatureDeciC // 21.5 °C seed
+            system.advanceUntil(timeout = 30.seconds, pollInterval = PROBE_POLL) {
+                host.handledState(SimulatedDeviceBridge.SENSOR_ID)?.temperatureDeciC == tempBefore &&
+                    !host.hasPendingFlush()
+            }
+            val publishedBefore = host.publishedStateCount
             repeat(4) {
                 bridge.driftSensorNow(deltaDeciC = 1) // 21.6..21.9 — same quantum step
-                delay(150)
             }
-            delay(1_000)
+            // ⚠ The bridge's state flow conflates, so wait for the LAST drift, not for four.
+            system.advanceUntil(timeout = 30.seconds, pollInterval = PROBE_POLL) {
+                host.handledState(SimulatedDeviceBridge.SENSOR_ID)?.temperatureDeciC == tempBefore + 4
+            }
+            assertTrue(!host.hasPendingFlush(), "a sub-quantum change is dropped, not held for a flush")
             assertEquals(
                 publishedBefore, host.publishedStateCount,
                 "sub-quantum sensor drift must not produce state rows",
@@ -191,8 +213,15 @@ class HomeDeviceSystemTest {
                     .firstOrNull { it.deviceId.get() == SimulatedDeviceBridge.LIGHT_ID }
                     ?.name?.get() == "Reading lamp"
             }
+            // `publishInventory` writes the hub's replica before it returns, so a clobber is
+            // already visible there: no wait can make this check stronger.
             host.publishInventory(bridge.devices().first())
-            delay(2_000)
+            assertEquals(
+                "Reading lamp",
+                runtime.client.homeDeviceService.getHomeDevices()
+                    .first { it.deviceId.get() == SimulatedDeviceBridge.LIGHT_ID }.name.get(),
+                "a re-announce must not clobber the rename on the hub",
+            )
             val renamed = source.devices().first()
                 .first { it.deviceId == SimulatedDeviceBridge.LIGHT_ID }
             assertEquals("Reading lamp", renamed.name, "a re-announce must not clobber the rename")
@@ -254,7 +283,11 @@ class HomeDeviceSystemTest {
                     .toggleDevice(SimulatedDeviceBridge.LIGHT_ID, commandId = "hd1-stale-1")
                         is TResult.Success,
             )
-            delay(3_000) // many sync cycles — the command row definitely reached the hub
+            // The hub saw the command and refused it — not merely "some time passed".
+            system.advanceUntil(timeout = 30.seconds, pollInterval = PROBE_POLL) {
+                host.handledCommand("hd1-stale-1") != null
+            }
+            assertEquals(HubCommandGate.Decision.Stale, host.handledCommand("hd1-stale-1")?.decision)
             assertEquals(0L, host.executedCommandCount, "a stale command must never execute")
             assertEquals(false, bridge.currentLight().on, "the light must not have moved")
         } finally {
@@ -263,6 +296,11 @@ class HomeDeviceSystemTest {
             system.shutdown()
             dataRoot.deleteRecursively()
         }
+    }
+
+    private companion object {
+        /** Probes read the hub in-process, so they can be polled far tighter than a sync tick. */
+        val PROBE_POLL = 20.milliseconds
     }
 
     // ---- harness glue (H1/H2/H4 shapes) -----------------------------------------------

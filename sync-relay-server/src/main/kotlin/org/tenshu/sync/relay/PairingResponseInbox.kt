@@ -58,11 +58,10 @@ class PairingResponseInbox(
         val admittedAt: HlcStamp?,
         /**
          * The encoded A33 admission chain this admission was verified through (null when A1 signed
-         * it directly). ⚠⚠ The whole chain is **re-verified at delivery**, against the removal
-         * ledger AND the key-scoped revocation list: it was verified at post time, up to one TTL
-         * earlier, and a revoker strips by key at once while the removal tombstone lands later (and
-         * a Q3 subtree member is revoked without ever being removed). Device ids alone would miss
-         * the revocation half (S1).
+         * it directly). ⚠⚠ The whole chain is **re-verified at delivery** — the approver against
+         * the removal ledger AND the key-scoped revocation list (§7j, §7j.10): it was verified at
+         * post time, up to one TTL earlier, and a remover strips the key at once while the removal
+         * tombstone lands later. Device ids alone would miss the revocation half (S1).
          */
         admissionCertChain: ByteArray? = null,
     ) {

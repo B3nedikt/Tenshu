@@ -1,8 +1,4 @@
 {
-  "app": {
-    "title": "Fit",
-    "tagline": "Deine Aktivität, Ende-zu-Ende-verschlüsselt."
-  },
   "runtime": {
     "connectingTitle": "Verbindung zu Tenshu wird noch hergestellt…",
     "connectingBody": "Der Tenshu-Tab, in dem Fit läuft, ist beschäftigt. Fit lädt, sobald er antwortet.",
@@ -19,6 +15,7 @@
     "reload": "Neu laden"
   },
   "nav": {
+    "label": "Fit-Bereiche",
     "dashboard": "Übersicht",
     "history": "Verlauf",
     "profile": "Profil"

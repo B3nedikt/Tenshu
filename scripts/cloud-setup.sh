@@ -24,7 +24,7 @@
 #      runs) and no Gradle task configured at all. storage.googleapis.com is reachable.
 #   5. Google Chrome, so `:tenshu-sdk-js:jsTest` (Karma + ChromeHeadless) can run —
 #      the web gate's `sdk` lane (scripts/run-web-gate.sh). As root, Karma adds
-#      --no-sandbox itself: tenshu-sdk-js/karma.config.d/chrome-no-sandbox-as-root.js.
+#      --no-sandbox itself: gradle/karma.config.d/chrome-no-sandbox-as-root.js.
 #   6. A warm dependency cache for the JS SDK (time-boxed to the setup budget), so
 #      the snapshot carries it and a session's first build does not resolve cold.
 #

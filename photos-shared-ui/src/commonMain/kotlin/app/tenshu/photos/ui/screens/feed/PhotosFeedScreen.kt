@@ -47,6 +47,7 @@ import app.tenshu.photos.model.MotionTurn
 import app.tenshu.photos.model.Photo
 import app.tenshu.photos.ui.components.PhotoTile
 import app.tenshu.photos.ui.components.PreviewLoader
+import app.tenshu.ui.layout.LocalNavBarClearance
 
 /**
  * The Home feed (`photos-app.md` S1): every photo in the realm, newest first, sectioned by day.
@@ -383,6 +384,7 @@ fun PhotosFeedScreen(
             }
 
             Box(Modifier.fillMaxSize()) {
+            val navBarClearance = LocalNavBarClearance.current
             // ⚠ Captured once per pass, so the count, the keys and the lines below all describe the
             // same cut of the list — a key read against a newer layout than the count could name a
             // line that does not exist.
@@ -417,7 +419,13 @@ fun PhotosFeedScreen(
                 columns = GridCells.Fixed(1),
                 state = gridState,
                 modifier = Modifier.fillMaxSize().testTag(FEED_GRID_TAG),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(CELL_SPACING),
+                // ⚠ The bottom also clears the floating nav pill, which the grid scrolls under.
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                    start = CELL_SPACING,
+                    top = CELL_SPACING,
+                    end = CELL_SPACING,
+                    bottom = CELL_SPACING + navBarClearance,
+                ),
                 verticalArrangement = Arrangement.spacedBy(CELL_SPACING),
             ) {
                 // ⚠⚠ Still one flat, paged index space underneath. A line is a range of it, so
@@ -525,6 +533,8 @@ fun PhotosFeedScreen(
             // the rows rather than taking a column of its own — the reference apps float it.
             FeedScrubber(
                 gridState = gridState,
+                // Stops above the floating nav pill rather than running under it.
+                modifier = Modifier.padding(bottom = navBarClearance),
                 // ⚠ Read off the layout, which only peeks: resolving the date must not tell Paging
                 // the row was displayed, or dragging the thumb would drive prefetching on its own.
                 // ⚠⚠ `null` for an unloaded row is deliberate and the bubble honours it — see

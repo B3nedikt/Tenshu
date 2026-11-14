@@ -2,12 +2,14 @@
 
 package org.tenshu.sdk.ios
 
-import androidx.lifecycle.viewModelScope
+import org.tenshu.inference.proxy.WakeWork
+import org.tenshu.inference.proxy.IndexPassResult
+import org.tenshu.inference.proxy.PassEnding
 import app.tenshu.control.inference.ForegroundIndexStanding
 import app.tenshu.control.ui.screens.models.ModelsMessage
 import app.tenshu.control.ui.screens.models.ModelsRepository
 import app.tenshu.control.ui.screens.models.ModelsViewModel
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import app.tenshu.control.di.INFERENCE_FILE_DATABASE
 import app.tenshu.control.di.OwnedInferenceStores
 import app.tenshu.control.di.PhotosOnDeviceAi
@@ -15,6 +17,9 @@ import app.tenshu.control.di.PhotosIndexingSignals
 import kotlinx.coroutines.flow.MutableSharedFlow
 import org.tenshu.inference.proxy.BackgroundWindow
 import org.tenshu.inference.proxy.DeviceIndexingState
+import org.tenshu.inference.proxy.ArrivalQueue
+import org.tenshu.inference.proxy.InferenceStoreCustody
+import org.tenshu.inference.proxy.ForegroundArrivals
 import org.tenshu.inference.proxy.ForegroundIndexing
 import org.tenshu.inference.proxy.ForegroundIndexingState
 import org.tenshu.inference.proxy.IndexNowAnswer
@@ -54,6 +59,9 @@ import org.tenshu.inference.InferenceCapability
 import org.tenshu.inference.ModelProvenance
 import org.tenshu.inference.SemanticSearchUnavailable
 import org.tenshu.inference.client.inferenceService
+import org.tenshu.file.client.fileService
+import org.tenshu.core.file.system.createFolder
+import org.tenshu.core.file.system.uploadFile
 import org.tenshu.inference.photosLike
 import org.tenshu.inference.proxy.AiReadiness
 import org.tenshu.inference.proxy.AiReadinessState
@@ -87,6 +95,8 @@ import org.tenshu.inference.proxy.coreml.coreMlModelFacts
 import org.tenshu.inference.proxy.coreml.iosPreflightKey
 import org.tenshu.inference.proxy.coreml.iosRuntimeFingerprint
 import org.tenshu.inference.proxy.onnx.VisionModel
+import org.tenshu.viewmodel.test.OwnedViewModels
+import org.tenshu.viewmodel.test.vmBlocking
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSTemporaryDirectory
 import kotlin.io.encoding.Base64
@@ -154,13 +164,20 @@ class PhotosOnDeviceAiTest {
     private val eightGigabytes = 8L * 1024 * 1024 * 1024
     private val admittedPhone = PhotosLocalRuntime.OnDeviceAiInputs(buildFlag = true, osMajorVersion = 17, physicalMemoryBytes = eightGigabytes)
 
+    /**
+     * This test's phone's shared replica, one per test: a relaunch is on the same store. ⚠ Its
+     * epoch is half the inference realm stamp, so a new replica per process would be a store
+     * replaced between launches, and the index would be cleared.
+     */
+    private val replica: String = temp("photos-ai-replica")
+
     /** Photos, as a new process over [root]. `null` inputs is production: the Info.plist and the phone. */
     private fun photos(
         root: String = temp("photos-ai"),
         onDeviceAi: PhotosLocalRuntime.OnDeviceAiInputs? = admittedPhone,
         overrides: Module? = null,
     ): PhotosLocalRuntime.Assembly = PhotosLocalRuntime.assemble(
-        replicaDirectory = temp("photos-ai-replica"),
+        replicaDirectory = replica,
         secureStorage = InMemorySecureStorageDelegate(),
         handedOffMaterial = material(),
         relayBaseUrl = "http://127.0.0.1:1",
@@ -204,21 +221,26 @@ class PhotosOnDeviceAiTest {
         assertNull(koin.getOrNull<CoreMlModelCache>(), why)
         assertNull(koin.getOrNull<Set<String>>(named("supportedModelRuntimes")), "$why: a model is offered")
         assertNull(koin.getOrNull<IndexingConditions>(named("indexingConditions")), "$why: a pass may run")
+        assertNull(koin.getOrNull<ForegroundArrivals>(), "$why: new arrivals may be indexed")
         assertTrue(koin.get<InferenceBackendRegistry>().available.isEmpty(), why)
         assertTrue(PhotosLocalRuntime.checkInferenceStores(photos))
         assertEquals(SemanticSearchUnavailable.Reasons.NO_BACKEND, photos.photosLikeRefusal(), why)
 
         PhotosLocalRuntime.install(photos)
+        val owned = OwnedViewModels()
         try {
-            val search = PhotosSurface.search(device = "iPhone")
+            val search = owned.own(PhotosSurface.search(device = "iPhone"))
             assertEquals(SemanticSearchStatus.NotBuiltHere("iPhone"), search.state.value.semanticStatus, "$why: known before any search")
             // ⚠ Still `NotBuiltHere` once a search has settled: asked, the proxy would have made it
             // `Unavailable("noBackend")`.
             assertEquals(SemanticSearchStatus.NotBuiltHere("iPhone"), search.ask(), "$why: the proxy was asked")
             assertEquals(listOf(notOnThisIphone), search.state.value.layout.notes, why)
         } finally {
+            // Joined before the graph it reads is torn down.
+            owned.closeAll()
             PhotosLocalRuntime.deprovision()
         }
+        owned.assertNothingActive()
     }
 
     /**
@@ -344,7 +366,7 @@ class PhotosOnDeviceAiTest {
      * assembled runtime, the same backend, the same registry and the same search view model.
      */
     @Test
-    fun theBackendIsBoundOnceAndTheSearchLineFollowsReadinessOnOneViewModel() = runBlocking {
+    fun theBackendIsBoundOnceAndTheSearchLineFollowsReadinessOnOneViewModel() = vmBlocking { owned ->
         val root = temp("photos-ai")
         val photos = photos(root)
         val koin: Koin = photos.koin
@@ -356,7 +378,7 @@ class PhotosOnDeviceAiTest {
 
         PhotosLocalRuntime.install(photos)
         eventually("install checked the stores") { PhotosLocalRuntime.inferenceStoresUsable() }
-        val search: PhotoSearchViewModel = PhotosSurface.search(device = "iPhone")
+        val search: PhotoSearchViewModel = owned.own(PhotosSurface.search(device = "iPhone"))
         assertEquals(SemanticSearchStatus.Available, search.state.value.semanticStatus, "the route is AskThisDevice")
 
         // No model.
@@ -844,14 +866,14 @@ class PhotosOnDeviceAiTest {
     }
 
     @Test
-    fun aDeprovisionedPhotosIsBackToNotBuilt() = runBlocking {
+    fun aDeprovisionedPhotosIsBackToNotBuilt() = vmBlocking { owned ->
         val photos = photos()
         PhotosLocalRuntime.install(photos)
-        assertEquals(SemanticSearchStatus.Available, PhotosSurface.search("iPhone").state.value.semanticStatus)
+        assertEquals(SemanticSearchStatus.Available, owned.own(PhotosSurface.search("iPhone")).state.value.semanticStatus)
 
         PhotosLocalRuntime.deprovision()
 
-        assertEquals(SemanticSearchStatus.NotBuiltHere("iPhone"), PhotosSurface.search("iPhone").state.value.semanticStatus)
+        assertEquals(SemanticSearchStatus.NotBuiltHere("iPhone"), owned.own(PhotosSurface.search("iPhone")).state.value.semanticStatus)
     }
 
     // ─── the preflight (§14.6) ──────────────────────────────────────────────────────────────────
@@ -917,7 +939,8 @@ class PhotosOnDeviceAiTest {
         photos.consentToSearch(realm = true, device = true)
         val repository: ModelsRepository = photos.koin.get()
         assertTrue(repository.capabilities.indexing, "the graph's repository has no indexing section")
-        val vm = ModelsViewModel(repository)
+        val owned = OwnedViewModels()
+        val vm = owned.own(ModelsViewModel(repository))
         try {
             eventually("the store was not counted: ${vm.uiState.value.storedIndex}") { vm.uiState.value.storedIndex?.searchable == 0 }
             eventually("the driver was not read: ${vm.uiState.value.foregroundIndex}") { vm.uiState.value.foregroundIndex == ForegroundIndexStanding.NotAsked }
@@ -935,8 +958,9 @@ class PhotosOnDeviceAiTest {
             // An empty library: the pass ends at once, and the ask with it.
             eventually("the ask did not end: ${vm.uiState.value.foregroundIndex}") { vm.uiState.value.foregroundIndex == ForegroundIndexStanding.NotAsked }
         } finally {
-            vm.viewModelScope.cancel()
+            owned.closeAll()
         }
+        owned.assertNothingActive()
     }
 
     /** ⚠⚠ §3.3: leaving the foreground lets go of the towers, inside a background window that ends. */
@@ -952,6 +976,81 @@ class PhotosOnDeviceAiTest {
         eventually("the vision tower was closed when Photos left the foreground") { tower.closed }
         eventually("the window ended") { windows == listOf("begin", "end") }
         assertFalse(photos.koin.get<IndexingConditions>(named("indexingConditions")).allowManualIndexing(), "a pass may run in the background")
+    }
+
+    // ─── New arrivals while Photos is in front (PR-6b, §17) ────────────────────────────────────
+
+    /** A test's debounce for the arrivals batch: short, so a case does not wait three seconds per batch. */
+    private val quickArrivals: Module = module { single<Long>(named(PhotosOnDeviceAi.ARRIVALS_DEBOUNCE)) { 50L } }
+
+    /**
+     * ⚠⚠ Through Photos' **own** graph, its **production** media source and the shared SQLite store:
+     * a photograph uploaded through the file service is found in the modification log and indexed as
+     * a batch (the runner's automatic pass, never a press) once Photos is in front with the battery
+     * known — and nothing starts behind Photos. The test graph's library watch does not vouch (no feed
+     * observes it), so every foreground looks.
+     */
+    @Test
+    fun anUploadIsIndexedInPhotosOwnGraphInFrontAndNeverBehind() = runBlocking {
+        val signals = FakeSignals().apply { phone = phone.copy(batteryLevel = 0.8f, charging = false) }
+        val photos = installedWithALoadedTower(temp("photos-ai"), firstRun = true, extra = module { includes(indexing(signals), quickArrivals) })
+        val runner: MediaIndexRunner = photos.koin.get()
+        val vectors: EmbeddingStore = photos.koin.get()
+        val trigger: ForegroundArrivals = photos.koin.get()
+        // ⚠ The launch's batch: no consent yet, so no look — the log's end is marked, no pass ran.
+        eventually("the launch asked no batch") { trigger.batchesStarted >= 1 }
+        delay(500)
+        assertEquals(PassStanding.Idle(null), runner.standing.value, "a batch ran with nothing arrived")
+        photos.consentToSearch(realm = true, device = true)
+
+        // Behind Photos: an upload starts nothing. ⚠ Counted on the trigger: a refused batch never moves the standing.
+        PhotosLocalRuntime.modelTransfersSettleNow(inForeground = false)
+        delay(500)
+        val behind: Int = trigger.batchesStarted
+        val files = photos.tenshuClient.fileService.defaultFileSystem
+        assertIs<TResult.Success<*>>(files.createFolder("/arrivals"))
+        assertIs<TResult.Success<*>>(files.uploadFile("/arrivals", "a.bmp", aPhotograph()))
+        delay(500)
+        assertEquals(behind, trigger.batchesStarted, "a batch started behind Photos")
+
+        // In front: one batch over the upload alone.
+        PhotosLocalRuntime.modelTransfersSettleNow(inForeground = true)
+        eventually("no batch indexed the upload: ${runner.standing.value}") { vectors.visited("/arrivals/a.bmp") }
+        eventually("the batch did not end: ${runner.standing.value}") { runner.standing.value is PassStanding.Idle }
+        val ended = assertIs<PassEnding.Finished>(assertIs<PassStanding.Idle>(runner.standing.value).last)
+        assertEquals(1, ended.pass, "the batch was not this graph's only pass")
+        assertEquals(1, ended.result.imagesVisited, "the batch looked at more than the upload")
+        assertEquals(emptyList(), photos.koin.get<ArrivalQueue>().paths(), "the batch left the upload queued")
+    }
+
+    /** ⚠⚠ A batch stopped at its cap leaves photos for the wake: the next leave still arms one (PR-6 §16.3 decision 4). */
+    @Test
+    fun aCappedBatchLeavesPhotosForTheWake() {
+        val capped = PassStanding.Idle(PassEnding.Finished(1, IndexPassResult(batchCapReached = true)))
+        assertEquals(WakeWork.LEFT, PhotosOnDeviceAi.workLeft(capped), "a capped batch read as a current library")
+        assertEquals(WakeWork.LEFT, PhotosOnDeviceAi.workLeft(PassStanding.Idle(PassEnding.Finished(1, IndexPassResult()))), "a batch that was no library walk read as a current library")
+        assertEquals(WakeWork.NONE_LEFT, PhotosOnDeviceAi.workLeft(PassStanding.Idle(PassEnding.Finished(1, IndexPassResult(libraryWalk = true)))))
+        assertEquals(WakeWork.LEFT, PhotosOnDeviceAi.workLeft(PassStanding.Idle(PassEnding.Finished(1, IndexPassResult(deferred = true)))))
+        // ⚠⚠ A look that may have missed arrivals: only a walk that started after it answers it.
+        val walked = PassStanding.Idle(PassEnding.Finished(3, IndexPassResult(libraryWalk = true)))
+        assertEquals(WakeWork.LEFT, PhotosOnDeviceAi.workLeft(walked, missedSince = 3), "a walk before the miss answered it")
+        assertEquals(WakeWork.NONE_LEFT, PhotosOnDeviceAi.workLeft(walked, missedSince = 2))
+    }
+
+    /**
+     * ⚠⚠ The arrived paths are the realm's (IN-D6a): Photos' graph binds ONE queue, and the custody
+     * that clears the realm's derived stores clears it too — an unbound queue made that a no-op.
+     */
+    @Test
+    fun theArrivalsQueueIsTheOneTheCustodyClears() = runBlocking {
+        val signals = FakeSignals()
+        val photos = installedWithALoadedTower(temp("photos-ai-queue"), firstRun = true, extra = module { includes(indexing(signals), quickArrivals) })
+        val queue: ArrivalQueue = assertNotNull(photos.koin.getOrNull<ArrivalQueue>(), "Photos' graph binds no arrivals queue")
+        assertSame(queue, photos.koin.get<ArrivalQueue>(), "two arrivals queues: the look fills one and the batch drains another")
+        queue.add("/arrivals/a.jpg")
+        queue.flush()
+        photos.koin.get<InferenceStoreCustody>().relinquish()
+        assertEquals(emptyList(), queue.paths(), "relinquishing the realm's stores kept its arrived paths")
     }
 
     // ─── *Index now* continued (§15) ───────────────────────────────────────────────────────────
@@ -1261,6 +1360,252 @@ class PhotosOnDeviceAiTest {
         assertEquals(listOf(false), stranger.completions, "an identifier the graph never submitted")
     }
 
+    // ─── The processing wake (PR-6, §16) ───────────────────────────────────────────────────────
+
+    /** What Swift's driver was asked: submissions and withdrawals, with what each submission required. */
+    private class WakeRequests : ProcessingWakeBridge {
+        private val lock = platform.Foundation.NSRecursiveLock()
+        private val log = ArrayList<String>()
+        override fun submit(identifier: String, requiresExternalPower: Boolean, requiresNetworkConnectivity: Boolean) {
+            lock.lock()
+            log += "submit($identifier, power=$requiresExternalPower, network=$requiresNetworkConnectivity)"
+            lock.unlock()
+        }
+
+        override fun withdraw(identifier: String) {
+            lock.lock()
+            log += "withdraw($identifier)"
+            lock.unlock()
+        }
+
+        fun all(): List<String> {
+            lock.lock()
+            try {
+                return log.toList()
+            } finally {
+                lock.unlock()
+            }
+        }
+
+        fun clear() {
+            lock.lock()
+            log.clear()
+            lock.unlock()
+        }
+    }
+
+    private val armed = "submit(app.tenshu.photos.processing, power=true, network=false)"
+    private val withdrawn = "withdraw(app.tenshu.photos.processing)"
+
+    private fun TokenTimeline.wakeTask() = object : ProcessingWakeTask {
+        override fun complete(success: Boolean) = add("complete($success)")
+    }
+
+    /**
+     * ⚠⚠ Through Photos' **own** graph and the Swift-facing calls, in the background as a wake runs:
+     * the wake takes the store's **task token** first, re-arms, runs the runner's **scheduled** pass
+     * (the scheduled bar says yes inside the wake, and only there), a leave meanwhile stops nothing,
+     * and the pass's end releases the token **before** the task is completed with success; the
+     * request is then withdrawn (the library is current), the towers are let go in the background,
+     * and the next leave arms nothing.
+     */
+    @Test
+    fun aWakeIndexesInPhotosOwnGraphUnderTheTasksTokenAndLetsGoAfter() = runBlocking {
+        val gate = CompletableDeferred<Unit>()
+        val timeline = TokenTimeline()
+        val requests = WakeRequests()
+        val library = module {
+            single<MediaSource> { MediaSource { listOf(IndexableMedia("/photos/a.bmp") { gate.await(); aPhotograph() }) } }
+        }
+        val saved = PhotosLocalRuntime.taskProtection
+        PhotosLocalRuntime.taskProtection = timeline::protection
+        PhotosLocalRuntime.installProcessingWake(requests)
+        try {
+            val photos = installedWithALoadedTower(temp("photos-ai"), firstRun = true, extra = module { includes(indexing(FakeSignals()), library) })
+            photos.consentToSearch(realm = true, device = true)
+            val bar: IndexingConditions = photos.koin.get(named("indexingConditions"))
+            // A background launch: Photos is not in front.
+            PhotosLocalRuntime.modelTransfersSettleNow(inForeground = false)
+            eventually("the leave did not arm the wake: ${requests.all()}") { armed in requests.all() }
+            eventually("the leave's stop did not end: $windows") { windows.count { it == "end" } == windows.count { it == "begin" } && windows.isNotEmpty() }
+            requests.clear()
+            windows.clear()
+            assertFalse(bar.allowIndexing(), "the scheduled bar said yes with no wake")
+
+            PhotosLocalRuntime.runProcessingWake("wake-1", timeline.wakeTask())
+            assertEquals(listOf("token"), timeline.all(), "the wake takes the store's task token first")
+            eventually("the wake did not start its pass: ${photos.koin.get<MediaIndexRunner>().standing.value}") {
+                photos.koin.get<MediaIndexRunner>().standing.value == PassStanding.Running(1, manual = false)
+            }
+            assertEquals(listOf(armed), requests.all(), "the wake did not re-arm before it worked")
+            assertTrue(bar.allowIndexing(), "the scheduled bar said no inside the wake")
+
+            // A leave while the wake carries the pass: nothing is stopped or closed, no window begun.
+            PhotosLocalRuntime.modelTransfersSettleNow(inForeground = false)
+            delay(200)
+            assertEquals(emptyList(), windows, "a leave began the stop of a pass the wake carries")
+            assertIs<PassStanding.Running>(photos.koin.get<MediaIndexRunner>().standing.value, "a leave stopped the wake's pass")
+
+            gate.complete(Unit)
+            eventually("the wake was not completed: ${timeline.all()}") { timeline.all().any { it.startsWith("complete") } }
+            assertEquals(listOf("token", "release", "complete(true)"), timeline.all(), "the token ends before the task is completed")
+            assertEquals(listOf(armed, withdrawn), requests.all(), "a current library still wakes the phone")
+            // The journal the runbook's three nights read: a launch, then an end with its counts.
+            val journal: String = ProcessingWakeJournal.read(photos.inferenceRoot)
+            val launchedAt = journal.indexOf(" launched")
+            val endedAt = journal.indexOf(" ended minutes=")
+            assertTrue(launchedAt >= 0 && endedAt > launchedAt, "the wake's journal: $journal")
+            assertTrue(Regex(" ended minutes=\\S+ success=true expired=false visited=1 embedded=\\d+ ").containsMatchIn(journal), "the end's line: $journal")
+            assertFalse(bar.allowIndexing(), "the scheduled bar still says yes after the wake")
+            // The pass opened the tower for its photo; the wake's end let it go, inside a window.
+            eventually("the towers were not let go once the wake ended") { opened.last().closed }
+            eventually("the stop's window did not end: $windows") { windows == listOf("begin", "end") }
+
+            requests.clear()
+            PhotosLocalRuntime.modelTransfersSettleNow(inForeground = false)
+            delay(300)
+            assertEquals(emptyList(), requests.all(), "a leave over a current library armed a wake")
+        } finally {
+            PhotosLocalRuntime.taskProtection = saved
+            app.tenshu.control.di.PhotosProcessingWake.uninstall()
+        }
+    }
+
+    /**
+     * ⚠⚠ An expiry mid-pass: the token's end is made an expiry and ended before the handler returns,
+     * the pass stops at its next photo, and the task is completed with `false`, once.
+     */
+    @Test
+    fun anExpiredWakeExpiresTheTokenStopsThePassAndIsCompletedOnce() = runBlocking {
+        val gate = CompletableDeferred<Unit>()
+        val timeline = TokenTimeline()
+        val requests = WakeRequests()
+        val library = module {
+            single<MediaSource> { MediaSource { listOf(IndexableMedia("/photos/a.bmp") { gate.await(); aPhotograph() }) } }
+        }
+        val saved = PhotosLocalRuntime.taskProtection
+        PhotosLocalRuntime.taskProtection = timeline::protection
+        PhotosLocalRuntime.installProcessingWake(requests)
+        try {
+            val photos = installedWithALoadedTower(temp("photos-ai"), firstRun = true, extra = module { includes(indexing(FakeSignals()), library) })
+            photos.consentToSearch(realm = true, device = true)
+            PhotosLocalRuntime.modelTransfersSettleNow(inForeground = false)
+            PhotosLocalRuntime.runProcessingWake("wake-2", timeline.wakeTask())
+            val runner: MediaIndexRunner = photos.koin.get()
+            eventually("the wake did not start its pass") { runner.standing.value == PassStanding.Running(1, manual = false) }
+
+            PhotosLocalRuntime.onProcessingWakeExpired("wake-2")
+            timeline.add("handler returned")
+            eventually("the wake was not completed: ${timeline.all()}") { timeline.all().any { it.startsWith("complete") } }
+            val events = timeline.all()
+            assertEquals(listOf("token", "expire"), events.take(2), "the token's end was not made an expiry: $events")
+            assertTrue(events.indexOf("expire") < events.indexOf("handler returned"), "the handler returned before the token ended: $events")
+            assertEquals(listOf("complete(false)"), events.filter { it.startsWith("complete") }, "$events")
+            assertFalse("release" in events, "the token was released, not expired: $events")
+            assertEquals(PassStanding.Idle(PassEnding.Stopped(1)), runner.standing.value, "the pass did not stop")
+            gate.complete(Unit)
+            delay(300)
+            assertEquals(1, timeline.all().count { it.startsWith("complete") }, "completed twice: ${timeline.all()}")
+            assertFalse(photos.koin.get<IndexingConditions>(named("indexingConditions")).allowIndexing())
+        } finally {
+            PhotosLocalRuntime.taskProtection = saved
+            app.tenshu.control.di.PhotosProcessingWake.uninstall()
+        }
+    }
+
+    /** ⚠⚠ Absence is NO: with no consent a wake runs nothing, re-arms nothing, and a leave arms nothing. */
+    @Test
+    fun withNoConsentAWakeDoesNothingAndNothingIsArmed() = runBlocking {
+        val timeline = TokenTimeline()
+        val requests = WakeRequests()
+        val saved = PhotosLocalRuntime.taskProtection
+        PhotosLocalRuntime.taskProtection = timeline::protection
+        PhotosLocalRuntime.installProcessingWake(requests)
+        try {
+            val photos = installedWithALoadedTower(temp("photos-ai"), firstRun = true, extra = indexing(FakeSignals()))
+            PhotosLocalRuntime.modelTransfersSettleNow(inForeground = false)
+            delay(300)
+            assertEquals(emptyList(), requests.all(), "a leave with no consent armed a wake")
+
+            PhotosLocalRuntime.runProcessingWake("wake-3", timeline.wakeTask())
+            eventually("the wake was not completed: ${timeline.all()}") { timeline.all().any { it.startsWith("complete") } }
+            assertEquals(listOf("token", "release", "complete(true)"), timeline.all())
+            assertEquals(emptyList(), requests.all(), "a wake with no consent re-armed")
+            assertEquals(PassStanding.Idle(null), photos.koin.get<MediaIndexRunner>().standing.value, "a wake with no consent ran a pass")
+        } finally {
+            PhotosLocalRuntime.taskProtection = saved
+            app.tenshu.control.di.PhotosProcessingWake.uninstall()
+        }
+    }
+
+    /** ⚠⚠ Every wake handed to the runtime is completed: with no runtime, and after its own expiry. */
+    @Test
+    fun aWakeWithNoRuntimeOrAlreadyExpiredIsCompletedAtOnceWithFailure() = runBlocking {
+        val orphan = TokenTimeline()
+        PhotosLocalRuntime.runProcessingWake("wake-orphan", orphan.wakeTask())
+        assertEquals(listOf("complete(false)"), orphan.all(), "no runtime installed")
+
+        installedWithALoadedTower(temp("photos-ai"), firstRun = true)
+        val late = TokenTimeline()
+        PhotosLocalRuntime.onProcessingWakeBegan("wake-late")
+        PhotosLocalRuntime.onProcessingWakeExpired("wake-late")
+        PhotosLocalRuntime.runProcessingWake("wake-late", late.wakeTask())
+        assertEquals(listOf("complete(false)"), late.all(), "a wake that expired before it ran")
+        // An expiry for a wake already completed keeps no place for it.
+        PhotosLocalRuntime.onProcessingWakeExpired("wake-late")
+        PhotosLocalRuntime.onProcessingWakeExpired("wake-never")
+        assertEquals(0, PhotosLocalRuntime.wakeEntryCount(), "an expiry left a wake's place behind")
+    }
+
+    /**
+     * ⚠⚠ An expiry in the window after the wake is marked running and before it is launched (the
+     * journal's write): it finds no wake current and ends the token, so the launch must still be told,
+     * or the wake would run past its own expiry and never be completed.
+     */
+    @Test
+    fun anExpiryJustBeforeTheLaunchIsNotLost() = runBlocking {
+        val gate = CompletableDeferred<Unit>()
+        val timeline = TokenTimeline()
+        val requests = WakeRequests()
+        val library = module {
+            single<MediaSource> { MediaSource { listOf(IndexableMedia("/photos/a.bmp") { gate.await(); aPhotograph() }) } }
+        }
+        val saved = PhotosLocalRuntime.taskProtection
+        PhotosLocalRuntime.taskProtection = timeline::protection
+        PhotosLocalRuntime.installProcessingWake(requests)
+        try {
+            val photos = installedWithALoadedTower(temp("photos-ai"), firstRun = true, extra = module { includes(indexing(FakeSignals()), library) })
+            photos.consentToSearch(realm = true, device = true)
+            PhotosLocalRuntime.modelTransfersSettleNow(inForeground = false)
+            PhotosLocalRuntime.onProcessingWakeBegan("wake-window")
+            PhotosLocalRuntime.beforeWakeLaunchForTests = { PhotosLocalRuntime.onProcessingWakeExpired("wake-window") }
+            PhotosLocalRuntime.runProcessingWake("wake-window", timeline.wakeTask())
+            eventually("the wake was never completed: ${timeline.all()}") { timeline.all().any { it.startsWith("complete") } }
+            delay(300)
+            val events = timeline.all()
+            assertEquals(listOf("complete(false)"), events.filter { it.startsWith("complete") }, "$events")
+            assertTrue(events.indexOf("expire") in 0 until events.indexOf("complete(false)"), "the token did not end first: $events")
+            assertEquals(0, PhotosLocalRuntime.wakeEntryCount())
+            gate.complete(Unit)
+            Unit
+        } finally {
+            PhotosLocalRuntime.beforeWakeLaunchForTests = null
+            PhotosLocalRuntime.taskProtection = saved
+            app.tenshu.control.di.PhotosProcessingWake.uninstall()
+        }
+    }
+
+    /** Photos left: unknown is left, a pass of this runner that ran to its end is not. */
+    @Test
+    fun photosAreLeftUnlessAPassRanToItsEnd() {
+        assertEquals(WakeWork.LEFT, PhotosOnDeviceAi.workLeft(PassStanding.Idle(null)))
+        assertEquals(WakeWork.LEFT, PhotosOnDeviceAi.workLeft(PassStanding.Running(3, manual = true)))
+        assertEquals(WakeWork.LEFT, PhotosOnDeviceAi.workLeft(PassStanding.Idle(PassEnding.Stopped(2))))
+        assertEquals(WakeWork.LEFT, PhotosOnDeviceAi.workLeft(PassStanding.Idle(PassEnding.Finished(2, IndexPassResult(deferred = true)))))
+        assertEquals(WakeWork.LEFT, PhotosOnDeviceAi.workLeft(PassStanding.Idle(PassEnding.Failed(2, "x"))))
+        assertEquals(WakeWork.NONE_LEFT, PhotosOnDeviceAi.workLeft(PassStanding.Idle(PassEnding.Finished(2, IndexPassResult(libraryWalk = true)))))
+    }
+
     @Test
     fun everyGraphOfTheProcessSharesOnePassSlot() {
         assertSame(photos().koin.get<PassExclusion>(), photos().koin.get<PassExclusion>(), "two graphs, two single flights")
@@ -1529,6 +1874,47 @@ class PhotosOnDeviceAiTest {
         assertEquals(AiReadinessState.Ready, photos.koin.get<AiReadiness>().current())
         // The probe's own pair, opened for a download the user asked for, and closed. Nothing after it.
         assertEquals(listOf(true, true), probed.map { it.closed }, "a tower was loaded for search without consent")
+    }
+
+    /**
+     * ⚠⚠ §14.18.16 item 7: a launch over a model that passed, with consent still off, probes
+     * nothing and loads no tower. ⚠ Readiness does pass through `AwaitingVerdict` for one
+     * publication on the way to `Ready` — the fingerprint is applied before the model is served
+     * (`aPassOutlivesTheProcessAndIsEnteredInOrder`) — and nothing else: no `Preparing`, no second
+     * `AwaitingVerdict`. A Models screen collecting at that instant could draw it as *Checking*
+     * (seen here first, 2026-11-09; the doc's item 7 says what that means for a user).
+     * ⚠ **What this case pins is only the half that matters: no probe, no tower loaded, `Ready` at
+     * the end, no second hop.** It accepts both `[Ready]` and `[AwaitingVerdict, Ready]` and does
+     * not pin the hop: a `StateFlow` conflates, so whether a collector sees the brief
+     * `AwaitingVerdict` depends on the dispatcher, not on readiness. A test that required it would
+     * test the collector.
+     */
+    @Test
+    fun aLaunchOverAPassWithConsentOffProbesNothingAndLoadsNoTower() = runBlocking {
+        val root = temp("photos-ai")
+        val first = probeable(root)
+        PhotosOnDeviceAi.recheck(first.koin, launch = true)
+        assertEquals(AiReadinessState.Ready, first.koin.get<AiReadiness>().current())
+        assertEquals(listOf(true, true), probed.map { it.closed }, "the first launch's probe")
+
+        val relaunched = photos(root, overrides = probing())
+        val readiness: AiReadiness = relaunched.koin.get()
+        val seen = ArrayList<AiReadinessState>()
+        val watching = kotlinx.coroutines.CoroutineScope(Dispatchers.Unconfined).launch { readiness.state.collect { seen += it } }
+        try {
+            PhotosOnDeviceAi.recheck(relaunched.koin, launch = true)
+            assertEquals(AiReadinessState.Ready, readiness.current())
+        } finally {
+            watching.cancel()
+        }
+        assertEquals(2, probed.size, "a launch over a pass loaded a tower with consent off: ${probed.map { it.role }}")
+        val path: List<AiReadinessState> = seen.filterNot { it == AiReadinessState.NoModel }
+        assertTrue(
+            path == listOf(AiReadinessState.Ready) || path == listOf(AiReadinessState.AwaitingVerdict, AiReadinessState.Ready),
+            "the launch took another path to Ready: $seen",
+        )
+        val asked: PreflightOutcome? = relaunched.koin.get<Preflight>().outcomeFor(relaunched.key())
+        assertTrue(asked == null || asked == PreflightOutcome.NotAwaiting, "the launch's preflight answered $asked")
     }
 
     @Test

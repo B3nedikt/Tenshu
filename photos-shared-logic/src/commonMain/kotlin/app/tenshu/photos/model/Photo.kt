@@ -83,9 +83,31 @@ data class Photo(
      */
     val pixelWidth: Int? = null,
     val pixelHeight: Int? = null,
+    /**
+     * Where this photo's **edit** is baked (`photos-editing.md` §12, ED-3), or `null` for an unedited
+     * photo. Set by the repository from the `PhotoEdit` rows it holds; the photo's own [path] and
+     * [contentId] are the original's and never change.
+     *
+     * ⚠⚠ **Shown by the rendition, or not at all** (§12.4): a tile or viewer draws [previewPath], and
+     * a rendition this device cannot read yet is a placeholder — never the original, which for a
+     * redacted edit is the very thing the edit hides (§11.3). Anything that hands the photo OUT (a
+     * share, a download, when they exist) hands out the rendition, and the original only as an
+     * explicit choice.
+     */
+    val renditionPath: String? = null,
 ) {
     /** Last path segment — what the viewer's info sheet shows. Never persisted. */
     val name: String get() = path.substringAfterLast('/')
+
+    /** Whether this photo carries a non-destructive edit (ED-3). */
+    val isEdited: Boolean get() = renditionPath != null
+
+    /**
+     * The path whose thumbnails and hero rung draw this photo: the edit's rendition when it has one,
+     * else the photo itself. ⚠ What every tile, viewer page and album cover asks for — never [path]
+     * directly (§12.5).
+     */
+    val previewPath: String get() = renditionPath ?: path
 }
 
 /**

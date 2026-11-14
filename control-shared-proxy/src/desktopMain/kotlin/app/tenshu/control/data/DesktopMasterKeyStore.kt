@@ -89,12 +89,18 @@ class DesktopMasterKeyStore(
         val plain = ByteArrayOutputStream().also { props.store(it, null) }.toByteArray()
         val blob = encrypt(key, plain)
         // Atomic replace so a crash mid-write can't leave a truncated blob.
-        val tmp = File(file.parentFile, file.name + ".tmp")
-        tmp.writeBytes(blob)
-        Files.move(
-            tmp.toPath(), file.toPath(),
-            StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE,
-        )
+        // ⚠⚠ The temp name is unique PER WRITE. `@Synchronized` only orders writers inside one
+        // instance; two processes (or two instances) over the same directory each own a lock of
+        // their own, and with one fixed `secrets.enc.tmp` the first rename took the other's temp
+        // file away and the second threw NoSuchFileException. Same directory, so the move stays
+        // a same-filesystem atomic rename; last writer wins, never a torn blob.
+        val tmp = Files.createTempFile(file.parentFile.toPath(), file.name + ".", ".tmp")
+        try {
+            Files.write(tmp, blob)
+            Files.move(tmp, file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+        } finally {
+            Files.deleteIfExists(tmp)
+        }
     }
 
     private fun encrypt(key: ByteArray, plaintext: ByteArray): ByteArray {

@@ -1,8 +1,4 @@
 {
-  "app": {
-    "title": "Mia",
-    "tagline": "Frag nach deinen eigenen Daten – beantwortet auf diesem Gerät, Ende-zu-Ende-verschlüsselt."
-  },
   "runtime": {
     "connectingTitle": "Verbindung zu Tenshu wird noch hergestellt…",
     "connectingBody": "Der Tenshu-Tab, in dem Mia läuft, ist beschäftigt. Mia lädt, sobald er antwortet.",
@@ -19,7 +15,7 @@
     "reload": "Neu laden"
   },
   "tabs": {
-    "label": "Mia",
+    "label": "Mia-Bereiche",
     "chat": "Chat",
     "history": "Verlauf",
     "grants": "Was Mia lesen darf"

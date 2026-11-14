@@ -230,24 +230,79 @@ class SemanticRelevanceFloorTest {
         assertTrue(calibration.probability(0.25f) > PhotosLikeImplementation.SEMANTIC_RELEVANCE_FLOOR)
     }
 
+    /** A unit vector whose cosine with the unit query `(1, 0)` is [cosine]. */
+    private fun at(cosine: Float): FloatArray =
+        floatArrayOf(cosine, kotlin.math.sqrt(1f - cosine * cosine))
+
+    private val pinned get() = org.tenshu.inference.proxy.onnx.VisionModel.PinnedSigLip.calibration!!
+
+    private suspend fun searchAt(cosines: Map<String, Float>, text: String): List<String> {
+        val store = storeOf(*cosines.map { (path, cosine) -> path to at(cosine) }.toTypedArray())
+        return hitsFrom(service(proxy(store, ScriptedBackend(floatArrayOf(1f, 0f), pinned))), text)
+    }
+
     /**
-     * ⚠⚠ The carried-over cut, **through the op** and under the constants production runs: the
-     * smallest cosine the floor admitted before the constants were corrected is still admitted,
-     * and the `Float` below it still is not (`SemanticFloorCarryOverTest` has the sweep).
-     *
-     * ⚠ The query is a unit axis, so each photograph's cosine is exactly its first component.
+     * ⚠⚠ **The device case that measured the floor** (`inference-service.md` §35.1): an iPhone's
+     * 22 indexed photographs, five of them cats, searched for "cat" on the Core ML towers. These
+     * are the cosines it printed. The floor carried over from another checkpoint (cosine 0.0915)
+     * returned **nothing**; the five cats must come back, best first, and nothing else.
      */
     @Test
-    fun theOpCutsAtTheCarriedOverCosine() = runTest {
-        val admitted = Float.fromBits(SemanticFloorCarryOverTest.CARRIED_OVER_COSINE_BITS)
-        val rejected = Float.fromBits(SemanticFloorCarryOverTest.CARRIED_OVER_COSINE_BITS - 1)
-        val store = storeOf(
-            "/photos/just-under.jpg" to floatArrayOf(rejected, 0f),
-            "/photos/at-the-cut.jpg" to floatArrayOf(admitted, 0f),
+    fun theIphonesFiveCatsAreFoundAndNothingElse() = runTest {
+        val cats = listOf(0.08375903f, 0.083610006f, 0.08327898f, 0.08067404f, 0.08015285f)
+        // The other 17, to four places: the device printed them, and the host's Core ML towers
+        // reproduce the device's scores to 1e-7.
+        val others = listOf(
+            0.0213f, 0.0168f, 0.0139f, 0.0131f, 0.0093f, 0.0078f, 0.0077f, 0.0077f, 0.0068f,
+            0.0054f, 0.0051f, 0.0050f, -0.0010f, -0.0012f, -0.0015f, -0.0114f, -0.0229f,
         )
-        val pinned = org.tenshu.inference.proxy.onnx.VisionModel.PinnedSigLip.calibration!!
-        val service = service(proxy(store, ScriptedBackend(floatArrayOf(1f, 0f), pinned)))
+        val library = cats.mapIndexed { i, c -> "/Cats/$i.jpg" to c } + others.mapIndexed { i, c -> "/Sintra/$i.jpg" to c }
 
-        assertEquals(listOf("/photos/at-the-cut.jpg"), hitsFrom(service))
+        assertEquals(cats.indices.map { "/Cats/$it.jpg" }, searchAt(library.toMap(), "cat"))
+    }
+
+    /**
+     * ⚠⚠ **A nonsense query over an unrelated library returns nothing** — the defect the floor
+     * exists for (§35). The same iPhone's 22 photographs against "xylophone" on the Core ML towers,
+     * and the five best of a 554-photo camera roll on ONNX and on Core ML: none may come back.
+     *
+     * ⚠⚠ Plus **the instruments that set the floor**: the worst of the five measured over that camera
+     * roll, harp on ONNX (0.0567) and accordion on Core ML (0.0558). Without them a floor as low as
+     * cosine ~0.048 would pass this test; with them, one at 0.055 fails it.
+     */
+    @Test
+    fun xylophoneOverAnUnrelatedLibraryReturnsNothing() = runTest {
+        val iphone = listOf(
+            0.0209f, 0.0088f, 0.0073f, 0.0054f, -0.0041f, -0.0043f, -0.0052f, -0.0114f, -0.014f, -0.0164f, -0.0165f,
+            -0.0175f, -0.0179f, -0.0191f, -0.0207f, -0.0209f, -0.0213f, -0.0265f, -0.0268f, -0.0291f, -0.0394f, -0.0468f,
+        )
+        val cameraRollCoreMl = listOf(0.0477f, 0.044f, 0.0414f, 0.0413f, 0.0411f)
+        val cameraRollOnnx = listOf(0.0300f, 0.0291f, 0.0286f, 0.0279f, 0.0245f)
+        val harpCameraRollOnnx = listOf(0.0567f, 0.0525f, 0.0485f, 0.0485f, 0.0459f)
+        val accordionCameraRollCoreMl = listOf(0.0558f, 0.0506f, 0.0506f, 0.0491f, 0.0467f)
+
+        val libraries = listOf(
+            "iPhone" to iphone,
+            "camera roll, Core ML" to cameraRollCoreMl,
+            "camera roll, ONNX" to cameraRollOnnx,
+            "camera roll, harp, ONNX" to harpCameraRollOnnx,
+            "camera roll, accordion, Core ML" to accordionCameraRollCoreMl,
+        )
+        for ((name, cosines) in libraries) {
+            val library = cosines.mapIndexed { i, c -> "/photos/$i.jpg" to c }.toMap()
+            assertEquals(emptyList(), searchAt(library, "xylophone"), name)
+        }
+    }
+
+    /**
+     * The measured cut, **through the op** and under the constants production runs: cosine 0.06 is
+     * admitted and 0.0599 is not. ⚠ Not pinned to the `Float`: the floor sits ~0.2 % below the
+     * score of 0.06, thousands of ulps, so no platform's `exp` moves it across.
+     */
+    @Test
+    fun theOpCutsAtTheMeasuredCosine() = runTest {
+        val library = mapOf("/photos/just-under.jpg" to 0.0599f, "/photos/at-the-cut.jpg" to 0.06f)
+
+        assertEquals(listOf("/photos/at-the-cut.jpg"), searchAt(library, "cat"))
     }
 }

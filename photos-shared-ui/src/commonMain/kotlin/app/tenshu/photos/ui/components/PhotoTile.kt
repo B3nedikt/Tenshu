@@ -1,5 +1,14 @@
 package app.tenshu.photos.ui.components
 
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.filter
+import androidx.compose.runtime.staticCompositionLocalOf
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -22,7 +31,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
-import kotlinx.coroutines.delay
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -128,9 +136,12 @@ fun PhotoTile(
         pixelWidth = photo.pixelWidth,
         pixelHeight = photo.pixelHeight,
     )
+    // ⚠ ED-3: [Photo.previewPath] — an edited photo's tile is its rendition, or a placeholder until
+    // that arrives; never the original (`photos-editing.md` §12.4).
+    val wakes = LocalPreviewWakes.current
     val bitmap: ImageBitmap? by produceState<ImageBitmap?>(
         initialValue = null,
-        photo.path,
+        photo.previewPath,
         previewsEnabled,
         requestPx,
     ) {
@@ -144,13 +155,22 @@ fun PhotoTile(
         // ⚠ Bytes that do not decode are an answer, and are not asked for again.
         var waitMs = PREVIEW_RETRY_FIRST_MS
         while (true) {
-            val bytes = loadPreview(photo.path, requestPx)
+            // ⚠⚠ Read BEFORE the ask. A wake that lands while the ask is in flight — sync coming
+            // back during a slow `GetPreview` — must still count, and a counter keeps it where a
+            // one-shot signal would be lost between iterations.
+            val seen = wakes.value
+            val bytes = loadPreview(photo.previewPath, requestPx)
             if (bytes != null) {
                 value = bytes.decodePreviewBitmap()
                 break
             }
-            delay(waitMs)
-            waitMs = (waitMs * 2).coerceAtMost(PREVIEW_RETRY_MAX_MS)
+            // ⚠ SS-3: woken early when sync comes back or a catch-up ends — the moments a missing
+            // thumbnail is likely to have become fetchable — and the backoff then starts over.
+            // ⚠ A race of two flows, not `withTimeoutOrNull`: the timeout half of that is scheduled
+            // outside the frame clock's dispatcher, so under a test clock it never fires.
+            val wait = waitMs
+            val woken = merge(flow { delay(wait); emit(false) }, wakes.filter { it != seen }.map { true }).first()
+            waitMs = if (woken) PREVIEW_RETRY_FIRST_MS else (waitMs * 2).coerceAtMost(PREVIEW_RETRY_MAX_MS)
         }
     }
 
@@ -274,6 +294,16 @@ const val PHOTO_TILE_SELECTED_TAG = "photoTileSelected"
  * (`photos-video-support.md` M1), so its absence distinguishes a still from an unstamped video.
  */
 const val PHOTO_TILE_DURATION_TAG = "photoTileDuration"
+
+/**
+ * How many times every waiting tile has been told to ask again at once (`suite-sync-status.md`
+ * SS-3) — provided by the app shell over Control's rows (`controlPreviewWakes`).
+ *
+ * ⚠ A count, not a one-shot signal: a tile compares it before and after its own ask, so a wake that
+ * lands mid-ask is not lost. The default never moves, so a tile with no provider (a test, a
+ * preview) backs off exactly as before.
+ */
+val LocalPreviewWakes = staticCompositionLocalOf<StateFlow<Int>> { MutableStateFlow(0) }
 
 /** How long a tile with no bytes waits before asking again — doubling from the first to the cap. */
 internal const val PREVIEW_RETRY_FIRST_MS = 1_000L

@@ -21,9 +21,10 @@ import org.tenshu.sync.relay.mailbox.RealmRegistry
  *    is the authorisation*, the `/sync/realm-member/revoke` posture.
  *
  * Appending a revocation stops the chain-verified `POST /sync/pairing/response`
- * path admitting through that device's cert — and, because the verifier checks
- * every link, through any chain the device vouched for (the §5 subtree
- * property). Revocation of the device's *data* access (removal + Kr rotation)
+ * path admitting with that device's cert as the approver (`chain[0]`). ⚠⚠ Not
+ * through a chain the device merely vouched for: the verifier checks the
+ * approver's key only (`admission-revocation-names-the-capability.md` §7j.10 —
+ * a device is a member or removed, never a member that cannot admit). Revocation of the device's *data* access (removal + Kr rotation)
  * is the existing device-management flow; this endpoint only strips minting
  * power. House Rule #1: the relay stores an opaque id, an epoch, a public key and
  * a master-signed token — nothing it could mint itself.

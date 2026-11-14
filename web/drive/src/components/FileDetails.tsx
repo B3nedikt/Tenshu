@@ -1,26 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { FileActivity, FileDetails as FileDetailsData } from '@tenshu/sdk/files'
-import { activity, details, getData } from '../lib/proxy'
+import { activity, details } from '../lib/proxy'
 import { basename, formatBytes, formatDate, formatDateTime } from '../lib/paths'
 import { queryKeys } from '../lib/queryKeys'
-import { download } from '../lib/preview'
-import { canStreamToDisk, streamToDisk } from '../lib/saveToDisk'
+import { downloadFile } from '../lib/downloadFile'
 
-// Right-side drawer for a single file's metadata (Details) + modification
-// history (Activity) — the two FileDetailsScreen reads, B2a + B2b. Both are
-// snapshot reads keyed on the path; Escape or the backdrop closes. Viewing a
-// file is the row click (opens the preview); this drawer is reached from the
-// row menu's "Details" and offers a Download for saving the bytes locally.
+// One file's metadata (Details) + modification history (Activity) — the two FileDetailsScreen
+// reads, B2a + B2b — as the content of the app's details pane (web-apps-layout.md §3.2: one click
+// selects, the pane shows the selection, ⓘ / ⌘I opens and closes it and it stays as you left it).
+// Snapshot reads keyed on the path; the pane's own Close is [onClose]. Download saves the bytes.
 export function FileDetails({ path, onClose }: { path: string; onClose: () => void }) {
-  useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-
   const detailsQuery = useQuery({
     queryKey: queryKeys.details(path),
     queryFn: () => details(path),
@@ -33,65 +23,27 @@ export function FileDetails({ path, onClose }: { path: string; onClose: () => vo
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
 
-  // Fetch the bytes on demand (the metadata above loads without them) and save
-  // them to disk — the web-only convenience for getting a file off the drive.
+  // Fetch the bytes on demand (the metadata above loads without them) and save them to disk.
   async function onDownload() {
     setDownloading(true)
     setDownloadError(null)
     try {
-      // W7: stream straight to the user's disk where the browser allows it, so the tab never
-      // holds the file. The path below holds it twice — once from `getData` and again in the
-      // Blob copy — which is why a large file used to be undownloadable rather than slow.
-      if (canStreamToDisk()) {
-        const outcome = await streamToDisk(path, basename(path))
-        if (outcome.kind === 'saved' || outcome.kind === 'cancelled') return
-        if (outcome.kind === 'failed') {
-          setDownloadError(outcome.reason)
-          return
-        }
-        // 'unsupported' → fall through to the in-memory path below.
-      }
-      const read = await getData(path)
-      // ⚠ A failed read and a file with no bytes here are different things, and the user can act
-      // on only one of them. Naming the failure beats "Couldn't download this file" for both.
-      if (!read.ok) {
-        setDownloadError(`Couldn't download this file (${read.error.kind}).`)
-        return
-      }
-      const bytes = read.bytes
-      if (!bytes) {
-        setDownloadError("This file's contents aren't on this device yet.")
-        return
-      }
-      // Copy into a plain ArrayBuffer (not the Kotlin/JS heap's shared buffer)
-      // before handing it to a Blob, then download + free the object URL.
-      const copy = new Uint8Array(bytes.length)
-      copy.set(bytes)
-      const url = URL.createObjectURL(new Blob([copy]))
-      download(url, basename(path))
-      URL.revokeObjectURL(url)
+      setDownloadError(await downloadFile(path))
     } finally {
       setDownloading(false)
     }
   }
 
   return (
-    <div className="fixed inset-0 z-20 flex justify-end">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <aside
-        role="dialog"
-        aria-modal="true"
-        aria-label="File details"
-        className="relative z-10 flex h-full w-full max-w-sm flex-col bg-surface-2 shadow-xl"
-      >
-        <header className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
+    <section aria-label="File details" className="flex flex-col">
+        <header className="flex items-center justify-between gap-3 border-b border-line pb-4">
           <h2 className="min-w-0 truncate text-base font-semibold text-text">
             {basename(path)}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label="Close details"
             className="shrink-0 rounded p-1 text-text-3 hover:bg-surface-3 hover:text-text"
           >
             <svg className="size-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
@@ -100,7 +52,7 @@ export function FileDetails({ path, onClose }: { path: string; onClose: () => vo
           </button>
         </header>
 
-        <div className="border-b border-line px-5 py-3">
+        <div className="border-b border-line py-3">
           <button
             type="button"
             onClick={onDownload}
@@ -112,7 +64,7 @@ export function FileDetails({ path, onClose }: { path: string; onClose: () => vo
           {downloadError && <p className="mt-2 text-sm text-danger">{downloadError}</p>}
         </div>
 
-        <div className="flex-1 space-y-7 overflow-y-auto px-5 py-5">
+        <div className="space-y-7 py-5">
           <section>
             <SectionTitle>Details</SectionTitle>
             {detailsQuery.isPending ? (
@@ -142,8 +94,7 @@ export function FileDetails({ path, onClose }: { path: string; onClose: () => vo
             )}
           </section>
         </div>
-      </aside>
-    </div>
+    </section>
   )
 }
 

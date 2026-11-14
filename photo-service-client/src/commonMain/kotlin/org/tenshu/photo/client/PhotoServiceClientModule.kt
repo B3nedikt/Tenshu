@@ -4,7 +4,9 @@ import org.tenshu.core.common.module.operation
 import org.tenshu.core.common.module.service
 import org.tenshu.core.common.module.tModule
 import org.tenshu.photo.AddToAlbum
+import org.tenshu.photo.ClearPhotoEdit
 import org.tenshu.photo.ClearTrashedPhoto
+import org.tenshu.photo.SetPhotoEdit
 import org.tenshu.photo.RecordTrashedPhoto
 import org.tenshu.photo.DeleteAlbum
 import org.tenshu.photo.PhotoService
@@ -12,7 +14,9 @@ import org.tenshu.photo.RemoveFromAlbum
 import org.tenshu.photo.SaveAlbum
 import org.tenshu.photo.SetPhotoFlags
 import org.tenshu.photo.client.impl.AddToAlbumRo
+import org.tenshu.photo.client.impl.ClearPhotoEditRo
 import org.tenshu.photo.client.impl.ClearTrashedPhotoRo
+import org.tenshu.photo.client.impl.SetPhotoEditRo
 import org.tenshu.photo.client.impl.RecordTrashedPhotoRo
 import org.tenshu.photo.client.impl.DeleteAlbumRo
 import org.tenshu.photo.client.impl.PhotoServiceRo
@@ -76,5 +80,17 @@ val photoServiceClientModule = tModule {
         interfaceClass = ClearTrashedPhoto::class,
         protocolSchema = ClearTrashedPhoto.Schema,
         roFactory = ::ClearTrashedPhotoRo,
+    )
+
+    operation(
+        interfaceClass = SetPhotoEdit::class,
+        protocolSchema = SetPhotoEdit.Schema,
+        roFactory = ::SetPhotoEditRo,
+    )
+
+    operation(
+        interfaceClass = ClearPhotoEdit::class,
+        protocolSchema = ClearPhotoEdit.Schema,
+        roFactory = ::ClearPhotoEditRo,
     )
 }

@@ -12,7 +12,8 @@ import { reloadAfterPurge } from '../lib/reloadAfterPurge'
 // locally without contacting the relay. Users who genuinely lost all
 // devices can still reach /recovery via direct URL or the firstTime flow.
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
+import { postUnlockPath } from '../lib/overviewPath'
 import { Trans, useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import type {
@@ -63,6 +64,9 @@ export function LockedFlow() {
   const { t } = useTranslation('onboarding')
   const sdk = useOnboardingSdk()
   const navigate = useNavigate()
+  // Back to the page the session guard sent us away from (validated: lib/overviewPath.ts).
+  const [searchParams] = useSearchParams()
+  const destination = postUnlockPath(searchParams.get('next'))
   const [deviceName, setDeviceName] = useState<string>(() => t('deviceName.default'))
   const [step, setStep] = useState<Step>('welcome')
 
@@ -71,7 +75,7 @@ export function LockedFlow() {
     void sdk.Session.detect().then((s: SessionState) => {
       if (cancelled) return
       if (s.kind === 'active') {
-        navigate('/control/home', { replace: true })
+        navigate(destination, { replace: true })
         return
       }
       if (s.kind === 'firstTime') {
@@ -83,7 +87,7 @@ export function LockedFlow() {
     return () => {
       cancelled = true
     }
-  }, [sdk, navigate])
+  }, [sdk, navigate, destination])
 
   async function onUnlock() {
     setStep('unlocking')
@@ -98,7 +102,7 @@ export function LockedFlow() {
       return
     }
     await sdk.Session.persist(sessionResult.value)
-    navigate('/control/home', { replace: true })
+    navigate(destination, { replace: true })
   }
 
   // Escape hatch for a device that can't unlock (e.g. a browser whose
@@ -156,7 +160,7 @@ export function LockedFlow() {
       {typeof step === 'object' && 'phraseProcessing' in step && (
         <PhraseProcessingCard
           mnemonic={step.phraseProcessing.mnemonic}
-          onSucceeded={() => navigate('/control/home', { replace: true })}
+          onSucceeded={() => navigate(destination, { replace: true })}
           onFailed={error =>
             setStep({
               phraseFailed: { mnemonic: step.phraseProcessing.mnemonic, error },

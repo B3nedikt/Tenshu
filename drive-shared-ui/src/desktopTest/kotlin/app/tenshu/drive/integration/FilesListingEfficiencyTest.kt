@@ -66,15 +66,21 @@ class FilesListingEfficiencyTest {
     private val folderSize = 150
 
     /**
-     * Measured 2026-09-15, in-memory store, at 5 windows: **2123** for the default Name sort and
-     * **2149 / 2149 / 2151** for the explicit date sort. Before the `thenBy`-run fold
-     * (`drive-sorted-folder-paging.md` §3 B6) the same scroll cost **4263** — that is what the
-     * unfused shape looks like, and what the bound must reject. 22 × folderSize = 3300 clears a
-     * 7-window healthy run (≈ 2 650) by ~24 % and sits ~23 % under the 5-window regression.
+     * Measured 2026-11-13, in-memory store, one observed generation ([boundedSnapshot] waits out
+     * the provisional one): **1189** for the default Name sort and **1219** for the explicit date
+     * sort, identical across four runs each.
+     *
+     * Before that the snapshot also read the provisional generation, and the same scroll measured
+     * 2123 / 2149 at 5 windows and ≈ 2 650 at 7, depending on when the observer's confirmation
+     * landed — the "5 or 7 windows" spread recorded below was that race, not paging's prefetch.
+     * The unfused shape this bound exists to reject costs ≈ +420 reads per loaded window
+     * (4263 against 2123 before the `thenBy`-run fold, `drive-sorted-folder-paging.md` §3 B6), so
+     * ≥ +2 100 over five windows. 13 × folderSize = 1950 clears the healthy count by ~60 % and sits
+     * ~40 % under that regression.
      */
-    private val DEFAULT_SCROLL_MEASURED = 2123
-    private val SORTED_SCROLL_MEASURED = 2149
-    private val SORTED_SCROLL_BOUND = folderSize * 22
+    private val DEFAULT_SCROLL_MEASURED = 1189
+    private val SORTED_SCROLL_MEASURED = 1219
+    private val SORTED_SCROLL_BOUND = folderSize * 13
 
     private lateinit var appKoin: AppIntegrationKoin
 
@@ -128,7 +134,10 @@ class FilesListingEfficiencyTest {
         // ⚠ Bounded (see [boundedSnapshot]): this test is a recorded member of the rotating
         // flake population in `docs/tech-debt.md`, so the failure it is most likely to hit
         // next is one where the listing never settles — which unbounded reads as a stalled
-        // gate rather than as this assertion's own loud message.
+        // gate rather than as this assertion's own loud message. ⚠⚠ [boundedSnapshot] also
+        // starts from the observed generation: before it did, the observer's confirmation could
+        // land mid-scroll and `asSnapshot` threw `IndexOutOfBoundsException: Index: 20, Size: 20`
+        // (public Linux CI; `docs/tech-debt.md` § "The full gate is flaky under parallel load").
         val snapshot: List<FileModel> = filesRepository.getFilesPaged("/big").boundedSnapshot {
             scrollTo(79)
         }
@@ -136,15 +145,14 @@ class FilesListingEfficiencyTest {
         assertTrue(snapshot.size >= 80, "expected at least 4 windows, got ${snapshot.size} rows")
         assertEquals(snapshot.size, snapshot.map { it.path }.toSet().size, "no row served twice")
         val calls = store.count
-        // Measured 2026-09-15: 2123 at 5 windows (the explicit date sort below is 2149 — the
-        // same shape with a value-property key instead of the name transform).
+        // Measured 2026-11-13: 1189 (the explicit date sort below is 1219 — the same shape
+        // with a value-property key instead of the name transform).
         //
         // ⚠⚠ "Loaded" is not "returned", and that is what made this the gate's most
-        // frequent flake for two days. `snapshot.size` is always 100 (5 windows), but
-        // paging's prefetch cascade legitimately loads **5 or 7** windows before the
-        // counter is read — never 6 — and which one you get is a race with `asSnapshot`
-        // returning. Both are correct behaviour, so the bound must clear the whole
-        // 7-window mode, not just the 5-window one.
+        // frequent flake for two days. `snapshot.size` is always 100 (5 windows), but the
+        // count used to come out as **5 or 7** windows' worth, never 6. That spread went away
+        // with the provisional generation (see [SORTED_SCROLL_BOUND]); the bound still clears a
+        // 7-window run in case paging's prefetch can produce one on its own.
         //
         // ⚠ Do not "fix" a failure here by nudging the bound to just clear whatever count you
         // saw — that is how the pre-SP-6 bound ended up *inside* the 7-window distribution
@@ -154,7 +162,7 @@ class FilesListingEfficiencyTest {
             calls < SORTED_SCROLL_BOUND,
             "open + 4-window scroll cost $calls store reads for a $folderSize-file folder — " +
                 "expected ~one projected observer pass + one fused thin pass per loaded window " +
-                "(healthy ≈ $DEFAULT_SCROLL_MEASURED at 5 windows). A count well above that " +
+                "(healthy ≈ $DEFAULT_SCROLL_MEASURED). A count well above that " +
                 "means a sort key fell off the fused path and every page re-sorts the fully " +
                 "materialised folder"
         )
@@ -183,14 +191,13 @@ class FilesListingEfficiencyTest {
         val calls = store.count
         // Budget (see [SORTED_SCROLL_BOUND]): the projected observer pass (~5 reads × folderSize)
         // + per loaded window one thin pass (folderSize + the array entry) + 20 projected rows
-        // × ~5 reads — ≈ 250 per window, 5 or 7 windows (the prefetch race the natural test
-        // documents). The unfused regression re-reads every row as an entity and sorts three
+        // × ~5 reads — ≈ 250 per window. The unfused regression re-reads every row as an entity and sorts three
         // times per window instead, ≈ +420 per window.
         assertTrue(
             calls < SORTED_SCROLL_BOUND,
             "sorted open + 4-window scroll cost $calls store reads for a $folderSize-file " +
                 "folder — expected ~one projected observer pass + one thin pass per loaded " +
-                "window (healthy ≈ $SORTED_SCROLL_MEASURED at 5 windows). A count well above " +
+                "window (healthy ≈ $SORTED_SCROLL_MEASURED). A count well above " +
                 "that means a sort key fell off the fused path (`classifySortKey` refused it) " +
                 "and every page re-sorts the fully materialised folder"
         )

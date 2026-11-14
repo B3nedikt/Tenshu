@@ -162,7 +162,7 @@ class DerivedDataOfDeletedPhotosTest {
 
     private fun indexer(backend: InferenceBackend = FakeInferenceBackend()) = MediaIndexer(
         registry = InferenceBackendRegistry(listOf(backend)),
-        deviceId = thisDevice,
+        deviceId = { thisDevice },
         embeddings = embeddings,
         faces = faces,
         conditions = IndexingConditions { true },
@@ -613,7 +613,7 @@ class DerivedDataOfDeletedPhotosTest {
         val proxy = proxy(realm)
         val indexer = MediaIndexer(
             registry = InferenceBackendRegistry(listOf(FakeInferenceBackend())),
-            deviceId = thisDevice,
+            deviceId = { thisDevice },
             embeddings = embeddings,
             faces = flakyFaces,
             conditions = IndexingConditions { true },
@@ -650,7 +650,7 @@ class DerivedDataOfDeletedPhotosTest {
         val proxy = proxy(realm).apply { consentTo(InferenceCapability.CONTENT_TAGGING) }
         val tagging = MediaIndexer(
             registry = InferenceBackendRegistry(listOf(FakeInferenceBackend())),
-            deviceId = thisDevice,
+            deviceId = { thisDevice },
             vocabulary = vocabularyOf(version = 1, labels = listOf(VocabularyLabel("cat", LabelTier.TOP, floor = 0.5f))),
             embeddings = embeddings,
             faces = faces,

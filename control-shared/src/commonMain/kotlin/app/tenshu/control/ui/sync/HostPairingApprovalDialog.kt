@@ -2,6 +2,9 @@ package app.tenshu.control.ui.sync
 
 import app.tenshu.control.shared.resources.pairing_error_no_authority
 import app.tenshu.control.shared.resources.pairing_error_admitter_unrecognised
+import app.tenshu.control.shared.resources.pairing_error_device_removed
+import app.tenshu.control.shared.resources.pairing_error_this_device_removed
+import app.tenshu.control.shared.resources.pairing_error_approver_revoked
 import app.tenshu.ui.error.label
 import app.tenshu.control.ui.screens.sync.PairingError
 import androidx.compose.foundation.layout.Column
@@ -154,6 +157,12 @@ fun HostPairingApprovalDialog(
                                 stringResource(Res.string.pairing_error_admitter_unrecognised)
                             PairingError.NoAuthority ->
                                 stringResource(Res.string.pairing_error_no_authority)
+                            PairingError.DeviceRemoved ->
+                                stringResource(Res.string.pairing_error_device_removed)
+                            PairingError.ApproverRevoked ->
+                                stringResource(Res.string.pairing_error_approver_revoked)
+                            PairingError.ThisDeviceRemoved ->
+                                stringResource(Res.string.pairing_error_this_device_removed)
                             is PairingError.Unexpected -> pairingError.copyKey.label()
                         },
                         style = MaterialTheme.typography.bodyMedium,

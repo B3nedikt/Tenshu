@@ -186,6 +186,12 @@ fun syncProxyImplementationFactory(
      * pattern as `realmRegistryHolder.realmRegistry` at the call sites.
      */
     laneEmitter: (() -> org.tenshu.sync.common.SyncBlockEmitter?)? = null,
+    /**
+     * The pause between `AwaitPairing`'s completion attempts. `null` (every production wiring) keeps
+     * its real cadence; the system-test harness passes a stepped one so a test decides when the
+     * joiner looks again.
+     */
+    pairingWaitPacer: (suspend () -> Unit)? = null,
 ): OperationImplementation? {
     return when (id) {
         PushBlock.ID -> PushBlockImplementation(relay, ContentPropertyTagger(syncManager) { realmRegistry })
@@ -221,7 +227,11 @@ fun syncProxyImplementationFactory(
         )
         InitiatePairing.ID -> InitiatePairingImplementation(relay, syncManager, cryptoManager)
         GetPairingStatus.ID -> GetPairingStatusImplementation(relay, syncManager, cryptoManager)
-        AwaitPairing.ID -> AwaitPairingImplementation(relay, syncManager, cryptoManager)
+        AwaitPairing.ID -> if (pairingWaitPacer != null) {
+            AwaitPairingImplementation(relay, syncManager, cryptoManager, pairingWaitPacer)
+        } else {
+            AwaitPairingImplementation(relay, syncManager, cryptoManager)
+        }
         OfferPairing.ID -> OfferPairingImplementation(syncManager, cryptoManager)
         OfferHubPairing.ID -> OfferHubPairingImplementation(relay, syncManager, cryptoManager)
         GetOfferStatus.ID -> GetOfferStatusImplementation(relay, syncManager, cryptoManager)
@@ -288,6 +298,10 @@ fun syncProxyImplementationFactory(
                 )
             },
             nowMs = nowMs,
+            realmRegistry = realmRegistry,
+            // Resolved per poll: the holder is filled after `initSyncService`, later than this
+            // factory runs. No holder (web) ⇒ never refused ⇒ the bounded wait, as before.
+            relayRefusesThisDevice = { syncSchedulerHolder?.scheduler?.relayRefusesThisDevice == true },
         )
         GetUnlockStatus.ID -> GetUnlockStatusImplementation(syncManager)
         SetUpLocalUnlock.ID -> SetUpLocalUnlockImplementation(syncManager)

@@ -1,5 +1,7 @@
 package org.tenshu.inference.proxy.coreml
 
+import org.tenshu.inference.proxy.catalog.ModelArtifactRole
+import org.tenshu.inference.proxy.onnx.FaceModel
 import org.tenshu.inference.proxy.onnx.TowerGuards
 import org.tenshu.inference.proxy.onnx.VisionModel
 
@@ -65,6 +67,20 @@ data class CoreMlTowerSpec(
             inputShape = listOf(1, 3, model.side, model.side),
             inputType = CoreMlElementType.FLOAT32,
             outputName = POOLED_OUTPUT,
+            outputWidth = model.dimensions,
+        )
+
+        /**
+         * The face embedder (`ios-face-grouping.md` §12.1): `input` Float32 `[1, 3, 112, 112]` →
+         * `embedding`, 512 wide — the names `scripts/inference/export-coreml-face-embedder.py`
+         * sets. ⚠ Its role is the catalog's, so the compiled model is `faceEmbedder.mlmodelc`.
+         */
+        fun faceEmbedder(model: FaceModel): CoreMlTowerSpec = CoreMlTowerSpec(
+            role = ModelArtifactRole.FACE_EMBEDDER,
+            inputName = "input",
+            inputShape = listOf(1, 3, model.template.side, model.template.side),
+            inputType = CoreMlElementType.FLOAT32,
+            outputName = "embedding",
             outputWidth = model.dimensions,
         )
 

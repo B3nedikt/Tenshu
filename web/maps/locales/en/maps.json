@@ -1,8 +1,4 @@
 {
-  "app": {
-    "title": "Maps",
-    "tagline": "Your places, end-to-end encrypted."
-  },
   "runtime": {
     "connectingTitle": "Still connecting to Tenshu…",
     "connectingBody": "The Tenshu tab hosting Maps is busy. Maps will load as soon as it answers.",

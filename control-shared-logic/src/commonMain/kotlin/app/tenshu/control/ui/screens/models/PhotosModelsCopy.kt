@@ -10,6 +10,7 @@ import app.tenshu.control.inference.ModelSetup.Standing
 import app.tenshu.control.inference.ModelsAvailability
 import app.tenshu.control.inference.OfferedModel
 import app.tenshu.control.inference.download
+import app.tenshu.control.inference.usable
 import app.tenshu.control.inference.offersRemoval
 import org.tenshu.inference.InferenceCapability
 
@@ -20,8 +21,11 @@ import org.tenshu.inference.InferenceCapability
  */
 data class PhotosModelsScreen(
     val body: Body,
-    /** The feature row under the list, or `null` where no switch is offered. */
-    val feature: Feature?,
+    /**
+     * The feature rows under the list, one per switch the screen offers, search first; empty where
+     * none is (`ios-face-grouping.md` F6: face grouping's beside search's where faces are bound).
+     */
+    val features: List<Feature>,
     /** [ModelsUiState.message], as its sentence. */
     val message: String?,
     /** The message [message] says, for [photosModelsMessageSeen]: what *OK* may clear, and nothing else. */
@@ -42,6 +46,9 @@ data class PhotosModelsScreen(
     /** The indexing section (§14.19.6), or `null` where it is not drawn. */
     val indexing: Indexing? = null,
 ) {
+    /** The first feature row (search's), or `null` where no switch is offered. */
+    val feature: Feature? get() = features.firstOrNull()
+
     /**
      * The indexing section: where this device's index stands, and what may be pressed now.
      * ⚠ Kotlin's choice, in the order §14.19.6 gives; the shell draws it and decides nothing.
@@ -145,17 +152,48 @@ data class PhotosModelsScreen(
 }
 
 /**
- * Whether the list says this phone cannot run the model: installed and `Unsuitable`, or absent
- * with the key's answer *unsuitable*. ⚠ Not *stopped loading*: that has a *Try again*.
+ * Whether the list says this phone cannot run the model serving [capability] ([servedBy]):
+ * installed and `Unsuitable`, or absent with the key's answer *unsuitable*. ⚠ Not *stopped
+ * loading*: that has a *Try again*.
  */
-private val ModelsUiState.unsuitableHere: Boolean
-    get() = models.any { row ->
-        when (val setup = row.setup) {
-            is ModelSetup.Held -> setup.standing == ModelSetup.Standing.Unsuitable
-            is ModelSetup.Absent -> setup.answered == ModelSetup.Answered.UNSUITABLE
-            is ModelSetup.Fetching -> false
-        }
+private fun ModelsUiState.unsuitableFor(capability: InferenceCapability): Boolean = servedBy(capability).any { it.unsuitable }
+
+private val ModelRow.unsuitable: Boolean
+    get() = when (val setup = setup) {
+        is ModelSetup.Held -> setup.standing == ModelSetup.Standing.Unsuitable
+        is ModelSetup.Absent -> setup.answered == ModelSetup.Answered.UNSUITABLE
+        is ModelSetup.Fetching -> false
     }
+
+/**
+ * The capability [modelId] serves as far as this screen can tell (`ios-face-grouping.md` F6): what
+ * the catalog says it serves; before the catalog was read (a cold, offline launch), what the graph
+ * says the model it prepares serves ([ModelsCapabilities.modelFeatures]); else search's, which is
+ * what the screen said before a second model existed.
+ */
+internal fun ModelsUiState.capabilityOf(modelId: String): InferenceCapability {
+    val served: List<String>? = serves[modelId]
+    if (served != null) {
+        return if (InferenceCapability.FACE_CLUSTERING.id in served) InferenceCapability.FACE_CLUSTERING else InferenceCapability.SEMANTIC_IMAGE_SEARCH
+    }
+    return capabilities.modelFeatures[modelId] ?: InferenceCapability.SEMANTIC_IMAGE_SEARCH
+}
+
+/** The rows whose model serves [capability] ([capabilityOf]). */
+private fun ModelsUiState.servedBy(capability: InferenceCapability): List<ModelRow> =
+    models.filter { capabilityOf(it.modelId) == capability }
+
+/**
+ * Whether a model serving [capability] can be used here, as [ModelsUiState.anyModelUsable] asks
+ * it of all of them. ⚠ With one feature on the screen this IS [ModelsUiState.anyModelUsable].
+ */
+private fun ModelsUiState.usableFor(capability: InferenceCapability): Boolean? {
+    if (capabilities.features.size <= 1) return anyModelUsable
+    val list: ModelsAvailability.Listed = availability as? ModelsAvailability.Listed ?: return null
+    val rows: List<ModelRow> = list.models.filter { capabilityOf(it.modelId) == capability }
+    if (rows.any { it.setup.usable }) return true
+    return if (rows.all { it.setup.knownNotUsable }) false else null
+}
 
 /** An answer to [PhotosModelsScreen.question]: the one place a kind becomes a call. */
 fun photosModelsAnswer(viewModel: ModelsViewModel, kind: PhotosModelsScreen.Asked.Kind, yes: Boolean) = when (kind) {
@@ -305,6 +343,56 @@ object PhotosModelsCopy {
     const val ON_BUT_OFF_EVERYWHERE = "On here, and off for all your devices. Switch it off and on again to use it."
     val turnOffEverywhereTitle = "Turn off \"$FEATURE\" everywhere?"
 
+    // ─── Face grouping (`ios-face-grouping.md` F6). ⚠⚠ Android's words wherever Android has them
+    // (`consentHeadline`, `featureDescription`, `turnOffText`, `turnOffEverywhereLabel` in
+    // `:control-shared`): one feature, one way of saying what switching it off deletes.
+
+    /** Android's `consentHeadline(FACE_CLUSTERING)`. */
+    const val FACES_FEATURE = "Group photos by people"
+
+    /**
+     * Android's `featureDescription(FACE_CLUSTERING)`. ⚠⚠ Biometric data (threat model A40): where
+     * the face data lives, that only typed names travel, and what switching off removes, all said
+     * before the user agrees (IN-D3).
+     */
+    const val FACES_DESCRIPTION =
+        "Find faces in your photos and group them so you can name people. Face data is made on " +
+            "each device you allow and never leaves it. Only the names you type sync to your " +
+            "devices. Turning this off deletes the face data and keeps the names."
+
+    /** ⚠⚠ Said wherever the face switch is on: what a press on it would delete, before it is pressed. */
+    fun facesOffDeletes(device: String) = "Turning this off deletes this $device's face data; names stay."
+
+    /** The question *Turn off* asks first, here. ⚠ Android's `turnOffTitle` / `turnOffText`, naming this device. */
+    fun facesTurnOffTitle(device: String) = "Turn off \"$FACES_FEATURE\" on this $device?"
+    fun facesTurnOffText(device: String) =
+        "This $device's face data is deleted. The names you typed are kept, and other devices are not changed."
+
+    /** The same question for another device of the realm, by its name. */
+    fun facesTurnOffOtherTitle(name: String) = "Turn off \"$FACES_FEATURE\" on $name?"
+    const val FACES_TURN_OFF_OTHER_TEXT = "Its face data is deleted. The names you typed are kept, and other devices are not changed."
+
+    /** Android's `turnOffEverywhereLabel` and `turnOffText(everywhere = true)` for faces. */
+    const val FACES_TURN_OFF_EVERYWHERE = "Turn off everywhere and delete face data"
+    val facesTurnOffEverywhereTitle = "Turn off \"$FACES_FEATURE\" everywhere?"
+    const val FACES_TURN_OFF_EVERYWHERE_TEXT = "Face data is deleted on every device. The names you typed are kept."
+
+    fun facesOfferTitle(device: String) = "Turn on \"$FACES_FEATURE\" for this $device?"
+    fun facesOfferText(device: String) =
+        "The model is ready. Photos looks for faces in your library when you tap Index now. Face data is made on " +
+            "this $device and never leaves it; only the names you type sync. Turning this off deletes the face data and keeps the names."
+
+    /** ⚠ Removing the model deletes no face data: only switching the feature off does. */
+    fun facesRemoveText(bytes: Long, device: String) =
+        "This frees about ${photosModelBytes(bytes)} on this $device. Grouping photos by people stops working here " +
+            "until a model is downloaded again. The switch for it is not changed, and face data already made stays until you turn it off."
+
+    fun facesUnsuitable(device: String) = "This $device couldn't run the model well enough, so grouping photos by people stays off."
+
+    /** The feature's name, as its row and its screen say it. */
+    fun featureTitle(capability: InferenceCapability): String =
+        if (capability == InferenceCapability.FACE_CLUSTERING) FACES_FEATURE else FEATURE
+
     // ─── The indexing section (§14.19.6). ⚠ Placeholder copy (M11), like the rest.
 
     const val INDEXING = "Indexing"
@@ -313,12 +401,38 @@ object PhotosModelsCopy {
     const val RESUME = "Resume"
     const val INDEX_WHEN_READY = "You can index your photos once the model is ready."
     const val INDEX_NEEDS_THE_SWITCH = "Turn on \"$FEATURE\" above to index your photos."
+
+    /** [INDEX_NEEDS_THE_SWITCH] naming every switch the screen offers (`ios-face-grouping.md` F6). */
+    fun indexNeedsTheSwitch(features: List<String>): String =
+        if (features.size <= 1) "Turn on \"${features.firstOrNull() ?: FEATURE}\" above to index your photos."
+        else "Turn on ${features.joinToString(" or ") { "\"$it\"" }} above to index your photos."
+
+    /** A switch is on, and the model it needs is not ready: nothing could index yet. */
+    fun indexWhenModelReady(feature: String) = "You can index your photos once the model for \"$feature\" is ready."
+
+    /** A switch is on, and this phone cannot run the model it needs. */
+    fun indexCannotRun(feature: String, device: String) = "This $device can't run the model for \"$feature\", so it can't index for it."
     const val INDEX_SWITCH_OFF_EVERYWHERE = "It is off for all your devices."
     fun indexSwitchOffHere(device: String) = "It is off for this $device."
     fun indexPaused(device: String) = "Indexing is paused on this $device."
     fun indexingCount(done: Int, total: Int) = "Indexing ${count(done)} of ${count(total)}"
     const val INDEX_LOOKING = "Looking through your library…"
+    /**
+     * The running line while a leave would stop the pass. ⚠⚠ Only then ([runningDetail]): on iOS 26+
+     * a continued task may carry the pass, and this sentence is then false (§15.7 Q2).
+     */
     const val INDEX_KEEP_OPEN = "Keep Photos open. Indexing stops when you leave."
+
+    /** The running line while a continued task carries the pass (iOS 26+, §15): the system shows its progress. */
+    const val INDEX_GOES_ON = "You can leave Photos. Indexing goes on, and iOS shows how far it has got."
+
+    /**
+     * What the running pass does when the user leaves, as the section's line. ⚠⚠ [continued] is the
+     * runtime's word that a launched task carries the pass (`OnDeviceIndexSource.continued`), never
+     * a guess from the OS version: a request submitted and not yet launched, or refused, is still a
+     * pass a leave stops (§15.2), so it keeps [INDEX_KEEP_OPEN].
+     */
+    fun runningDetail(continued: Boolean): String = if (continued) INDEX_GOES_ON else INDEX_KEEP_OPEN
     fun indexWarm(device: String) = "Waiting: this $device is warm."
     const val INDEX_LOW_POWER = "Waiting: Low Power Mode is on."
     const val INDEX_BATTERY_LOW = "Waiting: the battery is low."
@@ -359,7 +473,7 @@ object PhotosModelsCopy {
     private fun photos(n: Int): String = if (n == 1) "1 photo" else "${count(n)} photos"
 
     /** A transient message's sentence. ⚠ Total: a message with no sentence would be a silent one. */
-    fun message(message: ModelsMessage, device: String): String = when (message) {
+    fun message(message: ModelsMessage, device: String, continued: Boolean = false): String = when (message) {
         ModelsMessage.DownloadFailed -> DOWNLOAD_FAILED
         ModelsMessage.IntegrityFailed -> INTEGRITY_FAILED
         ModelsMessage.UnknownModel -> "That model is no longer offered."
@@ -380,7 +494,9 @@ object PhotosModelsCopy {
         ModelsMessage.OtherDeviceConsentNotSaved -> "Couldn't switch it off for that device."
         // ⚠ The press's answer. Where the phone holds it back the section says why instead
         // (`IndexStartOutcome.Waiting` says no message).
-        ModelsMessage.IndexingStarted -> "Indexing started. $INDEX_KEEP_OPEN"
+        // ⚠ The running line's rule ([runningDetail]): drawn from the state, so a task launched
+        // after the press turns this line true as it is shown.
+        ModelsMessage.IndexingStarted -> "Indexing started. ${runningDetail(continued)}"
         ModelsMessage.IndexNoModel -> "There is no model to index with yet."
         ModelsMessage.IndexNoConsent -> "\"$FEATURE\" is off for this $device."
         ModelsMessage.IndexPaused -> indexPaused(device)
@@ -421,25 +537,11 @@ fun photosModelsScreen(state: ModelsUiState, device: String, onWifi: Boolean?): 
             PhotosModelsScreen.Body.Notice(PhotosModelsCopy.installedUnreadable(device), tryAgain = tryAgain)
         is ModelsAvailability.Listed -> listed(state, list, device, onWifi)
     }
-    // ⚠ No switch where nothing is offered, or where the list has no row it could be about.
-    val feature: PhotosModelsScreen.Feature? = when (state.availability) {
-        is ModelsAvailability.NotOffered -> null
+    // ⚠ No switch where nothing is offered. One row per switch the repository offers, search first.
+    val features: List<PhotosModelsScreen.Feature> = when (state.availability) {
+        is ModelsAvailability.NotOffered -> emptyList()
         ModelsAvailability.NotConnected, ModelsAvailability.Loading, ModelsAvailability.InstalledUnreadable,
-        is ModelsAvailability.Listed -> state.consents.firstOrNull()?.let { consent ->
-            val on: Boolean = consent.realm && consent.device
-            PhotosModelsScreen.Feature(
-                capability = consent.capability,
-                title = PhotosModelsCopy.FEATURE,
-                // ⚠ Not *off* before the answers were read: the seed is no answer.
-                status = when {
-                    !state.consentsRead -> PhotosModelsCopy.CONSENT_NOT_READ
-                    on -> PhotosModelsCopy.featureOn(device)
-                    else -> PhotosModelsCopy.featureOff(device)
-                },
-                // ⚠ Not over a model this phone could not run: its own sentence says it never will.
-                detail = PhotosModelsCopy.STARTS_WHEN_READY.takeIf { state.consentsRead && on && state.anyModelUsable != true && !state.unsuitableHere },
-            )
-        }
+        is ModelsAvailability.Listed -> state.consents.map { consent -> featureRow(state, consent, device) }
     }
     return PhotosModelsScreen(
         indexing = photosIndexing(state, device),
@@ -447,27 +549,58 @@ fun photosModelsScreen(state: ModelsUiState, device: String, onWifi: Boolean?): 
         checking = PhotosModelsCopy.CHECKING_AGAIN.takeIf { state.checkingAgain },
         // ⚠ While the list is being read again nothing offers to read it again.
         body = if (state.checkingAgain) body.withoutTryAgain() else body,
-        feature = feature,
-        message = state.message?.let { PhotosModelsCopy.message(it, device) },
+        features = features,
+        message = state.message?.let { PhotosModelsCopy.message(it, device, state.indexContinued) },
         messageShown = state.message,
         question = state.pendingDeletion?.let { row ->
             val frees: Long = (row.setup as? ModelSetup.Held)?.model?.onDeviceBytes ?: 0L
+            val text: String = when (state.capabilityOf(row.modelId)) {
+                InferenceCapability.FACE_CLUSTERING -> PhotosModelsCopy.facesRemoveText(frees, device)
+                else -> PhotosModelsCopy.removeText(frees, device)
+            }
             PhotosModelsScreen.Asked(
                 PhotosModelsScreen.Asked.Kind.REMOVAL,
                 PhotosModelsScreen.Question(
-                    PhotosModelsCopy.removeTitle(row.name), PhotosModelsCopy.removeText(frees, device),
+                    PhotosModelsCopy.removeTitle(row.name), text,
                     yes = PhotosModelsCopy.REMOVE, no = PhotosModelsCopy.CANCEL,
                 ),
             )
-        } ?: state.featureOffer?.let {
+        } ?: state.featureOffer?.let { offered ->
+            val faces: Boolean = offered == InferenceCapability.FACE_CLUSTERING
             PhotosModelsScreen.Asked(
                 PhotosModelsScreen.Asked.Kind.FEATURE_OFFER,
                 PhotosModelsScreen.Question(
-                    PhotosModelsCopy.offerTitle(device), PhotosModelsCopy.OFFER_TEXT,
+                    if (faces) PhotosModelsCopy.facesOfferTitle(device) else PhotosModelsCopy.offerTitle(device),
+                    if (faces) PhotosModelsCopy.facesOfferText(device) else PhotosModelsCopy.OFFER_TEXT,
                     yes = PhotosModelsCopy.TURN_ON, no = PhotosModelsCopy.NOT_NOW,
                 ),
             )
         },
+    )
+}
+
+/**
+ * One feature row of the Models screen. ⚠ Not *off* before the answers were read: the seed is no
+ * answer. ⚠ Not *it works once ready* over a model this phone could not run: its own sentence says
+ * it never will. ⚠⚠ Face grouping's row says what switching it off deletes, while it is on.
+ */
+private fun featureRow(state: ModelsUiState, consent: CapabilityConsent, device: String): PhotosModelsScreen.Feature {
+    val capability: InferenceCapability = consent.capability
+    val on: Boolean = consent.realm && consent.device
+    val waits: Boolean = state.consentsRead && on && state.usableFor(capability) != true && !state.unsuitableFor(capability)
+    val deletes: Boolean = capability == InferenceCapability.FACE_CLUSTERING && state.consentsRead && on
+    return PhotosModelsScreen.Feature(
+        capability = capability,
+        title = PhotosModelsCopy.featureTitle(capability),
+        status = when {
+            !state.consentsRead -> PhotosModelsCopy.CONSENT_NOT_READ
+            on -> PhotosModelsCopy.featureOn(device)
+            else -> PhotosModelsCopy.featureOff(device)
+        },
+        detail = listOfNotNull(
+            PhotosModelsCopy.STARTS_WHEN_READY.takeIf { waits },
+            PhotosModelsCopy.facesOffDeletes(device).takeIf { deletes },
+        ).joinToString(" ").ifEmpty { null },
     )
 }
 
@@ -504,16 +637,29 @@ internal fun photosIndexing(state: ModelsUiState, device: String): PhotosModelsS
             actions = actions,
         )
     if (state.anyModelUsable != true) return section(PhotosModelsCopy.INDEX_WHEN_READY)
-    // ⚠ The one switch the screen offers: search's. Not read is not off.
+    // ⚠ Not read is not off.
     val consent: CapabilityConsent? = state.consents.firstOrNull()
     if (!state.consentsRead) return section(PhotosModelsCopy.CONSENT_NOT_READ)
-    if (consent == null || !(consent.realm && consent.device)) {
+    val on: List<CapabilityConsent> = state.consents.filter { it.realm && it.device }
+    if (consent == null || on.isEmpty()) {
+        // ⚠ Every switch is named; which of them is off where is said only when there is one.
         val which: String? = when {
-            consent == null -> null
+            consent == null || state.consents.size > 1 -> null
             !consent.realm -> PhotosModelsCopy.INDEX_SWITCH_OFF_EVERYWHERE
             else -> PhotosModelsCopy.indexSwitchOffHere(device)
         }
-        return section(PhotosModelsCopy.INDEX_NEEDS_THE_SWITCH, which)
+        return section(PhotosModelsCopy.indexNeedsTheSwitch(state.consents.map { PhotosModelsCopy.featureTitle(it.capability) }), which)
+    }
+    // ⚠⚠ What the operation asks (`StartMediaIndexPassImplementation`): a feature that is switched on
+    // AND has a backend, i.e. its OWN model usable. Search's model ready and face grouping on (or the
+    // reverse) is a press refused every time, so none is offered and the switched-on feature's model
+    // is named. ⚠ With one feature this cannot fire: its model is `anyModelUsable`, asked above.
+    if (on.none { state.usableFor(it.capability) == true }) {
+        val waiting: CapabilityConsent = on.first()
+        val title: String = PhotosModelsCopy.featureTitle(waiting.capability)
+        return section(
+            if (state.unsuitableFor(waiting.capability)) PhotosModelsCopy.indexCannotRun(title, device) else PhotosModelsCopy.indexWhenModelReady(title),
+        )
     }
     if (state.indexingPaused) return section(PhotosModelsCopy.indexPaused(device), actions = listOf(resume))
     val progress: IndexProgressState = state.indexProgress
@@ -521,7 +667,7 @@ internal fun photosIndexing(state: ModelsUiState, device: String): PhotosModelsS
         val status: String = if (progress.total > 0) PhotosModelsCopy.indexingCount(progress.done.coerceAtMost(progress.total), progress.total) else PhotosModelsCopy.INDEX_LOOKING
         val bar: PhotosModelsScreen.Progress =
             if (progress.total > 0) PhotosModelsScreen.Progress.Bar(progress.done.coerceIn(0, progress.total).toDouble() / progress.total) else PhotosModelsScreen.Progress.Busy
-        return section(status, PhotosModelsCopy.INDEX_KEEP_OPEN, listOf(pause), withCoverage = false, progress = bar)
+        return section(status, PhotosModelsCopy.runningDetail(state.indexContinued), listOf(pause), withCoverage = false, progress = bar)
     }
     return when (val asked: ForegroundIndexStanding? = state.foregroundIndex) {
         is ForegroundIndexStanding.Waiting -> when (asked.why) {
@@ -710,7 +856,7 @@ private fun row(state: ModelsUiState, row: ModelRow, device: String, onWifi: Boo
     return when (setup) {
         is ModelSetup.Absent -> when (setup.answered) {
             // ⚠⚠ No download the key would answer at once (§14.5 item 0): 743 MB for nothing.
-            ModelSetup.Answered.UNSUITABLE -> of(facts, PhotosModelsCopy.unsuitable(device), null, null, emptyList())
+            ModelSetup.Answered.UNSUITABLE -> of(facts, unsuitableSentence(state, row.modelId, device), null, null, emptyList())
             ModelSetup.Answered.STOPPED_LOADING -> of(facts, PhotosModelsCopy.stoppedLoading(device), null, null, listOf(loadAgain))
             null -> when (val pressed: ModelSetup.Pressed? = setup.pressed) {
                 // ⚠ The call's own, while it lives: its caller stopped waiting, the call did not.
@@ -729,12 +875,19 @@ private fun row(state: ModelsUiState, row: ModelRow, device: String, onWifi: Boo
             val fetch: Fetch = fetch(setup.download, device, onWifi)
             of(facts, fetch.status, fetch.detail, fetch.progress, listOfNotNull(again.takeIf { fetch.retry }, cancel.takeIf { state.capabilities.cancel }))
         }
-        is ModelSetup.Held -> held(state, setup, facts, device, onWifi, ::of)
+        is ModelSetup.Held -> held(state, row.modelId, setup, facts, device, onWifi, ::of)
     }
+}
+
+/** What a row says of a model this phone could not run, for the feature it serves. */
+private fun unsuitableSentence(state: ModelsUiState, modelId: String, device: String): String = when (state.capabilityOf(modelId)) {
+    InferenceCapability.FACE_CLUSTERING -> PhotosModelsCopy.facesUnsuitable(device)
+    else -> PhotosModelsCopy.unsuitable(device)
 }
 
 private fun held(
     state: ModelsUiState,
+    modelId: String,
     setup: ModelSetup.Held,
     facts: String,
     device: String,
@@ -779,7 +932,7 @@ private fun held(
         }
         Standing.Ready -> Stands(PhotosModelsCopy.READY)
         // ⚠ No download of the same bytes; an update is other bytes and is offered below (M9).
-        Standing.Unsuitable -> Stands(PhotosModelsCopy.unsuitable(device))
+        Standing.Unsuitable -> Stands(unsuitableSentence(state, modelId, device))
         // ⚠ The one way out of a fail (§14.5 item 0): once more, by the user's press.
         Standing.StoppedLoading -> Stands(PhotosModelsCopy.stoppedLoading(device), actions = listOf(loadAgain))
     }
@@ -869,8 +1022,11 @@ data class PhotosFeatureScreen(
      * @param on what the switch shows.
      * @param press what a press on the switch does, or `null` where it can do nothing: the switch
      *   is then drawn disabled, and [status] says why.
+     * @param question asked **before** [press] is carried out, or `null` where it is carried out at
+     *   once. ⚠⚠ Face grouping's *off* asks, naming what is deleted (`ios-face-grouping.md` F6): it
+     *   cannot be taken back. Search's does not: it deletes nothing.
      */
-    data class Device(val key: String, val name: String, val status: String, val on: Boolean, val press: Press?)
+    data class Device(val key: String, val name: String, val status: String, val on: Boolean, val press: Press?, val question: PhotosModelsScreen.Question? = null)
 
     /** What a control of this screen does. Carried out by [photosFeaturePress], never by the shell. */
     sealed interface Press {
@@ -888,8 +1044,10 @@ data class PhotosFeatureScreen(
  * [state] as the feature screen of [capability] draws it, or `null` where this screen offers no
  * switch for it (the shell then has nothing to show, and leaves).
  *
- * ⚠ Search only where a device's no deletes nothing: only *Turn off everywhere* asks first. A
- * capability whose no deletes (faces) is not offered here ([OnDeviceModelsCapabilities]).
+ * ⚠ Search's no deletes nothing, so only *Turn off everywhere* asks first. ⚠⚠ Face grouping's no
+ * deletes that device's face data (the operation deletes on an explicit no, `inferenceConsentWithdrawn`),
+ * so **every** off asks first and names what goes (`ios-face-grouping.md` F6), as Android's
+ * `turnOffDeletes` does. An absent row is shown off, and deletes nothing: there is nothing to ask.
  */
 fun photosFeatureScreen(state: ModelsUiState, capability: InferenceCapability, device: String): PhotosFeatureScreen? {
     val consent: CapabilityConsent = state.consents.firstOrNull { it.capability == capability } ?: return null
@@ -902,6 +1060,10 @@ fun photosFeatureScreen(state: ModelsUiState, capability: InferenceCapability, d
         else -> null
     }
     val idKnown: Boolean = state.thisDeviceKnown != false
+    val deletes: Boolean = capability == InferenceCapability.FACE_CLUSTERING
+    fun turnOff(title: String, text: String) = PhotosModelsScreen.Question(title, text, yes = PhotosModelsCopy.TURN_OFF, no = PhotosModelsCopy.KEEP_ON)
+    val onHere: String =
+        if (state.usableFor(capability) != true && !state.unsuitableFor(capability)) PhotosModelsCopy.STARTS_WHEN_READY else PhotosModelsCopy.DEVICE_ON
     val here = PhotosFeatureScreen.Device(
         key = "this",
         name = PhotosModelsCopy.thisDevice(device),
@@ -910,7 +1072,11 @@ fun photosFeatureScreen(state: ModelsUiState, capability: InferenceCapability, d
             // ⚠ Never written under a placeholder id (§9.2): the switch is taken away, and says so.
             !idKnown -> PhotosModelsCopy.thisDeviceNotSetUp(device)
             consent.device && !consent.realm -> PhotosModelsCopy.ON_BUT_OFF_EVERYWHERE
-            consent.device -> if (state.anyModelUsable != true && !state.unsuitableHere) PhotosModelsCopy.STARTS_WHEN_READY else PhotosModelsCopy.DEVICE_ON
+            // ⚠⚠ What the press would delete, said before it is pressed.
+            // The switch shows it is on; the line says what turning it off deletes.
+            consent.device && deletes ->
+                if (onHere == PhotosModelsCopy.DEVICE_ON) PhotosModelsCopy.facesOffDeletes(device) else "$onHere ${PhotosModelsCopy.facesOffDeletes(device)}"
+            consent.device -> onHere
             else -> PhotosModelsCopy.DEVICE_OFF
         },
         // ⚠ `device`, not `realm && device`: a yes stored under a realm no is shown on, so that
@@ -921,6 +1087,8 @@ fun photosFeatureScreen(state: ModelsUiState, capability: InferenceCapability, d
             consent.device -> PhotosFeatureScreen.Press.TurnOffHere
             else -> PhotosFeatureScreen.Press.TurnOnHere
         },
+        question = turnOff(PhotosModelsCopy.facesTurnOffTitle(device), PhotosModelsCopy.facesTurnOffText(device))
+            .takeIf { deletes && read && idKnown && consent.device },
     )
     // ⚠ Listed only from a roster that is known NOW: a row left by a read that has since failed
     // would be a switch that writes after a failed read.
@@ -929,8 +1097,8 @@ fun photosFeatureScreen(state: ModelsUiState, capability: InferenceCapability, d
     val everywhere: Boolean = listed && (consent.realm || consent.device || others.any { it.allowed })
     return PhotosFeatureScreen(
         capability = capability,
-        title = PhotosModelsCopy.FEATURE,
-        about = PhotosModelsCopy.FEATURE_DESCRIPTION,
+        title = PhotosModelsCopy.featureTitle(capability),
+        about = if (deletes) PhotosModelsCopy.FACES_DESCRIPTION else PhotosModelsCopy.FEATURE_DESCRIPTION,
         devicesHeader = PhotosModelsCopy.DEVICES,
         thisDevice = here,
         others = others.map { other ->
@@ -941,6 +1109,10 @@ fun photosFeatureScreen(state: ModelsUiState, capability: InferenceCapability, d
                 on = other.allowed,
                 // ⚠ Off only from here (§38.2): a device's yes is given on that device.
                 press = PhotosFeatureScreen.Press.TurnOffOther(other.deviceId).takeIf { other.allowed },
+                question = turnOff(
+                    PhotosModelsCopy.facesTurnOffOtherTitle(other.name.ifBlank { PhotosModelsCopy.UNNAMED_DEVICE }),
+                    PhotosModelsCopy.FACES_TURN_OFF_OTHER_TEXT,
+                ).takeIf { deletes && other.allowed },
             )
         },
         othersNotice = when {
@@ -951,14 +1123,15 @@ fun photosFeatureScreen(state: ModelsUiState, capability: InferenceCapability, d
             else -> PhotosModelsCopy.OTHER_DEVICES_UNREADABLE
         },
         everywhere = PhotosFeatureScreen.Everywhere(
-            label = PhotosModelsCopy.TURN_OFF_EVERYWHERE,
+            label = if (deletes) PhotosModelsCopy.FACES_TURN_OFF_EVERYWHERE else PhotosModelsCopy.TURN_OFF_EVERYWHERE,
             press = PhotosFeatureScreen.Press.TurnOffEverywhere,
-            question = PhotosModelsScreen.Question(
-                PhotosModelsCopy.turnOffEverywhereTitle, PhotosModelsCopy.TURN_OFF_EVERYWHERE_TEXT,
-                yes = PhotosModelsCopy.TURN_OFF, no = PhotosModelsCopy.KEEP_ON,
-            ),
+            question = if (deletes) {
+                turnOff(PhotosModelsCopy.facesTurnOffEverywhereTitle, PhotosModelsCopy.FACES_TURN_OFF_EVERYWHERE_TEXT)
+            } else {
+                turnOff(PhotosModelsCopy.turnOffEverywhereTitle, PhotosModelsCopy.TURN_OFF_EVERYWHERE_TEXT)
+            },
         ).takeIf { everywhere },
-        message = shownHere?.let { PhotosModelsCopy.message(it, device) },
+        message = shownHere?.let { PhotosModelsCopy.message(it, device, state.indexContinued) },
         messageShown = shownHere,
     )
 }

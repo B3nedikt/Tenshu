@@ -73,7 +73,9 @@ struct PhotoTileView: View {
         .accessibilityLabel((photo.isVideo ? "Video" : "Photo") + (selected ? ", selected" : ""))
         // ⚠ Keyed by the photograph AND the size it is drawn at: a regrouping resizes
         // a tile in place, and Year → Day would otherwise keep the much smaller Year thumbnail.
-        .task(id: TileRequest(path: photo.path, edgePixels: Int(edgePoints * scale), paused: previews.paused)) {
+        // ⚠ ED-3: keyed on `previewPath` — an edited photo's tile is its rendition, and a save or a
+        // revert must reload it (`photos-editing.md` §12.4).
+        .task(id: TileRequest(path: photo.previewPath, edgePixels: Int(edgePoints * scale), paused: previews.paused)) {
             // A cell reused for ANOTHER photograph drops the previous occupant's image — it must not
             // stay while the new one loads, or for ever when there is no preview. A resize of the SAME
             // photograph keeps its picture until the sharper one arrives, so it never flickers.
@@ -103,14 +105,15 @@ enum TileImageLoader {
 
     /// A decoded tile already in memory — no fetch, no decode.
     static func cached(photo: PhotosPhoto, edgePixels: Int) -> UIImage? {
-        cache.object(forKey: "\(photo.path)#\(edgePixels)" as NSString)
+        cache.object(forKey: "\(photo.previewPath)#\(edgePixels)" as NSString)
     }
 
     static func load(photo: PhotosPhoto, edgePixels: Int) async -> UIImage? {
-        let key = "\(photo.path)#\(edgePixels)" as NSString
+        let key = "\(photo.previewPath)#\(edgePixels)" as NSString
         if let hit = cache.object(forKey: key) { return hit }
+        // ⚠⚠ ED-3: the rendition of an edited photo, or nothing — never its original (§12.4).
         let data: Foundation.Data? = try? await PhotosSurface.shared.tilePreview(
-            path: photo.path,
+            path: photo.previewPath,
             tileEdgePx: Int32(edgePixels),
             pixelWidth: photo.pixelWidth?.int32Value ?? 0,
             pixelHeight: photo.pixelHeight?.int32Value ?? 0

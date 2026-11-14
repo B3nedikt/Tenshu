@@ -1226,6 +1226,9 @@ private suspend fun HttpResponse.statusWithReason(): String {
         status == HttpStatusCode.Forbidden &&
             RelayRefusal.matches(reason, RelayRefusal.DEVICE_REMOVED) ->
             "$DEVICE_REMOVED_REJECTION_MARKER: ${status.value}"
+        status == HttpStatusCode.Forbidden &&
+            RelayRefusal.matches(reason, RelayRefusal.ADMISSION_REVOKED) ->
+            "$ADMISSION_REVOKED_REJECTION_MARKER: ${status.value}"
         status == HttpStatusCode.Conflict &&
             RelayRefusal.matches(reason, RelayRefusal.PAIRING_RESPONSE_CONSUMED) ->
             "$PAIRING_RESPONSE_CONSUMED_MARKER: ${status.value}"

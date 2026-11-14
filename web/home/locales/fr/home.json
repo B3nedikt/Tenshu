@@ -1,9 +1,6 @@
 {
-  "app": {
-    "title": "Home",
-    "tagline": "Vos appareils, automatisations et activité — en consultation seule, chiffrés de bout en bout."
-  },
   "nav": {
+    "label": "Sections de Home",
     "devices": "Maison",
     "automations": "Automatisations",
     "activity": "Activité"

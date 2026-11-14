@@ -3,6 +3,7 @@
 
     python3 store/fixtures/generate.py drive build/store/fixture/drive
     python3 store/fixtures/generate.py drive --dry-run      # validate + plan; no network, no writes
+    python3 store/fixtures/generate.py landing --check      # re-fetch every pinned file, list drift
 
 Reads store/fixtures/<app>/manifest.json and writes one file per entry under <out>, with the
 entry's `modified` time as the file's mtime (the app shows it as the file's date).
@@ -264,11 +265,55 @@ def fetched(entry, dry_run):
     return cached, "downloaded"
 
 
+def check_fetches(manifest, app):
+    """`--check`: download every fetch entry again, ignoring the cache, and list each one whose bytes
+    no longer hash to its pin. A drifted file is kept under <cache>/review/<app>/<path> so it can be
+    looked at before its pin is replaced; it is never put in the cache itself. A failed download is
+    listed too, and the check goes on. Exit 1 on any drift or failure."""
+    review = os.path.normpath(os.path.join(CACHE, "review", app))
+    if os.path.isdir(review):
+        shutil.rmtree(review)
+    entries = [e for e in manifest["files"] if "fetch" in e]
+    pins = os.path.join(HERE, manifest.get("from", app), "manifest.json")
+    drifted, failed = [], []
+    os.makedirs(CACHE, exist_ok=True)
+    partial = os.path.join(CACHE, f"check.{os.getpid()}.part")
+    for entry in entries:
+        try:
+            download(entry["fetch"]["url"], partial)
+            got = sha256_of(partial)
+            if got == entry["fetch"]["sha256"]:
+                print(f"  ok     {entry['path']}", flush=True)
+                continue
+            kept = os.path.join(review, entry["path"])
+            os.makedirs(os.path.dirname(kept), exist_ok=True)
+            os.replace(partial, kept)
+        except (OSError, SystemExit) as error:
+            # A failed fetch (a photo pulled from Unsplash, a timeout, an R2 error that `download`
+            # reports through `die`) is listed and the check goes on, so one failure hides no drift.
+            failed.append(entry["path"])
+            print(f"  FAIL   {entry['path']}: {error}", flush=True)
+            continue
+        finally:
+            if os.path.exists(partial):
+                os.remove(partial)
+        drifted.append(entry["path"])
+        print(f"  DRIFT  {entry['path']}\n         pinned {entry['fetch']['sha256']}\n         now    {got}", flush=True)
+    if drifted or failed:
+        die(f"fixture {app}: {len(drifted)} of {len(entries)} fetched files drifted, {len(failed)} failed to download;"
+            f" new bytes in {review}\n"
+            "  Look at each one (same photo as its page, same dimensions as the original, nothing the\n"
+            f"  manifest's rules exclude) before replacing its sha256 in {os.path.relpath(pins)} with the 'now' value.")
+    print(f"fixture {app}: all {len(entries)} fetched files still match their pins")
+
+
 def check_entry(entry):
     where = entry.get("path", "?")
     for key in ("path", "kind", "modified", "source", "license", "author", "url"):
         if key not in entry:
             die(f"{where}: manifest entry lacks '{key}'")
+    if os.path.isabs(entry["path"]) or ".." in entry["path"].split("/"):
+        die(f"{where}: a path must stay inside the set (no leading '/', no '..')")
     if ("fetch" in entry) == ("generate" in entry):
         die(f"{where}: needs exactly one of \"generate\" or \"fetch\"")
     placeholder = entry["license"] == PLACEHOLDER
@@ -316,10 +361,11 @@ def redated(manifest, app):
 
 
 def main():
-    args = [a for a in sys.argv[1:] if a != "--dry-run"]
-    dry_run = len(args) != len(sys.argv) - 1
-    if len(args) != (1 if dry_run else 2):
-        die("usage: generate.py <app> <out-dir> | generate.py <app> --dry-run")
+    check = "--check" in sys.argv[1:]
+    args = [a for a in sys.argv[1:] if a not in ("--dry-run", "--check")]
+    dry_run = "--dry-run" in sys.argv[1:]
+    if len(args) != (1 if dry_run or check else 2) or (dry_run and check):
+        die("usage: generate.py <app> <out-dir> | generate.py <app> --dry-run | generate.py <app> --check")
     app = args[0]
     manifest_path = os.path.join(HERE, app, "manifest.json")
     if not os.path.exists(manifest_path):
@@ -330,6 +376,10 @@ def main():
         manifest = redated(manifest, app)
     for entry in manifest["files"]:
         check_entry(entry)
+
+    if check:
+        check_fetches(manifest, app)
+        return
 
     if dry_run:
         for entry in manifest["files"]:

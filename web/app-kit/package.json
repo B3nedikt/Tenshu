@@ -10,6 +10,7 @@
     "./ui": "./src/ui/index.ts",
     "./live": "./src/live.ts",
     "./errors": "./src/errors.ts",
+    "./route": "./src/route.ts",
     "./i18n": "./src/i18n.ts",
     "./manifest": "./src/manifest.ts",
     "./vite": "./src/vite.ts",

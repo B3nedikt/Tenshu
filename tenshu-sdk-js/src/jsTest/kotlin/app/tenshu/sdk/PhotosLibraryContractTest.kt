@@ -244,6 +244,35 @@ class PhotosLibraryContractTest : SdkRuntimeTest() {
         assertEquals(times.sortedDescending(), times, "ordered by the chain, newest first")
     }
 
+    // L5 (web-apps-layout.md): the Videos collection is the same walk with one more filter — same
+    // order, same cursor — and its times must map its pages index for index.
+    @Test
+    fun videosKind_holdsOnlyVideos_inFeedOrder_andItsTimesMatchItsPages() = runTest {
+        val dir = folder()
+        val t = window()
+        seed(dir, "a.jpg", t + 4)
+        val clip = seed(dir, "b.mp4", t + 3)
+        seed(dir, "c.jpg", t + 2)
+        val older = seed(dir, "d.mov", t + 1)
+        val page = ok(Photos.feedPage(top(t + 4), 10, "videos"), "videos page")
+        val inWindow = page.photos.unsafeCast<Array<dynamic>>().filter { (it.capturedAtMs as Double) >= t }
+        assertEquals(listOf(clip, older), inWindow.map { it.path as String }, "only the videos, newest first")
+        assertTrue(inWindow.all { it.isVideo as Boolean }, "every row is a video")
+
+        val times = ok(Photos.captureTimes("videos"), "videos captureTimes").times.unsafeCast<Array<Double>>().toList()
+        assertEquals(listOf((t + 3).toDouble(), (t + 1).toDouble()), times.filter { it >= t && it <= t + 4 })
+
+        // The default is still the whole library (photos AND videos).
+        val all = ok(Photos.feedPage(top(t + 4), 10), "library page").photos.unsafeCast<Array<dynamic>>()
+        assertEquals(4, all.count { (it.capturedAtMs as Double) >= t })
+    }
+
+    @Test
+    fun anUnknownFeedKindIsATypedFailure_neverEverything() = runTest {
+        assertEquals("error_photos_bad_kind", failureKind(Photos.feedPage(null, 10, "images"), "bad kind"))
+        assertEquals("error_photos_bad_kind", failureKind(Photos.captureTimes("images"), "bad kind times"))
+    }
+
     @Test
     fun aMalformedCursorOrPageSizeIsATypedFailure() = runTest {
         assertEquals("error_photos_bad_cursor", failureKind(Photos.feedPage("nonsense", 10), "bad cursor"))

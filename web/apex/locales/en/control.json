@@ -4,12 +4,14 @@
     "thisDeviceLabel": "This device",
     "synced": "Synced",
     "sections": {
-      "home": "Home",
+      "notifications": "Notifications",
       "apps": "Apps",
       "data": "Data",
       "services": "Services",
       "settings": "Settings"
-    }
+    },
+    "backToOverview": "Tenshu",
+    "backToOverviewTitle": "Back to all your apps"
   },
   "appLauncher": {
     "triggerAriaLabel": "Apps",
@@ -18,7 +20,7 @@
     "entries": {
       "tenshu": {
         "label": "Tenshu",
-        "description": "Devices, permissions, recovery, settings."
+        "description": "All your apps at a glance."
       },
       "drive": {
         "label": "Drive",
@@ -29,8 +31,152 @@
         "description": "The people you know, end-to-end encrypted."
       }
     },
-    "installAnother": "+ Install another app",
-    "installAnotherTitle": "Coming with the Tenshu Store"
+    "control": "Control — devices, data, storage",
+    "yourApps": "Your apps…"
+  },
+  "overview": {
+    "title": "Tenshu",
+    "needsActionAriaLabel": "Needs action",
+    "appsHeading": "Your apps",
+    "addApp": "Add app",
+    "shownAppsUnavailable": "Couldn't load your app choices, so every app is shown.",
+    "customize": "Customize"
+  },
+  "yourApps": {
+    "title": "Your apps",
+    "intro": "Pick what shows on your overview and in the app switcher.",
+    "shownHeading": "On your overview",
+    "moreHeading": "More apps",
+    "alwaysOn": "Always on",
+    "remove": "Remove",
+    "add": "Add",
+    "removeAriaLabel": "Remove {app} from your overview",
+    "addAriaLabel": "Add {app} to your overview",
+    "writeFailed": "Couldn't save that change. Try again.",
+    "unavailable": "Your app choices can't be loaded right now, so they can't be changed.",
+    "dataStays": "Removing an app only hides it here. Its data stays in your realm and on your other devices.",
+    "driveDetail": "Your files. Other apps keep their files here.",
+    "usesDrive": "Uses Drive",
+    "usedOnOne": "You use it on {device}",
+    "usedOnTwo": "You use it on {first} and {second}",
+    "usedOnMany": "You use it on {first} and {count} other devices",
+    "done": "Done"
+  },
+  "customize": {
+    "done": "Done",
+    "hint": "Drag to reorder · − hides an app, its data stays",
+    "unavailable": "Your app choices can't be loaded right now, so the layout can't be changed.",
+    "writeFailed": "Couldn't save that change. Try again.",
+    "hidden": "{app} hidden from your overview",
+    "hiddenToast": "{app} hidden. Its data stays in your realm.",
+    "restored": "{app} is back on your overview",
+    "moved": "{app} moved to position {position} of {count}",
+    "hideAriaLabel": "Hide {app}",
+    "moveEarlierAriaLabel": "Move {app} earlier",
+    "moveLaterAriaLabel": "Move {app} later",
+    "undo": "Undo"
+  },
+  "glance": {
+    "open": "Open",
+    "failed": "Couldn't load this right now.",
+    "retry": "Try again",
+    "video": "Video",
+    "storageAriaLabel": "Storage used",
+    "storageUsed": "{used} of {limit}",
+    "subtitle": {
+      "recents": "Recents",
+      "library": "Library",
+      "upNext": "Up next",
+      "today": "Today"
+    },
+    "empty": {
+      "default": "Nothing here yet.",
+      "drive": "No files yet. Uploads show up here.",
+      "photos": "No photos yet.",
+      "calendar": "Nothing coming up this week.",
+      "timeline": "Nothing recorded today yet."
+    },
+    "unit": {
+      "steps": "steps"
+    },
+    "goalAriaLabel": "Progress towards your goal",
+    "lastWorkout": "Last workout · {title} · {when}",
+    "when": {
+      "today": "Today",
+      "tomorrow": "Tomorrow",
+      "yesterday": "Yesterday"
+    },
+    "untitled": "Untitled",
+    "movement": {
+      "walk": "Walk",
+      "run": "Run",
+      "cycle": "Cycle",
+      "drive": "Drive",
+      "transit": "Transit",
+      "flight": "Flight",
+      "unknown": "Movement"
+    },
+    "activity": {
+      "running": "Running",
+      "walking": "Walking",
+      "cycling": "Cycling",
+      "strength": "Strength",
+      "other": "Workout"
+    },
+    "placeRole": {
+      "home": "Home",
+      "work": "Work"
+    },
+    "moment": {
+      "place": "A place",
+      "other": "Moment"
+    }
+  },
+  "bell": {
+    "ariaLabel": "Notifications",
+    "ariaLabelWithCount": "{count, plural, one {Notifications, # needs action} other {Notifications, # need action}}",
+    "title": "Notifications",
+    "needsAction": "Needs action",
+    "recent": "Recent",
+    "failed": "Couldn't load notifications.",
+    "empty": "Nothing new.",
+    "all": "All notifications",
+    "event": {
+      "file_added": "Added {name}",
+      "folder_added": "Added folder {name}",
+      "files_added": "Added {name} and {count, plural, one {# more} other {# more}}",
+      "file_deleted": "Deleted {name}",
+      "folder_deleted": "Deleted folder {name}",
+      "change_lost": "{name} was deleted on another device while your change was waiting",
+      "app_registered": "{name} connected",
+      "app_removed": "{name} removed",
+      "other": "Something changed"
+    }
+  },
+  "sync": {
+    "ariaLabel": "Sync: {state}",
+    "title": "Sync",
+    "lastSynced": "Last synced",
+    "never": "Not yet",
+    "pending": "Waiting to sync",
+    "devices": "Devices",
+    "now": "Sync now",
+    "requested": "Sync requested.",
+    "requestFailed": "Couldn't start a sync.",
+    "pause": "Pause",
+    "resume": "Resume",
+    "pausedNote": "Paused in this browser. Changes stay here until you resume — your other devices keep syncing.",
+    "state": {
+      "checking": "Checking",
+      "synced": "Synced",
+      "paused": "Paused",
+      "syncing": "Syncing",
+      "offline": "Offline",
+      "deferred": "Waiting",
+      "locked": "Locked",
+      "attention": "Needs attention",
+      "unknown": "Unknown"
+    }
   },
   "deviceMenu": {
     "signedInOnPrefix": "You're signed in on ",
@@ -54,7 +200,7 @@
     }
   },
   "home": {
-    "title": "Home",
+    "title": "Notifications",
     "subtitle": "What's happened in your realm since you last looked."
   },
   "notificationFeed": {
@@ -86,11 +232,12 @@
   "apps": {
     "list": {
       "title": "Apps",
-      "subtitle": "Apps installed in your realm. Open one to review its permissions, services, and per-app actions.",
+      "subtitle": "Every app you can open here, and the devices it's installed on. Open one to review its permissions, services, and per-app actions.",
       "empty": "No apps yet. Apps you install and connect to this realm will appear here.",
       "footer": "More apps will appear here as the platform grows. Tenshu itself is the management surface, not an app to permission against.",
       "version": "v{version}",
-      "installed": "Installed {date}",
+      "onDevices": "{count, plural, =1 {On 1 device} other {On {count} devices}}",
+      "onNoDevice": "Not on your devices yet",
       "permissionCount": "{count, plural, =1 {1 permission} other {{count} permissions}}"
     },
     "detail": {
@@ -98,7 +245,8 @@
       "meta": {
         "version": "Version",
         "installed": "Installed",
-        "launchPath": "Launch path"
+        "launchPath": "Launch path",
+        "notInstalled": "Not on your devices"
       },
       "permissions": {
         "title": "Permissions",
@@ -112,9 +260,16 @@
         "subtitleLink": "Services",
         "subtitleSuffix": "."
       },
+      "devices": {
+        "title": "Devices",
+        "loading": "Loading…",
+        "unavailable": "Can't tell which devices it's on right now.",
+        "none": "Not installed on any of your devices yet. You can still open it here.",
+        "unknownDevice": "Unknown device"
+      },
       "perAppActions": "Per-app actions",
       "revokeAll": "Revoke all permissions",
-      "uninstall": "Uninstall",
+      "uninstall": "Remove from all devices",
       "grant": {
         "granted": "Granted",
         "denied": "Denied",
@@ -122,13 +277,12 @@
         "setAriaLabel": "Set {permission} to {state}"
       },
       "uninstallConfirm": {
-        "title": "Uninstall {appName}?",
-        "ariaLabel": "Uninstall {appName}",
-        "thisDevice": "Remove from this device",
-        "allDevices": "Remove from all devices",
-        "note": "Deregisters the app and forgets its permissions. To fully remove it, uninstall it from your operating system.",
+        "title": "Remove {appName} from all your devices?",
+        "ariaLabel": "Remove {appName} from all your devices",
+        "note": "Deregisters it on every device and forgets its permissions there. It stays available here on the web. To fully remove it, uninstall it from each device's operating system.",
         "cancel": "Cancel",
-        "remove": "Remove"
+        "remove": "Remove",
+        "failed": "Couldn't remove {appName}. Try again."
       },
       "notFound": {
         "title": "Unknown app",
@@ -213,6 +367,8 @@
         "approve": "Approve",
         "approving": "Approving…",
         "approvalFailed": "Approval failed.",
+        "deviceRemoved": "That device was removed from your realm before, so it can't rejoin as the same device. To add it again, forget it on that device (\"Forget this device\" or \"Disconnect this browser\"), then pair again.",
+        "approverRevoked": "This device can no longer add devices. Remove it and pair it again from another device.",
         "cancel": "Cancel"
       },
       "paired": {

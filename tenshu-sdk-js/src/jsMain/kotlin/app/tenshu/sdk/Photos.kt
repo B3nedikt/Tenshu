@@ -61,7 +61,10 @@ import org.tenshu.core.resolve
 import org.tenshu.file.client.fileService
 import org.tenshu.photo.Album
 import org.tenshu.photo.AlbumEntry
+import org.tenshu.photo.PhotoEdit
 import org.tenshu.photo.PhotoFlags
+import org.tenshu.photo.clearPhotoEdit
+import org.tenshu.photo.renditionPath
 import org.tenshu.photo.PhotoService
 import org.tenshu.photo.TrashedPhoto
 import org.tenshu.photo.addToAlbum
@@ -145,8 +148,10 @@ object Photos {
      * ⚠ Not a snapshot: a page reflects the realm when it was read, so the pages together are not
      * one instant's feed.
      */
-    fun feedPage(cursor: String?, pageSize: Int): Promise<dynamic> = GlobalScope.promise {
+    fun feedPage(cursor: String?, pageSize: Int, kind: String? = null): Promise<dynamic> = GlobalScope.promise {
         JsRuntime.awaitReady()
+        val feed = FeedKind.parse(kind)
+            ?: return@promise photosFailure(PhotosWebErrorKeys.BAD_KIND, "kind '$kind'")
         val at = FeedCursor.decode(cursor)
             ?: return@promise photosFailure(PhotosWebErrorKeys.BAD_CURSOR, "cursor '$cursor'")
         if (pageSize !in 1..MAX_FEED_PAGE_SIZE) {
@@ -157,19 +162,20 @@ object Photos {
         // older is one bounded top-N walk below it.
         val rows = mutableListOf<Entity<File>>()
         if (at.afterPath != null) {
-            rows += feedRows { feedWindow(at.beforeMs, fromMs = at.beforeMs) }
+            rows += feedRows { feedWindow(at.beforeMs, fromMs = at.beforeMs, kind = feed) }
                 .valueOr { return@promise photosFailure(it) }
                 .filter { it.feedKey().afterCursor(at) }
                 .take(pageSize)
         }
         if (rows.size < pageSize) {
             val olderThan = if (at.afterPath != null) at.beforeMs - 1 else at.beforeMs
-            rows += feedRows { feedWindow(olderThan).take(pageSize - rows.size) }
+            rows += feedRows { feedWindow(olderThan, kind = feed).take(pageSize - rows.size) }
                 .valueOr { return@promise photosFailure(it) }
         }
         val next = nextFeedCursor(rows.map { it.feedKey() }, pageSize)
+        val edits = renditions().valueOr { return@promise photosFailure(it) }
         okResult {
-            it.photos = rows.mapNotNull { row -> row.photoOf() }.toTypedArray()
+            it.photos = rows.mapNotNull { row -> row.photoOf(edits) }.toTypedArray()
             it.nextCursor = next?.encode()
         }
     }
@@ -182,12 +188,16 @@ object Photos {
      * the library*. It is one number per photograph, read over the same window the pages use, so a
      * mark cannot point where the feed has no photographs.
      */
-    fun captureTimes(): Promise<dynamic> = GlobalScope.promise {
+    fun captureTimes(kind: String? = null): Promise<dynamic> = GlobalScope.promise {
         JsRuntime.awaitReady()
+        // ⚠ Must be the same `kind` as the pages it maps: index i of these times is index i of that
+        // feed, so a Videos grid over the library's times would put every header in the wrong place.
+        val feed = FeedKind.parse(kind)
+            ?: return@promise photosFailure(PhotosWebErrorKeys.BAD_KIND, "kind '$kind'")
         client().fileService.defaultFileSystem.root
             .files
             .traverse()
-            .feedWindow(Long.MAX_VALUE)
+            .feedWindow(Long.MAX_VALUE, kind = feed)
             .select { relations(File.CreatedAt) }
             .getAll()
             .fold(
@@ -336,7 +346,8 @@ object Photos {
         val albums = albumRows().valueOr { return@promise photosFailure(it) }
         val entries = entryRows().valueOr { return@promise photosFailure(it) }
         val ids = entries.filter { it.contentId == contentId }.map { it.albumId }.toSet()
-        okResult { it.albums = summariesOf(albums, entries).filter { a -> a.albumId in ids }.toTypedArray() }
+        val edits = renditions().valueOr { return@promise photosFailure(it) }
+        okResult { it.albums = summariesOf(albums, entries, edits).filter { a -> a.albumId in ids }.toTypedArray() }
     }
 
     /** `{ ok: true, albumId }`. */
@@ -500,7 +511,21 @@ object Photos {
             ?: return@promise photosFailure(PhotosWebErrorKeys.NOT_IN_TRASH, contentId)
         val deleted = deleteFile(record.trashPath)
         if (deleted is TResult.Failure<*> && !deleted.error.isNotFound()) return@promise photosFailure(deleted.error)
-        write { clearTrashedPhoto(contentId) }
+        val cleared = write { clearTrashedPhoto(contentId) }
+        dropEditIfLast(contentId)
+        cleared
+    }
+
+    /**
+     * ED-3 (`photos-editing.md` §12.6): a photo gone for good takes its edit and rendition with it —
+     * ⚠ unless another live file still holds the same content id (a copy shares it), whose edit it
+     * still is. Best effort: the delete already happened.
+     */
+    private suspend fun dropEditIfLast(contentId: String) {
+        val stillHeld = libraryByContentIds(listOf(contentId))
+        if (stillHeld !is Read.Ok || stillHeld.value.isNotEmpty()) return
+        val rendition = renditions().let { (it as? Read.Ok)?.value?.get(contentId) } ?: return
+        if (service().clearPhotoEdit(contentId) is TResult.Success<*>) deleteFile(rendition)
     }
 
     /** [deleteForever]'s file delete — a seam, so a test can make it fail the way a real store can. */
@@ -548,8 +573,12 @@ object Photos {
      * One file by path. A missing folder or file is [Lookup.Missing]; a row without a capture time
      * too. A file that is not an image or video is [Lookup.NotMedia], never a photograph.
      */
-    private suspend fun photoAt(path: String): Lookup =
-        client().fileService.defaultFileSystem.root
+    private suspend fun photoAt(path: String): Lookup {
+        val edits = when (val read = renditions()) {
+            is Read.Ok -> read.value
+            is Read.Failed -> return Lookup.Failed(read.error)
+        }
+        return client().fileService.defaultFileSystem.root
             .files
             .navigateTo(path.substringBeforeLast('/'))
             .search<File> { this.path equalTo path }
@@ -560,10 +589,25 @@ object Photos {
                     when {
                         entity == null -> Lookup.Missing
                         entity.get(File.Category) !in MEDIA_CATEGORIES -> Lookup.NotMedia
-                        else -> entity.photoOf()?.let { Lookup.Found(it) } ?: Lookup.Missing
+                        else -> entity.photoOf(edits)?.let { Lookup.Found(it) } ?: Lookup.Missing
                     }
                 },
                 onFailure = { error -> if (error.isNotFound()) Lookup.Missing else Lookup.Failed(error) },
+            )
+    }
+
+    /**
+     * Every `PhotoEdit`'s rendition, by the original's content id (ED-3, `photos-editing.md` §12.5).
+     * ⚠⚠ Fails closed: a read that cannot tell fails the caller's read, never maps rows without it —
+     * that would show every edited photo's original, un-redacted (§12.4).
+     */
+    private suspend fun renditions(): Read<Map<String, String>> =
+        service().photoEdits
+            .select { fields(PhotoEdit.Field.CONTENT_ID, PhotoEdit.Field.RENDITION_PATH) }
+            .getAll()
+            .fold(
+                onSuccess = { rows -> Read.Ok(rows.toList().associate { it.photoContentId.get() to it.renditionPath.get() }) },
+                onFailure = { Read.Failed(it) },
             )
 
     /**
@@ -602,6 +646,7 @@ object Photos {
      */
     private suspend fun libraryByContentIds(ids: List<String>): Read<List<PhotoJs>> {
         val wanted = ids.filter { it.isNotEmpty() }.distinct()
+        val edits = renditions().valueOr { return Read.Failed(it) }
         val all = mutableListOf<PhotoJs>()
         for (chunk in wanted.chunked(CONTENT_ID_CHUNK)) {
             val rows = client().fileService.defaultFileSystem.root
@@ -616,7 +661,7 @@ object Photos {
                 .getAll()
                 .fold(onSuccess = { Read.Ok(it.toList()) }, onFailure = { Read.Failed(it) })
                 .valueOr { return Read.Failed(it) }
-            all += rows.mapNotNull { it.photoOf() }
+            all += rows.mapNotNull { it.photoOf(edits) }
         }
         return Read.Ok(
             all.distinctBy { it.path }
@@ -717,7 +762,12 @@ object Photos {
             )
 
     /** The chosen cover, else the first entry by position — [Album.coverContentId]'s fallback. */
-    private fun summariesOf(albums: List<Entity<Album>>, entries: List<EntryRow>): List<PhotoAlbumJs> =
+    private fun summariesOf(
+        albums: List<Entity<Album>>,
+        entries: List<EntryRow>,
+        /** ED-3: an edited cover draws its rendition. */
+        edits: Map<String, String>,
+    ): List<PhotoAlbumJs> =
         albums.map { album ->
             val id = album.albumId.get()
             val mine = entries.filter { it.albumId == id }.sortedBy { it.position }
@@ -728,14 +778,15 @@ object Photos {
                 name = album.name.get(),
                 createdAtMs = album.albumCreatedAt.get().toDouble(),
                 photoCount = mine.size,
-                coverPath = cover?.filePath,
+                coverPath = cover?.let { edits[it.contentId] ?: it.filePath },
             )
         }.sortedByDescending { it.createdAtMs }
 
     private suspend fun albumsResult(): dynamic {
         val albums = albumRows().valueOr { return photosFailure(it) }
         val entries = entryRows().valueOr { return photosFailure(it) }
-        return okResult { it.albums = summariesOf(albums, entries).toTypedArray() }
+        val edits = renditions().valueOr { return photosFailure(it) }
+        return okResult { it.albums = summariesOf(albums, entries, edits).toTypedArray() }
     }
 
     private suspend fun favouritesResult(): dynamic {

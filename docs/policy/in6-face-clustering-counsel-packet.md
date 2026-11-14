@@ -123,6 +123,11 @@ us. ⚖️ **What we ask you:** is relying on that statement acceptable for an E
 anything we should do or record now (for example, keeping a dated copy of the announcement) that
 would strengthen our position if it were ever challenged?
 
+⚖️ **Same weights, a second format (2026-11-10).** On iOS we ship the same AuraFace recognition
+weights converted from ONNX to Apple's Core ML format at 16-bit precision. We treat it as a derivative
+under the same reliance, and the written confirmation we intend to ask fal for now covers format
+conversion as well as redistribution and quantisation (`docs/models.md` §5.4).
+
 ⚠ **HSFace (route 2) was the engineering stand-in before this decision, and it will not ship.** It is free and MIT on the code. We have also measured it working: on a real 400-photograph
 library it grouped 29 photographs of one person into a single correct group with no false members,
 and it separated a photograph of a cat that the detector had mistaken for a face. Swapping it for any

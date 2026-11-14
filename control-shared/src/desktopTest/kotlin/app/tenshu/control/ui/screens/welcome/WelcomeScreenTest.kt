@@ -89,32 +89,112 @@ class WelcomeScreenTest {
     }
 
     /**
-     * ⚠⚠ The forget outcome's only user-visible home. `ForgetThisDevice` never blocks the local wipe
-     * on a retirement it could not complete, so this string is the one thing that can tell the user
-     * a row was left behind — and its remedy is always *"from another device"*, which is precisely
-     * why it lands here: they have just been dropped on this screen with nothing else to look at.
+     * ⚠⚠ The forget outcome's only user-visible home — in plain words, never the op's own string.
+     *
+     * The outcome below is verbatim what a real phone's forget returned (2026-11-12): shown as-is it
+     * was a red "forgotten — ⚠ …; 177 queued item(s) dropped; local store dropped" banner on the one
+     * screen a user reaches expecting everything to be fine.
      *
      * ⚠ A modal was tried first and was invisible on macOS three fixes running; a banner on the
      * screen the flow already reaches needs no raising to be seen.
      */
     @Test
-    fun aWarningOutcome_isShownOnTheWelcomeScreen() {
-        val leftover = "forgotten — ⚠ this device is still listed in your realm — " +
-            "remove it from another device; 3 queued item(s) dropped; local store dropped"
+    fun aLeftoverRow_isShownInPlainWords_notAsTheOutcomeString() {
+        val outcome = "forgotten — ⚠ this device is still listed in your realm — " +
+            "remove it from another device; 177 queued item(s) dropped; local store dropped"
         composeTestRule.setContent {
             WelcomeScreen(
                 onExistingDevice = {},
                 onNewUser = {},
                 onRecover = {},
-                notice = leftover,
+                notices = forgetNoticesFor(outcome),
             )
         }
 
-        // Verbatim: the remedy lives inside the string the op built, so paraphrasing would drop the
-        // only actionable half.
-        composeTestRule.onNodeWithText(leftover).assertIsDisplayed()
+        composeTestRule
+            .onNodeWithText("This device may still appear in your device list.", substring = true)
+            .assertIsDisplayed()
+        // The remedy survives the rewording: where to go, and what to do there.
+        composeTestRule
+            .onNodeWithText("open Tenshu Control on another device and remove it", substring = true)
+            .assertIsDisplayed()
+        composeTestRule.onAllNodesWithText("queued item", substring = true).assertCountEquals(0)
+        composeTestRule.onAllNodesWithText("⚠", substring = true).assertCountEquals(0)
         // ⚠ And it does not replace the chooser — the user still has to be able to start over.
         composeTestRule.onNodeWithText("Start fresh on this device").assertIsDisplayed()
+    }
+
+    @Test
+    fun aForgetThatDidNotFinish_saysToTryAgain() {
+        composeTestRule.setContent {
+            WelcomeScreen(onExistingDevice = {}, onNewUser = {}, onRecover = {}, notices = listOf(ForgetNotice.NotFinished))
+        }
+
+        composeTestRule.onNodeWithText("didn't finish", substring = true).assertIsDisplayed()
+    }
+
+    /** Each outcome the op can produce, mapped. A clean one maps to nothing. */
+    @Test
+    fun forgetNoticesFor_mapsEveryOutcome() {
+        assertEquals(
+            emptyList(),
+            forgetNoticesFor("forgotten — removed from your realm; 3 queued item(s) dropped; local store dropped"),
+        )
+        assertEquals(emptyList(), forgetNoticesFor("forgotten — no realm to leave; queues not reachable; local store dropped"))
+        assertEquals(
+            listOf(ForgetNotice.MayStillBeListed),
+            forgetNoticesFor(
+                "forgotten — ⚠ could not confirm this device left your realm — check your devices from " +
+                    "another one; 0 queued item(s) dropped; local store dropped",
+            ),
+        )
+        assertEquals(
+            listOf(ForgetNotice.NotFinished),
+            forgetNoticesFor(
+                "⚠ not finished — ⚠ this device is still listed in your realm — remove it from another " +
+                    "device; 2 queued item(s) dropped; the local store's wipe did not finish, try again",
+            ),
+        )
+        assertEquals(
+            listOf(ForgetNotice.DataNotCleared),
+            forgetNoticesFor("forgotten — removed from your realm; queues not reachable; ⚠ local store NOT dropped"),
+        )
+        // ⚠⚠ A key that could not be saved is its own notice and does NOT stand in for the others:
+        // custody is already gone, so this outcome is the only report of the row and the store.
+        assertEquals(
+            listOf(ForgetNotice.KeyNotSaved),
+            forgetNoticesFor(
+                "forgotten — removed from your realm; 0 queued item(s) dropped; local store dropped; " +
+                    "⚠ new device key NOT saved — quit and reopen Tenshu Control before pairing",
+            ),
+        )
+        assertEquals(
+            listOf(ForgetNotice.KeyNotSaved, ForgetNotice.DataNotCleared, ForgetNotice.MayStillBeListed),
+            forgetNoticesFor(
+                "forgotten — ⚠ this device is still listed in your realm — remove it from another device; " +
+                    "0 queued item(s) dropped; ⚠ local store NOT dropped; " +
+                    "⚠ new device key NOT saved — quit and reopen Tenshu Control before pairing",
+            ),
+        )
+        // No outcome at all is unknown, never success.
+        assertEquals(listOf(ForgetNotice.MayStillBeListed), forgetNoticesFor(null))
+    }
+
+    /**
+     * ⚠⚠ Both problems at once, and both must be said. Custody is already gone here, so a second
+     * forget would never report the row again — showing only the store notice hides it for good.
+     */
+    @Test
+    fun aLeftoverRowAndAnUnclearedStore_areBothShown() {
+        val outcome = "forgotten — ⚠ this device is still listed in your realm — remove it from another " +
+            "device; 4 queued item(s) dropped; ⚠ local store NOT dropped"
+        assertEquals(listOf(ForgetNotice.DataNotCleared, ForgetNotice.MayStillBeListed), forgetNoticesFor(outcome))
+
+        composeTestRule.setContent {
+            WelcomeScreen(onExistingDevice = {}, onNewUser = {}, onRecover = {}, notices = forgetNoticesFor(outcome))
+        }
+        composeTestRule.onNodeWithText("couldn't be removed from this device", substring = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("may still appear in your device list", substring = true).assertIsDisplayed()
     }
 
     /**
@@ -125,7 +205,7 @@ class WelcomeScreenTest {
     @Test
     fun noNotice_leavesTheChooserUnadorned() {
         composeTestRule.setContent {
-            WelcomeScreen(onExistingDevice = {}, onNewUser = {}, onRecover = {}, notice = null)
+            WelcomeScreen(onExistingDevice = {}, onNewUser = {}, onRecover = {}, notices = emptyList())
         }
 
         composeTestRule.onNodeWithText("Welcome to Tenshu").assertIsDisplayed()

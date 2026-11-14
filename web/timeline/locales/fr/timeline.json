@@ -1,8 +1,4 @@
 {
-  "app": {
-    "title": "Timeline",
-    "tagline": "Là où vous êtes allé, chiffré de bout en bout."
-  },
   "runtime": {
     "connectingTitle": "Connexion à Tenshu en cours…",
     "connectingBody": "L’onglet Tenshu qui héberge Timeline est occupé. Timeline se chargera dès qu’il répondra.",
@@ -19,6 +15,7 @@
     "reload": "Recharger"
   },
   "nav": {
+    "label": "Sections de Timeline",
     "timeline": "Chronologie",
     "places": "Lieux"
   },

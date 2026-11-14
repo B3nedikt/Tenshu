@@ -162,6 +162,11 @@ object DriveReadSurface {
         val presenter: TenshuPagingPresenter<FileUiModel>,
         /** The folder this surface lists — the parent path single-file uploads land in. */
         val folderPath: String,
+        /**
+         * The selection model [viewModel] was built over. Exposed so whoever owns this surface can
+         * cancel it too: it launches in its own `init`, and [viewModel] does not clear it.
+         */
+        internal val selection: SelectionViewModel,
     )
 
     /** App entry point for the realm root: collect on the main dispatcher (live on iOS). */
@@ -202,7 +207,7 @@ object DriveReadSurface {
         val addFileActions = AddFileActionsViewModel(repository, FolderUploadController(repository))
         val presenter = TenshuPagingPresenter<FileUiModel>(scope, presenterContext)
         presenter.collect(viewModel.pagedFiles)
-        return Bound(viewModel, addFileActions, presenter, folderPath)
+        return Bound(viewModel, addFileActions, presenter, folderPath, selection)
     }
 
     /** Entries in [FakeFilesRepository.DEFAULT_LISTING] — asserted by the smoke. */

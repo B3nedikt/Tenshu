@@ -1,7 +1,6 @@
 {
   "app": {
-    "title": "Contacts",
-    "tagline": "Les personnes que vous connaissez, chiffrées de bout en bout."
+    "sections": "Sections des Contacts"
   },
   "nav": {
     "contacts": "Contacts",
@@ -49,6 +48,7 @@
     "notConnectedDetail": "Vous avez ajouté cette personne vous-même : il n’y a donc aucune clé à vérifier."
   },
   "detail": {
+    "pane": "Contact",
     "back": "Tous les contacts",
     "rename": "Renommer",
     "editInfo": "Modifier les infos",

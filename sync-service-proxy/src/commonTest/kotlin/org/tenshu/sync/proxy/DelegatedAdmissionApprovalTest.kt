@@ -312,7 +312,7 @@ class DelegatedAdmissionApprovalTest {
         )
 
         // Delegated admission IS device-vouched — the row records the admitter
-        // (§5 lineage, what the P5 subtree revoke walks).
+        // (§5 lineage, what the removal dialog walks — §7j.4).
         val saved = testProxy.database.getData(
             DataId.StringDataId.create(testProxy.tContext, Device.ID, joinerDeviceId),
         ) as Device

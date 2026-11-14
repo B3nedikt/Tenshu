@@ -215,7 +215,7 @@ class NameFaceGroupOperationTest {
         service(proxy).nameFaceGroup(listOf("/photos/a.jpg"), "  Anna  ")
 
         // ⚠ `labelKey` includes the label, so an untrimmed name is a DIFFERENT person forever —
-        // and `groupPhotosByLabel` would render both.
+        // and People would list both.
         assertTrue(proxy.storedLabel("/photos/a.jpg", "Anna") != null)
         assertNull(proxy.storedLabel("/photos/a.jpg", "  Anna  "))
     }

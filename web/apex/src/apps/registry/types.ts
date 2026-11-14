@@ -32,9 +32,94 @@ export interface HostedApp {
   // navigation, so it ends in `/*`), and older paths that redirect to `manifest.launchPath`.
   readonly routePath: string
   readonly redirects?: readonly string[]
+  // ⚠⚠ The app's sections — the ONLY in-app paths the apex will show in its URL (web-apps-layout.md
+  // §3.4): `''` is the app's home (`/drive`), `files` is `/drive/files`. A path the app reports
+  // that is not listed here is dropped, so user data (a folder name) can never reach the apex
+  // URL's path, which the host logs. Keep it in step with the app's section ids.
+  readonly sections: readonly string[]
   // The Apps section's display data (IA §4). ⚠ DISPLAY data — what the app can actually call is
   // `methods`. `manifest.launchPath` is where the launcher and the Apps list open it.
   readonly manifest: AppManifest
+  // The app's preview card on the overview (docs/proposals/web-apex-home.md §3.6). Optional: an app
+  // without one shows as an icon only.
+  readonly glance?: AppGlance
+}
+
+// ── Glances (web-apex-home.md §3.6, decision C) ─────────────────────────────────────────────────
+//
+// ⚠⚠ The apex DRAWS every card from a few fixed layouts; an app contributes DATA only, never markup —
+// realm data is user-controlled, so a card's XSS surface stays React's normal escaping.
+// ⚠⚠ A loader reaches the runtime only through [GlanceCall], which refuses any method outside the
+// app's own `methods` — the SAME `isMethodPermitted` check the gateway applies to the app's origin.
+// So Photos' card can read nothing the Photos app cannot; a card is never a way around F5.
+
+/** A gateway call scoped to one app's allowlist. Rejects with `not permitted …` outside it. */
+export type GlanceCall = (method: string, params?: unknown) => Promise<unknown>
+
+export interface GlanceListRow {
+  readonly title: string
+  /** A short type tag drawn in the row's icon slot (`PDF`, `PNG`); '' for none. */
+  readonly badge: string
+  /** Epoch ms; the apex formats it. */
+  readonly timeMs: number
+  readonly sizeBytes: number | null
+}
+
+export interface GlanceAgendaRow {
+  /** User data (an event's title, a place's name); '' when [titleKey] words the row instead. */
+  readonly title: string
+  /**
+   * A `control` catalogue key under `glance.` the apex words the title with — for anything the app
+   * itself would localise (a movement mode, a home/work role, an activity type). ⚠ Never send an
+   * ingest-time English word as [title]: the apps never show those either. '' for none.
+   */
+  readonly titleKey: string
+  /** Local wall time `YYYY-MM-DDTHH:mm` (or `YYYY-MM-DD` when [allDay]); the apex says "Today 14:00". */
+  readonly startLocal: string
+  readonly allDay: boolean
+  /** A short second line (a place's city, a duration) — data, not copy; '' for none. */
+  readonly detail: string
+}
+
+export interface GlanceTile {
+  /** A path the card's own `call('fs.getPreview', …)` can draw — so only an app allowed that may use tiles. */
+  readonly path: string
+  readonly isVideo: boolean
+  readonly durationMs: number | null
+}
+
+export type GlanceData =
+  | {
+      readonly layout: 'list'
+      readonly rows: readonly GlanceListRow[]
+      /** A usage bar under the rows (Drive's storage); null for none. */
+      readonly usage: { readonly usedBytes: number; readonly limitBytes: number } | null
+    }
+  | { readonly layout: 'grid'; readonly tiles: readonly GlanceTile[] }
+  | { readonly layout: 'agenda'; readonly rows: readonly GlanceAgendaRow[] }
+  | {
+      readonly layout: 'stat'
+      /** The headline number; `null` when there is none yet (draws the empty state). */
+      readonly value: number | null
+      /** `control` catalogue key under `glance.unit.` (`steps`). */
+      readonly unit: string
+      /** 0..1 towards a goal, or null for no bar. */
+      readonly progress: number | null
+      /** One line under the number (Fit: the last workout). */
+      readonly footnote: GlanceAgendaRow | null
+    }
+
+export interface AppGlance {
+  /** `wide` spans half the grid on large screens, `narrow` a third. */
+  readonly size: 'wide' | 'narrow'
+  /** The header's second line, as a `control` catalogue key under `glance.subtitle.` (`recents`). */
+  readonly subtitle: string
+  /**
+   * The card's data. ⚠ An EMPTY result (`rows: []`, `tiles: []`) is a real answer and draws the empty
+   * state; a THROW is a failure and draws the error state with a retry — never fold a failure into
+   * an empty result (web-apex-home.md §3.6).
+   */
+  load(call: GlanceCall): Promise<GlanceData>
 }
 
 /**
@@ -56,7 +141,3 @@ export const SESSION_METHODS: ProxyMethodAllowlist = [
   'runtime.useHere',
 ]
 
-// V1 fixed install timestamp — placeholder until the realm schema surfaces a real "added to
-// realm" field. Picked recently enough that the formatted date isn't jarring; the value isn't
-// load-bearing.
-export const V1_INSTALL_AT_MS = Date.UTC(2026, 3, 15, 9, 0, 0)

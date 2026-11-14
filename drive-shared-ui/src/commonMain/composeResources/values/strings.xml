@@ -401,6 +401,10 @@
     <string name="synced_folders_status_up_to_date">Up to date</string>
     <string name="synced_folders_status_backing_up">Backing up %1$d of %2$d…</string>
     <string name="synced_folders_status_finished">Backed up %1$d files</string>
+    <!-- A clean run that skipped files because the realm already held their content (photos-app.md
+         §16). Without the count, "every file was already backed up" read as "Backed up 0 files". -->
+    <string name="synced_folders_status_finished_all_held">Nothing new to back up · %1$d already in your Drive</string>
+    <string name="synced_folders_status_finished_some_held">Backed up %1$d files · %2$d already in your Drive</string>
     <!-- A drain that ended with failures. The count alone was all this screen ever showed, and it
          made "every upload was rejected" look identical to "there was nothing to do". -->
     <string name="synced_folders_status_finished_with_failures">Backed up %1$d files · %2$d couldn't be uploaded</string>

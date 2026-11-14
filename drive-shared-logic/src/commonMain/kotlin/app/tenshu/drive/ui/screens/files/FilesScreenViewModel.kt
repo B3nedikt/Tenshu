@@ -119,6 +119,9 @@ class FilesScreenViewModel(
         val folderUploadActive: Boolean,
     )
 
+    /** Whether Control is pulling — the "Syncing…" capsule's input (`suite-sync-status.md` SS-2). */
+    val catchingUp: Flow<Boolean> = filesRepository.catchingUp()
+
     val syncBanner: StateFlow<SyncBannerState?> =
         combine(
             // ⚠ Every source here must be one that always emits. `combine` withholds its first

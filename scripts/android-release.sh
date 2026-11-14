@@ -49,6 +49,8 @@
 #      nothing in this repository changes when one appears;
 #   3. a class native code reaches by name that R8 removed — the app aborts the first time that
 #      feature runs (scripts/lib/check_jni_classes.py);
+#      or a method that counts stack frames that R8 inlined — the library finds the wrong caller
+#      and fails at run time (scripts/lib/check_stack_frames.py);
 #   4. no native debug symbols in the bundle — no NDK on this machine, or a build that predates it;
 #   5. a client app (anything but Control) whose merged manifest holds INTERNET — a dependency
 #      merges it in silently (scripts/lib/check_client_no_internet.py).
@@ -99,6 +101,16 @@ init_key() {
 }
 
 VERSION_CODE=""; VERSION_NAME=""; APPS=""; TRACK=""; DIRECT=0; ALLOW_UNPINNED=0; INIT_KEY=0
+# ⚠ The instrumented-test switch adds control/release-test-rules.pro (keeps all of kotlin.**) to
+# Control's release R8 run. Shipping with it set is silent, so refuse it wherever Gradle would read it.
+if [[ -n "${ORG_GRADLE_PROJECT_tenshu_control_testBuildType:-}" ]] || \
+   env | grep -q '^ORG_GRADLE_PROJECT_tenshu\.control\.testBuildType=' || \
+   grep -qsE '^[[:space:]]*tenshu\.control\.testBuildType[[:space:]]*=' \
+     gradle.properties "${GRADLE_USER_HOME:-$HOME/.gradle}/gradle.properties"; then
+  echo "android-release: tenshu.control.testBuildType is set (env or gradle.properties) — it changes the" >&2
+  echo "  shipped R8 output. Remove it before releasing." >&2
+  exit 2
+fi
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --init-key) INIT_KEY=1; shift ;;
@@ -189,6 +201,7 @@ if [[ $DIRECT -eq 1 ]]; then
     if ! python3 -I scripts/lib/direct_release.py abi "$apk"; then failed=1; continue; fi
     if ! python3 -I scripts/lib/check_16kb_alignment.py "$apk"; then failed=1; continue; fi
     if ! python3 -I scripts/lib/check_jni_classes.py "$apk"; then failed=1; continue; fi
+    if ! python3 -I scripts/lib/check_stack_frames.py "$apk"; then failed=1; continue; fi
     if ! python3 -I scripts/lib/check_client_no_internet.py --variant release "$app"; then failed=1; continue; fi
     cp "$apk" "$STAGE/$app-$VERSION_CODE.apk"
     PAIRS+=("$app=$app-$VERSION_CODE.apk")
@@ -225,6 +238,7 @@ for app in $APPS; do
   fi
   if ! python3 -I scripts/lib/check_16kb_alignment.py "$aab"; then failed=1; continue; fi
   if ! python3 -I scripts/lib/check_jni_classes.py "$aab"; then failed=1; continue; fi
+  if ! python3 -I scripts/lib/check_stack_frames.py "$aab"; then failed=1; continue; fi
   # ⚠ A dependency can merge INTERNET into a client (ML Kit did, into Drive); only Control may hold it.
   if ! python3 -I scripts/lib/check_client_no_internet.py --variant release "$app"; then failed=1; continue; fi
   # ⚠ Not `grep -q`: it stops reading at the first match, unzip dies of SIGPIPE, and under

@@ -120,7 +120,7 @@ class SelectReadsEachRowOnceTest {
         val extraPerRow = (projected - walk).toDouble() / rows
         assertTrue(
             extraPerRow <= 1.0,
-            "nine stored properties cost ${"%.1f".format(extraPerRow)} extra store reads per row " +
+            "nine stored properties cost ${kotlin.math.round(extraPerRow * 10) / 10} extra store reads per row " +
                 "($projected vs a path-only $walk over $rows rows) — each row must be read once, " +
                 "not once per property",
         )

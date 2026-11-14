@@ -40,6 +40,36 @@ export function monthSections(times: readonly number[], keyOf: (ms: number) => n
   return times.length === 0 ? [] : sections
 }
 
+// ── densities (web-apps-layout.md §3.5: the Library's Days / Months / Years) ───────────────────
+
+/** How the Library groups and sizes the same feed: one section per day, month or year. */
+export type Density = 'days' | 'months' | 'years'
+export const DENSITIES: readonly Density[] = ['days', 'months', 'years']
+
+export function dayKeyOf(ms: number): number {
+  const d = new Date(ms)
+  return (d.getFullYear() * 12 + d.getMonth()) * 31 + d.getDate()
+}
+
+export function yearKeyOf(ms: number): number {
+  return new Date(ms).getFullYear()
+}
+
+/** The sections for [density] — local-time boundaries, like every other grouping here. */
+export function sectionsFor(times: readonly number[], density: Density): MonthSection[] {
+  return monthSections(times, density === 'days' ? dayKeyOf : density === 'years' ? yearKeyOf : monthKeyOf)
+}
+
+/** The tile size a density aims at: big for days, today's 160 px for months, a contact sheet for years. */
+export const TILE_TARGET: Readonly<Record<Density, number>> = { days: 220, months: 160, years: 72 }
+
+/** How a density's header names its section. */
+export const HEADER_FORMAT: Readonly<Record<Density, Intl.DateTimeFormatOptions>> = {
+  days: { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' },
+  months: { month: 'long', year: 'numeric' },
+  years: { year: 'numeric' },
+}
+
 export type GridRow =
   | { readonly kind: 'header'; readonly section: MonthSection; readonly top: number; readonly height: number }
   | { readonly kind: 'cells'; readonly start: number; readonly end: number; readonly top: number; readonly height: number }

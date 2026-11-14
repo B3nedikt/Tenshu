@@ -324,6 +324,35 @@ class ReplicaProtectionTest {
 
         /** On another thread with a deadline, so that an access that never gets in fails the test instead of hanging the run. */
         fun write(hash: Long) = OnAnotherThread { store.storeObject(row(hash)) }.await()
+
+        /**
+         * An access on another thread that holds the gate for [holdUs], returned only once it is
+         * INSIDE. ⚠⚠ Not "start it, then `usleep(100_000u)`": every caller goes on to release a
+         * token with a 100 ms drain and needs this access to be the thing the drain waits on. On a
+         * loaded 3-core CI runner the thread had not got in after 100 ms, the drain found nothing
+         * admitted, and the test failed on its next assertion. [holdUs] counts from entry.
+         */
+        fun holdAccess(holdUs: UInt): OnAnotherThread<*> {
+            val entered = NSCondition()
+            var inside = false
+            val holding = OnAnotherThread {
+                store.access("hold") {
+                    entered.lock()
+                    inside = true
+                    entered.broadcast()
+                    entered.unlock()
+                    usleep(holdUs)
+                }
+            }
+            entered.lock()
+            try {
+                val deadline = NSDate.dateWithTimeIntervalSinceNow(5.0)
+                while (!inside) if (!entered.waitUntilDate(deadline)) fail("the holder never got into its access")
+            } finally {
+                entered.unlock()
+            }
+            return holding
+        }
     }
 
     private fun quiescedAtEnd(reason: String) = AtEnd(reason, gateOpen = false, admitted = 0, runtimeConnected = false, handles = 1)
@@ -561,8 +590,7 @@ class ReplicaProtectionTest {
     fun theImplicitTokenOutlivesAnAccessStillRunning() {
         val s = Setup(isForeground = false)
         s.write(1)
-        val holding = OnAnotherThread { s.store.access("hold") { usleep(400_000u) } }
-        usleep(100_000u)
+        val holding = s.holdAccess(400_000u)
         repeat(3) { s.timer.advance(ReplicaProtection.IMPLICIT_IDLE_MS) }
         assertFalse(s.assertions.isEnded("implicit"), "an admission is held")
         holding.await()
@@ -658,8 +686,7 @@ class ReplicaProtectionTest {
         val s = Setup(isForeground = false)
         val first = assertNotNull(s.protection.acquire("wake"))
         s.write(1)
-        val holding = OnAnotherThread { s.store.access("hold") { usleep(500_000u) } }
-        usleep(100_000u)
+        val holding = s.holdAccess(500_000u)
         val releasing = OnAnotherThread { first.release() }
         usleep(100_000u)
         assertFalse(s.gate.isOpen, "the drain is waiting for the access")
@@ -725,8 +752,7 @@ class ReplicaProtectionTest {
         val runtime = s.runtime
         // The harness's snapshot takes the registry's lock, which the holder has: read without it.
         s.assertions.onEnd = { s.atEnd += AtEnd(it, s.gate.isOpen, s.gate.admittedCount, runtime.hasConnection, -1) }
-        val holding = OnAnotherThread { s.store.access("hold") { usleep(600_000u) } }
-        usleep(100_000u)
+        val holding = s.holdAccess(600_000u)
         token.release()
         assertEquals(listOf(ReplicaQuiesceOutcome.TIMED_OUT), s.protection.quiesceOutcomes)
         assertTrue(s.logged("[quiesce] TIMED OUT holder=hold"), "${s.logs}")
@@ -747,8 +773,7 @@ class ReplicaProtectionTest {
         val token = assertNotNull(s.protection.acquire("wake", drainMs = 100))
         s.write(1)
         s.assertions.onEnd = null
-        val holding = OnAnotherThread { s.store.access("hold") { usleep(400_000u) } }
-        usleep(100_000u)
+        val holding = s.holdAccess(400_000u)
         token.release()
         val again = assertNotNull(s.protection.acquire("upload"))
         holding.await()
@@ -827,8 +852,7 @@ class ReplicaProtectionTest {
         s.write(1)
         // The harness's snapshot takes the registry's lock, which the holder has: not here.
         s.assertions.onEnd = null
-        val holding = OnAnotherThread { s.store.access("hold") { usleep(3_000_000u) } }
-        usleep(100_000u)
+        val holding = s.holdAccess(3_000_000u)
         val releasing = OnAnotherThread { token.release() }
         usleep(200_000u)
         assertFalse(s.gate.isOpen, "the release is draining")
@@ -1055,8 +1079,7 @@ class ReplicaProtectionTest {
         val closing = NSCondition()
         var inClose = false
         var slowOnce = true
-        val holding = OnAnotherThread { s.store.access("hold") { usleep(400_000u) } }
-        usleep(100_000u)
+        val holding = s.holdAccess(400_000u)
         token.release()
         s.process.registry.closeFault = {
             if (slowOnce) {
@@ -1120,8 +1143,7 @@ class ReplicaProtectionTest {
         val token = assertNotNull(s.protection.acquire("wake", drainMs = 10_000))
         s.write(1)
         s.assertions.onEnd = null
-        val holding = OnAnotherThread { s.store.access("hold") { usleep(4_000_000u) } }
-        usleep(100_000u)
+        val holding = s.holdAccess(4_000_000u)
         var expiring: OnAnotherThread<Unit>? = null
         s.work.onAwait = {
             expiring = OnAnotherThread { s.assertions.expire("wake") }
@@ -1152,8 +1174,7 @@ class ReplicaProtectionTest {
         s.write(1)
         s.assertions.onEnd = null
         s.gate.shortenDrain(0)
-        val holding = OnAnotherThread { s.store.access("hold") { usleep(300_000u) } }
-        usleep(100_000u)
+        val holding = s.holdAccess(300_000u)
         token.release()
         holding.await()
         assertEquals(listOf(ReplicaQuiesceOutcome.QUIESCED), s.protection.quiesceOutcomes)
@@ -1199,8 +1220,7 @@ class ReplicaProtectionTest {
         val token = assertNotNull(s.protection.acquire("wake"))
         s.write(1)
         s.assertions.onEnd = null
-        val holding = OnAnotherThread { s.store.access("hold") { usleep(800_000u) } }
-        usleep(100_000u)
+        val holding = s.holdAccess(800_000u)
         var expiring: OnAnotherThread<Int>? = null
         s.protection.beforeReleaseShutdown = {
             s.protection.beforeReleaseShutdown = null
@@ -1337,8 +1357,7 @@ class ReplicaProtectionTest {
         s.write(1)
         s.assertions.onEnd = null
         val runtime = s.runtime
-        val holding = OnAnotherThread { s.store.access("hold") { usleep(400_000u) } }
-        usleep(100_000u)
+        val holding = s.holdAccess(400_000u)
         token.release()
         s.timer.holdDispatches = true
         holding.await()
@@ -1362,8 +1381,7 @@ class ReplicaProtectionTest {
         s.write(1)
         s.assertions.onEnd = null
         val runtime = s.runtime
-        val holding = OnAnotherThread { s.store.access("hold") { usleep(400_000u) } }
-        usleep(100_000u)
+        val holding = s.holdAccess(400_000u)
         token.release()
         s.timer.holdDispatches = true
         holding.await()
@@ -1472,8 +1490,7 @@ class ReplicaProtectionTest {
         s.write(1)
         s.assertions.onEnd = null
         val runtime = s.runtime
-        val holding = OnAnotherThread { s.store.access("hold") { usleep(400_000u) } }
-        usleep(100_000u)
+        val holding = s.holdAccess(400_000u)
         token.release()
         s.timer.holdDispatches = true
         holding.await()
@@ -1494,8 +1511,7 @@ class ReplicaProtectionTest {
         val token = assertNotNull(s.protection.acquire("wake", drainMs = 100))
         s.write(1)
         s.assertions.onEnd = null
-        val holding = OnAnotherThread { s.store.access("hold") { usleep(400_000u) } }
-        usleep(100_000u)
+        val holding = s.holdAccess(400_000u)
         token.release()
         s.timer.holdDispatches = true
         holding.await()
@@ -1594,8 +1610,7 @@ class ReplicaProtectionTest {
         val token = assertNotNull(s.protection.acquire("wake", drainMs = 100))
         s.write(1)
         s.assertions.onEnd = null
-        val holding = OnAnotherThread { s.store.access("hold") { usleep(400_000u) } }
-        usleep(100_000u)
+        val holding = s.holdAccess(400_000u)
         token.release()
         s.timer.holdDispatches = true
         holding.await()
@@ -1622,8 +1637,7 @@ class ReplicaProtectionTest {
         s.write(1)
         s.assertions.onEnd = null
         val runtime = s.runtime
-        val holding = OnAnotherThread { s.store.access("hold") { usleep(400_000u) } }
-        usleep(100_000u)
+        val holding = s.holdAccess(400_000u)
         token.release()
         s.timer.holdDispatches = true
         holding.await()
@@ -1786,8 +1800,7 @@ class ReplicaProtectionTest {
         s.write(1)
         s.assertions.onEnd = null
         val runtime = s.runtime
-        val holding = OnAnotherThread { s.store.access("hold") { usleep(400_000u) } }
-        usleep(100_000u)
+        val holding = s.holdAccess(400_000u)
         token.release()
         s.timer.holdDispatches = true
         holding.await()

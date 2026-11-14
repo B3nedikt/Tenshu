@@ -51,7 +51,7 @@ internal class StartMediaIndexPassImplementation(
         // for Y satisfies "some backend" and "some consent" while having nothing it may actually do:
         // the pass then starts, refuses every file, and reports success. Unreachable while only one
         // capability is offered, and live the day a second one is.
-        val runnable = INDEXING_CAPABILITIES.filter { registry.isAvailable(it) }
+        val runnable = MEDIA_INDEX_CAPABILITIES.filter { registry.isAvailable(it) }
         if (runnable.isEmpty()) {
             refuse(
                 executionContext,
@@ -98,22 +98,6 @@ internal class StartMediaIndexPassImplementation(
             message = message,
         ),
     )
-
-    private companion object {
-        /**
-         * ⚠ Any half is reason enough to run: labels, vectors and faces are separately switched and
-         * separately backed (§32), so a device that can only do one still has work to do.
-         *
-         * ⚠⚠ `FACE_CLUSTERING` is the pass's third half and must be here: without
-         * it a device holding only the People model, faces switched on, is told "no model" by
-         * Index now — or "no consent" if SigLIP was installed with search off.
-         */
-        val INDEXING_CAPABILITIES = listOf(
-            InferenceCapability.SEMANTIC_IMAGE_SEARCH,
-            InferenceCapability.CONTENT_TAGGING,
-            InferenceCapability.FACE_CLUSTERING,
-        )
-    }
 }
 
 /**
@@ -125,3 +109,18 @@ internal class StartMediaIndexPassImplementation(
 fun interface ManualIndexLauncher {
     fun launch()
 }
+
+/**
+ * The halves an index pass does (§32): any one is reason enough to run. ⚠ Labels, vectors and faces
+ * are separately switched and separately backed, so a device that can only do one still has work to
+ * do. What *Index now* asks and what iOS's processing wake asks (`ios-on-device-inference.md` PR-6).
+ *
+ * ⚠⚠ `FACE_CLUSTERING` is the pass's third half and must be here: without it a device holding only
+ * the People model, faces switched on, is told "no model" by Index now — or "no consent" if SigLIP
+ * was installed with search off.
+ */
+val MEDIA_INDEX_CAPABILITIES: List<InferenceCapability> = listOf(
+    InferenceCapability.SEMANTIC_IMAGE_SEARCH,
+    InferenceCapability.CONTENT_TAGGING,
+    InferenceCapability.FACE_CLUSTERING,
+)

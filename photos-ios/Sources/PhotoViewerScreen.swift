@@ -270,6 +270,12 @@ struct PhotoViewerScreen: View {
     @State private var albumFor: PhotosPhoto?
     /// A write the user asked for did not happen — said, never swallowed (`TrashViewModel`'s lesson).
     @State private var refusal: String?
+    /// The photograph the editor is open on (ED-1), and the copy it saved — opened in a viewer of
+    /// its own, so this viewer (and its list) is still here on Back.
+    @State private var editing: PhotosPhoto?
+    @State private var editedCopy: PhotosPhoto?
+    /// *Revert to Original* asked (ED-3) — confirmed before anything is forgotten.
+    @State private var confirmingRevert = false
 
     /// The viewer over the live feed — the Library's.
     init(binding: PhotosFeedBinding, path: String, fallback: Int32) {
@@ -324,11 +330,48 @@ struct PhotoViewerScreen: View {
                     }
                 }
             }
+            .fullScreenCover(isPresented: Binding(get: { editing != nil }, set: { if !$0 { editing = nil } })) {
+                if let photo = editing {
+                    PhotoEditorScreen(
+                        photo: photo,
+                        onClose: { editing = nil },
+                        onSaved: { saved, savedAs in
+                            editing = nil
+                            // A copy is a new row; an edit re-maps the photo's own.
+                            model.source.refresh()
+                            if savedAs == .edit {
+                                // ED-3: the same photograph, now drawn by its edit — this viewer.
+                                model.viewModel?.onPhotoShown(photo: saved)
+                            } else {
+                                editedCopy = saved
+                            }
+                        }
+                    )
+                }
+            }
+            .navigationDestination(isPresented: Binding(get: { editedCopy != nil }, set: { if !$0 { editedCopy = nil } })) {
+                if let copy = editedCopy {
+                    PhotoViewerScreen(photos: [copy], path: copy.path) { model.source.refresh() }
+                }
+            }
             .alert(
                 refusal ?? "",
                 isPresented: Binding(get: { refusal != nil }, set: { if !$0 { refusal = nil } })
             ) {
                 Button("OK") {}
+            }
+            .alert("Revert to Original?", isPresented: $confirmingRevert) {
+                Button("Revert", role: .destructive) {
+                    model.viewModel?.revertEdit { reverted in
+                        if reverted != nil { model.source.refresh() } else {
+                            refusal = "This photo’s edit couldn’t be reverted."
+                        }
+                    }
+                }
+                .accessibilityIdentifier("viewerRevertConfirm")
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Your edits to this photo will be removed. This can’t be undone.")
             }
     }
 
@@ -416,22 +459,14 @@ struct PhotoViewerScreen: View {
                     Button { model.viewModel?.setInfoOpen(open: true) } label: {
                         Label("About", systemImage: "info.circle")
                     }
-                    // ⚠ Albums hold content ids — the same gate as the star.
-                    if canFavourite {
-                        Button {
-                            albumFor = model.state?.photo
-                            pickingAlbum = albumFor != nil
-                        } label: {
-                            Label("Add to Album", systemImage: "rectangle.stack.badge.plus")
+                    // ED-3: only on an edited photo, so the item always does something.
+                    if model.state?.photo.isEdited == true {
+                        Button { confirmingRevert = true } label: {
+                            Label("Revert to Original", systemImage: "arrow.uturn.backward")
                         }
+                        .accessibilityIdentifier("viewerRevertEdit")
                     }
-                    // ⚠ Behind the same gate: the trash op refuses a file with no content id, so offering it
-                    // could only ever end in the refusal alert.
-                    if canFavourite {
-                        Button(role: .destructive, action: trash) {
-                            Label("Move to Trash", systemImage: "trash")
-                        }
-                    }
+                    // ⚠ Add to Album and Move to Trash live in the bottom bar (ED-D7).
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
@@ -442,6 +477,27 @@ struct PhotoViewerScreen: View {
                 .accessibilityLabel("More")
             }
         }
+        .toolbar {
+            // ED-D7: Edit · Add to · Bin, Google's bar (`photos-editing.md` §1.1). ⚠⚠ No Share slot until
+            // Share exists — a button that does nothing is worse than none.
+            ToolbarItemGroup(placement: .bottomBar) {
+                let canFile = model.state?.canFavourite ?? false
+                let photo = model.state?.photo
+                Button { editing = photo } label: { Label("Edit", systemImage: "slider.horizontal.3") }
+                    .disabled(photo == nil || photo?.isVideo == true || model.writing)
+                Spacer()
+                // ⚠ Albums and the trash hold content ids — disabled, not hidden, without one.
+                Button {
+                    albumFor = model.state?.photo
+                    pickingAlbum = albumFor != nil
+                } label: { Label("Add to", systemImage: "rectangle.stack.badge.plus") }
+                    .disabled(!canFile || model.writing)
+                Spacer()
+                Button(role: .destructive, action: trash) { Label("Bin", systemImage: "trash") }
+                    .disabled(!canFile || model.writing)
+            }
+        }
+        .toolbar((model.state?.chromeVisible ?? true) ? .visible : .hidden, for: .bottomBar)
         // ⚠⚠ ONE flag for our chrome AND the status bar (§3.1b): hiding one without the other leaves
         // the layout describing bars that are not there.
         .toolbar((model.state?.chromeVisible ?? true) ? .visible : .hidden, for: .navigationBar)
@@ -453,7 +509,10 @@ struct PhotoViewerScreen: View {
 
     @ViewBuilder
     private func page(at position: Int32, size: CGSize) -> some View {
-        if let photo = model.source.photoAt(position) {
+        if let listed = model.source.photoAt(position) {
+            // ⚠ ED-3: the view model's copy of the page on screen wins — it is what a save or a revert
+            // just updated, while the list may be a snapshot taken before.
+            let photo = model.state.flatMap { $0.photo.path == listed.path ? $0.photo : nil } ?? listed
             // A tap on the photograph toggles the chrome — ours and the OS bars, together; a drag down at
             // fit-scale past the line closes the viewer (`ZoomableImage`).
             HeroImageView(
@@ -501,7 +560,9 @@ struct HeroImageView: View {
             }
         }
         .accessibilityLabel(photo.isVideo ? "Video" : "Photo")
-        .task(id: photo.path) {
+        // ⚠ ED-3: `previewPath` — an edited photo is drawn by its rendition or not at all
+        // (`photos-editing.md` §12.4), and a save or revert re-keys the page.
+        .task(id: photo.previewPath) {
             // ⚠ A pager page is reused per POSITION; when a refresh moves another photograph onto it,
             // the previous occupant's image must not stay on screen. Keyed by path,
             // so the same photograph never flickers.
@@ -512,7 +573,7 @@ struct HeroImageView: View {
             let heightPx = Int32(viewport.height * scale)
             // ⚠ The request size is the shared `heroPreviewRequestPx` (§34), inside the surface.
             let stream = PhotosSurface.shared.heroPreview(
-                path: photo.path,
+                path: photo.previewPath,
                 viewportWidthPx: widthPx,
                 viewportHeightPx: heightPx,
                 pixelWidth: photo.pixelWidth?.int32Value ?? 0,

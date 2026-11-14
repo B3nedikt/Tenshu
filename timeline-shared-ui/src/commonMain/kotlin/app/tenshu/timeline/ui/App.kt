@@ -1,5 +1,13 @@
 package app.tenshu.timeline.ui
 
+import app.tenshu.ui.feedback.SyncActivityCapsule
+import app.tenshu.ui.feedback.rememberSyncActivity
+import org.tenshu.sync.client.anyCatchUpHeartbeat
+import app.tenshu.reachability.SuiteSyncProblem
+import app.tenshu.ui.feedback.SuiteSyncBanner
+import app.tenshu.ui.feedback.rememberSuiteSyncProblem
+import org.tenshu.sync.client.syncConnectivity
+import org.tenshu.sync.client.syncService
 import app.tenshu.timeline.shared.resources.timeline_update_action
 import app.tenshu.ui.legal.DataAttributions
 import app.tenshu.ui.legal.OpenSourceLicencesScreen
@@ -278,6 +286,16 @@ fun App(
     // inset below depends on it, and while this lived inside the host the storage banner drew under
     // the status bar (the defect this pass started from).
     val storageState = rememberRealmStorageState()
+    // ⚠⚠ One strip for the app (`suite-sync-status.md` SS-1): Control's state, this device's sync
+    // health and storage, in one order. Control's banner below keeps this app's own words.
+    val tenshuClient: TenshuClient = koinInject()
+    val connectivity = remember(tenshuClient) { tenshuClient.syncService.syncConnectivity() }
+    val syncProblem = rememberSuiteSyncProblem(unreachableReason, storageState, connectivity)
+    // SS-2 (`suite-sync-status.md`): "Syncing…" while Control pulls, through its heartbeat so a
+    // killed Control's stale flag never sticks.
+    val catchingUp = remember(tenshuClient) { tenshuClient.syncService.anyCatchUpHeartbeat() }
+    val syncActivity = rememberSyncActivity(catchingUp)
+    val controlReason = (syncProblem as? SuiteSyncProblem.Control)?.reason
 
     // ⚠⚠ **Installed, answering, and no realm** (ADR 0025 §Decision 8). Nothing is unreachable —
     // the proxy serves every read, empty — so without this the shell rendered its empty states
@@ -331,9 +349,8 @@ fun App(
                 // drew UNDER the clock and battery icons — the defect that prompted the redesign,
                 // and the reason a banner belongs in a `Scaffold` topBar slot wherever there is one.
                 .then(
-                    if (unreachableReason != null ||
-                        openFailure != null ||
-                        storageState !is RealmStorageState.Ok
+                    if (syncProblem != SuiteSyncProblem.None ||
+                        openFailure != null
                     ) {
                         Modifier.windowInsetsPadding(WindowInsets.statusBars)
                     } else {
@@ -344,7 +361,7 @@ fun App(
             // WARN: gated on the REASON, not `controlReachable == false`. A fenced device
             // answers every read - its state stays true - so the old condition could never
             // fire for the one case where the app is silently receiving nothing (SK-3).
-            if (unreachableReason != null) {
+            if (controlReason != null) {
                 // ⚠⚠ The app to name is frequently NOT Timeline: on Android and desktop one
                 // Control-owned proxy serves every app, so a version disagreement is usually
                 // Control's to fix and telling the user to update Timeline is a dead end.
@@ -352,9 +369,9 @@ fun App(
                 // in the store yet must NOT be told "install it the way you installed this app", because
                 // that way does not work yet (ADR 0025 §Decision 6).
                 val installRoute = rememberControlInstallRoute()
-                val action = rememberControlBannerAction(unreachableReason, installRoute)
+                val action = rememberControlBannerAction(controlReason, installRoute)
                 ErrorBanner(
-                    text = when (val r = unreachableReason) {
+                    text = when (val r = controlReason) {
                         is UnreachableReason.Skew -> when (r.update) {
                             UpdateTarget.CONTROL -> stringResource(Res.string.timeline_skew_update_control)
                             UpdateTarget.THIS_APP -> stringResource(Res.string.timeline_skew_update_this_app)
@@ -380,7 +397,7 @@ fun App(
                         }
                         UnreachableReason.Transport, null -> stringResource(Res.string.timeline_control_unreachable_text)
                     },
-                    icon = controlBannerIcon(unreachableReason),
+                    icon = controlBannerIcon(controlReason),
                     actionLabel = action?.let {
                         when (it.kind) {
                             ControlBannerAction.Kind.OPEN_CONTROL ->
@@ -394,18 +411,20 @@ fun App(
                     onAction = action?.onClick,
                 )
             }
-            // ⚠⚠ **Suppressed while Control is unreachable**, reversing the rule this comment used
-            // to state. "Control is gone" and "the realm cannot sync" are indeed different facts —
-            // but the second is not actionable while the first is true (its *Manage storage* button
-            // opens a Control that is not answering), and two stacked bars pushed the app's own
-            // header off the top of the screen. One problem, one bar, and the one that blocks the
-            // other goes first.
-            if (unreachableReason == null) RealmStorageBannerHost(storageState)
+            // One problem, one bar (two stacked pushed the header off screen): Control's banner is drawn
+            // just above in this app's words when it is the problem; any other problem is drawn here.
+            SuiteSyncBanner(
+                problem = syncProblem,
+                controlBanner = {},
+                storageBanner = { RealmStorageBannerHost(it) },
+            )
             // ⚠ Below the reachability banner, not instead of it: "Control is gone" and "that
             // particular row has no app" are different facts and a user can be told both.
             openFailure?.let { ErrorBanner(it) }
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 NavContent(backStack, tab, ::pop, ::push)
+                // Over the screens, never beside them; a problem strip, or a screen that is not a tab, hides it.
+                SyncActivityCapsule(activity = syncActivity, hidden = syncProblem != SuiteSyncProblem.None || current !is Destination.TopLevel)
             }
         }
     }

@@ -33,16 +33,11 @@ fun sharedRealmRelayFactory(
         baseUrl = baseUrl,
         httpClient = httpClient,
         context = context,
-        authTokenProvider = jwtTokenProvider(
-            ownerIdProvider = { sharedOwnerId },
-            deviceIdProvider = { syncManager.currentDeviceId },
-            signer = { msg ->
-                cryptoManager.signEd25519(
-                    privateKey = syncManager.getDeviceSigningKeyPair().privateKey,
-                    message = msg,
-                )
-            },
+        authTokenProvider = org.tenshu.sync.proxy.deviceJwtTokenProvider(
+            syncManager = syncManager,
+            cryptoManager = cryptoManager,
             nowEpochSec = nowEpochSec,
+            ownerIdProvider = { sharedOwnerId },
         ),
         ownerIdProvider = { sharedOwnerId },
     )

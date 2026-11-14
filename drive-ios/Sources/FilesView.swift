@@ -26,6 +26,8 @@ struct FilesView: View {
     @State private var showingDocPicker = false
     @State private var showingPhotoPicker = false
     @State private var photoItems: [PhotosPickerItem] = []
+    /// The upload conflict the alert last answered — see the conflict `.alert`.
+    @State private var answeredConflictId: Int64?
     @State private var showingSettings = false
     @State private var showingCreateFolder = false
     @State private var showingManageAccess = false
@@ -41,7 +43,14 @@ struct FilesView: View {
         _model = StateObject(wrappedValue: FilesModel(folderPath: folderPath))
     }
 
+    // ⚠ Four parts, not one modifier chain: as a single expression it is more than Xcode 26's type
+    // checker solves "in reasonable time", and the app does not compile there. The parts apply the
+    // modifiers in their original order.
     var body: some View {
+        withAlerts(withPickersAndSheets(withNavigation(listing)))
+    }
+
+    private var listing: some View {
         // The listing renders as either a row list or a thumbnail grid, driven by the
         // persisted `FileViewMode` (list/grid toggle in the toolbar's view-options menu).
         // Both share the ambiguous-empty overlay below.
@@ -87,6 +96,10 @@ struct FilesView: View {
                 }
             }
         }
+    }
+
+    private func withNavigation(_ content: some View) -> some View {
+        content
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(isRoot ? .large : .inline)
         // Default placement on purpose (§24.2): the navigation-bar drawer under the title (the
@@ -103,12 +116,20 @@ struct FilesView: View {
         .task { await model.observeSettled() }
         .task { await model.observeSort() }
         .task { await model.observeViewMode() }
-        .photosPicker(isPresented: $showingPhotoPicker, selection: $photoItems, maxSelectionCount: 1, matching: .images)
+    }
+
+    private func withPickersAndSheets(_ content: some View) -> some View {
+        content
+        .photosPicker(isPresented: $showingPhotoPicker, selection: $photoItems, maxSelectionCount: nil, matching: .images)
         .onChange(of: photoItems) { items in
             guard !items.isEmpty else { return }
             Task { await model.upload(photoItems: items); photoItems = [] }
         }
-        .fileImporter(isPresented: $showingDocPicker, allowedContentTypes: [.item]) { result in
+        .fileImporter(
+            isPresented: $showingDocPicker,
+            allowedContentTypes: [.item],
+            allowsMultipleSelection: true
+        ) { result in
             model.upload(documentResult: result)
         }
         .sheet(isPresented: $showingSettings) {
@@ -132,6 +153,10 @@ struct FilesView: View {
                 MovePickerView(sourcePath: path, onMoved: { Task { await model.refresh() } })
             }
         }
+    }
+
+    private func withAlerts(_ content: some View) -> some View {
+        content
         .alert(
             "Delete \u{201C}\(deleteTarget?.name ?? "")\u{201D}?",
             isPresented: Binding(get: { deleteTarget != nil }, set: { if !$0 { deleteTarget = nil } })
@@ -148,17 +173,32 @@ struct FilesView: View {
         }
         // An upload that hits an existing name, and one that fails outright. Both were silent on
         // iOS — nothing observed the add-file view model, so a picked file just never appeared.
+        //
+        // ⚠ Only the BUTTONS answer, each for the conflict it was presented with. The dismissal
+        // setter fires after every button too, so answering there as well consumed the NEXT
+        // queued conflict of a multi-pick. `answeredConflictId` hides the alert at once, before
+        // the view model's next state arrives, so an answered conflict is never re-presented.
         .alert(
             "File already exists",
             isPresented: Binding(
-                get: { model.uploads.uploadConflict != nil },
-                set: { if !$0 { model.cancelConflict() } }
-            )
-        ) {
-            Button("Keep both") { model.keepBoth() }
-            Button("Cancel", role: .cancel) { model.cancelConflict() }
-        } message: {
-            Text("A file named \u{201C}\(model.uploads.uploadConflict?.fileName ?? "")\u{201D} already exists. Keep both or cancel.")
+                get: {
+                    guard let c = model.uploads.uploadConflict else { return false }
+                    return c.id != answeredConflictId
+                },
+                set: { _ in }
+            ),
+            presenting: model.uploads.uploadConflict
+        ) { conflict in
+            Button("Keep both") {
+                answeredConflictId = conflict.id
+                model.keepBoth(conflict.id)
+            }
+            Button("Cancel", role: .cancel) {
+                answeredConflictId = conflict.id
+                model.cancelConflict(conflict.id)
+            }
+        } message: { conflict in
+            Text("A file named \u{201C}\(conflict.fileName)\u{201D} already exists. Keep both or cancel.")
         }
         .alert(
             "Upload failed",
@@ -690,8 +730,8 @@ final class FilesModel: ObservableObject {
         for await state in bound.addFileActions.uiState { uploads = state }
     }
 
-    func keepBoth() { bound.addFileActions.resolveConflictKeepBoth() }
-    func cancelConflict() { bound.addFileActions.cancelConflict() }
+    func keepBoth(_ conflictId: Int64) { bound.addFileActions.resolveConflictKeepBoth(conflictId: conflictId) }
+    func cancelConflict(_ conflictId: Int64) { bound.addFileActions.cancelConflict(conflictId: conflictId) }
     func dismissUploadError() { bound.addFileActions.dismissUploadError() }
 
     // Whether the initial refresh has landed (distinguishes "loading" from "empty").
@@ -745,13 +785,18 @@ final class FilesModel: ObservableObject {
 
     // MARK: Foreground upload (§9.4 / O3 Option A)
 
-    func upload(documentResult: Result<URL, Error>) {
-        guard case let .success(url) = documentResult else { return }
+    func upload(documentResult: Result<[URL], Error>) {
+        guard case let .success(urls) = documentResult else { return }
+        for url in urls { upload(document: url) }
+    }
+
+    private func upload(document url: URL) {
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         // Copy WHILE the security scope is live (P3a): the VM's upload runs async, after this
         // function returned and the scope was released — reading the original there fails for
-        // out-of-sandbox documents (invisible over the fakes, which never read bytes).
+        // out-of-sandbox documents (invisible over the fakes, which never read bytes). Each
+        // picked URL carries its own scope, so a multi-pick stages them one at a time.
         guard let tmp = try? stageForUpload(url) else {
             bound.addFileActions.reportUploadFailed()
             return

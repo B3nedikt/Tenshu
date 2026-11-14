@@ -41,4 +41,6 @@ object UnownedFaceTemplateStore : FaceTemplateStore {
     override suspend fun provenance(): ModelProvenance? = null
     override suspend fun size(): Int = 0
     override suspend fun clear() = Unit
+    override suspend fun rejections(): List<FaceRejection> = emptyList()
+    override suspend fun reject(rejections: List<FaceRejection>): Int = 0
 }

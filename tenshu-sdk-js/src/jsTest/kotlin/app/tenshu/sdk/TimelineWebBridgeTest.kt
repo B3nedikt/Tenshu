@@ -54,9 +54,14 @@ import org.tenshu.timeline.client.timelineService
  * `runTest`'s test dispatcher they never complete ("This job has not completed yet").
  *
  * ⚠ The jsTest suite shares one `JsRuntime`, so every test seeds its own uniquely-named rows and
- * looks only at those. ⚠ Coordinates are chosen so tests cannot disturb each other: every
- * "ordinary" place sits within ~50 km of (10°, 10°) on its own ~1 km cell (no cross-test
- * reconciliation, and never "away" from any home), and only the trip-suggestion test seeds far away.
+ * looks only at those. ⚠ Coordinates are chosen so tests rarely disturb each other: every
+ * "ordinary" place sits within ~50 km of (10°, 10°) on a random 0.001° (~110 m) cell — never
+ * "away" from any home — and only the trip-suggestion test seeds far away on purpose. ⚠ The fold
+ * test's pinned places at ~11°/11° are ~90–160 km from a `cell()` home, past the 100 km away radius:
+ * harmless only because its day spans under the 12 h a trip needs — keep it that way. ⚠⚠ Random is
+ * not disjoint: two draws share a cell about once in 160 000, and the reconciler then treats their
+ * Visits as one if they also share a 2-hour bucket. A test whose assertion needs two places to stay
+ * apart pins them, as the fold test does.
  *
  * They assert the keys `web/sdk/src/timeline.ts` publishes and the values the native
  * `TimelineProjectionRepository` would produce — not "returns something".
@@ -68,7 +73,7 @@ class TimelineWebBridgeTest : SdkRuntimeTest() {
 
     private fun stamp() = "${Date.now().toLong()}-${(0..99999).random()}"
 
-    /** A fresh ~1 km cell near (10°, 10°): far enough from every other test's for no fold. */
+    /** A random 0.001° (~110 m) cell near (10°, 10°) — usually, not always, apart from every other draw. */
     private fun cell(): Pair<Long, Long> =
         (100_000_000L + (0..400).random() * 10_000L) to (100_000_000L + (0..400).random() * 10_000L)
 
@@ -632,18 +637,29 @@ class TimelineWebBridgeTest : SdkRuntimeTest() {
     fun feed_isFolded_aSplitStayIsOneRow_aStationStopCollapses_andTheRideHasEnds() = GlobalScope.promise {
         JsRuntime.awaitReady()
         val s = stamp()
-        // A day of its own in 2020, so no other test's rows sit beside these (endpoints and merges
-        // read the immediate neighbours across the whole store).
-        val base = 1_577_836_800_000L + (0..1500).random() * 86_400_000L + 8 * 3_600_000L
+        // ⚠⚠ Fixed day, fixed places — nothing here is random. The fold reads the immediate
+        // neighbours across the WHOLE store, and `MomentReconciler` dedupes two Visits sharing a
+        // place cell and a 2-hour bucket, so the assertion holds only if (a) no other row shares
+        // this day and (b) no two of these places share a cell. A random day and `cell()` places
+        // made both a matter of luck: two copies on one day interleave and break the fold, and a
+        // station in Home's cell is reconciled away (08:00 and 09:40 share a bucket), leaving
+        // `mo-f2` an unbridged second ride — exactly `[fh, f1, f2, fw, fl1]`. ⚠ That is the only
+        // mechanism found that yields the shape seen in CI, not a proven cause: a cell collision
+        // is ~1 in 160 000 per run. If it recurs with these pinned places, look elsewhere.
+        val base = FOLD_DAY_08_00_UTC
         val min = 60_000L
+        val day = "2021-06-15"
+        val strangers = feed().days.unsafeCast<Array<dynamic>>().filter { it.date == day }
+            .flatMap { d -> d.moments.unsafeCast<Array<dynamic>>().map { it.momentId as String } }
+        assertEquals(emptyList(), strangers, "$day must hold only this test's rows — the fold reads its neighbours")
         val home = "pl-fh-$s"
         val station = "pl-fs-$s"
         val work = "pl-fw-$s"
         val library = "pl-fl-$s"
-        seedPlace(home, "Flat $s")
-        seedPlace(station, "Hauptbahnhof $s")
-        seedPlace(work, "Office $s")
-        seedPlace(library, "Library $s")
+        seedPlace(home, "Flat $s", at = FOLD_HOME)
+        seedPlace(station, "Hauptbahnhof $s", at = FOLD_STATION)
+        seedPlace(work, "Office $s", at = FOLD_WORK)
+        seedPlace(library, "Library $s", at = FOLD_LIBRARY)
         for ((id, km) in listOf("tr-f1-$s" to 20_000L, "tr-f2-$s" to 14_200L)) {
             assertOk(
                 client.timelineService.recordMovementTrace(
@@ -690,6 +706,17 @@ class TimelineWebBridgeTest : SdkRuntimeTest() {
             3, -128, -14, -43, -53, 3, -128, -117, -42, 109, -128, -96, -85, -2, -7, 98, 10,
             -84, 2, -40, 4, -112, 78, 4, -13, 3, -25, 7, -80, 109, 5,
         )
+
+        // The fold test's day and places. ⚠ Outside every other fixture's reach: no other test
+        // writes a timeline row in 2020–2024, and `cell()` draws only from 10.0°–10.4° (Maps: 20°,
+        // Mia: 0°). The four places are ≥ 5 km apart — far beyond the reconciler's 5 000 E7 cell and
+        // the projection's 200 m same-place radius (`SAME_PLACE_RADIUS_M`) — so none can fold into
+        // another.
+        const val FOLD_DAY_08_00_UTC = 1_623_744_000_000L // 2021-06-15T08:00Z
+        val FOLD_HOME = 110_000_000L to 110_000_000L
+        val FOLD_STATION = 110_000_000L to 110_500_000L
+        val FOLD_WORK = 110_000_000L to 111_000_000L
+        val FOLD_LIBRARY = 110_500_000L to 110_000_000L
 
         // One fix at (10.0, 10.0), t = 0, accuracy 0 — the codec's encoding of that single point.
         val SNAPPED_ONE_POINT = byteArrayOf(1, -128, -124, -81, 95, -128, -124, -81, 95, 0, 0)

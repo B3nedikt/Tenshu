@@ -68,6 +68,9 @@ kotlin {
         getByName("iosTest") {
             dependencies {
                 implementation(libs.kotlinx.coroutines.test)
+                // `OwnedViewModels`: every view model a test builds is joined before the test ends
+                // (`docs/testing.md` §11).
+                implementation(project(":viewmodel-test-utils"))
                 // Test-only: `TimelineRegionResolverWiringTest` lands a region in the *proxy's* own
                 // store (`MapRegionProxyComponents.store`) so the route-1 drain has real bytes to
                 // serve. Production reaches MapRegionService through the client surface.

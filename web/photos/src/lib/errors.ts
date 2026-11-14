@@ -20,6 +20,7 @@ export const KNOWN_ERROR_KINDS = [
   'error_unsupported_operation',
   'error_photos_bad_cursor',
   'error_photos_bad_page_size',
+  'error_photos_bad_kind',
   'error_photos_unknown_album',
   'error_photos_not_found',
   'error_photos_no_content_id',

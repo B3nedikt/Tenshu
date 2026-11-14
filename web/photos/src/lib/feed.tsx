@@ -8,7 +8,7 @@
 import { createContext, useCallback, useContext, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { CaptureTimesResult } from '@tenshu/sdk/photos'
-import { captureTimes, feedPage } from './proxy'
+import { captureTimes, feedPage, type FeedKind } from './proxy'
 import { queryKeys } from './queryKeys'
 import { FeedPager, type PagerState } from './feedPager'
 
@@ -21,15 +21,29 @@ export interface FeedState {
 
 const FeedContext = createContext<FeedState | null>(null)
 
-export function FeedProvider({ children }: { children: ReactNode }) {
+// [kind] 'videos' is the Videos collection (L5): its own pager and times, mounted inside the
+// library's provider while that section is open. Its refresh refreshes the library too — a video
+// trashed from Videos must leave the library's feed as well.
+export function FeedProvider({ children, kind = 'all' }: { children: ReactNode; kind?: FeedKind }) {
   const queryClient = useQueryClient()
-  const [pager, setPager] = useState(() => new FeedPager(feedPage))
+  const parent = useContext(FeedContext)
+  // The library's call stays exactly what it was; only Videos adds a kind.
+  const fetchPage = useCallback(
+    (cursor: string | null, size: number) => (kind === 'all' ? feedPage(cursor, size) : feedPage(cursor, size, kind)),
+    [kind],
+  )
+  const [pager, setPager] = useState(() => new FeedPager(fetchPage))
   const page = useSyncExternalStore(pager.subscribe, pager.getState)
-  const times = useQuery({ queryKey: queryKeys.captureTimes(), queryFn: captureTimes, staleTime: Infinity })
+  const times = useQuery({ queryKey: queryKeys.captureTimes(kind), queryFn: () => captureTimes(kind), staleTime: Infinity })
+  const parentRefresh = parent?.refresh
   const refresh = useCallback(() => {
-    setPager(new FeedPager(feedPage))
-    void queryClient.invalidateQueries({ queryKey: queryKeys.captureTimes() })
-  }, [queryClient])
+    setPager(new FeedPager(fetchPage))
+    // ⚠ The library's refresh invalidates the `['captureTimes']` PREFIX — every kind's times, the
+    // Videos entry included. A trash or restore anywhere else changes the Videos feed too, and a
+    // stale cached index would no longer map its rows (index i of the times is index i of the feed).
+    void queryClient.invalidateQueries({ queryKey: queryKeys.captureTimes(kind), exact: kind !== 'all' })
+    parentRefresh?.()
+  }, [queryClient, fetchPage, kind, parentRefresh])
   const value = useMemo(
     () => ({ times: { data: times.data, error: times.error, isPending: times.isPending }, pager, page, refresh }),
     [times.data, times.error, times.isPending, pager, page, refresh],

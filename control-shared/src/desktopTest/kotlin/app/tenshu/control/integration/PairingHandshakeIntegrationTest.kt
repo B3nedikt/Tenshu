@@ -24,6 +24,7 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.koin.core.context.GlobalContext
+import org.koin.dsl.module
 import org.tenshu.core.TResult
 import org.tenshu.core.collection.list.TList
 import org.tenshu.core.collection.list.toList
@@ -31,6 +32,7 @@ import org.tenshu.core.common.TenshuClient
 import org.tenshu.core.getOrNull
 import org.tenshu.sync.PairingRequest
 import org.tenshu.sync.common.SyncRelay
+import org.tenshu.sync.proxy.MockSyncRelay
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -48,8 +50,12 @@ import kotlin.test.fail
  * answered after the approval completed — is *arranged* rather than left to timing:
  * [PollHoldingSyncRepository] holds that poll's answer until completion has been asserted, and the
  * monitor runs on a serial dispatcher, so a no-op queued behind the released answer runs only once
- * the monitor has finished with it. The relay's delays and the 2 s poll cadence then decide how
- * long the test takes, never what it observes.
+ * the monitor has finished with it.
+ *
+ * ⚠ Real time, so nothing here may simply wait. That is why the relay runs without its simulated
+ * latency and the monitor polls every [POLL_INTERVAL_MS] rather than every 2 s. Neither decides
+ * what the test observes, only how long it takes. A test that can run under `runTest` gets the
+ * same effect for free, on virtual time (`docs/testing-flakes.md` §6).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class PairingHandshakeIntegrationTest {
@@ -64,7 +70,12 @@ class PairingHandshakeIntegrationTest {
     @Before
     fun setup() {
         Dispatchers.setMain(Dispatchers.Default)
-        startAppIntegrationKoin(clientId = "app.tenshu.control.test")
+        startAppIntegrationKoin(
+            clientId = "app.tenshu.control.test",
+            additionalModules = listOf(
+                module { single<SyncRelay> { MockSyncRelay(get(), simulateLatency = false) } },
+            ),
+        )
     }
 
     @After
@@ -97,7 +108,7 @@ class PairingHandshakeIntegrationTest {
         // The host-side poll + pairing state now live in the process-lifetime
         // HostPairingMonitor (control-pairing-ux.md Phase 1), so the handshake is driven
         // through it rather than the (now UI-only) SyncDashboardViewModel.
-        val monitor = HostPairingMonitor(syncRepository, scope = monitorScope)
+        val monitor = HostPairingMonitor(syncRepository, scope = monitorScope, pollIntervalMs = POLL_INTERVAL_MS)
 
         // 2. Device A starts pairing
         monitor.startPairing()
@@ -226,6 +237,9 @@ class PairingHandshakeIntegrationTest {
 
     private companion object {
         const val STEP_HANG_GUARD_MS = 60_000L
+
+        /** Short, because the test runs on real time; the handshake is the same at any cadence. */
+        const val POLL_INTERVAL_MS = 50L
         const val APPROVED = "approved"
     }
 }

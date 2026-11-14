@@ -243,16 +243,20 @@ if (pullAllowed) { pullChanges(since); pullTombstones(since) }
   unsubscribed device still uploads nothing and never registers a realm it isn't
   funding.
 - **Pull** additionally opens on `realmRelayRegistered`. That latch is true only
-  for a realm that was funded *at least once* (genesis ran, or a joiner completed
-  its first pull), so a never-funded realm — `realmRelayRegistered == false` — still
+  for a realm that was funded *at least once* (genesis ran, or a joiner has pulled
+  once and then ticked with its gate open — `ensureRegistered` latches it on that
+  push-allowed tick, not on the pull itself), so a never-funded realm — `realmRelayRegistered == false` — still
   makes **no relay request at all** (ADR 0019's local-first floor is preserved for
   the unregistered case). For an already-registered realm, pulling is read-only,
   consumes no quota, and is exactly what delivers both new entitlements *and* future
   revocation tombstones to every owner device.
 - This subsumes the migration case (a pre-slice-1 device with
   `realmRelayRegistered == true` now pulls) and keeps `joinedFundedRealm` doing its
-  one remaining job: opening the **joiner's very first** pull, before that pull sets
-  `realmRelayRegistered`.
+  job of opening the **joiner's** pulls. ⚠ It is not only the *first* pull: a joiner
+  latches `realmRelayRegistered` on its next push-allowed tick, which `joinedFundedRealm`
+  guarantees, and since nothing ever clears `joinedFundedRealm` a paired joiner's gate
+  never shuts. Checked 2026-11-13 after the stepped system-test harness made a gated
+  joiner observable (`docs/testing.md` §12).
 
 This is a deliberate, narrow relaxation of ADR 0019's "no relay contact when
 unsubscribed": a device on a once-funded realm now issues a read-only pull per tick

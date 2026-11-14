@@ -15,6 +15,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.AfterTest
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -54,6 +55,26 @@ class WindowBridgeTest {
             kotlinx.coroutines.yield()
             call(ch, "quitApp")
             quit.await() // throws on timeout if the signal never arrived
+        }
+    }
+
+    @Test
+    fun openControlWindowRunsTheReviveHookAndQuitAppDoesNot() {
+        // The hook is how a deferring second Control gets the running one to revive its tray —
+        // the deferring copy itself must never spawn one.
+        val controller = WindowController(initiallyVisible = false)
+        var opened = 0
+        val socketPath = tempDir.resolve("hook.sock").toString()
+        NativeBridgeServer(socketPath).apply {
+            registerWindowMethods(controller, onOpenWindow = { opened++ })
+            start()
+        }
+
+        connect(socketPath).use { ch ->
+            call(ch, "openControlWindow")
+            assertEquals(1, opened)
+            call(ch, "quitApp")
+            assertEquals(1, opened, "quitApp must not revive the tray")
         }
     }
 

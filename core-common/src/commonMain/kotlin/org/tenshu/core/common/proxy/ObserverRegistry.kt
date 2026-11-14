@@ -60,12 +60,30 @@ class ObserverRegistry {
      * overload reaches only [LaneAwareDataObserver]s; every other observer
      * keeps the two-arg contract untouched.
      */
-    fun onDataSaved(data: Data, origin: WriteOrigin, syncLaneId: String?) {
+    fun onDataSaved(data: Data, origin: WriteOrigin, syncLaneId: String?) =
+        onDataSaved(data, origin, syncLaneId, redundant = false)
+
+    /**
+     * [redundant] reaches only [SaveOutcomeAwareDataObserver]s; see its KDoc. Defaulting to `false`
+     * everywhere else is the safe direction — a save not known to be redundant is news.
+     */
+    fun onDataSaved(data: Data, origin: WriteOrigin, syncLaneId: String?, redundant: Boolean) {
         observers.load().forEach {
-            if (it is LaneAwareDataObserver) it.onDataSaved(data, origin, syncLaneId)
-            else it.onDataSaved(data, origin)
+            when (it) {
+                is LaneAwareDataObserver -> it.onDataSaved(data, origin, syncLaneId)
+                is SaveOutcomeAwareDataObserver -> it.onDataSaved(data, origin, redundant)
+                else -> it.onDataSaved(data, origin)
+            }
         }
     }
+
+    /**
+     * Whether any registered observer wants [SaveOutcomeAwareDataObserver]'s redundancy bit for
+     * [data] — the store comparison costs a read per written entry, so a save skips it when nobody
+     * would act on the answer ([SaveOutcomeAwareDataObserver.wantsSaveOutcome]).
+     */
+    fun wantsSaveOutcome(data: Data): Boolean =
+        observers.load().any { it is SaveOutcomeAwareDataObserver && it.wantsSaveOutcome(data) }
 
     /**
      * The lane a save tagged with [syncLaneId] may stage into: [syncLaneId] itself, or `null` (an
@@ -93,14 +111,19 @@ class ObserverRegistry {
         return PreparedSave(lane, tokens)
     }
 
-    /** Dispatch for a save [prepareSave] prepared: each lane-aware observer gets its own token back. */
-    fun onDataSaved(data: Data, origin: WriteOrigin, prepared: PreparedSave) {
+    /**
+     * Dispatch for a save [prepareSave] prepared: each lane-aware observer gets its own token back,
+     * and each [SaveOutcomeAwareDataObserver] whether the save was [redundant].
+     */
+    fun onDataSaved(data: Data, origin: WriteOrigin, prepared: PreparedSave, redundant: Boolean = false) {
         observers.load().forEach { observer ->
-            if (observer is LaneAwareDataObserver) {
-                val token = prepared.tokens.firstOrNull { it.first === observer }?.second
-                observer.onDataSaved(data, origin, prepared.lane, token)
-            } else {
-                observer.onDataSaved(data, origin)
+            when (observer) {
+                is LaneAwareDataObserver -> {
+                    val token = prepared.tokens.firstOrNull { it.first === observer }?.second
+                    observer.onDataSaved(data, origin, prepared.lane, token)
+                }
+                is SaveOutcomeAwareDataObserver -> observer.onDataSaved(data, origin, redundant)
+                else -> observer.onDataSaved(data, origin)
             }
         }
     }

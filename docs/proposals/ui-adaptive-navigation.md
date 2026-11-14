@@ -9,7 +9,7 @@ from Expanded to **Large and above**, because N3's stated reason for lowering it
 false premise about the collapsed rail (it does show labels). Read §7 before touching the header.
 Remaining: **N7** (§7.4, secondary destinations + a header FAB — the prerequisite for ever
 lowering the toggle again) and open question **Q2** (the compact margin, still unverified).
-**N6 SHIPPED** as its own doc — [`ios-adaptive-navigation.md`](ios-adaptive-navigation.md).
+**N6 SHIPPED** as its own doc — [`ios-adaptive-navigation.md`](ios-adaptive-navigation.md). §9: the opt-in floating compact bar (Photos).
 Proposed replacing the permanent
 navigation drawer in `AdaptiveNavScaffold` with the collapsed/expanded navigation rail that
 Material 3 now specifies in its place, adding the two window size classes the current three-class
@@ -676,3 +676,34 @@ UI-side `LazyPagingItems.refresh()` driven by the change signal, **not** `cached
 viewing never appeared until re-entry), so it owes an on-device pass and is not a drive-by.
 
 ---
+
+## 9. The floating compact bar — `CompactNavStyle.Floating` (2026-11-13)
+
+A full-width 80 dp `NavigationBar` spends a strip of the phone on very little when an app has only
+two destinations. Photos (Photos · Collections) opts into a floating pill instead; every other app
+keeps the docked bar, and every non-compact class still gets the rail.
+
+- **What it is.** M3 Expressive's *floating toolbar* shape — the pattern Google Photos' own bottom bar
+  uses, measured on a device: 56 dp tall, 40 dp active indicator **centred** with 8 dp above and
+  below, only the selected item labelled. ⚠ CMP 1.12.1 resolves `material3` **1.9.0**, which has
+  `ShortNavigationBarItem` but not the `FloatingToolbar` composables (only their tokens), so the pill
+  is a `Surface(CircleShape)` holding `ShortNavigationBarItem`s with `NavigationItemIconPosition.Start`.
+  ⚠ The first cut top-aligned the items (a `Row`'s default), which left the indicator hanging off
+  the top of a 64 dp pill — the "pill too big for its contents" look. Centre them.
+- **Content runs underneath.** The pill is drawn over the content area rather than in the
+  `Scaffold`'s `bottomBar` slot, and publishes `LocalNavBarClearance` — the measured distance from
+  the pill's top to the content's bottom edge, navigation-bar inset included. ⚠⚠ Every scrolling
+  container under a floating scaffold must add it to its bottom `contentPadding`, or its last row
+  sits behind the pill. It is `0.dp` everywhere else, so reading it unconditionally is safe.
+- **Insets.** Only in floating mode does the scaffold `consumeWindowInsets(innerPadding)`, so the pill's
+  own `windowInsetsPadding(navigationBars)` never double-counts; the docked bar and rail keep exactly
+  the insets they had. `content()` stays at its one call site (§8) — the clearance provider wraps it
+  unconditionally.
+- **Paired with an `enterAlways` header — Photos' feed only.** `AppTopAppBar` stays pinned elsewhere
+  (its KDoc says why). The feed header slides away on scroll-down and returns on the first scroll-up,
+  on compact only, never while selecting (the selection bar holds Add-to-album and Trash), and it is
+  restored when the grid reaches the top without a finger (scrubber, new photographs at rest). The
+  sync banners sit below it in the `topBar` slot and do not hide.
+
+Tests: `FloatingNavBarTest` (clearance reported, docked bar reports none, ignored above compact) and
+its PNGs in `build/reports/adaptive-nav/` (`10`/`11`/`12`).

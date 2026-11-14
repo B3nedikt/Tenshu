@@ -379,7 +379,7 @@ export function CompletingSessionScreen({
   const { t } = useTranslation('onboarding')
   // Persists a fresh 24h session token via Session.persist, then routes
   // to the control plane. This is where §4a/§4b/§6 ultimately converge
-  // before redirecting to /control/home.
+  // before redirecting to /overview.
   const sdk = useOnboardingSdk()
   useEffect(() => {
     let cancelled = false

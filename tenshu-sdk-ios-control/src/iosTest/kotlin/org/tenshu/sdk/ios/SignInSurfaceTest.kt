@@ -22,6 +22,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import org.tenshu.viewmodel.test.vmTest
 
 /**
  * The iOS half of S2-pre: the email-OTP sign-in seam
@@ -49,8 +50,8 @@ class SignInSurfaceTest {
      * load-bearing strings, pinned here rather than trusted.
      */
     @Test
-    fun stepKeys_cover_every_step() {
-        val vm = FreeAccountSignupViewModel(RecordingPublisherClient())
+    fun stepKeys_cover_every_step() = vmTest(dispatcher) { vms ->
+        val vm = vms.own(FreeAccountSignupViewModel(RecordingPublisherClient()))
         assertEquals("form", ControlSurface.signInStepKey(vm.uiState.value))
 
         assertEquals(
@@ -73,9 +74,9 @@ class SignInSurfaceTest {
      * reads as a broken app rather than as validation.
      */
     @Test
-    fun canVerify_agrees_with_the_view_models_own_guard() = runTest(dispatcher) {
+    fun canVerify_agrees_with_the_view_models_own_guard() = vmTest(dispatcher) { vms ->
         val client = RecordingPublisherClient()
-        val vm = FreeAccountSignupViewModel(client)
+        val vm = vms.own(FreeAccountSignupViewModel(client))
 
         vm.onCodeChange("1234")
         assertFalse(ControlSurface.signInCanVerify(vm.uiState.value), "a short code must not enable the CTA")
@@ -92,8 +93,8 @@ class SignInSurfaceTest {
 
     /** The field is digits-only and capped, so a paste of a longer string cannot arm the CTA. */
     @Test
-    fun canVerify_is_false_for_a_code_the_field_would_reject() {
-        val vm = FreeAccountSignupViewModel(RecordingPublisherClient())
+    fun canVerify_is_false_for_a_code_the_field_would_reject() = vmTest(dispatcher) { vms ->
+        val vm = vms.own(FreeAccountSignupViewModel(RecordingPublisherClient()))
         vm.onCodeChange("12a4b6")
         assertEquals("1246", vm.uiState.value.code)
         assertFalse(ControlSurface.signInCanVerify(vm.uiState.value))
@@ -133,8 +134,8 @@ class SignInSurfaceTest {
      * than on the assertion, which is exactly the signal wanted.
      */
     @Test
-    fun notConnected_surfaces_as_an_error_the_screen_can_render() = runTest(dispatcher) {
-        val vm = FreeAccountSignupViewModel(NotConnectedPublisherClient())
+    fun notConnected_surfaces_as_an_error_the_screen_can_render() = vmTest(dispatcher) { vms ->
+        val vm = vms.own(FreeAccountSignupViewModel(NotConnectedPublisherClient()))
         vm.onEmailChange("someone@example.com")
         vm.onSubmit()
         advanceUntilIdle()
@@ -152,11 +153,11 @@ class SignInSurfaceTest {
      * OTP behind the next one.
      */
     @Test
-    fun signInViewModel_is_not_shared_between_screens() {
-        val first = ControlSurface.signInViewModel()
+    fun signInViewModel_is_not_shared_between_screens() = vmTest(dispatcher) { vms ->
+        val first = vms.own(ControlSurface.signInViewModel())
         first.onEmailChange("someone@example.com")
 
-        val second = ControlSurface.signInViewModel()
+        val second = vms.own(ControlSurface.signInViewModel())
         assertEquals("", second.uiState.value.email)
     }
 }

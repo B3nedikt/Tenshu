@@ -9,6 +9,7 @@ import org.tenshu.core.entity.DataId
 import org.tenshu.core.entity.Entity
 import org.tenshu.core.file.File
 import org.tenshu.core.file.Folder
+import org.tenshu.core.file.Size
 import org.tenshu.core.file.system.CreateFolder
 import org.tenshu.core.toTString
 import org.tenshu.file.test.createFileProxy
@@ -32,6 +33,10 @@ import kotlin.test.assertEquals
  * materialisation, a thumbnail resolving, this device's own block coming back
  * through sync — updated the row and left every open listing showing the old
  * one until something else invalidated it. The second test pins the fix.
+ *
+ * ⚠ Narrowed by `core-deterministic-invalidation.md` §8 (P1): a re-save that changed **nothing**
+ * no longer notifies — there is no stale row to fix. "This device's own block coming back" is that
+ * case when the echo is byte-identical, which is what P0a measured. The third test pins it.
  */
 class FolderFilesRelationUpdateTest {
 
@@ -64,7 +69,7 @@ class FolderFilesRelationUpdateTest {
         val ec = proxy.executionContext
 
         createFolder(proxy, "/W")
-        createFolder(proxy, "/W/a")
+        ec.saveData(sizedFile(proxy, "/W/f.txt", size = 1))
 
         var notifications = 0
         ec.database.setArrayListener(
@@ -73,10 +78,8 @@ class FolderFilesRelationUpdateTest {
             onRemoved = { _, _ -> notifications++ },
         )
 
-        ec.saveData(
-            ec.database.getData(fileId("/W/a"), asEntity = true, projection = null)
-                ?: error("/W/a not found"),
-        )
+        // Re-saved in place with a new size — same path ⇒ same DataId ⇒ same membership.
+        ec.saveData(sizedFile(proxy, "/W/f.txt", size = 2))
 
         assertEquals(
             1,
@@ -84,6 +87,31 @@ class FolderFilesRelationUpdateTest {
             "⚠ BEFORE R2b this was 0: `Stable` wrote nothing on a re-save and therefore " +
                 "notified nothing, so an open folder listing kept rendering the stale row",
         )
+    }
+
+    /**
+     * `core-deterministic-invalidation.md` §8, P1: a re-save that changed nothing — every entry
+     * already stored byte-identically, as the relay's echo of this device's own block is — leaves no
+     * stale row to fix, so no listing is told. ⚠ Until P1 this notified once, like the test above.
+     */
+    @Test
+    fun aByteIdenticalReSaveTellsNobody() = runTest {
+        val proxy = createFileProxy(backgroundScope)
+        val ec = proxy.executionContext
+
+        createFolder(proxy, "/W")
+        ec.saveData(sizedFile(proxy, "/W/f.txt", size = 1))
+
+        var notifications = 0
+        ec.database.setArrayListener(
+            reference = filesRef(proxy, "/W"),
+            onAdded = { _, _ -> notifications++ },
+            onRemoved = { _, _ -> notifications++ },
+        )
+
+        ec.saveData(sizedFile(proxy, "/W/f.txt", size = 1))
+
+        assertEquals(0, notifications)
     }
 
     // --- fixtures ---------------------------------------------------------
@@ -95,6 +123,14 @@ class FolderFilesRelationUpdateTest {
             params = mapOf(CreateFolder.Params.PATH to path.toTString(proxy.tContext)),
         )
     }
+
+    private fun sizedFile(proxy: org.tenshu.core.common.TestProxy, path: String, size: Long): Data =
+        Entity.create<File>(
+            context = proxy.tContext,
+            composite = File.create(proxy.tContext, path),
+        ) {
+            set(File.Size, size)
+        }
 
     private fun fileId(path: String): DataId.EntityDataId =
         DataId.StringDataId.create(type = File.ID, keyValue = path) as DataId.EntityDataId

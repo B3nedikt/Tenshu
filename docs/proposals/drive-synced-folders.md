@@ -224,7 +224,8 @@ realm contents is the principled-but-expensive alternative, rejected for v1.
 
 **As-built note (2026-07-02) — destination-chain ensure cadence.** The
 `/Backup/<device>/<bucket>` chain is ensured (idempotent `createFolder` per
-segment, `AlreadyExists` swallowed) **once per bucket per drain**
+segment, `AlreadyExists` swallowed) **at most once per bucket per drain, just before its first
+upload** (lazily since 2026-11-08, §8b.5)
 (`FilesRepository.ensureBackupDestination`, called from the drain loop), not
 per uploaded item as originally built — per-item re-ensuring cost three
 expected-`AlreadyExists` IPC round trips per file and spammed the client-side
@@ -637,7 +638,8 @@ The realm was **over quota**: `tenshu/storage/status` read `usedBytes = 11,684,4
 against `limitBytes = 5,368,709,120` (5 GiB) on plan `tenshu.drive.free`. So
 `remainingBytes = 0` → `isFull` → `evaluateBackupGate` returns `Paused(OUT_OF_SPACE)`, correctly.
 
-What made it unreadable is the **order inside `drainSourceInner`**: enumerate → `ensureBackupDestination`
+What made it unreadable is the **order inside `drainSourceInner`** (as it was then; changed 2026-11-08, see
+§8b.5): enumerate → `ensureBackupDestination`
 → *then* the per-item loop, whose first action re-reads the gate and returns. So an over-quota device
 still does visible work and then stops:
 
@@ -798,6 +800,9 @@ is generated and gitignored). ⚠ That touches `androidMain` in seven apps, so i
   creates an empty destination folder on every drain, which is harmless but is also the artefact
   that made this look like a broken feature. Cheap to fix once, and arguably §3.9's "the destination
   is created lazily" should say "…and only when something can actually be written into it".
+  **CLOSED (2026-11-08):** the drain ensures the destination just before a bucket's first
+  *upload*, after the per-item gate, so neither an over-quota drain nor a bucket whose files the
+  realm already holds creates a folder (`photos-app.md` §16.6a).
 
 ---
 

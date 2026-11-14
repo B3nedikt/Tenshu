@@ -39,6 +39,13 @@ class DesktopIndexingConditions(
      */
     override fun allowManualIndexing(): Boolean = probe.batteryLow() != true
 
+    /**
+     * IN-D6a's new-arrivals batch: no low-battery warning, and ⚠⚠ an unreadable machine is **not**
+     * allowed — nobody asked. A Mac answers (a desktop Mac with no battery reads "not low"); Windows
+     * and Linux index arrivals never, as they index on the schedule never.
+     */
+    override fun allowArrivalIndexing(): Boolean = probe.batteryLow() == false
+
     private object MacProbe : Probe {
         override fun onExternalPower() = MacPowerProbe.onExternalPower()
         override fun batteryLow() = MacPowerProbe.batteryLow()

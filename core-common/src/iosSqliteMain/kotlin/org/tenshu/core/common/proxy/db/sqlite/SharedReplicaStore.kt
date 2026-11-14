@@ -11,6 +11,7 @@ import org.tenshu.core.common.proxy.db.ObjectStore
 import org.tenshu.core.common.proxy.db.ObjectStore.DbEntry
 import org.tenshu.core.common.proxy.db.ObjectStore.DbValue
 import org.tenshu.core.collection.list.TList
+import org.tenshu.core.common.proxy.db.ReplicaEpochSource
 import org.tenshu.core.common.proxy.db.WipeableObjectStore
 import org.tenshu.core.common.proxy.db.sqlite.c.SQLITE_BUSY
 import org.tenshu.core.common.proxy.db.sqlite.c.SQLITE_INTERRUPT
@@ -61,7 +62,7 @@ class SharedReplicaStore internal constructor(
     seq: Long,
     /** Makes the job that drives a wipe's later chunks, on a `REPLACEMENT` handle (§5.1). */
     private val replacement: () -> ReplicaReplacement,
-) : ObjectStore, WipeableObjectStore {
+) : ObjectStore, WipeableObjectStore, ReplicaEpochSource {
 
     private val limits: ReplicaLimits get() = registry.limits
     private val walProbe = ReplicaWalProbe(files, registry.databasePath + "-wal") { handle.hasConnection }
@@ -166,6 +167,26 @@ class SharedReplicaStore internal constructor(
             marker.close()
         }
         handle.onForegroundTick = ::foregroundCheckpoint
+    }
+
+    /**
+     * `meta.epoch` **as the store has it now**, or `null` when this handle cannot vouch for it:
+     * fenced already, fenced by this very access (a sibling's wipe or migration moved the epoch
+     * since the open), or the access refused or failed. Never throws.
+     *
+     * ⚠⚠ Not [epoch]: that is what the open read, and a sibling's wipe is seen only at this
+     * handle's next access. This *is* an access (one empty transaction, the epoch compared under
+     * the write lock, §3.1), so a moved epoch fences the handle here and answers `null`, never the
+     * open's value. ⚠ Like every access it waits for the gate when protection is due (S0b-2).
+     *
+     * [ReplicaEpochSource]: a different value means the content was replaced, and `null` means
+     * "cannot tell", which must never be read as "unchanged".
+     */
+    override fun currentEpoch(): Long? = try {
+        access("currentEpoch") { if (fence == null) epoch else null }
+    } catch (e: Exception) {
+        println("[replica] the epoch could not be read: ${e::class.simpleName}: ${e.message}")
+        null
     }
 
     /** Releases the handle through the registry: a teardown. The store is fenced from then on. */

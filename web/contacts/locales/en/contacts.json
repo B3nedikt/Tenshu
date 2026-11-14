@@ -1,7 +1,6 @@
 {
   "app": {
-    "title": "Contacts",
-    "tagline": "The people you know, end-to-end encrypted."
+    "sections": "Contacts sections"
   },
   "nav": {
     "contacts": "Contacts",
@@ -49,6 +48,7 @@
     "notConnectedDetail": "You added this person yourself, so there is no key to verify."
   },
   "detail": {
+    "pane": "Contact",
     "back": "All contacts",
     "rename": "Rename",
     "editInfo": "Edit info",

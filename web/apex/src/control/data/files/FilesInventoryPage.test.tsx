@@ -179,12 +179,13 @@ describe('FilesInventoryPage', () => {
     await act(() => i18n.changeLanguage('de'))
     renderPage()
     expect(await screen.findByRole('heading', { name: 'Dateien' })).toBeInTheDocument()
-    expect(screen.getByText('Bilder')).toBeInTheDocument()
+    // ⚠ The heading renders before the inventory resolves: wait for the data, not just the page.
+    expect(await screen.findByText('Bilder')).toBeInTheDocument()
     expect(screen.getByText(/1\.000 Dateien/)).toBeInTheDocument()
 
     await act(() => i18n.changeLanguage('fr'))
     expect(await screen.findByRole('heading', { name: 'Fichiers' })).toBeInTheDocument()
-    expect(screen.getByRole('list', { name: 'Par type' })).toBeInTheDocument()
+    expect(await screen.findByRole('list', { name: 'Par type' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Ouvrir Drive' })).toBeInTheDocument()
   })
 })

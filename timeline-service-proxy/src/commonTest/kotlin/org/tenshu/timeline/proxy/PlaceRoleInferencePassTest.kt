@@ -1,6 +1,8 @@
 package org.tenshu.timeline.proxy
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.TimeZone
 import org.tenshu.core.TString
@@ -158,6 +160,11 @@ class PlaceRoleInferencePassTest {
         val proxy = stackProxy(this, withPass = true)
         recordPlace(proxy, "flat")
         sleepAt(proxy, "flat", nights = 6)
+        // ⚠ Not on the save path: the observer arms one coalesced run (`COALESCE_MS`), so a burst
+        // of visits costs one whole-relation scan rather than one per fifth visit.
+        assertNull(roles(proxy)["flat"], "the save path must not run the pass inline")
+        advanceTimeBy(PlaceRoleInferencePass.COALESCE_MS + 1)
+        runCurrent()
 
         assertTrue(
             roles(proxy)["flat"] == PlaceRoles.HOME to RoleSource.INFERRED,

@@ -17,6 +17,46 @@ itself marks as a placeholder. **Unpinned** = no doc states a pass/fail for it.
 
 ---
 
+## ⭐ What is left for the phone before the flip (2026-11-09)
+
+The short list. It is everything in [§14.18.16](../proposals/ios-on-device-inference.md) that only the
+phone can still close; the steps below it (Parts A–C) say how to run each one, and where the result is
+recorded. One install of the flag-on development build (B0) carries 1–8; 9–11 are destructive and go last.
+⚠ This list is the exception to *records no results*: its ✅ rows say what was already seen, so the
+session does not run them again.
+
+**Already shown, 2026-11-09** (iPhone 17e, iOS 26.6.1, flag on, development build):
+- ✅ The model downloads over Wi-Fi and finishes *Preparing* (B3 step 2, B4 step 1 — not timed).
+- ✅ The preflight passes: `preflight.verdict` passed, attempts 0 (B4).
+- ✅ Consent given, in the screen's order (B5 step 4).
+- ✅ *Index now* indexes the library — **22 photos** (B6 step 1, in part).
+- ✅ "cat" finds all 5 cats, after the relevance-floor fix (B6 step 1, in part: not "dog", not ≥ 200).
+- ✅ The idle hint and the iOS 26 indexing copy (§14.18.16 item 15).
+
+⚠ PR-6's overnight wake (§16) has its own runbook, [`photos-processing-wake.md`](photos-processing-wake.md): run it after this session's flag-on install, on the same build.
+
+**Owed, in this order:**
+
+| # | Do | Pass when | Closes |
+|---|---|---|---|
+| 1 | **H5 as written**: ≥ 200 photos in the library, *Index now*, search "dog". Once, from Xcode with Main Thread Checker on | dogs come back first; no Main Thread Checker report naming `UIDevice` | H5 (§14.18.16 item 2), §14.19.9 · B6 step 1 |
+| 2 | Relaunch Photos twice over the `Ready` model; ask Mia (its own process) for photos by description | the row reads *Ready* with no *Checking* and no feature question; Mia's line names Photos' Settings | items 4, 7 (7 is answered in code; *Checking* seen at a launch is the finding §14.18.16 item 7 describes) · B5 step 2, B6 step 7 |
+| 3 | With the model `Ready`, leave and return ten times, once with a search in flight | the state does not move; the search is answered | §14.17.6 item 12 · B5 step 5 |
+| 4 | **iOS 26 continuation**: *Index now* over a long library, leave Photos; then stop it from the live activity; then let a second one finish in the background | the system shows *"Indexing your photos"* with done of total; a stop ends at the next photo and the section says *Stopped when you left Photos*; a finished task ends as done and the count has grown | PR-7, §15.6 items 1, 3, 8 · B6 step 8 |
+| 5 | Same pass, recorded rather than judged: a long walk at `0 of 0`; a refused submit (`NotPermitted`, `ImmediateRunIneligible`); a swipe-away with a task live; heat touching `.serious` in front | — a record: write down what happened | §15.6 items 2, 4, 6, 7, 9 · B6 step 8 |
+| 6 | A foreground pass under Low Power Mode, and unplugged below 20 %; read Photos' footprint over a full pass with a "dog" search during it; time the pass per photo; note whether a memory warning is logged before any jetsam | each stops with its reason and restarts by itself when cleared; footprint recorded beside the phone's limit; per-photo time and the warning are a **record** (no criterion) | item 12, §14.19.9 (unnumbered: *Low Power Mode and battery transitions*, *memory over a full pass*, *per-photo timing in the product path*, *a memory warning before a jetsam*), D10 / D12 ① · B6 steps 3–6 |
+| 7 | Delete from *Ready* and read free space; download again and answer the feature question *Not now*; then download through the interruptions: force-quit; Wi-Fi off (cellular on); leave and lock; kill from Xcode in the background; reboot | the row goes and the space returns (the towers at once); *Not now* writes nothing (read the rows); force-quit restarts from zero; Wi-Fi off says *Waiting for Wi-Fi.* and uses no cellular data; the rest finish and install with no tap | §14.16 items 1–7, 9–10, §14.18.7 13–15, 17, 18, 22 · B3, B5 |
+| 8 | Under ~2.85 GB free, press *Download*; free space before, after a cancel, after the prepare | refused before a byte moves, with the two figures Settings shows | §14.16 items 8, 11, §14.18.7 16, item 6 · B1, B2, B4 |
+| 9 | The screens: the Settings button on iOS 26's bar; VoiceOver and the largest text on each state met; sign out with Models open | every sentence and button read and fit; no screen stays up over the wall | §14.18.7 19, 21, 23, 24 · B1, B7 |
+| 10 | Kills that count: background the moment a download completes; kill in *Preparing*; delete with Photos backgrounded; then two Xcode-stop kills during *Checking*, **Try again**, a third kill; two swipe-aways during a load | `inference/coreml` has two directories and no `tmp`, then none; two kills → *"Photos stopped trying…"* with Try again; after the retry's kill → *"This iPhone couldn't run the model well enough…"* with **no** Try again (one press per key, §14.18.16 item 10); swipe-aways never stop it. ⚠ A kill *after* a pass counts from zero: a pass resets the count, so one later kill leaves the model *Ready* | items 1, 8, 9, 10, §14.17.6 8–10 · B8 |
+| 11 | Last: start a download, install the **flag-off** build over it, launch | Photos is not relaunched for the transfers; nothing installs; the phone ends on flag off | item 5 (the Swift drain) · B9 |
+
+⚠ Not the phone's, and not on this list: D12 ⓪'s iOS 17 load (no iOS 17 runtime for Xcode 27.2,
+§14.18.16 item 2), a floor-class iPhone (D10/D12), an update's row (no second catalog entry), and the
+App Store privacy label.
+
+---
+
 ## 0. Before the session: what can run today
 
 | Part | Needs | State on 2026-10-14 |
@@ -416,7 +456,8 @@ more ~743 MB downloads.
 5. **§14.18.16 item 11 (observable half).** In that state, delete the model. **Pass (§14.5 item 0,
    *No download the key would answer at once*):** the row offers Try again, not Download.
 6. Press **Try again**. **Pass:** the fail is withdrawn and the next load runs. Bring the model back
-   to `Ready`. (§14.18.16 item 10, the cap on presses, is the maintainer's call, not the phone's.)
+   to `Ready`, or kill it once more: **Pass** then *"This iPhone couldn't run the model well enough…"* with no Try
+   again (one press per key, §14.18.16 item 10).
 7. **§14.5 item 0 / §14.19.9, swipe-away is not a kill.** During a load, swipe Photos away from the
    app switcher, twice. **Pass:** the phone does **not** become `Unsuitable`. A swipe-away of a
    running app is recorded by `applicationWillTerminate` and counted as transient. A `StoppedLoading`
@@ -454,10 +495,11 @@ what the coverage line says; its wording is 5e-2's (§14.19.6).
 
 ## Not in this session
 
-- D12 ⓪: the load of both towers on an **iOS 17 simulator** (§14.18.16 item 2; there is no iOS 17
-  runtime on the build Mac, §14.19.8).
-- §14.18.16 item 3 (build numbering), item 4 (Mia's lines, 5e-2), item 10 (the *Try again* cap) and
-  item 14 (a kept refusal): decisions or code, not phone readings.
+- D12 ⓪: the load of both towers on an **iOS 17 simulator** (§14.18.16 item 2; Xcode 27.2 offers
+  no iOS 17 runtime, checked 2026-11-09).
+- §14.18.16 item 3 (build numbering: archives are numbered, development builds are written down),
+  item 10 (the *Try again* cap: one press per key), item 11 and item 14: decided or built, not
+  phone readings.
 - An update's row (§14.17.6 item 11; §14.16's update case). It needs a second catalog entry for the
   same model, and none is published.
 - A floor-class iPhone (D10, D12).

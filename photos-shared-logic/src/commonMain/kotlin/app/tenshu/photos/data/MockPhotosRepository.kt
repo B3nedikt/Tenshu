@@ -77,6 +77,66 @@ class MockPhotosRepository(
         all = photos.sortedByDescending { it.capturedAtMs }
     }
 
+    /**
+     * The originals this device "holds", by path — what [originalBytes] answers. Empty by default,
+     * which is the honest state of a preview: no bytes are anywhere near it.
+     */
+    val originals = mutableMapOf<String, ByteArray>()
+
+    /** Every copy [saveEditedCopy] wrote, with its bytes, in order. */
+    val savedCopies = mutableListOf<Pair<Photo, ByteArray>>()
+
+    override suspend fun originalBytes(path: String): ByteArray? = originals[path]
+
+    /** ⚠ The real one's naming and metadata rules, so a screen test sees what a device would. */
+    override suspend fun saveEditedCopy(original: Photo, rendered: ByteArray): Photo? {
+        val taken = all.map { it.path }.toSet()
+        val path = editedCopyNames(original.path).first { it !in taken }
+        val copy = Photo(
+            path = path,
+            capturedAtMs = original.capturedAtMs,
+            isVideo = false,
+            contentId = "edited-${savedCopies.size + 1}",
+            latE7 = original.latE7,
+            lngE7 = original.lngE7,
+        )
+        savedCopies += copy to rendered
+        all = (all + copy).sortedByDescending { it.capturedAtMs }
+        originals[path] = rendered
+        return copy
+    }
+
+    /** The stored edits, by the original's `contentId` — what [photoEdit] answers. */
+    val edits = mutableMapOf<String, StoredEdit>()
+
+    /** Every rendition [saveEdit] wrote, with its bytes, in order. */
+    val savedRenditions = mutableListOf<Pair<String, ByteArray>>()
+
+    /** Make [photoEdit] fail, as a read over a dropped connection does. */
+    var editReadFails: Boolean = false
+
+    override suspend fun photoEdit(contentId: String): StoredEdit? {
+        if (editReadFails) throw IllegalStateException("the edit could not be read")
+        return edits[contentId]
+    }
+
+    /** ⚠ The real one's shape: the photo keeps its path and id, and gains a rendition. */
+    override suspend fun saveEdit(original: Photo, recipe: app.tenshu.photos.edit.EditRecipe, rendered: ByteArray): Photo? {
+        if (original.contentId.isEmpty() || rendered.isEmpty()) return null
+        val rendition = editRenditionPathFor(original.contentId, newRenditionStamp(savedRenditions.size + 1L))
+        edits[original.contentId] = StoredEdit(recipe, rendition, recipe.markup.hasRedactions)
+        savedRenditions += rendition to rendered
+        originals[rendition] = rendered
+        all = all.map { if (it.contentId == original.contentId) it.copy(renditionPath = rendition) else it }
+        return original.copy(renditionPath = rendition)
+    }
+
+    override suspend fun revertEdit(photo: Photo): Photo? {
+        edits.remove(photo.contentId) ?: return null
+        all = all.map { if (it.contentId == photo.contentId) it.copy(renditionPath = null) else it }
+        return photo.copy(renditionPath = null)
+    }
+
     var pagesServed: Int = 0
         private set
 
@@ -191,7 +251,7 @@ class MockPhotosRepository(
         return AlbumsResult.Albums(
             albums.values.map { summary ->
                 val mine = entries[summary.albumId].orEmpty()
-                summary.copy(photoCount = mine.size, coverPath = mine.firstOrNull()?.path)
+                summary.copy(photoCount = mine.size, coverPath = mine.firstOrNull()?.previewPath)
             }.sortedByDescending { it.createdAtMs }
         )
     }
@@ -387,6 +447,9 @@ class MockPhotosRepository(
     override suspend fun faceGroups(limit: Int): Pair<List<FaceGroup>, PeopleStatus> =
         peopleOutcome.first.take(limit) to peopleOutcome.second
 
+    override suspend fun editedContentIds(): Set<String>? =
+        all.filter { it.isEdited }.map { it.contentId }.toSet()
+
     /** Every (paths, name) the caller asked to write, in order. */
     val namedGroups = mutableListOf<Pair<List<String>, String>>()
 
@@ -418,10 +481,31 @@ class MockPhotosRepository(
         return NamingOutcome.Saved
     }
 
+    /**
+     * The device-local "No"s (IN-6 F6c name suggestions). ⚠ A successful empty read by default, as a
+     * device that has never been asked; set [rejectionsReadable] `false` for the failed read.
+     */
+    val rejections = mutableListOf<app.tenshu.photos.model.FaceRejection>()
+    var rejectionsReadable: Boolean = true
+    var rejectAccepted: Boolean = true
+
+    override suspend fun faceSuggestionRejections(): List<app.tenshu.photos.model.FaceRejection>? =
+        if (rejectionsReadable) rejections.toList() else null
+
+    override suspend fun rejectNameSuggestion(name: String, faces: List<app.tenshu.photos.model.GroupFace>): Boolean {
+        if (!rejectAccepted || faces.isEmpty()) return false
+        rejections += faces.map { app.tenshu.photos.model.FaceRejection(it.path, name, it.region) }
+        return true
+    }
+
+    /** Every text source 3 was asked with, in order — what a test reads the opening question by. */
+    val semanticQueries: MutableList<String> = mutableListOf()
+
     override suspend fun searchSemantic(
         query: String,
         limit: Int,
     ): Pair<List<Photo>, SemanticSearchStatus> {
+        semanticQueries += query
         if (query.isBlank()) return emptyList<Photo>() to SemanticSearchStatus.Available
         return semanticOutcome.first.filter { citable(it) }.take(limit) to semanticOutcome.second
     }

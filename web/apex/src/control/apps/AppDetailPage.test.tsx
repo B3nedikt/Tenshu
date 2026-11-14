@@ -1,15 +1,15 @@
 // `AppDetailPage` reads `:appId` from the route and renders the live
 // `AppRegistry` detail. Coverage: the unknown-id path, the happy path
 // (title / version / permissions / services), the interactive tri-state grant
-// control, revoke-all, and the uninstall confirm flow (which deregisters and
-// returns to the list).
+// control, revoke-all, the devices section and the all-devices removal (which
+// stays on the page — the web still hosts the app).
 import { describe, expect, it } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { AppDetailPage } from './AppDetailPage'
 import { AppRegistryProvider } from './AppRegistryProvider'
-import { MockAppRegistry } from './appRegistry'
+import { MockAppRegistry, registrationsOf } from './appRegistry'
 import { findApp } from './manifest'
 
 function renderAt(path: string, registry: MockAppRegistry = new MockAppRegistry()) {
@@ -79,17 +79,43 @@ describe('AppDetailPage', () => {
     )
   })
 
-  it('uninstall confirm deregisters the app and returns to the list', async () => {
+  it('lists the devices the app is registered on, an unnamed one as unknown', () => {
+    renderAt('/control/apps/drive', new MockAppRegistry(undefined, registrationsOf({ drive: ['Pixel 9', null] })))
+    expect(screen.getByText('Pixel 9')).toBeInTheDocument()
+    expect(screen.getByText('Unknown device')).toBeInTheDocument()
+  })
+
+  // ⚠⚠ The browser has no registration of its own: the only removal is from ALL devices, and the app
+  // stays (the web still hosts it), so the page stays put.
+  it('removes from all devices and stays on the page', async () => {
     const user = userEvent.setup()
-    const registry = new MockAppRegistry()
+    const registry = new MockAppRegistry(undefined, registrationsOf({ drive: ['Pixel 9'] }))
     renderAt('/control/apps/drive', registry)
 
-    await user.click(screen.getByRole('button', { name: 'Uninstall' }))
-    // Confirm dialog → default scope (this device) → Remove.
+    await user.click(screen.getByRole('button', { name: 'Remove from all devices' }))
+    expect(screen.queryByRole('radio')).toBeNull()
     await user.click(screen.getByRole('button', { name: 'Remove' }))
 
-    expect(registry.getDetail('drive')).toBeNull()
-    expect(screen.getByTestId('apps-list')).toBeInTheDocument()
+    expect(registry.removed).toEqual(['drive'])
+    expect(await screen.findByText(/Not installed on any of your devices yet/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Remove from all devices' })).toBeNull()
+    expect(screen.queryByTestId('apps-list')).toBeNull()
+  })
+
+  it('a failed removal is reported', async () => {
+    const user = userEvent.setup()
+    const registry = new MockAppRegistry(undefined, registrationsOf({ drive: ['Pixel 9'] }))
+    registry.failRemoval = true
+    renderAt('/control/apps/drive', registry)
+    await user.click(screen.getByRole('button', { name: 'Remove from all devices' }))
+    await user.click(screen.getByRole('button', { name: 'Remove' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't remove Drive")
+    expect(screen.getByText('Pixel 9')).toBeInTheDocument()
+  })
+
+  it('offers no removal when no device has the app, or the read has no answer', () => {
+    renderAt('/control/apps/drive', new MockAppRegistry(undefined, { kind: 'loading' }))
+    expect(screen.queryByRole('button', { name: 'Remove from all devices' })).toBeNull()
   })
 
   it('the back link returns to the /control/apps list route', () => {

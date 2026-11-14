@@ -32,8 +32,19 @@ class DatabaseImpl(
      * thread — see [NoOpDatabaseLock]). Reentrant so [transaction] nested calls
      * re-acquire cheaply.
      */
-    private val lock: DatabaseLock
+    private val lock: DatabaseLock,
+    /**
+     * The most members one store access of a relation read resolves ([readArrayWindow]). Sized so a
+     * page stays far inside the iOS replica's `HOLD_MAX` (1 s) at ~0.11 ms per statement and 2+
+     * statements per member on a debug simulator: 512 members ≈ 0.1–0.2 s. ⚠ A count, not a cost
+     * bound: members carrying inline lists or composite children cost more statements each.
+     */
+    private val arrayReadPageSize: Int = ARRAY_READ_PAGE_SIZE,
 ) : Database {
+
+    init {
+        require(arrayReadPageSize > 0) { "arrayReadPageSize must be positive" }
+    }
 
     private val hashToDataId = mutableMapOf<Long, DataId>()
 
@@ -115,13 +126,31 @@ class DatabaseImpl(
     }
 
     override fun saveData(data: Data): Unit = lock.withLock {
+        serializeAndStore(data, saveEntry = objectStore::storeObject)
+    }
+
+    /**
+     * The comparison runs **before** each `storeObject`, entry by entry, so it sees the row it is
+     * about to overwrite; the answer is the OR over every entry one save writes (the row itself,
+     * its owned composites, the only-grow list rows). Costs one `getObject` per written entry.
+     */
+    override fun saveDataReportingChange(data: Data): Boolean = lock.withLock {
+        var changed = false
+        serializeAndStore(data) { entry ->
+            if (!changed && !entry.sameContentAs(objectStore.getObject(entry.dataIdHash))) changed = true
+            objectStore.storeObject(entry)
+        }
+        changed
+    }
+
+    private fun serializeAndStore(data: Data, saveEntry: (ObjectStore.DbEntry) -> Unit) {
         val dataId = getDataId(data)
         hashToDataId[dataId.getDataIdHash()] = dataId
 
         dbEntryMapper.serialize(
             data = data,
             fallbackDataId = null,
-            saveEntry = objectStore::storeObject,
+            saveEntry = saveEntry,
             // Enable only-grow on parameterised list fields — see the doc on
             // `DbEntryMapper.serialize`. Lets the maintainer's
             // `addToArray` adds survive a concurrent `FolderMerger`-output
@@ -354,77 +383,131 @@ class DatabaseImpl(
         checkpoint: () -> Unit,
     ): Sequence<Data> = readArrayWindow(reference, projection, offset, limit, checkpoint)
 
+    /** The whole read, `[0, ∞)`: see [readArrayWindow]. */
+    private fun readArray(
+        reference: ArrayDatabaseReference,
+        projection: Projection?,
+        checkpoint: (() -> Unit)?,
+    ): Sequence<Data> = readArrayWindow(reference, projection, offset = 0, limit = Int.MAX_VALUE, checkpoint)
+
     /**
+     * Every relation read, whole or windowed: **paged across store accesses**, at most
+     * [arrayReadPageSize] members resolved per `lock.withLock`
+     * (`core-ordered-window-fusion.md` §6.1).
+     *
+     * ⚠⚠ **Why paged.** On the iOS SQLite replica every outermost `lock.withLock` is one
+     * `BEGIN IMMEDIATE` transaction under the hold watchdog's `HOLD_MAX` (1 s,
+     * `ios-shared-store-sqlite.md` S2, §4.2.1), and a member costs ~2 statements. Read in one access,
+     * a relation of more than ~4–5k members (debug simulator) held the write lock past `HOLD_MAX`
+     * and fenced the store `COMMIT_FAILED`. A page is its own access, so the hold is bounded by the
+     * page, not the relation. On JVM/Android a page is one `ReentrantLock` hold, so a large read no
+     * longer starves writers either.
+     *
+     * **How.** The first access reads the array's row, **snapshots** the member hashes of the window
+     * and resolves the first page; each later access resolves the next page of that snapshot. A
+     * relation of at most one page is still exactly one access.
+     *
+     * ⚠⚠ **What a write between two pages can do to the result** — and nothing else:
+     * - A member **added** after the snapshot is not returned (as a one-access read just before the
+     *   add would not have returned it).
+     * - A member **removed** after the snapshot is still returned if its row exists, and skipped if
+     *   its row was deleted. A skip of that kind is **not** reported as corruption: the page re-reads
+     *   the array and counts only the misses that are still members ([reportMissingMembers]).
+     * - A member **updated** after the snapshot is returned as of its page's read, i.e. newer than
+     *   the snapshot.
+     * - A member **replaced** atomically (remove A, delete A's row, add A′) is returned as
+     *   **neither** — A's row is gone and A′ came after the snapshot. No single-instant read could
+     *   do that, so a caller that acts on a member's **absence** must read inside `transaction { }`.
+     * - The **array row** gone on a later page: the result is empty, never a partial relation.
+     * - Never a member read **twice** (the snapshot is a fixed list, not an offset re-sliced against
+     *   a list that moved) and never a member **skipped** that was a member throughout with a row.
+     * Short of a replace, the result is a one-access read taken at the snapshot, with some members
+     * fresher than it.
+     * Every caller already lives with a result that is stale by the time it returns (nothing holds
+     * the lock across `getArrayData` and the caller's next step); the one new thing is skew
+     * **between** members — A as of page 1, B as of page 3. A caller whose step needs the members
+     * mutually consistent (read-filter-rewrite of the relation) must hold `transaction { }` around
+     * read **and** write already, or it races today. Observers and listings are re-triggered by the
+     * very write that made the skew.
+     *
+     * ⚠ **Inside an outer lock** (`transaction { }`, or any caller already in `lock.withLock`) every
+     * page re-enters the held lock, so no other writer can run between pages and the result is
+     * exactly what one access returned before. ⚠ The outer hold is then the caller's to bound: a
+     * relation read whole inside a transaction still costs O(members) of that one transaction.
+     *
      * ⚠⚠ [checkpoint] (a cancellable read's, `core-background-processing.md` §6.2.1) runs before
      * each member is fetched, **inside the lock**: this read is eager, so a check anywhere after it
      * would come only once every row had been read. A throw is safe here — `DatabaseLock.withLock`
      * releases in `finally` on every platform, nothing below writes, and the half-built list is a
      * local that dies with the throw; the store keeps at most the whole rows it already read
      * through, exactly as a completed read would have.
+     *
+     * Materialised eagerly, page by page, inside each page's lock: the mapper's sequence is lazy and
+     * its `getEntry`/`getDataId` callbacks hit `objectStore` + `hashToDataId` at every step, so
+     * iterating it after the lock released would race concurrent writes. Only the window's members
+     * pay the deserialise cost.
      */
-    private fun readArray(
-        reference: ArrayDatabaseReference,
-        projection: Projection?,
-        checkpoint: (() -> Unit)?,
-    ): Sequence<Data> = lock.withLock {
-        val arrayDataIdHash = reference.arrayId.getDataIdHash()
-
-        // If the array doesn't exist, return an empty sequence instead of crashing
-        if (objectStore.getObject(arrayDataIdHash) == null) {
-            return@withLock emptySequence()
-        }
-
-        // Materialise the sequence inside the lock — the underlying
-        // `deserializeArray` is lazy and its `getEntry`/`getDataId` callbacks
-        // hit `objectStore` + `hashToDataId` on every iteration step. Without
-        // eager materialisation, a caller iterating the returned `Sequence`
-        // after the lock released would race concurrent writes — exactly
-        // what the transaction model exists to prevent.
-        var missing = 0
-        val members = dbEntryMapper.deserializeArray(
-            arrayDataIdHash = arrayDataIdHash,
-            asEntity = reference.isEntity,
-            projection = projection,
-            getEntry = { dataIdHash ->
-                objectStore.getObject(dataIdHash) ?: error(
-                    "Entry not found: hash=$dataIdHash dataId=${hashToDataId[dataIdHash]} " +
-                        "while reading array ${reference.arrayId} " +
-                        "(elementSchema=${reference.elementSchemaId}, isEntity=${reference.isEntity})"
-                )
-            },
-            getMemberEntry = { hash ->
-                checkpoint?.invoke()
-                objectStore.getObject(hash).also { if (it == null) missing++ }
-            },
-            getDataId = { hash -> hashToDataId[hash] }
-        ).toList()
-        reportMissingMembers(reference, missing)
-        members.asSequence()
-    }
-
     private fun readArrayWindow(
         reference: ArrayDatabaseReference,
         projection: Projection?,
         offset: Int,
         limit: Int,
         checkpoint: (() -> Unit)?,
-    ): Sequence<Data> = lock.withLock {
+    ): Sequence<Data> {
         val arrayDataIdHash = reference.arrayId.getDataIdHash()
+        val members = ArrayList<Data>()
 
-        if (objectStore.getObject(arrayDataIdHash) == null) {
-            return@withLock emptySequence()
+        // First access: the snapshot and the first page.
+        val snapshot: List<Long> = lock.withLock {
+            // If the array doesn't exist, return an empty sequence instead of crashing.
+            val arrayEntry = objectStore.getObject(arrayDataIdHash) ?: return@withLock emptyList()
+            val from = offset.coerceIn(0, arrayEntry.fields.size)
+            // Long arithmetic: offset + limit overflows Int for limit = MAX_VALUE.
+            val to = (from.toLong() + limit.toLong()).coerceAtMost(arrayEntry.fields.size.toLong()).toInt()
+            val hashes = arrayEntry.fields.subList(from, to).map { (it as ObjectStore.DbValue.LongValue).value }
+            readPage(reference, projection, hashes, 0, checkpoint, members, membershipMoved = false)
+            hashes
         }
 
-        // Same materialise-inside-the-lock contract as `getArrayData` — but the
-        // window is sliced off the member-hash list *before* deserialisation,
-        // so only `limit` entries pay the deserialise cost.
-        var missing = 0
-        val members = dbEntryMapper.deserializeArray(
-            arrayDataIdHash = arrayDataIdHash,
+        // Every later page is its own access (or re-enters the caller's).
+        var start = arrayReadPageSize
+        while (start < snapshot.size) {
+            val pageStart = start
+            val arrayStillThere = lock.withLock {
+                // ⚠ The relation itself gone between pages (deleted, or an iOS wipe fenced the
+                // handle and reads now come back null): the pages already read are not the whole
+                // relation, so answer as a read after the deletion would — empty.
+                if (objectStore.getObject(arrayDataIdHash) == null) return@withLock false
+                readPage(reference, projection, snapshot, pageStart, checkpoint, members, membershipMoved = true)
+                true
+            }
+            if (!arrayStillThere) return emptySequence()
+            start += arrayReadPageSize
+        }
+        return members.asSequence()
+    }
+
+    /**
+     * Resolves `snapshot[start, start + arrayReadPageSize)` into [into]. Must run inside
+     * `lock.withLock`. [membershipMoved]: the snapshot was taken in an earlier access, so a missing
+     * top-level row may be a member removed since — see [readArrayWindow].
+     */
+    private fun readPage(
+        reference: ArrayDatabaseReference,
+        projection: Projection?,
+        snapshot: List<Long>,
+        start: Int,
+        checkpoint: (() -> Unit)?,
+        into: MutableList<Data>,
+        membershipMoved: Boolean,
+    ) {
+        val page = snapshot.subList(start, minOf(snapshot.size, start + arrayReadPageSize))
+        if (page.isEmpty()) return
+        val missed = ArrayList<Long>(0)
+        dbEntryMapper.deserializeMembers(
+            memberHashes = page,
             asEntity = reference.isEntity,
             projection = projection,
-            offset = offset,
-            limit = limit,
             getEntry = { dataIdHash ->
                 objectStore.getObject(dataIdHash) ?: error(
                     "Entry not found: hash=$dataIdHash dataId=${hashToDataId[dataIdHash]} " +
@@ -434,12 +517,23 @@ class DatabaseImpl(
             },
             getMemberEntry = { hash ->
                 checkpoint?.invoke()
-                objectStore.getObject(hash).also { if (it == null) missing++ }
+                objectStore.getObject(hash).also { if (it == null) missed += hash }
             },
             getDataId = { hash -> hashToDataId[hash] }
-        ).toList()
-        reportMissingMembers(reference, missing)
-        members.asSequence()
+        ).toCollection(into)
+        if (missed.isEmpty()) return
+        val corrupt = if (!membershipMoved) {
+            missed.size
+        } else {
+            // A miss of a nested list's member, or of a top-level hash still in the array, is a
+            // dangling reference. A top-level hash no longer in the array was removed between pages.
+            val pageSet = page.toHashSet()
+            val current = objectStore.getObject(reference.arrayId.getDataIdHash())
+                ?.fields?.mapTo(HashSet()) { (it as ObjectStore.DbValue.LongValue).value }
+                ?: emptySet()
+            missed.count { it !in pageSet || it in current }
+        }
+        reportMissingMembers(reference, corrupt)
     }
 
     /**
@@ -659,3 +753,6 @@ class DatabaseImpl(
         }
     }
 }
+
+/** [DatabaseImpl]'s default page of a relation read: see its `arrayReadPageSize`. */
+const val ARRAY_READ_PAGE_SIZE: Int = 512

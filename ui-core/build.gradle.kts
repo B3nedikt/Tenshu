@@ -213,6 +213,11 @@ kotlin {
                 // byte-identical before anyone noticed. `api`, since the type appears in the
                 // signatures. The engine itself stays out of Compose; only its vocabulary is here.
                 api(project(":app-reachability"))
+                // `SyncActivity` + `evaluateSyncActivity` + `debounceSyncActivity` for
+                // [app.tenshu.ui.feedback.SyncActivityCapsule] (`suite-sync-status.md` SS-2): the iOS
+                // indicator's rule and timing, shared rather than spelled again. `api`: the type is
+                // in the capsule's signature.
+                api(project(":sync-service-common"))
                 // `ErrorCopyKey` — the catalogue key a typed error renders through
                 // (`core-error-copy-catalogue.md` §5.0).
                 api(project(":app-error-handling"))

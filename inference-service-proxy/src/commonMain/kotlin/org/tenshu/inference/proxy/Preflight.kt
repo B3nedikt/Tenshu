@@ -114,6 +114,18 @@ object PreflightPolicy {
     const val INTERRUPTED_LOADS_FOR_UNSUITABLE: Int = 2
 
     /**
+     * How many times a user may press *Try again* on one key's `StoppedLoading`
+     * ([AiReadiness.loadAgain], §14.5 item 0, §14.18.16 item 10). ⚠⚠ Each press is one more load
+     * that may kill Photos in front of the user, so it is counted on disk, per key, and a press
+     * spent is not given back by a relaunch or a removal: past it the fail is a plain `Unsuitable`
+     * (D12), with no *Try again* and no download offered. ⚠ Not per foreground: every kill is a new
+     * process, so a per-foreground cap bounds nothing. What starts the count again is a new key —
+     * an app update (each archived build carries its own `CFBundleVersion`), an OS update, or a
+     * new model.
+     */
+    const val LOAD_AGAIN_PRESSES: Int = 1
+
+    /**
      * The backoff: one minute after the first probe without a verdict, doubling, an hour at most.
      * ⚠ Choices, not measurements. A retry happens only on a later foreground anyway; this keeps
      * a user who switches apps three times in ten seconds from spending all three slow probes on
@@ -144,7 +156,7 @@ object PreflightPolicy {
  * @param vision the vision tower's raw pooled vectors for the probe image, one per prediction.
  * @param describes the text tower's raw vectors for the caption that describes it.
  */
-class PreflightMeasurement(
+open class PreflightMeasurement(
     val thermalAtStart: Int,
     val memoryWarned: Boolean,
     val failure: String? = null,
@@ -165,7 +177,7 @@ class PreflightMeasurement(
     val textOpenMs: Double = 0.0,
 ) {
     /** One line for the device log: every timing D12 asks for, and both memory readings. */
-    fun summary(): String =
+    open fun summary(): String =
         "thermal $thermalAtStart->$thermalAtEnd warned=$memoryWarned vocabulary=${vocabularyMs}ms tokenise=${tokeniseMs}ms " +
             "open=${visionOpenMs}/${textOpenMs}ms predict=${PreflightJudge.median(visionPredictMs)}/${PreflightJudge.median(textPredictMs)}ms " +
             "footprint=$footprintBeforeBytes->$footprintBytes available=$availableBytes"
@@ -198,8 +210,14 @@ sealed interface PreflightFinding {
 /** The rule (D12 ②), as arithmetic over a [PreflightMeasurement]. */
 internal object PreflightJudge {
 
-    fun judge(measurement: PreflightMeasurement, probe: PreflightProbe, width: Int = VisionModel.PinnedSigLip.dimensions): PreflightFinding {
-        val finding: PreflightFinding = unconditioned(measurement, probe, width)
+    fun judge(measurement: PreflightMeasurement, probe: PreflightProbe, width: Int = VisionModel.PinnedSigLip.dimensions): PreflightFinding =
+        conditioned(measurement, unconditioned(measurement, probe, width))
+
+    /**
+     * [finding] as the phone's state when the probe ran lets it stand: a probe that did not pass
+     * on a hot or pressured phone is transient. ⚠ Every model's judge ends here (FD7).
+     */
+    fun conditioned(measurement: PreflightMeasurement, finding: PreflightFinding): PreflightFinding {
         if (finding is PreflightFinding.Passed) return finding
         // ⚠⚠ What the phone was doing, not what it is: such a probe may pass, and may not fail.
         if (measurement.thermalAtStart >= PreflightBudget.THERMAL_SERIOUS) {
@@ -375,30 +393,67 @@ class SlowProbes {
  * @param beforeLoad awaited before a tower is opened: an earlier graph of this process may still
  *   be unloading its own pair.
  */
-class Preflight(
+class Preflight private constructor(
     private val readiness: AiReadiness,
-    private val towers: PreflightTowers,
-    private val readVocabulary: (String) -> ByteArray?,
+    /** The model's half: what is probed, measured and judged (FD7). The rest is this class's. */
+    private val prober: PreflightProber,
     private val device: PreflightDevice,
     private val beforeLoad: suspend () -> Unit,
-    /** The probes this build carries. A test passes its own; nothing else does. */
-    private val probes: PreflightProbeLookup = PreflightProbeLookup { key -> PreflightProbes.forKey(key) },
-    private val time: TimeSource = TimeSource.Monotonic,
     /** ⚠ Never the main thread: opening a tower and predicting are blocking calls into Core ML. */
-    private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
-    private val model: VisionModel = VisionModel.PinnedSigLip,
+    private val dispatcher: CoroutineDispatcher,
     /**
      * Which foreground has had its slow probe. ⚠ A graph binds **the process's**: a graph that
      * replaces another inside one foreground must not get that foreground's slow probe again.
      */
-    private val slowProbes: SlowProbes = SlowProbes(),
+    private val slowProbes: SlowProbes,
     /**
      * Which foreground of the scene it is **now**, or `null` in none: asked once the towers have
      * answered, before anything is recorded. `null` here (no way to ask) records without that
      * check.
      */
-    private val foregroundNow: (() -> Long?)? = null,
+    private val foregroundNow: (() -> Long?)?,
 ) {
+
+    /** SigLIP's preflight, as every graph before the face pair bound it. */
+    constructor(
+        readiness: AiReadiness,
+        towers: PreflightTowers,
+        readVocabulary: (String) -> ByteArray?,
+        device: PreflightDevice,
+        beforeLoad: suspend () -> Unit,
+        /** The probes this build carries. A test passes its own; nothing else does. */
+        probes: PreflightProbeLookup = PreflightProbeLookup { key -> PreflightProbes.forKey(key) },
+        time: TimeSource = TimeSource.Monotonic,
+        dispatcher: CoroutineDispatcher = Dispatchers.Default,
+        model: VisionModel = VisionModel.PinnedSigLip,
+        slowProbes: SlowProbes = SlowProbes(),
+        foregroundNow: (() -> Long?)? = null,
+    ) : this(
+        readiness = readiness,
+        prober = SiglipPreflightProber(towers, readVocabulary, device, probes, time, model),
+        device = device,
+        beforeLoad = beforeLoad,
+        dispatcher = dispatcher,
+        slowProbes = slowProbes,
+        foregroundNow = foregroundNow,
+    )
+
+    companion object {
+        /**
+         * Another model's preflight over its own [readiness] (FD7): the same protocol, backoff,
+         * attempt record and foreground rule as SigLIP's, with [prober]'s probe.
+         * ⚠ [slowProbes] is per model: a face probe's slow foreground must not spend search's.
+         */
+        fun over(
+            readiness: AiReadiness,
+            prober: PreflightProber,
+            device: PreflightDevice,
+            beforeLoad: suspend () -> Unit,
+            dispatcher: CoroutineDispatcher = Dispatchers.Default,
+            slowProbes: SlowProbes = SlowProbes(),
+            foregroundNow: (() -> Long?)? = null,
+        ): Preflight = Preflight(readiness, prober, device, beforeLoad, dispatcher, slowProbes, foregroundNow)
+    }
 
     private val running = Mutex()
     private val holding = MutableStateFlow(false)
@@ -526,7 +581,7 @@ class Preflight(
         fun about(outcome: PreflightOutcome) = PreflightReport(target.key, outcome)
         // ⚠⚠ By all three digests: an export this build has no record for is never probed against
         // another export's captions and margin.
-        val probe: PreflightProbe = probes.forKey(target.key) ?: return about(PreflightOutcome.NoProbe)
+        val probe: PreflightRun = prober.runFor(target.key) ?: return about(PreflightOutcome.NoProbe)
         if (target.attempts.failed >= PreflightPolicy.FAILED_PROBES_FOR_FAILED_INSTALL) return about(PreflightOutcome.InstallFailed)
         // ⚠ D12: three slow probes on SEPARATE foregrounds.
         if (slowProbes.spentIn(foreground)) return about(PreflightOutcome.Waiting(PreflightOutcome.Waiting.Cause.FOREGROUND_SPENT, "this foreground has had its slow probe"))
@@ -551,17 +606,17 @@ class Preflight(
     }
 
     /** The probe and its recording, with its [AttemptBegun] on disk. */
-    private suspend fun measuredAndRecorded(target: ProbeTarget, probe: PreflightProbe, foreground: Long): PreflightReport {
+    private suspend fun measuredAndRecorded(target: ProbeTarget, probe: PreflightRun, foreground: Long): PreflightReport {
         fun about(outcome: PreflightOutcome) = PreflightReport(target.key, outcome)
         // ⚠ A retirement is about no model of this graph any more.
-        val measurement: PreflightMeasurement = measure(target.model, probe) ?: return PreflightReport(null, PreflightOutcome.Abandoned)
+        val measurement: PreflightMeasurement = probe.measure(target.model, context) ?: return PreflightReport(null, PreflightOutcome.Abandoned)
         // ⚠⚠ A probe the scene left under leaves NO trace: no count, no backoff's stamp, no
         // foreground's slow probe spent. What it measured was measured on a phone doing
         // something else by the end (a backgrounded app is throttled), and a count is durable.
         if (foregroundNow != null && foregroundNow.invoke() != foreground) {
             return PreflightReport(null, PreflightOutcome.Waiting(PreflightOutcome.Waiting.Cause.NOT_IN_FOREGROUND, "Photos left the foreground under the probe"))
         }
-        val finding: PreflightFinding = PreflightJudge.judge(measurement, probe, model.dimensions)
+        val finding: PreflightFinding = probe.judge(measurement)
 
         // ⚠⚠ Both towers are closed by here. Recording a pass is what lets the backend open its own.
         val result: ProbeResult = when (finding) {
@@ -589,90 +644,150 @@ class Preflight(
         }
     }
 
-    /** One probe, or `null` when the runtime was retired under it. Both towers are closed on return. */
-    private fun measure(target: PreparedModel, probe: PreflightProbe): PreflightMeasurement? {
-        val thermalAtStart: Int = device.thermalState()
-        val warningsAtStart: Long = device.memoryWarnings()
-        val footprintBefore: Long? = device.footprintBytes()
-        fun failed(why: String, beforeAnyTower: Boolean = false) = PreflightMeasurement(
-            thermalAtStart = thermalAtStart,
-            memoryWarned = device.memoryWarnings() != warningsAtStart,
-            failure = why,
-            failedBeforeAnyTower = beforeAnyTower,
-            thermalAtEnd = device.thermalState(),
-        )
+    /** What a model's probe asks of this preflight while it measures. */
+    private val context = object : PreflightRunContext {
+        override fun isRetired(): Boolean = readiness.isRetired()
 
-        // ⚠ The vocabulary first, as the backend does: it is cheap, and without it there is
-        // nothing to feed a text tower that costs seconds to open.
-        var mark: TimeMark = time.markNow()
-        val tokenizer: SiglipTextTokenizer = runCatching {
-            readVocabulary(target.vocabularyPath)?.let(UnigramVocabulary::read)?.let { SiglipTextTokenizer(it, model.textSequenceLength) }
-        }.getOrNull() ?: return failed("the vocabulary did not load", beforeAnyTower = true)
-        val vocabularyMs: Double = mark.elapsedMs()
-        mark = time.markNow()
-        val rows: List<IntArray> = runCatching { listOf(tokenizer.encode(probe.captionDescribes), tokenizer.encode(probe.captionDoesNot)) }
-            .getOrElse { return failed("the probe captions did not tokenise: $it", beforeAnyTower = true) }
-        val tokeniseMs: Double = mark.elapsedMs()
-        // ⚠⚠ Against the rows the checkpoint's own tokenizer made: this is the check of the
-        // downloaded vocabulary and of the app's tokenizer, before a tower is opened for them.
-        if (!rows[0].contentEquals(probe.tokensDescribes) || !rows[1].contentEquals(probe.tokensDoesNot)) {
-            return failed("the probe captions tokenised to other rows than the export recorded", beforeAnyTower = true)
+        override fun holdingSessions() {
+            holding.value = true
         }
+    }
+}
 
-        var vision: PreflightTower? = null
-        var text: PreflightTower? = null
-        holding.value = true
-        try {
-            if (readiness.isRetired()) return null
-            mark = time.markNow()
-            vision = runCatching { towers.openVision(target.visionPath) }.getOrElse { return failed("the vision tower did not load: $it") }
-            val visionOpenMs: Double = mark.elapsedMs()
-            if (readiness.isRetired()) return null
-            mark = time.markNow()
-            text = runCatching { towers.openText(target.textPath) }.getOrElse { return failed("the text tower did not load: $it") }
-            val textOpenMs: Double = mark.elapsedMs()
+/**
+ * One model's half of a preflight (`ios-face-grouping.md` FD7): which probe this build carries for
+ * a key, how a probe is measured, how it is judged. [Preflight] owns everything else, once for
+ * every model: readiness's protocol, the attempt record, the backoff, the foreground rule.
+ */
+fun interface PreflightProber {
+    /** The probe this build carries for [key], ready to run; `null` when it carries none. */
+    fun runFor(key: PreflightKey): PreflightRun?
+}
 
-            val tensor: FloatArray = ImagePreprocessing.preprocessPixels(PreflightProbeImage.argb(), model.side, model.profile)
-            val images = ArrayList<FloatArray>()
-            val describes = ArrayList<FloatArray>()
-            val doesNot = ArrayList<FloatArray>()
-            val visionMs = ArrayList<Double>()
-            val textMs = ArrayList<Double>()
-            try {
-                repeat(PreflightBudget.PREDICTIONS_PER_TOWER) { round ->
-                    if (readiness.isRetired()) return null
-                    mark = time.markNow()
-                    images += vision.predict(tensor)
-                    visionMs += mark.elapsedMs()
-                    mark = time.markNow()
-                    (if (round % 2 == 0) describes else doesNot) += text.predict(rows[round % 2])
-                    textMs += mark.elapsedMs()
-                }
-            } catch (failure: Throwable) {
-                return failed("a prediction failed: $failure")
-            }
-            return PreflightMeasurement(
+/** One probe of one install. */
+interface PreflightRun {
+    /**
+     * Measures [target] on sessions it opens itself, outside the backend, and closes every one
+     * before it returns.
+     * @return `null` when the runtime was retired under it.
+     */
+    fun measure(target: PreparedModel, context: PreflightRunContext): PreflightMeasurement?
+
+    /** The rule, over what [measure] returned. */
+    fun judge(measurement: PreflightMeasurement): PreflightFinding
+}
+
+/** What a [PreflightRun] asks of the [Preflight] it runs in. */
+interface PreflightRunContext {
+    /** Whether the readiness was retired: asked between steps. */
+    fun isRetired(): Boolean
+
+    /** Said right before the first session is opened: the preflight holds sessions from here. */
+    fun holdingSessions()
+}
+
+/** SigLIP's probe (D12 ②): the vocabulary, both captions, both towers. ⚠ Moved, not changed. */
+internal class SiglipPreflightProber(
+    private val towers: PreflightTowers,
+    private val readVocabulary: (String) -> ByteArray?,
+    private val device: PreflightDevice,
+    private val probes: PreflightProbeLookup,
+    private val time: TimeSource,
+    private val model: VisionModel,
+) : PreflightProber {
+
+    override fun runFor(key: PreflightKey): PreflightRun? = probes.forKey(key)?.let { Run(it) }
+
+    private inner class Run(private val probe: PreflightProbe) : PreflightRun {
+
+        override fun judge(measurement: PreflightMeasurement): PreflightFinding = PreflightJudge.judge(measurement, probe, model.dimensions)
+
+        /** One probe, or `null` when the runtime was retired under it. Both towers are closed on return. */
+        override fun measure(target: PreparedModel, context: PreflightRunContext): PreflightMeasurement? {
+            val thermalAtStart: Int = device.thermalState()
+            val warningsAtStart: Long = device.memoryWarnings()
+            val footprintBefore: Long? = device.footprintBytes()
+            fun failed(why: String, beforeAnyTower: Boolean = false) = PreflightMeasurement(
                 thermalAtStart = thermalAtStart,
                 memoryWarned = device.memoryWarnings() != warningsAtStart,
-                vision = images,
-                describes = describes,
-                doesNot = doesNot,
-                visionPredictMs = visionMs,
-                textPredictMs = textMs,
-                // ⚠ With both sessions still open: D12 asks for exactly that reading.
-                availableBytes = device.availableBytes(),
-                footprintBytes = device.footprintBytes(),
-                footprintBeforeBytes = footprintBefore,
+                failure = why,
+                failedBeforeAnyTower = beforeAnyTower,
                 thermalAtEnd = device.thermalState(),
-                vocabularyMs = vocabularyMs,
-                tokeniseMs = tokeniseMs,
-                visionOpenMs = visionOpenMs,
-                textOpenMs = textOpenMs,
             )
-        } finally {
-            runCatching { vision?.close() }
-            runCatching { text?.close() }
+
+            // ⚠ The vocabulary first, as the backend does: it is cheap, and without it there is
+            // nothing to feed a text tower that costs seconds to open.
+            var mark: TimeMark = time.markNow()
+            val tokenizer: SiglipTextTokenizer = runCatching {
+                readVocabulary(target.vocabularyPath)?.let(UnigramVocabulary::read)?.let { SiglipTextTokenizer(it, model.textSequenceLength) }
+            }.getOrNull() ?: return failed("the vocabulary did not load", beforeAnyTower = true)
+            val vocabularyMs: Double = mark.elapsedMs()
+            mark = time.markNow()
+            val rows: List<IntArray> = runCatching { listOf(tokenizer.encode(probe.captionDescribes), tokenizer.encode(probe.captionDoesNot)) }
+                .getOrElse { return failed("the probe captions did not tokenise: $it", beforeAnyTower = true) }
+            val tokeniseMs: Double = mark.elapsedMs()
+            // ⚠⚠ Against the rows the checkpoint's own tokenizer made: this is the check of the
+            // downloaded vocabulary and of the app's tokenizer, before a tower is opened for them.
+            if (!rows[0].contentEquals(probe.tokensDescribes) || !rows[1].contentEquals(probe.tokensDoesNot)) {
+                return failed("the probe captions tokenised to other rows than the export recorded", beforeAnyTower = true)
+            }
+
+            var vision: PreflightTower? = null
+            var text: PreflightTower? = null
+            context.holdingSessions()
+            try {
+                if (context.isRetired()) return null
+                mark = time.markNow()
+                vision = runCatching { towers.openVision(target.visionPath) }.getOrElse { return failed("the vision tower did not load: $it") }
+                val visionOpenMs: Double = mark.elapsedMs()
+                if (context.isRetired()) return null
+                mark = time.markNow()
+                text = runCatching { towers.openText(target.textPath) }.getOrElse { return failed("the text tower did not load: $it") }
+                val textOpenMs: Double = mark.elapsedMs()
+
+                val tensor: FloatArray = ImagePreprocessing.preprocessPixels(PreflightProbeImage.argb(), model.side, model.profile)
+                val images = ArrayList<FloatArray>()
+                val describes = ArrayList<FloatArray>()
+                val doesNot = ArrayList<FloatArray>()
+                val visionMs = ArrayList<Double>()
+                val textMs = ArrayList<Double>()
+                try {
+                    repeat(PreflightBudget.PREDICTIONS_PER_TOWER) { round ->
+                        if (context.isRetired()) return null
+                        mark = time.markNow()
+                        images += vision.predict(tensor)
+                        visionMs += mark.elapsedMs()
+                        mark = time.markNow()
+                        (if (round % 2 == 0) describes else doesNot) += text.predict(rows[round % 2])
+                        textMs += mark.elapsedMs()
+                    }
+                } catch (failure: Throwable) {
+                    return failed("a prediction failed: $failure")
+                }
+                return PreflightMeasurement(
+                    thermalAtStart = thermalAtStart,
+                    memoryWarned = device.memoryWarnings() != warningsAtStart,
+                    vision = images,
+                    describes = describes,
+                    doesNot = doesNot,
+                    visionPredictMs = visionMs,
+                    textPredictMs = textMs,
+                    // ⚠ With both sessions still open: D12 asks for exactly that reading.
+                    availableBytes = device.availableBytes(),
+                    footprintBytes = device.footprintBytes(),
+                    footprintBeforeBytes = footprintBefore,
+                    thermalAtEnd = device.thermalState(),
+                    vocabularyMs = vocabularyMs,
+                    tokeniseMs = tokeniseMs,
+                    visionOpenMs = visionOpenMs,
+                    textOpenMs = textOpenMs,
+                )
+            } finally {
+                runCatching { vision?.close() }
+                runCatching { text?.close() }
+            }
         }
+
     }
 
     private fun TimeMark.elapsedMs(): Double = elapsedNow().toDouble(DurationUnit.MILLISECONDS)

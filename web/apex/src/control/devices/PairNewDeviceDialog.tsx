@@ -220,7 +220,11 @@ function RequestStep({
       const message =
         result.error.kind === 'network'
           ? t('devices.pair.networkError')
-          : result.error.message === ''
+          : result.error.kind === 'deviceRemoved'
+            ? t('devices.pair.request.deviceRemoved')
+            : result.error.kind === 'approverRevoked'
+            ? t('devices.pair.request.approverRevoked')
+            : result.error.message === ''
             ? t('devices.pair.request.approvalFailed')
             : result.error.message
       setError(message)

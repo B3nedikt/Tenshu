@@ -136,6 +136,57 @@ class MultiRealmPushDrainTest {
         )
     }
 
+    /**
+     * A shared realm unregistered mid-drain — "Forget this device" (§7i.5) — pushes nothing more
+     * under the identity it was registered with.
+     */
+    @Test
+    fun aSharedRealmUnregisteredMidDrain_pushesNoMore() = runTest {
+        val proxy = TestProxy(schemaRegistry = createSyntheticTestRegistry(), coroutineScope = this)
+        proxy.schemaRegistry.registerConfig(syncServiceCommonModule)
+        proxy.additionalImplementations[GetChanges.ID] = emptyChanges()
+        proxy.additionalImplementations[GetTombstones.ID] = emptyTombstones()
+        val crypto = proxy.tContext.syncCryptoManager()
+        val syncManager = SyncManagerImpl(crypto, InMemorySecureStorageDelegate(), proxy.tContext)
+        syncManager.initialize("personal phrase placeholder words go here now")
+        val components = proxy.executionContext.initSyncService(
+            syncManager, crypto, startBackgroundLoops = false, platformScheduler = NoOpPlatformScheduler,
+        )
+        val delegate = MockSyncRelay(proxy.tContext)
+        var pushes = 0
+        val forgettingRelay = object : org.tenshu.sync.common.SyncRelay by delegate {
+            override suspend fun pushBlock(
+                block: SyncBlock,
+                edges: List<org.tenshu.core.common.content.ContentEdge>,
+            ): org.tenshu.core.TResult<Data?> {
+                pushes++
+                components.realmRegistry.unregisterAll() // the forget lands during the first push
+                return delegate.pushBlock(block, edges)
+            }
+        }
+        components.realmRegistry.register(
+            RealmContext(
+                ownerId = "shared-1",
+                deviceId = syncManager.currentDeviceId,
+                derivedKeys = SyncCryptoManager.DerivedKeys(ByteArray(32) { 0x33 }, ByteArray(32) { 0x44 }),
+                deviceSigningKeyPair = SyncCryptoManager.KeyPair(ByteArray(32) { 9 }, ByteArray(32) { 9 }),
+                masterKeyPair = null,
+            ),
+            forgettingRelay,
+        )
+        repeat(2) { n ->
+            components.syncObserver.emitPropertyBlock(
+                targetEntityId = DataId.StringDataId.create(proxy.tContext, "test/entity", "shared-1$NAMESPACE_SEP/x$n"),
+                propertyId = "test/prop",
+                value = "shared-payload-$n".toTString(proxy.tContext),
+            )
+        }
+
+        components.scheduler.tickOnce()
+
+        assertEquals(1, pushes, "the second queued block must not be pushed once its realm is forgotten")
+    }
+
     private fun emptyChanges() = object : SyncOperationImplementation {
         override fun <T : Data?> execute(
             executionContext: ExecutionContext,

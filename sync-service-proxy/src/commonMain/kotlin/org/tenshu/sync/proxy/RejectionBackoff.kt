@@ -38,6 +38,10 @@ class RejectionBackoff(
 ) {
     private var consecutiveRejections = 0
     private var nextAttemptAtMs = 0L
+    // ⚠ Volatile because [isBlocked] is also read OUTSIDE the scheduler's tickMutex
+    // (`SyncScheduler.relayRefusesThisDevice`, read by `ForgetThisDevice`'s retirement wait). The
+    // window arithmetic stays tick-confined; only this flag crosses threads.
+    @kotlin.concurrent.Volatile
     private var blocked = false
 
     /**

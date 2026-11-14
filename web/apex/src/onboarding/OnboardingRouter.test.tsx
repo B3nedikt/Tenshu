@@ -1,5 +1,5 @@
 // Verifies the three landing-state branches in `OnboardingRouter`:
-// `firstTime` → /onboarding, `locked` → /lock, `active` → /control/home.
+// `firstTime` → /onboarding, `locked` → /lock, `active` → /overview.
 // Also covers the pre-resolve BootSplash. Routing is asserted via a
 // catch-all probe route inside `MemoryRouter` rather than spying on the
 // router internals — the assertion is "the URL is what we expect."
@@ -64,10 +64,10 @@ describe('OnboardingRouter', () => {
     })
   })
 
-  it('redirects active sessions to /control/home', async () => {
+  it('redirects active sessions to /overview', async () => {
     renderRouter(stubSdk({ kind: 'active', deviceName: 'Pixel 9' }))
     await waitFor(() => {
-      expect(screen.getByTestId('location')).toHaveTextContent('/control/home')
+      expect(screen.getByTestId('location')).toHaveTextContent('/overview')
     })
   })
 })

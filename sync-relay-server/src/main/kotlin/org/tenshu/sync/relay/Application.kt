@@ -593,6 +593,8 @@ fun Application.module(
             // G3 and REVIVE inside that transaction.
             contentFreeing = freeing,
             pairingRequestRateLimit = if (pairingRequestRateLimited) PairingRequestRateLimitName else null,
+            // The member-device guard on `Device` tombstones: the store `/sync/realm-member/admit` records into.
+            membershipStore = membershipStore,
         )
         // Delegated device-admission authority (delegated-device-admission-authority.md
         // §5, P2): master-signed revocation of a device's admission capability (A33).

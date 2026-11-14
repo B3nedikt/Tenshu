@@ -20,6 +20,17 @@ import kotlinx.coroutines.withContext
 expect fun decodeToImageBitmap(data: ByteArray, maxEdge: Int = MAX_DECODE_EDGE): ImageBitmap?
 
 /**
+ * [decodeToImageBitmap], but **upright or nothing** — for a bitmap that will be stored (an edit, a
+ * collage), never only shown.
+ *
+ * ⚠⚠ Android's decode turns the bitmap itself (`BitmapFactory` ignores EXIF) and, when the turned
+ * copy cannot be allocated, falls back to the stored-order bitmap — right for a viewer, a permanent
+ * sideways copy for an export (`photos-creation-features.md` §9.1). This one answers `null` there.
+ * On desktop and iOS Skia applies the tag during the decode, so the two are the same function.
+ */
+expect fun decodeToUprightImageBitmap(data: ByteArray, maxEdge: Int = MAX_DECODE_EDGE): ImageBitmap?
+
+/**
  * The default ceiling on a decoded bitmap's longer edge: ≈ 64 MB at `ARGB_8888`, comfortably under
  * Android's ~100 MB `Canvas.MAX_BITMAP_SIZE`. It is a **safety** ceiling — a caller that knows the
  * size it draws should pass that instead, and the viewer does.

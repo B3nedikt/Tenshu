@@ -15,6 +15,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.tenshu.core.common.proxy.FileDatabase
+import org.tenshu.inference.proxy.catalog.ModelArtifactRole
 
 /**
  * [AiReadinessState] **with the install it was reconciled against**, as [AiReadiness] publishes
@@ -60,12 +61,85 @@ sealed interface AiReadinessState {
     data object Unsuitable : AiReadinessState
 }
 
-/** The compiled towers and the vocabulary of one installed generation. */
-data class PreparedModel(
-    val visionPath: String,
-    val textPath: String,
-    val vocabularyPath: String,
-)
+/**
+ * What one installed generation of a model runs from, **by catalog role**: the compiled towers'
+ * paths and any other file the model needs (`ios-face-grouping.md` FD7).
+ *
+ * ⚠ Keyed by role so one [AiReadiness] serves any model: SigLIP's generation is its two towers and
+ * its vocabulary, the face pair's is its embedder alone. ⚠ Opaque to readiness, which compares it
+ * whole and hands it back; only the model's own backend and preflight read a role out of it.
+ */
+data class PreparedModel(val paths: Map<String, String>) {
+
+    /** SigLIP's generation: both towers and the vocabulary. */
+    constructor(visionPath: String, textPath: String, vocabularyPath: String) : this(
+        mapOf(ModelArtifactRole.VISION to visionPath, ModelArtifactRole.TEXT to textPath, ModelArtifactRole.VOCABULARY to vocabularyPath),
+    )
+
+    /** The file [role] runs from. @throws NoSuchElementException for a role this generation has not got. */
+    fun path(role: String): String = paths.getValue(role)
+
+    val visionPath: String get() = path(ModelArtifactRole.VISION)
+    val textPath: String get() = path(ModelArtifactRole.TEXT)
+    val vocabularyPath: String get() = path(ModelArtifactRole.VOCABULARY)
+
+    /** SigLIP's generation with one part replaced. */
+    fun copy(visionPath: String = this.visionPath, textPath: String = this.textPath, vocabularyPath: String = this.vocabularyPath): PreparedModel =
+        PreparedModel(visionPath, textPath, vocabularyPath)
+
+    companion object {
+        fun of(vararg paths: Pair<String, String>): PreparedModel = PreparedModel(mapOf(*paths))
+    }
+}
+
+/**
+ * **Which model** an [AiReadiness] is about (`ios-face-grouping.md` FD7): its own verdict file,
+ * scene file and serving-open records, so two models on one phone are ready, unsuitable or
+ * deleted independently, each with its own [PreflightKey], counts and *Try again*.
+ *
+ * ⚠⚠ One slot per model, never shared: two readinesses over one verdict file would each settle
+ * and overwrite the other's record, and a face kill would count against search. Every slot's
+ * paths are distinct (`FaceReadinessTest.everySlotHasItsOwnFilesAndSiglipsAreTheOnesItAlwaysWrote`).
+ *
+ * ⚠⚠ **The custody too.** [AiReadiness]'s `applyFingerprint` hands the slot's key to a custody, and
+ * readiness cannot see which: a face readiness bound to SigLIP's `InferenceStoreCustody` would write
+ * the face fingerprint over SigLIP's and clear every search vector. A graph binds each slot's custody
+ * over [fingerprintPath] (F5).
+ *
+ * @param openRoles the towers whose serving opens are recorded ([AiReadiness.servingOpen]), a file each.
+ * @param fingerprintPath where this model's custody keeps its runtime fingerprint.
+ */
+class ReadinessSlot(
+    val name: String,
+    val verdictPath: String,
+    val scenePath: String,
+    val openRoles: List<String>,
+    val fingerprintPath: String,
+) {
+    override fun toString(): String = "ReadinessSlot($name)"
+
+    companion object {
+        /** SigLIP's: the paths every build before the generalisation wrote, unchanged. */
+        val SIGLIP = ReadinessSlot(
+            name = "siglip",
+            verdictPath = AiReadiness.VERDICT_PATH,
+            scenePath = AiReadiness.SCENE_PATH,
+            openRoles = AiReadiness.OPEN_ROLES,
+            fingerprintPath = InferenceStoreCustody.FINGERPRINT_PATH,
+        )
+
+        /** The iOS face embedder's (`ios-face-grouping.md` §6.2). Vision opens no file of ours. */
+        val FACES = ReadinessSlot(
+            name = "faces",
+            verdictPath = "/inference/faces.preflight.verdict",
+            scenePath = "/inference/faces.preflight.scene",
+            openRoles = listOf(ModelArtifactRole.FACE_EMBEDDER),
+            fingerprintPath = "/inference/faces.runtime.fingerprint",
+        )
+
+        val ALL: List<ReadinessSlot> = listOf(SIGLIP, FACES)
+    }
+}
 
 /**
  * What the model store and the compiled cache hold now.
@@ -90,10 +164,11 @@ data class AiModelFacts(val installed: Boolean, val prepared: PreparedModel?)
  * - [preflightRevision]: **the code the pass vouches for**, [PREFLIGHT_REVISION]. An app update
  *   can change the tokenizer, the backend's guards or the preflight itself with every digest and
  *   constant above unchanged, and this is what then voids the pass;
- * - [appBuild]: the bundle's version and build. ⚠⚠ **Constant today, so it vouches for nothing.**
- *   No iOS project in this repo sets a version: every build reads `1.0 (1)`. It is in the key
- *   because it costs nothing and starts to bite the day shipped builds carry distinct numbers.
- *   Until then [preflightRevision] is the only guard against a code change.
+ * - [appBuild]: the bundle's version and build. Every archived build (TestFlight, the App Store)
+ *   carries its own, growing build number (`scripts/ios-archive.sh`), so an app update re-runs
+ *   the preflight and starts a key's counts again. ⚠⚠ **A development build does not**: it reads
+ *   the constant `1` of `ios-release/release.yml`, and between two of them [preflightRevision]
+ *   is the only guard against a code change (`ios-on-device-inference.md` §14.18.16 item 3).
  *
  * ⚠ No field has a default, on purpose: a file written under another shape of this key does not
  * decode, and what does not decode is no verdict.
@@ -155,10 +230,30 @@ const val PREFLIGHT_REVISION: Int = 3
  * @param interrupted loads of this key's towers (a probe, or a prepare's first open) that began
  *   and that **the process did not survive**: an [AttemptBegun] a later process found (§14.5).
  *   [PreflightPolicy.INTERRUPTED_LOADS_FOR_UNSUITABLE] of them are a verdict. ⚠ Like [slow], the
- *   phone's: a commit or a removal does not clear it.
+ *   phone's: a commit or a removal does not clear it. ⚠⚠ **A pass does** ([afterPass]): the bound
+ *   counts kills with no pass between them, so one kill weeks after a pass (a serving open
+ *   included) never joins an older one to overturn it (§14.18.16 item 10).
+ * @param loadedAgain *Try again* presses spent on this key ([AiReadiness.loadAgain]). Past
+ *   [PreflightPolicy.LOAD_AGAIN_PRESSES] a fail of interrupted loads has no way out left. ⚠ Like
+ *   [interrupted], the phone's: a commit or a removal does not clear it.
  */
 @Serializable
-data class PreflightAttempts(val slow: Int, val failed: Int, val transient: Int, val lastAtEpochMs: Long, val interrupted: Int = 0) {
+data class PreflightAttempts(
+    val slow: Int,
+    val failed: Int,
+    val transient: Int,
+    val lastAtEpochMs: Long,
+    val interrupted: Int = 0,
+    val loadedAgain: Int = 0,
+) {
+    /**
+     * The counts a pass is written with: [interrupted] back at zero, and nothing else touched.
+     * ⚠⚠ [loadedAgain] stays spent (the maintainer's decision, §14.18.16 item 10). A load that
+     * kills Photos every time still cannot loop: a press needs a fail, and a fail after a press
+     * needs [PreflightPolicy.INTERRUPTED_LOADS_FOR_UNSUITABLE] kills with no pass between them.
+     */
+    fun afterPass(): PreflightAttempts = copy(interrupted = 0)
+
     companion object {
         val NONE = PreflightAttempts(slow = 0, failed = 0, transient = 0, lastAtEpochMs = 0)
     }
@@ -301,11 +396,14 @@ class AttemptNotRecordedException(val why: Why, message: String) : Exception(mes
 data class PreflightVerdict(val key: PreflightKey, val passed: Boolean?, val attempts: PreflightAttempts, val begun: AttemptBegun? = null) {
     /**
      * A fail that loads Photos did not survive made, and nothing else: not three slow probes.
-     * ⚠ The one fail a user may ask to try once more ([AiReadiness.loadAgain]).
+     * ⚠ The one fail a user may ask to try once more ([AiReadiness.loadAgain]), and only while a
+     * press is left ([PreflightPolicy.LOAD_AGAIN_PRESSES]): a fail that also outlived the user's
+     * own retry is a plain `Unsuitable`, with D12's way out and no other.
      */
     val stoppedByInterruptedLoads: Boolean
         get() = passed == false && attempts.slow < PreflightPolicy.SLOW_PROBES_FOR_UNSUITABLE &&
-            attempts.interrupted >= PreflightPolicy.INTERRUPTED_LOADS_FOR_UNSUITABLE
+            attempts.interrupted >= PreflightPolicy.INTERRUPTED_LOADS_FOR_UNSUITABLE &&
+            attempts.loadedAgain < PreflightPolicy.LOAD_AGAIN_PRESSES
 }
 
 /** How one probe ended, as the preflight's judge found it. */
@@ -399,11 +497,14 @@ class AiReadiness(
     private val applyFingerprint: suspend (RuntimeFingerprint) -> FingerprintOutcome,
     private val cancelPass: suspend () -> Unit,
     private val closeSessions: suspend () -> Unit,
-    private val verdictPath: String = VERDICT_PATH,
-    private val scenePath: String = SCENE_PATH,
     /** This process's loads in flight (§14.5). ⚠ A test's second ledger is a second process. */
     private val ledger: AttemptLedger = AttemptLedger.THIS_PROCESS,
+    /** Which model this is the readiness of: its files (FD7). SigLIP's unless a graph says otherwise. */
+    val slot: ReadinessSlot = ReadinessSlot.SIGLIP,
 ) {
+    private val verdictPath: String = slot.verdictPath
+    private val scenePath: String = slot.scenePath
+
     /** ⚠⚠ Only a `Ready` snapshot holds a [model]: that is the whole of "only `Ready` serves". */
     private class Snapshot(
         val state: AiReadinessState,
@@ -654,10 +755,11 @@ class AiReadiness(
         if (held?.passed != null) return@withLock ProbeRecorded.Dropped(reconcile(now))
         val before: PreflightAttempts = held?.attempts ?: PreflightAttempts.NONE
         if (result == ProbeResult.PASSED) {
-            val state: AiReadinessState = decide(prepared, PreflightVerdict(probed, passed = true, attempts = before))
+            val passedWith: PreflightAttempts = before.afterPass()
+            val state: AiReadinessState = decide(prepared, PreflightVerdict(probed, passed = true, attempts = passedWith))
             // ⚠ A pass whose fingerprint could not be applied, or which could not be persisted,
             // is not `Ready` and is not reported as one.
-            return@withLock if (state == AiReadinessState.Ready) ProbeRecorded.Decided(true, state, before) else ProbeRecorded.Dropped(state)
+            return@withLock if (state == AiReadinessState.Ready) ProbeRecorded.Decided(true, state, passedWith) else ProbeRecorded.Dropped(state)
         }
         val after: PreflightAttempts = when (result) {
             ProbeResult.SLOW -> before.copy(slow = before.slow + 1)
@@ -691,7 +793,8 @@ class AiReadiness(
         val prepared: PreparedModel? = now.facts.prepared
         if (!now.facts.installed || prepared == null || probed != now.key) return@withLock reconcile(now)
         // The counts stay beside the answer they led to: the Models screen says why.
-        decide(prepared, PreflightVerdict(probed, passed, now.current()?.attempts ?: PreflightAttempts.NONE))
+        val counts: PreflightAttempts = now.current()?.attempts ?: PreflightAttempts.NONE
+        decide(prepared, PreflightVerdict(probed, passed, if (passed) counts.afterPass() else counts))
     }
 
     /**
@@ -749,7 +852,7 @@ class AiReadiness(
             VerdictRead.None -> mutableSetOf()
             is VerdictRead.Held -> listOfNotNull(verdict.verdict.begun?.process).toMutableSet()
         }
-        for (role in OPEN_ROLES) {
+        for (role in slot.openRoles) {
             when (val open: OpenRead = openOf(role)) {
                 OpenRead.None -> Unit
                 OpenRead.Unreadable -> return foreign.takeLast(SCENE_RECORDS_KEPT - 1)
@@ -827,7 +930,9 @@ class AiReadiness(
     /**
      * ⚠⚠ **The one way out of an `Unsuitable` that interrupted loads made** (§14.5 item 0), asked
      * by the user: the fail is withdrawn and one more load is allowed, so the next interrupted
-     * load marks it again. ⚠ Only that fail: three slow probes keep D12's rule.
+     * load marks it again. ⚠ Only that fail: three slow probes keep D12's rule. ⚠⚠ And only
+     * [PreflightPolicy.LOAD_AGAIN_PRESSES] times per key, counted in the file before the load
+     * runs: a load that kills Photos is never looped by presses (§14.18.16 item 10).
      * @return whether anything was withdrawn. ⚠ Written before it is believed.
      */
     suspend fun loadAgain(key: PreflightKey): Boolean = withLock {
@@ -836,7 +941,11 @@ class AiReadiness(
         val held: PreflightVerdict = now.verdict?.takeIf { it.key == key && it.stoppedByInterruptedLoads } ?: return@withLock false
         val again = held.copy(
             passed = null,
-            attempts = held.attempts.copy(interrupted = PreflightPolicy.INTERRUPTED_LOADS_FOR_UNSUITABLE - 1, lastAtEpochMs = 0),
+            attempts = held.attempts.copy(
+                interrupted = PreflightPolicy.INTERRUPTED_LOADS_FOR_UNSUITABLE - 1,
+                lastAtEpochMs = 0,
+                loadedAgain = held.attempts.loadedAgain + 1,
+            ),
         )
         val written: Boolean = runCatching { write(again) }.onFailure { println("AiReadiness -> not loaded again, not written: $it") }.isSuccess
         if (written) reconcile()
@@ -1003,7 +1112,7 @@ class AiReadiness(
      */
     private suspend fun settledOpens(held: PreflightVerdict?, key: PreflightKey): PreflightVerdict? {
         val dead: MutableList<Pair<String, AttemptBegun>> = mutableListOf()
-        for (role in OPEN_ROLES) {
+        for (role in slot.openRoles) {
             val path: String = openPath(role)
             ledger.lockFor(path).withLock {
                 // ⚠ An unreadable record is not *no open*: nothing is concluded, and nothing loaded.
@@ -1368,13 +1477,13 @@ class AiReadiness(
     }
 
     companion object {
-        /** Beside the realm stamp and the fingerprint sidecar, in the owner's private database. */
+        /** SigLIP's verdict, beside the realm stamp and the fingerprint sidecar, in the owner's private database. */
         const val VERDICT_PATH: String = "/inference/preflight.verdict"
 
-        /** [SceneRecords], beside the verdict. */
+        /** SigLIP's [SceneRecords], beside the verdict. */
         const val SCENE_PATH: String = "/inference/preflight.scene"
 
-        /** The towers whose opens are recorded ([servingOpen]): a file each. */
+        /** The towers whose opens SigLIP's readiness records ([servingOpen]): a file each. */
         val OPEN_ROLES: List<String> = listOf("vision", "text")
 
         /** How many records a scene file keeps while the verdict cannot be read. */

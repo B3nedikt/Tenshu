@@ -20,6 +20,8 @@ import org.tenshu.core.TBoolean
 import org.tenshu.core.TResult
 import org.tenshu.core.collection.list.TList
 import org.tenshu.core.collection.list.toList
+import org.tenshu.sync.PairingDeviceRemovedError
+import org.tenshu.sync.PairingApproverRevokedError
 import org.tenshu.sync.PairingRequest
 import org.tenshu.sync.approvePairingRequest
 import org.tenshu.sync.client.syncService
@@ -335,10 +337,19 @@ private fun buildHostPairingSession(pairingUri: String): dynamic {
                         ok
                     }
 
-                    is TResult.Failure<*> -> errorResult(
-                        kind = "other",
-                        message = res.error.errorMessage(),
-                    )
+                    // The device being added was removed from this realm before (F2′); the
+                    // apex owns the words, so name the case rather than pass a schema id through.
+                    // This device's own admission capability was revoked (§7j.5).
+                    is TResult.Failure<*> -> if (res.error is PairingDeviceRemovedError) {
+                        errorResult(kind = "deviceRemoved", message = null)
+                    } else if (res.error is PairingApproverRevokedError) {
+                        errorResult(kind = "approverRevoked", message = null)
+                    } else {
+                        errorResult(
+                            kind = "other",
+                            message = res.error.errorMessage(),
+                        )
+                    }
 
                     else -> errorResult("other", "unexpected result type")
                 }

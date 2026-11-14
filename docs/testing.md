@@ -166,6 +166,34 @@ broken.
 The gate is smoke, not functional. Truly device- or network-dependent flows (real uploads,
 pairing, metered-network deferral) still need a maintainer's own device.
 
+## 7a. The quick gate — `scripts/run-gate.sh --quick`
+
+The full gate runs every test task in the repository (~145 of them, ~2,200 classes) plus the JS
+tests and both compile lanes. That is the right check before a merge of shared code and before a
+public sync, and too much for every round of a review loop.
+
+`--quick` runs the same lines with the same guarantees (results cleared, every requested task must
+have run, failures named) for the modules the change touches **and every module that depends on
+them**. The change is the working tree against the merge-base with `origin/master`
+(`TENSHU_GATE_BASE=<ref>` to change it); the dependency graph comes from the build itself
+(`-Ptenshu.projectGraph`, root `build.gradle.kts`), through every configuration, tests included.
+`scripts/lib/affected_modules.py` does the mapping.
+
+| The change | What runs |
+|---|---|
+| Files in one or more modules | their tests, JS tests and compile lanes, and those of every dependent |
+| A build file, `gradle/`, `config/`, the gate's own scripts, or a file in no module | the **full** gate, automatically |
+| Only docs, `scripts/`, `store/`, `.github/` or `web/` | nothing (`web/` names the app's `pnpm test` to run instead) |
+
+Measured on a one-line `contact-service-common` change: 43 test tasks and 627 classes, against 145
+and 2,222 for the full gate.
+
+⚠⚠ **It follows the code graph only.** A test that reads another module's files at runtime is not
+followed, so a change to shared code (`:core`, `:core-common`, `:core-client`, `:core-proxy`,
+`:core-test-utils`, `:ui-core`) prints a reminder that it owes the full gate before it merges. The
+quick gate never writes the module-loss ledger (`build/gate-modules.txt`): it runs a subset by
+design, and writing that subset would blind the next full run's comparison.
+
 ## 7. Keeping a gate run — `scripts/gate-run.sh`
 
 `./gradlew desktopTest jvmTest test` tells you whether *this* run was green and then destroys
@@ -222,6 +250,23 @@ total and truer.
 - `TENSHU_GATE_NO_LOCK=1` runs alongside the holder and prints that it did.
 - ⚠ A worktree that predates the file does not queue, and neither does a bare
   `./gradlew :module:jvmTest` — a targeted run is the cheap case this deliberately leaves alone.
+
+### 7.2 A test JVM never runs in your home
+
+The lock above does not cover targeted runs, so isolation is per JVM instead: every desktop/JVM
+`Test` task (root `build.gradle.kts`) starts its JVM with `user.home` at a fresh
+`<module>/build/tmp/<task>/isolated-home/run-*/home`, so `~/.tenshu/<appId>`, window state and the
+dev socket directory are private to that run (one per task execution). Runs older than an hour
+are swept, and at most 3 earlier runs are kept beside the current one.
+
+- ⚠⚠ The real home rides along as `tenshu.test.realHome`, and `DesktopAppPaths.root()` **throws**
+  if it would resolve under `<realHome>/.tenshu` or `<realHome>/Library` — a test that reaches the
+  real data roots fails where it does it, not as a flake in someone else's run.
+  `TestHomeIsolationTest` (`:core-common`) goes red if the build block stops applying.
+- ⚠ Android host tests (`*UnitTest`, `testAndroidHostTest`) are exempt: they cannot reach
+  `desktopMain`, and Robolectric caches under `~/.m2` via `user.home`. Skiko's natives keep the real
+  `~/.skiko` (`skiko.data.path`) — a cache, not app state.
+- ⚠ A test that needs a home-relative path must read `user.home`, never hard-code `~`.
 
 ## 8. Cross-platform pairing — what is covered, and the shape of what is missing
 
@@ -385,6 +430,10 @@ suite here still gates nothing automatically.
 
 ## 10. Virtual time is the default; real time is a decision you justify
 
+> ⚠ Every known flake, sorted by cause with the harness change for each, is in
+> [`testing-flakes.md`](testing-flakes.md). A new real-time bound or sleep in a test fails
+> `scripts/check-test-wallclock.py` unless it carries a `wall-clock:` reason.
+
 §5 states this flatly — *"no `Thread.sleep`, no wall-clock timeouts"* — and 39 test files break
 it. Most of those are not sloppiness; a flat rule cannot express the case where the real scheduler
 **is** the behaviour under test. This section is the discriminator.
@@ -465,6 +514,13 @@ concurrently, at a moment it has no right to name.** Three remedies, in order of
    depends on the value being deliverable, but it beats sampling (`TenshuPagingPresenterTest` tried this first, then
    replaced it with remedy 1).
 
+⚠ **In a Compose test, remedy 2 is an `IdlingResource` on the producer.** `waitForIdle()` sees only
+the composition's own work: not the proxy's threads, and not the Swing EDT, where `viewModelScope`
+and paging-compose's presenter run. `RepositoryIdling` (Drive's `integration/utils`) makes it wait
+for both, so an assertion follows an action with no `waitUntil` (`testing-flakes.md` §4). ⚠⚠ Only a
+`DesktopComposeUiTest` polls one; on the plain v2 `runComposeUiTest`, `registerIdlingResource`
+returns `false` and nothing is polled.
+
 ⚠⚠ **Weakening an assertion is not on that list.** A conflating `StateFlow` can drop everything
 after any given point, so no threshold is guaranteed observable — *only not sampling can fix a
 sampling race* (in the inference download-progress test, "> the largest single artifact" replaced "== the total" and still
@@ -539,6 +595,25 @@ time to unwind: it is the only test that goes red on the bare-`cancel` swap, and
 `cancelAndJoin` has ever had. The `ownStore(…)` case is the one exception to the third row — a
 store is enumerated at close time, so whatever a composition put in it is found.
 
+### 11.4 ⚠⚠ On Kotlin/Native the leak never surfaces as an error
+
+The three reporters in §11.1 are the **JVM's**. On desktop `Main` is a draining Swing EDT, so a model
+left collecting after `resetMain()` keeps working and nothing fails at all. On K/N the real `Main` is
+the GCD main queue, which a test binary never drains: a leaked model's next resume parks there for
+the rest of the binary. That is how a Contacts iOS test binary wrote its results and then never
+exited (`docs/tech-debt.md`, *"Contacts iOS test binary never exits"*). So the `tenshu-sdk-ios-*`
+tests follow §11 too, by the same three shapes:
+
+* `vmTest(dispatcher)` where the class installs a test dispatcher as `Main` — most surface tests;
+* `OwnedViewModels` + `closeAll()` **before** `resetMain()` in a `runBlocking` test over a live runtime;
+* `withOwnedViewModels` where no `Main` is installed — ⚠ only for a model that launches nothing at
+  construction, since joining one that did waits on the queue nobody drains.
+
+⚠ An iOS test reaches most models through a **surface factory** (`DriveMutationSurface.rename(…)`),
+not a constructor. `scripts/check-owned-view-models.py` reads the factory names from `iosMain`, but
+cannot see a model inside a holder (`MoveBound.viewModel`, `DriveReadSurface.Bound.selection`) —
+own each one the holder exposes.
+
 ### 11.3 Why the module exists, and why Compose is not in it
 
 The class lived as three hand-copied files (maps, drive, photos) until the same
@@ -555,3 +630,114 @@ the extraction.
 * It is the one `-test-utils` module with tests of its own. Its whole value is one assertion, three
   copies of it disagreed about what that assertion catches, and every consumer inherits whatever it
   says.
+
+---
+
+## 12. Stepped system tests — the test decides which device syncs, and when
+
+A `:system-test-utils` `TestSystem` runs real devices against an in-process relay. It has two modes.
+
+| | **Polled** (default) | **Stepped** (`TestSystem.builder().stepped()`) |
+|---|---|---|
+| sync loops | every device's `SyncScheduler` and `ScheduleDrainLoop` run at `pollingIntervalMs` | never started (`initSyncService(startBackgroundLoops = false)`) |
+| a device syncs | whenever its loop ticks | only when the test calls `sync` / `syncUntil` / `syncUntilQuiet` |
+| a two-device race | whichever loop wins | an order the test writes |
+| a wait is bounded by | a wall-clock timeout (`advanceUntil`) | a **count of rounds** |
+
+```kotlin
+val system = TestSystem.builder().stepped().build()
+val phone = system.client("phone", TestClientRole.RealmHost)
+val tablet = system.client("tablet", TestClientRole.JoiningDevice)
+system.pair(host = phone, joiner = tablet)             // the shared handshake; works in both modes
+
+phoneRepo.save(…)
+system.sync(phone, tablet)                             // phone pushes, THEN tablet pulls
+system.syncUntil("the tablet holds the row") { rowOn(tablet) != null }
+system.syncUntilQuiet()                                // "and it stays that way"
+```
+
+* **`sync(a, b, …)`**: one tick on each device, in that order. Each tick first waits for the
+  device's queued saves to become blocks (`SyncBlockEmitter.awaitEmitIdle`), because a save hands
+  its block to an emit channel and returns. Without the barrier a tick can run before the block
+  exists and push nothing.
+* **`syncUntil(what) { … }`**: rounds over every device until the predicate holds. It fails after
+  `DEFAULT_MAX_ROUNDS` (25) with `what`. A slow machine cannot reach that bound, so a red means the
+  state was never reached by syncing.
+* **`syncUntilQuiet()`**: rounds until **two in a row** move nothing. "Nothing moved" means the
+  relay accepted no block or tombstone (`SyncMailbox.lastArrivalSeq`) and no tick left more to pull
+  (`SyncScheduler.drainNowReportingBacklog`). One still round is not enough: a device that pulled in
+  it may have queued a reaction, and that reaction only pushes on its next tick. This replaces every
+  `delay(SETTLE)` that asked a state to "hold for ~15 ticks".
+* Every step takes the scheduler's own `tickMutex` (`drainNow`), never `tickOnce` directly. Cycle
+  hooks rely on that mutex for single-flight (`tech-debt.md` § "Residual Suite-Ordering Flake:
+  ContactHandshakeSystemTest", route 1).
+
+**Forcing an interleaving.** The production personal push gate (`storageGate`) gives a device a
+*pull-only* tick. "A's write reaches the relay, B pulls it, and only then does B's own write go up"
+is: shut both gates, write on both, open A's, `sync(A)`, `sync(B)` (it pulls, pushes nothing), open
+B's, `sync(B)`. Each ordering under test is its own test case (`CalendarMirrorStopSystemTest`,
+`ConcurrentMoveVsDeleteSystemTest`). The polled versions needed a `drainNow()` boundary after
+closing each gate, because a tick in flight had already sampled it open. With no loop, no tick
+is ever in flight between steps.
+
+⚠⚠ **A shut gate does not pull until `realmRelayRegistered` has latched.** `pullAllowed` is
+`pushAllowed || realmRelayRegistered`, and a joiner latches that flag in
+`RealmRegistrar.ensureRegistered` only on a push-allowed tick *after* its first pull. A polled
+joiner gets that second open tick from its cadence. A stepped joiner can stop at exactly one pull,
+and then its gated ticks do nothing at all: the ordering degrades without failing. Before shutting a
+gate, `syncUntil { a.syncManager.realmRelayRegistered && b.syncManager.realmRelayRegistered }`.
+This state is **harness-only**. In production every platform passes `StorageSyncGate`, which
+is open whenever `joinedFundedRealm` is set. Pairing sets that flag (`PairingKeyInstaller`, both
+directions), iOS route-1 sets both flags (`FirstPartyLocalRuntime.adopt`), and nothing ever clears
+it. So a paired joiner's gate never shuts, and its second tick latches the flag. A system test that
+passes `storageGate = SyncGate { … }` replaces that gate, and with it `joinedFundedRealm`. Pinned on
+the gate side by `StorageSyncGateTest`.
+
+**What stepped mode does not stop.** Only the sync loops stop. Observer fan-out, derived views,
+view-model timers and the relay itself still run on their own coroutines. A state computed *after*
+ingest is still awaited with `advanceUntil`, after the sync it depends on, for example a Photos
+feed row derived from a synced `File` (`PhotoDeleteSyncSystemTest.converge`). `ScheduleDrainLoop`
+is also off, so a test that needs a schedule item to run stays polled or drives that item itself.
+
+**The sync clock.** A stepped system also owns `system.syncClock` (`TestSyncClock`), the `nowMs`
+every device's sync runtime reads: the scheduler's three `RejectionBackoff` windows, relay
+reachability, health stamps. It starts at real time and moves only on `syncClock.advance(…)`. So a
+backoff is a sequence too: tick the refused device inside its window and assert nothing was retried,
+`advance` past the window, tick once more at the probing boundary
+(`RelayAmnesiaRepairSystemTest.anA1Holder_…`; with the `advance` removed it goes red). Advance by
+`RejectionBackoff.DEFAULT_MAX_DELAY_MS` when the test does not care which window it is in.
+⚠⚠ Only the sync runtime reads it. JWTs, HLCs, entitlement proofs and the ops' own `nowMs` stay on
+real time, because the relay checks a token's times against its own clock and `RevokeDevice` signs
+with the op clock. So an op-level real-time wait is not shortened by it. When one shows up in a
+stepped test, the cause is usually the product's: `ForgetThisDevice` used to spend its whole 8 s
+retirement timeout on a removed joiner, which a real device did too, until the wait learned to stop
+on the scheduler's `401` state.
+
+**Pollers outside the sync loop: `StepPacer`.** A view model's or op's own poll loop is not the
+scheduler's, so stepping the system does not reach it. Where such a poll paces a test, give it a
+`pacePoll: suspend () -> Unit` parameter that defaults to its production `delay(…)`, and install a
+`StepPacer`'s `pace` in the test. `step()` returns once the poller is back at its pause (its last
+poll has finished) and lets exactly one more poll run. `awaitPause()` / `release()` split that, for
+a poller that tries once before its first pause and must be seen to have done so before the other
+device acts (`AwaitPairing`). `PairingVmFlowSystemTest` steps three: `OfferPairingMonitor`,
+`HostPairingMonitor` and `AwaitPairing` (via `TestSystem.client(pairingWaitPacer = …)`). Each
+case is then "the other device acts, its own state shows the act reached the relay, one poll here
+shows the outcome". Without the step after the approval, the offer case goes red at its 20 s
+`awaitState` budget.
+
+**When to stay polled** (§10's exception): when the real cadence *is* the subject and no seam
+reaches it. No `:system-test-utils` class is polled for that reason today. Each class's KDoc says
+which mode it uses and why.
+
+Measured on a 4-core Linux container, 2026-11-13, `./gradlew :system-test-utils:test --rerun`
+(JUnit XML class times). The module went from **177 s to 92 s**:
+
+| Class | Before | After |
+|---|---:|---:|
+| `CalendarDeleteSyncSystemTest` | 21.9 s | 2.6 s |
+| `CalendarMirrorStopSystemTest` | 19.3 s | 0.9 s |
+| `ConcurrentMoveVsDeleteSystemTest` | 14.4 s | 1.1 s |
+| `PhotoDeleteSyncSystemTest` | 11.0 s | 1.4 s |
+| `SyncedThumbnailSystemTest` | 10.6 s | 6.0 s (the rest is rendering a 2600 px PNG's thumbnails) |
+| `RelayAmnesiaRepairSystemTest` | 14.3 s | 1.7 s, with the sync clock and `ForgetThisDevice`'s refusal short-circuit |
+| `PairingVmFlowSystemTest` | 11.7 s | 0.7 s (the three polls stepped with `StepPacer`) |

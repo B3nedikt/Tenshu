@@ -1,5 +1,6 @@
 package org.tenshu.sync.proxy.impl
 
+import org.tenshu.sync.PairingThisDeviceRemovedError
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import org.tenshu.core.Data
@@ -29,7 +30,14 @@ import org.tenshu.sync.common.SyncRelay
 internal class AwaitPairingImplementation(
     private val relay: SyncRelay,
     private val syncManager: SyncManager,
-    private val cryptoManager: SyncCryptoManager
+    private val cryptoManager: SyncCryptoManager,
+    /**
+     * The pause between two completion attempts: [POLL_INTERVAL_MS] of real time in production. A
+     * parameter so a test can decide when the next attempt happens (`PairingVmFlowSystemTest`).
+     * ⚠ The budget is [MAX_ATTEMPTS] attempts either way, so pacing changes when it is spent, not
+     * how much of it there is.
+     */
+    private val pacePoll: suspend () -> Unit = { delay(POLL_INTERVAL_MS) },
 ) : AsyncOperationImplementation {
 
     @Suppress("UNCHECKED_CAST")
@@ -59,9 +67,11 @@ internal class AwaitPairingImplementation(
                 val completed = try {
                     completion.tryComplete(executionContext, pairingSecret, otherDevicePublicKey)
                 } catch (e: TenshuException) {
+                    // ⚠ Terminal, not a blip: a removed identity is refused on every retry.
+                    if (e.error is PairingThisDeviceRemovedError) throw e
                     consecutiveFailures++
                     if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) throw e
-                    delay(POLL_INTERVAL_MS)
+                    pacePoll()
                     attempts++
                     continue
                 }
@@ -69,7 +79,7 @@ internal class AwaitPairingImplementation(
                 if (completed) {
                     return true.toTBoolean(executionContext.context) as T
                 }
-                delay(POLL_INTERVAL_MS)
+                pacePoll()
                 attempts++
             }
 

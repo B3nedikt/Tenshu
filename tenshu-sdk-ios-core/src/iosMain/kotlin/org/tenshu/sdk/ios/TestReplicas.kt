@@ -4,8 +4,11 @@ import org.tenshu.core.common.proxy.db.DatabaseLock
 import org.tenshu.core.common.proxy.db.InMemoryObjectStore
 import org.tenshu.core.common.proxy.db.InProcessDatabaseLock
 import org.tenshu.core.common.proxy.db.ObjectStore
+import org.tenshu.core.common.proxy.db.ReplicaEpochSource
 import org.tenshu.core.common.proxy.db.WipeableObjectStore
 import platform.Foundation.NSRecursiveLock
+import kotlin.concurrent.Volatile
+import kotlin.random.Random
 
 /**
  * ⚠ **A test's replica** — what [FirstPartyLocalRuntime.assembleBase] binds for its
@@ -19,6 +22,11 @@ import platform.Foundation.NSRecursiveLock
  * reads, never their listeners. One lock per name serialises every handle; it is also each graph's
  * `DatabaseLock`.
  *
+ * ⚠ **The epoch, as the SQLite store's** ([ReplicaEpochSource]): one random value per name, moved
+ * by a wipe; a handle answers it only while it is the one the handle was made on, and `null` once
+ * it moved, as a fenced SQLite handle does (its own wipe included). So a graph built before a wipe
+ * cannot vouch for the store, and one built after it sees the new epoch.
+ *
  * Until 2026-11-05 this was the iOS file store opened over a temporary directory
  * (`ios-shared-store-sqlite.md` B.22.9). Nothing is written to disk.
  */
@@ -26,6 +34,9 @@ internal object TestReplicas {
     private class Shared {
         val lock = InProcessDatabaseLock()
         val rows = InMemoryObjectStore()
+
+        @Volatile
+        var epoch: Long = Random.nextLong()
     }
 
     private val registryLock = NSRecursiveLock()
@@ -46,7 +57,8 @@ internal object TestReplicas {
     /** [name]'s one lock. */
     fun lock(name: String): DatabaseLock = shared(name).lock
 
-    private class Handle(private val shared: Shared) : ObjectStore, WipeableObjectStore {
+    private class Handle(private val shared: Shared) : ObjectStore, WipeableObjectStore, ReplicaEpochSource {
+        private val openedOn: Long = shared.epoch
         private val listeners = HashMap<Long, MutableList<(ObjectStore.DbEntry) -> Unit>>()
 
         override fun storeObject(dbEntry: ObjectStore.DbEntry) {
@@ -75,6 +87,11 @@ internal object TestReplicas {
 
         override fun isEmpty(): Boolean = shared.lock.withLock { shared.rows.isEmpty() }
 
-        override suspend fun wipeAllObjects() = shared.lock.withLock { shared.rows.clear() }
+        override suspend fun wipeAllObjects() = shared.lock.withLock {
+            shared.rows.clear()
+            shared.epoch = Random.nextLong()
+        }
+
+        override fun currentEpoch(): Long? = shared.lock.withLock { shared.epoch.takeIf { it == openedOn } }
     }
 }

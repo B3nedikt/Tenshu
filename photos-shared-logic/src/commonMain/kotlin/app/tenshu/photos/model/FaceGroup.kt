@@ -56,6 +56,30 @@ fun List<GroupFace>.largestFace(): FaceCover? =
     maxByOrNull { it.region.area }?.let { FaceCover(it.path, it.region) }
 
 /**
+ * These groups with every face that may not be a cover taken out of [FaceGroup.faces] — the faces
+ * of a photograph that is **edited**, or that [photosByPath] does not hold (`photos-editing.md`
+ * §12.13). Membership ([FaceGroup.filePaths]) is untouched: an edited photo is still this person's,
+ * and its tile shows the rendition.
+ *
+ * ⚠⚠ **Why an edited photo cannot cover at all.** A face box is a fraction of the ORIGINAL (the
+ * indexer reads originals; a rendition is under `/Trash/`, which it skips), and an avatar is cut
+ * from whatever path its cover names. Cut from the original, it shows a face the user may have
+ * blacked out with Redact — a redaction a reader can undo (§11.3). Cut from the rendition, the box
+ * is wrong after any crop or turn. So an edited photo is shown by its rendition or not at all
+ * (§12.4), and here that means *not at all*. Every edit, not only a redacting one, for §12.4's
+ * reason: one rule is testable.
+ *
+ * ⚠ Derived from the photos as mapped NOW, never stored: a revert makes the face a candidate again
+ * on the next read, a re-edit keeps it out.
+ *
+ * ⚠ Fails closed: a face whose photo is not in [photosByPath] is not a candidate — nothing says
+ * whether it is edited.
+ */
+fun List<FaceGroup>.withoutEditedCovers(photosByPath: Map<String, Photo>): List<FaceGroup> = map { group ->
+    group.copy(faces = group.faces.filter { face -> photosByPath[face.path]?.isEdited == false })
+}
+
+/**
  * What the grouping had to say about itself.
  *
  * ⚠⚠ Mirrors [SemanticSearchStatus] deliberately, for the same reason: *"nothing matched"* and

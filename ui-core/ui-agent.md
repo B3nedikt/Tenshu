@@ -38,6 +38,7 @@ ui-core/src/commonMain/kotlin/app/tenshu/ui/
   feedback/     AppLoadingIndicator, AppAutoContinueButton (control-pairing-ux.md §9)
   accessibility/ AccessibilityPreferences — screen-reader + reduced-motion signals (expect/actual)
   layout/       WindowWidthSizeClass, AdaptiveNavScaffold, ContentWidth
+  image/        decodeToImageBitmap + encodeToBytes (expect/actual) — upright in, upright out, no EXIF carried
   navigation/   KmpNavHost (expect/actual), KmpNavEntry + DSL
   preview/      PreviewBox (test harness for every @Preview in this module)
 ui-core/src/desktopMain/kotlin/app/tenshu/ui/layout/

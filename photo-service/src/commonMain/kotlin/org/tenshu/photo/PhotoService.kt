@@ -17,7 +17,7 @@ import org.tenshu.core.schema.typeOf
  * means the two can be read independently: a `File` with no album is the normal case, and an
  * `AlbumEntry` whose file is gone is a repairable row rather than a corrupt one.
  *
- * Three relations, traversed with the standard chain DSL:
+ * Its relations are traversed with the standard chain DSL:
  *
  * ```
  * service.albumEntries
@@ -26,10 +26,11 @@ import org.tenshu.core.schema.typeOf
  *     .flow()
  * ```
  *
- * ⚠ **Version 1, and no `SchemaMigration`** — version 1 is the release baseline, with no earlier
- * shape to migrate *from*. A reshape bumps `service(id, version =)` and ships its step (House
- * Rule #9) — **not** `TENSHU_STORAGE_FORMAT_VERSION`, which is `:core`'s alone, and moving it
- * wipes every store.
+ * ⚠ **Version 2** — v1 was the release baseline; v2 adds [PhotoEdit] (`photos-editing.md` ED-3) with
+ * an empty step from 1, registered in `photoServiceCommonModule`. Every reshape bumps
+ * `service(id, version =)` and ships its step (House Rule #9) — **not**
+ * `TENSHU_STORAGE_FORMAT_VERSION`, which is `:core`'s alone, and moving it wipes every store.
+ * ⚠⚠ Post-release, a bump with no step wipes every store: never delete a step.
  *
  * ⚠⚠ `SchemaShapeBaselineEnforcementTest` sees this service only because its `-common` module is
  * registered in `:system-test-utils`; without that registration the pin would be silently absent
@@ -51,6 +52,9 @@ interface PhotoService : Service {
     /** Where each trashed photo came from; see [TrashedPhoto]. */
     val trashedPhotos: TList<TrashedPhoto>
 
+    /** Non-destructive edits, one per edited photo; see [PhotoEdit]. */
+    val photoEdits: TList<PhotoEdit>
+
     companion object {
         const val ID = "tenshu/photo/service"
 
@@ -61,7 +65,9 @@ interface PhotoService : Service {
         val Schema: ServiceSchema = service(
             id = ID,
             // v1 = release baseline (`core-schema-evolution.md` Appendix A).
-            version = 1,
+            // v2 = ED-3 (`photos-editing.md` §12): the `PhotoEdit` type and the `photoEdits`
+            // relation. Additive — no existing field moves — so its step is empty.
+            version = 2,
             relations = listOf(
                 serviceDataRelation(
                     id = Relations.ALBUMS,
@@ -83,6 +89,11 @@ interface PhotoService : Service {
                     type = TList.typeOf(TrashedPhoto.Schema),
                     maintained = true,
                 ),
+                serviceDataRelation(
+                    id = Relations.PHOTO_EDITS,
+                    type = TList.typeOf(PhotoEdit.Schema),
+                    maintained = true,
+                ),
             ),
         )
     }
@@ -92,5 +103,6 @@ interface PhotoService : Service {
         const val ALBUM_ENTRIES = "$ID/albumEntries"
         const val PHOTO_FLAGS = "$ID/photoFlags"
         const val TRASHED_PHOTOS = "$ID/trashedPhotos"
+        const val PHOTO_EDITS = "$ID/photoEdits"
     }
 }

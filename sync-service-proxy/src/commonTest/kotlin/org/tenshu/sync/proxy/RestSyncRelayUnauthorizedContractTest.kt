@@ -119,6 +119,10 @@ class RestSyncRelayUnauthorizedContractTest {
             "the approver-capability 403 must NOT read as a removed joiner — different device, " +
                 "and treating it as terminal would send the wrong user to 'start fresh'",
         )
+        assertTrue(
+            revoked.error.messageOrNull()?.contains(ADMISSION_REVOKED_REJECTION_MARKER) == true,
+            "§7j.5: the approver-capability 403 carries its own marker, so the approver is told",
+        )
     }
 
     @Test

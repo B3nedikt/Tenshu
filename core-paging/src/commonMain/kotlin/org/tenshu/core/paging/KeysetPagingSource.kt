@@ -431,7 +431,7 @@ fun <T : Data, P : Data, R : Any, K : Any> TList<T>.keysetPagingSource(
     }
 
     // ⚠⚠ The first page waits for the change observer (`photos-app.md` §38) — see [reloadSignals].
-    return list.reloadSignals(firstLoadWaitsForObserver = true).flatMapLatest {
+    return list.reloadSignals(firstLoadWaitsForObserver = true).flatMapLatest { reload ->
         // ⚠⚠ **The count is memoised per GENERATION, not per source, and the difference is a
         // whole read on every scrub.** `TenshuKeysetPagingSource` memoises the total on itself, so
         // one source counts once however many pages it serves — but Paging builds a *new* source
@@ -448,7 +448,7 @@ fun <T : Data, P : Data, R : Any, K : Any> TList<T>.keysetPagingSource(
             TenshuKeysetPagingSource(
                 context, list, window, projection, cursorOf, mapper, perGeneration, readContext,
             )
-        }.flow
+        }.flow.labelled(reload)
     }
 }
 

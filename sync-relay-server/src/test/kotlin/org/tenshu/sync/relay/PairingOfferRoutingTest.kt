@@ -519,9 +519,13 @@ class PairingOfferRoutingTest {
         assertEquals(HttpStatusCode.BadRequest, client.get("/sync/pairing/offer-response").status)
     }
 
-    // ---- S1 on the offer flow: a chain through a removed admitter ----
+    // ---- §7j on the offer flow: a removed APPROVER is refused, a removed ANCESTOR is not ----
 
-    private val admitterId = "device-w"
+    /**
+     * W's depth-1 approver id. ⚠ The responder itself: §7j.3 rule 2 binds `chain[0]` to the device
+     * that signed `hostSignature`, so an honest approval's chain always starts with the responder.
+     */
+    private val admitterId = responderDeviceId
     private val admitterA33 = ByteArray(32) { (it + 70).toByte() }
 
     /** W's depth-1 cert, minted by the owner (stub: A1's public key == its signing key). */
@@ -532,8 +536,9 @@ class PairingOfferRoutingTest {
         ),
     )
 
+    /** W is the approver here (depth 1, `chain[0]`) — §7j rule 2 still refuses it, key-independently. */
     @Test
-    fun anApprovalThroughARemovedAdmitter_isRefused403_withoutAnyRevocation() = testApplication {
+    fun anApprovalByARemovedApprover_isRefused403_withoutAnyRevocation() = testApplication {
         val known = knownDevices().also { it.recordRemoval(ownerId, admitterId) }
         application { testModule(knownDevices = known, realmStore = realmStore()) }
 
@@ -541,17 +546,17 @@ class PairingOfferRoutingTest {
             contentType(ContentType.Application.Json)
             setBody(signedBody(delegationSigningKey = admitterA33, admissionCertChain = admitterChain()))
         }
-        assertEquals(HttpStatusCode.Forbidden, approve.status, "S1 must apply to the offer flow too")
+        assertEquals(HttpStatusCode.Forbidden, approve.status, "a removed approver is refused on the offer flow too")
         assertNull(known.getPublicKey(ownerId, offererDeviceId))
     }
 
     /**
-     * ⚠⚠ The delivery half: the approval verified while W was still a member, then W was removed
-     * before the offerer fetched. The queued registration must be re-checked, or a removed admitter's
-     * last delegation registers its joiner anyway.
+     * ⚠⚠ The delivery half: the approval verified while W (the approver) was still a member, then W
+     * was removed before the offerer fetched. The queued registration must be re-checked, or a removed
+     * approver's last delegation registers its joiner anyway.
      */
     @Test
-    fun anAdmitterRemovedBeforeTheOffererFetches_registersNothing() = testApplication {
+    fun anApproverRemovedBeforeTheOffererFetches_registersNothing() = testApplication {
         val known = knownDevices()
         application { testModule(knownDevices = known, realmStore = realmStore()) }
 
@@ -569,9 +574,11 @@ class PairingOfferRoutingTest {
     }
 
     /**
-     * ⚠⚠ The delivery half for a KEY revocation: W's A33 key is revoked after the approval verified
-     * but before the offerer fetches, and W is never removed (a Q3 subtree member, or a removal whose
-     * tombstone has not been pushed yet). The removal ledger alone would let it through.
+     * ⚠⚠ The delivery half for a KEY revocation: the APPROVER W's own A33 key is revoked after the
+     * approval verified but before the offerer fetches, and W is not yet in the removal ledger (a
+     * removal whose tombstone has not been pushed yet — the remover strips the key first). The
+     * removal ledger alone would let it through. §7j.10 keeps this: only an ancestor's revocation
+     * stopped refusing.
      */
     @Test
     fun anAdmitterKeyRevokedBeforeTheOffererFetches_registersNothing() = testApplication {
@@ -602,5 +609,180 @@ class PairingOfferRoutingTest {
         val fetch = client.get("/sync/pairing/offer-response?hash=$hash")
         assertEquals(HttpStatusCode.Forbidden, fetch.status)
         assertNull(known.getPublicKey(ownerId, offererDeviceId), "the queued registration must not land")
+    }
+
+    /**
+     * ⚠⚠ §7j.10 fix round on the offer flow: the responder W's own A33 key is revoked; W re-keys
+     * itself (`[W(K'), W(K_W)]`, `W(K')` signed by the revoked key) and approves. Refused, nothing
+     * lands — and with no revocation at all the repeated id alone refuses it.
+     */
+    @Test
+    fun aSelfReKeyThroughTheRespondersOwnRevokedKey_isRefused_andRegistersNothing() = testApplication {
+        val known = knownDevices()
+        val revocations = org.tenshu.sync.relay.mailbox.AdmissionRevocationStore()
+        revocations.appendRevocation(
+            org.tenshu.sync.relay.mailbox.AdmissionRevocationRegistry.RevocationRecord(
+                ownerId = ownerId,
+                deviceId = admitterId,
+                epoch = 1L,
+                revokedAt = 1_000L,
+                signature = stubEd25519Signature(
+                    masterKey,
+                    org.tenshu.sync.common.AdmissionRevocation.message(
+                        ownerId, admitterId, epoch = 1L, revokedAt = 1_000L, deviceA33PublicKey = admitterA33,
+                    ),
+                ),
+                deviceA33PublicKey = admitterA33,
+            ),
+        )
+        application { testModule(knownDevices = known, realmStore = realmStore(), admissionRevocationStore = revocations) }
+        val reKey = ByteArray(32) { (it + 140).toByte() }
+        val selfReKey = listOf(
+            org.tenshu.sync.common.AdmissionCapabilityCert(
+                ownerId, reKey, admitterId, 0L,
+                stubEd25519Signature(admitterA33, org.tenshu.sync.common.AdmissionCapabilityCert.message(ownerId, reKey, admitterId, 0L)),
+            ),
+        ) + admitterChain()
+
+        val approve = client.post("/sync/pairing/offer-response") {
+            contentType(ContentType.Application.Json)
+            setBody(signedBody(delegationSigningKey = reKey, admissionCertChain = selfReKey))
+        }
+        assertEquals(HttpStatusCode.Forbidden, approve.status)
+        val fetch = client.get("/sync/pairing/offer-response?hash=$hash")
+        assertTrue(fetch.status != HttpStatusCode.OK, "nothing queued: ${fetch.status}")
+        assertNull(known.getPublicKey(ownerId, offererDeviceId))
+    }
+
+    /** The depth-2 approver (`chain[0]`) is again the responder; W below is only its ancestor. */
+    private val approverId = responderDeviceId
+    private val ancestorId = "device-w"
+    private val approverA33 = ByteArray(32) { (it + 110).toByte() }
+
+    /** X's depth-2 chain `[X ← W ← A1]`: W admitted X, X (the responder) approves. */
+    private fun approverThroughAdmitterChain() = listOf(
+        org.tenshu.sync.common.AdmissionCapabilityCert(
+            ownerId, approverA33, approverId, 0L,
+            stubEd25519Signature(admitterA33, org.tenshu.sync.common.AdmissionCapabilityCert.message(ownerId, approverA33, approverId, 0L)),
+        ),
+        org.tenshu.sync.common.AdmissionCapabilityCert(
+            ownerId, admitterA33, ancestorId, 0L,
+            stubEd25519Signature(masterKey, org.tenshu.sync.common.AdmissionCapabilityCert.message(ownerId, admitterA33, ancestorId, 0L)),
+        ),
+    )
+
+    /**
+     * ⚠⚠ §7j, inverting S1 on the offer flow: W (X's admitter, an ANCESTOR) was removed; X is current
+     * and approves. Admitted at post AND delivered at fetch — the incident (2026-11-11) was exactly
+     * this shape, an iPhone admitted by a since-removed Mac, refused at every approve.
+     */
+    @Test
+    fun anApprovalThroughARemovedAncestor_isAdmitted_andDelivered() = testApplication {
+        val known = knownDevices().also { it.recordRemoval(ownerId, ancestorId) }
+        application { testModule(knownDevices = known, realmStore = realmStore()) }
+
+        val approve = client.post("/sync/pairing/offer-response") {
+            contentType(ContentType.Application.Json)
+            setBody(signedBody(delegationSigningKey = approverA33, admissionCertChain = approverThroughAdmitterChain()))
+        }
+        assertEquals(HttpStatusCode.OK, approve.status)
+        val fetch = client.get("/sync/pairing/offer-response?hash=$hash")
+        assertEquals(HttpStatusCode.OK, fetch.status)
+        assertContentEquals(offererSigningKey, known.getPublicKey(ownerId, offererDeviceId))
+    }
+
+    /**
+     * ⚠⚠ §7j.10 (2026-11-11) on the offer flow: W (X's admitter, an ANCESTOR) was removed by an A1
+     * holder, so its A33 key is revoked too — the realm HAS an owner device. X is a kept, current
+     * member and approves: admitted at post AND delivered at fetch. Before §7j.10 the revoked
+     * ancestor key refused it, leaving X a member that could not admit.
+     */
+    @Test
+    fun anApprovalThroughARevokedAndRemovedAncestor_isAdmitted_andDelivered() = testApplication {
+        val known = knownDevices().also { it.recordRemoval(ownerId, ancestorId) }
+        val revocations = org.tenshu.sync.relay.mailbox.AdmissionRevocationStore()
+        revocations.appendRevocation(
+            org.tenshu.sync.relay.mailbox.AdmissionRevocationRegistry.RevocationRecord(
+                ownerId = ownerId,
+                deviceId = ancestorId,
+                epoch = 1L,
+                revokedAt = 1_000L,
+                signature = stubEd25519Signature(
+                    masterKey,
+                    org.tenshu.sync.common.AdmissionRevocation.message(
+                        ownerId, ancestorId, epoch = 1L, revokedAt = 1_000L, deviceA33PublicKey = admitterA33,
+                    ),
+                ),
+                deviceA33PublicKey = admitterA33,
+            ),
+        )
+        application { testModule(knownDevices = known, realmStore = realmStore(), admissionRevocationStore = revocations) }
+
+        val approve = client.post("/sync/pairing/offer-response") {
+            contentType(ContentType.Application.Json)
+            setBody(signedBody(delegationSigningKey = approverA33, admissionCertChain = approverThroughAdmitterChain()))
+        }
+        assertEquals(HttpStatusCode.OK, approve.status)
+        val fetch = client.get("/sync/pairing/offer-response?hash=$hash")
+        assertEquals(HttpStatusCode.OK, fetch.status)
+        assertContentEquals(offererSigningKey, known.getPublicKey(ownerId, offererDeviceId))
+    }
+
+    /** §7j at delivery: the ancestor W is removed AFTER the approval queued — still delivered. */
+    @Test
+    fun anAncestorRemovedBeforeTheOffererFetches_stillDelivers() = testApplication {
+        val known = knownDevices()
+        application { testModule(knownDevices = known, realmStore = realmStore()) }
+
+        val approve = client.post("/sync/pairing/offer-response") {
+            contentType(ContentType.Application.Json)
+            setBody(signedBody(delegationSigningKey = approverA33, admissionCertChain = approverThroughAdmitterChain()))
+        }
+        assertEquals(HttpStatusCode.OK, approve.status)
+
+        known.recordRemoval(ownerId, ancestorId)
+
+        val fetch = client.get("/sync/pairing/offer-response?hash=$hash")
+        assertEquals(HttpStatusCode.OK, fetch.status)
+        assertContentEquals(offererSigningKey, known.getPublicKey(ownerId, offererDeviceId))
+    }
+
+    /**
+     * §7j.3 rule 2 on the offer flow: the chain names an approver other than the responder that
+     * signed the body. Refused — the attack shape, a chain posted under another device's credentials.
+     */
+    @Test
+    fun anApprovalWhoseChainNamesAnotherApprover_isRefused_andRegistersNothing() = testApplication {
+        val known = knownDevices()
+        application { testModule(knownDevices = known, realmStore = realmStore()) }
+        val forged = listOf(
+            org.tenshu.sync.common.AdmissionCapabilityCert(
+                ownerId, admitterA33, "fabricated-leaf", 0L,
+                stubEd25519Signature(masterKey, org.tenshu.sync.common.AdmissionCapabilityCert.message(ownerId, admitterA33, "fabricated-leaf", 0L)),
+            ),
+        )
+        val approve = client.post("/sync/pairing/offer-response") {
+            contentType(ContentType.Application.Json)
+            setBody(signedBody(delegationSigningKey = admitterA33, admissionCertChain = forged))
+        }
+        assertEquals(HttpStatusCode.Unauthorized, approve.status)
+        assertNull(known.getPublicKey(ownerId, offererDeviceId))
+    }
+
+    /** The responder's registration is revoked between approval and fetch — nothing lands. */
+    @Test
+    fun aResponderUnregisteredBeforeTheOffererFetches_registersNothing() = testApplication {
+        val known = knownDevices()
+        application { testModule(knownDevices = known, realmStore = realmStore()) }
+        val approve = client.post("/sync/pairing/offer-response") {
+            contentType(ContentType.Application.Json)
+            setBody(signedBody(delegationSigningKey = approverA33, admissionCertChain = approverThroughAdmitterChain()))
+        }
+        assertEquals(HttpStatusCode.OK, approve.status)
+
+        known.revoke(ownerId, responderDeviceId)
+
+        assertEquals(HttpStatusCode.Forbidden, client.get("/sync/pairing/offer-response?hash=$hash").status)
+        assertNull(known.getPublicKey(ownerId, offererDeviceId))
     }
 }

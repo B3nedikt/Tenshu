@@ -24,7 +24,7 @@
   },
   "banner": {
     "thisDevice": "this device",
-    "signedInAs": "You're signed in as <strong>{deviceName}</strong>. <controlPlane>Open your control plane →</controlPlane>",
+    "signedInAs": "You're signed in as <strong>{deviceName}</strong>. <apps>Open your apps →</apps>",
     "lock": "Lock",
     "lockAriaLabel": "Lock this device. You'll need to unlock it again to continue",
     "dismiss": "Dismiss"

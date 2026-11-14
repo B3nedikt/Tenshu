@@ -232,12 +232,20 @@ fun NativeBridgeServer.registerControlMethods(
  * [windowController]. Separate from [registerControlMethods] because the
  * controller lives in the desktop entry point (`Main.kt`), not in Koin.
  *
- *  - `openControlWindow` — the tray's *Open Control* ([WindowController.show]).
+ *  - `openControlWindow` — the tray's *Open Control* and a deferring second Control
+ *    ([WindowController.show], then [onOpenWindow]).
  *  - `quitApp` — the tray's *Quit* ([WindowController.requestQuit]).
+ *
+ * [onOpenWindow] lets the entry point revive a tray that died since start-up: a second Control
+ * that defers to this one must not spawn a tray itself, or two channels starting together race.
  */
-fun NativeBridgeServer.registerWindowMethods(windowController: WindowController) {
+fun NativeBridgeServer.registerWindowMethods(
+    windowController: WindowController,
+    onOpenWindow: () -> Unit = {},
+) {
     register("openControlWindow") {
         windowController.show()
+        onOpenWindow()
         mapOf("ok" to true)
     }
     register("quitApp") {

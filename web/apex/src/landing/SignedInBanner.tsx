@@ -5,6 +5,7 @@
 // announcement happens at the document level (§9 a11y note).
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
+import { OVERVIEW_PATH } from '../lib/overviewPath'
 import { Trans, useTranslation } from 'react-i18next'
 import { RUNTIME_ELSEWHERE } from '../lib/runtimeElsewhere'
 import { useLandingCta } from './useLandingCta'
@@ -66,9 +67,9 @@ export function SignedInBanner() {
             values={{ deviceName }}
             components={{
               strong: <strong className="font-semibold" />,
-              controlPlane: (
+              apps: (
                 <Link
-                  to="/control"
+                  to={OVERVIEW_PATH}
                   onClick={dismiss}
                   className="font-medium text-text underline-offset-4 hover:underline"
                 />

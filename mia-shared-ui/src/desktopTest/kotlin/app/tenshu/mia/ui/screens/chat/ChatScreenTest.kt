@@ -29,7 +29,6 @@ class ChatScreenTest {
     // an empty container = the flag's absent/default-false posture.
     @BeforeTest
     fun setUpKoin() {
-        stopKoin()
         startKoin { }
     }
 

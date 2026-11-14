@@ -6,12 +6,16 @@ import org.tenshu.core.TString
 import org.tenshu.core.common.TestProxy
 import org.tenshu.core.common.createSyntheticTestRegistry
 import org.tenshu.core.common.delegate.InMemorySecureStorageDelegate
+import org.tenshu.core.common.proxy.ArrayDatabaseReference
 import org.tenshu.core.common.proxy.ExecutionContext
 import org.tenshu.core.common.proxy.OperationContext
 import org.tenshu.core.common.proxy.db.InMemoryObjectStore
 import org.tenshu.core.common.proxy.executor.AsyncOperationImplementation
 import org.tenshu.core.common.proxy.executor.OperationImplementationFactory
+import org.tenshu.core.entity.DataId
 import org.tenshu.core.security.syncCryptoManager
+import org.tenshu.sync.DeleteBlock
+import org.tenshu.sync.SyncService
 import org.tenshu.sync.proxy.impl.ForgetThisDeviceImplementation
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -38,6 +42,8 @@ class ForgetThisDeviceRetirementWaitTest {
     @BeforeTest
     fun setup() {
         testProxy = TestProxy(schemaRegistry = createSyntheticTestRegistry())
+        // The sync schemas, so the fake revoke can queue a real `DeleteBlock`.
+        testProxy.schemaRegistry.registerConfig(org.tenshu.sync.common.syncServiceCommonModule)
         syncManager = SyncManagerImpl(
             cryptoManager = testProxy.tContext.syncCryptoManager(),
             storageDelegate = InMemorySecureStorageDelegate(),
@@ -52,10 +58,15 @@ class ForgetThisDeviceRetirementWaitTest {
         var now = 0L
     }
 
-    /** Stands in for `RevokeDeviceImplementation`, reporting the strip outcome the same way it does. */
-    private class FakeRevoke(
+    /**
+     * Stands in for `RevokeDeviceImplementation`, reporting the strip outcome the same way it does.
+     * With [queueTombstone] it also leaves this device's own retirement in `PENDING_TOMBSTONES`, as
+     * the real one does, and nothing here drains it: a push that never leaves.
+     */
+    private inner class FakeRevoke(
         private val onRelayStripFailed: () -> Unit,
         private val stripFails: Boolean,
+        private val queueTombstone: Boolean,
     ) : AsyncOperationImplementation {
         @Suppress("UNCHECKED_CAST")
         override suspend fun <T : Data?> execute(
@@ -65,15 +76,43 @@ class ForgetThisDeviceRetirementWaitTest {
             caller: Any?,
             params: Map<String, Data>?,
         ): T {
+            if (queueTombstone) {
+                executionContext.database.addToArray(
+                    ArrayDatabaseReference(
+                        arrayId = DataId.RelationDataId.create(
+                            context = testProxy.tContext,
+                            type = DeleteBlock.ID,
+                            relationId = SyncService.Collections.PENDING_TOMBSTONES,
+                        ),
+                        isEntity = false,
+                        elementSchemaId = DeleteBlock.ID,
+                    ),
+                    DeleteBlock.create(
+                        context = testProxy.tContext,
+                        blockId = "tomb-self",
+                        ownerId = requireNotNull(syncManager.currentOwnerId),
+                        hlc = syncManager.hlcManager.tick(),
+                        targetEntityIdHash = "1234",
+                        targetEntityType = "tenshu/identity/device",
+                        revokedDeviceId = syncManager.currentDeviceId,
+                    ),
+                )
+            }
             if (stripFails) onRelayStripFailed()
             return null as T
         }
     }
 
-    private suspend fun run(stripFails: Boolean, clock: FakeClock): String {
+    private suspend fun run(
+        stripFails: Boolean,
+        clock: FakeClock,
+        queueTombstone: Boolean = false,
+        relayRefusesThisDevice: () -> Boolean = { false },
+    ): String {
         val impl = ForgetThisDeviceImplementation(
             syncManager = syncManager,
-            revokeDevice = { onStripFailed -> FakeRevoke(onStripFailed, stripFails) },
+            revokeDevice = { onStripFailed -> FakeRevoke(onStripFailed, stripFails, queueTombstone) },
+            relayRefusesThisDevice = relayRefusesThisDevice,
             nowMs = {
                 // Advance one poll interval per read, so a wait that runs to its bound shows up as
                 // exactly the bound rather than spinning forever.
@@ -135,7 +174,71 @@ class ForgetThisDeviceRetirementWaitTest {
         )
     }
 
-    // ⚠ NOT covered here: the 8s timeout branch (healthy strip, a tombstone that never drains).
-    // Reaching it needs a populated PENDING_TOMBSTONES, which this harness does not build. That
-    // bound is unchanged by this slice — the short-circuit returns before it or not at all.
+    /**
+     * The bound itself: a healthy strip, a relay that still accepts this device, and a tombstone
+     * that never leaves. The wait runs to [ForgetThisDeviceImplementation]'s timeout and then says
+     * the row is still listed. This is the control for the refusal cases below: without it, a
+     * short-circuit that fired unconditionally would pass them.
+     */
+    @Test
+    fun aTombstoneThatNeverLeaves_runsTheWholeBound_andReportsTheLeftoverRow() = runTest {
+        val clock = FakeClock()
+
+        val outcome = run(stripFails = false, clock = clock, queueTombstone = true)
+
+        assertTrue(outcome.contains("still listed"), "the bound reports the leftover row — got: $outcome")
+        assertTrue(clock.now >= 8_000L, "nothing refused us, so the whole bound is waited (spent ${clock.now}ms)")
+    }
+
+    /**
+     * ⚠⚠ The joiner's case. A joiner holds no A1, so the strip is never tried and cannot fail; the
+     * only sign that its push is doomed is the scheduler's `401` state. A removed joiner pressing
+     * Forget used to wait the full 8 s for a tombstone the relay would never take.
+     */
+    @Test
+    fun relayRefusingThisDevice_stopsWaiting_withoutAStripFailure() = runTest {
+        val clock = FakeClock()
+
+        val outcome = run(stripFails = false, clock = clock, queueTombstone = true, relayRefusesThisDevice = { true })
+
+        assertTrue(
+            outcome.contains("could not confirm"),
+            "refused by the relay, we never learned whether the row is still listed — got: $outcome",
+        )
+        assertTrue(clock.now < 1_000L, "the refusal must not spend the retirement timeout (spent ${clock.now}ms)")
+    }
+
+    /**
+     * The refusal can arrive DURING the wait: the scheduler meets the `401` when it tries the very
+     * push we are waiting on. The wait must notice on its next poll, not only at its start.
+     */
+    @Test
+    fun aRefusalArrivingMidWait_stopsAtTheNextPoll() = runTest {
+        val clock = FakeClock()
+        var asks = 0
+
+        val outcome = run(
+            stripFails = false,
+            clock = clock,
+            queueTombstone = true,
+            relayRefusesThisDevice = { ++asks > 3 },
+        )
+
+        assertTrue(outcome.contains("could not confirm"), "got: $outcome")
+        assertTrue(asks == 4, "stopped at the first poll that saw the refusal (asked $asks times)")
+        assertTrue(clock.now < 8_000L, "and well inside the bound (spent ${clock.now}ms)")
+    }
+
+    /**
+     * An emptied queue is a confirmed removal even if the relay refuses this device afterwards: the
+     * tombstone left, which is the thing the wait exists to learn. The queue is read first.
+     */
+    @Test
+    fun anEmptyQueueIsAConfirmedRemoval_evenIfTheRelayNowRefusesUs() = runTest {
+        val clock = FakeClock()
+
+        val outcome = run(stripFails = false, clock = clock, relayRefusesThisDevice = { true })
+
+        assertTrue(outcome.contains("removed from your realm"), "got: $outcome")
+    }
 }

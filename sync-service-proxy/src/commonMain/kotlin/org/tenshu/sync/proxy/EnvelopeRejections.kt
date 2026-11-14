@@ -1,6 +1,7 @@
 package org.tenshu.sync.proxy
 
-import kotlin.concurrent.Volatile
+import kotlin.concurrent.atomics.AtomicLong
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
 
 /**
  * ⭐ D-d (`sync-envelope-authentication.md` §3.4): what ingest does with an envelope that fails
@@ -14,6 +15,7 @@ import kotlin.concurrent.Volatile
  * ⚠ A body-dropped block (`EnvelopeOnlySyncBlock`, empty payload) is **not** a rejection: the relay
  * freed its body by design. It is skipped without being counted.
  */
+@OptIn(ExperimentalAtomicApi::class)
 object EnvelopeRejections {
 
     /** Log the first rejection, then one in this many. */
@@ -21,22 +23,21 @@ object EnvelopeRejections {
 
     enum class Kind { TOMBSTONE_TAG, BLOCK_ENVELOPE, RETIRED_KEY_AFTER_RETIREMENT }
 
-    @Volatile
-    private var tombstones = 0L
-
-    @Volatile
-    private var blocks = 0L
+    // ⚠ Atomic, not `@Volatile var` + `++`: every device in the process records here, and two devices
+    // pulling the same batch record from different threads at once — a volatile `++` loses counts.
+    private val tombstones = AtomicLong(0)
+    private val blocks = AtomicLong(0)
 
     /** Rejected tombstones since process start. */
-    val tombstoneCount: Long get() = tombstones
+    val tombstoneCount: Long get() = tombstones.load()
 
     /** Rejected blocks (bad envelope, or a retired key used after its retirement) since process start. */
-    val blockCount: Long get() = blocks
+    val blockCount: Long get() = blocks.load()
 
     fun record(kind: Kind, blockId: String) {
         val n = when (kind) {
-            Kind.TOMBSTONE_TAG -> ++tombstones
-            Kind.BLOCK_ENVELOPE, Kind.RETIRED_KEY_AFTER_RETIREMENT -> ++blocks
+            Kind.TOMBSTONE_TAG -> tombstones.addAndFetch(1L)
+            Kind.BLOCK_ENVELOPE, Kind.RETIRED_KEY_AFTER_RETIREMENT -> blocks.addAndFetch(1L)
         }
         if (n == 1L || n % LOG_EVERY == 0L) {
             println(

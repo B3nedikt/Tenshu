@@ -1,5 +1,5 @@
 // Coverage for the §3 Locked unlock flow. Exercises:
-//   - the pre-detect router (active → /control/home, firstTime → /onboarding)
+//   - the pre-detect router (active → /overview, firstTime → /onboarding)
 //   - the welcome card with the persisted device name
 //   - the happy-path passkey unlock (detect → unlock → persist → route)
 //   - the two failure surfaces: WebAuthn-side cancellation and
@@ -108,11 +108,11 @@ describe('LockedFlow', () => {
     expect(screen.getByRole('button', { name: 'Lost your passkey?' })).toBeInTheDocument()
   })
 
-  it('redirects to /control/home when Session.detect returns active', async () => {
+  it('redirects to /overview when Session.detect returns active', async () => {
     const { sdk } = stubSdk({ detect: { kind: 'active', deviceName: 'Pixel 9' } })
     renderFlow(sdk)
     await waitFor(() =>
-      expect(screen.getByTestId('location')).toHaveTextContent('/control/home'),
+      expect(screen.getByTestId('location')).toHaveTextContent('/overview'),
     )
   })
 
@@ -124,7 +124,7 @@ describe('LockedFlow', () => {
     )
   })
 
-  it('completes the happy-path unlock and routes to /control/home', async () => {
+  it('completes the happy-path unlock and routes to /overview', async () => {
     const user = userEvent.setup()
     getPasskeyAssertionMock.mockResolvedValueOnce({
       ok: true,
@@ -134,7 +134,7 @@ describe('LockedFlow', () => {
     renderFlow(sdk)
     await user.click(await screen.findByRole('button', { name: 'Unlock with passkey' }))
     await waitFor(() =>
-      expect(screen.getByTestId('location')).toHaveTextContent('/control/home'),
+      expect(screen.getByTestId('location')).toHaveTextContent('/overview'),
     )
     expect(unlock).toHaveBeenCalledTimes(1)
     expect(persist).toHaveBeenCalledTimes(1)
