@@ -11,6 +11,7 @@
     <string name="capture_permission_reason_activity">Mit „Körperliche Aktivität“ kann Timeline deine Schritte zählen – daran erkennt die App, ob du Rad fährst oder läufst. Ohne diese Berechtigung wird Radfahren meist als Laufen aufgezeichnet.</string>
     <string name="capture_permission_continue">Weiter</string>
     <string name="capture_permission_not_now">Nicht jetzt</string>
+    <string name="capture_precise_location_needed">Timeline braucht den genauen Standort, um die besuchten Orte aufzuzeichnen. Mit dem ungefähren Standort lassen sich Orte nicht unterscheiden, daher bleibt die Aufzeichnung aus.</string>
     <string name="capture_background_title">Auch nach dem Schließen der App aufzeichnen</string>
     <string name="capture_background_message">Timeline erfasst deinen Standort, um die Orte, die du besuchst, und deine Strecken aufzuzeichnen, auch wenn die App geschlossen ist oder nicht verwendet wird. Android beendet Timeline im Hintergrund hin und wieder. Damit die Aufzeichnung von selbst wieder startet, muss der Standortzugriff auf „Immer zulassen“ stehen.\n\nOhne diese Einstellung wird die Aufzeichnung erst fortgesetzt, wenn du die App das nächste Mal öffnest. Deine Timeline bleibt Ende-zu-Ende-verschlüsselt auf deinen eigenen Geräten.</string>
 </resources>

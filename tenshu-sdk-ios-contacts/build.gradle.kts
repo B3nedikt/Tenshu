@@ -44,6 +44,9 @@ kotlin {
         getByName("iosTest") {
             dependencies {
                 implementation(libs.kotlinx.coroutines.test)
+                // `OwnedViewModels`: a view model bound to a live runtime is joined before `Main`
+                // is reset (`docs/testing.md` §11).
+                implementation(project(":viewmodel-test-utils"))
             }
         }
     }

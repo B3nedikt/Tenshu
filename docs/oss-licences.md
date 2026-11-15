@@ -116,6 +116,8 @@ BSD-2/BSD-3, ISC and the Bouncy Castle licence (MIT text) are permissive and not
 | Google Play services (`base`, `basement`, `tasks`, `location`, `places-placereport`), Play Billing (`billing`, `billing-ktx` 9.1.0) | various | **Android SDK License** (proprietary) | control only | Standard for Play apps; not OSS, no text to ship — name + URL shown. Billing also pulls `datatransport` + `firebase-encoders*` (Apache-2.0, so permissive — but it is Google's telemetry transport; the privacy policy is where that belongs, not here). |
 | `lightningcss` (+ linux-x64-gnu) | — | **MPL-2.0** | nothing shipped — Tailwind build plugin only | Not in any served file (the web build fails if a bundled module is unlisted). No action. |
 
+The two dual-licensed rows above are allowed in the build's licence check for that library only (`ossLicenceDualElected` in the root `build.gradle.kts`, keyed by licence hash), so they no longer warn; the same GPL licence on any other library still does.
+
 No dependency is AGPL, SSPL, LGPL-only, unlicensed or of unknown licence. **No GPL code is linked
 without a permissive alternative.**
 

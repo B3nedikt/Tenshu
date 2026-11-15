@@ -3,6 +3,7 @@ package org.tenshu.file.proxy.jvm
 import kotlinx.coroutines.test.runTest
 import org.tenshu.core.common.proxy.InMemoryFileDatabase
 import org.tenshu.core.file.GetPreview
+import org.tenshu.core.file.GetStoredThumbnail
 import org.tenshu.file.impl.ThumbnailClassMinter
 import org.tenshu.file.proxy.ThumbnailClasses
 import org.tenshu.file.proxy.ThumbnailLadderRenderer
@@ -27,11 +28,15 @@ import kotlin.time.Duration.Companion.minutes
  * - both under the rung's cap;
  * - the picture itself within tolerance. The pixels may differ below the top rung: the ladder
  *   cascades rung to rung, where the per-rung path scales each rung straight from the full decode.
+ *
+ * ⚠ Each fixture is sized from [TOP_RUNG_PX] to the boundary it is about, and no larger: the decode,
+ * the scales and the encodes all cost by the pixel, and the only edges production branches on are
+ * "is the original larger than this rung" (`JvmThumbnailRaster.fitWithin`) and each rung's byte cap.
  */
 class ThumbnailLadderParityTest {
 
     @Test
-    fun aLargeLandscapePhoto() = parity("wide.jpg", LadderFixtures.photo(5_000, 3_000))
+    fun aLargeLandscapePhoto() = parity("wide.jpg", LadderFixtures.photo(WIDE_EDGE, WIDE_EDGE * 3 / 5))
 
     @Test
     fun aPortraitPhotoBetweenTheTopRungs() = parity("tall.jpg", LadderFixtures.photo(1_500, 2_600))
@@ -41,7 +46,7 @@ class ThumbnailLadderParityTest {
 
     @Test
     fun aNoiseFrame_theStepDownAndTheCapsDeclineTheSameRungs() = runTest {
-        val bytes = LadderFixtures.noise(2_400, 2_400)
+        val bytes = LadderFixtures.noise(NOISE_EDGE, NOISE_EDGE)
         val perRung = LadderFixtures.upload(backgroundScope, "noise.png", bytes, ladder = false)
         val ladder = LadderFixtures.upload(backgroundScope, "noise.png", bytes, ladder = true)
         // ⚠ Anti-vacuity: the fixture has to actually reach both a decline and a stored rung.
@@ -58,7 +63,7 @@ class ThumbnailLadderParityTest {
      */
     @Test
     fun finePeriodicDetailIsNeverAliasedAway() = runTest(timeout = 5.minutes) {
-        val bytes = LadderFixtures.stripes(4_200)
+        val bytes = LadderFixtures.stripes(STRIPES_EDGE)
         val perRung = LadderFixtures.upload(backgroundScope, "stripes.png", bytes, ladder = false)
         val ladder = LadderFixtures.upload(backgroundScope, "stripes.png", bytes, ladder = true)
 
@@ -138,6 +143,26 @@ class ThumbnailLadderParityTest {
     }
 
     private companion object {
+        /** The largest still rung's edge; every fixture below is sized from it. */
+        const val TOP_RUNG_PX = GetStoredThumbnail.XXLARGE_PX
+
+        /**
+         * Past the top rung, so every rung is a downscale on both paths, and landscape, so
+         * `fitWithin` takes its width-bound branch (the portrait fixture takes the height-bound one).
+         * A quarter over rather than just over, so the top rung is a real resample, not a 1 % nudge.
+         */
+        const val WIDE_EDGE = TOP_RUNG_PX + TOP_RUNG_PX / 4
+
+        /** Past the top rung, so each rung meets its cap at its own size rather than the original's. */
+        const val NOISE_EDGE = TOP_RUNG_PX + 64
+
+        /**
+         * ⚠ Not shrunk: the smallest edge at which a subsampled read of the top rung would pick factor
+         * 2 is twice the rung, and factor 2 is what turns 1 px stripes solid black. Below it this test
+         * could not catch a subsampled read coming back.
+         */
+        const val STRIPES_EDGE = 2 * TOP_RUNG_PX + 104
+
         /**
          * Mean absolute difference per channel (0–255). Two JPEG encodes of one picture differ by ~1;
          * cascaded against straight-from-full measured under 2 on these fixtures. 4

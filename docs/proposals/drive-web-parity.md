@@ -660,6 +660,11 @@ A safe guard needs a **per-file** "has this content reached tier 2" signal, and 
 ⚠ A per-device cache ceiling is deliberately not proposed for web: the browser already manages
 the origin's quota and evicts on its own terms (§1.2d), so a second ceiling underneath it fights
 a manager it cannot see.
+⚠ **Carve-out — thumbnail classes above `LARGE` (2026-11-15):** they DO get a web ceiling
+(64 MiB, `drive-xxlarge-thumbnail-rung.md` §9.2), because the binding limit there is not quota but
+**heap**: `IndexedDbFileDatabase` loads every stored byte into memory at start. They are also
+re-fetchable derivatives, never user content, so the data-loss argument above does not apply. The
+file cache (`File.Data`) is unchanged: no ceiling, no free-space floor on the web.
 
 **W8 — sync that survives a background tab** ✅ *the achievable half is done* — ⚠⚠ **and the
 phase's own goal was not achievable as written** *(§1.2b)*

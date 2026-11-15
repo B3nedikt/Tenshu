@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { act, fireEvent, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Photo } from '@tenshu/sdk/photos'
@@ -7,7 +7,7 @@ import { album, photo, proxy, resetProxy, streams } from '../test/proxyMock'
 import { renderWithProviders } from '../test/render'
 
 vi.mock('../lib/proxy', async () => (await import('../test/proxyMock')).proxyModule)
-const { Viewer } = await import('./Viewer')
+const { Viewer, FILMSTRIP_RADIUS } = await import('./Viewer')
 
 const JPEG = new Int8Array([0xff, 0xd8, 0xff, 0x00])
 
@@ -41,6 +41,17 @@ describe('Viewer — rung choice', () => {
     expect(px % 512).toBe(0)
     expect(px).toBeGreaterThanOrEqual(1024)
     expect(screen.queryByRole('button', { name: 'Download original' })).toBeNull()
+  })
+
+  it('ED-3: an edited photo is drawn by its rendition, and its download is the rendition — never the original', async () => {
+    proxy.getLargePreview.mockResolvedValue({ ok: true, bytes: JPEG, thumbnailClass: 'large', coveringRung: 'absent' })
+    const p = photo({ name: 'IMG_0002.jpg', path: '/Photos/IMG_0002.jpg', renditionPath: '/Trash/.edits/c2-1.jpg' })
+    open([p])
+    expect(await screen.findByRole('img', { name: 'IMG_0002.jpg' })).toBeInTheDocument()
+    expect(proxy.getLargePreview.mock.calls.map((c) => c[0])).toEqual(['/Trash/.edits/c2-1.jpg'])
+    await userEvent.click(screen.getByRole('button', { name: 'Download original' }))
+    await waitFor(() => expect(proxy.openContentStream).toHaveBeenCalled())
+    expect(proxy.openContentStream.mock.calls.map((c) => c[0])).toEqual(['/Trash/.edits/c2-1.jpg'])
   })
 
   it('a HEIC with the covering rung absent: the largest rung, and "Download original" offered — never decoded', async () => {
@@ -178,6 +189,71 @@ describe('Viewer — navigation', () => {
     fireEvent.pointerDown(dialog, { clientX: 100 })
     fireEvent.pointerUp(dialog, { clientX: 400 })
     expect(screen.getByRole('dialog', { name: 'two.jpg' })).toBeInTheDocument()
+  })
+})
+
+describe('Viewer — filmstrip and keys (Drive’s FileViewer rules)', () => {
+  it('shows the neighbours, the current one marked, and a click moves to it', async () => {
+    const photos = [photo({ name: 'one.jpg' }), photo({ name: 'two.jpg' }), photo({ name: 'three.jpg' })]
+    open(photos)
+    const strip = screen.getByRole('navigation', { name: 'Photos nearby' })
+    expect(within(strip).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual(['one.jpg', 'two.jpg', 'three.jpg'])
+    expect(within(strip).getByRole('button', { name: 'one.jpg' })).toHaveAttribute('aria-current', 'true')
+    await userEvent.click(within(strip).getByRole('button', { name: 'three.jpg' }))
+    expect(screen.getByRole('dialog', { name: 'three.jpg' })).toBeInTheDocument()
+    expect(within(strip).getByRole('button', { name: 'three.jpg' })).toHaveAttribute('aria-current', 'true')
+    expect(within(strip).getByRole('button', { name: 'one.jpg' })).not.toHaveAttribute('aria-current')
+  })
+
+  it('draws a window of neighbours, never the whole list, and pages the far end in', () => {
+    const photos = Array.from({ length: 500 }, (_, i) => photo({ name: `n${i}.jpg` }))
+    const need = vi.fn()
+    renderWithProviders(
+      <Viewer total={photos.length} photoAt={(i) => (i < 140 ? photos[i] : undefined)} need={need} startIndex={120} onClose={() => {}} />,
+    )
+    const strip = screen.getByRole('navigation', { name: 'Photos nearby' })
+    const names = within(strip).getAllByRole('button').map((b) => b.getAttribute('aria-label'))
+    // 90…139 are loaded; 140…150 are placeholders until the pager brings them.
+    expect(names[0]).toBe(`n${120 - FILMSTRIP_RADIUS}.jpg`)
+    expect(names).toHaveLength(140 - (120 - FILMSTRIP_RADIUS))
+    expect(need).toHaveBeenCalledWith(120 + FILMSTRIP_RADIUS)
+  })
+
+  it('controlled: a move is reported, not taken, until the owner moves the index', () => {
+    const photos = [photo({ name: 'one.jpg' }), photo({ name: 'two.jpg' })]
+    const onMove = vi.fn()
+    renderWithProviders(<Viewer total={2} photoAt={(i) => photos[i]} index={0} onMove={onMove} onClose={() => {}} />)
+    fireEvent.keyDown(window, { key: 'ArrowRight' })
+    expect(onMove).toHaveBeenCalledWith(1)
+    expect(screen.getByRole('dialog', { name: 'one.jpg' })).toBeInTheDocument()
+  })
+
+  it('skips a key already handled, a key from outside the viewer, and ←/→/Space on a focused video', async () => {
+    proxy.motionClip.mockResolvedValue({ ok: true, bytes: new Int8Array([0, 0, 0, 0x20]) })
+    const photos = [photo({ name: 'clip.mp4', isVideo: true, durationMs: 4000 }), photo({ name: 'two.jpg' })]
+    const onClose = vi.fn()
+    open(photos, { onClose })
+    const handled = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
+    handled.preventDefault()
+    act(() => {
+      window.dispatchEvent(handled)
+    })
+    expect(screen.getByRole('dialog', { name: 'clip.mp4' })).toBeInTheDocument()
+
+    const outside = document.createElement('button')
+    document.body.appendChild(outside)
+    fireEvent.keyDown(outside, { key: 'Escape' })
+    expect(onClose).not.toHaveBeenCalled()
+    outside.remove()
+
+    const loop = await screen.findByTestId('motion-loop')
+    fireEvent.keyDown(loop, { key: 'ArrowRight' })
+    fireEvent.keyDown(loop, { key: ' ' })
+    expect(screen.getByRole('dialog', { name: 'clip.mp4' })).toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+    // Space anywhere else in the viewer is Quick Look's close.
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: ' ' })
+    expect(onClose).toHaveBeenCalledWith(0)
   })
 })
 

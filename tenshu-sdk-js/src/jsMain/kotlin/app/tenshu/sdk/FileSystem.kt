@@ -70,6 +70,7 @@ import org.tenshu.core.time.Instant
 import org.tenshu.core.entity.DataId
 import org.tenshu.sync.common.ContentResolvability
 import org.tenshu.file.proxy.FileBytesPropertyWriter
+import org.tenshu.file.impl.dropPulledThumbnail
 import org.tenshu.core.file.ContentId
 import org.tenshu.file.client.fileService
 import kotlin.js.Promise
@@ -119,6 +120,10 @@ object FileSystem {
     // Returns the same [FileRowJs] rows as [list]. Cost note: `traverse()` walks the whole drive per call
     // — fine for normal drives; a maintained flat index is the optimisation if it
     // gets hot (same caveat as native).
+    //
+    // ⚠⚠ A failed read REJECTS; it is never an empty array. Folding it to `[]` made Drive's Home and
+    // the apex overview's Drive card both say "no files yet" on a broken read — the failure-as-empty
+    // lie `web-apex-home.md` §3.6 forbids. Both callers already have an error state for a rejection.
     fun recentFiles(limit: Int): Promise<Array<FileRowJs>> = GlobalScope.promise {
         JsRuntime.awaitReady()
         val client = JsRuntime.tenshuClient
@@ -131,7 +136,7 @@ object FileSystem {
             .first()
             .fold(
                 onSuccess = { files -> files.toList().map { fileRowOf(it) }.toTypedArray() },
-                onFailure = { emptyArray() },
+                onFailure = { error -> throw IllegalStateException("recentFiles failed: $error") },
             )
     }
 
@@ -293,6 +298,35 @@ object FileSystem {
      * whose browser implementation is async while the dynamic-property path is not
      * (`drive-web-parity.md` §1.2i). These are stored classes, served synchronously.
      */
+    /**
+     * A grid tile's sharp rung (`web-apps-layout.md` §4.8, Retina tiles): `XLARGE` (or an `XXLARGE`
+     * already here), answered like [getLargePreview] — `{ ok, bytes, thumbnailClass, coveringRung }`
+     * — but **leaving nothing new in the store**. A class that was not here is pulled, read and
+     * dropped again (`dropPulledThumbnail`); the caller keeps only its own scaled-down copy.
+     *
+     * ⚠⚠ Why: `IndexedDbFileDatabase` loads every stored byte into the page's memory at start, so a
+     * Retina grid that KEPT each ~140 KB rung would grow the heap with every row scrolled past, far
+     * faster than the cache pass (64 MiB, every 30 min) trims it. What the viewer pulls stays — it
+     * is what the user opened — and the pass bounds that.
+     *
+     * ⚠ `bytes: null` with `coveringRung` `"absent"` (the relay confirmed no `XLARGE`) or `"unknown"`
+     * (could not tell): the tile keeps its `LARGE`. Never a stand-in — the tile already shows one.
+     */
+    fun getTilePreview(path: String): Promise<dynamic> =
+        GlobalScope.promise {
+            JsRuntime.awaitReady()
+            try {
+                val answer = tilePreviewJs(path)
+                okResult {
+                    it.bytes = answer.bytes
+                    it.thumbnailClass = answer.thumbnailClass
+                    it.coveringRung = answer.coveringRung
+                }
+            } catch (t: Throwable) {
+                failureResult("preview", t.message ?: t::class.simpleName)
+            }
+        }
+
     fun getLargePreview(path: String, px: Int): Promise<dynamic> =
         GlobalScope.promise {
             JsRuntime.awaitReady()
@@ -748,6 +782,7 @@ private suspend fun confirmedAbsentOnTheRelayJs(path: String, thumbnailClass: St
 // and how sure it is. Mirrors `previewBytes`'s read → pull → read again shape, because the classes
 // are `Syncable(OnDemand)` and a device that never asked holds only metadata.
 private suspend fun largePreviewJs(path: String, px: Int): LargePreviewAnswer {
+    viewerPaths += path
     // ⚠ Above 1024 px the covering class is XXLARGE; at or below it, XLARGE. Asking for XXLARGE on a
     // small request would put ~0.5 MB on the wire for a picture XLARGE already covers (§4.4), and a
     // lightbox that never learns XLARGE is missing can never fall back.
@@ -793,6 +828,57 @@ private suspend fun largePreviewJs(path: String, px: Int): LargePreviewAnswer {
     val rung = if (confirmedAbsentOnTheRelayJs(path, coveringClass)) RUNG_ABSENT else RUNG_UNKNOWN
     return answerFrom(afterPull, rung) ?: standIn(path, px, rung)
 }
+
+// [FileSystem.getTilePreview]'s read: a hero class already here is served as is; one that is not is
+// pulled, read, and dropped again, so a grid adds nothing to the (eagerly hydrated) store.
+private suspend fun tilePreviewJs(path: String): LargePreviewAnswer {
+    val local = readHeroClassesJs(path).getOrElse { return LargePreviewAnswer(null, null, RUNG_UNKNOWN) }
+    local.first?.let { return LargePreviewAnswer(it, GetStoredThumbnail.CLASS_XXLARGE, RUNG_PRESENT) }
+    local.second?.let { return LargePreviewAnswer(it, GetStoredThumbnail.CLASS_XLARGE, RUNG_PRESENT) }
+
+    val contentBefore = contentIdOfJs(path)
+    pullHeroClassesJs(path, includeXXLarge = false)
+    val pulled = readHeroClassesJs(path).getOrNull()?.second
+    if (pulled != null) {
+        if (contentBefore != null && mayDropPulledRung(path, contentBefore)) {
+            dropPulledThumbnail(JsRuntime.fileDatabase, contentBefore, GetStoredThumbnail.CLASS_XLARGE)
+        }
+        return LargePreviewAnswer(pulled, GetStoredThumbnail.CLASS_XLARGE, RUNG_PRESENT)
+    }
+    val rung = if (confirmedAbsentOnTheRelayJs(path, GetStoredThumbnail.CLASS_XLARGE)) RUNG_ABSENT else RUNG_UNKNOWN
+    return LargePreviewAnswer(null, null, rung)
+}
+
+/**
+ * Whether the `XLARGE` that appeared during a tile's pull is one the tile may drop. "Not here before"
+ * is not enough on its own:
+ *  - ⚠⚠ a browser UPLOAD lists the row before it stores its rungs, so the rung may be this browser's
+ *    own, still queued for the relay — dropping it loses the class for good in a web-only realm;
+ *  - the file was overwritten in between: the rung belongs to other content;
+ *  - the viewer opened this photograph (or is opening it): what the viewer pulls stays.
+ */
+private suspend fun mayDropPulledRung(path: String, contentBefore: String): Boolean {
+    if (path in viewerPaths) return false
+    if (contentIdOfJs(path) != contentBefore) return false
+    val emitter = JsRuntime.syncBlockEmitterHolder.fileContentEmitter ?: return false
+    val dataId = DataId.StringDataId.create(context = JsRuntime.tContext, type = File.ID, keyValue = path)
+    return runCatching { !emitter.hasQueuedContentFor(dataId, File.ThumbnailXLarge.id) }.getOrDefault(false)
+}
+
+// Paths the viewer has read this session (added BEFORE its pull): a tile never drops their rungs.
+// Bounded by the photographs the user opened.
+private val viewerPaths = mutableSetOf<String>()
+
+private suspend fun contentIdOfJs(path: String): String? = runCatching {
+    val entity = JsRuntime.tenshuClient.fileService.defaultFileSystem.root
+        .files
+        .navigateToFolder(path.substringBeforeLast('/').ifEmpty { "/" })
+        .search<File> { this.path equalTo path }
+        .select { relations(eager(File.ContentId)) }
+        .resolve()
+        .getOrNull() ?: return null
+    (entity.get(File.ContentId) as? TString)?.get()?.takeIf { it.isNotEmpty() }
+}.getOrNull()
 
 // The small classes, as a stand-in while the caller decides what to do about the missing hero rung.
 // ⚠ Reported with the class it came from, because the caller's fallback test is "is what I got

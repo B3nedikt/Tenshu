@@ -200,6 +200,48 @@ class TombstoneRegistry(
     }
 
     /**
+     * Stamp [data]'s last local write at the HLC its own block (or lane delta) was emitted with.
+     * Called by `SyncObserver` on its emit consumer, for entity-level writes.
+     *
+     * ⚠⚠ **This is the stamp the ingest guard needs, and the on-save stamp is not enough by itself.**
+     * The relay echoes a device's own blocks back, and [SyncProcessor] must not let the echo of an
+     * older own write replace a newer one (`SyncProcessorOwnEchoTest`). The on-save stamp is a tick
+     * taken on the saving thread, but the block's HLC is ticked later, on the emit consumer. Under
+     * load, write N's block can be stamped after write N+1's on-save tick. Its echo would then beat
+     * the on-save record. Recording the emitted HLC as well (highest wins) means no echo of this
+     * device's own block can ever read as newer than the device's last local write.
+     *
+     * ⚠⚠ **Except when an ingest has already replaced the queued value.** If the row's last ingest
+     * ([SyncMetadata]) is newer than its last local write, the row no longer holds what this block
+     * carries. The block is still stamped above that ingest (the ingest moved the clock), so every
+     * peer takes it as newest, and this device must too, from its echo. Recording the stamp would
+     * refuse that echo and leave the devices diverged for good
+     * (`SyncProcessorOwnEchoTest.aQueuedWriteOverwrittenByAnIngest_stillConvergesFromItsEcho`).
+     */
+    fun recordEmittedWrite(data: Data, emittedHlc: HybridLogicalClock): Unit =
+        executionContext.database.transaction {
+            if (!isSyncable(data)) return@transaction
+            val dataId = executionContext.getDataId(data) ?: return@transaction
+            val idHash = wireIdFor(dataId) ?: return@transaction
+            val ingested = ingestedHlc(idHash)
+            val local = localWriteHlc(idHash)
+            if (ingested != null && (local == null || ingested.compare(local) > 0)) return@transaction
+            recordLocalWrite(idHash, emittedHlc)
+        }
+
+    /** The row's last ingested HLC ([SyncMetadata]), or null if nothing was ever ingested for it. */
+    private fun ingestedHlc(idHash: String): HybridLogicalClock? =
+        (
+            executionContext.database.getData(
+                DataId.StringDataId.create(
+                    context = executionContext.context,
+                    type = SyncMetadata.ID,
+                    keyValue = idHash,
+                )
+            ) as? SyncMetadata
+            )?.hlc
+
+    /**
      * Stamp [idHash]'s last local write at [clockHlc]. Highest-HLC-wins, so an out-of-order
      * observer fanout can never walk the record backwards.
      *

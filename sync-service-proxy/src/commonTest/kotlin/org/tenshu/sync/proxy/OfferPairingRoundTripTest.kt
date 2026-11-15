@@ -36,6 +36,10 @@ import org.tenshu.sync.proxy.impl.DenyPairingOfferImplementation
 import org.tenshu.sync.proxy.impl.GetOfferStatusImplementation
 import org.tenshu.sync.proxy.impl.OfferPairingImplementation
 import org.tenshu.sync.proxy.impl.RespondToPairingOfferImplementation
+import org.tenshu.sync.PairingDeviceRemovedError
+import org.tenshu.sync.PairingThisDeviceRemovedError
+import kotlin.test.assertNotEquals
+import org.tenshu.sync.PairingApproverRevokedError
 import org.tenshu.sync.PairingFailedError
 import org.tenshu.sync.PairingFailure
 import kotlin.test.assertNull
@@ -323,6 +327,94 @@ class OfferPairingRoundTripTest {
     }
 
     @Test
+    fun approversCapabilityRevoked_failsTyped_withoutTheSelfHeal() = runTest {
+        // §7j.5: the relay refuses THIS device's admission capability. Typed, never the generic
+        // error, and re-registering this device cannot help — it is registered, just not trusted
+        // to admit.
+        val session = offerPairing("Ben's Laptop")
+        val hash = session.pairingSecretHash.get()
+        respond(session.offerUri.get())
+        relay.refuseApproverAsRevoked = true
+
+        val failure = assertFailsWith<TenshuException> { approve(hash) }
+
+        assertIs<PairingApproverRevokedError>(failure.error)
+        assertEquals(0, relay.createRealmCalls)
+        assertNull(offererSM.currentOwnerId, "a refused approve installs nothing on the offerer")
+    }
+
+    @Test
+    fun offererWasRemovedFromTheRealm_failsTyped_withoutTheSelfHeal() = runTest {
+        // The relay refuses the device being ADDED: it was removed from this realm before and is
+        // back under the same identity (F2′). That used to reach the approver's screen as the
+        // generic error, and every retry was refused identically.
+        val session = offerPairing("Ben's Laptop")
+        val hash = session.pairingSecretHash.get()
+        respond(session.offerUri.get())
+        relay.refuseOffererAsRemoved = true
+
+        val failure = assertFailsWith<TenshuException> { approve(hash) }
+
+        assertIs<PairingDeviceRemovedError>(failure.error, "the approver must be told the other device was removed")
+        assertEquals(
+            0, relay.createRealmCalls,
+            "the refusal is about the OTHER device, so re-registering this one must not be attempted",
+        )
+        assertNull(offererSM.currentOwnerId, "a refused approve installs nothing on the offerer")
+    }
+
+    /**
+     * ⚠⚠ The 2026-11-11 desktop incident, end to end through the offer flow: this device was
+     * removed, the user chose *Forget this device*, and paired again **from the same process**.
+     * The relay's F2′ refuses the removed id (modelled by [SharedOfferRelay.removedOffererIds]);
+     * before the fix the offer still carried it, and every approve was refused until a restart.
+     */
+    @Test
+    fun anOfferMadeRightAfterForget_presentsTheNewIdentity_andIsAdmitted() = runTest {
+        val removedId = offererSM.currentDeviceId
+        val removedKey = offererSM.getDeviceSigningKeyPair().publicKey
+        relay.removedOffererIds += removedId
+
+        offererSM.forgetThisDevice()
+
+        val session = offerPairing("Ben's Laptop")
+        val hash = session.pairingSecretHash.get()
+        val prompt = respond(session.offerUri.get())
+        approve(hash)
+
+        val admitted = assertNotNull(relay.lastOffererDeviceId, "the approve must reach the relay")
+        assertNotEquals(removedId, admitted, "the offer must carry the NEW id — the old one is refused for good")
+        assertEquals(offererSM.currentDeviceId, admitted)
+        assertFalse(
+            assertNotNull(relay.lastOffererSigningKey).contentEquals(removedKey),
+            "and the NEW key: the forgotten A4 key must not be offered either",
+        )
+        assertEquals(
+            org.tenshu.sync.common.deviceIdForPublicKey(assertNotNull(relay.lastOffererSigningKey)), admitted,
+            "§7i: the id offered is the key's",
+        )
+        assertNotNull(prompt)
+        assertEquals(OfferStatus.APPROVED, offerStatus(hash).state.get())
+    }
+
+    /**
+     * The offerer's own half of F2′: the delivery re-check (`GET /offer-response`) refuses THIS
+     * device. Typed and terminal, never the generic error the poll loop retried until the window
+     * closed (`admission-revocation-names-the-capability.md` §7i.5).
+     */
+    @Test
+    fun theDeliveryRefusesThisDeviceAsRemoved_failsTyped_andEndsTheOffer() = runTest {
+        val session = offerPairing("Ben's Laptop")
+        val hash = session.pairingSecretHash.get()
+        relay.refuseDeliveryAsRemoved = true
+
+        val failure = assertFailsWith<TenshuException> { offerStatus(hash) }
+
+        assertIs<PairingThisDeviceRemovedError>(failure.error, "the offerer must be told THIS device was removed")
+        assertNull(offererSM.getOfferSession(hash), "a refused identity's offer is dead — no retry can admit it")
+    }
+
+    @Test
     fun cancel_dropsTheOfferSession() = runTest {
         val session = offerPairing("Ben's Laptop")
         val hash = session.pairingSecretHash.get()
@@ -407,6 +499,20 @@ private class SharedOfferRelay(private val context: TContext) : SyncRelay {
      */
     var refuseResponderUntilReBootstrap = false
     var alwaysRefuseResponder = false
+
+    /** F2′: the relay refuses the OFFERER as a device removed from this realm (terminal `403`). */
+    var refuseOffererAsRemoved = false
+    var refuseApproverAsRevoked = false
+
+    /** F2′ keyed on the id, as the relay's ledger is: an approve admitting one of these is refused. */
+    val removedOffererIds = mutableSetOf<String>()
+    var lastOffererDeviceId: String? = null
+        private set
+    var lastOffererSigningKey: ByteArray? = null
+        private set
+
+    /** F2′ re-checked at delivery: `GET /offer-response` answers `403 device-removed`. */
+    var refuseDeliveryAsRemoved = false
     var createRealmCalls = 0
         private set
     private var reBootstrapped = false
@@ -443,6 +549,29 @@ private class SharedOfferRelay(private val context: TContext) : SyncRelay {
         if (alwaysRefuseResponder || (refuseResponderUntilReBootstrap && !reBootstrapped)) {
             return unauthorized()
         }
+        if (refuseApproverAsRevoked && status == "approved") {
+            return TResult.Failure.create(
+                context,
+                org.tenshu.core.GenericError.create(
+                    context,
+                    "Offer-response failed: $ADMISSION_REVOKED_REJECTION_MARKER: 403 — admission-revoked: revoked",
+                ),
+            )
+        }
+        if (status == "approved") {
+            lastOffererDeviceId = offererDeviceId
+            lastOffererSigningKey = offererSigningKey
+        }
+        if ((refuseOffererAsRemoved || offererDeviceId in removedOffererIds) && status == "approved") {
+            return TResult.Failure.create(
+                context,
+                org.tenshu.core.GenericError.create(
+                    context,
+                    // Shaped by the constant the production client attaches, as above.
+                    "Offer-response failed: $DEVICE_REMOVED_REJECTION_MARKER: 403 — device-removed",
+                ),
+            )
+        }
         lastOfferHlc = admittedAtHlc
         offers[pairingSecretHash] =
             SyncRelay.OfferResponseFetch.Found(ownerId, status, publicKeyA, payload)
@@ -450,7 +579,14 @@ private class SharedOfferRelay(private val context: TContext) : SyncRelay {
     }
 
     override suspend fun getOfferResponse(pairingSecretHash: String): SyncRelay.OfferResponseFetch =
-        offers[pairingSecretHash] ?: SyncRelay.OfferResponseFetch.NotFound
+        if (refuseDeliveryAsRemoved) {
+            // Shaped by the constant the production client attaches.
+            SyncRelay.OfferResponseFetch.Error(
+                "Offer-response fetch failed: $DEVICE_REMOVED_REJECTION_MARKER: 403 — device-removed",
+            )
+        } else {
+            offers[pairingSecretHash] ?: SyncRelay.OfferResponseFetch.NotFound
+        }
 
     override suspend fun fetchRealmEpoch(ownerId: String): TResult<org.tenshu.core.number.TInteger> =
         TResult.Success.create(context, 0L.toTInteger(context))

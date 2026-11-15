@@ -471,11 +471,11 @@ class OrderedWindowFusionTest {
                 allowDeferring = false,
             )
             assertEquals(0, sortExecutions, "a composite-row property key must fuse")
-            // The array entry is read twice (existence probe + member list) and each of the
-            // four rows exactly once. The unfused path read every row twice — once as the
+            // The array entry is read once (the paged read's snapshot is also its existence
+            // probe, `core-ordered-window-fusion.md` §6.1) and each of the four rows exactly once. The unfused path read every row twice — once as the
             // composite, once more as an entity to reach the property it had dropped.
             assertEquals(
-                4 + 2, store.reads,
+                4 + 1, store.reads,
                 "fused property-key page must cost one store read per row (plus the array entry)",
             )
             return names(result)

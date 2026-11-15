@@ -14,6 +14,7 @@ import app.tenshu.ui.theme.TenshuTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.tenshu.ui.test.NoMotion
 
 /**
  * The [AppDialog] wrapper's contract.
@@ -27,7 +28,7 @@ import kotlin.test.assertTrue
 class AppDialogTest {
 
     @Test
-    fun rendersTitleBodyAndBothButtons() = runComposeUiTest {
+    fun rendersTitleBodyAndBothButtons() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 AppDialog(
@@ -48,7 +49,7 @@ class AppDialogTest {
     }
 
     @Test
-    fun aNullDismissLabelRendersOneButton() = runComposeUiTest {
+    fun aNullDismissLabelRendersOneButton() = runComposeUiTest(effectContext = NoMotion) {
         // The acknowledge case — a dialog with nothing to decline. A wrapper that always drew
         // two buttons would make "OK / Cancel" of every notice.
         setContent {
@@ -68,7 +69,7 @@ class AppDialogTest {
     }
 
     @Test
-    fun theButtonsInvokeTheirOwnCallbacks() = runComposeUiTest {
+    fun theButtonsInvokeTheirOwnCallbacks() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠ `onDismiss` defaults to `onDismissRequest`, so a caller that passes only the
         // request gets a working Cancel — and one that passes both must not have them
         // crossed.
@@ -98,7 +99,7 @@ class AppDialogTest {
     }
 
     @Test
-    fun theIconCarriesItsContentDescription() = runComposeUiTest {
+    fun theIconCarriesItsContentDescription() = runComposeUiTest(effectContext = NoMotion) {
         // The reason `icon` is an ImageVector plus a separate description rather than a
         // composable slot: the description is a parameter someone has to decide about.
         setContent {
@@ -118,7 +119,7 @@ class AppDialogTest {
     }
 
     @Test
-    fun aDialogWithNoBodyStillRenders() = runComposeUiTest {
+    fun aDialogWithNoBodyStillRenders() = runComposeUiTest(effectContext = NoMotion) {
         // `content` is nullable and two call sites leave it out — a title-and-buttons dialog
         // must not collapse or crash.
         setContent {
@@ -138,7 +139,7 @@ class AppDialogTest {
     }
 
     @Test
-    fun theSlotOverloadTakesArbitraryButtons() = runComposeUiTest {
+    fun theSlotOverloadTakesArbitraryButtons() = runComposeUiTest(effectContext = NoMotion) {
         // The three-way conflict dialogs (Drive's upload conflict) use the slot overload
         // rather than the label one, so it has to keep working independently.
         setContent {

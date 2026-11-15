@@ -38,10 +38,15 @@ fun backupNotificationContent(
     )
 
     is BackupState.JustFinished -> LivenessNotificationContent(
-        title = backupSummaryTitle(state.uploaded, state.failed),
+        title = backupSummaryTitle(state.uploaded, state.failed, state.alreadyInRealm),
         // ⚠ The title has counted failures all along and never said why; the body is empty on a
-        // clean run anyway, so the reason costs nothing here.
-        text = if (state.failed > 0) state.failureKind?.let(failureText) ?: state.failureReason.orEmpty() else "",
+        // clean run anyway, so the reason costs nothing here. A clean run that skipped files the
+        // realm already held says so instead — otherwise "nothing uploaded" reads as broken.
+        text = when {
+            state.failed > 0 -> state.failureKind?.let(failureText) ?: state.failureReason.orEmpty()
+            state.alreadyInRealm > 0 -> "${state.alreadyInRealm} already in your Drive"
+            else -> ""
+        },
         phase = LivenessPhase.TERMINAL,
     )
 
@@ -54,9 +59,9 @@ fun backupNotificationContent(
     is BackupState.Paused -> null
 }
 
-private fun backupSummaryTitle(uploaded: Int, failed: Int): String {
+private fun backupSummaryTitle(uploaded: Int, failed: Int, alreadyInRealm: Int): String {
     val base = when (uploaded) {
-        0 -> "Backup complete"
+        0 -> if (failed == 0 && alreadyInRealm > 0) "Nothing new to back up" else "Backup complete"
         1 -> "Backed up 1 file"
         else -> "Backed up $uploaded files"
     }

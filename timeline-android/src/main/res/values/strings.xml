@@ -15,6 +15,7 @@
     <string name="capture_permission_reason_activity">Physical activity lets Timeline count your steps, which is what tells a bike ride apart from a run. Without it, cycling is usually recorded as running.</string>
     <string name="capture_permission_continue">Continue</string>
     <string name="capture_permission_not_now">Not now</string>
+    <string name="capture_precise_location_needed">Timeline needs precise location to record the places you visit. Approximate location cannot tell one place from the next, so recording stays off.</string>
 
     <!--
       "Allow all the time". ⚠ The copy leads with the consequence rather than the permission, because

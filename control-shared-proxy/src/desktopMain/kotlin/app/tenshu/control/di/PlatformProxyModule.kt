@@ -1,5 +1,7 @@
 package app.tenshu.control.di
 
+import app.tenshu.control.inference.installNewArrivalsIndexing
+import org.tenshu.inference.proxy.runArrivalsBatch
 import org.tenshu.core.entity.getDataIdHash
 import org.tenshu.core.common.app.proxy.desktopTargetDelivery
 import org.tenshu.storage.proxy.EntitlementRecordCredentialProvider
@@ -371,19 +373,14 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
             // §33: the realm's local copy going takes the state DERIVED from it — the vector store is
             // keyed by file path, and a path means a different photograph in the next realm.
             onLocalStoreWiped = {
-                // ⚠⚠ STOP the pass first, then clear. A pass suspended in the model holds a list
-                // of paths from the realm being wiped; left running it resumes after the clear,
-                // finds an unstamped store and repopulates it with the OLD realm's vectors — the
-                // cross-realm answer this clear exists to prevent (§34.6).
-                get<org.tenshu.inference.proxy.MediaIndexRunner>().cancelRunningPass()
-                get<org.tenshu.inference.proxy.EmbeddingStore>().clear()
-                // ⚠⚠⚠ The FACE store too, and it matters MORE than the vectors
-                // above for the same reason stated there — it is keyed by file path, so a path
-                // means a different photograph in the next realm — plus one the vectors do not
-                // carry: a template is BIOMETRIC data (threat model A40). Left behind, a reset or a
-                // re-pair keeps the previous realm's faces on disk and the next face pass can group
-                // and return people derived from a realm this device no longer belongs to.
-                get<org.tenshu.inference.proxy.FaceTemplateStore>().clear()
+                // ⚠⚠ Stops the pass, then clears every store derived from the realm — vectors, face
+                // templates (biometric, A40) and IN-D6a's arrived paths — `wipeDerivedInferenceState`.
+                app.tenshu.control.inference.wipeDerivedInferenceState(
+                    runner = get(),
+                    embeddings = get(),
+                    faces = get(),
+                    arrivals = get(),
+                )
             },
             cryptoManager = get(),
             objectStore = get(),
@@ -470,16 +467,10 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
         // call (60s TTL) and returns null if pairing/recovery hasn't established the
         // realm yet — the relay rejects unauthenticated state-changing requests in
         // production mode (JwtAuthenticator).
-        val tokenProvider = org.tenshu.core.common.security.jwtTokenProvider(
-            ownerIdProvider = { syncManager.currentOwnerId },
-            deviceIdProvider = { syncManager.currentDeviceId },
-            signer = { msg ->
-                cryptoManager.signEd25519(
-                    privateKey = syncManager.getDeviceSigningKeyPair().privateKey,
-                    message = msg
-                )
-            },
-            nowEpochSec = { System.currentTimeMillis() / 1000 }
+        val tokenProvider = org.tenshu.sync.proxy.deviceJwtTokenProvider(
+            syncManager = syncManager,
+            cryptoManager = cryptoManager,
+            nowEpochSec = { System.currentTimeMillis() / 1000 },
         )
 
         RestSyncRelay(
@@ -506,16 +497,10 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
         val cryptoManager: SyncCryptoManager = get()
         val entitlementProvider: CachingEntitlementTokenProvider = get()
         val recordCredentialProvider: EntitlementRecordCredentialProvider = get()
-        val tokenProvider = org.tenshu.core.common.security.jwtTokenProvider(
-            ownerIdProvider = { syncManager.currentOwnerId },
-            deviceIdProvider = { syncManager.currentDeviceId },
-            signer = { msg ->
-                cryptoManager.signEd25519(
-                    privateKey = syncManager.getDeviceSigningKeyPair().privateKey,
-                    message = msg
-                )
-            },
-            nowEpochSec = { System.currentTimeMillis() / 1000 }
+        val tokenProvider = org.tenshu.sync.proxy.deviceJwtTokenProvider(
+            syncManager = syncManager,
+            cryptoManager = cryptoManager,
+            nowEpochSec = { System.currentTimeMillis() / 1000 },
         )
         RestContentBlobStore(
             baseUrl = get(named("syncRelayUrl")),
@@ -536,16 +521,10 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
     single<RelayUsageClient> {
         val syncManager: SyncManager = get()
         val cryptoManager: SyncCryptoManager = get()
-        val tokenProvider = org.tenshu.core.common.security.jwtTokenProvider(
-            ownerIdProvider = { syncManager.currentOwnerId },
-            deviceIdProvider = { syncManager.currentDeviceId },
-            signer = { msg ->
-                cryptoManager.signEd25519(
-                    privateKey = syncManager.getDeviceSigningKeyPair().privateKey,
-                    message = msg
-                )
-            },
-            nowEpochSec = { System.currentTimeMillis() / 1000 }
+        val tokenProvider = org.tenshu.sync.proxy.deviceJwtTokenProvider(
+            syncManager = syncManager,
+            cryptoManager = cryptoManager,
+            nowEpochSec = { System.currentTimeMillis() / 1000 },
         )
         val entitlementProvider: CachingEntitlementTokenProvider = get()
         val recordCredentialProvider: EntitlementRecordCredentialProvider = get()
@@ -569,16 +548,10 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
         val cryptoManager: SyncCryptoManager = get()
         val entitlementProvider: CachingEntitlementTokenProvider = get()
         val recordCredentialProvider: EntitlementRecordCredentialProvider = get()
-        val tokenProvider = org.tenshu.core.common.security.jwtTokenProvider(
-            ownerIdProvider = { syncManager.currentOwnerId },
-            deviceIdProvider = { syncManager.currentDeviceId },
-            signer = { msg ->
-                cryptoManager.signEd25519(
-                    privateKey = syncManager.getDeviceSigningKeyPair().privateKey,
-                    message = msg
-                )
-            },
-            nowEpochSec = { System.currentTimeMillis() / 1000 }
+        val tokenProvider = org.tenshu.sync.proxy.deviceJwtTokenProvider(
+            syncManager = syncManager,
+            cryptoManager = cryptoManager,
+            nowEpochSec = { System.currentTimeMillis() / 1000 },
         )
         RestShareRelayClient(
             baseUrl = get(named("syncRelayUrl")),
@@ -599,16 +572,10 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
     single<InviteRelayClient> {
         val syncManager: SyncManager = get()
         val cryptoManager: SyncCryptoManager = get()
-        val tokenProvider = org.tenshu.core.common.security.jwtTokenProvider(
-            ownerIdProvider = { syncManager.currentOwnerId },
-            deviceIdProvider = { syncManager.currentDeviceId },
-            signer = { msg ->
-                cryptoManager.signEd25519(
-                    privateKey = syncManager.getDeviceSigningKeyPair().privateKey,
-                    message = msg
-                )
-            },
-            nowEpochSec = { java.lang.System.currentTimeMillis() / 1000 }
+        val tokenProvider = org.tenshu.sync.proxy.deviceJwtTokenProvider(
+            syncManager = syncManager,
+            cryptoManager = cryptoManager,
+            nowEpochSec = { java.lang.System.currentTimeMillis() / 1000 },
         )
         RestInviteRelayClient(
             baseUrl = get(named("syncRelayUrl")),
@@ -645,15 +612,9 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
         val proxyGateway: ProxyGateway = get()
         val relayBaseUrl: String = get(named("syncRelayUrl"))
         val httpClient: HttpClient = get()
-        val tokenProvider = org.tenshu.core.common.security.jwtTokenProvider(
-            ownerIdProvider = { syncManager.currentOwnerId },
-            deviceIdProvider = { syncManager.currentDeviceId },
-            signer = { msg ->
-                crypto.signEd25519(
-                    privateKey = syncManager.getDeviceSigningKeyPair().privateKey,
-                    message = msg,
-                )
-            },
+        val tokenProvider = org.tenshu.sync.proxy.deviceJwtTokenProvider(
+            syncManager = syncManager,
+            cryptoManager = crypto,
             nowEpochSec = { System.currentTimeMillis() / 1000 },
         )
         DefaultEpcPairingHost(
@@ -891,6 +852,18 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
             // IN-D6: idle + charging maintenance. ⚠ Best-effort like its
             // neighbour — a failed registration must not take the proxy down.
             sessionScope.launch { registerMediaIndexSchedule() }
+            // IN-D6a: a photograph that arrives — uploaded here or synced in — runs a small batch
+            // through the same runner about two minutes after the last arrival. ⚠ No WorkManager on
+            // desktop: Control is long-lived, so the debounce is in-process, and the batch's own bar
+            // (`allowArrivalIndexing`, battery not low) is its only constraint.
+            val arrivalsContext: ExecutionContext = this
+            val arrivals = get<org.tenshu.inference.proxy.ArrivalQueue>()
+            installNewArrivalsIndexing(
+                app.tenshu.control.inference.InProcessArrivalScheduler(sessionScope, arrivals) {
+                    get<org.tenshu.inference.proxy.MediaIndexRunner>()
+                        .runArrivalsBatch(arrivalsContext, arrivals, org.tenshu.inference.proxy.NEW_ARRIVALS_BATCH_CAP)
+                },
+            )
             initIdentityService()
             initNotificationService()
             initTimelineService(mergerRegistry)
@@ -967,7 +940,7 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
             // rather than at the `ExecutionContext(...)` ctor call.
             errorEventRecorder = loggingServiceProxyImplementationFactory(
                 sessionExecutionContext = this,
-                deviceId = syncManager.currentDeviceId,
+                deviceId = { syncManager.currentDeviceId },
                 appId = "control",
                 // ⚠ Desktop has no version source to read — the bundle is assembled by the
                 // package script and nothing injects a constant. UNKNOWN_VERSION says so rather
@@ -1032,6 +1005,9 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
                 // Control is always the host.
                 hostAppId = getOrNull<String>(named("hostAppId")) ?: RuntimeIdentity.CONTROL_APP_ID,
                 hostAppVersion = RuntimeIdentity.UNKNOWN_VERSION,
+                // The catch-up heartbeat (`suite-sync-status.md` SS-D8): every app's "Syncing…" reads Control's
+                // pull through it, so a `true` left by a killed Control is discounted instead of sticking.
+                catchUpHeartbeat = true,
                 // Reuse the process's one runtime (`SyncRuntimeHolder`).
                 runtimeHolder = get(),
                 taskRegistry = get(),
@@ -1397,6 +1373,8 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
                 ?: photoServiceProxyImplementationFactory(
                     id = operationType,
                     nowEpochMs = { kotlin.time.Clock.System.now().toEpochMilliseconds() },
+                    // ED-3: without it a *Revert* never leaves this device (`SyncObserver.onDataDeleted` is a no-op).
+                    tombstoneEmitter = emitterHolder.emitter,
                 )
                 ?: calendarServiceProxyImplementationFactory(
                     id = operationType,

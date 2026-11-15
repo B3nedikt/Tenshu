@@ -60,6 +60,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import org.tenshu.viewmodel.test.OwnedViewModels
 import org.tenshu.viewmodel.test.closeAndResetMain
+import org.tenshu.ui.test.NoMotion
 
 /**
  * What the feed *renders* in each state (`photos-app.md` S1).
@@ -152,7 +153,7 @@ class PhotosFeedScreenTest {
      * would ask the proxy for a clip nothing can have.
      */
     @Test
-    fun visibleVideoTilesAreReportedInDocumentOrder() = runComposeUiTest {
+    fun visibleVideoTilesAreReportedInDocumentOrder() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠ One day, so one header: five days would be five full-width headers and the fifth
         // tile would sit below the test viewport — which is not the case under test.
         val photos = listOf(
@@ -184,7 +185,7 @@ class PhotosFeedScreenTest {
      * test below.
      */
     @Test
-    fun aTileScrolledAwayAndBackReReadsItsBytes() = runComposeUiTest {
+    fun aTileScrolledAwayAndBackReReadsItsBytes() = runComposeUiTest(effectContext = NoMotion) {
         val photos = List(60) { i -> Photo("/p$i.jpg", (60 - i) * day, isVideo = false) }
         val loads = mutableListOf<String>()
 
@@ -223,7 +224,7 @@ class PhotosFeedScreenTest {
      * something has changed that neither test alone would explain.
      */
     @Test
-    fun aCachedLoaderReadsEachPhotographOnceAcrossAScrollRoundTrip() = runComposeUiTest {
+    fun aCachedLoaderReadsEachPhotographOnceAcrossAScrollRoundTrip() = runComposeUiTest(effectContext = NoMotion) {
         val photos = List(60) { i -> Photo("/p$i.jpg", (60 - i) * day, isVideo = false) }
         val loads = mutableListOf<String>()
         val cache = PreviewCache()
@@ -257,7 +258,7 @@ class PhotosFeedScreenTest {
      */
     @Test
     // ⚠ A phone-width window: the line arithmetic below is three columns, and a wider grid has more.
-    fun tilesScrolledIntoViewOnRecycledNodesStillLoad() = runDesktopComposeUiTest(width = 420, height = 768) {
+    fun tilesScrolledIntoViewOnRecycledNodesStillLoad() = runDesktopComposeUiTest(width = 420, height = 768, effectContext = NoMotion) {
         val photos = List(90) { i -> Photo("/p$i.jpg", day + i, isVideo = false) }
         val loads = mutableListOf<String>()
 
@@ -280,7 +281,7 @@ class PhotosFeedScreenTest {
     // ── multi-select (S1) ────────────────────────────────────────────────────────────────────
 
     @Test
-    fun aLongPressBeginsASelectionRatherThanOpeningTheAlbumSheet() = runComposeUiTest {
+    fun aLongPressBeginsASelectionRatherThanOpeningTheAlbumSheet() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠⚠ S1 gives long-press to selection, and add-to-album lives in the selection bar where
         // it also works for many. The test names the sheet so opening it from a long-press reads
         // as the deliberate non-behaviour it is.
@@ -306,7 +307,7 @@ class PhotosFeedScreenTest {
     }
 
     @Test
-    fun aTapTogglesWhileSelectingAndOpensTheViewerOtherwise() = runComposeUiTest {
+    fun aTapTogglesWhileSelectingAndOpensTheViewerOtherwise() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠⚠ Opening a photograph mid-selection would bury the selection behind a full-screen page.
         val photos = listOf(Photo("/a.jpg", 5 * day, isVideo = false, contentId = "c0"))
         val opened = mutableListOf<String>()
@@ -331,7 +332,7 @@ class PhotosFeedScreenTest {
     }
 
     @Test
-    fun aTapOpensTheViewerWhenNothingIsSelected() = runComposeUiTest {
+    fun aTapOpensTheViewerWhenNothingIsSelected() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠ The control for the test above: without it, "never opens the viewer" would pass.
         val photos = listOf(Photo("/a.jpg", 5 * day, isVideo = false, contentId = "c0"))
         val opened = mutableListOf<String>()
@@ -347,7 +348,7 @@ class PhotosFeedScreenTest {
     }
 
     @Test
-    fun onlyTheSelectedPhotographsAreMarked() = runComposeUiTest {
+    fun onlyTheSelectedPhotographsAreMarked() = runComposeUiTest(effectContext = NoMotion) {
         val photos = listOf(
             Photo("/a.jpg", 5 * day + 2, isVideo = false, contentId = "c0"),
             Photo("/b.jpg", 5 * day + 1, isVideo = false, contentId = "c1"),
@@ -384,7 +385,7 @@ class PhotosFeedScreenTest {
      */
     @Test
     fun theMosaicDrawsADaysFirstPhotographOverTwoByTwoCells() =
-        runDesktopComposeUiTest(width = 420, height = 900) {
+        runDesktopComposeUiTest(width = 420, height = 900, effectContext = NoMotion) {
             // ⚠ The top of the library is slot 0 of the rhythm: a feature, hero on the left.
             val photos = List(6) { i -> Photo("/p$i.jpg", 6 * day + (6 - i), isVideo = false) }
             setContent(feed(photos = photos))
@@ -416,7 +417,7 @@ class PhotosFeedScreenTest {
      */
     @Test
     fun aHeroOnTheRightIsTheMiddlePhotographOfItsLine() =
-        runDesktopComposeUiTest(width = 420, height = 1000) {
+        runDesktopComposeUiTest(width = 420, height = 1000, effectContext = NoMotion) {
             // ⚠ The rhythm's second feature is the fourth line — photographs 9 to 11 — and it puts
             // its hero on the right. Everything before it is a still, so the videos are its own.
             val photos = List(12) { i ->
@@ -443,7 +444,7 @@ class PhotosFeedScreenTest {
      */
     @Test
     fun aFeaturesSmallPhotographScrolledPastTheTopIsNotOfferedToTheRotation() =
-        runDesktopComposeUiTest(width = 420, height = 900) {
+        runDesktopComposeUiTest(width = 420, height = 900, effectContext = NoMotion) {
             // A feature at the top — a still hero, a video in each small cell — and enough stills
             // below it to scroll.
             val photos = List(30) { i ->
@@ -479,7 +480,7 @@ class PhotosFeedScreenTest {
      */
     @Test
     fun aDensityChangeKeepsTheTopPhotographsDayOnTop() =
-        runDesktopComposeUiTest(width = 420, height = 900) {
+        runDesktopComposeUiTest(width = 420, height = 900, effectContext = NoMotion) {
             // Five photographs a day for 120 days: three lines a day at three columns, two at five.
             val photos = List(600) { i ->
                 Photo("/p$i.jpg", (120 - i / 5) * day + (5 - i % 5), isVideo = false)
@@ -534,7 +535,7 @@ class PhotosFeedScreenTest {
      */
     @Test
     fun aWideGridDrawsTheMosaicInBlocks_withNoTileWiderThanTheCap() =
-        runDesktopComposeUiTest(width = 1500, height = 900) {
+        runDesktopComposeUiTest(width = 1500, height = 900, effectContext = NoMotion) {
             // ⚠ 1500 dp needs three times the phone's columns, and gets four: twelve divides the
             // 60-photograph page where nine does not (`gridWidthScale`).
             val photos = List(24) { i -> Photo("/p$i.jpg", 6 * day + (24 - i), isVideo = false) }
@@ -559,7 +560,7 @@ class PhotosFeedScreenTest {
      */
     @Test
     fun aGridGrownWiderKeepsTheTopPhotographsDayOnTop() =
-        runDesktopComposeUiTest(width = 1600, height = 900) {
+        runDesktopComposeUiTest(width = 1600, height = 900, effectContext = NoMotion) {
             // Five photographs a day for 120 days: three lines a day at three columns, two at twelve.
             val photos = List(600) { i ->
                 Photo("/p$i.jpg", (120 - i / 5) * day + (5 - i % 5), isVideo = false)
@@ -654,7 +655,7 @@ class PhotosFeedScreenTest {
      */
     @Test
     fun aPhotographArrivingAtTheTopIsShown_whenTheFeedRestsThere() =
-        runDesktopComposeUiTest(width = 420, height = 900) {
+        runDesktopComposeUiTest(width = 420, height = 900, effectContext = NoMotion) {
             val library = kotlinx.coroutines.flow.MutableStateFlow(sixtyDays())
             val grid = growingFeed(library)
             onNodeWithText(dayLabel(120 * day)).assertIsDisplayed()
@@ -673,7 +674,7 @@ class PhotosFeedScreenTest {
      */
     @Test
     fun aPhotographArrivingAtTheTopDoesNotMoveAReaderFurtherDown() =
-        runDesktopComposeUiTest(width = 420, height = 900) {
+        runDesktopComposeUiTest(width = 420, height = 900, effectContext = NoMotion) {
             val library = kotlinx.coroutines.flow.MutableStateFlow(sixtyDays())
             val grid = growingFeed(library)
             onNodeWithTag(FEED_GRID_TAG).performScrollToIndex(20)
@@ -694,7 +695,7 @@ class PhotosFeedScreenTest {
      */
     @Test
     fun aDensityChangeAtTheTopKeepsTheFirstHeaderOnTop() =
-        runDesktopComposeUiTest(width = 420, height = 900) {
+        runDesktopComposeUiTest(width = 420, height = 900, effectContext = NoMotion) {
             val photos = List(600) { i ->
                 Photo("/p$i.jpg", (120 - i / 5) * day + (5 - i % 5), isVideo = false)
             }
@@ -738,7 +739,7 @@ class PhotosFeedScreenTest {
      */
     @Test
     fun aScrubLandsWhereItsFractionOfThePhotographsIs() =
-        runDesktopComposeUiTest(width = 420, height = 900) {
+        runDesktopComposeUiTest(width = 420, height = 900, effectContext = NoMotion) {
             // 150 photographs one a day, then 450 at fifteen a day: in the mosaic that is 300 lines
             // above 180, so a quarter of the photographs is well under a quarter of the lines.
             val photos = List(600) { i ->
@@ -790,7 +791,7 @@ class PhotosFeedScreenTest {
      */
     @Test
     fun aDensityChangeFromTheLowerHalfOfAFeatureAnchorsOnThePhotographLeadingTheView() =
-        runDesktopComposeUiTest(width = 420, height = 900) {
+        runDesktopComposeUiTest(width = 420, height = 900, effectContext = NoMotion) {
             // ⚠ Long enough that the list still scrolls at FIVE columns: with 30 photographs the
             // whole month view fits the viewport, the grid can only be at line 0, and the test
             // asserts something no layout could satisfy.
@@ -853,7 +854,7 @@ class PhotosFeedScreenTest {
     /** The control: the uniform day view draws the same photographs all one size. */
     @Test
     fun theDayViewDrawsEveryPhotographTheSameSize() =
-        runDesktopComposeUiTest(width = 420, height = 900) {
+        runDesktopComposeUiTest(width = 420, height = 900, effectContext = NoMotion) {
             val photos = List(6) { i -> Photo("/p$i.jpg", 6 * day + (6 - i), isVideo = false) }
             setContent(feed(photos = photos, density = FeedDensity.Day))
             waitUntil { tileBounds().size >= 6 }
@@ -870,7 +871,7 @@ class PhotosFeedScreenTest {
      * one row above the thing it repeats.
      */
     @Test
-    fun theStickyHeaderIsAbsentWhileASectionsOwnHeaderIsOnScreen() = runComposeUiTest {
+    fun theStickyHeaderIsAbsentWhileASectionsOwnHeaderIsOnScreen() = runComposeUiTest(effectContext = NoMotion) {
         val photos = List(6) { i -> Photo("/p$i.jpg", (6 - i) * day, isVideo = false) }
 
         setContent(feed(photos = photos))
@@ -884,7 +885,7 @@ class PhotosFeedScreenTest {
      * belongs to — which is the whole point of a sticky header.
      */
     @Test
-    fun theStickyHeaderNamesTheSectionOnceItsOwnHeaderHasScrolledAway() = runComposeUiTest {
+    fun theStickyHeaderNamesTheSectionOnceItsOwnHeaderHasScrolledAway() = runComposeUiTest(effectContext = NoMotion) {
         val photos = List(40) { i -> Photo("/p$i.jpg", (40 - i) * day, isVideo = false) }
 
         setContent(feed(photos = photos))
@@ -905,7 +906,7 @@ class PhotosFeedScreenTest {
      * the top is the whole case, and no gesture hits a given number of pixels deterministically.
      */
     @Test
-    fun theStickyHeaderTakesOverAsASectionsOwnHeaderStartsToScrollAway() = runComposeUiTest {
+    fun theStickyHeaderTakesOverAsASectionsOwnHeaderStartsToScrollAway() = runComposeUiTest(effectContext = NoMotion) {
         val photos = List(40) { i -> Photo("/p$i.jpg", (40 - i) * day, isVideo = false) }
         lateinit var grid: androidx.compose.foundation.lazy.grid.LazyGridState
 
@@ -928,7 +929,7 @@ class PhotosFeedScreenTest {
     }
 
     @Test
-    fun photosAreSectionedByDay() = runComposeUiTest {
+    fun photosAreSectionedByDay() = runComposeUiTest(effectContext = NoMotion) {
         val photos = listOf(
             Photo("/a.jpg", 5 * day + 10, isVideo = false),
             Photo("/b.jpg", 5 * day + 5, isVideo = false),
@@ -950,7 +951,7 @@ class PhotosFeedScreenTest {
     }
 
     @Test
-    fun anEmptyRealmSaysWherePhotosComeFrom() = runComposeUiTest {
+    fun anEmptyRealmSaysWherePhotosComeFrom() = runComposeUiTest(effectContext = NoMotion) {
         setContent(feed(photos = emptyList()))
 
         waitUntil {
@@ -960,7 +961,7 @@ class PhotosFeedScreenTest {
     }
 
     @Test
-    fun anUnreachableProxyShowsTheProxyMessageAndARetry_neverTheEmptyState() = runComposeUiTest {
+    fun anUnreachableProxyShowsTheProxyMessageAndARetry_neverTheEmptyState() = runComposeUiTest(effectContext = NoMotion) {
         var retried = false
         setContent(
             feed(
@@ -985,7 +986,7 @@ class PhotosFeedScreenTest {
     }
 
     @Test
-    fun aFailedReadAlsoKeepsTheEmptyCopyOffScreen() = runComposeUiTest {
+    fun aFailedReadAlsoKeepsTheEmptyCopyOffScreen() = runComposeUiTest(effectContext = NoMotion) {
         setContent(feed(outcome = PhotoPageResult.Failed("boom")))
 
         waitUntil {
@@ -1012,7 +1013,7 @@ class PhotosFeedScreenTest {
      * passes that skip the way `PhotosFeedViewModel` does, so "no overlap" means what it says.
      */
     @Test
-    fun theMockRepositoryPagesLikeTheRealOne() = runComposeUiTest {
+    fun theMockRepositoryPagesLikeTheRealOne() = runComposeUiTest(effectContext = NoMotion) {
         val repo = MockPhotosRepository()
         var page: PhotoPageResult? = null
         kotlinx.coroutines.runBlocking { page = repo.feedPage(Long.MAX_VALUE, skip = 0, pageSize = 4) }
@@ -1040,7 +1041,7 @@ class PhotosFeedScreenTest {
      * would be an affordance that could never work — ADR 0025's own defect one layer down.
      */
     @Test
-    fun anUninstalledControlOffersNoRetry_becauseRetryingCannotInstallAnything() = runComposeUiTest {
+    fun anUninstalledControlOffersNoRetry_becauseRetryingCannotInstallAnything() = runComposeUiTest(effectContext = NoMotion) {
         setContent(
             feed(
                 photos = emptyList(),
@@ -1061,7 +1062,7 @@ class PhotosFeedScreenTest {
 
     /** ⚠ And a schema refusal is the same: the user has to update something, not tap again. */
     @Test
-    fun aSchemaSkewOffersNoRetryEither() = runComposeUiTest {
+    fun aSchemaSkewOffersNoRetryEither() = runComposeUiTest(effectContext = NoMotion) {
         setContent(
             feed(
                 photos = emptyList(),
@@ -1085,7 +1086,7 @@ class PhotosFeedScreenTest {
      * does clear itself, so removing the retry everywhere would have been the opposite mistake.
      */
     @Test
-    fun aTransportOutageKeepsTheRetry() = runComposeUiTest {
+    fun aTransportOutageKeepsTheRetry() = runComposeUiTest(effectContext = NoMotion) {
         var retried = false
         setContent(
             feed(

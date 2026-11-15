@@ -1,10 +1,14 @@
 package app.tenshu.drive
 
 import androidx.compose.ui.test.ComposeUiTest
+import androidx.compose.ui.test.DesktopComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.test.v2.runDesktopComposeUiTest
 import org.tenshu.viewmodel.test.OwnedViewModels
 import org.tenshu.viewmodel.test.withOwnedViewModels
+import org.tenshu.ui.test.NoMotion
+import kotlin.coroutines.CoroutineContext
 
 /**
  * `vmTest` for a `runComposeUiTest` body: the scene closes first, then every owned view model is
@@ -15,8 +19,26 @@ import org.tenshu.viewmodel.test.withOwnedViewModels
  * because it is Compose-free (`docs/testing.md` §11.3). Only the builder is per-module — the
  * own-join-assert logic is `withOwnedViewModels`.
  *
+ * @param effectContext [NoMotion] unless animation timing is the test's subject (`docs/testing.md` §13).
  * @param body the test, receiving the [OwnedViewModels] every construction must be wrapped in.
  */
 @OptIn(ExperimentalTestApi::class)
-internal fun composeVmTest(body: ComposeUiTest.(OwnedViewModels) -> Unit) =
-    withOwnedViewModels { owned -> runComposeUiTest { body(owned) } }
+internal fun composeVmTest(
+    effectContext: CoroutineContext = NoMotion,
+    body: ComposeUiTest.(OwnedViewModels) -> Unit,
+) =
+    withOwnedViewModels { owned -> runComposeUiTest(effectContext = effectContext) { body(owned) } }
+
+/**
+ * [composeVmTest] on a [DesktopComposeUiTest], for a test that registers an `IdlingResource`.
+ *
+ * ⚠⚠ `runComposeUiTest` builds the plain skiko test class, whose resource check is hard-wired
+ * to "idle": `registerIdlingResource` on it returns `false` and the resource is never polled, so
+ * a test relying on one would race silently. Only the desktop subclass polls them.
+ */
+@OptIn(ExperimentalTestApi::class)
+internal fun composeDesktopVmTest(
+    effectContext: CoroutineContext = NoMotion,
+    body: DesktopComposeUiTest.(OwnedViewModels) -> Unit,
+) =
+    withOwnedViewModels { owned -> runDesktopComposeUiTest(effectContext = effectContext) { body(owned) } }

@@ -8,6 +8,7 @@ import android.app.AlertDialog
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -88,6 +89,12 @@ class MainActivity : ComponentActivity() {
                 maybeAskForBackgroundLocation()
                 startIfEnabled()
             } else {
+                // ⚠ "Approximate" in Android 12+'s dialog grants COARSE alone. Capture reads
+                // precise fixes only, so that is a refusal too — but the user said *yes*, and a
+                // toggle that flips itself off after a yes needs a reason.
+                if (granted(Manifest.permission.ACCESS_COARSE_LOCATION)) {
+                    Toast.makeText(this, R.string.capture_precise_location_needed, Toast.LENGTH_LONG).show()
+                }
                 control.setEnabled(false) // location refused → reflect it back in the toggle
             }
         }
@@ -232,7 +239,9 @@ class MainActivity : ComponentActivity() {
      */
     private fun missingPermissions(): List<String> = buildList {
         if (!granted(Manifest.permission.ACCESS_FINE_LOCATION)) {
+            // ⚠ Both, always together: Android 12+ ignores a FINE request without COARSE.
             add(Manifest.permission.ACCESS_FINE_LOCATION)
+            add(Manifest.permission.ACCESS_COARSE_LOCATION)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             !granted(Manifest.permission.POST_NOTIFICATIONS)

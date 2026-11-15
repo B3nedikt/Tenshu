@@ -136,9 +136,13 @@ class SharedReplicaLifecycle private constructor(
      * Puts the store in [directory] (its `objects.db`) under this process's protection and
      * worker: B.12 (156)'s attach. ⚠ Before [install] (the protection refuses after it), once
      * per directory (a second attach throws `IllegalStateException`).
+     *
+     * [limits] become the registry's, and so every later open's of [directory]: the registry is
+     * made here, first. Production passes none; a test passes a `HOLD_MAX` that a slow CI
+     * runner cannot reach when the test is not about `HOLD_MAX`.
      */
-    fun attach(directory: String) {
-        val registry = ReplicaHandles.forPath("$directory/${ReplicaOpener.DATABASE_NAME}", ReplicaLimits())
+    fun attach(directory: String, limits: ReplicaLimits = ReplicaLimits()) {
+        val registry = ReplicaHandles.forPath("$directory/${ReplicaOpener.DATABASE_NAME}", limits)
         protection.attach(registry)
         worker.attach(registry)
     }

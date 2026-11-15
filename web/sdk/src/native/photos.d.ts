@@ -57,12 +57,23 @@ type NativePhotosOk<T> = ({ readonly ok: true } & T) | NativeFailure
 interface PhotosInstance {
   // Keyset page, newest first. `cursor` null/'' = head; pass back `nextCursor` (opaque) for the next;
   // `nextCursor: null` after the last. `pageSize` 1..500, else `error_photos_bad_page_size`.
+  // `kind`: 'all' (default — photos and videos) or 'videos' (the Videos collection); anything else
+  // is `error_photos_bad_kind`. Same order and cursor either way.
   feedPage(
     cursor: string | null,
     pageSize: number,
+    kind?: 'all' | 'videos',
   ): Promise<NativePhotosOk<{ readonly photos: NativePhoto[]; readonly nextCursor: string | null }>>
   // Every capture time in the feed (epoch ms), newest first — the scrubber's map and the feed length.
-  captureTimes(): Promise<NativePhotosOk<{ readonly times: number[] }>>
+  // ⚠ Pass the same `kind` as the pages it maps.
+  captureTimes(kind?: 'all' | 'videos'): Promise<NativePhotosOk<{ readonly times: number[] }>>
+  // Search (L7): by name (case-insensitive) and/or capture time [fromMs, toMs] (inclusive), newest
+  // first, at most 500 (`truncated`). Neither given, or from > to = `error_photos_bad_search`.
+  search(
+    name: string | null,
+    fromMs: number | null,
+    toMs: number | null,
+  ): Promise<NativePhotosOk<{ readonly photos: NativePhoto[]; readonly truncated: boolean }>>
   // ⚠ `photo: null` / `details: null` / `bytes: null` = nothing at that path (an answer);
   // `ok: false` = the read failed.
   photo(path: string): Promise<NativePhotosOk<{ readonly photo: NativePhoto | null }>>

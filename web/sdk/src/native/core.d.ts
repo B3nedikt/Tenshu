@@ -158,6 +158,25 @@ interface NotificationsInstance {
   // emission delivers the full snapshot (not deltas), matching the
   // Tenshu Flow<TResult<TList<T>>> protocol after merging.
   observe(callback: (items: NativeNotification[]) => void): () => void
+  // The newest [limit] (1..50) as display events, re-emitted on change — the web twin of the desktop
+  // tray's `recentNotifications`. ⚠ `ok: false` on a failed read, never an empty list; `onError`
+  // fires once if the stream ends for any reason but the returned unsubscribe.
+  observeRecent(
+    limit: number,
+    callback: (r: { readonly ok: true; readonly events: NativeRecentEvent[] } | NativeFailure) => void,
+    onError: (message: string) => void,
+  ): () => void
+}
+
+// One display event. `kind`: 'file_added' | 'folder_added' | 'files_added' | 'file_deleted' |
+// 'folder_deleted' | 'change_lost' | 'app_registered' | 'app_removed' — a newer build may add more.
+// `name` is a path for file kinds, an app name for app kinds; `otherCount` > 0 only for 'files_added'.
+interface NativeRecentEvent {
+  readonly id: string
+  readonly timestamp: number
+  readonly kind: string
+  readonly name: string
+  readonly otherCount: number
 }
 
 interface FilesInstance {

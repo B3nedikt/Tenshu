@@ -9,6 +9,7 @@ import app.tenshu.photos.ui.components.PHOTO_TILE_DURATION_TAG
 import app.tenshu.photos.ui.components.PhotoTile
 import app.tenshu.ui.theme.TenshuTheme
 import kotlin.test.Test
+import org.tenshu.ui.test.NoMotion
 
 /**
  * The tile's duration badge (`photos-video-support.md` M1).
@@ -38,7 +39,7 @@ class PhotoTileDurationTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun `a video with a known duration shows it`() = runDesktopComposeUiTest {
+    fun `a video with a known duration shows it`() = runDesktopComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 PhotoTile(photo = video, loadPreview = { _, _ -> null }, onClick = {})
@@ -50,7 +51,7 @@ class PhotoTileDurationTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun `a still shows no badge`() = runDesktopComposeUiTest {
+    fun `a still shows no badge`() = runDesktopComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 PhotoTile(
@@ -70,7 +71,7 @@ class PhotoTileDurationTest {
      */
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun `a video with an unknown duration shows no badge`() = runDesktopComposeUiTest {
+    fun `a video with an unknown duration shows no badge`() = runDesktopComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 PhotoTile(photo = video.copy(durationMs = null), loadPreview = { _, _ -> null }, onClick = {})
@@ -82,7 +83,7 @@ class PhotoTileDurationTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun `an hour-long video keeps the hours field`() = runDesktopComposeUiTest {
+    fun `an hour-long video keeps the hours field`() = runDesktopComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 PhotoTile(

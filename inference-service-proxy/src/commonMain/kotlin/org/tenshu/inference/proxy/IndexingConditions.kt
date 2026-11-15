@@ -34,6 +34,20 @@ fun interface IndexingConditions {
      */
     fun allowManualIndexing(): Boolean = true
 
+    /**
+     * Whether a **new-arrivals batch** may work (IN-D6a): a small batch of photographs no pass has
+     * seen, started by their arrival rather than by a person or the 12 h schedule.
+     *
+     * ⚠⚠ Its own bar, between the other two. Battery not low, as for a press — but nobody asked, so
+     * the press's "unknown is allowed" does not carry over: a platform that cannot read its battery
+     * does not start unasked work. And never the scheduled bar loosened: the 12 h pass keeps
+     * charging + not in use, because it is the one that may run for hours.
+     *
+     * ⚠⚠ The default is `false` — absent means never, [allowIndexing]'s rule. A platform that wants
+     * arrivals indexed says so.
+     */
+    fun allowArrivalIndexing(): Boolean = false
+
     companion object {
         /**
          * ⚠⚠ An explicit object, NOT `IndexingConditions { false }`. A SAM lambda implements
@@ -46,6 +60,7 @@ fun interface IndexingConditions {
         val Never: IndexingConditions = object : IndexingConditions {
             override fun allowIndexing(): Boolean = false
             override fun allowManualIndexing(): Boolean = false
+            override fun allowArrivalIndexing(): Boolean = false
         }
     }
 }

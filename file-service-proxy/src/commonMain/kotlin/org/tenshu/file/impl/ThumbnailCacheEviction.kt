@@ -49,9 +49,12 @@ internal fun selectThumbnailEvictions(
     maxThumbnailBytes: Long,
     availableSpaceBytes: Long?,
     minFreeSpaceBytes: Long,
+    /** Unknown recency sorts first instead of last (the web: no write times, see `ThumbnailCachePolicy`). */
+    unknownRecencyIsCold: Boolean = false,
 ): List<CachedThumbnail> {
+    val unknown = if (unknownRecencyIsCold) Long.MIN_VALUE else Long.MAX_VALUE
     val coldestFirst = cached.sortedWith(
-        compareBy<CachedThumbnail> { it.lastAccessMs ?: Long.MAX_VALUE }.thenBy { it.path },
+        compareBy<CachedThumbnail> { it.lastAccessMs ?: unknown }.thenBy { it.path },
     )
 
     val cacheBytes = cached.sumOf { it.sizeBytes }

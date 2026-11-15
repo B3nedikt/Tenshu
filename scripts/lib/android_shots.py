@@ -37,6 +37,7 @@ import argparse
 import os
 import re
 import subprocess
+import json
 import sys
 import time
 
@@ -291,6 +292,13 @@ def tap(label, timeout=60, desc=False, startswith=False):
 def tap_card(label, timeout=60):
     """Tap the centre of the smallest clickable node around LABEL — a card whose caption is the
     label. A tap on the caption itself, at the card's edge, was seen not to open it."""
+    x, y = card_center(label, timeout)
+    adb("shell", "input", "tap", str(x), str(y))
+    time.sleep(1)
+
+
+def card_center(label, timeout=60):
+    """The centre of the smallest clickable node around LABEL (tap_card's target)."""
     lx, ly = wait(label, timeout)
     xml = adb("exec-out", "uiautomator", "dump", "/dev/tty", check=False).decode(errors="replace")
     best = None
@@ -302,9 +310,7 @@ def tap_card(label, timeout=60):
         x1, y1, x2, y2 = map(int, b.groups())
         if x1 <= lx <= x2 and y1 <= ly <= y2 and (best is None or (x2 - x1) * (y2 - y1) < best[0]):
             best = ((x2 - x1) * (y2 - y1), (x1 + x2) // 2, (y1 + y2) // 2)
-    x, y = (best[1], best[2]) if best else (lx, ly)
-    adb("shell", "input", "tap", str(x), str(y))
-    time.sleep(1)
+    return (best[1], best[2]) if best else (lx, ly)
 
 
 def tap_lowest(label, timeout=60):
@@ -406,6 +412,13 @@ def shot(name, settle=2.0):
 def landing_shot(name, settle=2.0):
     """A capture of the landing content set (store/<app>/screens.json `landing.captured`). The same
     capture as shot(); its own name so the support-page lists and the landing lists stay apart."""
+    shot(name, settle)
+
+
+def promo_shot(name, settle=2.0):
+    """A still of the promo set (store-screenshots.md §9, "The promo set"). The same capture as
+    shot(); its own name because the promo stills are listed nowhere, and the landing and support
+    lists are each checked against the calls that carry their name (`screens.test.ts`)."""
     shot(name, settle)
 
 
@@ -709,6 +722,325 @@ def photos_landing(args):
 
 # Which feed tile the viewer capture opens (reading order).
 LANDING_VIEWER_TILE = 0
+
+
+# ── The promo set (docs/how-to/store-screenshots.md §9, "The promo set") ────
+# The promo video's own realm: the maintainer's photos (staged by store/fixtures/promo/stage_photos.py,
+# never in git), seeded like the landing set, plus the screen recordings the video shows. One photo
+# is held back from the seed (--upload) so the recording can upload it for real.
+PROMO_PICTURES = "/sdcard/Pictures/Promo"
+
+
+class ScreenRecord:
+    """`adb shell screenrecord` around a block, pulled to OUT/<name>.mp4. ⚠ screenrecord stops at
+    180 s on its own; a promo clip is a few seconds."""
+
+    def __init__(self, name):
+        self.name = name
+        self.remote = f"/sdcard/{name}.mp4"
+
+    def __enter__(self):
+        adb("shell", "rm", "-f", self.remote, check=False)
+        # Android's own touch dots, so a viewer sees what is tapped. The overlay is read-only:
+        # gone with the emulator.
+        adb("shell", "settings", "put", "system", "show_touches", "1")
+        self.proc = subprocess.Popen(["adb", "-s", SERIAL, "shell", "screenrecord", "--bit-rate", "16000000", self.remote])
+        time.sleep(1.5)  # screenrecord's first frame comes late; the clip is trimmed in the video
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        """Stops the recording; pulls it only if the block succeeded — a clip of a step that failed
+        (a stalled backup, a missing button) must not pass for a good one. Nothing here may raise
+        over the block's own error."""
+        time.sleep(1.5 if exc_type is None else 0)
+        adb("shell", "pkill", "-INT", "screenrecord", check=False)
+        adb("shell", "settings", "put", "system", "show_touches", "0", check=False)
+        try:
+            self.proc.wait(timeout=30)
+        except subprocess.TimeoutExpired:
+            self.proc.kill()
+        if exc_type is None:
+            time.sleep(2)  # the file is finalised after the signal
+            adb("pull", self.remote, os.path.join(OUT, f"{self.name}.mp4"))
+        adb("shell", "rm", "-f", self.remote, check=False)
+        return False
+
+
+def upload_photo(upload_dir):
+    """(album, path) of the photo uploaded on camera: --upload holds <Album>/<name>.jpg
+    (stage_photos.py), and the walk uploads it into that album's folder."""
+    album = sorted(d for d in os.listdir(upload_dir) if os.path.isdir(os.path.join(upload_dir, d)))[0]
+    name = sorted(f for f in os.listdir(os.path.join(upload_dir, album)) if f.lower().endswith(".jpg"))[0]
+    return album, os.path.join(upload_dir, album, name)
+
+
+def push_for_picker(photo):
+    """The held-back photo into Pictures, indexed by the media store, so the system photo picker
+    lists it — and nothing else: the seed's copies in Documents go first, so the picker's first
+    tile is the photo the video shows arriving."""
+    name = os.path.basename(photo)
+    # The seed's copies, and what an earlier appearance or rerun left (the backup's Chat folder):
+    # the emulator keeps its files across appearances, and the picker would list them all.
+    adb("shell", "rm", "-rf", DEVICE_FIXTURE + "/*", PROMO_PICTURES, CHAT_FOLDER)
+    adb("shell", "mkdir", "-p", PROMO_PICTURES)
+    adb("push", photo, f"{PROMO_PICTURES}/{name}")
+    adb("shell", "content", "call", "--uri", "content://media", "--method", "scan_volume", "--arg", "external_primary", check=False)
+    adb("shell", "am", "broadcast", "-a", "android.intent.action.MEDIA_SCANNER_SCAN_FILE",
+        "-d", f"file://{PROMO_PICTURES}/{name}", check=False)
+    time.sleep(3)
+
+
+PICKED = "Photo taken on"   # the start of a photo tile's description in the system photo picker
+
+
+def warm_up_picker():
+    """Open the photo picker once off camera: its first open shows one-time banners (a Google
+    Photos account notice, then "Drive will only have access to the photos you select"), each
+    gone for good once dismissed. Select a photo to raise the second, then leave empty-handed."""
+    upload_menu("Images")
+    wait(PICKED, desc=True, startswith=True, timeout=30)
+    if find("Dismiss"):
+        tap("Dismiss")
+    tap(PICKED, desc=True, startswith=True)
+    if find("Dismiss"):
+        tap("Dismiss")
+    tap("Deselect all", desc=True)
+    adb("shell", "input", "keyevent", "4")
+    time.sleep(2)
+
+
+def listed_jpgs():
+    return {t for t, _, _ in nodes() if t.lower().endswith(".jpg")}
+
+
+def wait_new_file(before, timeout=120):
+    """Until a .jpg not in BEFORE is listed. ⚠ Not by name: the photo picker hands Drive a
+    media-store id as the display name (`32.jpg`), never the file's own."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        new = listed_jpgs() - before
+        if new:
+            return new.pop()
+        time.sleep(1)
+    sys.exit("android-shots: the picked photo never appeared in the folder")
+
+
+def drive_promo(args):
+    """The promo realm's Drive: seeded through the app's own Folder upload, a folder as a grid, and
+    two recordings — one photo uploaded into it through + → Upload → Images, then a share link
+    made for that photo through its preview's More → Link → Generate link. ⚠ The link names the
+    production viewer host and the realm is the dev lab's, so it opens nothing (§2 of
+    store-screenshots.md): the video shows it being made, never opened."""
+    drive_until_seeded(args)
+    promo_shot("01-files")
+    folder, photo = upload_photo(args.upload)
+    tap(folder)
+    show_grid()
+    time.sleep(8)
+    promo_shot("02-photos")
+    push_for_picker(photo)
+    warm_up_picker()
+    before = listed_jpgs()
+    with ScreenRecord("android-upload"):
+        upload_menu("Images")
+        tap(PICKED, desc=True, startswith=True, timeout=30)
+        tap("Done")
+        uploaded = wait_new_file(before)
+        time.sleep(8)  # the new tile's thumbnail is minted after the upload
+    promo_shot("03-uploaded")
+    tap(uploaded)
+    wait("More actions", desc=True)
+    time.sleep(3)
+    with ScreenRecord("android-share"):
+        tap("More actions", desc=True)
+        tap("Link")
+        tap("Generate link")
+        wait("https://", timeout=60, startswith=True)
+        time.sleep(3)
+    record_recovery()
+    if args.backup:
+        # Last, and not fatal: a backup that stalls must not cost the run its other recordings.
+        try:
+            record_backup(args.backup)
+        except SystemExit as e:
+            print(f"android-shots: no backup recording — {e}", file=sys.stderr)
+
+
+CHAT_FOLDER = "/sdcard/Pictures/Chat"
+BACKUP_MASTER_X = 966  # the master switch's x on the 1080-wide profile; y is read from its row
+
+
+def record_backup(backup_dir):
+    """Synced Folders on camera: a "Chat" folder on the phone holding one photo the realm has never
+    seen (⚠ a copy of a realm photo is skipped as already held — that is not a failed backup), then
+    Drive → Settings → Synced folders → the master switch on, until the screen says it backed up.
+    The folders the earlier walks used (Pictures/Promo, the seed in Documents) are removed first,
+    so Chat is the only folder listed."""
+    photo = sorted(f for f in os.listdir(backup_dir) if f.lower().endswith(".jpg"))[0]
+    for perm in ("READ_MEDIA_IMAGES", "READ_MEDIA_VIDEO", "ACCESS_MEDIA_LOCATION", "POST_NOTIFICATIONS"):
+        adb("shell", "pm", "grant", DRIVE, f"android.permission.{perm}", check=False)
+    adb("shell", "rm", "-rf", PROMO_PICTURES, DEVICE_FIXTURE + "/*")
+    adb("shell", "mkdir", "-p", CHAT_FOLDER)
+    adb("push", os.path.join(backup_dir, photo), f"{CHAT_FOLDER}/{photo}")
+    adb("shell", "content", "call", "--uri", "content://media", "--method", "scan_volume", "--arg", "external_primary", check=False)
+    time.sleep(3)
+    adb("shell", "am", "force-stop", DRIVE)
+    launch(DRIVE)
+    tap_lowest("Files", timeout=90)
+    tap("Settings", desc=True)
+    tap("Synced folders")
+    _, y = wait("Automatically back up folders")
+    time.sleep(2)
+    with ScreenRecord("android-backup"):
+        adb("shell", "input", "tap", str(BACKUP_MASTER_X), str(y + 30))
+        time.sleep(2.5)
+        adb("shell", "input", "swipe", "540", "1900", "540", "700", "900")
+        deadline = time.time() + 90
+        while not find("Backed up", startswith=True):
+            if time.time() > deadline:
+                sys.exit("Synced Folders never reported a finished backup")
+            time.sleep(1)
+        time.sleep(3)
+
+
+def record_recovery():
+    """Control → Settings → Set up account recovery → Show: the throwaway realm's recovery phrase
+    (gone with the emulator's overlay), recorded for the promo video's recovery scene."""
+    adb("shell", "am", "force-stop", CONTROL)
+    launch(CONTROL)
+    wait("Settings", timeout=60)
+    time.sleep(2)
+    with ScreenRecord("android-recovery"):
+        tap("Settings")
+        tap("Set up account recovery")
+        wait("Recovery Phrase")
+        time.sleep(1)
+        tap("Show", desc=True)
+        wait("I have written this down")
+        time.sleep(5)  # long enough to read in the video
+    adb("shell", "input", "keyevent", "4")
+
+
+# The promo album comes from --promo-config, a JSON file kept with the video (not in this public
+# tree, since it names the maintainer's own photos): {"album": "<name>", "albumPhotos": ["<file>.jpg", …]}.
+# The album is made off camera from those photos, then opened on camera and one made a favourite.
+
+
+def promo_config(path):
+    if not path:
+        return None
+    with open(path) as f:
+        cfg = json.load(f)
+    if not cfg.get("album") or len(cfg.get("albumPhotos") or []) < 3:
+        # record_album taps the album's third tile (ALBUM_TILE).
+        sys.exit(f"android-shots: {path} needs \"album\" and at least 3 \"albumPhotos\"")
+    return cfg
+
+
+def viewer_name():
+    """The file name the Photos viewer shows at its top: the first node, by text or description,
+    that names a .jpg."""
+    for t, d, _ in nodes():
+        for label in (t, d):
+            if label.lower().endswith(".jpg"):
+                return label
+    return None
+
+
+def make_promo_album(album, photos):
+    """Collections → New album ALBUM, then the viewer swiped through the library, each of PHOTOS
+    (file names) added through More → Add to album. Off camera."""
+    photos = set(photos)
+    tap_lowest("Collections")
+    time.sleep(3)
+    if not find(album):  # a rerun on a kept emulator finds it made
+        tap_card("New album")
+        tap("Name")
+        type_text(album.replace(" ", "%s"), close_keyboard=False)
+        tap("Create")
+    tap_lowest("Photos")
+    x, y = wait_tiles(1)[0]
+    adb("shell", "input", "tap", str(x), str(y))
+    wait("More", desc=True)
+    seen, last = set(), None
+    while True:
+        name = viewer_name()
+        if name == last:
+            break  # the swipe went nowhere: the end of the library
+        last = name
+        seen.add(name)
+        if name in photos:
+            tap("More", desc=True)
+            tap("Add to album")
+            tap(album)
+            time.sleep(2)
+            if find("OK"):
+                tap("OK")
+        if photos <= seen:
+            break
+        adb("shell", "input", "swipe", "900", "1200", "150", "1200", "250")
+        time.sleep(2)
+    missing = photos - seen
+    if missing:
+        sys.exit(f"android-shots: the library never showed {sorted(missing)}")
+    adb("shell", "input", "keyevent", "4")
+
+
+# Positions on the 1080 × 2400 Pixel 8 profile, measured once, tapped blind on camera: every wait()
+# reads the screen through uiautomator (1–2 s each), which a recording shows as dead air. Album
+# tiles are not clickable nodes anyway (photos_landing). The third tile is the one made a favourite.
+ALBUM_TILE = (900, 430)
+VIEWER_FAVOURITE = (880, 206)
+COLLECTIONS_TAB = (907, 2274)
+
+
+def record_album(album):
+    """Collections → ALBUM → a photo → Add to favourites → back, and Collections re-selected (it
+    refreshes its sections then), where Favourites now counts the photo."""
+    tap_lowest("Collections")
+    time.sleep(4)  # the tab refreshes its sections when it is selected
+    card = card_center(album)
+    tap_at = lambda xy: adb("shell", "input", "tap", str(xy[0]), str(xy[1]))
+    with ScreenRecord("android-album"):
+        tap_at(card)
+        time.sleep(2.5)
+        tap_at(ALBUM_TILE)
+        time.sleep(3.5)  # long enough to see the empty star before it fills
+        tap_at(VIEWER_FAVOURITE)
+        time.sleep(1.8)
+        adb("shell", "input", "keyevent", "4")
+        time.sleep(1.2)
+        adb("shell", "input", "keyevent", "4")
+        time.sleep(1)
+        tap_at(COLLECTIONS_TAB)
+        time.sleep(3.5)
+    if not find("Favourites"):
+        sys.exit("android-shots: the album recording did not end on Collections")
+
+
+def photos_promo(args):
+    """The promo realm's Photos: the library, a recording of a slow scroll through it, and — with
+    --promo-config — an album made off camera and a recording of one of its photos made a favourite."""
+    launch(PHOTOS)
+    wait("Collections", timeout=120)
+    wait_tiles(6)
+    time.sleep(10)  # thumbnails arrive per tile, with a retry back-off (photos-app.md §41.2)
+    promo_shot("01-library")
+    with ScreenRecord("android-photos-scroll"):
+        for _ in range(2):
+            adb("shell", "input", "swipe", "540", "1700", "540", "900", "1800")
+            time.sleep(2.5)
+    tiles = wait_tiles(1)
+    adb("shell", "input", "tap", str(tiles[0][0]), str(tiles[0][1]))
+    wait("More", desc=True)
+    time.sleep(5)
+    promo_shot("02-viewer")
+    adb("shell", "input", "keyevent", "4")  # the viewer, back to the feed
+    time.sleep(2)
+    cfg = promo_config(args.promo_config)
+    if cfg:
+        make_promo_album(cfg["album"], cfg["albumPhotos"])
+        record_album(cfg["album"])
 
 
 def settle_uploads(timeout=360, quiet=3):
@@ -1535,7 +1867,10 @@ def main():
     global OUT, LANG, APP
     p = argparse.ArgumentParser()
     p.add_argument("app", choices=["control", "drive", "photos", "fit", "calendar", "contacts", "timeline", "maps", "mia", "home"])
-    p.add_argument("--set", choices=["support", "landing"], default="support")
+    p.add_argument("--set", choices=["support", "landing", "promo"], default="support")
+    p.add_argument("--upload", help="drive --set promo: photos held back from the seed, one uploaded on camera")
+    p.add_argument("--backup", help="drive --set promo: a photo new to the realm, backed up by Synced Folders on camera")
+    p.add_argument("--promo-config", help="photos --set promo: JSON naming the album to make and film")
     p.add_argument("--out", required=True)
     p.add_argument("--email")
     p.add_argument("--otp-file")
@@ -1554,9 +1889,15 @@ def main():
     OUT = args.out
     LANG, APP = args.lang, args.app
     os.makedirs(OUT, exist_ok=True)
-    if args.app == "photos" and args.set != "landing":
-        sys.exit("android-shots: photos has only the landing set (--set landing)")
-    if args.set == "landing" and args.app == "drive":
+    if args.app == "photos" and args.set == "support":
+        sys.exit("android-shots: photos has only the landing and promo sets")
+    if args.set == "promo" and args.app == "drive":
+        if not (args.upload and os.path.isdir(args.upload)):
+            sys.exit("android-shots: drive --set promo needs --upload <dir>")
+        drive_promo(args)
+    elif args.set == "promo" and args.app == "photos":
+        photos_promo(args)
+    elif args.set == "landing" and args.app == "drive":
         drive_landing(args)
     elif args.app == "photos":
         photos_landing(args)

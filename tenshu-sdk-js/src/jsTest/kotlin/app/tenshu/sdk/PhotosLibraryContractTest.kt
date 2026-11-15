@@ -244,6 +244,72 @@ class PhotosLibraryContractTest : SdkRuntimeTest() {
         assertEquals(times.sortedDescending(), times, "ordered by the chain, newest first")
     }
 
+    // L5 (web-apps-layout.md): the Videos collection is the same walk with one more filter — same
+    // order, same cursor — and its times must map its pages index for index.
+    @Test
+    fun videosKind_holdsOnlyVideos_inFeedOrder_andItsTimesMatchItsPages() = runTest {
+        val dir = folder()
+        val t = window()
+        seed(dir, "a.jpg", t + 4)
+        val clip = seed(dir, "b.mp4", t + 3)
+        seed(dir, "c.jpg", t + 2)
+        val older = seed(dir, "d.mov", t + 1)
+        val page = ok(Photos.feedPage(top(t + 4), 10, "videos"), "videos page")
+        val inWindow = page.photos.unsafeCast<Array<dynamic>>().filter { (it.capturedAtMs as Double) >= t }
+        assertEquals(listOf(clip, older), inWindow.map { it.path as String }, "only the videos, newest first")
+        assertTrue(inWindow.all { it.isVideo as Boolean }, "every row is a video")
+
+        val times = ok(Photos.captureTimes("videos"), "videos captureTimes").times.unsafeCast<Array<Double>>().toList()
+        assertEquals(listOf((t + 3).toDouble(), (t + 1).toDouble()), times.filter { it >= t && it <= t + 4 })
+
+        // The default is still the whole library (photos AND videos).
+        val all = ok(Photos.feedPage(top(t + 4), 10), "library page").photos.unsafeCast<Array<dynamic>>()
+        assertEquals(4, all.count { (it.capturedAtMs as Double) >= t })
+    }
+
+    // L7 (web-apps-layout.md): search by name (case-insensitive, media only) and/or a capture-time
+    // range, newest first; never an empty "everything" search.
+    @Test
+    fun search_byName_ignoresCaseAndNonMedia_newestFirst() = runTest {
+        val dir = folder()
+        val t = window()
+        val tag = "zq${stamp()}"
+        val a = seed(dir, "$tag-beach.jpg", t + 3)
+        val b = seed(dir, "${tag.uppercase()}-dunes.mp4", t + 2)
+        seed(dir, "other.jpg", t + 1)
+        seed(dir, "$tag-notes.txt", t + 1) // a document, not a photo
+        val found = ok(Photos.search(tag, null, null), "search").photos.unsafeCast<Array<dynamic>>()
+        assertEquals(listOf(a, b), found.map { it.path as String })
+        assertEquals(false, ok(Photos.search(tag, null, null), "search").truncated)
+    }
+
+    @Test
+    fun search_byDateRange_isInclusive_andCombinesWithName() = runTest {
+        val dir = folder()
+        val t = window()
+        val tag = "zr${stamp()}"
+        seed(dir, "$tag-a.jpg", t + 30)
+        val mid = seed(dir, "$tag-b.jpg", t + 20)
+        val low = seed(dir, "$tag-c.jpg", t + 10)
+        val inRange = ok(Photos.search(null, (t + 10).toDouble(), (t + 20).toDouble()), "range").photos.unsafeCast<Array<dynamic>>()
+        assertEquals(listOf(mid, low), inRange.map { it.path as String }.filter { it.contains(tag) }, "both ends inclusive")
+        val both = ok(Photos.search("$tag-c", (t + 10).toDouble(), (t + 30).toDouble()), "name + range").photos.unsafeCast<Array<dynamic>>()
+        assertEquals(listOf(low), both.map { it.path as String })
+    }
+
+    @Test
+    fun anEmptyOrBackwardsSearchIsATypedFailure_neverEverything() = runTest {
+        assertEquals("error_photos_bad_search", failureKind(Photos.search(null, null, null), "empty"))
+        assertEquals("error_photos_bad_search", failureKind(Photos.search("   ", null, null), "blank"))
+        assertEquals("error_photos_bad_search", failureKind(Photos.search(null, 20.0, 10.0), "backwards"))
+    }
+
+    @Test
+    fun anUnknownFeedKindIsATypedFailure_neverEverything() = runTest {
+        assertEquals("error_photos_bad_kind", failureKind(Photos.feedPage(null, 10, "images"), "bad kind"))
+        assertEquals("error_photos_bad_kind", failureKind(Photos.captureTimes("images"), "bad kind times"))
+    }
+
     @Test
     fun aMalformedCursorOrPageSizeIsATypedFailure() = runTest {
         assertEquals("error_photos_bad_cursor", failureKind(Photos.feedPage("nonsense", 10), "bad cursor"))

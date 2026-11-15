@@ -94,6 +94,7 @@ tenshu/notification/service/dismissedRequests|tenshu/notification/service|CHILD_
 tenshu/notification/service/notifications|tenshu/notification/service|CHILD_ROW
 tenshu/photo/service/albumEntries|tenshu/photo/service|CHILD_ROW
 tenshu/photo/service/albums|tenshu/photo/service|CHILD_ROW
+tenshu/photo/service/photoEdits|tenshu/photo/service|CHILD_ROW
 tenshu/photo/service/photoFlags|tenshu/photo/service|CHILD_ROW
 tenshu/photo/service/trashedPhotos|tenshu/photo/service|CHILD_ROW
 tenshu/preference/service/deviceSettings|tenshu/preference/service|CHILD_ROW

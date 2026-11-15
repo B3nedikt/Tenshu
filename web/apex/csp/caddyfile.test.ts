@@ -185,3 +185,15 @@ describe('the Caddyfile language redirects', () => {
     expect(re.test('/apps/photos/download/macos.json')).toBe(false)
   })
 })
+
+// ⚠⚠ With no Cache-Control a browser caches a page heuristically (~10% of its Last-Modified age),
+// so a day-old index.html kept loading the old hashed bundle for hours after a deploy.
+describe('the Caddyfile caching', () => {
+  const apexSite = /^\{\$APEX_DOMAIN\} \{\n([\s\S]*?)^\}/m.exec(live)?.[1] ?? ''
+  for (const [name, body] of [['the apex', apexSite], ['every hosted app', snippet('hosted_app_site')]] as const) {
+    it(`${name}: hashed assets are immutable, every other path revalidates (no-cache, unless set already)`, () => {
+      expect(body).toMatch(/@assets path \/assets\/\*\n\s*header @assets Cache-Control "public, immutable, max-age=31536000"/)
+      expect(body).toMatch(/@notAssets not path \/assets\/\*\n\s*header @notAssets \?Cache-Control "no-cache"/)
+    })
+  }
+})

@@ -11,6 +11,7 @@ import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.tenshu.ui.test.NoMotion
 
 /**
  * Phase 6 of `docs/proposals/core-error-channel.md`: the Settings → Errors
@@ -26,7 +27,7 @@ import kotlin.test.assertTrue
 class ErrorsScreenContentTest {
 
     @get:Rule
-    val composeTestRule = createComposeRule()
+    val composeTestRule = createComposeRule(NoMotion)
 
     private val sampleEvent = ErrorEventSummary(
         eventId = "1",

@@ -15,6 +15,7 @@ import org.tenshu.core.common.app.HandlerTable
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
+import org.tenshu.ui.test.NoMotion
 
 /**
  * The *"opens by default"* picker (`control-cross-app-open.md` TT-4b).
@@ -28,7 +29,7 @@ import kotlin.test.assertTrue
 class OpenHandlerSectionTest {
 
     @get:Rule
-    val rule = createComposeRule()
+    val rule = createComposeRule(NoMotion)
 
     private val timeline = InstalledApp(
         appId = "app.tenshu.timeline",

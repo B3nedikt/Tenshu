@@ -99,13 +99,23 @@ class AndroidVoiceInput(private val context: Context) : VoiceInput {
         ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
 
-    private fun create(): SpeechRecognizer? = runCatching {
-        SpeechRecognizer.createOnDeviceSpeechRecognizer(context).apply {
-            setRecognitionListener(Listener())
+    /**
+     * ⚠⚠ The SDK check is the *same* gate as [isAvailable], repeated here so this method is safe
+     * on its own: the binding in `MiaApplication` already refuses below API 33, but a caller that
+     * constructed this class directly would otherwise hit a `NoSuchMethodError` below API 31.
+     * Below it the answer is **no recogniser**, never `createSpeechRecognizer` — the online
+     * fallback is exactly what this class exists to refuse.
+     */
+    private fun create(): SpeechRecognizer? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return null
+        return runCatching {
+            SpeechRecognizer.createOnDeviceSpeechRecognizer(context).apply {
+                setRecognitionListener(Listener())
+            }
+        }.getOrElse {
+            Log.w(TAG, "on-device recogniser unavailable", it)
+            null
         }
-    }.getOrElse {
-        Log.w(TAG, "on-device recogniser unavailable", it)
-        null
     }
 
     private inner class Listener : RecognitionListener {

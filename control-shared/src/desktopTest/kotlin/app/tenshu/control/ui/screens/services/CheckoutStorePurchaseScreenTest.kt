@@ -23,6 +23,7 @@ import org.tenshu.viewmodel.test.closeBlocking
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.tenshu.ui.test.NoMotion
 
 /**
  * The real [CheckoutScreen] over the real [CheckoutViewModel] on a store rail, with a store sheet
@@ -96,7 +97,7 @@ class CheckoutStorePurchaseScreenTest {
     )
 
     @Test
-    fun aPurchaseInTheSheet_survivesTheScreensOwnRecomposition_andReachesCommerce() = runComposeUiTest {
+    fun aPurchaseInTheSheet_survivesTheScreensOwnRecomposition_andReachesCommerce() = runComposeUiTest(effectContext = NoMotion) {
         val commerce = Commerce()
         val sheet = HeldSheet()
         val vm = storeVm(commerce, sheet)
@@ -115,7 +116,7 @@ class CheckoutStorePurchaseScreenTest {
     }
 
     @Test
-    fun aPurchaseInTheSheet_survivesTheScreenLeavingComposition() = runComposeUiTest {
+    fun aPurchaseInTheSheet_survivesTheScreenLeavingComposition() = runComposeUiTest(effectContext = NoMotion) {
         // A rotation tears the screen down while Play's sheet is in front; the VM survives it.
         val commerce = Commerce()
         val sheet = HeldSheet()

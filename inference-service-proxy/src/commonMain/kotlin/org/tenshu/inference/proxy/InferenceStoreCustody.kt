@@ -12,12 +12,16 @@ import kotlinx.serialization.json.Json
 import org.tenshu.core.common.proxy.FileDatabase
 
 /**
- * The realm a device-local inference store was built for.
+ * The realm a device-local inference store was built for: whose realm, and which generation of the
+ * shared store held it.
  *
- * ⚠⚠ **[storeEpoch] is a seam, and nothing fills it yet.** The owner id alone cannot see a reset
- * that keeps the owner. The shared store's `meta.epoch` can (`ios-shared-store-sqlite.md` §3), and
- * it does not exist until S0b-1. Whoever supplies the realm then sets it; the first check after
- * that finds a stamp without one, which is a mismatch, and clears once.
+ * ⚠⚠ **[storeEpoch] is the half the owner id cannot see**: a reset that keeps the owner. On iOS it
+ * is the shared store's `meta.epoch` (`ios-shared-store-sqlite.md` §3), which every wipe and every
+ * migration moves; whoever supplies the realm sets it (`ownedInferenceStoresModule`), and one that
+ * cannot tell the epoch answers [RealmReading.CannotTell], never a realm with this `null`.
+ * ⚠ A stamp written before the epoch was plumbed decodes with `null` here, so its first check is a
+ * mismatch and clears once (`ios-face-grouping.md` §2.2 item 8). That is the rule, not a migration:
+ * the stamp is device-local JSON, not a schema'd row.
  */
 @Serializable
 data class InferenceRealm(
@@ -38,6 +42,14 @@ data class RuntimeFingerprint(
     val computeUnits: String,
     val osBuild: String,
     val preprocessingRevision: Int,
+    /**
+     * The pinned revision of the system detector the model's input comes from, or `null` for a
+     * model with none (SigLIP). The face pair's is Vision's `VNDetectFaceLandmarksRequest` revision
+     * (`ios-face-grouping.md` FD9): another revision finds other points, so other crops and other
+     * vectors. ⚠ `null` by default and so never encoded for SigLIP: a fingerprint or a verdict
+     * written before this field decodes equal to one written after.
+     */
+    val detectorRevision: Int? = null,
 ) {
     /**
      * Whether vectors made under [this] may stay beside vectors made under [current].
@@ -49,7 +61,31 @@ data class RuntimeFingerprint(
         visionArchiveSha256 == current.visionArchiveSha256 &&
             preprocessingRevision == current.preprocessingRevision &&
             osBuild == current.osBuild &&
-            computeUnits == current.computeUnits
+            computeUnits == current.computeUnits &&
+            detectorRevision == current.detectorRevision
+}
+
+/**
+ * What a custody's realm source answers at a check ([InferenceStoreCustody.ensureCurrentRealm]).
+ *
+ * ⚠⚠ Three answers, not two: "no realm" and "cannot tell right now" are different evidence, and
+ * only the first may stop a running pass.
+ */
+sealed interface RealmReading {
+    /** The realm the device is on, both halves read. */
+    data class Of(val realm: InferenceRealm) : RealmReading
+
+    /** The device belongs to no realm anyone can name: it left one, or never joined. */
+    data object None : RealmReading
+
+    /**
+     * [ownerId] is known, and the half that would complete the stamp (the store's epoch) could not
+     * be read just now: a store not ready, a handle fenced, an access refused or deferred.
+     * ⚠⚠ **The missing half is evidence of nothing**: not "unchanged" (this asker is refused), and
+     * not "changed" (no pass is stopped, nothing is cleared). ⚠ The owner half still counts: an
+     * owner the stamp does not name is a change whatever the epoch, and clears.
+     */
+    data class CannotTell(val ownerId: String, val why: String) : RealmReading
 }
 
 /** What [InferenceStoreCustody.applyFingerprint] did. */
@@ -89,7 +125,10 @@ sealed interface InferenceStoreState {
     /** The stamp names the current realm, this runtime serves it, and the fingerprint is current. */
     data object Usable : InferenceStoreState
 
-    /** The device belongs to no realm anyone can name right now. Nothing was cleared. */
+    /**
+     * The device belongs to no realm anyone can name right now. Nothing was cleared. ⚠ Not a store
+     * generation that cannot be told: that is [RealmReading.CannotTell], which sets no state.
+     */
     data object NoRealm : InferenceStoreState
 
     /** The stores are stamped for the device's realm, and this runtime was assembled for another. */
@@ -128,8 +167,14 @@ class InferenceStoreCustody(
     private val faces: FaceTemplateStore,
     /** Stops a running pass and waits for it (`MediaIndexRunner.cancelRunningPass`). */
     private val cancelPass: suspend () -> Unit,
-    /** The realm this device is on now, or `null` when that cannot be told. */
-    private val currentRealm: () -> InferenceRealm?,
+    /** The realm this device is on now, or `null` when it is on none. [readRealm] supersedes it. */
+    private val currentRealm: () -> InferenceRealm? = { null },
+    /**
+     * What a check reads. ⚠ The default is [currentRealm]'s two answers; a source that can be
+     * blind for a moment (iOS: the store's epoch) supplies this instead, with
+     * [RealmReading.CannotTell] for the moment.
+     */
+    private val readRealm: () -> RealmReading = { currentRealm()?.let { RealmReading.Of(it) } ?: RealmReading.None },
     /**
      * Whether this process's runtime was assembled for [currentRealm]'s answer. ⚠ A resident
      * runtime outlives a reset it did not see; its reads are the old realm's until it is rebuilt.
@@ -142,6 +187,11 @@ class InferenceStoreCustody(
     private val currentFingerprint: (() -> RuntimeFingerprint)? = null,
     private val stampPath: String = REALM_STAMP_PATH,
     private val fingerprintPath: String = FINGERPRINT_PATH,
+    /**
+     * IN-D6a's arrived paths, cleared with the realm's stores: they are paths of the realm being
+     * left. `null` for a graph that keeps none.
+     */
+    private val arrivals: ArrivalQueue? = null,
 ) : InferenceStoreGate {
 
     override suspend fun open(fromPass: Boolean): Boolean = ensureCurrentRealm(fromPass)
@@ -179,12 +229,45 @@ class InferenceStoreCustody(
      * difference; then, with a [currentFingerprint], applies it, which clears the vectors it could
      * not have made. Usable only when both have returned.
      *
+     * ⚠⚠ A [RealmReading.CannotTell] for the owner the stamp names answers `false` **to this caller
+     * only** and changes nothing: no state, no cancelled pass, no clear, no stamp. (For another
+     * owner it is a change, and clears.) A query is refused; a pass at its start is
+     * deferred, indexing and writing nothing; a pass already running goes on under the answer it
+     * started with. That last is the gap every check has between the check and the reads after it,
+     * accepted as before: a store really replaced fences the graph's handle, and the graph's stop
+     * ends the pass (`ios-on-device-inference.md` §13.2).
+     *
      * @param fromPass the caller IS the index pass, at its start. It is not cancelled: cancelling
      *   joins the pass, and a pass cannot join itself.
-     * @return whether the stores are [usable] now.
+     * @return whether the stores are [usable] now, and `false` whenever this check could not tell.
      */
     suspend fun ensureCurrentRealm(fromPass: Boolean = false): Boolean = lock.withLock {
-        val now: InferenceRealm? = currentRealm()
+        val reading: RealmReading = readRealm()
+        val blindOwner: String? = blindOwnerOf(reading)
+        if (blindOwner != null) {
+            // ⚠⚠ The epoch is unread, so only the owner half can be compared. The same owner:
+            // refused here and nothing else. Another owner (or no stamp): a change that needs no
+            // epoch to see, so the pass stops and both stores are cleared; the stamp is ERASED,
+            // not written, since there is no epoch to write, and the next check that reads one
+            // finds none and stamps (clearing two empty logs, which costs nothing).
+            if (readStamp()?.ownerId == blindOwner) return@withLock false
+            realmState = InferenceStoreState.Unchecked
+            try {
+                if (!fromPass) cancelPass()
+                erase(files, stampPath)
+                embeddings.clear()
+                faces.clear()
+                arrivals?.clear()
+                osUpdateClear.value = false
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (failure: Throwable) {
+                println("InferenceStoreCustody -> realm clear failed, stores unusable: $failure")
+                realmState = InferenceStoreState.ClearFailed(failure)
+            }
+            return@withLock false
+        }
+        val now: InferenceRealm? = realmOf(reading)
         if (now == null) {
             realmState = InferenceStoreState.NoRealm
             if (!fromPass) cancelPass()
@@ -197,6 +280,7 @@ class InferenceStoreCustody(
                 if (!fromPass) cancelPass()
                 embeddings.clear()
                 faces.clear()
+                arrivals?.clear()
                 osUpdateClear.value = false
                 files.writeRawByteArray(stampPath, json.encodeToString(InferenceRealm.serializer(), now).encodeToByteArray())
             } catch (cancellation: CancellationException) {
@@ -287,6 +371,7 @@ class InferenceStoreCustody(
             attempt { cancelPass() },
             attempt { embeddings.clear() },
             attempt { faces.clear() },
+            attempt { arrivals?.clear() },
         )
         failures.firstOrNull()?.let { throw it }
     }
@@ -299,6 +384,11 @@ class InferenceStoreCustody(
     } catch (failure: Throwable) {
         failure
     }
+
+    // ⚠ Each type test in a function of its own, never in place inside the lock's inline block (K/N).
+    private fun blindOwnerOf(reading: RealmReading): String? = (reading as? RealmReading.CannotTell)?.ownerId
+
+    private fun realmOf(reading: RealmReading): InferenceRealm? = (reading as? RealmReading.Of)?.realm
 
     private fun readStamp(): InferenceRealm? = read(stampPath)?.let {
         runCatching { json.decodeFromString(InferenceRealm.serializer(), it) }.getOrNull()

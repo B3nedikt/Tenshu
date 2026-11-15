@@ -38,6 +38,22 @@ fun interface MediaSource {
      */
     suspend fun walk(executionContext: ExecutionContext): MediaWalk =
         MediaWalk.partial(media(executionContext))
+
+    /**
+     * The photographs at [paths] that are still live images, **without walking the library** — what
+     * a batch over named paths reads (`MediaIndexRunner.runPathsBatch`, IN-D6a). A path that is not
+     * returned is gone.
+     *
+     * ⚠⚠ The default walks and filters, which is correct and is exactly the cost a path batch exists
+     * to avoid: a real source answers with point reads (Control's `controlMediaSource` does).
+     */
+    suspend fun mediaAt(executionContext: ExecutionContext, paths: Collection<String>): List<IndexableMedia> {
+        // ⚠⚠ Named, never silent: a source that falls back here walks the library for every batch.
+        // Not abstract only because this is a `fun interface` that tests build as a lambda.
+        println("MediaSource -> mediaAt WALKED the whole library for ${paths.size} path(s): override it")
+        val wanted = paths.toSet()
+        return media(executionContext).filter { it.filePath in wanted }
+    }
 }
 
 /**
@@ -158,7 +174,11 @@ internal class MediaIndexPassImplementation(
  * "indexed 0 of 4 000" with no reason is the report that gets filed as "the feature does nothing".
  *
  * ⚠ The face half reports its own counters: without them a face half that saw 55 photos looks
- * exactly like a finished pass.
+ * exactly like a finished pass. ⚠⚠ And `faces=` says whether it ran at all (`on`, `off(noStore)`,
+ * `off(noBackend)`, `off(noConsent)`, `notAsked`) with `facesSkipped` the photographs that cost:
+ * with search running and faces not, those photographs are otherwise counted `current`.
+ * ⚠⚠ `embedFailed`/`rejected` are the vector half's only; the face half's are `facesFailed` /
+ * `facesRejected`, so the line says WHICH half failed.
  *
  * ⚠ `embedFailed` is photos, never a verdict: "the model is failing" is `embedStopped=modelFailing`,
  * and `embedNotAttempted` is what that cost.
@@ -170,4 +190,5 @@ internal fun IndexPassResult.summaryLine(): String =
         "embedded=$embedded rejected=$embeddingsRejected " +
         "embedFailed=$embeddingsFailed embedNotAttempted=$embeddingsNotAttempted " +
         "embedStopped=${if (embeddingStoodDown) "modelFailing" else "no"} paused=$paused deferred=$deferred " +
+        "faces=${faceHalf.report} facesSkipped=$facesSkippedOff facesFailed=$facesFailed facesRejected=$facesRejected " +
         "facePhotos=$photosSearchedForFaces facesFound=$facesFound facesEmbedded=$facesEmbedded facesNotHuman=$facesNotHuman"

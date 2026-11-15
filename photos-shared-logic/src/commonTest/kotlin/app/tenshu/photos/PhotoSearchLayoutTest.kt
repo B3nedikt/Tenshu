@@ -43,6 +43,29 @@ class PhotoSearchLayoutTest {
     }
 
     @Test
+    fun theIdleLinePromisesDescriptionSearchOnlyOnceItWasSeenToRun() {
+        // ⚠⚠ "It says what actually works" (`ios-on-device-inference.md` §1.8): every state that
+        // would refuse, or might, keeps the plain line.
+        // ⚠ The idle line reads what was ANSWERED, never the note's status (the seed is Available).
+        fun idle(status: SemanticSearchStatus, answered: Boolean) =
+            (PhotoSearchLayout.of(PhotoSearchUiState(semanticStatus = status, semanticKnown = status.takeIf { answered })).body as Body.Idle).text
+        val plain = "Search by file name."
+        val described = "Search by file name or by what's in a photo."
+        assertEquals(described, idle(SemanticSearchStatus.Available, answered = true))
+        // ⚠⚠ The seed: Available before anything was asked is an assumption, false on every device
+        // with no backend.
+        assertEquals(plain, idle(SemanticSearchStatus.Available, answered = false))
+        for (reason in listOf("noBackend", "noConsent", "notIndexed", "noTextEmbedding", "somethingNewer")) {
+            assertEquals(plain, idle(SemanticSearchStatus.Unavailable(reason), answered = true), reason)
+        }
+        assertEquals(plain, idle(SemanticSearchStatus.NotBuiltHere("iPhone"), answered = false))
+        assertEquals(plain, idle(SemanticSearchStatus.NotBuiltHere("iPhone"), answered = true), "an unsuitable phone")
+        assertEquals(plain, idle(SemanticSearchStatus.Failed, answered = true), "a last attempt that failed")
+        assertEquals(PhotoSearchCopy.IDLE_WITH_DESCRIPTION, described)
+        assertEquals(PhotoSearchCopy.IDLE, plain)
+    }
+
+    @Test
     fun whileItSearchesOnlyWhatIsTrueOfTheDeviceIsSaid() {
         // ⚠ "Off" is true whatever is typed, so it stays; "could not look" belongs to the answer before.
         val layout = PhotoSearchLayout.of(

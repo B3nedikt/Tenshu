@@ -10,6 +10,7 @@ import app.tenshu.photos.ui.screens.collections.CollectionsUiState
 import app.tenshu.photos.ui.screens.collections.SectionLoad
 import app.tenshu.photos.ui.screens.collections.SmartAlbum
 import app.tenshu.photos.ui.screens.feed.FeedError
+import app.tenshu.photos.ui.screens.search.ModelsSwitchHome
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -74,6 +75,55 @@ class CollectionsLayoutTest {
         assertNotNull(content(unindexed).people?.statusLine, "says why nobody is there")
         assertNull(content(unindexed, groupingRunsHere = false).people, "no nag where faces cannot be grouped")
         assertNull(content(unindexed.copy(years = emptyList())).people, "no photographs, no ask to index them")
+    }
+
+    /**
+     * `ios-face-grouping.md` F7: where Photos runs its own proxy (iOS), People's line sends the user to
+     * PHOTOS' Settings → Models — Control-on-iOS has no such screen — and a pass there starts with
+     * *Index now*, not Android's idle-and-charging schedule. Control's lines are unchanged.
+     */
+    @Test
+    fun peoplesLineNamesThisAppsModelsScreenWhereThisAppRunsItsOwnProxy() {
+        fun line(reason: String?, home: ModelsSwitchHome) = (
+            CollectionsLayout.of(
+                CollectionsUiState(
+                    years = listOf(smart("2024")),
+                    peopleStatus = reason?.let { PeopleStatus.Unavailable(it) } ?: PeopleStatus.Available,
+                ),
+                groupingRunsHere = true,
+                modelsSwitch = home,
+            ) as CollectionsLayout.Content
+            ).people?.statusLine
+        val reasons = org.tenshu.inference.FaceGroupsUnavailable.Reasons
+        assertEquals(
+            "To see people here, turn on \"Group photos by people\" for this device in Photos, under Settings → Models.",
+            line(reasons.NO_CONSENT, ModelsSwitchHome.THIS_APP),
+        )
+        assertEquals(
+            "To see people here, download the face model in Photos, under Settings → Models.",
+            line(reasons.NO_BACKEND, ModelsSwitchHome.THIS_APP),
+        )
+        assertEquals(
+            "People appear after Photos looks through your photos on this device. Tap Index now, under Settings → Models.",
+            line(reasons.NOT_INDEXED, ModelsSwitchHome.THIS_APP),
+        )
+        assertEquals("No people found yet.", line(null, ModelsSwitchHome.THIS_APP))
+        assertEquals(
+            "To see people here, download the face models in Control, under Settings → Models.",
+            line(reasons.NO_BACKEND, ModelsSwitchHome.CONTROL),
+        )
+        val pending = (
+            CollectionsLayout.of(
+                CollectionsUiState(years = listOf(smart("2024")), peopleStatus = PeopleStatus.Unavailable(reasons.NO_BACKEND)),
+                groupingRunsHere = true,
+                modelsSwitch = ModelsSwitchHome.THIS_APP,
+                faceModelPending = true,
+            ) as CollectionsLayout.Content
+            ).people?.statusLine
+        assertEquals("People appear once the face model is ready on this device.", pending, "never 'download' a model already here")
+        listOf(reasons.NO_CONSENT, reasons.NO_BACKEND, reasons.NOT_INDEXED).forEach { reason ->
+            assertTrue("Control" !in line(reason, ModelsSwitchHome.THIS_APP)!!, "$reason names Control on iOS")
+        }
     }
 
     @Test

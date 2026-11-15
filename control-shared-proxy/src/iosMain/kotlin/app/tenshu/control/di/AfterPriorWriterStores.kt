@@ -5,6 +5,7 @@ import kotlinx.coroutines.sync.withLock
 import org.tenshu.inference.ModelProvenance
 import org.tenshu.inference.proxy.EmbeddingStore
 import org.tenshu.inference.proxy.FaceRow
+import org.tenshu.inference.proxy.FaceRejection
 import org.tenshu.inference.proxy.FaceTemplateStore
 import org.tenshu.inference.proxy.Removal
 import org.tenshu.inference.proxy.StoredFace
@@ -82,4 +83,6 @@ class AfterPriorWriterFaceTemplateStore(private val make: () -> FaceTemplateStor
     override suspend fun provenance(): ModelProvenance? = store().provenance()
     override suspend fun size(): Int = store().size()
     override suspend fun clear() = store().clear()
+    override suspend fun rejections(): List<FaceRejection> = store().rejections()
+    override suspend fun reject(rejections: List<FaceRejection>): Int = store().reject(rejections)
 }

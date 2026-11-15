@@ -58,6 +58,9 @@ class RetiredBlockSweeperTest {
         /** Rows read through [getObject] WITHOUT the DatabaseLock. */
         val unlockedReads = HashSet<Long>()
 
+        /** Sweep-cursor loads and stores made WITHOUT the DatabaseLock. */
+        val unlockedCursorAccesses = mutableListOf<String>()
+
         /** Rows whose read throws. */
         val unreadable = HashSet<Long>()
 
@@ -91,8 +94,16 @@ class RetiredBlockSweeperTest {
         // ⚠ `by delegate` routes the cursor's default methods to the DELEGATE's storeObject, past the
         // fence above; production's default goes through the fenced store's own `storeObject`.
         override fun storeRetiredBlockSweepCursor(value: Long) {
+            if (!lockHeld()) unlockedCursorAccesses += "store"
             if (fenced) throw Fenced()
             delegate.storeRetiredBlockSweepCursor(value)
+        }
+
+        // ⚠ Overridden for the same reason as the store above: `by delegate` would route the load to
+        // the delegate's `getObject`, past every check this double makes.
+        override fun loadRetiredBlockSweepCursor(): Long? {
+            if (!lockHeld()) unlockedCursorAccesses += "load"
+            return if (fenced) null else delegate.loadRetiredBlockSweepCursor()
         }
 
         override fun removeObject(dataIdHash: Long) {
@@ -348,6 +359,21 @@ class RetiredBlockSweeperTest {
         assertNotNull(sweeper(objectStore = store).sweepOnce())
         assertTrue(queue in store.reads, "the keep-set was read")
         assertTrue(queue !in store.unlockedReads, "⚠⚠ every keep-set read held the DatabaseLock")
+    }
+
+    @Test
+    fun theSweepCursorIsReadAndWrittenUnderTheDatabaseLock() = syncTest {
+        // ⚠⚠ The cursor is an ordinary row, and `SqliteObjectStore` keeps rows in an access-ordered
+        // `LinkedHashMap` whose every `get` restructures it. That map is safe only under the
+        // DatabaseLock; an unlocked cursor read or write from the sync tick races every locked
+        // access on the device. (The page scan is different: each store guards it on its own.)
+        queuedBlock("queued-cursor")
+        orphanBlock("orphan-cursor")
+        store.unlockedCursorAccesses.clear()
+
+        assertNotNull(sweeper(objectStore = store).sweepOnce())
+
+        assertEquals(emptyList(), store.unlockedCursorAccesses, "⚠⚠ the cursor was touched without the DatabaseLock")
     }
 
     @Test

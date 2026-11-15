@@ -115,6 +115,23 @@ describe('PlacesView with 5 000 places', () => {
     await user.type(screen.getByRole('searchbox'), 'place 4999')
     expect(rows()).toEqual(['Place 4999 CaféZürich, Switzerland'])
   })
+  // ⚠ The app shell scrolls its <main>, never the window, and `scroll` does not bubble: a window
+  // listener that does not capture never hears it, and the list stays on its first window of rows.
+  it('moves its window when an ANCESTOR scrolls, not only the window', async () => {
+    seed(manyPlaces(5_000))
+    const { container } = renderWithProviders(<PlacesView onOpen={vi.fn()} />)
+    const list = await screen.findByRole('list', { name: 'Your places' })
+    expect(within(list).getAllByRole('listitem')[0]).toHaveAttribute('aria-posinset', '1')
+
+    // As if the shell's scroller had moved the list 1 000 rows up past the viewport's top.
+    list.getBoundingClientRect = () => ({ top: -1_000 * ROW_PX }) as DOMRect
+    act(() => {
+      container.dispatchEvent(new Event('scroll', { bubbles: false }))
+    })
+    const first = Number(within(list).getAllByRole('listitem')[0]!.getAttribute('aria-posinset'))
+    expect(first).toBeGreaterThan(900)
+    expect(first).toBeLessThanOrEqual(1_000)
+  })
 })
 
 describe('the list map anchor', () => {

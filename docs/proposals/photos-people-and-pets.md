@@ -2,7 +2,9 @@
 
 **Status:** v0.5 — **F1–F4 shipped on Android (§12.12); desktop owes its detector; iOS is F5.**
 F6a/F6b built; **F6c designed 2026-09-30, not built** ([§6a](#f6c--design-2026-09-30)), with
-maintainer decisions D1–D11 owed.
+maintainer decisions D1–D11 owed — ⭐ except its **name-suggestion slice, F6c-s, built 2026-11-11**
+([as built](#f6c-s--name-suggestions-as-built-2026-11-11)): label-anchored *"Is this Anna?"* and a
+display-only fold, with device-local rejections (D2 taken as recommended).
 Embedder AuraFace int8, calibration 0.44 re-checked for it (§12.8c). ⚖️ Published before counsel
 answered, by maintainer decision (2026-09-24); the counsel packet is still owed. The seam, the shared alignment, the clustering and the device-local template store
 are in (F2); the device harness has run the whole chain over a real camera roll and the result is
@@ -233,7 +235,7 @@ is worth verifying early because it changes the shape of F3 (HR #9). Verify with
 | **F4** | The switch — ⭐ **shipped 2026-09-24** | `OfferedConsents += FACE_CLUSTERING`, Settings copy, off by default; withdrawal deletes the templates, keeps the names (§12.12) | F3 |
 | **F5** | iOS | Vision detection + our embedder. ⚠⚠ **Bigger than it looks**: there is no iOS inference backend at all today, and **no ONNX Runtime on iOS** — so the embedder has no runtime there and giving it one is a slice about the size of IN-3b's Android step. Detection alone is small and well-precedented; People end to end is not. §11 collects what the research found | F1 |
 | **F6** | People are people, not clusters — ⏳ **planned 2026-09-25**; ⭐ F6a (header) and F6b ("With…" chip) built, §6a; F6c **designed 2026-09-30** ([§6a F6c](#f6c--design-2026-09-30)), not built | People lists **named persons** (every photo carrying the name, across clusters) above unnamed clusters; a per-person **prototype** drives *"is this also Anna?"* suggestions (§7, decided 2026-09-22); person-wide rename / merge / remove-from-photo; the cover rule (§7). ⚠⚠ Needs a **face-level** assignment the per-photo label cannot give — §6a. The People row + its *View all* grid (3 columns, named first) follow the Collections-as-rows layout, `photos-app.md` §35 | F4 |
-| **P1** | Pets | Its own detector and embedder — a human face model does not cluster dogs — and probably whole-animal re-identification rather than "pet faces" | F3 |
+| **P1** | Pets — ⏳ **designed 2026-11-11 in [`photos-pets.md`](photos-pets.md)**, not built | Its own detector and embedder — a human face model does not cluster dogs — and whole-animal re-identification rather than "pet faces" | F3 |
 
 ⚠ F1 before F2 is the repo's established order and it is not ceremony: IN-1 shipped *"no model ships;
 everything downstream becomes testable"*, and §32 is the record of what happens when the fake is the
@@ -762,7 +764,7 @@ Each ships alone, behind the existing switch, and each lands its own part of the
 | # | Decision | Recommendation | Why |
 |---|---|---|---|
 | **D1** | Does consent withdrawal delete the face→person map? | **Yes**, with the templates | it is face data by the Settings copy's plain meaning, and all but ambiguous confirmations and rejections re-derive from the kept labels |
-| **D2** | Do rejections ("not Anna") sync? (§6a's ⚖️ question) | **No — device-local** | a rejection is a statement about a person in a photograph; syncing it widens A40 and the realm for the cost of one repeat "No" per device |
+| **D2** | Do rejections ("not Anna") sync? (§6a's ⚖️ question) | **No — device-local** ⭐ *taken 2026-11-11 by F6c-s, [as built](#f6c-s--name-suggestions-as-built-2026-11-11)* | a rejection is a statement about a person in a photograph; syncing it widens A40 and the realm for the cost of one repeat "No" per device |
 | **D3** | Does the similarity score cross IPC with a suggestion? | **No — order only** | the app needs a ranking, not a number; a score is derived biometric output the app has no use for |
 | **D4** | A durable journal for an interrupted rename? | **No** | write-new-before-delete-old makes every half-state visible (two people) and the same gesture completes it; `UnfinishedNaming` is the precedent |
 | **D5** | Assigned faces: a new read op, or a field appended to `GroupedFace`? | **New op** (`personFaces`) | additive; appending is a reshape and an `InferenceService` bump that every client must cross in lockstep |
@@ -772,6 +774,131 @@ Each ships alone, behind the existing switch, and each lands its own part of the
 | **D9** | Consent for label-only edits (rename, merge, remove): realm ∧ device, as `nameFaceGroup`, or realm only? | **Realm ∧ device, as today**; revisit with F2d | consistent with A40's "consent gates writing a name"; the cost is that a device without the switch (desktop today) cannot rename, as it cannot name |
 | **D10** | Introduce §9's `personId` now, to make rename a field update? | **No, still deferred** | rename works at 2N rows; the concurrent-rename cost is two visible people and one merge; §9's reason to wait (the consent story) is unchanged |
 | **D11** | Is the pinned cover device-local? | **Yes** | syncing it is per-face state on the wire, which IN-D5 excludes; §7's complaint was a cover that changes, not one that differs between devices |
+
+### F6c-s — name suggestions, as built (2026-11-11)
+
+**Why, found on real devices (2026-11-11).** Names sync as one `MediaLabel` per photograph; groups
+are device-local. The iPhone's group for the maintainer's face was exactly the two photographs named
+"Benedikt", so `peopleFrom`'s exact fold (`isEntirely`) made it Benedikt. The OnePlus's group for the
+same face held those two **plus** photographs only it had indexed, so it stayed an unnamed card
+beside a "Benedikt" card of two — the *deliberate loss* `peopleFrom`'s KDoc records, seen on the
+device where it hurts. The maintainer chose suggestions over auto-naming: **never write a name the
+user did not confirm**. This slice is that, built from labels plus the groups the app already has;
+it needs **none** of F6c-2's face→person map and none of F6c-3's prototype, and it does not replace
+them.
+
+**The rule (`nameSuggestions`, `photos-shared-logic` `model/NameSuggestions.kt`, pure).** Three
+maintainer decisions on 2026-11-11 shaped it, in order:
+1. *First brief:* a group whose labelled photographs carry exactly one name is asked about it.
+   ⚠⚠ **Superseded the same day** — labels are per PHOTOGRAPH, so a group selfie labelled Anna
+   puts her friend's group in contact with her name, and the brief would ask *"Is this Anna?"* of
+   the friend.
+2. *First amendment — the face grouping must say so, not a label.* For each name N, each group is
+   scored over N's photographs: `sure` = photographs where its face is the **only** face the
+   detector found (that face IS N), `touched` = photographs it has any face on. The group that IS
+   N has the most `sure`, then `touched`; it needs ≥ 1 `sure`, or a strict majority (and ≥ 2) of
+   N's photographs; a tie is nobody. **Every** group is scored, folded ones included, so a
+   friend's group that only touches N's group photo loses to N's own group even where that one is
+   already folded. **Conflict ⇒ nothing:** the group IS two names, or one of its own `sure` faces
+   is on a photograph labelled someone else. The optional centroid check was not built: templates
+   never reach the app, and group membership already is the 0.44 decision.
+3. *Second amendment — two levels.* **Confident** (**every** `sure` face of N in this read's
+   groups is in this one group, at least **2** `sure` photographs, N's photographs at least **20%**
+   of the group's, no conflict, no rejection) ⇒ **fold on screen only**: `peopleFrom(displayFolds = …)` draws the group as part of N — one card, the union of
+   N's labelled photographs and the group's, the group's id an alias — and **writes nothing**:
+   no `MediaLabel`, nothing syncs, recomputed every read, so a wrong fold dies with the grouping
+   that made it and cannot spread. **Not confident** ⇒ ask *"Is this N?"* on the unnamed card.
+   ⚠ Crowded-only evidence is never confident.
+   ⭐ *The confidence floor (review, 2026-11-11):* the first cut was confident from **one** `sure`
+   photograph, so a mis-merged group of hundreds holding one of N's solo photographs folded whole
+   into N — and Confirm would have labelled every one. `CONFIDENT_MIN_SURE = 2` (one photograph is
+   an anecdote) and `CONFIDENT_MIN_LABELLED_SHARE = 0.2` (a group that is mostly someone else stays
+   a question) are guards, not measurements; they still fold the opening case — two named
+   photographs in a group of up to ten — and below them the group is asked instead.
+
+⚠⚠ **What this amends.** `peopleFrom`'s invariant *"a named person is EXACTLY their labelled
+photographs"* (F6c §0's ⚠⚠⚠, and the KDoc's six rounds) now holds for **what syncs** and for every
+device's labels, but no longer for **what one device draws**: a confident fold adds unlabelled
+photographs to N's card on this screen. The KDoc keeps the six-rounds history and the *deliberate
+loss* paragraph, amended rather than deleted. Why this is not the seventh round: the six inferred
+identity from **label overlap** and **wrote or merged** on it; this attributes by the grouping's own
+single-face evidence, ties and conflicts are nobody, and nothing is written — the failure mode of a
+wrong fold is a card that is wrong on one screen until the next read, never a name on a photograph.
+⚠ The recall gap still cuts here: a group selfie where the short-range detector finds only the face
+at arm's length counts as `sure` for whoever is labelled on it (§6a F6a's "Only them" finding). The
+ranking by `sure` count and the "every sure face in one group" bar for a fold contain it; a No
+fixes what remains.
+
+**Accept, reject.**
+- **Yes** (ask) / **Confirm** (fold) = the existing `nameFaceGroup` over the group's photographs that
+  lack the name (`CollectionsViewModel.acceptSuggestion`); the next read folds it by its labels on
+  every device. Its verdicts and retries are naming's (`NamingOutcome`, `UnfinishedNaming`).
+- **No** / **Not N** = a device-local rejection (`rejectSuggestion` → `RejectFaceSuggestion`). It
+  suppresses both the question and the fold for that name, and the next read unfolds.
+- ⭐ **Rejection keying (decided here).** Groups are re-clustered per read and their ids name the
+  first member face, so a rejection can key on neither the group nor a `faceIndex`. It keys on
+  **(photograph path, face box, name)** — F6c.1's identity — for the group's faces on photographs
+  NOT labelled N (never the labelled ones: those already say who is on them, and a labelled group
+  photo also holds the neighbour). A current face matches by **intersection-over-smaller ≥ 0.5**
+  in the same photograph (F6c.1's re-anchoring rule, reused, not separately measured), so the answer
+  survives a re-cluster and a nudged box. **Any** matching face suppresses the name for the group
+  it lands in — the sticky direction: a missed ask, never a repeated wrong one. One No records at
+  most **32** faces, spread over the group in path order (`MAX_REJECTED_FACES`): enough to re-find
+  the group, bounded for a group of thousands and one IPC call.
+- ⭐ **Rejections do not sync — D2 taken as recommended.** The brief allowed a synced rejection
+  (with its HR 9 bump); the design's own decision (F6c.9 D2) recommends device-local, and nothing on
+  the devices argued against it: a rejection is a statement about a person in a photograph, and a
+  synced one widens A40 and the realm for the cost of one repeated question on the other device.
+  ⚠ **Reusing `MediaLabel` for a negative label was rejected** after checking its readers: a
+  `"not:Anna"` row under the face capability becomes a *person* called "not:Anna" in `peopleFrom`
+  on every device (stale clients in lockstep included); under any other capability it becomes a
+  *Thing* (`groupPhotosByLabel`), a search hit (`searchByLabel`) and a Mia citation. So no HR 9 bump
+  and no `SchemaMigration`: two **additive** ops (`rejectFaceSuggestion`, `faceSuggestionRejections`)
+  and one new return composite (`RejectedFace`); the baseline is regenerated for the new types and
+  no existing composite moved.
+- **Custody (threat model A40 *Name suggestions*).** The rejections are held **by the template
+  store**, in a file beside its log (`FaceRejections`, `/inference/faces.log.rejections`), so every
+  `clear` (wipe, realm change, withdrawal, rebase) and every `forget`/`remove` of a photograph takes
+  them too. ⚠⚠ *Across an interruption (review, 2026-11-11):* both withdrawal paths gate `clear` on
+  `provenance() != null`, and the reconcile finds dead photographs through `remembered()` — the
+  template rows. So a rejection is recorded **only beside a template row** (and only with a stamp),
+  and `clear`/`forget`/`remove` erase the rejections **before** the templates: a stop half way leaves
+  the templates, which the next withdrawal or pass finds and erases again, never a rejection behind a
+  store that looks empty. ⚠ An unreadable rejections file is an **error**, never an empty list (that
+  would fold and ask about every answered No): the read op fails, so the app shows no folds and no
+  questions; a No is refused rather than written over it; a reconcile that must drop a photograph's
+  answers from it erases it whole. ⚠ Unlike F6c.1's full map, a **rebase** therefore costs them — one repeated question per
+  rejected person after a re-index (iOS re-detects on every OS update, FD9). Accepted as the safe
+  direction; F6c-2's map, when built, should carry rejections across a rebase by box as designed.
+- ⚠ **No rejections read ⇒ no folds and no questions** — a failed read, an unreadable file, or an
+  older Control without the op (it answers `UnsupportedOperationError`; the repository maps any
+  failure to `null`). An unreadable list must never bring an answered No back. People waits for this
+  one small device-local read so a fold never flashes an unnamed card first; the section itself is
+  unaffected by its failure.
+- ⚠ *Documented LOWs, left:* the 2048-record / 32-faces-per-No bound means a device with more than
+  ~64 large Nos starts forgetting the oldest (a repeated question); and a refresh already in flight
+  when a No lands can draw the old fold once more before the No's own re-read replaces it.
+
+**UI.** The person page, on every platform with People: Compose (`AlbumDetailScreen`'s
+`NameSuggestionRow`, from `NameSuggestionPrompt.of`) and SwiftUI (`NameSuggestionView` in
+`CollectionGrids.swift`, only where `PhotosSurface.personPage` reports a person — i.e. where
+`groupingRunsHere()`). An unnamed card's page asks *"Is this Anna?"* with Yes / No and one line that
+a Yes syncs; a named card holding a fold says *"N photos matched by face on this device — not yet
+named Anna."* with Confirm / Not Anna. Absent while "With…" narrows the grid (a Yes names every
+photograph, as naming does). A No that could not be recorded keeps the question and says so. Every
+word is `PersonPageCopy`'s.
+
+**Tests.** `NameSuggestionsTest` (rule: one-name, friend-on-a-group-photo, folded winner, strongest
+of two, tie, crowded majority, two-name conflict, a foreign `sure` face, fully named, rejection
+across a re-cluster and per name, other-face rejection, no face detail, the 32 bound; VM: confident
+fold writes nothing, fold recomputed away, Confirm names only the unlabelled, Not unfolds, unsure
+asks and Yes folds, No recorded, a rejection elsewhere is not seen here, failed No, unreadable
+rejections), `FaceSuggestionOperationTest` (round trip, consent refuses both, malformed writes
+nothing, no realm row, an unreadable list is a failure), `DefaultFaceTemplateStoreTest` (rejections
+survive a reopen, `clear` deletes the file, `forget`/`remove` drop them, the bound, held only beside a
+template, a clear or forget interrupted half way is finished by the next, an unreadable file is an
+error and never written over), `NameSuggestionScreenTest` (Compose),
+`CollectionsUITests.testAnUnsureGroupIsAskedAndASureOneIsFoldedUntilNo` (iOS, `-photosPeople suggest`).
 
 ## 7. The UI, in the shape Photos already has
 
@@ -942,7 +1069,7 @@ case; faces make it pressing rather than theoretical.
 ## 9. What this does not do
 
 - **No pets** (P1). A human-face embedder will not cluster animals, and "pet faces" is probably the
-  wrong framing — whole-animal re-identification is the literature's answer.
+  wrong framing — whole-animal re-identification is the literature's answer. Designed in [`photos-pets.md`](photos-pets.md).
 - **No relationship to `:contact-service`'s `Person`.** The contact graph has a `Person` aggregate
   (threat model A24), and linking the two is tempting and premature: IN-D5's durable truth is *a
   string the user typed*, which needs no identity. Linking would drag the contact graph into Photos'

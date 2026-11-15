@@ -13,6 +13,7 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import app.tenshu.ui.theme.TenshuTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import org.tenshu.ui.test.NoMotion
 
 /**
  * ADR 0025 §8.6 (Codex P1 on 5f82133bc): what a root shows instead of its shell while the realm
@@ -23,7 +24,7 @@ import kotlin.test.assertEquals
 class AppControlCheckingGateTest {
 
     @Test
-    fun blankThenSpinnerThenARetryWallPastTheBound() = runComposeUiTest {
+    fun blankThenSpinnerThenARetryWallPastTheBound() = runComposeUiTest(effectContext = NoMotion) {
         mainClock.autoAdvance = false
         var retries = 0
         setContent { TenshuTheme { AppControlCheckingGate(onRetry = { retries++ }, quietMs = 300, boundMs = 20_000) } }
@@ -60,7 +61,7 @@ class AppControlCheckingGateTest {
      * sees Checking.
      */
     @Test
-    fun theFirstCompositionUnderAPendingVerdictIsNeverTheShell() = runComposeUiTest {
+    fun theFirstCompositionUnderAPendingVerdictIsNeverTheShell() = runComposeUiTest(effectContext = NoMotion) {
         val engineScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Job() + kotlinx.coroutines.Dispatchers.Default)
         try {
             val reach = app.tenshu.reachability.ControlReachability(

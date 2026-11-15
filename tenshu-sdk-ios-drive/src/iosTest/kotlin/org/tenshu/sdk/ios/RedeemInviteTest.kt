@@ -8,9 +8,9 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.tenshu.core.common.util.InviteLinkPayload
+import org.tenshu.viewmodel.test.vmTest
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -32,8 +32,8 @@ class RedeemInviteTest {
         InviteLinkPayload(ByteArray(16), ByteArray(16), ByteArray(32)).toMessagingLink()
 
     @Test
-    fun a_valid_link_parses_to_confirm_name() = runTest(dispatcher) {
-        val vm = DriveShareSurface.redeemInvite(FakeContactsRepository(), null)
+    fun a_valid_link_parses_to_confirm_name() = vmTest(dispatcher) { vms ->
+        val vm = vms.own(DriveShareSurface.redeemInvite(FakeContactsRepository(), null))
         advanceUntilIdle()
 
         vm.onPastedLinkChanged(value = validLink)
@@ -45,10 +45,10 @@ class RedeemInviteTest {
     }
 
     @Test
-    fun a_scanned_qr_uri_also_parses_to_confirm_name() = runTest(dispatcher) {
+    fun a_scanned_qr_uri_also_parses_to_confirm_name() = vmTest(dispatcher) { vms ->
         // The scanner feeds the `tenshu-invite:` QR form (not the messaging link) straight to onLinkEntered.
         val qrUri = InviteLinkPayload(ByteArray(16), ByteArray(16), ByteArray(32)).toQrUri()
-        val vm = DriveShareSurface.redeemInvite(FakeContactsRepository(), null)
+        val vm = vms.own(DriveShareSurface.redeemInvite(FakeContactsRepository(), null))
         advanceUntilIdle()
 
         vm.onLinkEntered(link = qrUri)
@@ -59,8 +59,8 @@ class RedeemInviteTest {
     }
 
     @Test
-    fun a_malformed_link_surfaces_a_paste_error() = runTest(dispatcher) {
-        val vm = DriveShareSurface.redeemInvite(FakeContactsRepository(), null)
+    fun a_malformed_link_surfaces_a_paste_error() = vmTest(dispatcher) { vms ->
+        val vm = vms.own(DriveShareSurface.redeemInvite(FakeContactsRepository(), null))
         advanceUntilIdle()
 
         vm.onLinkEntered(link = "not-a-link")
@@ -71,8 +71,8 @@ class RedeemInviteTest {
     }
 
     @Test
-    fun a_newer_version_link_asks_to_update() = runTest(dispatcher) {
-        val vm = DriveShareSurface.redeemInvite(FakeContactsRepository(), null)
+    fun a_newer_version_link_asks_to_update() = vmTest(dispatcher) { vms ->
+        val vm = vms.own(DriveShareSurface.redeemInvite(FakeContactsRepository(), null))
         advanceUntilIdle()
 
         vm.onLinkEntered(link = "https://tenshu.app/i#v2.AAAA")
@@ -82,9 +82,9 @@ class RedeemInviteTest {
     }
 
     @Test
-    fun confirming_redeems_and_waits_to_accepted() = runTest(dispatcher) {
+    fun confirming_redeems_and_waits_to_accepted() = vmTest(dispatcher) { vms ->
         val contacts = FakeContactsRepository()
-        val vm = DriveShareSurface.redeemInvite(contacts, validLink)
+        val vm = vms.own(DriveShareSurface.redeemInvite(contacts, validLink))
         advanceUntilIdle()
 
         vm.onSelfNameChanged(value = "Bob")
@@ -100,9 +100,9 @@ class RedeemInviteTest {
     }
 
     @Test
-    fun an_already_used_invite_lands_on_gone() = runTest(dispatcher) {
+    fun an_already_used_invite_lands_on_gone() = vmTest(dispatcher) { vms ->
         val contacts = FakeContactsRepository(redeemOutcome = RedeemOutcome.AlreadyUsed)
-        val vm = DriveShareSurface.redeemInvite(contacts, validLink)
+        val vm = vms.own(DriveShareSurface.redeemInvite(contacts, validLink))
         advanceUntilIdle()
 
         vm.onSelfNameChanged(value = "Bob")

@@ -1,8 +1,12 @@
 package org.tenshu.timeline.proxy
 
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.tenshu.core.common.TestProxy
 import org.tenshu.core.common.impl.UnixInstantDto
+import org.tenshu.core.common.proxy.db.InMemoryObjectStore
+import org.tenshu.core.common.proxy.db.ObjectStore
 import org.tenshu.core.timeline.Moment
 import org.tenshu.core.timeline.SubjectKind
 import org.tenshu.core.timeline.SubjectRef
@@ -248,6 +252,63 @@ class MomentSliceSnapshotProducerTest {
             MomentSliceEntry.decode(slice.entries)!!.map { it.momentId }.sorted(),
             MomentSliceEntry.decode(rebuilt.entries)!!.map { it.momentId }.sorted(),
         )
+    }
+
+    @Test
+    fun applySlice_readsTheStoreLinearlyInTheSliceItApplies() = runTest {
+        // ⚠⚠ The iOS `HOLD_MAX` defect (`tech-debt.md` "Public CI was red on every run"), pinned
+        // where it is deterministic. Applying N visits under the production wiring used to run
+        // `PlaceRoleInferencePass.inferNow` inline every fifth save, and each run reads the whole
+        // `MOMENTS` relation: N/5 scans, O(N²) row reads, each scan one write-locked access on the
+        // SQLite replica. Measured before the fix: 76,441 row reads for these 600 visits (127 per entry).
+        val store = CountingStore()
+        val joiner = createTimelineProxy(backgroundScope, objectStore = store)
+        val entries = List(600) { i ->
+            MomentSliceEntry(
+                momentId = "gv:place-$i:${noon + i}",
+                timestampMillis = noon + i,
+                kind = Moment.MomentKind.VISIT,
+                title = "Visit $i",
+                subjectKind = SubjectKind.PLACE,
+                subjectId = "place-$i",
+                durationSec = 1_800,
+                supersededBy = "",
+            )
+        }
+        store.reads = 0
+
+        val created = producer.applySlice(
+            joiner.executionContext, TimelineService.Relations.MOMENTS, day,
+            MomentSliceEntry.encode(entries), isDeleted = { false },
+        )
+
+        assertEquals(entries.size, created)
+        val perEntry = store.reads / entries.size
+        assertTrue(
+            perEntry <= 20,
+            "the apply must read the store O(1) times per entry, not rescan the relation: " +
+                "${store.reads} reads for ${entries.size} entries ($perEntry per entry)",
+        )
+
+        // The passes still run, once each, after the burst: coalesced, not dropped.
+        store.reads = 0
+        advanceTimeBy(PlaceRoleInferencePass.COALESCE_MS + 1)
+        runCurrent()
+        assertTrue(
+            store.reads >= entries.size,
+            "the coalesced passes must still scan the relation once the burst is over: ${store.reads} reads",
+        )
+    }
+
+    private class CountingStore(
+        private val delegate: ObjectStore = InMemoryObjectStore(),
+    ) : ObjectStore by delegate {
+        var reads = 0
+
+        override fun getObject(dataIdHash: Long): ObjectStore.DbEntry? {
+            reads++
+            return delegate.getObject(dataIdHash)
+        }
     }
 
     @Test

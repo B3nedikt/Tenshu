@@ -70,7 +70,10 @@ class SyncActivityRowWriteWakesNobodyTest {
                     "feed=$feedDuring (control $controlFeed) siblingRelation=$siblingDuring (control $controlSibling)",
             )
             assertEquals(20, pulses, "the real row was written")
-            assertTrue(ownDuring >= 10, "the row's own reader followed it: $ownDuring")
+            // ⚠ At least one, not a share of the 40: the reader is conflated, so how many writes it
+            // sees is the scheduler's (a starved CI runner saw 6). The claim is that the row's own
+            // reader is woken at all — the two equalities below are what the test is for.
+            assertTrue(ownDuring >= 1, "the row's own reader followed it: $ownDuring")
             assertEquals(controlFeed, feedDuring, "the feed was handed new pages by a status-row write")
             assertEquals(controlSibling, siblingDuring, "a sibling relation's reader was woken")
         } finally {

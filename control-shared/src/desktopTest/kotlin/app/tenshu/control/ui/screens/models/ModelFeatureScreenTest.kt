@@ -17,6 +17,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.tenshu.inference.InferenceCapability
 import kotlin.test.assertEquals
+import org.tenshu.ui.test.NoMotion
 
 /**
  * The feature screen (`inference-service.md` §38): one list of devices, each switch its own device's
@@ -25,7 +26,7 @@ import kotlin.test.assertEquals
 class ModelFeatureScreenTest {
 
     @get:Rule
-    val composeTestRule = createComposeRule()
+    val composeTestRule = createComposeRule(NoMotion)
 
     private val search = InferenceCapability.SEMANTIC_IMAGE_SEARCH
     private val faces = InferenceCapability.FACE_CLUSTERING

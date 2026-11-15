@@ -1,5 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+// ⚠ Imported at module scope, never `await import(...)` inside a test body. A cold import inside a
+// test runs under that test's 5 s timeout, and vitest does not cancel a timed-out body: it keeps
+// running against the NEXT test's DOM and mocks (`docs/tech-debt.md`, the SharesPage entry).
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import type { IngestSourceItem } from '@tenshu/sdk/ingest'
 
@@ -67,7 +71,7 @@ describe('BackgroundIngestPage', () => {
   it('flips the kill switch and reloads', async () => {
     listMock.mockResolvedValue([source({ enabled: true })])
     setEnabledMock.mockResolvedValue(true)
-    const user = (await import('@testing-library/user-event')).default.setup()
+    const user = userEvent.setup()
 
     renderPage()
     await screen.findByText('Photos & Videos')

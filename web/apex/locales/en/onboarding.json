@@ -207,7 +207,7 @@
     "explainer": {
       "title": "How you can use Tenshu",
       "body": "Tenshu works on the web in three ways. You can use any combination — they all work together.",
-      "continue": "Continue to control plane",
+      "continue": "Continue to your apps",
       "layer": {
         "web": {
           "title": "Web",

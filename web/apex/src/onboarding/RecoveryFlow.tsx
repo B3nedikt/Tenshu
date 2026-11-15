@@ -8,6 +8,7 @@
 // `./screens/TailScreens` rather than inlining a different copy.
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
+import { OVERVIEW_PATH } from '../lib/overviewPath'
 import { Trans, useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import type { RecoveryError } from '@tenshu/sdk/onboarding'
@@ -130,7 +131,7 @@ export function RecoveryFlow() {
         <LayeredExplainerScreen onContinue={() => setStep({ kind: 'tail.completing' })} />
       )}
       {step.kind === 'tail.completing' && (
-        <CompletingSessionScreen onCompleted={() => navigate('/control/home', { replace: true })} />
+        <CompletingSessionScreen onCompleted={() => navigate(OVERVIEW_PATH, { replace: true })} />
       )}
 
       {/* Footer fallback for first screen — unused on tail steps */}

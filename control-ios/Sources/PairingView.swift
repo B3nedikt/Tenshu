@@ -84,6 +84,8 @@ final class PairingModel: ObservableObject {
     var offerScanned: Bool { offerSas != nil && !offerPaired }
     @Published var offerDenied = false
     @Published var offerFailed = false
+    /// The relay refused THIS device as a removed identity (F2′): terminal, with its own remedy.
+    @Published var offerRemovedMessage: String? = nil
 
     /// The realm has no storage plan, so the relay refuses every write — `enforcement-followup-
     /// tracks.md` Track D. ⚠ Not a pairing failure: the device IS in the realm. It only withdraws
@@ -134,6 +136,7 @@ final class PairingModel: ObservableObject {
             offerPaired = s.offerPaired
             offerDenied = s.offerDenied
             offerFailed = s.offerFailed
+            offerRemovedMessage = ControlSurface.shared.offerRemovedMessage(state: s)
             realmUnfunded = s.realmUnfunded
             autoContinueArmed = s.autoContinueArmed
             errorMessage = ControlSurface.shared.pairingErrorMessage(state: s)
@@ -666,6 +669,17 @@ struct PairingView: View {
     @ViewBuilder private var offerContent: some View {
         if model.offerPaired {
             offerPairedContent
+        } else if let removed = model.offerRemovedMessage {
+            // Before scanned and denied/failed: a refusal can land after SCANNED, and every retry
+            // of a removed identity is refused, so no "try again" — the remedy is "Forget this
+            // device" here.
+            Text(removed)
+                .font(.body)
+                .foregroundStyle(.red)
+                .multilineTextAlignment(.center)
+            vGap(24)
+            Button(PairingStrings.showStop) { model.stopShowing() }
+                .buttonStyle(OutlinedDestructiveButtonStyle())
         } else if model.offerScanned {
             // A3: the other device scanned and announced its key, so the SAS is derivable here
             // while its approval prompt is still up. Replace the QR with the code — the QR has

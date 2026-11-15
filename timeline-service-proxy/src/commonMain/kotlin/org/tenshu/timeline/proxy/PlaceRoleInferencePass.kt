@@ -1,5 +1,7 @@
 package org.tenshu.timeline.proxy
 
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
@@ -28,6 +30,8 @@ import org.tenshu.core.timeline.SubjectRef
 import org.tenshu.core.timeline.TimelineService
 import org.tenshu.timeline.common.PlaceRoleDetector
 import org.tenshu.timeline.common.PlaceRoleNames
+import kotlin.concurrent.atomics.AtomicBoolean
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.time.Clock
 
 /**
@@ -60,6 +64,7 @@ import kotlin.time.Clock
  * re-suggesting it would make the prompt un-dismissable. The cross-device half of the same guarantee
  * lives in `PlaceRoleMerger`; this is the local half.
  */
+@OptIn(ExperimentalAtomicApi::class)
 class PlaceRoleInferencePass(
     private val executionContext: ExecutionContext,
     /**
@@ -94,6 +99,8 @@ class PlaceRoleInferencePass(
      * eager run in `initTimelineService` happens before those visits exist, so a fresh device would
      * have sat on sufficient evidence for days without saying anything. 5 bounds first-verdict
      * latency to roughly a day while still costing only a few passes per day.
+     * ⚠ That holds for capture, not for a sync burst, which delivers visits by the hundred: there
+     * [COALESCE_MS] is the bound (see [scheduleInference]).
      */
     private val recomputeEvery: Int = DEFAULT_RECOMPUTE_EVERY,
     private val zone: TimeZone = TimeZone.currentSystemDefault(),
@@ -115,8 +122,35 @@ class PlaceRoleInferencePass(
 
         visitsSinceRun++
         if (visitsSinceRun < recomputeEvery) return
-        inferNow()
+        scheduleInference()
     }
+
+    /**
+     * ⚠⚠ **Coalesced, never run on the save path** — the [MomentReconciliationPass] shape, and for
+     * the same reason. [inferNow] reads the whole `MOMENTS` relation ([readOrderedWindow] bounds the
+     * selection, not the scan), so running it inline every [recomputeEvery] visits made a burst of
+     * N saved visits cost N/5 whole-relation scans: O(N²) member reads. On the iOS SQLite replica
+     * each scan is **one access, holding the write lock**, and the 600-visit slice apply of
+     * `MomentSliceRowMaxSharedReplicaTest` measured 120 of them growing to ~130 ms each on a dev Mac,
+     * until one on a 3-core CI runner crossed `HOLD_MAX` and fenced the store (`tech-debt.md`
+     * "Public CI was red on every run"). A sync backfill is the same burst.
+     *
+     * ⚠ Fixed cadence, not a resetting debounce: a timer that restarts on each save never fires
+     * during an hours-long backfill. The verdict reads a fresh window whenever it runs, so one run
+     * per [COALESCE_MS] reaches what N/5 runs did.
+     */
+    private fun scheduleInference() {
+        if (!pendingFlush.compareAndSet(expectedValue = false, newValue = true)) return
+        executionContext.sessionScope.launch {
+            delay(COALESCE_MS)
+            // ⚠ Cleared BEFORE the work, so a visit arriving during a run arms the next flush.
+            pendingFlush.store(false)
+            inferNow()
+        }
+    }
+
+    /** Whether a coalesced run is already armed — see [scheduleInference]. */
+    private val pendingFlush = AtomicBoolean(false)
 
     override fun onDataDeleted(dataId: DataId, origin: WriteOrigin) {
         // A deleted visit can only weaken a verdict, and the next recompute picks that up. Nothing
@@ -256,6 +290,9 @@ class PlaceRoleInferencePass(
         const val DEFAULT_MAX_AGE_DAYS: Int = 90
         private const val DAY_MS: Long = 86_400_000L
         const val DEFAULT_RECOMPUTE_EVERY: Int = 5
+
+        /** Coalescing cadence for [onDataSaved]: at most one [inferNow] per this many ms of saves. */
+        internal const val COALESCE_MS: Long = 1_000L
 
         init {
             // The pure module cannot depend on the place schema, so the two vocabularies are declared

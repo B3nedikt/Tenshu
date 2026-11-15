@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.v2.runComposeUiTest
 import app.tenshu.ui.theme.TenshuTheme
 import kotlin.test.Test
+import org.tenshu.ui.test.NoMotion
 
 /**
  * The rename dialog's two refusal-shaped states, which had no UI at all before: a rename can be
@@ -18,7 +19,7 @@ import kotlin.test.Test
 class RenameFileDialogContentTest {
 
     @Test
-    fun aRefusalIsShownAgainstTheField() = runComposeUiTest {
+    fun aRefusalIsShownAgainstTheField() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 RenameFileDialogContent(
@@ -42,7 +43,7 @@ class RenameFileDialogContentTest {
     }
 
     @Test
-    fun aSeparatorInTheNameIsItsOwnMessage() = runComposeUiTest {
+    fun aSeparatorInTheNameIsItsOwnMessage() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 RenameFileDialogContent(
@@ -67,7 +68,7 @@ class RenameFileDialogContentTest {
     }
 
     @Test
-    fun anUnsubmittableNameDisablesConfirm() = runComposeUiTest {
+    fun anUnsubmittableNameDisablesConfirm() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 RenameFileDialogContent(
@@ -87,7 +88,7 @@ class RenameFileDialogContentTest {
     }
 
     @Test
-    fun aChangedNameEnablesConfirm() = runComposeUiTest {
+    fun aChangedNameEnablesConfirm() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 RenameFileDialogContent(
@@ -103,7 +104,7 @@ class RenameFileDialogContentTest {
     }
 
     @Test
-    fun confirmIsDisabledWhileTheWriteIsInFlight() = runComposeUiTest {
+    fun confirmIsDisabledWhileTheWriteIsInFlight() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 RenameFileDialogContent(

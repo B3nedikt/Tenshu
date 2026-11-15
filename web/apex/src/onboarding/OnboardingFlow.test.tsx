@@ -32,7 +32,7 @@ function renderFlow(sdk: OnboardingSdk = EMPTY_SDK) {
           {/* Landing probes so the intent-routing tests can assert where
               the flow navigates on completion. */}
           <Route path="/control/services/picker" element={<div>PICKER</div>} />
-          <Route path="/control/home" element={<div>HOME</div>} />
+          <Route path="/overview" element={<div>HOME</div>} />
         </Routes>
       </MemoryRouter>
     </OnboardingSdkContext.Provider>,
@@ -53,7 +53,7 @@ async function walkNewUserToCompletion(
   await screen.findByRole('heading', { name: 'Set up a passphrase' }, { timeout: 2500 })
   await user.click(screen.getByRole('button', { name: 'Use recovery phrase only' }))
   await user.click(await screen.findByRole('button', { name: "Skip — I'll decide later" }))
-  await user.click(await screen.findByRole('button', { name: 'Continue to control plane' }))
+  await user.click(await screen.findByRole('button', { name: 'Continue to your apps' }))
   await user.click(await screen.findByRole('button', { name: 'Continue' })) // storage tier
 }
 

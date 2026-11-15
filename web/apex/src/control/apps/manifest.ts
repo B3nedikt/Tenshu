@@ -41,10 +41,6 @@ export interface AppManifest {
   readonly label: string
   readonly description: string
   readonly version: string
-  // Wall-clock ms when the app was added to the realm. v1 fakes this as
-  // "shortly after onboarding" — the per-realm install timestamp moves
-  // into the realm's Syncable state once that schema is defined.
-  readonly installedAtMs: number
   // Path the apex routes to when the user opens the app. Pre-Phase 8
   // this stays under `/drive/*`; once cross-origin lands the manifest
   // entry switches to `https://drive.tenshu.app/...`.

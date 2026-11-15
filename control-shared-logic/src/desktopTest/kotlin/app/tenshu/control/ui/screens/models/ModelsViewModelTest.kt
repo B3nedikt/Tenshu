@@ -404,6 +404,16 @@ class ModelsViewModelTest {
         assertNull(vm.uiState.value.featureOffer, "the feature question was asked of the seed")
     }
 
+    /** What each listed model serves reaches the screen's state: what Photos' copy says per feature (`ios-face-grouping.md` F6). */
+    @Test
+    fun whatEachModelServesIsTheScreensToRead() = vmTest { vms ->
+        val repo = FakeRepo(listOf(model(capabilityIds = listOf(search.id)), model(id = "faces", capabilityIds = listOf(InferenceCapability.FACE_CLUSTERING.id))))
+        val vm = vms.own(ModelsViewModel(repo))
+        advanceUntilIdle()
+
+        assertEquals(mapOf("siglip" to listOf(search.id), "faces" to listOf(InferenceCapability.FACE_CLUSTERING.id)), vm.uiState.value.serves)
+    }
+
     @Test
     fun aFirstInstallOffersTheFeatureItServes() = vmTest { vms ->
         val repo = FakeRepo(listOf(model(capabilityIds = listOf(search.id))), consentsInitially = listOf(CapabilityConsent(search)))

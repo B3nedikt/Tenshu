@@ -9,6 +9,7 @@ import org.junit.Test
 import java.io.File
 import javax.imageio.ImageIO
 import kotlin.test.assertTrue
+import org.tenshu.ui.test.NoMotion
 
 /**
  * Renders the checkout steps — above all the acknowledgement (policy §5.4) — to PNGs under
@@ -23,7 +24,7 @@ import kotlin.test.assertTrue
 class CheckoutScreenRenderTest {
 
     @get:Rule
-    val composeTestRule = createComposeRule()
+    val composeTestRule = createComposeRule(NoMotion)
 
     private fun render(name: String, state: CheckoutUiState) {
         composeTestRule.setContent {

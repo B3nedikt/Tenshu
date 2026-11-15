@@ -50,15 +50,18 @@ export function DevicesView() {
       ) : devices.data?.ok && devices.data.devices.length === 0 ? (
         <EmptyState title={t('devices.emptyTitle')} body={t('devices.emptyBody')} />
       ) : devices.data?.ok ? (
-        groupByRoom(devices.data.devices, devices.data.rooms).map((group) => (
-          <Section key={group.room ?? ''} title={group.room ?? t('devices.unassigned')}>
-            <ul aria-label={group.room ?? t('devices.unassigned')} className="divide-y divide-line rounded-lg border border-line">
-              {group.devices.map((d) => (
-                <DeviceRow key={d.deviceId} device={d} />
-              ))}
-            </ul>
-          </Section>
-        ))
+        // Rooms across the width (web-apps-layout.md §3.1): as many columns as fit, in room order.
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(min(20rem,100%),1fr))] items-start gap-x-6">
+          {groupByRoom(devices.data.devices, devices.data.rooms).map((group) => (
+            <Section key={group.room ?? ''} title={group.room ?? t('devices.unassigned')}>
+              <ul aria-label={group.room ?? t('devices.unassigned')} className="divide-y divide-line rounded-lg border border-line">
+                {group.devices.map((d) => (
+                  <DeviceRow key={d.deviceId} device={d} />
+                ))}
+              </ul>
+            </Section>
+          ))}
+        </div>
       ) : null}
     </div>
   )

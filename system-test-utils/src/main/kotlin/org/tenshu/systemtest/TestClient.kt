@@ -9,6 +9,8 @@ import org.tenshu.core.common.proxy.FileDatabase
 import org.tenshu.core.common.proxy.ProxyGateway
 import org.tenshu.core.common.proxy.db.InMemoryObjectStore
 import org.tenshu.core.common.proxy.db.ObjectStore
+import org.tenshu.sync.common.SyncBlockEmitter
+import org.tenshu.sync.common.SyncBlockEmitterHolder
 import org.tenshu.sync.common.SyncManager
 import org.tenshu.sync.proxy.SyncScheduler
 import org.tenshu.sync.proxy.SyncSchedulerHolder
@@ -26,7 +28,13 @@ import org.tenshu.sync.proxy.SyncSchedulerHolder
 class TestClient internal constructor(
     val deviceId: String,
     val role: TestClientRole,
-    val koinApp: KoinApplication
+    val koinApp: KoinApplication,
+    /**
+     * Built in the harness's stepped mode ([TestSystemBuilder.stepped]): this device's polling loop
+     * never started, and it ticks only when the test calls [TestSystem.sync] / [TestSystem.syncUntil]
+     * / [TestSystem.syncUntilQuiet].
+     */
+    val stepped: Boolean = false,
 ) {
     val tenshuClient: TenshuClient get() = koinApp.koin.get()
     val syncManager: SyncManager get() = koinApp.koin.get()
@@ -92,7 +100,28 @@ class TestClient internal constructor(
                 afterWipe()
             }
         } finally {
-            scheduler.start()
+            // In stepped mode the loop was never running, and the next launch is the test's next
+            // [TestSystem.sync]: restarting it here would put a live poll back under a test that
+            // chose to have none.
+            if (!stepped) scheduler.start()
         }
+    }
+
+    /**
+     * One stepped tick of this device, on the scheduler's own `tickMutex` path, answering whether
+     * that tick left more to pull.
+     *
+     * ⚠⚠ The emit barrier comes first, and it is what makes "this device pushes its write" true.
+     * A save hands its block to `SyncObserver`'s emit channel and returns (`onSaved`'s
+     * `trySend`); the block is serialised, sealed and queued on the session scope a moment later.
+     * A tick that ran in that moment would push nothing, and the next device would pull nothing.
+     * [SyncBlockEmitter.awaitEmitIdle] returns only once every save before it is queued, so the tick
+     * that follows sees the whole of what the test wrote. Tombstones need no barrier: they are
+     * queued synchronously inside the op that emits them.
+     */
+    internal suspend fun stepOnce(): Boolean {
+        val scheduler = syncScheduler
+        koinApp.koin.get<SyncBlockEmitterHolder>().emitter?.awaitEmitIdle()
+        return scheduler.drainNowReportingBacklog()
     }
 }

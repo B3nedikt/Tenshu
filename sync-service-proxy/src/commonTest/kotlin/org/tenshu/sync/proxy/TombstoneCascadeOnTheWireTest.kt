@@ -1,6 +1,7 @@
 package org.tenshu.sync.proxy
 
 import kotlinx.coroutines.async
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import org.tenshu.core.Data
 import org.tenshu.core.GenericError
@@ -104,8 +105,8 @@ class TombstoneCascadeOnTheWireTest {
             TombstoneCascades(DatabaseTombstoneCascadeStore(proxy.executionContext)).holdersOf(blockId)
     }
 
-    private fun harness(failing: Set<String> = emptySet()): Harness {
-        val proxy = TestProxy(schemaRegistry = createSyntheticTestRegistry())
+    private fun TestScope.harness(failing: Set<String> = emptySet()): Harness {
+        val proxy = TestProxy(schemaRegistry = createSyntheticTestRegistry(), coroutineScope = backgroundScope)
         proxy.schemaRegistry.registerConfig(syncServiceCommonModule)
         val crypto = proxy.tContext.syncCryptoManager()
         val syncManager = SyncManagerImpl(

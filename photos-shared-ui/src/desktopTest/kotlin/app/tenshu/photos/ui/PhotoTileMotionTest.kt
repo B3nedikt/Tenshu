@@ -12,6 +12,7 @@ import app.tenshu.photos.ui.components.PhotoTile
 import app.tenshu.ui.theme.TenshuTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import org.tenshu.ui.test.NoMotion
 
 /**
  * The tile's half of M5 (`photos-video-support.md` §5.2): the turn is a **keyed input**, and the
@@ -40,7 +41,7 @@ class PhotoTileMotionTest {
     private val clip = ByteArray(2_048) { 7 }
 
     @Test
-    fun `a tile holding the turn draws the player`() = runDesktopComposeUiTest {
+    fun `a tile holding the turn draws the player`() = runDesktopComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 PhotoTile(
@@ -55,7 +56,7 @@ class PhotoTileMotionTest {
     }
 
     @Test
-    fun `a tile without the turn draws no player`() = runDesktopComposeUiTest {
+    fun `a tile without the turn draws no player`() = runDesktopComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 PhotoTile(photo = video, loadPreview = { _, _ -> null }, onClick = {})
@@ -71,7 +72,7 @@ class PhotoTileMotionTest {
      * the first one.
      */
     @Test
-    fun `a turn that cannot be played still hands over after a nominal turn`() = runDesktopComposeUiTest {
+    fun `a turn that cannot be played still hands over after a nominal turn`() = runDesktopComposeUiTest(effectContext = NoMotion) {
         mainClock.autoAdvance = false
         var finished = 0
         setContent {

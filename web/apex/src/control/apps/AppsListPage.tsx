@@ -1,15 +1,18 @@
-// /control/apps — installed-apps grid per `web-control-plane.md` §4.2 +
-// `control-ia.md` §4.1. Reads the live `AppRegistry` (seeded from the bundled
-// manifest); the grid grows as first-party apps register. Apex / Tenshu itself
-// is intentionally absent (IA §4.1).
+// /control/apps — the apps grid per `web-control-plane.md` §4.2 + `control-ia.md` §4.1. Every app
+// this apex hosts, each with where the realm's `AppRegistration` rows say it runs
+// (web-apex-home.md §4.7). Apex / Tenshu itself is intentionally absent (IA §4.1).
+// ⚠ Loading or a failed read says nothing about devices — never "on no devices".
 import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { useInstalledApps } from './appRegistryContext'
+import type { TFunction } from 'i18next'
+import { useAppRegistrations, useInstalledApps } from './appRegistryContext'
+import type { RegistrationsState } from './appRegistry'
 import { type AppManifest } from './manifest'
 
 export function AppsListPage() {
   const { t } = useTranslation('control')
   const apps = useInstalledApps()
+  const registrations = useAppRegistrations()
   return (
     <div>
       <h1 className="text-2xl font-medium">{t('apps.list.title')}</h1>
@@ -22,7 +25,7 @@ export function AppsListPage() {
         <ul className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {apps.map(app => (
             <li key={app.id}>
-              <AppCard app={app} />
+              <AppCard app={app} registrations={registrations} />
             </li>
           ))}
         </ul>
@@ -32,7 +35,13 @@ export function AppsListPage() {
   )
 }
 
-function AppCard({ app }: { readonly app: AppManifest }) {
+function AppCard({
+  app,
+  registrations,
+}: {
+  readonly app: AppManifest
+  readonly registrations: RegistrationsState
+}) {
   const { t } = useTranslation('control')
   return (
     <Link
@@ -55,9 +64,17 @@ function AppCard({ app }: { readonly app: AppManifest }) {
         {app.description}
       </p>
       <div className="mt-3 flex items-center justify-between text-[11px] text-text-2">
-        <span>{t('apps.list.installed', { date: new Date(app.installedAtMs).toLocaleDateString() })}</span>
+        <span>{deviceLine(registrations, app.id, t)}</span>
         <span>{t('apps.list.permissionCount', { count: app.permissions.length })}</span>
       </div>
     </Link>
   )
+}
+
+function deviceLine(registrations: RegistrationsState, appId: string, t: TFunction): string | null {
+  if (registrations.kind !== 'ready') return null
+  const info = registrations.byApp.get(appId)
+  return info === undefined
+    ? t('apps.list.onNoDevice')
+    : t('apps.list.onDevices', { count: info.devices.length })
 }

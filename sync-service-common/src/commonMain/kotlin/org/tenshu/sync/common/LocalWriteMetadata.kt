@@ -37,13 +37,29 @@ import org.tenshu.core.toTString
  * ## ⚠ Kept separate from [SyncMetadata], deliberately
  *
  * Stamping local writes into [SyncMetadata] itself would be wrong: the *absence* of that row is
- * load-bearing elsewhere.
- * `SyncProcessor.resolveConflictAndSave` reads a missing row as "anything incoming is newer",
- * which is the documented contract `SliceSnapshotProducer.applySlice` relies on to let a real
- * block replace a snapshot's provisional projection. Widening `SyncMetadata` to cover local
- * writes would therefore also change ingest's `isNewer`, letting a skewed local clock fence out
- * peer writes permanently. This record changes exactly one comparison — the tombstone guard's —
- * and nothing else reads it.
+ * load-bearing elsewhere. `SliceSnapshotProducer.applySlice` writes its provisional rows with
+ * `SYNC_INGEST` and relies on a missing [SyncMetadata] to let a real block replace them. Those rows
+ * never get this record either, because ingest-origin saves are not stamped.
+ *
+ * ## ⚠⚠ Read by ingest too (2026-11-14), not only by the tombstone guard
+ *
+ * `SyncProcessor.resolveConflictAndSave` measures "newer" against the later of [SyncMetadata] and
+ * this record, for every conflict strategy except Merge. The relay echoes a device's own blocks
+ * back, and against [SyncMetadata] alone the echo of an OLDER own write read as newer and replaced
+ * a newer local one (`SyncProcessorOwnEchoTest`; the `ContactHandshakeSystemTest` flake). The echo
+ * of the latest own write ties and is refused too, so a device no longer re-saves its own writes.
+ * A wiped device has no record, so its replay of its own history still applies.
+ *
+ * ⚠ Why this does not let a skewed local clock fence peers out: ingest `observe()`s every block's
+ * HLC, so a peer that has seen this device's block writes above it. Only a write made concurrently
+ * loses, and it loses on the peer too, which ingests this device's block with no local-write guard.
+ * The old rule made the two devices diverge, each showing the other's value. Merge keeps the
+ * ingest-only basis, so an older peer change is still merged in.
+ *
+ * ⚠ Two stamps feed it, highest wins: `TombstoneRegistry`'s on-save tick, and the HLC `SyncObserver`
+ * puts on the entity's emitted block or lane delta (`TombstoneRegistry.recordEmittedWrite`). The
+ * second is needed because the block is stamped later, on the emit consumer, and under load after
+ * the NEXT write's on-save tick. Without it that block's echo would beat the record.
  *
  * Local-only: never serialised into a block or pushed to the relay.
  */
@@ -67,9 +83,9 @@ interface LocalWriteMetadata : Composite {
      * the rest of the reasoning.
      *
      * ⚠ `TombstoneRegistry` is registered as an observer before `SyncObserver` (`ObserverRegistry`
-     * dispatches in registration order), so this sits one tick *below* the HLC of the block that
-     * same save emits. Harmless: the guard only asks whether a *tombstone* is newer than the
-     * local write, and a tombstone landing inside that one-tick window is indeterminate anyway.
+     * dispatches in registration order), so the on-save stamp sits one tick *below* the HLC of the
+     * block that same save emits. ⚠ The emitted-block stamp then raises it to the block's own HLC,
+     * which is what ingest compares an echo against (see "Read by ingest too" above).
      */
     val hlc: HybridLogicalClock
         get() = getField(Fields.HLC)

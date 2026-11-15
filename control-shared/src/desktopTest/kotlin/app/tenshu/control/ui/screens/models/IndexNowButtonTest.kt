@@ -11,6 +11,7 @@ import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.tenshu.ui.test.NoMotion
 
 /**
  * *Index now*'s three rules (§34.2). The view model owns what a press **does**; this owns when the
@@ -19,7 +20,7 @@ import kotlin.test.assertTrue
 class IndexNowButtonTest {
 
     @get:Rule
-    val composeTestRule = createComposeRule()
+    val composeTestRule = createComposeRule(NoMotion)
 
     private fun setScreen(state: ModelsUiState, onIndexNow: () -> Unit = {}) {
         composeTestRule.setContent {

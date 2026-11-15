@@ -102,14 +102,13 @@ fun main(args: Array<String>) {
                         fabViewModel = addFileActionsViewModel,
                         onUploadFile = { parentPath ->
                             val dialog =
-                                FileDialog(window, "Select File to Upload", FileDialog.LOAD)
+                                FileDialog(window, "Select Files to Upload", FileDialog.LOAD)
+                            dialog.isMultipleMode = true
                             dialog.isVisible = true
-                            val file = dialog.file
-                            val directory = dialog.directory
-                            if (file != null && directory != null) {
-                                val fullPath = java.io.File(directory, file).absolutePath
+                            // `files` is empty on cancel; each pick is its own upload.
+                            dialog.files.forEach { picked ->
                                 scope.launch {
-                                    addFileActionsViewModel.uploadFile(fullPath, parentPath)
+                                    addFileActionsViewModel.uploadFile(picked.absolutePath, parentPath)
                                 }
                             }
                         },
@@ -153,13 +152,11 @@ fun main(args: Array<String>) {
                                     ".webp"
                                 ) || lower.endsWith(".heic")
                             }
+                            dialog.isMultipleMode = true
                             dialog.isVisible = true
-                            val file = dialog.file
-                            val directory = dialog.directory
-                            if (file != null && directory != null) {
-                                val fullPath = java.io.File(directory, file).absolutePath
+                            dialog.files.forEach { picked ->
                                 scope.launch {
-                                    addFileActionsViewModel.uploadFile(fullPath, parentPath)
+                                    addFileActionsViewModel.uploadFile(picked.absolutePath, parentPath)
                                 }
                             }
                         }

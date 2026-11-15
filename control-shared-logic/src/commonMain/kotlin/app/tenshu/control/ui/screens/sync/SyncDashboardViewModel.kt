@@ -255,17 +255,42 @@ class SyncDashboardViewModel(
      * folded into [SyncDashboardUiState.error] so a surface can say so. (Compose does not
      * render `error` on this screen; the iOS roster does.)
      */
-    fun revokeDevice(deviceId: String) {
+    fun revokeDevice(deviceId: String) = revokeDeviceAndAdmittees(deviceId, emptyList())
+
+    /**
+     * The devices [deviceId] admitted, for the removal surface to ask about (§7j.4), read off the
+     * roster this screen already holds. See [removalAdmittees].
+     */
+    fun removalAdmitteesOf(deviceId: String): RemovalAdmittees {
+        val state = _uiState.value
+        return removalAdmittees(state.devices, deviceId, state.currentDeviceId)
+    }
+
+    /**
+     * Remove [deviceId] and, in the same action, each of [alsoRemove] — the admittees the user chose
+     * to stop trusting (`admission-revocation-names-the-capability.md` §7j.4). Each is a full removal
+     * (tombstone, F2′, its own key revoked); a kept admittee is untouched and stays a member that can
+     * admit (§7j.10 — removal no longer strips the removed device's lineage). The removed device goes
+     * first.
+     *
+     * ⚠ A separate name rather than a default parameter: Swift does not see Kotlin defaults.
+     * ⚠ Every removal is attempted even if one fails; the first failure is what the surface shows.
+     */
+    fun revokeDeviceAndAdmittees(deviceId: String, alsoRemove: List<String>) {
         viewModelScope.launch {
             _uiState.update { it.copy(error = null) }
-            // The op reports refusal as a Failure and transport loss as a throw; neither may
-            // pass silently, so both funnel into the same message.
-            val failure = failureMessage(
-                runCatchingCancellable { syncRepository.revokeDevice(deviceId) },
-                REVOKE_FAILED,
-            )
-            if (failure != NO_FAILURE) {
-                _uiState.update { it.copy(error = failure) }
+            var firstFailure = NO_FAILURE
+            for (id in listOf(deviceId) + alsoRemove.filter { it != deviceId }.distinct()) {
+                // The op reports refusal as a Failure and transport loss as a throw; neither may
+                // pass silently, so both funnel into the same message.
+                val failure = failureMessage(
+                    runCatchingCancellable { syncRepository.revokeDevice(id) },
+                    REVOKE_FAILED,
+                )
+                if (firstFailure == NO_FAILURE) firstFailure = failure
+            }
+            if (firstFailure != NO_FAILURE) {
+                _uiState.update { it.copy(error = firstFailure) }
             }
             refresh()
         }

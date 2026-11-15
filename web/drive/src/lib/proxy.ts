@@ -85,6 +85,10 @@ export const ProxyMethod = {
   SharedReadFile: 'sharedFile.readFile',
   ShareFolder: 'sharedFile.shareFolder',
   SharedFolders: 'sharedFile.sharedFolders',
+  // L6: this browser's remembered listing display (DEVICE scope, native's rows).
+  SettingsGet: 'driveSettings.get',
+  SettingsSetListing: 'driveSettings.setListing',
+  SettingsSetDetailsPane: 'driveSettings.setDetailsPane',
 } as const
 
 // The apex origin to dial (`VITE_APEX_ORIGIN`, else the apex Vite dev server) and the one shared
@@ -509,3 +513,36 @@ export async function sharedFolders(): Promise<readonly SharedFolderItem[]> {
 }
 
 export const APEX = bridge.apexOrigin
+
+// ── remembered view settings (web-apps-layout.md L6) ─────────────────────────
+// ⚠ This browser's own (DEVICE) rows — the sort and view are native Drive's rows for this device.
+// `{ ok: false, error.kind: 'no_device' }` before the browser has a sync identity: keep the local copy.
+
+export type DriveSettingsResult =
+  | {
+      readonly ok: true
+      readonly key: 'name' | 'modified' | 'created' | 'size'
+      readonly descending: boolean
+      readonly layout: 'list' | 'grid'
+      readonly detailsPane: boolean
+      // Whether each row EXISTS on this device; a missing one reads as the default above.
+      readonly sortStored: boolean
+      readonly layoutStored: boolean
+      readonly paneStored: boolean
+    }
+  | { readonly ok: false; readonly error: { readonly kind: string; readonly message?: string } }
+
+export async function driveSettings(): Promise<DriveSettingsResult> {
+  const client = await apexProxy()
+  return client.call<DriveSettingsResult>(ProxyMethod.SettingsGet)
+}
+
+export async function setDriveListing(key: string, descending: boolean, layout: string): Promise<{ ok: boolean }> {
+  const client = await apexProxy()
+  return client.call<{ ok: boolean }>(ProxyMethod.SettingsSetListing, { key, descending, layout })
+}
+
+export async function setDriveDetailsPane(open: boolean): Promise<{ ok: boolean }> {
+  const client = await apexProxy()
+  return client.call<{ ok: boolean }>(ProxyMethod.SettingsSetDetailsPane, { open })
+}

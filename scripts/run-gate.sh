@@ -22,6 +22,14 @@
 # Usage:
 #   scripts/run-gate.sh            # one gate run + both compile lanes
 #   scripts/run-gate.sh 3          # three test runs (the lanes still run once — they are compiles)
+#   scripts/run-gate.sh --quick    # only what this branch's change can break (below)
+#
+# `--quick` runs the same lines — tests, JS tests, both compile lanes — but only for the modules
+# the change touches and every module that depends on them (`scripts/lib/affected_modules.py`,
+# against the merge-base with `origin/master`, working tree included; `TENSHU_GATE_BASE=<ref>` to
+# change that). It is the per-round check. ⚠⚠ The full gate is still what a merge of shared code
+# and every public sync owe: the quick one follows the code graph only, and it falls back to the
+# full gate by itself when a build file, the gate itself, or a file outside every module changes.
 #
 # Env:
 #   TENSHU_GATE_SKIP_LANES=1       # tests only. Prints what it did NOT verify; never silent.
@@ -44,9 +52,49 @@ set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib/gate-lock.sh"
 tenshu_gate_lock "$0" "$@"
 
+QUICK=""
+if [ "${1:-}" = "--quick" ]; then QUICK=1; shift; fi
 RUNS="${1:-1}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT" || exit 1
+
+# The full gate's lines. `--quick` narrows each to the affected modules' own tasks.
+TEST_TASKS="desktopTest jvmTest test testAndroidHostTest"
+JS_TEST_TASKS="jsTest"
+JS_LANE_TASKS="compileTestKotlinJs"
+IOS_LANE_TASKS="compileTestKotlinIosSimulatorArm64"
+
+if [ -n "$QUICK" ]; then
+  GRAPH="build/project-graph.json"
+  rm -f "$GRAPH"
+  # ⚠ `--no-configuration-cache`: the graph is written while the build configures, and a cache hit
+  # skips configuration — no file, and the quick gate would test nothing.
+  if ! ./gradlew help -q --no-configuration-cache -Ptenshu.projectGraph="$GRAPH" > /dev/null 2>&1 || [ ! -s "$GRAPH" ]; then
+    echo "  RED  quick gate: could not read the project graph (./gradlew help -Ptenshu.projectGraph=…)"
+    exit 1
+  fi
+  if ! QUICK_VARS="$(python3 scripts/lib/affected_modules.py "$GRAPH" "${TENSHU_GATE_BASE:-origin/master}")"; then
+    echo "  RED  quick gate: could not work out the change (is ${TENSHU_GATE_BASE:-origin/master} fetched?)"
+    exit 1
+  fi
+  eval "$QUICK_VARS"
+  echo "=== quick gate: $QUICK_REASON ==="
+  [ -n "$QUICK_NOTES" ] && echo "  ⚠ $QUICK_NOTES"
+  case "$QUICK_MODE" in
+    full)
+      echo "  → running the FULL gate instead."
+      QUICK="" ;;
+    none)
+      echo "  Nothing for this gate to run."
+      exit 0 ;;
+    quick)
+      echo "  modules: $QUICK_MODULES"
+      TEST_TASKS="$QUICK_TEST_TASKS"
+      JS_TEST_TASKS="$QUICK_JS_TEST_TASKS"
+      JS_LANE_TASKS="$QUICK_JS_LANE"
+      IOS_LANE_TASKS="$QUICK_IOS_LANE" ;;
+  esac
+fi
 
 # A full gate runs ~97 test tasks. Anything far below that means Gradle skipped the suite.
 MIN_TEST_TASKS=50
@@ -71,10 +119,11 @@ OVERALL=0
 # is built from. The next iteration's `find -prune -exec rm -rf` then clears it before the following
 # parse, so no iteration ever sees the previous one's JS results.
 #
-# ⚠⚠ Three modules are EXCLUDED because they were red when the lane was first run. They are named
-# here rather than hidden, and tracked in docs/tech-debt.md ("Three modules are excluded from the
-# JS test line"): excluding a module is a latch, and a latch nobody can see becomes permanent. Take one off this list as it goes green.
-JS_TEST_EXCLUSIONS="basemap-core inference-service-proxy routine-service-proxy"
+# ⚠⚠ Known-red modules are EXCLUDED, named in `scripts/js-test-exclusions.txt` rather than here:
+# that file is the ONE list, which public CI's `check` reads too, and each entry is tracked in
+# docs/tech-debt.md ("Modules excluded from the JS test line"). Excluding a module is a latch, and a
+# latch nobody can see becomes permanent. Take one off the list as it goes green.
+JS_TEST_EXCLUSIONS="$(sed -e 's/#.*//' scripts/js-test-exclusions.txt | xargs)"
 
 run_js_tests() {
   local log status executed args
@@ -82,7 +131,11 @@ run_js_tests() {
   args=""
   for m in $JS_TEST_EXCLUSIONS; do args="$args -x :$m:jsTest"; done
   # shellcheck disable=SC2086
-  ./gradlew jsTest --continue $args > "$log" 2>&1
+  if [ -z "$JS_TEST_TASKS" ]; then
+    echo "  JS tests: none in the affected modules"
+    return
+  fi
+  ./gradlew $JS_TEST_TASKS --continue $args > "$log" 2>&1
   status=$?
   # ⚠⚠ A misspelt exclusion is a HARD Gradle failure ("Cannot locate excluded tasks that match
   # ':x:jsTest' as project 'x' not found"), not a silent no-op — and it looks identical to a red
@@ -90,7 +143,7 @@ run_js_tests() {
   # (`routine-proxy`) where the Gradle path is `routine-service-proxy`, and the whole line reported
   # RED having run nothing. Say which it was.
   if grep -q "Cannot locate excluded tasks" "$log"; then
-    echo "  RED  JS tests   an entry in JS_TEST_EXCLUSIONS names no such project — fix the list, not the suite:"
+    echo "  RED  JS tests   an entry in scripts/js-test-exclusions.txt names no such project — fix the list, not the suite:"
     grep -E "Cannot locate excluded tasks" "$log" | head -3 | sed 's/^/         /'
     OVERALL=1
     return
@@ -98,19 +151,43 @@ run_js_tests() {
   # ⚠ `$` anchored: Gradle prints "> Task :x:jsTest" when it RAN and "> Task :x:jsTest UP-TO-DATE"
   # when it did not, so the anchor is what separates verification from a stale pass.
   executed=$(grep -cE "^> Task :.*:jsTest$" "$log")
-  if [ "$status" -ne 0 ]; then
+  # Quick mode asks for named tasks, so it checks them by name, as the JVM line does: a module
+  # with no JS test sources reports `NO-SOURCE` and had nothing to verify.
+  local not_run=""
+  if [ -n "$QUICK" ]; then
+    for t in $JS_TEST_TASKS; do
+      grep -qxE "> Task $t( NO-SOURCE| FAILED)?" "$log" || not_run="$not_run $t"
+    done
+  fi
+  if [ -n "$not_run" ]; then
+    echo "  RED  JS tests   asked for but did NOT run:$not_run (log: $log)"
+    OVERALL=1
+  elif [ "$status" -ne 0 ]; then
     echo "  RED  JS tests   (log: $log)"
     grep -E "FAILED$" "$log" | sort -u | head -20 | sed 's/^/         /'
     OVERALL=1
+  elif [ -n "$QUICK" ] && [ "$executed" -lt 1 ]; then
+    echo "  JS tests: green (the affected modules have no JS test sources)"
   elif [ "$executed" -lt 1 ]; then
     echo "  RED  JS tests   executed ZERO jsTest tasks — refusing to report green (log: $log)"
     OVERALL=1
   else
     echo "  JS tests: green ($executed module(s) ran)"
   fi
-  echo "     ⚠ NOT covered, known red since before this lane was enforced: $JS_TEST_EXCLUSIONS"
+  if [ -n "$JS_TEST_EXCLUSIONS" ]; then
+    echo "     ⚠ NOT covered, excluded as known red (scripts/js-test-exclusions.txt): $JS_TEST_EXCLUSIONS"
+  fi
 }
 
+# ── Test-harness hygiene: two static checks, ~1 s together ───────────────────────────────────────
+#
+# Each removes a whole class of flake by refusing the shape that produces it, rather than waiting for
+# a red to name one instance (docs/testing-flakes.md): a test that gains a wall-clock bound or a
+# real-time sleep (category C), and a test that leaves the global Koin running or stops another
+# class's (category B). They run before the Gradle line so a red here costs a second, not a gate.
+echo "=== test-harness hygiene ==="
+python3 scripts/check-test-wallclock.py || OVERALL=1
+python3 scripts/check-test-koin.py || OVERALL=1
 
 for i in $(seq 1 "$RUNS"); do
   echo "=== gate run $i/$RUNS ==="
@@ -136,8 +213,16 @@ for i in $(seq 1 "$RUNS"); do
   # `androidHostTest` source set) leaves every gate green, because nothing in this line compiles them.
   # 12 modules have such a source set. Same family as `test` missing every KMP module, and as the
   # JS/iOS lanes this line cannot reach — which is what the compile lanes below close.
-  ./gradlew desktopTest jvmTest test testAndroidHostTest --continue > "$LOG" 2>&1
-  STATUS=$?
+  if [ -z "$TEST_TASKS" ]; then
+    # Quick mode only: the affected modules have no JVM/desktop/Android test task at all.
+    echo "  test tasks: none in the affected modules"
+    STATUS=0
+    : > "$LOG"
+  else
+    # shellcheck disable=SC2086  # word-split on purpose: a list of task names
+    ./gradlew $TEST_TASKS --continue > "$LOG" 2>&1
+    STATUS=$?
+  fi
 
   EXECUTED=$(grep -cE "^> Task :[a-zA-Z0-9_-]+:(desktopTest|jvmTest|testDebugUnitTest|testAndroidHostTest|test)$" "$LOG")
   SKIPPED=$(grep -cE "^> Task :[a-zA-Z0-9_-]+:(desktopTest|jvmTest|testDebugUnitTest|testAndroidHostTest|test) UP-TO-DATE$" "$LOG")
@@ -148,13 +233,38 @@ for i in $(seq 1 "$RUNS"); do
   # the JVM pass fell short does exactly that — it hides independent JS failures behind a native one
   # and makes `run-gate.sh 3` perform fewer than three JS passes, or none. Both halves of the gate
   # report; neither gates the other.
-  if [ "$EXECUTED" -lt "$MIN_TEST_TASKS" ]; then
+  # ⚠ Quick mode checks each task it asked for BY NAME, not a count: an Android `test` also prints
+  # its `testDebugUnitTest`, so a count could cover for a named task that never ran.
+  NOT_RUN=""
+  # A task with no test sources (`NO-SOURCE`) had nothing to verify and is not a skip. An Android
+  # `:m:test` is a lifecycle task: it counts when each `:m:test*UnitTest` under it ran or had none.
+  # ⚠ `FAILED` ran: its failing tests are named below, which is the report wanted, not "did not run".
+  ran_or_empty() { grep -qxE "> Task $1( NO-SOURCE| FAILED)?" "$LOG"; }
+  if [ -n "$QUICK" ]; then
+    for t in $TEST_TASKS; do
+      ran_or_empty "$t" && continue
+      if [ "${t##*:}" = "test" ]; then
+        children=$(grep -oE "^> Task ${t}[A-Za-z]*UnitTest" "$LOG" | sed 's/^> Task //' | sort -u)
+        ok=${children:+1}
+        for c in $children; do ran_or_empty "$c" || ok=""; done
+        [ -n "$ok" ] && continue
+      fi
+      NOT_RUN="$NOT_RUN $t"
+    done
+  fi
+  if [ -n "$NOT_RUN" ]; then
+    echo "  ⚠⚠ asked for but did NOT run:$NOT_RUN"
+    echo "     This run certifies NOTHING for them, whatever Gradle's exit code says."
+    OVERALL=1
+  # The count floor is the FULL gate's check; quick mode has just checked each task by name, and a
+  # count would refuse a module whose test task has no sources (it accepts `NO-SOURCE` above).
+  elif [ -z "$QUICK" ] && [ "$EXECUTED" -lt "$MIN_TEST_TASKS" ]; then
     echo "  ⚠⚠ ONLY $EXECUTED test tasks executed (expected >= $MIN_TEST_TASKS)."
     echo "     This run certifies NOTHING, whatever Gradle's exit code says."
     OVERALL=1
   else
 
-  python3 - "$LOG" <<'PY'
+  TENSHU_GATE_QUICK="$QUICK" python3 - "$LOG" <<'PY'
 import glob, sys, xml.etree.ElementTree as ET
 
 rows, classes = [], 0
@@ -233,7 +343,10 @@ seen = sorted({q.split("/")[0] for q in glob.glob("*/build/test-results/*/TEST-*
 ledger = pathlib.Path("build/gate-modules.txt")
 previous = sorted(ledger.read_text().split()) if ledger.exists() else []
 
-lost = [m for m in previous if m not in seen]
+# ⚠ Not in `--quick`: it runs a subset by design, so every module outside it would read as lost —
+# and writing its smaller set would make the next full run's comparison meaningless.
+quick = bool(os.environ.get("TENSHU_GATE_QUICK"))
+lost = [] if quick else [m for m in previous if m not in seen]
 if lost and not os.environ.get("TENSHU_GATE_ACCEPT_MODULE_LOSS"):
     print("  !! %d module(s) produced test results last run and NONE now:" % len(lost))
     for m in lost:
@@ -244,8 +357,9 @@ if lost and not os.environ.get("TENSHU_GATE_ACCEPT_MODULE_LOSS"):
     print("     Removed on purpose? TENSHU_GATE_ACCEPT_MODULE_LOSS=1 scripts/run-gate.sh")
     sys.exit(3)
 
-ledger.parent.mkdir(parents=True, exist_ok=True)
-ledger.write_text("\n".join(seen) + "\n")
+if not quick:
+    ledger.parent.mkdir(parents=True, exist_ok=True)
+    ledger.write_text("\n".join(seen) + "\n")
 
 if not rows:
     print("  all green")
@@ -284,12 +398,17 @@ done
 # inputs, which IS the verification. That asymmetry is why the lanes need no executed-task floor —
 # do not "fix" this by adding one.
 run_lane() {
-  local name="$1" task="$2"
+  local name="$1"
+  shift
   local log
+  if [ "$#" -eq 0 ]; then
+    echo "  $name lane: nothing to compile in the affected modules"
+    return
+  fi
   log="$(mktemp -t "tenshu-lane.XXXXXX")"
   # ⚠ `--continue` or Gradle stops at the first failing module — that is how five separate breaks
   # read as one, and fixing the reported one left master red looking like the fix had failed.
-  ./gradlew "$task" --continue > "$log" 2>&1
+  ./gradlew "$@" --continue > "$log" 2>&1
   if [ $? -ne 0 ]; then
     echo "  RED  $name lane   (log: $log)"
     grep -E "^e: " "$log" | sort -u | head -20 | sed 's/^/         /'
@@ -305,14 +424,16 @@ if [ -n "${TENSHU_GATE_SKIP_LANES:-}" ]; then
   echo "     it for a change to any commonMain that a JS or iOS target compiles."
 else
   echo "=== compile lanes ==="
-  run_lane "JS " compileTestKotlinJs
+  # shellcheck disable=SC2086  # word-split on purpose: a list of task names
+  run_lane "JS " $JS_LANE_TASKS
 
   # ⚠⚠ macOS ONLY, and it must SAY so rather than pass. K/N will not cross-compile an Apple target,
   # so off macOS every task is SKIPPED and Gradle reports BUILD SUCCESSFUL having compiled nothing —
   # the false green `iosKotlinCheck` refuses. This does not fail the gate (that would
   # make it unrunnable on the Linux agents), so the honest half is that the line is unmissable.
   if [ "$(uname -s)" = "Darwin" ]; then
-    run_lane "iOS" compileTestKotlinIosSimulatorArm64
+    # shellcheck disable=SC2086
+    run_lane "iOS" $IOS_LANE_TASKS
   else
     echo "  ⚠⚠ iOS lane NOT VERIFIED on $(uname -s) — K/N cannot cross-compile an Apple target, so"
     echo "     every task would be SKIPPED and report success. An iosMain/commonMain change verified"

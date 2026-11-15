@@ -9,3 +9,4 @@ export {
 } from './RuntimeLeaseBanner'
 export { SyncHealthNotice, type SyncHealthNoticeProps } from './SyncHealthNotice'
 export { StreamNotice, type StreamNoticeProps } from './StreamNotice'
+export { AppLayout, type AppLayoutProps, type AppNavItem } from './AppLayout'

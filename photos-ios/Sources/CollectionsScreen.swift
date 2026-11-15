@@ -15,7 +15,12 @@ import TenshuSdk
 final class CollectionsModel: ObservableObject {
     let viewModel: CollectionsViewModel = PhotosSurface.shared.collections()
     @Published private(set) var state: CollectionsUiState
+    /// Moves whenever this phone's face grouping may have changed (an install, a teardown, the face
+    /// readiness) — ⚠ so the tab lays out again: [layout] reads the live answer, but SwiftUI redraws
+    /// only on a publish.
+    @Published private(set) var faceGrouping: Int32 = 0
     private var observation: Task<Void, Never>?
+    private var groupingObservation: Task<Void, Never>?
 
     /// ⚠⚠ The model observes for its WHOLE life, not inside the tab's `.task`: pushing a
     /// year, place or person cancels the root's tasks, and the pushed grids read this model — so a
@@ -29,13 +34,27 @@ final class CollectionsModel: ObservableObject {
                 self.state = value
             }
         }
+        groupingObservation = Task { [weak self] in
+            for await tick in PhotosSurface.shared.faceGroupingChanges() {
+                guard let self else { return }
+                self.faceGrouping = tick.int32Value
+            }
+        }
     }
 
-    deinit { observation?.cancel() }
+    deinit {
+        observation?.cancel()
+        groupingObservation?.cancel()
+    }
 
-    /// ⚠ iOS does not group faces, so People's "why it is empty" line — a remedy this device
-    /// cannot take — stays silent (`peopleStatusLine`'s `groupingRunsHere`).
-    var layout: CollectionsLayout { CollectionsLayoutCompanion.shared.of(state: state, groupingRunsHere: false) }
+    /// Whether this phone groups faces — the installed graph's answer (`PhotosSurface.groupingRunsHere`).
+    var groupingRunsHere: Bool { PhotosSurface.shared.groupingRunsHere() }
+
+    /// ⚠⚠ `groupingRunsHere` is the installed graph's answer, asked on every layout — never a literal
+    /// (`ios-face-grouping.md` F7): `true` only where this phone binds a face backend, so with the
+    /// build flags off People's "why it is empty" line — a remedy this phone cannot take — stays
+    /// silent. Where it speaks, it names Photos' Settings → Models (`PhotosSurface.collectionsLayout`).
+    var layout: CollectionsLayout { PhotosSurface.shared.collectionsLayout(state: state) }
 }
 
 /// Where the Collections tab navigates.
@@ -259,9 +278,10 @@ struct CollectionsScreen: View {
                     HStack(spacing: 12) {
                         ForEach(people.people, id: \.id) { person in
                             NavigationLink(value: CollectionsRoute.smart(id: person.id)) {
-                                PersonCardView(person: person)
+                                PersonCardView(person: person, groupingRunsHere: model.groupingRunsHere)
                             }
                             .buttonStyle(.plain)
+                            .personCardAccessibility(person, groupingRunsHere: model.groupingRunsHere)
                         }
                     }
                     .padding(.horizontal, 16)
@@ -451,13 +471,26 @@ struct CollectionCardView: View {
     }
 }
 
-/// ⚠ A round cover of the person's photograph. The face crop Compose draws (`FaceCover.region`)
-/// waits on face grouping on iOS — here the photograph is centred.
+/// One person in the People row and grid — Compose's `PersonCard`.
+///
+/// ⚠ **A circle cut to the face** (`FaceCover.region`, the shared `faceCropSquare`) where this phone
+/// can place one. ⚠ With no face — a name synced from another device that no cluster here covers —
+/// the whole photograph in an ordinary rounded card: a circle cut from the middle of an arbitrary
+/// photograph would claim to be a face that it is not.
+/// ⚠ An unnamed person keeps an empty title line, as Compose's does: "Add a name" is on the page.
 struct PersonCardView: View {
     let person: SmartAlbum
+    /// ⚠⚠ Whether this phone groups faces. Off (either flag off), the card is EXACTLY what it was
+    /// before F7 — a round, centred photograph, "Add a name" on an unnamed one — and none of the below.
+    let groupingRunsHere: Bool
     var edge: CGFloat = 84
 
     var body: some View {
+        if groupingRunsHere { grouped } else { ungrouped }
+    }
+
+    /// The card before F7: the person's photograph, centred, in a circle.
+    private var ungrouped: some View {
         VStack(spacing: 4) {
             CoverImageView(cover: CoverRef(smart: person), edge: edge, placeholderSymbol: "person")
                 .clipShape(Circle())
@@ -467,5 +500,99 @@ struct PersonCardView: View {
                 .lineLimit(1)
         }
         .frame(width: edge)
+    }
+
+    private var grouped: some View {
+        VStack(spacing: 4) {
+            if let face = person.coverFace {
+                FaceCoverView(cover: face, edge: edge)
+            } else {
+                CoverImageView(cover: CoverRef(smart: person), edge: edge, placeholderSymbol: "person")
+            }
+            Text(person.title.isEmpty ? " " : person.title)
+                .font(.caption)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+        }
+        .frame(width: edge)
+    }
+}
+
+extension View {
+    /// A person card's link, as `CollectionsUITests` finds it: who it is, and whether its cover is
+    /// the face or the whole photograph. ⚠ On the LINK — the element XCUITest taps.
+    /// `circle`: the pre-F7 card (this phone groups no faces); `face`: cut to the face; `photo`: the
+    /// whole photograph, where this phone groups faces but has none of this person to cut.
+    func personCardAccessibility(_ person: SmartAlbum, groupingRunsHere: Bool) -> some View {
+        accessibilityIdentifier("personCard")
+            .accessibilityLabel(person.title.isEmpty ? "Unnamed person" : person.title)
+            .accessibilityValue(!groupingRunsHere ? "circle" : (person.coverFace == nil ? "photo" : "face"))
+    }
+}
+
+/// A person's face, cut out of a photograph and drawn in a circle (IN-6 F6a) — Compose's `FaceAvatar`.
+///
+/// ⚠⚠ The square is the shared `faceCropSquare`, cut from the preview the shared `faceCropRequestPx`
+/// asks for, so this cuts exactly what Compose cuts. ⚠ The region is a fraction of the UPRIGHT
+/// photograph, so the square is taken of the decoded image AFTER its orientation is applied
+/// (`TileImageLoader.downsample` bakes it in). `nil` [cover] draws [fallback]'s whole photograph, centred.
+struct FaceCoverView: View {
+    let cover: FaceCover?
+    let edge: CGFloat
+    var fallback: CoverRef? = nil
+    @State private var image: UIImage?
+    /// The square cut, as `left,top,side of WxH` — read by `CollectionsUITests` to tell a face from a centre.
+    @State private var cut = ""
+    @Environment(\.displayScale) private var scale
+
+    var body: some View {
+        Group {
+            if cover == nil {
+                CoverImageView(cover: fallback, edge: edge, placeholderSymbol: "person")
+            } else {
+                ZStack {
+                    Color(uiColor: .secondarySystemFill)
+                    if let image { Image(uiImage: image).resizable().scaledToFill() }
+                }
+                .frame(width: edge, height: edge)
+            }
+        }
+        .clipShape(Circle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier(cover == nil ? "photoCover" : "faceCrop")
+        .accessibilityValue(accessibilityText)
+        .task(id: cover?.path) { await loadFaceCrop() }
+    }
+
+    // ⚠ Typed members, not inline in `body`: the ternary and the decode closure inline made `body`
+    // the slowest expression in the app to type-check (~0.4 s on Xcode 27), past what Xcode 26's
+    // type checker solves in reasonable time.
+    /// The cut, or — with no face — which photograph's file is drawn (an edited one's rendition).
+    private var accessibilityText: String {
+        guard cover == nil else { return cut }
+        guard let name = fallback?.path.split(separator: "/").last else { return "" }
+        return String(name)
+    }
+
+    private func loadFaceCrop() async {
+        image = nil
+        guard let cover else { return }
+        let px = Int32(edge * scale)
+        guard let data = try? await PhotosSurface.shared.facePreview(cover: cover, edgePx: px) else { return }
+        let bytes = data as Foundation.Data
+        let maxPixels = Int(PhotosSurface.shared.facePreviewPx(cover: cover, edgePx: px))
+        let region = cover.region
+        // ⚠ Decoded and cut OFF the main actor, as every cover is.
+        let result: (UIImage, String)? = await Task.detached(priority: .userInitiated) {
+            guard let upright = TileImageLoader.downsample(bytes, maxPixels: maxPixels)?.cgImage else { return nil }
+            let square = FaceCropKt.faceCropSquare(width: Int32(upright.width), height: Int32(upright.height), region: region)
+            let rect = CGRect(x: Int(square.left), y: Int(square.top), width: Int(square.side), height: Int(square.side))
+            guard let face = upright.cropping(to: rect) else { return nil }
+            return (UIImage(cgImage: face), "\(square.left),\(square.top),\(square.side) of \(upright.width)x\(upright.height)")
+        }.value
+        if !Task.isCancelled, let result {
+            image = result.0
+            cut = result.1
+        }
     }
 }

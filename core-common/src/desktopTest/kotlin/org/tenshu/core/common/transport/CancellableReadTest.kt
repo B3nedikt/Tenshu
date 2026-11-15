@@ -49,8 +49,12 @@ class CancellableReadTest {
         scope.cancel()
     }
 
-    /** How many rows a walk may still take after its cancel — one in progress plus scheduling. */
-    private val slack = 10
+    /**
+     * How many rows a walk may still take after its cancel reaches the caller: the cancel's own
+     * trip to the proxy. ~2 s of walking at 5 ms a row — measured at ~70 rows on a loaded CI runner,
+     * and far below the 2 000 a walk the cancel never reached would take.
+     */
+    private val slack = 400
 
     // ── desktop: the real socket server and transport ────────────────────────────────────────────
 
@@ -81,9 +85,12 @@ class CancellableReadTest {
         delay(100)
         caller.cancelAndJoin()
         val atCancel = rig.stepped.get()
-        delay(500)
+        // ⚠ Long enough that a chain the cancel never reaches is unmistakable (~100 more steps at
+        // 20 ms), with room for a slow runner's cancel trip (up to ~1 s, 50 steps): a 500 ms
+        // window with a limit of 3 read a chain that was stopping as one that was not.
+        delay(2_000)
         val after = rig.stepped.get() - atCancel
-        assertTrue(after <= 3, "the chain kept stepping after its read was cancelled: $after more steps")
+        assertTrue(after <= 50, "the chain kept stepping after its read was cancelled: $after more steps")
     }
 
     /**
@@ -257,11 +264,14 @@ class CancellableReadTest {
         val settled = withTimeoutOrNull(3_000) { caller.cancelAndJoin() }
         assertNotNull(settled, "the caller could not unwind from its own cancellation")
         val atCancel = rig.walked.get()
-        delay(500) // ~100 more rows if the proxy is still walking
+        // ⚠ Waits for the walk to END rather than a fixed time: a slow runner delays the cancel's
+        // trip to the proxy, and a 500 ms window then read a walk that was stopping as one that
+        // was not. A walk the cancel never reaches ends at row 2 000, ~10 s in, and fails below.
+        assertNotNull(withTimeoutOrNull(30_000) { rig.walkEnded.await() }, "the walk never ended")
         val after = rig.walked.get() - atCancel
         assertTrue(
             after <= slack,
-            "the proxy kept walking after the read was cancelled: $after more rows in 500 ms " +
+            "the proxy kept walking after the read was cancelled: $after more rows " +
                 "(walked ${rig.walked.get()} of 2000)",
         )
     }

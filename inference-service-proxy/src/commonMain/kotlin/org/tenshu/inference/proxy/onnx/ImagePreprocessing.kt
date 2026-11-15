@@ -1,5 +1,6 @@
 package org.tenshu.inference.proxy.onnx
 
+import org.tenshu.inference.proxy.asFloat32
 import kotlin.math.sqrt
 
 /**
@@ -94,12 +95,24 @@ object ImagePreprocessing {
         val plane = size * size
         for (i in 0 until plane) {
             val rgb = argb[i]
-            out[i] = (((rgb shr 16) and 0xFF) / 255f - mean[0]) / std[0]
-            out[plane + i] = (((rgb shr 8) and 0xFF) / 255f - mean[1]) / std[1]
-            out[2 * plane + i] = ((rgb and 0xFF) / 255f - mean[2]) / std[2]
+            out[i] = channel((rgb shr 16) and 0xFF, mean[0], std[0])
+            out[plane + i] = channel((rgb shr 8) and 0xFF, mean[1], std[1])
+            out[2 * plane + i] = channel(rgb and 0xFF, mean[2], std[2])
         }
         return out
     }
+
+    /**
+     * One channel value, rounded to float32 after **each** step.
+     *
+     * ⚠ The rounding is what makes the tensor the same bits on every target, so one golden
+     * (`ImagePreprocessingGoldenTest`, `PreflightProbeImageTest`) pins all of them. The JVM and
+     * Kotlin/Native round each `Float` operation already, and there it is a no-op; Kotlin/JS
+     * computes the expression in doubles and rounds once, on the store into [out], which differs in
+     * the last bit for some inputs.
+     */
+    private fun channel(value: Int, mean: Float, std: Float): Float =
+        ((value / 255f).asFloat32() - mean).asFloat32() / std
 
     /**
      * L2-normalises in place and returns the same array — cosine is a dot product afterwards.

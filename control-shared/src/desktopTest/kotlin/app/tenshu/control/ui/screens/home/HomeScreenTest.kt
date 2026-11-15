@@ -37,6 +37,7 @@ import org.koin.dsl.module
 import kotlin.time.Clock
 import org.tenshu.viewmodel.test.OwnedViewModels
 import org.tenshu.viewmodel.test.closeBlocking
+import org.tenshu.ui.test.NoMotion
 
 class HomeScreenTest {
 
@@ -90,7 +91,6 @@ class HomeScreenTest {
             }
         }
 
-        stopKoin()
         startKoin {
             modules(module {
                 single<EventRepository> { mockEventRepository }
@@ -124,7 +124,7 @@ class HomeScreenTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun homeScreenDisplaysEvents() = runComposeUiTest {
+    fun homeScreenDisplaysEvents() = runComposeUiTest(effectContext = NoMotion) {
         val viewModelStoreOwner = object : ViewModelStoreOwner {
             override val viewModelStore: ViewModelStore = this@HomeScreenTest.viewModelStore
         }
@@ -153,7 +153,7 @@ class HomeScreenTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun addEvent_isReflectedInUI() = runComposeUiTest {
+    fun addEvent_isReflectedInUI() = runComposeUiTest(effectContext = NoMotion) {
         val viewModelStoreOwner = object : ViewModelStoreOwner {
             override val viewModelStore: ViewModelStore = this@HomeScreenTest.viewModelStore
         }
@@ -201,7 +201,7 @@ class HomeScreenTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun removeEvent_isReflectedInUI() = runComposeUiTest {
+    fun removeEvent_isReflectedInUI() = runComposeUiTest(effectContext = NoMotion) {
         val viewModelStoreOwner = object : ViewModelStoreOwner {
             override val viewModelStore: ViewModelStore = this@HomeScreenTest.viewModelStore
         }

@@ -18,12 +18,13 @@ import org.tenshu.core.file.File
 import org.tenshu.core.health.Workout
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.tenshu.ui.test.NoMotion
 
 /** Stateless `DataScreenContent` rendering + interaction (no VM / proxy). */
 class DataScreenContentTest {
 
     @get:Rule
-    val rule = createComposeRule()
+    val rule = createComposeRule(NoMotion)
 
     @Test
     fun rendersACardPerRealmDataType_viaPresentation() {

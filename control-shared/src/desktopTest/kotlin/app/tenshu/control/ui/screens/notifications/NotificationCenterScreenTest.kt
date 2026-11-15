@@ -19,6 +19,7 @@ import app.tenshu.control.notifications.PendingRequest
 import app.tenshu.ui.theme.TenshuTheme
 import org.junit.Test
 import kotlin.test.assertEquals
+import org.tenshu.ui.test.NoMotion
 
 @OptIn(ExperimentalTestApi::class)
 class NotificationCenterScreenTest {
@@ -33,7 +34,7 @@ class NotificationCenterScreenTest {
     )
 
     @Test
-    fun shows_the_empty_state_when_there_are_no_requests() = runComposeUiTest {
+    fun shows_the_empty_state_when_there_are_no_requests() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 NotificationCenterContent(requests = emptyList(), onBack = {})
@@ -43,7 +44,7 @@ class NotificationCenterScreenTest {
     }
 
     @Test
-    fun lists_grant_and_invite_requests() = runComposeUiTest {
+    fun lists_grant_and_invite_requests() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 NotificationCenterContent(requests = listOf(grant, invite), onBack = {})
@@ -54,7 +55,7 @@ class NotificationCenterScreenTest {
     }
 
     @Test
-    fun accept_on_a_grant_card_fires_the_accept_action() = runComposeUiTest {
+    fun accept_on_a_grant_card_fires_the_accept_action() = runComposeUiTest(effectContext = NoMotion) {
         var accepted: PendingRequest.MembershipGrant? = null
         setContent {
             TenshuTheme {
@@ -70,7 +71,7 @@ class NotificationCenterScreenTest {
     }
 
     @Test
-    fun confirm_on_an_invite_card_passes_the_petname_and_codes_match_flag() = runComposeUiTest {
+    fun confirm_on_an_invite_card_passes_the_petname_and_codes_match_flag() = runComposeUiTest(effectContext = NoMotion) {
         var confirmedPetname: String? = null
         var confirmedSas: Boolean? = null
         setContent {
@@ -94,7 +95,7 @@ class NotificationCenterScreenTest {
     }
 
     @Test
-    fun an_in_flight_action_disables_the_card_buttons() = runComposeUiTest {
+    fun an_in_flight_action_disables_the_card_buttons() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 PendingRequestCard(
@@ -108,7 +109,7 @@ class NotificationCenterScreenTest {
     }
 
     @Test
-    fun a_failure_message_renders_on_the_card() = runComposeUiTest {
+    fun a_failure_message_renders_on_the_card() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 PendingRequestCard(
@@ -124,7 +125,7 @@ class NotificationCenterScreenTest {
     }
 
     @Test
-    fun the_dismiss_affordance_fires_the_dismiss_action() = runComposeUiTest {
+    fun the_dismiss_affordance_fires_the_dismiss_action() = runComposeUiTest(effectContext = NoMotion) {
         var dismissed: PendingRequest? = null
         setContent {
             TenshuTheme {
@@ -140,7 +141,7 @@ class NotificationCenterScreenTest {
     }
 
     @Test
-    fun an_already_seen_request_hides_the_dismiss_affordance_but_stays_listed() = runComposeUiTest {
+    fun an_already_seen_request_hides_the_dismiss_affordance_but_stays_listed() = runComposeUiTest(effectContext = NoMotion) {
         // Mark-seen semantics: a dismissed request still renders in the center (so it
         // can be acted on later) — it just loses the "×" since re-dismissing is a no-op.
         setContent {
@@ -157,7 +158,7 @@ class NotificationCenterScreenTest {
     }
 
     @Test
-    fun pinned_requests_shows_at_most_the_two_newest() = runComposeUiTest {
+    fun pinned_requests_shows_at_most_the_two_newest() = runComposeUiTest(effectContext = NoMotion) {
         val older = PendingRequest.MembershipGrant("fp-old-fingerprint", timestampMillis = 1L)
         setContent {
             TenshuTheme {
@@ -174,7 +175,7 @@ class NotificationCenterScreenTest {
     }
 
     @Test
-    fun confirm_waits_for_the_claim_to_load() = runComposeUiTest {
+    fun confirm_waits_for_the_claim_to_load() = runComposeUiTest(effectContext = NoMotion) {
         // The proxy refuses an empty shown fingerprint (T-CI-10), so a card whose claim has not
         // loaded must not offer an action that can only fail.
         setContent {
@@ -190,7 +191,7 @@ class NotificationCenterScreenTest {
     }
 
     @Test
-    fun a_claim_that_moves_under_the_card_clears_the_codes_match_tick() = runComposeUiTest {
+    fun a_claim_that_moves_under_the_card_clears_the_codes_match_tick() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠⚠ Threat model T-CI-10: a second inviter device's write can replace the claim by merge
         // while this card is open. The tick was made against the first code; confirming must not
         // carry it over to the second — the request passed back is the one now on screen, and it

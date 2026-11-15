@@ -1,5 +1,8 @@
 package org.tenshu.core.common.proxy
 
+import kotlinx.atomicfu.locks.reentrantLock
+import kotlin.concurrent.atomics.AtomicReference
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -46,8 +49,58 @@ import org.tenshu.core.schema.isSubtypeOf
  * [ExecutionContext.clientConnection]. Passing the context as a parameter is
  * the same shape resolveProperty uses (ADR 0008) and keeps the registry
  * itself stateless with respect to the context.
+ *
+ * ⚠⚠ **Every map below is guarded by [state], and the registry is reached from many threads at
+ * once.** A screen that `combine`s several reads subscribes them concurrently, each on its own
+ * `Dispatchers.Default` worker, and nothing above this class serialises one session's requests —
+ * the in-process executor runs them where they land. Unguarded, two registrations writing
+ * [streamIdToRegistration] at once could lose one token: that stream's initial evaluation then
+ * found itself "not live" and **sent no snapshot**, so the read never emitted at all and stayed
+ * blank until a later subscription of the chain. Contacts on iOS lost 12 of 150 lists this way;
+ * the other maps lose an update callback or a ref's listener set the same way, which is a stream
+ * that never hears its invalidation (`core-client-resubscription.md` §4.9,
+ * `StreamRegistryConcurrentRegistrationTest`).
+ *
+ * ⚠ The lock is never held across a suspension or a send — only around map reads and writes and
+ * the database's listener (un)registration, which it must cover so a ref's 0↔1 count and its
+ * handle move together. That makes the order **registry → database**; the database fires its
+ * listeners under its own lock, so [triggerUpdate] must not take this one — it reads
+ * [listenersByArray], an immutable copy republished under the lock, and each launched update looks
+ * its callback up under the lock from its own coroutine.
+ *
+ * ⚠⚠ That relies on the session scope **dispatching**. Under `Dispatchers.Unconfined` (or any
+ * dispatcher whose `isDispatchNeeded` is false) the launched update runs inline on the writer's
+ * thread, still inside the database's lock, and its first `guarded` inverts the order. Production
+ * session scopes are `Dispatchers.Default`-based; the unit tests that use an unconfined scope do so
+ * over lock-free fake databases, which is why they cannot deadlock — and also why they cannot
+ * catch a scope that stopped dispatching.
  */
+@OptIn(ExperimentalAtomicApi::class)
 class StreamRegistry {
+
+    private val state = reentrantLock()
+
+    /** Nesting depth of [guarded] on the holding thread; read and written only under [state]. */
+    private var holdDepth = 0
+
+    /** [refToStreamListeners] changed in the current hold — republished when it ends. Under [state]. */
+    private var listenersDirty = false
+
+    private inline fun <R> guarded(block: () -> R): R {
+        state.lock()
+        holdDepth++
+        try {
+            return block()
+        } finally {
+            // Once per outermost hold, not per change: a re-evaluation can register or drop many
+            // refs in one step, and each copy is O(arrays).
+            if (--holdDepth == 0 && listenersDirty) {
+                listenersDirty = false
+                publishListeners()
+            }
+            state.unlock()
+        }
+    }
 
     private val streamIdToItems = mutableMapOf<Long, List<Data>>()
     private val streamIdToRef = mutableMapOf<Long, ArrayDatabaseReference>()
@@ -55,6 +108,18 @@ class StreamRegistry {
     private val streamIdToUpdateCallback =
         mutableMapOf<Long, suspend (isInitial: Boolean) -> Unit>()
     private val refToStreamListeners = mutableMapOf<Long, MutableSet<Long>>()
+
+    /**
+     * [refToStreamListeners] as an immutable snapshot, for [triggerUpdate]: it runs inside the
+     * database's lock, where taking [state] would invert the registry → database order. Republished
+     * at the end of every hold of [state] that changed the map ([listenersDirty]).
+     */
+    private val listenersByArray = AtomicReference<Map<Long, Set<Long>>>(emptyMap())
+
+    /** ⚠ Under [state] only. */
+    private fun publishListeners() {
+        listenersByArray.store(refToStreamListeners.mapValues { it.value.toSet() })
+    }
     private val refToStreamCount = mutableMapOf<Long, Int>()
     // This registry's array-listener handle per array hash (from `database.setArrayListener`), so
     // teardown removes *this* session's registration without disturbing another session's.
@@ -81,7 +146,7 @@ class StreamRegistry {
      */
     private val streamIdToRegistration = mutableMapOf<Long, Any>()
 
-    private fun isLive(streamId: Long, registration: Any) = streamIdToRegistration[streamId] === registration
+    private fun isLive(streamId: Long, registration: Any) = guarded { streamIdToRegistration[streamId] === registration }
     private val streamIdToDeferredJobs = mutableMapOf<Long, MutableSet<Job>>()
 
     // Dedupe: one in-flight resolution per (stream, row, property). A later
@@ -115,14 +180,16 @@ class StreamRegistry {
         // A fresh subscription under this id: nothing the transport held for an earlier one applies.
         executionContext.clientConnection.forgetStream(streamId)
         val registration = Any()
-        streamIdToRegistration[streamId] = registration
-        streamIdToRef[streamId] = reference
 
         // Serialises concurrent listener fires for this stream — without it, two
         // simultaneous fires can both observe an empty streamIdToItems and emit
         // the same item twice. Held in `streamIdToMutex` (not a closure local) so
         // the deferred-patch path serialises against full re-evaluations too.
-        val updateMutex = streamIdToMutex.getOrPut(streamId) { Mutex() }
+        val updateMutex = guarded {
+            streamIdToRegistration[streamId] = registration
+            streamIdToMutex.getOrPut(streamId) { Mutex() }
+        }
+        afterRegistrationStamped?.invoke()
 
         val onUpdate: suspend (Boolean) -> Unit = onUpdate@{ isInitial ->
             updateMutex.lock()
@@ -208,25 +275,29 @@ class StreamRegistry {
                     }
                     // Checked again: materialising on-demand properties can suspend.
                     if (!isLive(streamId, registration)) return@onUpdate
-                    val oldItems =
-                        if (isInitial) emptyList() else streamIdToItems[streamId] ?: emptyList()
-
                     val discoveredRefs = findDatabaseReferences(processedDataResult)
                         .filterIsInstance<ArrayDatabaseReference>()
 
                     val allCurrentRefs = currentCapturedRefs + discoveredRefs
 
-                    val currentStreamRefs =
-                        streamIdToNestedRefs.getOrPut(streamId) { mutableSetOf() }
+                    // One guarded step: the liveness check, the diff baseline and the ref
+                    // bookkeeping. A stream ended since the check above must not re-register refs
+                    // (a listener nobody would ever remove) — so the check is repeated in here.
+                    val oldItems = guarded {
+                        if (!isLive(streamId, registration)) return@onUpdate
+                        val currentStreamRefs =
+                            streamIdToNestedRefs.getOrPut(streamId) { mutableSetOf() }
 
-                    val addedRefs = allCurrentRefs - currentStreamRefs
-                    val removedRefs = currentStreamRefs - allCurrentRefs
+                        val addedRefs = allCurrentRefs - currentStreamRefs
+                        val removedRefs = currentStreamRefs - allCurrentRefs
 
-                    addedRefs.forEach { ref ->
-                        registerRefForStream(executionContext, streamId, ref)
-                    }
-                    removedRefs.forEach { ref ->
-                        unregisterRefForStream(executionContext, streamId, ref)
+                        addedRefs.forEach { ref ->
+                            registerRefForStream(executionContext, streamId, ref)
+                        }
+                        removedRefs.forEach { ref ->
+                            unregisterRefForStream(executionContext, streamId, ref)
+                        }
+                        if (isInitial) emptyList() else streamIdToItems[streamId] ?: emptyList()
                     }
 
                     if (isInitial) {
@@ -249,7 +320,7 @@ class StreamRegistry {
                     } else {
                         emitChanges(executionContext, streamId, oldItems, newItems)
                     }
-                    streamIdToItems[streamId] = newItems
+                    guarded { if (isLive(streamId, registration)) streamIdToItems[streamId] = newItems }
 
                     // Deferred markers that survived materialisation get a
                     // background resolution + per-row patch. Signal-only
@@ -287,37 +358,66 @@ class StreamRegistry {
             }
         }
 
-        streamIdToUpdateCallback[streamId] = onUpdate
-        registerRefForStream(executionContext, streamId, reference)
-        _activeStreamCount.update { it + 1 }
+        // ⚠ Installed only if the stream is still the live registration: an `EndStream` processed
+        // since the stamp above must not leave a listener, a callback and an active-stream count
+        // behind for a subscription that no longer exists. `streamIdToRef` is set here, with the
+        // count, so a removal before this point does not decrement a count this never raised.
+        val installed = guarded {
+            if (!isLive(streamId, registration)) return@guarded false
+            streamIdToRef[streamId] = reference
+            streamIdToUpdateCallback[streamId] = onUpdate
+            registerRefForStream(executionContext, streamId, reference)
+            _activeStreamCount.update { it + 1 }
+            true
+        }
+        if (!installed) return null
 
         onUpdate(true)
 
         return null
     }
 
+    /**
+     * Test seam: runs between [setDatabaseListener]'s registration stamp and its install, the window
+     * a concurrent [removeDatabaseListener] can land in. `null` in production.
+     */
+    internal var afterRegistrationStamped: (() -> Unit)? = null
+
     fun removeDatabaseListener(executionContext: ExecutionContext, streamId: Long) {
         executionContext.clientConnection.forgetStream(streamId)
-        streamIdToRegistration.remove(streamId)
-        val wasRegistered = streamIdToRef.remove(streamId) != null
-        streamIdToUpdateCallback.remove(streamId)
-        val refs = streamIdToNestedRefs[streamId]?.toList() ?: emptyList()
-        refs.forEach { unregisterRefForStream(executionContext, streamId, it) }
-        streamIdToNestedRefs.remove(streamId)
-        streamIdToItems.remove(streamId)
-        cancelDeferredResolutions(streamId)
-        if (wasRegistered) _activeStreamCount.update { (it - 1).coerceAtLeast(0) }
+        var jobs: List<Job> = emptyList()
+        val wasRegistered = guarded {
+            streamIdToRegistration.remove(streamId)
+            val wasRegistered = streamIdToRef.remove(streamId) != null
+            streamIdToUpdateCallback.remove(streamId)
+            val refs = streamIdToNestedRefs[streamId]?.toList() ?: emptyList()
+            refs.forEach { unregisterRefForStream(executionContext, streamId, it) }
+            streamIdToNestedRefs.remove(streamId)
+            streamIdToItems.remove(streamId)
+            jobs = dropDeferredResolutions(streamId)
+            if (wasRegistered) _activeStreamCount.update { (it - 1).coerceAtLeast(0) }
+            wasRegistered
+        }
+        // Cancelled outside the lock: a cancellation runs completion handlers, which take it again.
+        jobs.forEach { it.cancel() }
     }
 
     fun clear() {
+        guarded {
+            streamIdToDeferredJobs.keys.toList().flatMap { dropDeferredResolutions(it) }
+        }.forEach { it.cancel() }
+        guarded { clearLocked() }
+    }
+
+    private fun clearLocked() {
         streamIdToItems.clear()
         streamIdToRef.clear()
         streamIdToNestedRefs.clear()
         streamIdToUpdateCallback.clear()
         streamIdToRegistration.clear()
         refToStreamListeners.clear()
+        listenersDirty = true
         refToStreamCount.clear()
-        streamIdToDeferredJobs.keys.toList().forEach { cancelDeferredResolutions(it) }
         streamIdToMutex.clear()
         inFlightPatchKeys.clear()
         _activeStreamCount.value = 0
@@ -346,18 +446,18 @@ class StreamRegistry {
             entity.properties.entries.forEach entry@{ (keyRef, value) ->
                 val marker = value as? PendingDeferredProperty ?: return@entry
                 val key = patchKey(streamId, marker)
-                if (!inFlightPatchKeys.add(key)) return@entry
+                if (!guarded { inFlightPatchKeys.add(key) }) return@entry
                 val job = executionContext.sessionScope.launch {
                     try {
                         deferredSemaphore.withPermit {
                             resolveAndPatch(executionContext, streamId, keyRef.get(), marker)
                         }
                     } finally {
-                        inFlightPatchKeys.remove(key)
+                        guarded { inFlightPatchKeys.remove(key) }
                     }
                 }
-                streamIdToDeferredJobs.getOrPut(streamId) { mutableSetOf() }.add(job)
-                job.invokeOnCompletion { streamIdToDeferredJobs[streamId]?.remove(job) }
+                guarded { streamIdToDeferredJobs.getOrPut(streamId) { mutableSetOf() }.add(job) }
+                job.invokeOnCompletion { guarded { streamIdToDeferredJobs[streamId]?.remove(job) } }
             }
         }
     }
@@ -398,9 +498,9 @@ class StreamRegistry {
             null
         }
 
-        val mutex = streamIdToMutex[streamId] ?: return // stream closed meanwhile
+        val mutex = guarded { streamIdToMutex[streamId] } ?: return // stream closed meanwhile
         mutex.withLock {
-            val items = streamIdToItems[streamId] ?: return
+            val items = guarded { streamIdToItems[streamId] } ?: return
             val targetHash = marker.entityId.getDataIdHash()
             val index = items.indexOfFirst { row ->
                 executionContext.getDataId(row)?.getDataIdHash() == targetHash
@@ -426,15 +526,17 @@ class StreamRegistry {
             )
 
             // Write back FIRST so the next diff doesn't re-emit the patched row.
-            streamIdToItems[streamId] = items.toMutableList().also { it[index] = merged }
+            guarded { streamIdToItems[streamId] = items.toMutableList().also { it[index] = merged } }
             executionContext.clientConnection.send(StreamElementValueDto(streamId, merged))
         }
     }
 
-    private fun cancelDeferredResolutions(streamId: Long) {
-        streamIdToDeferredJobs.remove(streamId)?.forEach { it.cancel() }
+    /** Forgets [streamId]'s deferred resolutions and returns their jobs, for the caller to cancel **after** releasing [state]. */
+    private fun dropDeferredResolutions(streamId: Long): List<Job> = guarded {
+        val jobs = streamIdToDeferredJobs.remove(streamId)?.toList() ?: emptyList()
         streamIdToMutex.remove(streamId)
         inFlightPatchKeys.removeAll { it.startsWith("$streamId/") }
+        jobs
     }
 
     private fun patchKey(streamId: Long, marker: PendingDeferredProperty): String =
@@ -499,6 +601,7 @@ class StreamRegistry {
         }
     }
 
+    /** ⚠ Under [state] only — see the class KDoc. */
     private fun registerRefForStream(
         executionContext: ExecutionContext,
         streamId: Long,
@@ -519,10 +622,12 @@ class StreamRegistry {
             )
         }
         refToStreamListeners.getOrPut(hash) { mutableSetOf() }.add(streamId)
+        listenersDirty = true
         refToStreamCount[hash] = count + 1
         currentStreamRefs.add(ref)
     }
 
+    /** ⚠ Under [state] only — see the class KDoc. */
     private fun unregisterRefForStream(
         executionContext: ExecutionContext,
         streamId: Long,
@@ -548,14 +653,21 @@ class StreamRegistry {
         // last reference to it, not its first — or it goes deaf to an array it still reads.
         if (currentStreamRefs.none { it.arrayId.getDataIdHash() == hash }) {
             refToStreamListeners[hash]?.remove(streamId)
+            listenersDirty = true
         }
     }
 
+    /**
+     * ⚠ Runs on the writer's thread, inside the database's lock (it is an array listener), so it
+     * must not take [state] — that would invert the registry → database order
+     * [registerRefForStream] holds. It reads the published snapshot instead, and each update
+     * takes its callback under [state] from its own coroutine, one launch per stream as before.
+     */
     private fun triggerUpdate(executionContext: ExecutionContext, hash: Long) {
-        val streamsToUpdate = refToStreamListeners[hash]?.toList() ?: emptyList()
+        val streamsToUpdate = listenersByArray.load()[hash] ?: return
         streamsToUpdate.forEach { streamId: Long ->
             executionContext.sessionScope.launch {
-                streamIdToUpdateCallback[streamId]?.invoke(false)
+                guarded { streamIdToUpdateCallback[streamId] }?.invoke(false)
             }
         }
     }

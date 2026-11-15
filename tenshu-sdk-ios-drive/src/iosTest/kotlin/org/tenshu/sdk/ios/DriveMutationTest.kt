@@ -9,8 +9,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import org.tenshu.viewmodel.test.vmTest
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -32,9 +32,9 @@ class DriveMutationTest {
     private fun file(path: String) = FileModel.File(path, path.substringAfterLast('/'), "", FileIcon.Document)
 
     @Test
-    fun createFolder_builds_the_child_path_and_records_it() = runTest(dispatcher) {
+    fun createFolder_builds_the_child_path_and_records_it() = vmTest(dispatcher) { vms ->
         val fake = FakeFilesRepository(initialListing = emptyList())
-        val vm = DriveMutationSurface.createFolder(fake, "/Photos")
+        val vm = vms.own(DriveMutationSurface.createFolder(fake, "/Photos"))
 
         vm.onFolderNameChanged("Holiday")
         vm.createFolder()
@@ -45,9 +45,9 @@ class DriveMutationTest {
     }
 
     @Test
-    fun createFolder_at_root_uses_a_single_slash() = runTest(dispatcher) {
+    fun createFolder_at_root_uses_a_single_slash() = vmTest(dispatcher) { vms ->
         val fake = FakeFilesRepository(initialListing = emptyList())
-        val vm = DriveMutationSurface.createFolder(fake, "/")
+        val vm = vms.own(DriveMutationSurface.createFolder(fake, "/"))
 
         vm.onFolderNameChanged("New")
         vm.createFolder()
@@ -57,9 +57,9 @@ class DriveMutationTest {
     }
 
     @Test
-    fun createFolder_onto_an_existing_name_offers_keep_both() = runTest(dispatcher) {
+    fun createFolder_onto_an_existing_name_offers_keep_both() = vmTest(dispatcher) { vms ->
         val fake = FakeFilesRepository(initialListing = listOf(folder("/Photos")))
-        val vm = DriveMutationSurface.createFolder(fake, "/")
+        val vm = vms.own(DriveMutationSurface.createFolder(fake, "/"))
 
         vm.onFolderNameChanged("Photos")
         vm.createFolder()
@@ -81,9 +81,9 @@ class DriveMutationTest {
     }
 
     @Test
-    fun keep_both_is_offered_for_a_collision_and_nothing_else() = runTest(dispatcher) {
+    fun keep_both_is_offered_for_a_collision_and_nothing_else() = vmTest(dispatcher) { vms ->
         val fake = FakeFilesRepository(initialListing = emptyList())
-        val vm = DriveMutationSurface.createFolder(fake, "/")
+        val vm = vms.own(DriveMutationSurface.createFolder(fake, "/"))
 
         // A validation refusal is not a collision, so the counter remedy makes no sense — the old
         // dialog offered it for ANY error, because the error was only ever a presence flag.
@@ -96,9 +96,9 @@ class DriveMutationTest {
     }
 
     @Test
-    fun a_folder_name_containing_a_separator_is_rejected_as_typed() = runTest(dispatcher) {
+    fun a_folder_name_containing_a_separator_is_rejected_as_typed() = vmTest(dispatcher) { vms ->
         val fake = FakeFilesRepository(initialListing = emptyList())
-        val vm = DriveMutationSurface.createFolder(fake, "/Photos")
+        val vm = vms.own(DriveMutationSurface.createFolder(fake, "/Photos"))
 
         vm.onFolderNameChanged("a/b")
 
@@ -120,9 +120,9 @@ class DriveMutationTest {
     }
 
     @Test
-    fun an_empty_folder_name_is_not_submittable() = runTest(dispatcher) {
+    fun an_empty_folder_name_is_not_submittable() = vmTest(dispatcher) { vms ->
         val fake = FakeFilesRepository(initialListing = emptyList())
-        val vm = DriveMutationSurface.createFolder(fake, "/Photos")
+        val vm = vms.own(DriveMutationSurface.createFolder(fake, "/Photos"))
 
         // The dialog opens on an empty field, and Compose's confirm button was never disabled —
         // confirming straight away created a folder with no name.
@@ -137,9 +137,9 @@ class DriveMutationTest {
     }
 
     @Test
-    fun rename_calls_the_repository_with_the_new_name() = runTest(dispatcher) {
+    fun rename_calls_the_repository_with_the_new_name() = vmTest(dispatcher) { vms ->
         val fake = FakeFilesRepository(initialListing = listOf(file("/a.txt")))
-        val vm = DriveMutationSurface.rename(fake, "/a.txt")
+        val vm = vms.own(DriveMutationSurface.rename(fake, "/a.txt"))
 
         vm.onNewNameChanged("b.txt")
         vm.renameFile()
@@ -153,9 +153,9 @@ class DriveMutationTest {
     }
 
     @Test
-    fun rename_reports_no_new_path_until_the_write_commits() = runTest(dispatcher) {
+    fun rename_reports_no_new_path_until_the_write_commits() = vmTest(dispatcher) { vms ->
         val fake = FakeFilesRepository(initialListing = listOf(file("/a.txt")))
-        val vm = DriveMutationSurface.rename(fake, "/a.txt")
+        val vm = vms.own(DriveMutationSurface.rename(fake, "/a.txt"))
 
         vm.onNewNameChanged("b.txt")
         vm.renameFile()
@@ -168,9 +168,9 @@ class DriveMutationTest {
     }
 
     @Test
-    fun rename_onto_an_existing_name_reports_it_and_writes_nothing() = runTest(dispatcher) {
+    fun rename_onto_an_existing_name_reports_it_and_writes_nothing() = vmTest(dispatcher) { vms ->
         val fake = FakeFilesRepository(initialListing = listOf(file("/a.txt"), file("/b.txt")))
-        val vm = DriveMutationSurface.rename(fake, "/a.txt")
+        val vm = vms.own(DriveMutationSurface.rename(fake, "/a.txt"))
 
         vm.onNewNameChanged("b.txt")
         vm.renameFile()
@@ -186,9 +186,9 @@ class DriveMutationTest {
     }
 
     @Test
-    fun editing_the_name_again_clears_the_refusal() = runTest(dispatcher) {
+    fun editing_the_name_again_clears_the_refusal() = vmTest(dispatcher) { vms ->
         val fake = FakeFilesRepository(initialListing = listOf(file("/a.txt"), file("/b.txt")))
-        val vm = DriveMutationSurface.rename(fake, "/a.txt")
+        val vm = vms.own(DriveMutationSurface.rename(fake, "/a.txt"))
 
         vm.onNewNameChanged("b.txt")
         vm.renameFile()
@@ -199,9 +199,9 @@ class DriveMutationTest {
     }
 
     @Test
-    fun the_current_name_is_not_submittable() = runTest(dispatcher) {
+    fun the_current_name_is_not_submittable() = vmTest(dispatcher) { vms ->
         val fake = FakeFilesRepository(initialListing = listOf(file("/a.txt")))
-        val vm = DriveMutationSurface.rename(fake, "/a.txt")
+        val vm = vms.own(DriveMutationSurface.rename(fake, "/a.txt"))
 
         // Seeded with the file's own name: MoveFile rejects a target that exists and the file's
         // OWN path exists, so submitting this would report "already exists" about itself.
@@ -223,9 +223,9 @@ class DriveMutationTest {
     }
 
     @Test
-    fun a_name_containing_a_separator_is_rejected_as_typed() = runTest(dispatcher) {
+    fun a_name_containing_a_separator_is_rejected_as_typed() = vmTest(dispatcher) { vms ->
         val fake = FakeFilesRepository(initialListing = listOf(file("/a.txt")))
-        val vm = DriveMutationSurface.rename(fake, "/a.txt")
+        val vm = vms.own(DriveMutationSurface.rename(fake, "/a.txt"))
 
         vm.onNewNameChanged("sub/b.txt")
 
@@ -250,9 +250,9 @@ class DriveMutationTest {
     }
 
     @Test
-    fun move_calls_the_repository_and_flags_moved() = runTest(dispatcher) {
+    fun move_calls_the_repository_and_flags_moved() = vmTest(dispatcher) { vms ->
         val fake = FakeFilesRepository(initialListing = listOf(folder("/Photos")))
-        val bound = DriveMutationSurface.movePicker(fake, "/a.txt", "/Photos", this.backgroundScope, dispatcher)
+        val bound = DriveMutationSurface.movePicker(fake, "/a.txt", "/Photos", this.backgroundScope, dispatcher).also { vms.own(it.viewModel) }
 
         bound.viewModel.move()
         advanceUntilIdle()
@@ -262,10 +262,10 @@ class DriveMutationTest {
     }
 
     @Test
-    fun move_into_the_source_parent_is_disabled() = runTest(dispatcher) {
+    fun move_into_the_source_parent_is_disabled() = vmTest(dispatcher) { vms ->
         val fake = FakeFilesRepository()
         // Source lives in "/Docs"; browsing "/Docs" must disable "Move here" (no-op move).
-        val bound = DriveMutationSurface.movePicker(fake, "/Docs/a.txt", "/Docs", this.backgroundScope, dispatcher)
+        val bound = DriveMutationSurface.movePicker(fake, "/Docs/a.txt", "/Docs", this.backgroundScope, dispatcher).also { vms.own(it.viewModel) }
 
         assertEquals(false, bound.viewModel.uiState.value.canMoveHere)
     }

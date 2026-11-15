@@ -99,7 +99,7 @@ class AskMiaLabelSearchTest {
             )
             MediaIndexer(
                 registry = InferenceBackendRegistry(listOf(FakeInferenceBackend(tags = tags))),
-                deviceId = thisDevice,
+                deviceId = { thisDevice },
                 // ⚠⚠ A vocabulary is required for any label to be written (IN-D9 / §27): the empty
                 // default emits nothing however confident the model is, because an uncalibrated
                 // label is not better than no label. Built from this test's own tags so the fixture

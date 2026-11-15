@@ -3,6 +3,7 @@
 package org.tenshu.sdk.ios
 
 import kotlinx.coroutines.test.runTest
+import kotlin.time.Duration.Companion.minutes
 import org.tenshu.contact.ContactService
 import org.tenshu.contact.ContactSource
 import org.tenshu.contact.client.FullCardRead
@@ -103,7 +104,10 @@ class ContactPhotoRowMaxSharedReplicaTest {
     @Test
     fun aBigPhotoContactSavesWhereTheWholeCardIsRowTooLarge() {
         val store = sqliteStore() // on the test's thread: `installAtLaunch` is main-only
-        runTest { importInto(store) }
+        // ⚠ Not runTest's 60 s default: this is real work — a 2 MB photo split, sealed and written
+        // through the real SQLite replica on a debug K/N build — and GitHub's 3-core macOS runner
+        // overran 60 s, failing as a bare `UncompletedCoroutinesError` with nothing wrong.
+        runTest(timeout = 5.minutes) { importInto(store) }
     }
 
     private suspend fun importInto(store: SharedReplicaStore) {

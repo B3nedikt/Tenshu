@@ -5,6 +5,7 @@ import app.tenshu.ingest.IndexedContent
 import app.tenshu.ingest.RealmContentReads
 import app.tenshu.photos.data.TenshuPhotosRepository.Companion.DEFAULT_PAGE_SIZE
 import app.tenshu.photos.model.FaceGroup
+import app.tenshu.photos.model.FaceRejection
 import app.tenshu.photos.model.FaceRegion
 import app.tenshu.photos.model.GroupFace
 import app.tenshu.photos.model.NamingOutcome
@@ -17,7 +18,11 @@ import app.tenshu.photos.model.SemanticSearchStatus
 import app.tenshu.photos.model.photoPlaceOrNull
 import app.tenshu.reachability.ControlReachability
 import app.tenshu.reachability.UnreachableReason
+import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
@@ -27,6 +32,7 @@ import kotlinx.coroutines.launch
 import org.tenshu.core.collection.list.changes
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import org.tenshu.core.Data
 import org.tenshu.core.TResult
@@ -74,6 +80,7 @@ import org.tenshu.core.TByteArray
 import org.tenshu.core.relation.Property
 import org.tenshu.core.file.Preview
 import org.tenshu.core.file.Size
+import org.tenshu.core.file.EDIT_RENDITIONS_ROOT
 import org.tenshu.core.file.TRASH_ROOT
 import org.tenshu.core.file.Thumbnail
 import org.tenshu.core.file.ThumbnailLarge
@@ -126,10 +133,20 @@ import org.tenshu.inference.filePath
 import org.tenshu.inference.label
 import org.tenshu.inference.faceGroups
 import org.tenshu.inference.nameFaceGroup
+import org.tenshu.inference.faceSuggestionRejections
+import org.tenshu.inference.rejectFaceSuggestion
 import org.tenshu.inference.photosLike
 import org.tenshu.photo.Album
 import org.tenshu.photo.AlbumEntry
+import app.tenshu.photos.edit.EditRecipe
+import app.tenshu.photos.edit.EditRecipeCodec
+import org.tenshu.photo.PhotoEdit
 import org.tenshu.photo.PhotoFlags
+import org.tenshu.photo.clearPhotoEdit
+import org.tenshu.photo.recipe
+import org.tenshu.photo.redacted
+import org.tenshu.photo.renditionPath
+import org.tenshu.photo.setPhotoEdit
 import org.tenshu.photo.PhotoService
 import org.tenshu.photo.TrashedPhoto
 import org.tenshu.photo.addToAlbum
@@ -188,6 +205,16 @@ class TenshuPhotosRepository(
      * no watch: Collections re-reads on every return, as the Compose shells have it today.
      */
     private val watchScope: CoroutineScope? = null,
+    /** How an edited copy is uploaded (ED-1) — inline, except on Android ([EditedCopyUpload]). */
+    private val copyUpload: EditedCopyUpload = InlineEditedCopyUpload,
+    /**
+     * Where an edited copy's upload runs on once the copy is on the device (`photos-editing.md`
+     * §9.6). The upload op returns only after Control has pushed the bytes to the relay — a slow or
+     * absent network held the editor's spinner for 55 s — so with a scope the save returns as soon
+     * as the copy's row can be read, and the op finishes here. ⚠ Must outlive the editor (the app's
+     * scope, never a view model's). `null`, the default: the save waits for the op, as before.
+     */
+    private val copyUploadScope: CoroutineScope? = null,
 ) : PhotosRepository {
 
     // ── what Collections reads, as chains (`photos-ios.md` §8.22.3) ─────────────────────────────────
@@ -239,6 +266,16 @@ class TenshuPhotosRepository(
             )
         }
 
+    /** ⚠ No `recipe`: the index needs the rendition only, and a recipe can be kilobytes of ink. */
+    private fun editRows() = client.photoService.photoEdits
+        .select {
+            fields(
+                PhotoEdit.Field.CONTENT_ID,
+                PhotoEdit.Field.RENDITION_PATH,
+                PhotoEdit.Field.REDACTED,
+            )
+        }
+
     private fun labelRows() = client.inferenceService.labels
         .select {
             fields(
@@ -275,6 +312,10 @@ class TenshuPhotosRepository(
      * from a file changes in place today.
      * ⚠ `faceGroups` has no list to observe — the clusters are this device's. What moves them here is
      * the indexer, which writes a marker label per file it indexes, and labels are observed.
+     * ⚠⚠ **The edits are observed too** — by the edit index's own observer ([startEditWatch]), which
+     * ticks the watch after it has re-read the index. An edit changes which photos may supply a
+     * person's avatar (`photos-editing.md` §12.13), so a watch blind to edits would keep an avatar cut
+     * from an original the user has since redacted.
      *
      * `null` without a [watchScope]: nowhere to keep the observers, so nothing is promised.
      */
@@ -283,9 +324,12 @@ class TenshuPhotosRepository(
         if (watchStarted.compareAndSet(expect = false, update = true)) {
             val lists = listOf(albumRows(), entryRows(), flagRows(), placeRows(), labelRows())
             lists.forEach { list -> scope.launch { observe(list) } }
+            startEditWatch()
             scope.launch {
                 try {
-                    combine(listsObserved, feedsObserved) { observed, feeds -> observed == lists.size && feeds > 0 }
+                    combine(listsObserved, feedsObserved, editWatchLive) { observed, feeds, edits ->
+                        observed == lists.size && feeds > 0 && edits
+                    }
                         .collect { watch.setWatching(it) }
                 } finally {
                     // ⚠⚠ The scope is gone (a teardown) and the observers with it: a view model still
@@ -326,6 +370,90 @@ class TenshuPhotosRepository(
         }
     }
 
+    // ── the edit index (`photos-editing.md` §12.5) ─────────────────────────────────────────────
+
+    /** One photo's edit as a reader needs it: where its picture is. */
+    private data class EditRef(val renditionPath: String, val redacted: Boolean)
+
+    /**
+     * Every `PhotoEdit`, by the original's `contentId` — what every [Photo] this class maps reads its
+     * [Photo.renditionPath] from. `null` until first read.
+     *
+     * ⚠⚠ **Loaded before anything is mapped** ([edits]): a page mapped against an index not yet read
+     * shows every edited photo's original — un-redacted — until the next reload (§12.5).
+     * ⚠ Kept current by observing the list where there is a scope to observe in ([editWatchScope]);
+     * without one it is re-read by every read that maps, which is what tests get.
+     */
+    private val editIndex = MutableStateFlow<Map<String, EditRef>?>(null)
+    private val editWatchLive = MutableStateFlow(false)
+    private val editWatchStarted = MutableStateFlow(false)
+    private val editWatchScope: CoroutineScope? get() = watchScope ?: copyUploadScope
+
+    private suspend fun readEditIndex(): Map<String, EditRef>? =
+        runCatchingCancellable { editRows().getAll() }
+            .getOrNull()
+            ?.fold(
+                onSuccess = { rows ->
+                    rows.toList().associate { row ->
+                        row.contentId.get() to EditRef(row.renditionPath.get(), row.redacted.get())
+                    }
+                },
+                onFailure = { null },
+            )
+
+    /**
+     * The edit index, read now unless an observer keeps it current — `null` when it cannot be known.
+     *
+     * ⚠⚠ **Fails closed.** A failed read answers the last index known, and with none, `null`: every
+     * caller then fails its own read (or waits) rather than mapping rows without it, which would show
+     * every edited photo's original — un-redacted (§12.4). The two reads usually fail together; when
+     * only this one does, the library says it could not load rather than showing what an edit hides.
+     */
+    private suspend fun edits(): Map<String, EditRef>? {
+        startEditWatch()
+        if (editWatchLive.value) editIndex.value?.let { return it }
+        return readEditIndex()?.also { editIndex.value = it } ?: editIndex.value
+    }
+
+    /** The rendition the feed should show for [contentId], from the index as it stands. */
+    private fun renditionFor(contentId: String): String? =
+        if (contentId.isEmpty()) null else editIndex.value?.get(contentId)?.renditionPath
+
+    private fun startEditWatch() {
+        val scope = editWatchScope ?: return
+        if (!editWatchStarted.compareAndSet(expect = false, update = true)) return
+        scope.launch {
+            try {
+                // ⚠ The first tick is the subscribe; each later one re-reads the (short) list.
+                client.photoService.photoEdits.changes(emitOnSubscribe = true).collect {
+                    val index = readEditIndex()
+                    if (index == null) {
+                        // ⚠⚠ Not live: an index known to be stale must not be served as current —
+                        // [edits] then re-reads per mapping, and the watch stops vouching. The flip
+                        // moves the revision itself, so whoever read before is not told it is clean.
+                        editWatchLive.value = false
+                        return@collect
+                    }
+                    editIndex.value = index
+                    editWatchLive.value = true
+                    // ⚠⚠ After the index, never before: the Collections walk this wakes maps its
+                    // photos against the index, and a person's avatar may come only from a photo
+                    // mapped as unedited (`photos-editing.md` §12.13).
+                    watch.changed()
+                }
+            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                // ⚠ Caught here for [observe]'s reason (an uncaught throw ends a K/N process). The
+                // index then falls back to a read per mapping read.
+                println("TenshuPhotosRepository -> the edit index observer ended: $e")
+            } finally {
+                editWatchLive.value = false
+                editWatchStarted.value = false
+            }
+        }
+    }
+
     override fun controlReachable(): Flow<Boolean?> = reachability?.state ?: flowOf(true)
 
     override fun controlUnreachableReason(): kotlinx.coroutines.flow.StateFlow<UnreachableReason?> =
@@ -361,7 +489,9 @@ class TenshuPhotosRepository(
                 }
             }
         }
-        return client.fileService.defaultFileSystem.root
+        // ⚠⚠ The edit index first (§12.5): the mapper reads it, and a first page mapped before it
+        // loaded would show every edited photo's original until the next reload.
+        val pages = client.fileService.defaultFileSystem.root
             .files
             .traverse()
             .keysetPagingSource(
@@ -383,6 +513,16 @@ class TenshuPhotosRepository(
                     feedsObserved.update { it - 1 }
                 }
             }
+        return flow {
+            // ⚠⚠ Fails closed: until the index is known the feed waits (it shows loading), rather
+            // than mapping every edited photo as its original.
+            var waitMs = 250L
+            while (edits() == null) {
+                kotlinx.coroutines.delay(waitMs)
+                waitMs = (waitMs * 2).coerceAtMost(5_000L)
+            }
+            emitAll(pages)
+        }
     }
 
     /**
@@ -549,6 +689,7 @@ class TenshuPhotosRepository(
 
     override suspend fun feedPage(beforeMs: Long, skip: Int, pageSize: Int): PhotoPageResult {
         if (pageSize <= 0) return PhotoPageResult.Page(emptyList(), hasMore = false)
+        edits() ?: return pageReadFailure(client.proxyConnected.value, "could not read photo edits")
 
         return client.fileService.defaultFileSystem.root
             .files
@@ -868,6 +1009,8 @@ class TenshuPhotosRepository(
         // whole realm in one transaction). A failed walk only costs the cards their shape: they
         // guess 4:3.
         val shapes = if (withCoverShapes) coverShapes(albums, entries) else null
+        val edits = edits()
+            ?: return albumsReadFailure(client.proxyConnected.value, "could not read photo edits")
 
         return AlbumsResult.Albums(
             albums.map { album ->
@@ -883,9 +1026,11 @@ class TenshuPhotosRepository(
                     name = album.name.get(),
                     createdAtMs = album.createdAt.get(),
                     photoCount = mine.size,
-                    coverPath = cover?.filePath,
+                    // ED-3: an edited cover draws its rendition (§12.4).
+                    coverPath = cover?.let { edits[it.contentId]?.renditionPath ?: it.filePath },
                     coverPixelWidth = coverShape?.pixelWidth,
                     coverPixelHeight = coverShape?.pixelHeight,
+                    coverContentId = cover?.contentId?.takeIf { it.isNotEmpty() },
                 )
             }.sortedByDescending { it.createdAtMs }
         )
@@ -910,6 +1055,7 @@ class TenshuPhotosRepository(
     }
 
     override suspend fun albumPhotos(albumId: String): PhotoPageResult {
+        edits() ?: return pageReadFailure(client.proxyConnected.value, "could not read photo edits")
         val entries = (allEntries()
             ?: return pageReadFailure(client.proxyConnected.value, "could not read album entries"))
             .filter { it.albumId == albumId }
@@ -979,6 +1125,7 @@ class TenshuPhotosRepository(
         write { it.removeFromAlbum(albumId, contentId) }
 
     override suspend fun favourites(): PhotoPageResult {
+        edits() ?: return pageReadFailure(client.proxyConnected.value, "could not read photo edits")
         val flagged = allFlags()
             ?: return pageReadFailure(client.proxyConnected.value, "could not read flags")
         val favouriteIds = flagged.filter { it.second }.map { it.first }.toSet()
@@ -1077,6 +1224,7 @@ class TenshuPhotosRepository(
         // ⚠ Clear the record even when the delete failed to find the file: a record pointing at
         // nothing is what makes the Trash screen show a row that cannot be acted on.
         write { it.clearTrashedPhoto(contentId) }
+        if (deleted) dropEdit(contentId)
         return deleted
     }
 
@@ -1093,8 +1241,11 @@ class TenshuPhotosRepository(
      * exists after the first time, and a "did we create it yet" flag would be wrong the moment a
      * user deleted the folder from Drive — which they can, because it is an ordinary realm folder.
      */
-    private suspend fun ensureTrashFolder(): Boolean {
-        return when (val result = client.fileService.defaultFileSystem.createFolder(TRASH_ROOT)) {
+    private suspend fun ensureTrashFolder(): Boolean = ensureFolder(TRASH_ROOT)
+
+    /** [ensureTrashFolder] for any folder — also [EDIT_RENDITIONS_ROOT] (ED-3), under the trash. */
+    private suspend fun ensureFolder(path: String): Boolean {
+        return when (val result = client.fileService.defaultFileSystem.createFolder(path)) {
             is TResult.Success<*> -> true
             is TResult.Failure<*> -> result.error is AlreadyExistsError
             else -> false
@@ -1112,6 +1263,7 @@ class TenshuPhotosRepository(
      * transaction, so a realm past ~1,600 files got no answer and this screen said *could not look*.
      */
     override suspend fun duplicates(): DuplicatesResult {
+        edits() ?: return duplicatesReadFailure(client.proxyConnected.value, "could not read photo edits")
         val scan = RealmContentReads.duplicateScan(client)
             // ⚠ A failed read is "could not look", never "no duplicates".
             ?: return duplicatesReadFailure(
@@ -1128,10 +1280,14 @@ class TenshuPhotosRepository(
         return DuplicatesResult.Groups(groups, filesScanned = scan.filesScanned)
     }
 
-    override suspend fun deletePermanently(photo: Photo): Boolean =
-        client.fileService.defaultFileSystem
+    override suspend fun deletePermanently(photo: Photo): Boolean {
+        val deleted = client.fileService.defaultFileSystem
             .deleteFile(photo.path)
             .let { it is TResult.Success }
+        // ED-3: an edited photo's rendition and row go with it (§12.6).
+        if (deleted) dropEdit(photo.contentId)
+        return deleted
+    }
 
     /**
      * ⚠ A search by path, like [details] — one row. A trashed copy's path is `/Trash/…`, so it is not
@@ -1183,9 +1339,11 @@ class TenshuPhotosRepository(
         // §16: the tile's thumbnail class follows the photo's shape, and the index carries it.
         pixelWidth = pixelWidth,
         pixelHeight = pixelHeight,
+        renditionPath = renditionFor(contentId),
     )
 
     override suspend fun trashed(): TrashResult {
+        edits() ?: return trashReadFailure(client.proxyConnected.value, "could not read photo edits")
         val records = trashRecords()
             ?: return trashReadFailure(client.proxyConnected.value, "could not read the trash")
         return TrashResult.Items(
@@ -1341,6 +1499,7 @@ class TenshuPhotosRepository(
     ): List<Photo>? {
         val all = mutableListOf<Photo>()
         var cursor = Long.MAX_VALUE
+        edits() ?: return null
         var skip = 0
         while (true) {
             val rows = client.fileService.defaultFileSystem.root
@@ -1428,6 +1587,7 @@ class TenshuPhotosRepository(
      * keeps both people's copy of that photograph.
      */
     override suspend fun faceGroups(limit: Int): Pair<List<FaceGroup>, PeopleStatus> {
+        edits() ?: return emptyList<FaceGroup>() to PeopleStatus.Failed
         return when (val result = client.inferenceService.faceGroups(limit)) {
             is TResult.Success -> {
                 val groups = result.value?.toList()
@@ -1476,6 +1636,42 @@ class TenshuPhotosRepository(
      * the next refresh, and have nothing to report. The proxy refuses only for want of consent
      * today, which is a window a stale screen can genuinely be in.
      */
+    /** IN-6 F6c name suggestions. ⚠ Any failure is `null` — see [PhotosRepository.faceSuggestionRejections]. */
+    override suspend fun faceSuggestionRejections(): List<FaceRejection>? =
+        when (val result = client.inferenceService.faceSuggestionRejections()) {
+            is TResult.Success -> result.value?.toList().orEmpty().map { row ->
+                FaceRejection(
+                    path = row.filePath.get(),
+                    name = row.name.get(),
+                    region = FaceRegion(
+                        left = row.boxLeftPerMille.get() / 1000f,
+                        top = row.boxTopPerMille.get() / 1000f,
+                        right = row.boxRightPerMille.get() / 1000f,
+                        bottom = row.boxBottomPerMille.get() / 1000f,
+                    ),
+                )
+            }
+            else -> null
+        }
+
+    /**
+     * The device-local "No". ⚠ One call: a suggestion carries at most `MAX_REJECTED_FACES` faces, so
+     * no chunking is owed. ⚠ The box crosses as per-mille, the unit `GroupedFace` arrived in.
+     */
+    override suspend fun rejectNameSuggestion(name: String, faces: List<GroupFace>): Boolean {
+        if (name.isBlank() || faces.isEmpty()) return false
+        val boxes = faces.flatMap { face ->
+            listOf(face.region.left, face.region.top, face.region.right, face.region.bottom)
+                .map { (it * 1000f).roundToInt().coerceIn(0, 1000) }
+        }
+        return when (val result = client.inferenceService.rejectFaceSuggestion(name, faces.map { it.path }, boxes)) {
+            is TResult.Success -> result.value != null
+            else -> false
+        }
+    }
+
+    override suspend fun editedContentIds(): Set<String>? = edits()?.keys
+
     override suspend fun nameFaceGroup(filePaths: List<String>, name: String): NamingOutcome {
         // ⚠⚠ **Chunked, because one Binder transaction is ~1 MB** (the ceiling this class
         // documents for listings). A heavily photographed person can hold tens of thousands of
@@ -1577,6 +1773,7 @@ class TenshuPhotosRepository(
 
     // ⚠ `null` when the walk failed — not "nothing matched" (`photos-ios.md` §8.19).
     override suspend fun searchByNameRead(query: String): List<Photo>? {
+        edits() ?: return null
         val needle = query.trim()
         if (needle.isEmpty()) return emptyList()
         return client.fileService.defaultFileSystem.root
@@ -1616,6 +1813,7 @@ class TenshuPhotosRepository(
 
     // ⚠ `null` when the label rows could not be read — not "nothing is tagged" (`photos-ios.md` §8.19).
     override suspend fun searchByLabelRead(query: String): List<Pair<Photo, String>>? {
+        edits() ?: return null
         val needle = query.trim()
         if (needle.isEmpty()) return emptyList()
         val rows = client.inferenceService.labels
@@ -1643,6 +1841,7 @@ class TenshuPhotosRepository(
         query: String,
         limit: Int,
     ): Pair<List<Photo>, SemanticSearchStatus> {
+        edits() ?: return emptyList<Photo>() to SemanticSearchStatus.Failed
         val text = query.trim()
         if (text.isEmpty()) return emptyList<Photo>() to SemanticSearchStatus.Available
         // ⚠ A `when`, not `fold`: resolving each hit's path is a suspending read and `fold`'s
@@ -1711,6 +1910,339 @@ class TenshuPhotosRepository(
                 if (bytes == null) ExifReadResult.NotOnDevice
                 else ExifReadResult.Read(readMediaMetadata(bytes))
             }
+        }
+    }
+
+    // ── editing (`photos-editing.md` ED-1) ───────────────────────────────────────────────────
+
+    /**
+     * ⚠ `relations(File.Data)` with no presence probe, unlike [photographicSettings]: an editor
+     * cannot work without the whole file, so fetching it is the point. The OnDemand materialiser
+     * pulls it over the content plane when this device does not hold it (`getRemoteFile`'s recipe).
+     */
+    override suspend fun originalBytes(path: String): ByteArray? =
+        runCatchingCancellable {
+            client.fileService.defaultFileSystem.root
+                .files
+                .navigateTo(path.substringBeforeLast('/'))
+                .search<File> { this.path equalTo path }
+                .select { relations(File.Data) }
+                .resolve()
+                .getOrNull()
+                // ⚠ `getOrNull`, not `get`: graceful on a SharedMemory cache miss.
+                ?.get(File.Data)
+                ?.getOrNull()
+        }.getOrNull()
+
+    /**
+     * ⚠⚠ An upload, which **refuses** an existing name ([AlreadyExistsError]) — never
+     * `replaceFile`. A refusal moves on to the next candidate name; any other failure ends the save,
+     * because retrying a quota or transport refusal under a new name would only fail again.
+     */
+    override suspend fun saveEditedCopy(original: Photo, rendered: ByteArray): Photo? {
+        if (rendered.isEmpty()) return null
+        val hasPlace = original.latE7 != null && original.lngE7 != null
+        val latE7 = original.latE7.takeIf { hasPlace }
+        val lngE7 = original.lngE7.takeIf { hasPlace }
+        for (candidate in editedCopyNames(original.path)) {
+            // ⚠⚠ Checked first, and not only left to the op's refusal: the early return below takes
+            // ANY row at this path as the copy, so a name already in use must never get that far.
+            // ⚠ Fails closed: a read that cannot tell waits for the op, as a save without a scope does.
+            val atPath = if (copyUploadScope == null) RowAt.UNKNOWN else rowAt(candidate)
+            if (atPath == RowAt.PRESENT) continue
+            val upload: suspend () -> TResult<Data?> = {
+                copyUpload.upload(
+                    client = client,
+                    folder = candidate.substringBeforeLast('/').ifEmpty { "/" },
+                    fileName = candidate.substringAfterLast('/'),
+                    bytes = rendered,
+                    // The capture time, so the copy sits beside the original in the feed.
+                    capturedAtMs = original.capturedAtMs,
+                    // ⚠ Both or neither — half a coordinate is a wrong one.
+                    latE7 = latE7,
+                    lngE7 = lngE7,
+                )
+            }
+            val outcome = if (copyUploadScope == null || atPath != RowAt.ABSENT) {
+                CopyOutcome.Finished(upload())
+            } else {
+                awaitCopyOnDevice(candidate, copyUploadScope.async { upload() })
+            }
+            val result = when (outcome) {
+                is CopyOutcome.OnDevice -> return outcome.photo.copy(latE7 = latE7, lngE7 = lngE7)
+                is CopyOutcome.Finished -> outcome.result
+                CopyOutcome.Abandoned -> return null
+            }
+            when (result) {
+                is TResult.Success<*> -> {
+                    val read = byPath(candidate)
+                    // ⚠ The listing's read may lag the write; the copy is still what was written.
+                    return (read ?: Photo(candidate, original.capturedAtMs, isVideo = false))
+                        .copy(latE7 = latE7, lngE7 = lngE7)
+                }
+                is TResult.Failure<*> -> if (result.error !is AlreadyExistsError) return null
+                else -> return null
+            }
+        }
+        return null
+    }
+
+    private sealed interface CopyOutcome {
+        /** The copy's row is readable; the upload op is still pushing its bytes to the relay. */
+        data class OnDevice(val photo: Photo) : CopyOutcome
+        data class Finished(val result: TResult<Data?>) : CopyOutcome
+        /** The upload's scope was torn down before either: the save failed, and says so. */
+        data object Abandoned : CopyOutcome
+    }
+
+    private enum class RowAt { PRESENT, ABSENT, UNKNOWN }
+
+    /** Whether a row is at [path] — ⚠ [RowAt.UNKNOWN] when the read fails, never "absent". */
+    private suspend fun rowAt(path: String): RowAt {
+        val read = runCatchingCancellable {
+            client.fileService.defaultFileSystem.root
+                .files
+                .navigateTo(path.substringBeforeLast('/'))
+                .search<File> { this.path equalTo path }
+                .select { fields(File.Field.PATH) }
+                .resolve()
+        }.getOrNull()
+        return when (read) {
+            is TResult.Success<*> -> if (read.value == null) RowAt.ABSENT else RowAt.PRESENT
+            else -> RowAt.UNKNOWN
+        }
+    }
+
+    /**
+     * Whichever comes first: the [upload] op's answer, or the copy's row at [path].
+     *
+     * Why the row is enough: `UploadFile` writes the bytes, then saves the row and journals the
+     * content push in one `NonCancellable` span, and only then sends the bytes to the relay inline.
+     * What it waits on after the row is the network; a push that fails or never finishes stays
+     * journalled and the content drain retries it, as for any new file. ⚠ The row is readable a
+     * moment before its journal entry is written (`photos-editing.md` §9.6 says how long).
+     * ⚠ A refusal ([AlreadyExistsError], quota) comes back before any row is written, so it is
+     * always seen as [CopyOutcome.Finished].
+     * ⚠ The caller's cancellation does not stop the upload: an abandoned save still makes its copy.
+     */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private suspend fun awaitCopyOnDevice(path: String, upload: Deferred<TResult<Data?>>): CopyOutcome {
+        while (true) {
+            withTimeoutOrNull(COPY_ROW_POLL_MS) { upload.join() }
+            if (upload.isCompleted) {
+                return when (val failure = upload.getCompletionExceptionOrNull()) {
+                    null -> CopyOutcome.Finished(upload.getCompleted())
+                    // ⚠ Not this coroutine's cancellation — the scope's. Rethrown, the editor's
+                    // spinner would never stop.
+                    is kotlinx.coroutines.CancellationException -> CopyOutcome.Abandoned
+                        .also { println("PhotoEditor -> the upload of $path was cancelled with its scope") }
+                    else -> throw failure
+                }
+            }
+            byPath(path)?.let { photo ->
+                // Not awaited by anyone now: what it ends with is for the log only.
+                upload.invokeOnCompletion { cause ->
+                    val failure = cause ?: (upload.getCompletionResultOrNull() as? TResult.Failure<*>)?.error
+                    if (failure != null) println("PhotoEditor -> copy $path is on the device; its upload op ended with $failure")
+                }
+                return CopyOutcome.OnDevice(photo)
+            }
+        }
+    }
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private fun Deferred<TResult<Data?>>.getCompletionResultOrNull(): TResult<Data?>? =
+        runCatching { getCompleted() }.getOrNull()
+
+    // ── the non-destructive edit (`photos-editing.md` ED-3, §12) ─────────────────────────────
+
+    /** One stored edit, whole — what a save rolls back to and a revert deletes. */
+    private data class EditRow(
+        val recipe: String,
+        val renditionPath: String,
+        val redacted: Boolean,
+    )
+
+    /**
+     * The edit stored for [contentId]: `Result.success(null)` for none, a failure when the read
+     * could not tell — ⚠ never "none", because a save would then roll back onto nothing and a revert
+     * would leave the rendition behind.
+     */
+    private suspend fun editRow(contentId: String): Result<EditRow?> {
+        // ⚠ A keyed search, never the whole list with its recipes: a recipe can be kilobytes of ink,
+        // and every edit's in one Binder reply is a ceiling as well as a cost.
+        val read = runCatchingCancellable {
+            client.photoService.photoEdits
+                .search<PhotoEdit> { this.contentId equalTo contentId }
+                .select {
+                    fields(
+                        PhotoEdit.Field.CONTENT_ID,
+                        PhotoEdit.Field.RECIPE,
+                        PhotoEdit.Field.RENDITION_PATH,
+                        PhotoEdit.Field.REDACTED,
+                    )
+                }
+                .resolve()
+        }.getOrElse { return Result.failure(it) }
+        return read.fold(
+            onSuccess = { row ->
+                Result.success(row?.let { EditRow(it.recipe.get(), it.renditionPath.get(), it.redacted.get()) })
+            },
+            onFailure = { Result.failure(IllegalStateException("could not read the photo's edit: $it")) },
+        )
+    }
+
+    override suspend fun photoEdit(contentId: String): StoredEdit? {
+        if (contentId.isEmpty()) return null
+        val row = editRow(contentId).getOrThrow() ?: return null
+        val recipe = (EditRecipeCodec.decode(row.recipe) as? EditRecipeCodec.Decoded.Recipe)?.recipe
+        return StoredEdit(recipe = recipe, renditionPath = row.renditionPath, redacted = row.redacted)
+    }
+
+    /**
+     * ⚠⚠ **The order is the design** (`photos-editing.md` §12.4): the row first — so a peer that has
+     * the rendition's file has already seen the row that claims it, and never maps it as a stranger —
+     * then the rendition's upload, then the superseded rendition's delete. A failed upload puts the
+     * row back as it was, so a refused save leaves the photo exactly as before.
+     *
+     * ⚠ The rendition is uploaded like a *Save as copy* ([copyUpload], with §9.6's early return), so
+     * its thumbnails are minted here, on the device that has the bytes, by the upload itself.
+     */
+    override suspend fun saveEdit(original: Photo, recipe: EditRecipe, rendered: ByteArray): Photo? {
+        if (original.contentId.isEmpty() || rendered.isEmpty()) return null
+        // ⚠ Nothing to show is nothing to store: an identity recipe saved is a revert (ED-D11).
+        if (recipe.isIdentity) return revertEdit(original)
+        val contentId = original.contentId
+        val previous = editRow(contentId).getOrElse {
+            println("PhotoEditor -> save refused, the current edit could not be read: $it")
+            return null
+        }
+        if (!ensureFolder(TRASH_ROOT) || !ensureFolder(EDIT_RENDITIONS_ROOT)) return null
+        val encoded = EditRecipeCodec.encode(recipe)
+        val redacted = recipe.markup.hasRedactions
+
+        repeat(MAX_RENDITION_ATTEMPTS) {
+            // ⚠⚠ Never a name used before (`newRenditionStamp`): the preview caches are keyed by path.
+            val path = editRenditionPathFor(contentId, newRenditionStamp(kotlin.time.Clock.System.now().toEpochMilliseconds()))
+            if (path == previous?.renditionPath) return@repeat
+            // ⚠ Fails closed, as the copy's check does: a read that cannot tell is not "free".
+            when (rowAt(path)) {
+                RowAt.PRESENT -> return@repeat
+                RowAt.UNKNOWN -> return null
+                RowAt.ABSENT -> Unit
+            }
+            if (!write { it.setPhotoEdit(contentId, encoded, path, redacted) }) return null
+            editIndex.update { (it ?: emptyMap()) + (contentId to EditRef(path, redacted)) }
+
+            when (val uploaded = uploadRendition(path, rendered, original.capturedAtMs)) {
+                RenditionUpload.Stored -> {
+                    previous?.let { old ->
+                        bestEffort("Photos -> deleting a superseded edit's rendition") {
+                            client.fileService.defaultFileSystem.deleteFile(old.renditionPath)
+                        }
+                    }
+                    return original.copy(renditionPath = path)
+                }
+                is RenditionUpload.Refused -> {
+                    restoreEdit(contentId, previous)
+                    // ⚠ An upload abandoned with its scope may have written its file before it was
+                    // cancelled; the name is ours alone (a fresh stamp), so it is removed rather than
+                    // left as an orphan that counts against storage. Never when the name was taken —
+                    // that file is someone else's.
+                    if (!uploaded.nameTaken) bestEffort("Photos -> removing a refused save's rendition") {
+                        client.fileService.defaultFileSystem.deleteFile(path)
+                    }
+                    // A name taken by a race moves on; anything else (quota, transport) would only
+                    // fail again under another name.
+                    if (!uploaded.nameTaken) return null
+                }
+            }
+        }
+        return null
+    }
+
+    private sealed interface RenditionUpload {
+        data object Stored : RenditionUpload
+        data class Refused(val nameTaken: Boolean) : RenditionUpload
+    }
+
+    private suspend fun uploadRendition(path: String, bytes: ByteArray, capturedAtMs: Long): RenditionUpload {
+        val upload: suspend () -> TResult<Data?> = {
+            copyUpload.upload(
+                client = client,
+                folder = EDIT_RENDITIONS_ROOT,
+                fileName = path.substringAfterLast('/'),
+                bytes = bytes,
+                capturedAtMs = capturedAtMs,
+                // ⚠ No place: a rendition is never read as a photograph, so nothing reads it there.
+                latE7 = null,
+                lngE7 = null,
+            )
+        }
+        val outcome = if (copyUploadScope == null) {
+            CopyOutcome.Finished(upload())
+        } else {
+            awaitCopyOnDevice(path, copyUploadScope.async { upload() })
+        }
+        return when (outcome) {
+            is CopyOutcome.OnDevice -> RenditionUpload.Stored
+            CopyOutcome.Abandoned -> RenditionUpload.Refused(nameTaken = false)
+            is CopyOutcome.Finished -> when (val result = outcome.result) {
+                is TResult.Success<*> -> RenditionUpload.Stored
+                is TResult.Failure<*> -> RenditionUpload.Refused(nameTaken = result.error is AlreadyExistsError)
+                    .also { println("PhotoEditor -> the rendition upload of $path was refused: ${result.error}") }
+                else -> RenditionUpload.Refused(nameTaken = false)
+            }
+        }
+    }
+
+    /** Puts [contentId]'s edit back to [previous] after a failed save — or clears it, if there was none. */
+    private suspend fun restoreEdit(contentId: String, previous: EditRow?) {
+        val restored = if (previous == null) {
+            write { it.clearPhotoEdit(contentId) }
+        } else {
+            write { it.setPhotoEdit(contentId, previous.recipe, previous.renditionPath, previous.redacted) }
+        }
+        if (!restored) println("PhotoEditor -> a failed save's row could not be put back for $contentId")
+        editIndex.update { index ->
+            val rest = index.orEmpty() - contentId
+            if (previous == null) rest else rest + (contentId to EditRef(previous.renditionPath, previous.redacted))
+        }
+    }
+
+    /**
+     * ⚠ The row first, then the file (§12.4): the photo shows its original the moment the row is
+     * gone, and a crash between leaves an orphaned rendition (§12.6) — never a photo pointing at
+     * nothing.
+     */
+    override suspend fun revertEdit(photo: Photo): Photo? {
+        if (photo.contentId.isEmpty()) return null
+        val row = editRow(photo.contentId).getOrElse { return null }
+            ?: return photo.copy(renditionPath = null)
+        if (!write { it.clearPhotoEdit(photo.contentId) }) return null
+        editIndex.update { it.orEmpty() - photo.contentId }
+        bestEffort("Photos -> deleting a reverted edit's rendition") {
+            client.fileService.defaultFileSystem.deleteFile(row.renditionPath)
+        }
+        return photo.copy(renditionPath = null)
+    }
+
+    /**
+     * The photo with [contentId] is gone for good: its edit goes with it. ⚠ Best effort — the
+     * delete it follows already happened.
+     *
+     * ⚠⚠ **Unless another live file still holds [contentId].** Copies share a content id (`File`'s
+     * KDoc), so deleting a duplicate must not take the edit of the copy the user kept; a read that
+     * cannot tell keeps the edit too — an orphaned row is recoverable, a lost edit is not.
+     */
+    private suspend fun dropEdit(contentId: String) {
+        if (contentId.isEmpty()) return
+        val stillHeld = readLibrary(imagesOnly = false) { filter<File> { this.contentId oneOf listOf(contentId) } }
+        if (stillHeld == null || stillHeld.isNotEmpty()) return
+        val row = editRow(contentId).getOrNull() ?: return
+        if (write { it.clearPhotoEdit(contentId) }) editIndex.update { it.orEmpty() - contentId }
+        bestEffort("Photos -> deleting a deleted photo's rendition") {
+            client.fileService.defaultFileSystem.deleteFile(row.renditionPath)
         }
     }
 
@@ -1836,10 +2368,17 @@ class TenshuPhotosRepository(
             lngE7 = get(File.CaptureLngE7)?.get(),
             pixelWidth = get(File.PixelWidth)?.get()?.toInt(),
             pixelHeight = get(File.PixelHeight)?.get()?.toInt(),
+            renditionPath = renditionFor(get(File.ContentId)?.get().orEmpty()),
         )
     }
 
     companion object {
+        /** How many fresh rendition names a save tries before it gives up (a name clash is a race). */
+        private const val MAX_RENDITION_ATTEMPTS = 5
+
+        /** How often an edited copy's save looks for the copy's row while the upload op runs. */
+        private const val COPY_ROW_POLL_MS = 100L
+
         /**
          * ⚠ A guess, and knowingly so — see the class KDoc. Small enough that a cold page on a
          * large realm cannot block a paint for long, large enough to fill more than one screen of

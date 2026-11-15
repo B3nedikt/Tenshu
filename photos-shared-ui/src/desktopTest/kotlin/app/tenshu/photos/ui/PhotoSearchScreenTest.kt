@@ -20,6 +20,7 @@ import app.tenshu.photos.ui.screens.search.PhotoSearchScreen
 import app.tenshu.photos.ui.screens.search.PhotoSearchUiState
 import app.tenshu.ui.theme.TenshuTheme
 import kotlin.test.Test
+import org.tenshu.ui.test.NoMotion
 
 /**
  * What S2 renders (`photos-app.md` S2).
@@ -56,7 +57,7 @@ class PhotoSearchScreenTest {
     // ── `photos-ios.md` §8.19: the screen draws the shared layout ───────────────────────────────────
 
     @Test
-    fun couldNotLookIsNotDrawnAsNothingMatched_andOffersTheRetry() = runComposeUiTest {
+    fun couldNotLookIsNotDrawnAsNothingMatched_andOffersTheRetry() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠⚠ A source that did not answer found nothing because it looked at nothing.
         var retried = 0
         setContent(
@@ -78,7 +79,7 @@ class PhotoSearchScreenTest {
     }
 
     @Test
-    fun resultsOverASourceThatCouldNotLookSaySo_withTheRetryBesideTheNote() = runComposeUiTest {
+    fun resultsOverASourceThatCouldNotLookSaySo_withTheRetryBesideTheNote() = runComposeUiTest(effectContext = NoMotion) {
         var retried = 0
         setContent(
             screen(
@@ -101,7 +102,7 @@ class PhotoSearchScreenTest {
     }
 
     @Test
-    fun nothingToRetryWhenEverySourceAnswered() = runComposeUiTest {
+    fun nothingToRetryWhenEverySourceAnswered() = runComposeUiTest(effectContext = NoMotion) {
         setContent(
             screen(
                 PhotoSearchUiState(
@@ -118,7 +119,7 @@ class PhotoSearchScreenTest {
     }
 
     @Test
-    fun wherDescriptionSearchIsNotBuiltTheScreenSaysSo() = runComposeUiTest {
+    fun wherDescriptionSearchIsNotBuiltTheScreenSaysSo() = runComposeUiTest(effectContext = NoMotion) {
         setContent(
             screen(
                 PhotoSearchUiState(
@@ -137,7 +138,7 @@ class PhotoSearchScreenTest {
     }
 
     @Test
-    fun comingBackToTheScreenAsksForAReRead_openingItDoesNot() = runComposeUiTest {
+    fun comingBackToTheScreenAsksForAReRead_openingItDoesNot() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠⚠ Back from the viewer, a photograph trashed there must not still be a result. The entry
         // leaves composition while the viewer is on top and keeps its saved state — which is what a
         // `SaveableStateProvider` models here.
@@ -163,7 +164,7 @@ class PhotoSearchScreenTest {
 
     /** Opened by Cmd/Ctrl+F, the user must be able to type at once. */
     @Test
-    fun theQueryFieldHasFocusWhenTheScreenOpens() = runComposeUiTest {
+    fun theQueryFieldHasFocusWhenTheScreenOpens() = runComposeUiTest(effectContext = NoMotion) {
         setContent(screen(PhotoSearchUiState()))
         waitForIdle()
 
@@ -171,7 +172,7 @@ class PhotoSearchScreenTest {
     }
 
     @Test
-    fun anIdleBarInvitesANameSearch() = runComposeUiTest {
+    fun anIdleBarInvitesANameSearch() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠ It says what actually works here rather than promising three sources, two of which no
         // device can currently run.
         setContent(screen(PhotoSearchUiState()))
@@ -180,7 +181,7 @@ class PhotoSearchScreenTest {
     }
 
     @Test
-    fun aRefusalIsNotRenderedAsNothingMatched() = runComposeUiTest {
+    fun aRefusalIsNotRenderedAsNothingMatched() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠⚠ The mistake `mia-query-layer.md` §14.1 names, in the screen where it would happen.
         // Name search found a photo; source 3 could not run. Both facts must be on screen.
         setContent(
@@ -205,7 +206,7 @@ class PhotoSearchScreenTest {
     }
 
     @Test
-    fun aGenuineMissStillReadsAsAMiss() = runComposeUiTest {
+    fun aGenuineMissStillReadsAsAMiss() = runComposeUiTest(effectContext = NoMotion) {
         setContent(screen(PhotoSearchUiState(query = "giraffe", settled = true)))
 
         waitUntil {
@@ -214,7 +215,7 @@ class PhotoSearchScreenTest {
     }
 
     @Test
-    fun eachRefusalReasonGetsItsOwnSentence() = runComposeUiTest {
+    fun eachRefusalReasonGetsItsOwnSentence() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠ Four reasons need four responses. "Switched off" and "no model" send a user to
         // different places — or, today, tell them different true things about why not.
         for ((reason, expected) in listOf(
@@ -240,7 +241,7 @@ class PhotoSearchScreenTest {
     }
 
     @Test
-    fun aNameMatchCarriesNoBadge() = runComposeUiTest {
+    fun aNameMatchCarriesNoBadge() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠ The only source a user can verify by reading the filename. Labelling it would add
         // noise to the common case rather than information.
         setContent(
@@ -261,7 +262,7 @@ class PhotoSearchScreenTest {
     }
 
     @Test
-    fun aModelBackedHitSaysWhyItIsThere() = runComposeUiTest {
+    fun aModelBackedHitSaysWhyItIsThere() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠⚠ The inverse: a hit nobody can verify from the filename must say what put it there.
         setContent(
             screen(
@@ -281,7 +282,7 @@ class PhotoSearchScreenTest {
     }
 
     @Test
-    fun aCappedListSaysSo() = runComposeUiTest {
+    fun aCappedListSaysSo() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠ A screen that quietly shows 60 of 900 is the dishonest version of a capped list.
         setContent(
             screen(
@@ -302,7 +303,7 @@ class PhotoSearchScreenTest {
     }
 
     @Test
-    fun anUnsettledSearchShowsNeitherResultsNorAnEmptyState() = runComposeUiTest {
+    fun anUnsettledSearchShowsNeitherResultsNorAnEmptyState() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠ Between two letters of a query that will match plenty, "No photos match" must not flash.
         setContent(screen(PhotoSearchUiState(query = "do", searching = true)))
 

@@ -17,6 +17,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import org.tenshu.viewmodel.test.vmTest
 
 /**
  * C3 coverage — the offline-region **data path** on iOS, Fit's half: the surface actually hands the
@@ -43,12 +44,12 @@ class FitRegionResolverWiringTest {
     }
 
     @Test
-    fun workoutDetailReceivesTheInstalledResolverAndRendersItsStream() = runTest(dispatcher) {
+    fun workoutDetailReceivesTheInstalledResolverAndRendersItsStream() = vmTest(dispatcher) { vms ->
         FitSurface.installMock()
         val resolver = RecordingFitResolver()
         FitSurface.installRegionResolver(resolver)
 
-        val vm = FitSurface.workoutViewModel("w-sun-run")
+        val vm = vms.own(FitSurface.workoutViewModel("w-sun-run"))
         advanceUntilIdle()
 
         assertTrue(resolver.seenRoute.size >= 2, "the workout's GPS route reaches the resolver")

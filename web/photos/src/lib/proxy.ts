@@ -78,9 +78,16 @@ export const ProxyMethod = {
   DeleteForever: 'photo.deleteForever',
   GetPreview: 'fs.getPreview',
   GetLargePreview: 'fs.getLargePreview',
+  GetTilePreview: 'fs.getTilePreview',
   OpenContentStream: 'fs.openContentStream',
   ReadContentRange: 'fs.readContentRange',
   CloseContentStream: 'fs.closeContentStream',
+  // L6: this browser's remembered Library density (DEVICE scope).
+  Search: 'photo.search',
+  SettingsGet: 'photoSettings.get',
+  SettingsSetDensity: 'photoSettings.setDensity',
+  SettingsSetLayout: 'photoSettings.setLayout',
+  SettingsSetColumns: 'photoSettings.setColumns',
 } as const
 
 type Ok<T> = { readonly ok: true } & T
@@ -116,13 +123,18 @@ export function subscribeSyncHealth(
 
 // One keyset page, newest first. `cursor` null = the head; pass back exactly the `nextCursor` the
 // previous page returned (opaque, `v2.<ms>.<lastPath>`). `pageSize` 1..500.
-export function feedPage(cursor: string | null, pageSize: number): Promise<FeedPageResult> {
-  return call<FeedPageResult>(ProxyMethod.FeedPage, { cursor, pageSize })
+// `kind`: the library (photos and videos) or the Videos collection (web-apps-layout.md L5) — the
+// same walk, order and cursor. Sent only when it is not the library, so a library call is unchanged.
+export type FeedKind = 'all' | 'videos'
+
+export function feedPage(cursor: string | null, pageSize: number, kind: FeedKind = 'all'): Promise<FeedPageResult> {
+  return call<FeedPageResult>(ProxyMethod.FeedPage, kind === 'all' ? { cursor, pageSize } : { cursor, pageSize, kind })
 }
 
 // Every capture time in the feed, newest first: the scrubber's map and the feed's length.
-export function captureTimes(): Promise<CaptureTimesResult> {
-  return call<CaptureTimesResult>(ProxyMethod.CaptureTimes)
+// ⚠ The same `kind` as the pages it maps — index i of these times is index i of that feed.
+export function captureTimes(kind: FeedKind = 'all'): Promise<CaptureTimesResult> {
+  return call<CaptureTimesResult>(ProxyMethod.CaptureTimes, kind === 'all' ? undefined : { kind })
 }
 
 export function photoDetails(path: string): Promise<PhotoDetailsResult> {
@@ -235,6 +247,12 @@ export function getLargePreview(path: string, px: number): Promise<LargePreview>
   return call<LargePreview>(ProxyMethod.GetLargePreview, { path, px })
 }
 
+// A Retina tile's sharp rung (XLARGE): like `getLargePreview`, but the runtime keeps nothing new —
+// a class it had to pull is dropped again after this read (web-apps-layout.md §4.8).
+export function getTilePreview(path: string): Promise<LargePreview> {
+  return call<LargePreview>(ProxyMethod.GetTilePreview, { path })
+}
+
 export function openContentStream(path: string): Promise<ContentStreamOpen> {
   return call<ContentStreamOpen>(ProxyMethod.OpenContentStream, { path })
 }
@@ -248,3 +266,35 @@ export async function closeContentStream(handle: string): Promise<void> {
 }
 
 export const APEX = bridge.apexOrigin
+
+// ── remembered view settings (web-apps-layout.md L6) ─────────────────────────
+// This browser's (DEVICE) Library density and layout switches. `no_device` before a sync identity:
+// keep the defaults. ⚠ `mosaic` / `fit` may be missing from an apex older than this app.
+export function photoSettings(): Promise<
+  Result<{ density: 'days' | 'months' | 'years'; mosaic?: boolean; fit?: boolean; columns?: number }>
+> {
+  return call(ProxyMethod.SettingsGet)
+}
+
+export function setPhotoColumns(columns: number): Promise<Result<object>> {
+  return call(ProxyMethod.SettingsSetColumns, { columns })
+}
+
+export function setPhotoLayout(mosaic: boolean, fit: boolean): Promise<Result<object>> {
+  return call(ProxyMethod.SettingsSetLayout, { mosaic, fit })
+}
+
+export function setPhotoDensity(density: 'days' | 'months' | 'years'): Promise<Result<object>> {
+  return call(ProxyMethod.SettingsSetDensity, { density })
+}
+
+// ── search (web-apps-layout.md L7) ───────────────────────────────────────────
+// By name (case-insensitive) and/or capture time [fromMs, toMs], newest first, at most 500.
+export function searchPhotos(
+  name: string | null,
+  fromMs: number | null,
+  toMs: number | null,
+): Promise<Result<{ photos: Photo[]; truncated: boolean }>> {
+  return call(ProxyMethod.Search, { name, fromMs, toMs })
+}
+

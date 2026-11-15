@@ -9,10 +9,10 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.tenshu.contact.ContactInvite
 import org.tenshu.identity.Member
+import org.tenshu.viewmodel.test.vmTest
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -29,7 +29,7 @@ class ManageAccessTest {
     @AfterTest fun tearDown() = Dispatchers.resetMain()
 
     @Test
-    fun invites_for_the_folder_show_and_revoke() = runTest(dispatcher) {
+    fun invites_for_the_folder_show_and_revoke() = vmTest(dispatcher) { vms ->
         val invite = ContactInviteModel(
             inviteId = "inv-1",
             status = ContactInvite.Status.PENDING,
@@ -42,7 +42,7 @@ class ManageAccessTest {
             claimedSas = "",
         )
         val contacts = FakeContactsRepository(invites = listOf(invite))
-        val vm = DriveShareSurface.manageAccess(FakeFilesRepository(), contacts, FakeMembershipRepository(), "/Shared")
+        val vm = vms.own(DriveShareSurface.manageAccess(FakeFilesRepository(), contacts, FakeMembershipRepository(), "/Shared"))
         advanceUntilIdle()
 
         assertEquals(listOf("inv-1"), vm.uiState.value.invites.map { it.inviteId })
@@ -53,7 +53,7 @@ class ManageAccessTest {
     }
 
     @Test
-    fun a_shared_realm_folder_loads_members_and_grants_and_removes() = runTest(dispatcher) {
+    fun a_shared_realm_folder_loads_members_and_grants_and_removes() = vmTest(dispatcher) { vms ->
         val files = FakeFilesRepository(
             sharedFolders = listOf(SharedFolderModel(sharedRealmId = "realm-1", name = "Shared", parentPath = "/")),
         )
@@ -63,7 +63,7 @@ class ManageAccessTest {
         val contacts = FakeContactsRepository(
             contacts = listOf(ContactModel(personId = "p-1", displayName = "Carol", fingerprint = "fp2", grantable = true)),
         )
-        val vm = DriveShareSurface.manageAccess(files, contacts, membership, "/Shared")
+        val vm = vms.own(DriveShareSurface.manageAccess(files, contacts, membership, "/Shared"))
         advanceUntilIdle()
 
         assertTrue(vm.uiState.value.backsSharedRealm)

@@ -11,6 +11,7 @@ import androidx.compose.ui.test.v2.runDesktopComposeUiTest
 import app.tenshu.ui.theme.TenshuTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import org.tenshu.ui.test.NoMotion
 
 /**
  * ⚠⚠ **`Modifier.fillMaxSize().appContentWidth()` does not cap anything** — the order is
@@ -29,7 +30,7 @@ class ContentWidthOrderTest {
 
     private fun measuredWidth(content: @Composable (onWidth: (Int) -> Unit) -> Unit): Int {
         var width = -1
-        runDesktopComposeUiTest(width = 1440, height = 900) {
+        runDesktopComposeUiTest(width = 1440, height = 900, effectContext = NoMotion) {
             setContent {
                 TenshuTheme {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {

@@ -30,6 +30,7 @@ import kotlin.test.assertFalse
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
+import org.tenshu.ui.test.NoMotion
 
 /**
  * The viewer as a pager (`photos-app.md` S3 / PH-8).
@@ -58,7 +59,7 @@ class PhotoViewerPagerTest {
     }
 
     @Test
-    fun theNeighbourIsReadBeforeItIsSwipedTo() = runComposeUiTest {
+    fun theNeighbourIsReadBeforeItIsSwipedTo() = runComposeUiTest(effectContext = NoMotion) {
         val loader = Loader()
         setContent {
             TenshuTheme {
@@ -83,7 +84,7 @@ class PhotoViewerPagerTest {
     }
 
     @Test
-    fun swipingMovesToTheNextPhoto() = runComposeUiTest {
+    fun swipingMovesToTheNextPhoto() = runComposeUiTest(effectContext = NoMotion) {
         val shown = mutableListOf<String>()
         setContent {
             TenshuTheme {
@@ -114,7 +115,7 @@ class PhotoViewerPagerTest {
      * as the photograph disappearing on every window drag.
      */
     @Test
-    fun aViewerGrownPastAStepAsksAgain_andKeepsItsPictureMeanwhile() = runDesktopComposeUiTest(width = 3000, height = 800) {
+    fun aViewerGrownPastAStepAsksAgain_andKeepsItsPictureMeanwhile() = runDesktopComposeUiTest(width = 3000, height = 800, effectContext = NoMotion) {
         val asked = mutableListOf<Int>()
         val larger = CompletableDeferred<ByteArray>()
         var width by mutableStateOf(1_000)
@@ -168,7 +169,7 @@ class PhotoViewerPagerTest {
      * collector that took only the first value would cancel the flow and `applied` would stop at 1.
      */
     @Test
-    fun aSecondEmissionUpgradesThePageInPlace() = runComposeUiTest {
+    fun aSecondEmissionUpgradesThePageInPlace() = runComposeUiTest(effectContext = NoMotion) {
         val applied = mutableListOf<Int>()
         setContent {
             TenshuTheme {
@@ -197,7 +198,7 @@ class PhotoViewerPagerTest {
     private val onePixelPng = byteArrayOf(-119, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 2, 0, 0, 0, -112, 119, 83, -34, 0, 0, 0, 12, 73, 68, 65, 84, 120, -100, 99, -8, -49, -64, 0, 0, 3, 1, 1, 0, -55, -2, -110, -17, 0, 0, 0, 0, 73, 69, 78, 68, -82, 66, 96, -126)
 
     @Test
-    fun nearingTheEndAsksTheOwnerForMore() = runComposeUiTest {
+    fun nearingTheEndAsksTheOwnerForMore() = runComposeUiTest(effectContext = NoMotion) {
         var loadMores = 0
         setContent {
             TenshuTheme {
@@ -219,7 +220,7 @@ class PhotoViewerPagerTest {
     }
 
     @Test
-    fun aWholeListIsNeverAskedForMore() = runComposeUiTest {
+    fun aWholeListIsNeverAskedForMore() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠ An album, a smart section and a search result have no next page. The viewer must not
         // ask — `onLoadMore` is null for them, and this is the test that the wiring stays that way.
         var loadMores = 0
@@ -241,7 +242,7 @@ class PhotoViewerPagerTest {
     }
 
     @Test
-    fun theSwipeReachesPhotosTheListGainedAfterItOpened() = runComposeUiTest {
+    fun theSwipeReachesPhotosTheListGainedAfterItOpened() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠⚠ This is what "endless" means here: the feed's `loadMore` appends, the pager's page
         // count is a lambda over the same list, and the photo that did not exist when the user
         // tapped is simply there. A viewer holding its own copy would stop at the fourth photo.

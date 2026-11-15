@@ -23,6 +23,7 @@ import kotlin.random.Random
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertTrue
+import kotlin.test.fail
 
 /**
  * [IosFileDatabase.readBytesRange] is the bounded read: a caller walking a large file in windows
@@ -32,7 +33,7 @@ import kotlin.test.assertTrue
  * the thread ended. Found on a phone, where unpacking a 555 MB model archive peaked at 1.1 GB
  * (`docs/proposals/ios-on-device-inference.md` §9).
  */
-@OptIn(ExperimentalForeignApi::class, NativeRuntimeApi::class)
+@OptIn(ExperimentalForeignApi::class, NativeRuntimeApi::class, ExperimentalStdlibApi::class)
 class IosFileDatabaseRangedReadMemoryTest {
 
     private val root: String = "${NSTemporaryDirectory()}ios-filedb-memory-${Random.nextLong()}"
@@ -49,6 +50,7 @@ class IosFileDatabaseRangedReadMemoryTest {
         for (i in 0 until WINDOWS) db.writeBytesRange("/big", i.toLong() * WINDOW, window)
         GC.collect()
         val before: Long = footprint()
+        val heapBefore: Long = kotlinHeap()
 
         // The test body runs on a thread that drains no pool until it returns: the phone's case.
         var read = 0L
@@ -57,11 +59,26 @@ class IosFileDatabaseRangedReadMemoryTest {
         val grew: Long = footprint() - before
 
         assertTrue(read == WINDOWS.toLong() * WINDOW)
-        assertTrue(
-            grew < WINDOWS.toLong() * WINDOW / 4,
-            "reading ${WINDOWS} MiB in 1 MiB windows grew the footprint by ${grew / (1 shl 20)} MiB",
-        )
+        // The defect holds the whole file, ~96 MiB. CI once measured 36 MiB where a Mac measures
+        // ~0, alone or in the full suite, so the message names what grew: the Kotlin heap (some
+        // other test's objects), or memory outside it, and whether a second collect returns it.
+        if (grew >= WINDOWS.toLong() * WINDOW / 4) {
+            val heapGrew = kotlinHeap() - heapBefore
+            GC.collect()
+            val afterSecondCollect = footprint() - before
+            fail(
+                "reading ${WINDOWS} MiB in 1 MiB windows grew the footprint by ${grew.mib()} MiB: " +
+                    "Kotlin heap ${heapGrew.mib()} MiB, the rest ${(grew - heapGrew).mib()} MiB; " +
+                    "after a second collect ${afterSecondCollect.mib()} MiB",
+            )
+        }
     }
+
+    private fun Long.mib(): Long = this / (1 shl 20)
+
+    /** Live Kotlin objects after the last collection, every pool summed. */
+    private fun kotlinHeap(): Long =
+        GC.lastGCInfo?.memoryUsageAfter?.values?.sumOf { it.totalObjectsSizeBytes } ?: 0L
 
     private fun footprint(): Long = memScoped {
         val info = alloc<task_vm_info_data_t>()

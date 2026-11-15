@@ -28,6 +28,7 @@ kotlin {
     sourceSets {
         getByName("desktopTest") {
             dependencies {
+                implementation(project(":ui-test-utils"))
                 implementation(project(":viewmodel-test-utils"))
                 implementation(project(":core-test-utils"))
                 // Compose UI tests for the shared screens — the same harness `drive-shared-ui`

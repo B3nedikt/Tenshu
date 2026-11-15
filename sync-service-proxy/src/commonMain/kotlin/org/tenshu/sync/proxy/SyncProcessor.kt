@@ -780,8 +780,6 @@ class SyncProcessor(
         val existingMetadata = executionContext.database.getData(metadataId) as? SyncMetadata
         val existingData = executionContext.database.getData(dataId)
 
-        val isNewer = existingMetadata == null || hlc.compare(existingMetadata.hlc) > 0
-
         // Apply conflict resolution based on trait
         val underlyingTypeId = if (incomingData is Entity<*>) {
             incomingData.type.get()
@@ -790,6 +788,27 @@ class SyncProcessor(
         }
         val trait = executionContext.traitResolver.getTrait<Syncable>(underlyingTypeId, Syncable.ID)
         val strategy = trait?.conflictStrategy ?: ConflictStrategy.LastWriterWins
+
+        // ⚠⚠ What "newer" is measured against. `SyncMetadata` records only the last INGESTED write, so
+        // on its own it cannot see this device's local writes, and the relay echoes a device's own
+        // blocks back: the echo of an older own write read as newer and replaced a newer local
+        // one (`SyncProcessorOwnEchoTest`; `ContactHandshakeSystemTest`'s `COMPLETED` read back as
+        // `REDEEMED`). Every strategy but Merge therefore compares against the later of the last
+        // ingest and the last local write — the delete path's rule ([applyVerifiedDeleteBlock]).
+        // ⚠ Merge keeps the ingest-only basis: an older peer change must still be merged into a newer
+        // local row (a set-union field would otherwise drop the peer's members), not discarded.
+        val ingestedHlc = existingMetadata?.hlc
+        val existingHlc = if (strategy == ConflictStrategy.Merge) {
+            ingestedHlc
+        } else {
+            val localHlc = tombstoneRegistry.localWriteHlc(dataIdHash.toString())
+            when {
+                ingestedHlc == null -> localHlc
+                localHlc == null -> ingestedHlc
+                else -> if (localHlc.compare(ingestedHlc) > 0) localHlc else ingestedHlc
+            }
+        }
+        val isNewer = existingHlc == null || hlc.compare(existingHlc) > 0
 
         if (existingData == null || isNewer) {
             when (strategy) {
@@ -829,7 +848,7 @@ class SyncProcessor(
                 executionContext.saveData(
                     SyncMetadata.create(
                         context = executionContext.context,
-                        hlc = existingMetadata.hlc,
+                        hlc = existingHlc!!, // not newer ⇒ there was an HLC to lose to
                         targetDataIdHash = dataIdHash,
                         isConflicted = true
                     ),

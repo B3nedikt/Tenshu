@@ -19,12 +19,16 @@ object HarnessArguments {
      * directory must exist, be a readable directory and hold at least one photo, else the run fails:
      * a typo would otherwise walk nothing and pass having written no report (§15.12.6's
      * empty-versus-unreadable ambiguity). Either way, two photos with one basename fail.
+     *
+     * [readable] is `File.canRead` outside tests. ⚠ A test cannot make a file unreadable for root
+     * (`setReadable(false)` changes nothing under `CAP_DAC_OVERRIDE`, and cloud containers run
+     * as root), so the unreadable case is tested through this seam rather than through `chmod`.
      */
-    fun photos(root: File, requested: String?): List<File> {
+    fun photos(root: File, requested: String?, readable: (File) -> Boolean = File::canRead): List<File> {
         val dir = File(root, requested ?: DEFAULT_PHOTOS)
         if (requested != null) {
             check(dir.isDirectory) { "IN-6 recall: -e photos $dir is not a directory" }
-            check(dir.canRead() && dir.list() != null) { "IN-6 recall: -e photos $dir is unreadable" }
+            check(readable(dir) && dir.list() != null) { "IN-6 recall: -e photos $dir is unreadable" }
         }
         val found = dir.walkTopDown()
             .filter { it.isFile && it.extension.lowercase() in PHOTO_EXTENSIONS }
@@ -44,12 +48,17 @@ object HarnessArguments {
 
     /**
      * `-e orientations <file>`, relative to [root]: omitted means no orientation; supplied, the file
-     * must be a readable regular file, then [orientations]' rules apply.
+     * must be a readable regular file, then [orientations]' rules apply. [readable] as in [photos].
      */
-    fun orientationManifest(root: File, requested: String?, photoNames: Collection<String>): Map<String, Int> {
+    fun orientationManifest(
+        root: File,
+        requested: String?,
+        photoNames: Collection<String>,
+        readable: (File) -> Boolean = File::canRead,
+    ): Map<String, Int> {
         val lines = requested?.let { name ->
             val file = File(root, name)
-            check(file.isFile && file.canRead()) { "IN-6 recall: orientation manifest $file is missing or unreadable" }
+            check(file.isFile && readable(file)) { "IN-6 recall: orientation manifest $file is missing or unreadable" }
             file.readLines()
         }
         return orientations(lines, photoNames)

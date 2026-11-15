@@ -223,12 +223,22 @@ for app in "${APPS[@]}"; do
         TENSHU_TEAM_ID="$(sed -n 's/^tenshu\.teamId=//p' local.properties | head -1)"
       fi
       (cd "$dir" && TENSHU_TEAM_ID="${TENSHU_TEAM_ID:-}" xcodegen generate >/dev/null 2>&1) || true
-      xcodebuild -project "$dir/$scheme.xcodeproj" -scheme "$scheme" \
+      # ⚠ The log is kept, and its errors printed on a failure: on CI nobody can rerun it by hand,
+      # and a bare "xcodebuild failed" there says nothing about which Swift line broke.
+      log="build/ios-sim/$scheme.xcodebuild.log"
+      mkdir -p build/ios-sim
+      if xcodebuild -project "$dir/$scheme.xcodeproj" -scheme "$scheme" \
         -configuration Debug -sdk iphonesimulator \
         -destination 'generic/platform=iOS Simulator' \
-        -derivedDataPath "build/ios-sim/$scheme" build >/dev/null 2>&1 \
-        && echo "ios-smoke: PASS $app (compiles)" \
-        || { echo "ios-smoke: FAIL $app — xcodebuild failed (rerun without >/dev/null for details)"; FAILED=1; }
+        -derivedDataPath "build/ios-sim/$scheme" build > "$log" 2>&1; then
+        echo "ios-smoke: PASS $app (compiles)"
+      else
+        echo "ios-smoke: FAIL $app — xcodebuild failed (full log: $log)"
+        grep -E "error:|\*\* BUILD FAILED" "$log" | sort -u | head -30 | sed 's/^/    /'
+        echo "    … last lines:"
+        tail -15 "$log" | sed 's/^/    /'
+        FAILED=1
+      fi
       continue
     fi
     # generic destination is enough once the device is registered in the

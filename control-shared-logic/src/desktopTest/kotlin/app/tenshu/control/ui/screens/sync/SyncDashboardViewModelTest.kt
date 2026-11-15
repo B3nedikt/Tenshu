@@ -114,6 +114,19 @@ class SyncDashboardViewModelTest {
         assertNull(vm.uiState.value.error, "a successful revocation is not an error")
     }
 
+    /** §7j.4: the admittees the user unticked are removed in the same action, the device itself first. */
+    @Test
+    fun revokeWithAdmittees_removesTheDeviceFirst_thenEachChosenAdmittee() = vmTest { vms ->
+        val repo = FakeSyncRepository()
+        val vm = viewModel(vms, repo, backgroundScope)
+
+        vm.revokeDeviceAndAdmittees("mac", listOf("tv", "mac", "tv"))
+        advanceUntilIdle()
+
+        assertEquals(listOf("mac", "tv"), repo.revokedDeviceIds, "once each, the removed device first")
+        assertNull(vm.uiState.value.error)
+    }
+
     @Test
     fun revokeReturnsFailure_surfacesTheOpsMessage() = vmTest { vms ->
         // The shape a refusal actually takes at this boundary: the proxy catch-all converts the

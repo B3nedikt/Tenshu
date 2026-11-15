@@ -30,6 +30,7 @@ import org.tenshu.inference.FaceGroupsUnavailable.Reasons
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.tenshu.ui.test.NoMotion
 
 /** The Collections tab as rows, and the page behind each row's *View all* (`photos-app.md` §35). */
 @OptIn(ExperimentalTestApi::class)
@@ -44,7 +45,7 @@ class CollectionRowsTest {
     private val munich = SmartAlbum("place:munich", "Munich", "Bavaria", listOf(photo(4)))
 
     @Test
-    fun eachSectionsViewAllOpensThatSection() = runComposeUiTest {
+    fun eachSectionsViewAllOpensThatSection() = runComposeUiTest(effectContext = NoMotion) {
         val opened = mutableListOf<CollectionSection>()
         setContent {
             TenshuTheme {
@@ -78,7 +79,7 @@ class CollectionRowsTest {
 
     /** ⚠ The Albums row is there with no albums: it holds the only way to make one. */
     @Test
-    fun theAlbumsRowLeadsWithNewAlbum_evenWithNoAlbums() = runComposeUiTest {
+    fun theAlbumsRowLeadsWithNewAlbum_evenWithNoAlbums() = runComposeUiTest(effectContext = NoMotion) {
         var creating = 0
         setContent {
             TenshuTheme {
@@ -102,7 +103,7 @@ class CollectionRowsTest {
     }
 
     @Test
-    fun videosIsACompactTileBesideFavouritesAndDuplicates() = runComposeUiTest {
+    fun videosIsACompactTileBesideFavouritesAndDuplicates() = runComposeUiTest(effectContext = NoMotion) {
         val opened = mutableListOf<String>()
         setContent {
             TenshuTheme {
@@ -153,7 +154,7 @@ class CollectionRowsTest {
 
     /** ⚠ Named first: an unnamed face is what a user scrolls past to find someone they named. */
     @Test
-    fun thePeoplePageListsNamedPeopleFirst_withoutCounts() = runComposeUiTest {
+    fun thePeoplePageListsNamedPeopleFirst_withoutCounts() = runComposeUiTest(effectContext = NoMotion) {
         sectionPage(
             CollectionSection.PEOPLE,
             CollectionsUiState(
@@ -171,7 +172,7 @@ class CollectionRowsTest {
     }
 
     @Test
-    fun anEmptyPeoplePageSaysWhy() = runComposeUiTest {
+    fun anEmptyPeoplePageSaysWhy() = runComposeUiTest(effectContext = NoMotion) {
         sectionPage(
             CollectionSection.PEOPLE,
             CollectionsUiState(years = listOf(year2026), peopleStatus = PeopleStatus.Unavailable(Reasons.NOT_INDEXED)),
@@ -180,7 +181,7 @@ class CollectionRowsTest {
     }
 
     @Test
-    fun thePlacesPageIsAListThatOpensThePlace() = runComposeUiTest {
+    fun thePlacesPageIsAListThatOpensThePlace() = runComposeUiTest(effectContext = NoMotion) {
         val opened = mutableListOf<String>()
         sectionPage(CollectionSection.PLACES, CollectionsUiState(places = listOf(munich)), onOpen = { opened += it.id })
 
@@ -191,7 +192,7 @@ class CollectionRowsTest {
     }
 
     @Test
-    fun theAlbumsPageOffersNewAlbumInItsBar() = runComposeUiTest {
+    fun theAlbumsPageOffersNewAlbumInItsBar() = runComposeUiTest(effectContext = NoMotion) {
         var creating = 0
         sectionPage(
             CollectionSection.ALBUMS,
@@ -206,7 +207,7 @@ class CollectionRowsTest {
 
     /** A failed refresh over albums already shown must still offer a retry. */
     @Test
-    fun aFailedRefreshOverShownAlbumsStillOffersTryAgain() = runComposeUiTest {
+    fun aFailedRefreshOverShownAlbumsStillOffersTryAgain() = runComposeUiTest(effectContext = NoMotion) {
         var retries = 0
         setContent {
             TenshuTheme {
@@ -238,7 +239,7 @@ class CollectionRowsTest {
      * failed refresh — and a refresh in flight — instead of vanishing behind a full-screen state.
      */
     @Test
-    fun withNoAlbumsLoadedSectionsSurviveARefreshAndAFailure() = runComposeUiTest {
+    fun withNoAlbumsLoadedSectionsSurviveARefreshAndAFailure() = runComposeUiTest(effectContext = NoMotion) {
         var current by mutableStateOf(CollectionsUiState(years = listOf(year2026), loading = true))
         setContent {
             TenshuTheme {
@@ -285,7 +286,7 @@ class CollectionRowsTest {
      * the tab must show a placeholder, never that line.
      */
     @Test
-    fun whilePeopleLoadsItShowsAPlaceholder_neverTheStatusLine() = runComposeUiTest {
+    fun whilePeopleLoadsItShowsAPlaceholder_neverTheStatusLine() = runComposeUiTest(effectContext = NoMotion) {
         tab(CollectionsUiState(years = listOf(year2026), peopleLoad = SectionLoad.LOADING, loading = true))
 
         waitUntil { onAllNodesWithText("People").fetchSemanticsNodes().isNotEmpty() }
@@ -294,7 +295,7 @@ class CollectionRowsTest {
     }
 
     @Test
-    fun aFailedPeopleReadSaysSoInItsSection_withItsOwnTryAgain() = runComposeUiTest {
+    fun aFailedPeopleReadSaysSoInItsSection_withItsOwnTryAgain() = runComposeUiTest(effectContext = NoMotion) {
         var retries = 0
         tab(CollectionsUiState(years = listOf(year2026), peopleLoad = SectionLoad.FAILED), onRetry = { retries++ })
 
@@ -306,7 +307,7 @@ class CollectionRowsTest {
 
     /** No full-screen spinner: the tiles are there at once, and the library's row says it is coming. */
     @Test
-    fun beforeAnyReadLandsTheTabIsDrawnNotASpinner() = runComposeUiTest {
+    fun beforeAnyReadLandsTheTabIsDrawnNotASpinner() = runComposeUiTest(effectContext = NoMotion) {
         tab(
             CollectionsUiState(
                 loading = true,
@@ -321,7 +322,7 @@ class CollectionRowsTest {
     }
 
     @Test
-    fun aFailedLibraryWalkSaysSo_ratherThanLookingEmpty() = runComposeUiTest {
+    fun aFailedLibraryWalkSaysSo_ratherThanLookingEmpty() = runComposeUiTest(effectContext = NoMotion) {
         tab(CollectionsUiState(favouriteCount = 1, libraryLoad = SectionLoad.FAILED, peopleLoad = SectionLoad.FAILED))
 
         waitUntil { onAllNodesWithText("Couldn't load years.").fetchSemanticsNodes().isNotEmpty() }
@@ -331,7 +332,7 @@ class CollectionRowsTest {
 
     /** A failed refresh beside retained years says so instead of passing them off as current. */
     @Test
-    fun aFailedRefreshBesideRetainedYearsSaysSo() = runComposeUiTest {
+    fun aFailedRefreshBesideRetainedYearsSaysSo() = runComposeUiTest(effectContext = NoMotion) {
         tab(CollectionsUiState(years = listOf(year2026), libraryLoad = SectionLoad.FAILED))
 
         waitUntil { onAllNodesWithText("Couldn't refresh years.").fetchSemanticsNodes().isNotEmpty() }
@@ -340,7 +341,7 @@ class CollectionRowsTest {
 
     /** An albums failure is the Albums row's, not a full-screen error over the tab. */
     @Test
-    fun anAlbumsFailureStaysInTheAlbumsRow() = runComposeUiTest {
+    fun anAlbumsFailureStaysInTheAlbumsRow() = runComposeUiTest(effectContext = NoMotion) {
         tab(CollectionsUiState(albumsLoad = SectionLoad.FAILED))
 
         waitUntil { onAllNodesWithText("Couldn't load your albums.").fetchSemanticsNodes().isNotEmpty() }
@@ -350,7 +351,7 @@ class CollectionRowsTest {
 
     /** A platform that cannot group faces never grows a People section to fail in. */
     @Test
-    fun withoutFaceGroupingAFailedPeopleReadShowsNoPeopleSection() = runComposeUiTest {
+    fun withoutFaceGroupingAFailedPeopleReadShowsNoPeopleSection() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 CollectionsScreen(
@@ -372,7 +373,7 @@ class CollectionRowsTest {
 
     /** The People page says a failed refresh too, beside the cards it kept. */
     @Test
-    fun thePeoplePageSaysAFailedRefreshBesideTheCardsItKept() = runComposeUiTest {
+    fun thePeoplePageSaysAFailedRefreshBesideTheCardsItKept() = runComposeUiTest(effectContext = NoMotion) {
         var retries = 0
         setContent {
             TenshuTheme {
@@ -400,7 +401,7 @@ class CollectionRowsTest {
 
     /** Not only People — the Years page says a failed refresh beside the years it kept. */
     @Test
-    fun theYearsPageSaysAFailedRefreshBesideTheYearsItKept() = runComposeUiTest {
+    fun theYearsPageSaysAFailedRefreshBesideTheYearsItKept() = runComposeUiTest(effectContext = NoMotion) {
         var retries = 0
         sectionPage(
             CollectionSection.YEARS,
@@ -412,7 +413,7 @@ class CollectionRowsTest {
 
     /** A failed Favourites tile is its own Try again. */
     @Test
-    fun tappingAFailedFavouritesTileRetries() = runComposeUiTest {
+    fun tappingAFailedFavouritesTileRetries() = runComposeUiTest(effectContext = NoMotion) {
         var retries = 0
         var opened = 0
         setContent {

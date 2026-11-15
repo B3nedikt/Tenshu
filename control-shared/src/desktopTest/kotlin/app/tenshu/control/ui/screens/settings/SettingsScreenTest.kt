@@ -11,11 +11,12 @@ import androidx.compose.ui.unit.dp
 import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertTrue
+import org.tenshu.ui.test.NoMotion
 
 class SettingsScreenTest {
 
     @get:Rule
-    val composeTestRule = createComposeRule()
+    val composeTestRule = createComposeRule(NoMotion)
 
     @Test
     fun testSyncDashboardClick() {

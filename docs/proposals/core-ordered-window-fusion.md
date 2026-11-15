@@ -297,6 +297,90 @@ and becomes a plain API-consistency fix, schedulable independently.
     - Tests: `ReadOrderedWindowTest` (7), asserting the same windows `OrderedWindowFusionTest`
       pins for the fused chain — two implementations of one semantics is how they drift.
 
+### 6.1 The scan pages across store accesses (2026-11-12)
+
+`readOrderedWindow` bounds the **selection**, never the scan: it reads every member of the relation
+thin. Until 2026-11-12 that scan was **one store access** — `DatabaseImpl.readArray` resolved every
+member inside one `lock.withLock` — and on the iOS SQLite replica one outermost access is one
+`BEGIN IMMEDIATE` transaction under the hold watchdog's `HOLD_MAX` (1 s,
+`ios-shared-store-sqlite.md` S2, §4.2.1). At ~0.11 ms per statement and ~2 statements per member
+(debug simulator) a relation past ~4–5k members, read whole by an observer pass
+(`MomentReconciliationPass`, `PlaceRoleInferencePass`, `VisitTimeCorroboration`), a slice encode or a
+listing, held the write lock past `HOLD_MAX` and fenced the store `COMMIT_FAILED`. ⚠ `HOLD_MAX` is
+not the knob — it is never raised.
+
+**As built.** Every relation read in `DatabaseImpl` — `getArrayData`, `getArrayDataWindow`, both
+with and without the cancellable-read checkpoint — goes through one paged reader
+(`DatabaseImpl.readArrayWindow`):
+
+1. The **first access** reads the array's row, **snapshots** the window's member hashes, and
+   resolves the first page.
+2. Each **later access** resolves the next page of that snapshot (`DbEntryMapper.deserializeMembers`).
+   A page is at most `ARRAY_READ_PAGE_SIZE` = 512 members (~0.1–0.2 s on a debug simulator).
+3. A relation of at most one page is still exactly **one** access, as before.
+
+So the bound holds for every caller **outside a transaction** with no call-site change, including
+this doc's chain fusion (§3.2) and `readOrderedWindow`. ⚠⚠ Not for a read inside one — see the
+transaction point below, which names a live production path.
+
+⚠ A page is capped by **member count**, not cost: 512 assumes ~2 statements per member. A relation
+whose members are composites with sizable inline lists or `genericData` children costs more per
+member, and one page of those can still approach `HOLD_MAX`.
+
+⚠⚠ **What a write between two pages can do to the result** — nothing else is possible:
+
+| Concurrent write after the snapshot | In the result |
+|---|---|
+| member **added** | absent — as from a one-access read just before the add |
+| member **removed**, row kept | present — the snapshot's view |
+| member **removed** and row **deleted** | skipped; **not** reported as store corruption (the page re-reads the array and counts only misses that are still members) |
+| member's row **updated** | present, as of its page — newer than the snapshot |
+| member **replaced** atomically (remove A + delete A's row + add A′, one transaction) | **neither** A nor A′ — A's row is gone, A′ was added after the snapshot |
+| the **array row** itself gone (relation deleted, or an iOS wipe fenced the handle) | empty — never the pages already read passed off as the whole relation |
+
+**Never a member read twice, never a member lost that stayed a member throughout.** That is why the
+reader snapshots hashes instead of re-slicing `[offset, offset + page)` against a list that moved:
+an add or removal ahead of the cursor would shift it, and a re-sliced read would then duplicate or
+skip a stable member. No dedupe is needed because nothing can duplicate.
+
+**Why every caller tolerates it.** The result is *nearly* a one-access read taken at the snapshot,
+with some members fresher than it — ⚠ with one exception no single-instant read could produce: an
+atomic replace between pages can drop **both** versions (table above). So a caller that **acts on
+a member's absence** (sweeps, keep-sets) must read inside `transaction { }`; the ones that exist do
+(`RetiredBlockSweeper`'s keep-set) or tolerate a miss (`OutboundQueuePurge`,
+`PendingBlockRestamper`). Every caller already lives with a result that is stale by the time it
+returns — nothing holds the lock between `getArrayData` and the caller's next step — so beyond that
+the new thing is **skew between members** (A as of page 1, B as of page 3):
+- **Observer passes and `readOrderedWindow` consumers** (the three Timeline passes): they are
+  re-triggered by the very write that made the skew, and they derive state from the members one by
+  one (a dwell per visit, a duplicate pair), so a fresher member is the next pass's input anyway.
+- **Listings and streams**: the stream re-evaluates on the array's write, which is the write that
+  caused the skew.
+- **Read-filter-rewrite callers** (a queue drain, a relation repair): if their step needs members
+  mutually consistent, they need `transaction { }` around read **and** write already, or they race
+  today. Inside a transaction see the next point.
+
+⚠ **Inside an outer lock** (`transaction { }`, or any caller already inside `lock.withLock`) every
+page re-enters the held lock, so no writer runs between pages and the result is exactly what one
+access returned before — `PagedArrayReadTest.insideATransactionTheReadIsTheTransactionsOneAccess`.
+⚠⚠ The flip side: a relation read **whole inside** a transaction is still O(members) of **that one**
+transaction on iOS. Paging cannot help it; the caller must not do that on a relation that can grow.
+The one live path that did — a synced `Place` reaching `PlaceReconciler` →
+`VisitTimeCorroboration` → `readOrderedWindow` over all of `MOMENTS` inside
+`SyncProcessor.resolveConflictAndSave`'s transaction — now records the anchor only and reconciles
+coalesced on `sessionScope`, after the commit, like `MomentReconciliationPass` and
+`PlaceRoleInferencePass` (`PlaceReconcilerTest.aSyncedPlaceIsNotReconciledInsideTheIngestTransaction`).
+⚠ Other in-transaction reads that grow with the relation remain — `FolderMerger`, the File-delete
+cascade, `RelationMaintainer.memberCount` — listed in `tech-debt.md` *"Synchronous observers and
+mergers that read a growing relation inside a transaction"*.
+
+**Tests.** `PagedArrayReadTest` (`:core-common` commonTest): a counting lock numbers outermost
+accesses and a counting store attributes each member-row read to one, asserting no access resolves
+more than a page; the same rig runs a write between two pages. Fails 4/6 on the one-access read.
+`WholeRelationReadSharedReplicaTest` (`:tenshu-sdk-ios-core` iosTest, macOS only) reads a
+20k-member `MOMENTS` relation over the real `SharedReplicaStore` and asserts the store stays
+unfenced, with a control that the same read inside one transaction is refused past `HOLD_MAX`.
+
 ## 7. Open questions
 
 - **Q1** `thenBy` in v1: the design supports it when all keys are single-step; if the bounded

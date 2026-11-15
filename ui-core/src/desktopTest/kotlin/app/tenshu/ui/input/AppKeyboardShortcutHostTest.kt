@@ -22,6 +22,7 @@ import androidx.compose.ui.test.v2.runDesktopComposeUiTest
 import androidx.compose.ui.unit.dp
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import org.tenshu.ui.test.NoMotion
 
 /**
  * ⚠⚠ The failure this exists for is silent: shortcuts attached with [keyboardShortcuts] to a
@@ -32,7 +33,7 @@ import kotlin.test.assertEquals
 class AppKeyboardShortcutHostTest {
 
     @Test
-    fun aShortcutFiresBeforeAnythingWasClicked() = runDesktopComposeUiTest {
+    fun aShortcutFiresBeforeAnythingWasClicked() = runDesktopComposeUiTest(effectContext = NoMotion) {
         var fired = 0
         setContent {
             AppKeyboardShortcutHost(KeyboardShortcut(Key.Escape) { fired++ }) {
@@ -48,7 +49,7 @@ class AppKeyboardShortcutHostTest {
     }
 
     @Test
-    fun aShortcutStillFiresAfterAChildTookFocus() = runDesktopComposeUiTest {
+    fun aShortcutStillFiresAfterAChildTookFocus() = runDesktopComposeUiTest(effectContext = NoMotion) {
         var fired = 0
         var clicked = 0
         setContent {
@@ -78,7 +79,7 @@ class AppKeyboardShortcutHostTest {
     // second key-down without a key-up, and a test is the one place an upgrade breaking it is cheap.
     @OptIn(InternalComposeUiApi::class)
     @Test
-    fun aHeldKeysRepeatFiresOnce_unlessItsShortcutRepeats() = runDesktopComposeUiTest {
+    fun aHeldKeysRepeatFiresOnce_unlessItsShortcutRepeats() = runDesktopComposeUiTest(effectContext = NoMotion) {
         var deletes = 0
         var pages = 0
         setContent {
@@ -102,7 +103,7 @@ class AppKeyboardShortcutHostTest {
     }
 
     @Test
-    fun anUnmatchedKeyIsNotConsumedAsAShortcut() = runDesktopComposeUiTest {
+    fun anUnmatchedKeyIsNotConsumedAsAShortcut() = runDesktopComposeUiTest(effectContext = NoMotion) {
         var fired = 0
         setContent {
             AppKeyboardShortcutHost(KeyboardShortcut(Key.Escape) { fired++ }) {

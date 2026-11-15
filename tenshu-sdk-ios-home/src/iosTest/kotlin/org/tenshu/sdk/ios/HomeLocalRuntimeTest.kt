@@ -17,6 +17,7 @@ import org.tenshu.routine.common.program.Action
 import org.tenshu.routine.common.program.JsonRoutineProgramCodec
 import org.tenshu.routine.common.program.RoutineProgram
 import org.tenshu.routine.common.program.Trigger
+import org.tenshu.viewmodel.test.OwnedViewModels
 import platform.Foundation.NSTemporaryDirectory
 import kotlin.random.Random
 import kotlin.test.Test
@@ -107,20 +108,25 @@ class HomeLocalRuntimeTest {
         // ⚠ `viewModelScope` is `Main.immediate` and `runBlocking` owns the main thread here, so
         // without a live Main the collection would never run and `loaded` would stay false.
         Dispatchers.setMain(UnconfinedTestDispatcher())
+        val owned = OwnedViewModels()
         try {
-            val devices = HomeSurface.devicesViewModel()
+            val devices = owned.own(HomeSurface.devicesViewModel())
             val state = withTimeout(30_000) { devices.uiState.first { it.loaded } }
             assertTrue(state.devices.isEmpty(), "an unprovisioned Home shows no devices: ${state.devices}")
             assertTrue(state.controls.isEmpty())
 
-            val automations = HomeSurface.automationsViewModel()
+            val automations = owned.own(HomeSurface.automationsViewModel())
             assertTrue(withTimeout(30_000) { automations.uiState.first { it.loaded } }.automations.isEmpty())
 
-            val activity = HomeSurface.activityViewModel()
+            val activity = owned.own(HomeSurface.activityViewModel())
             assertTrue(withTimeout(30_000) { activity.uiState.first { it.loaded } }.events.isEmpty())
         } finally {
+            // ⚠ Joined BEFORE `Main` is reset (`docs/testing.md` §11): a model still collecting
+            // when it is swapped resumes onto the main queue this binary never drains.
+            owned.closeAll()
             Dispatchers.resetMain()
         }
+        owned.assertNothingActive()
 
         // The pairing case: the mock household is NOT empty, so the assertions above would fail
         // if the surface defaulted to it.

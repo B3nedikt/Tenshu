@@ -33,10 +33,15 @@ sealed interface Destination {
     data object Feed : TopLevel
 
     @Serializable
-    data object Settings : TopLevel
-
-    @Serializable
     data object Collections : TopLevel
+
+    /**
+     * Settings — ⚠⚠ **not a tab** since CR-D8. Pushed from the ⚙ in the feed's top app bar, so Back
+     * returns to the feed instead of leaving the app, and selecting a tab clears it like any other
+     * pushed screen. Its own pushes, [Licences] and [Trash], are unchanged.
+     */
+    @Serializable
+    data object Settings : Destination
 
     /**
      * Search (S2). ⚠ A destination rather than a bar inside the feed: the results are a *different*
@@ -94,6 +99,13 @@ sealed interface Destination {
      */
     @Serializable
     data class Viewer(val collection: PhotoCollection, val index: Int) : Destination
+
+    /**
+     * The photo editor (`photos-editing.md` ED-1) on the photograph at [path]. ⚠ The [Photo] itself is
+     * held by the shell, for [Viewer]'s reason: rows never enter a route.
+     */
+    @Serializable
+    data class Editor(val path: String) : Destination
 }
 
 /**
@@ -126,4 +138,25 @@ sealed interface PhotoCollection {
      */
     @Serializable
     data object Fixed : PhotoCollection
+
+    /**
+     * The copy the editor just saved (`photos-editing.md` ED-1), opened on its own.
+     *
+     * ⚠⚠ Its own slot, not [Fixed]: the viewer the editor was opened from is still on the back stack,
+     * and if it was paging a [Fixed] snapshot, overwriting that one slot would swap its list for the
+     * copy alone when the user came back to it.
+     */
+    @Serializable
+    data object Edited : PhotoCollection
+}
+
+/**
+ * Switch to the tab [destination]. ⚠ Selecting a tab CLEARS the stack rather than pushing: tabs are
+ * peers, and pushing them would make Back walk a history of tab switches instead of leaving the app.
+ */
+fun MutableList<Destination>.selectTop(destination: Destination.TopLevel) {
+    if (lastOrNull() != destination) {
+        clear()
+        add(destination)
+    }
 }

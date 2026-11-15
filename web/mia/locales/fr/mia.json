@@ -1,8 +1,4 @@
 {
-  "app": {
-    "title": "Mia",
-    "tagline": "Interrogez vos propres données — réponse sur cet appareil, chiffrée de bout en bout."
-  },
   "runtime": {
     "connectingTitle": "Connexion à Tenshu en cours…",
     "connectingBody": "L’onglet Tenshu qui héberge Mia est occupé. Mia se chargera dès qu’il répondra.",
@@ -19,7 +15,7 @@
     "reload": "Recharger"
   },
   "tabs": {
-    "label": "Mia",
+    "label": "Sections de Mia",
     "chat": "Discussion",
     "history": "Historique",
     "grants": "Ce que Mia peut lire"

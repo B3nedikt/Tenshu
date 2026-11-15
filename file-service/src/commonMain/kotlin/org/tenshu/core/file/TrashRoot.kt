@@ -22,3 +22,23 @@ const val TRASH_ROOT: String = "/Trash"
  * would otherwise vanish from every photo read in the realm, and nothing would say why.
  */
 fun isTrashedPath(path: String): Boolean = path.startsWith("$TRASH_ROOT/")
+
+/**
+ * Where Photos keeps each non-destructive edit's baked **rendition** (`photos-editing.md` §12.3,
+ * ED-D10): `/Trash/.edits/<contentId>-<ms>-<random>.jpg` (a name never used twice — every preview cache is keyed by path).
+ *
+ * ⚠⚠ **Under the trash on purpose, and these files are LIVE.** A rendition is a real file — its own
+ * content, its own thumbnail rungs, counted against storage — that must never be read as a
+ * photograph: in the feed it would be a duplicate, in Timeline a second photo of the moment, in the
+ * indexer a second set of vectors. Every photo reader already excludes the trash, in the chain
+ * ([notTrashed]) and in the proxies ([isTrashedPath]), so a rendition here is excluded everywhere by
+ * construction, with no new predicate and no `:file-service` bump.
+ *
+ * ⚠⚠ The price is that `/Trash` no longer holds only deleted files. **A sweep that empties the trash
+ * must skip [isEditRenditionPath]**, or it deletes the picture of every edited photo in the realm.
+ * Nothing empties it wholesale today: Photos deletes trashed files one `TrashedPhoto` record at a time.
+ */
+const val EDIT_RENDITIONS_ROOT: String = "$TRASH_ROOT/.edits"
+
+/** Whether [path] names an edit's rendition ([EDIT_RENDITIONS_ROOT]) — never a trashed photo. */
+fun isEditRenditionPath(path: String): Boolean = path.startsWith("$EDIT_RENDITIONS_ROOT/")

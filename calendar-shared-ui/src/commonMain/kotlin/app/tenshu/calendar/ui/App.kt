@@ -1,5 +1,14 @@
 package app.tenshu.calendar.ui
 
+import app.tenshu.ui.feedback.SyncActivityCapsule
+import app.tenshu.ui.feedback.rememberSyncActivity
+import org.tenshu.sync.client.anyCatchUpHeartbeat
+import app.tenshu.reachability.SuiteSyncProblem
+import androidx.compose.foundation.layout.Box
+import app.tenshu.ui.feedback.SuiteSyncBanner
+import app.tenshu.ui.feedback.rememberSuiteSyncProblem
+import org.tenshu.sync.client.syncConnectivity
+import org.tenshu.sync.client.syncService
 import app.tenshu.calendar.shared.resources.Res
 import app.tenshu.calendar.shared.resources.calendar_control_fenced_update_app
 import app.tenshu.calendar.shared.resources.calendar_control_fenced_update_both
@@ -389,6 +398,12 @@ fun App(
 @Composable
 private fun ControlBanner(repository: CalendarRepository = koinInject()) {
     val reason by repository.controlUnreachableReason().collectAsState()
+    ControlBannerFor(reason)
+}
+
+/** [ControlBanner] for a verdict the caller already holds — the shared strip's Control slot (SS-1). */
+@Composable
+private fun ControlBannerFor(reason: UnreachableReason?) {
     if (reason == null) return
     val installRoute = rememberControlInstallRoute()
     val action = rememberControlBannerAction(reason, installRoute)
@@ -478,6 +493,16 @@ private fun CalendarPane(
     val showSidebar = sizeClass >= WindowWidthSizeClass.Large
 
     val storageState = rememberRealmStorageState()
+    // ⚠⚠ One strip for the app (`suite-sync-status.md` SS-1): Control's state, this device's sync
+    // health and storage, in one order.
+    val calendarRepository: CalendarRepository = koinInject()
+    val unreachableReason by calendarRepository.controlUnreachableReason().collectAsState()
+    val tenshuClient: TenshuClient = koinInject()
+    val connectivity = remember(tenshuClient) { tenshuClient.syncService.syncConnectivity() }
+    val syncProblem = rememberSuiteSyncProblem(unreachableReason, storageState, connectivity)
+    // SS-2: "Syncing…" while Control pulls, read through its heartbeat.
+    val catchingUp = remember(tenshuClient) { tenshuClient.syncService.anyCatchUpHeartbeat() }
+    val syncActivity = rememberSyncActivity(catchingUp)
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
@@ -505,41 +530,46 @@ private fun CalendarPane(
                     }
                 },
             )
-            // ⚠ Above the storage banner, not instead of it: "Control is gone" and "the realm
-            // cannot sync" are different facts and a user can be owed both.
-            ControlBanner()
-            RealmStorageBannerHost(storageState)
+            SuiteSyncBanner(
+                problem = syncProblem,
+                controlBanner = { ControlBannerFor(it) },
+                storageBanner = { RealmStorageBannerHost(it) },
+            )
           }
         },
         floatingActionButton = { if (!wide) CalendarCreateButton(state, onCreate) },
     ) { padding ->
-        Row(Modifier.padding(padding)) {
-            if (showSidebar) {
-                CalendarSidebar(
-                    calendars = state.calendars,
-                    // ⚠⚠ Through `CalendarViewModel`, *not* `CalendarManagementViewModel`
-                    // — which also has a `setVisible`. That one refreshes its own list
-                    // and nothing else, so the checkbox would move and the grid beside
-                    // it would keep drawing the calendar that was just hidden. This one
-                    // writes the same preference and reloads the window.
-                    onToggleVisible = viewModel::setCalendarVisible,
-                    onManage = onManageCalendars,
-                    modifier = Modifier.width(CalendarSidebarWidth),
-                )
-                // ⚠ The window margin belongs to the content pane, not to the sidebar:
-                // Material models leading chrome as the window perimeter, sitting
-                // outside the panes rather than inside them.
-                VerticalDivider()
-            }
+        // SS-2: a Box so the "Syncing…" capsule can sit over the calendar, never beside it.
+        Box(Modifier.padding(padding).fillMaxSize()) {
+            Row {
+                if (showSidebar) {
+                    CalendarSidebar(
+                        calendars = state.calendars,
+                        // ⚠⚠ Through `CalendarViewModel`, *not* `CalendarManagementViewModel`
+                        // — which also has a `setVisible`. That one refreshes its own list
+                        // and nothing else, so the checkbox would move and the grid beside
+                        // it would keep drawing the calendar that was just hidden. This one
+                        // writes the same preference and reloads the window.
+                        onToggleVisible = viewModel::setCalendarVisible,
+                        onManage = onManageCalendars,
+                        modifier = Modifier.width(CalendarSidebarWidth),
+                    )
+                    // ⚠ The window margin belongs to the content pane, not to the sidebar:
+                    // Material models leading chrome as the window perimeter, sitting
+                    // outside the panes rather than inside them.
+                    VerticalDivider()
+                }
 
-            Column(Modifier.weight(1f).appWindowMargin()) {
-                CalendarScreen(
-                    viewModel = viewModel,
-                    onOpen = onOpen,
-                    onCreateAt = onCreateAt,
-                    nowMinute = nowMinute,
-                )
+                Column(Modifier.weight(1f).appWindowMargin()) {
+                    CalendarScreen(
+                        viewModel = viewModel,
+                        onOpen = onOpen,
+                        onCreateAt = onCreateAt,
+                        nowMinute = nowMinute,
+                    )
+                }
             }
+            SyncActivityCapsule(activity = syncActivity, hidden = syncProblem != SuiteSyncProblem.None)
         }
     }
 }

@@ -42,4 +42,13 @@ class DesktopIndexingConditionsTest {
         assertFalse(DesktopIndexingConditions(probe = Probe(power = null, low = null, idleFor = null)).allowIndexing())
         assertFalse(DesktopIndexingConditions(probe = Probe(idleFor = null)).allowIndexing())
     }
+
+    /** IN-D6a: battery not low, in use and on battery alike — and an unreadable battery is a no. */
+    @Test
+    fun arrivalsNeedOnlyABatteryThatIsKnownNotLow() {
+        assertTrue(DesktopIndexingConditions(probe = Probe(power = false, idleFor = 1.0)).allowArrivalIndexing())
+        assertFalse(DesktopIndexingConditions(probe = Probe(low = true)).allowArrivalIndexing())
+        assertFalse(DesktopIndexingConditions(probe = Probe(low = null)).allowArrivalIndexing(), "nobody asked: unknown is no")
+        assertTrue(DesktopIndexingConditions(probe = Probe(low = null)).allowManualIndexing(), "unlike a press")
+    }
 }

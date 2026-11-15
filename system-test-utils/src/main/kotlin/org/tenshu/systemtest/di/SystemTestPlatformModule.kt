@@ -21,6 +21,7 @@ import org.tenshu.calendar.proxy.EventMerger
 import org.tenshu.calendar.proxy.ReminderStateMerger
 import org.tenshu.calendar.proxy.calendarServiceProxyImplementationFactory
 import org.tenshu.calendar.proxy.initCalendarService
+import org.tenshu.photo.proxy.initPhotoService
 import org.tenshu.file.proxy.FolderMerger
 import org.tenshu.health.proxy.DailyActivityMerger
 import org.tenshu.file.proxy.fileServiceProxyImplementationFactory
@@ -100,6 +101,28 @@ fun systemTestPlatformModule(
      * on the host side to suppress its automatic drain.
      */
     pollingIntervalMs: Long = 100,
+    /**
+     * Start this device's `SyncScheduler` and `ScheduleDrainLoop` loops. `false` is the harness's
+     * **stepped** mode (`TestSystemBuilder.stepped()`): nothing ticks unless the test drives
+     * `drainNow()` itself, so which device reaches the relay first is written in the test, not
+     * left to two real 100 ms polls. Passed straight to `initSyncService(startBackgroundLoops)`,
+     * the flag the hand-stepped `:sync-service-proxy` fixtures already use, and for the same
+     * reason: "start, then stop" cannot express "never ticked behind the test's back".
+     */
+    startBackgroundLoops: Boolean = true,
+    /**
+     * The sync runtime's clock: `initSyncService(nowMs)`, which drives the scheduler's
+     * `RejectionBackoff` windows, relay reachability and the health row's stamps. Real time by
+     * default; a stepped system passes its [org.tenshu.systemtest.TestSyncClock], so a backoff window
+     * elapses only when the test advances it. ⚠ Only this clock: JWTs, HLCs, entitlement proofs and
+     * the relay stay on real time, because the relay checks a token's times against its own clock.
+     */
+    syncNowMs: () -> Long = { System.currentTimeMillis() },
+    /**
+     * The pause between `AwaitPairing`'s completion attempts: `null` keeps the op's real 5 s. A
+     * [org.tenshu.systemtest.StepPacer]'s `pace` lets the test decide when a joiner looks again.
+     */
+    pairingWaitPacer: (suspend () -> Unit)? = null,
     /**
      * Supplies the commerce **bearer token** for `X-Entitlement`, the first-class relay credential
      * (`commerce-billing-plane.md` D2). Defaults to `{ null }` — no token — which is what every
@@ -195,16 +218,10 @@ fun systemTestPlatformModule(
         // milliseconds so 60s TTL doesn't fire; tests that need to drive
         // expiration deterministically will need finding 3 (relay-side
         // time injection) — out of scope for v1.
-        val tokenProvider = jwtTokenProvider(
-            ownerIdProvider = { syncManager.currentOwnerId },
-            deviceIdProvider = { syncManager.currentDeviceId },
-            signer = { msg ->
-                cryptoManager.signEd25519(
-                    privateKey = syncManager.getDeviceSigningKeyPair().privateKey,
-                    message = msg
-                )
-            },
-            nowEpochSec = { System.currentTimeMillis() / 1000 }
+        val tokenProvider = org.tenshu.sync.proxy.deviceJwtTokenProvider(
+            syncManager = syncManager,
+            cryptoManager = cryptoManager,
+            nowEpochSec = { System.currentTimeMillis() / 1000 },
         )
 
         RestSyncRelay(
@@ -243,16 +260,10 @@ fun systemTestPlatformModule(
             baseUrl = get(named("syncRelayUrl")),
             httpClient = get(),
             context = get(),
-            authTokenProvider = jwtTokenProvider(
-                ownerIdProvider = { syncManager.currentOwnerId },
-                deviceIdProvider = { syncManager.currentDeviceId },
-                signer = { msg ->
-                    cryptoManager.signEd25519(
-                        privateKey = syncManager.getDeviceSigningKeyPair().privateKey,
-                        message = msg
-                    )
-                },
-                nowEpochSec = { System.currentTimeMillis() / 1000 }
+            authTokenProvider = org.tenshu.sync.proxy.deviceJwtTokenProvider(
+                syncManager = syncManager,
+                cryptoManager = cryptoManager,
+                nowEpochSec = { System.currentTimeMillis() / 1000 },
             ),
             // ⚠⚠ The same credential pair the `SyncRelay` above carries, as every production
             // `PlatformProxyModule` wires it. At their `{ null }` defaults a content `PUT` presents
@@ -313,16 +324,10 @@ fun systemTestPlatformModule(
     single<InviteRelayClient> {
         val syncManager: SyncManager = get()
         val cryptoManager: SyncCryptoManager = get()
-        val tokenProvider = org.tenshu.core.common.security.jwtTokenProvider(
-            ownerIdProvider = { syncManager.currentOwnerId },
-            deviceIdProvider = { syncManager.currentDeviceId },
-            signer = { msg ->
-                cryptoManager.signEd25519(
-                    privateKey = syncManager.getDeviceSigningKeyPair().privateKey,
-                    message = msg
-                )
-            },
-            nowEpochSec = { System.currentTimeMillis() / 1000 }
+        val tokenProvider = org.tenshu.sync.proxy.deviceJwtTokenProvider(
+            syncManager = syncManager,
+            cryptoManager = cryptoManager,
+            nowEpochSec = { System.currentTimeMillis() / 1000 },
         )
         RestInviteRelayClient(
             baseUrl = get(named("syncRelayUrl")),
@@ -375,6 +380,9 @@ fun systemTestPlatformModule(
             // `CalendarService.mirrors`, and a two-device calendar test would read "absent" for
             // the wrong reason.
             initCalendarService()
+            // Photos (ED-3): the relation maintainer, as Control has it — a synced `PhotoEdit`
+            // is otherwise stored but invisible to `PhotoService.photoEdits`.
+            initPhotoService()
             initHubManagementService()
             initHomeDeviceService()
             initRoutineService()
@@ -438,6 +446,7 @@ fun systemTestPlatformModule(
                 // zombie hitting the closed Koin scope every tick.
                 coroutineScope = get(named("clientScope")),
                 pollingIntervalMs = pollingIntervalMs,
+                startBackgroundLoops = startBackgroundLoops,
                 syncProcessorHolder = processorHolder,
                 // SR-3b.4c: per-shared-realm relay client (JWT scoped to the shared
                 // ownerId, same device A4 signer) against the same test relay.
@@ -479,7 +488,7 @@ fun systemTestPlatformModule(
                     nowEpochSec = { System.currentTimeMillis() / 1000 },
                 ),
                 grantedRelayFactory = grantedRelayFactory,
-                nowMs = { System.currentTimeMillis() },
+                nowMs = syncNowMs,
                 platformScheduler = NoOpPlatformScheduler,
             )
             // Inviter-side "pending invites?" piggyback on the sync cycle
@@ -524,16 +533,10 @@ fun systemTestPlatformModule(
             baseUrl = get(named("syncRelayUrl")),
             httpClient = get(),
             context = get(),
-            authTokenProvider = jwtTokenProvider(
-                ownerIdProvider = { syncManager.currentOwnerId },
-                deviceIdProvider = { syncManager.currentDeviceId },
-                signer = { msg ->
-                    cryptoManager.signEd25519(
-                        privateKey = syncManager.getDeviceSigningKeyPair().privateKey,
-                        message = msg
-                    )
-                },
-                nowEpochSec = { System.currentTimeMillis() / 1000 }
+            authTokenProvider = org.tenshu.sync.proxy.deviceJwtTokenProvider(
+                syncManager = syncManager,
+                cryptoManager = cryptoManager,
+                nowEpochSec = { System.currentTimeMillis() / 1000 },
             )
         )
 
@@ -572,6 +575,10 @@ fun systemTestPlatformModule(
                     // Task composite (TS-4): mirror of the production wiring.
                     taskRegistry = get(),
                     laneEmitter = { get<org.tenshu.sync.common.SyncBlockEmitterHolder>().emitter },
+                    // Every production `PlatformProxyModule` passes it. Without it `DrainSync` no-ops
+                    // and `ForgetThisDevice` cannot see that the relay refuses this device.
+                    syncSchedulerHolder = get(),
+                    pairingWaitPacer = pairingWaitPacer,
                 )
                 ?: identityProxyImplementationFactory(operationType)
                 ?: jvmFileServiceProxyImplementationFactory(operationType, fileDatabase)
@@ -595,6 +602,11 @@ fun systemTestPlatformModule(
                     emitterHolder.emitter,
                 )
                 ?: preferenceServiceProxyImplementationFactory(operationType)
+                ?: org.tenshu.photo.proxy.photoServiceProxyImplementationFactory(
+                    id = operationType,
+                    nowEpochMs = { System.currentTimeMillis() },
+                    tombstoneEmitter = emitterHolder.emitter,
+                )
                 ?: calendarServiceProxyImplementationFactory(
                     id = operationType,
                     nowEpochMs = { System.currentTimeMillis() },

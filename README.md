@@ -41,7 +41,7 @@ through, and where you pair devices and grant permissions. Install it first.
 | **Drive** | [Google Play](https://play.google.com/store/apps/details?id=app.tenshu.drive.android) | **Contacts** | [Google Play](https://play.google.com/store/apps/details?id=app.tenshu.contacts.android) |
 | **Photos** | [Google Play](https://play.google.com/store/apps/details?id=app.tenshu.photos.android) | **Home** | [Google Play](https://play.google.com/store/apps/details?id=app.tenshu.home.android) |
 | **Maps** | [Google Play](https://play.google.com/store/apps/details?id=app.tenshu.maps.android) | **Mia** | [Google Play](https://play.google.com/store/apps/details?id=app.tenshu.mia.android) |
-| **Timeline** | [Google Play](https://play.google.com/store/apps/details?id=app.tenshu.timeline.android) | **Fit** | in review |
+| **Timeline** | [Google Play](https://play.google.com/store/apps/details?id=app.tenshu.timeline.android) | **Fit** | [Google Play](https://play.google.com/store/apps/details?id=app.tenshu.fit.android) |
 
 ### macOS (Homebrew)
 
@@ -49,10 +49,9 @@ The ten desktop apps are notarized and ship as casks in our own tap. They need m
 later on Apple silicon.
 
 ```bash
-brew tap b3nedikt/tenshu
-brew install --cask tenshu-control      # first: every other app talks through it
-brew install --cask tenshu-drive        # then any of: tenshu-photos, tenshu-maps, tenshu-timeline,
-                                        # tenshu-calendar, tenshu-contacts, tenshu-fit, tenshu-home, tenshu-mia
+brew install --cask b3nedikt/tenshu/tenshu-control   # first: every other app talks through it
+brew install --cask b3nedikt/tenshu/tenshu-drive     # then any of: tenshu-photos, tenshu-maps, tenshu-timeline,
+                                                     # tenshu-calendar, tenshu-contacts, tenshu-fit, tenshu-home, tenshu-mia
 ```
 
 `brew upgrade --cask` updates them; `brew uninstall --cask tenshu-<app>` removes one. Upgrade all
@@ -180,13 +179,16 @@ layered modules hold the DTO, RO, and implementation factories.
 
 ### Prerequisites
 
-- **JDK 17+** (the `:hub` module needs 21).
+- **A JDK 17+** to run Gradle. Modules compile against a JDK 17 toolchain (21 for `:hub`);
+  Gradle downloads a missing toolchain automatically via the foojay resolver.
 - **Android SDK Platform 37** — `compileSdk` is 37; without it every Android module fails at
   `checkDebugAarMetadata` with a message naming a *dependency* rather than the missing platform.
   (`minSdk` 24, `targetSdk` 36.)
 - Android Studio, or any IDE with the matching Android Gradle Plugin, for Android builds.
 - **macOS + Xcode** for anything iOS. Kotlin/Native will not cross-compile Apple targets
   elsewhere: `iosKotlinCheck` refuses to run, and the gate prints *"iOS lane NOT VERIFIED"*.
+- **Node 22+ and pnpm** only for the TypeScript frontends under `web/` (the Kotlin/JS tests in
+  the gate fetch their own Node).
 - The Gradle wrapper (Gradle 9.8.1) handles the rest.
 
 ### Tests
@@ -252,16 +254,12 @@ Android Binder via the `ProxyService` Control publishes.
 
 Versions are centralised in [`gradle/libs.versions.toml`](gradle/libs.versions.toml). The
 current line is Kotlin **2.4.20**, AGP **9.5.0**, Gradle **9.8.1**, Compose Multiplatform
-**1.12.1** (with `compose-bom` **2026.09.00**; bump the pair together), Ktor **3.6.1**, Koin **4.2.2**. Two constraints are load-bearing:
+**1.12.1** (with `compose-bom` **2026.09.00**; bump the pair together), Ktor **3.6.1**, Koin **4.2.2**. One constraint is load-bearing:
 
 - **Kotlin bumps are gated on SKIE.** SKIE (the Swift/Kotlin bridge applied to every
   `:tenshu-sdk-ios-<app>` framework) is compiler-version-coupled, and the repo pin sits at the top of
   its supported range — the next Kotlin feature release needs a SKIE release first. See
   [docs/tech-debt.md](docs/tech-debt.md), *"SKIE ⨯ Kotlin version pin"*.
-- **Do not re-introduce the Compose `force()` / `exclude()` resolutionStrategy blocks** or the
-  `fixComposeResourcesForAndroid` sync tasks. Those were the workaround for the old CMP 1.7.3
-  pin (lifted 2026-07-08); at 1.9.x+ they strip the real `androidx.compose.*` classes. See
-  [docs/proposals/cmp-version-upgrade.md](docs/proposals/cmp-version-upgrade.md).
 
 Keep all module Kotlin versions synchronised to avoid `LinkageError` during Koin initialisation
 or Compose compiler execution.

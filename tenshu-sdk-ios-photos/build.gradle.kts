@@ -66,6 +66,9 @@ kotlin {
                 // involved). Never on the main classpath: Photos' program holds no other app's code.
                 implementation(project(":tenshu-sdk-ios-drive"))
                 implementation(project(":tenshu-sdk-ios-mia"))
+                // `OwnedViewModels`: a view model bound to a live runtime is joined before `Main`
+                // is reset (`docs/testing.md` §11).
+                implementation(project(":viewmodel-test-utils"))
             }
         }
     }

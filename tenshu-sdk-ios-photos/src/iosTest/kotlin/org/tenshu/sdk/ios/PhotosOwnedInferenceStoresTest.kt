@@ -142,15 +142,26 @@ class PhotosOwnedInferenceStoresTest {
     private var deviceOwner: String? = "owner-a"
 
     /**
+     * This test's phone's shared replica: one per test, so a relaunch is on the **same** store, as
+     * on a phone. ⚠ Its epoch is half the realm stamp: a relaunch over a different replica would be
+     * a store that was replaced.
+     */
+    private val replica: String = temp("photos-owned-inference-replica")
+
+    /**
      * Photos, as a new process over [root] and [secureStorage]. Adopted as [graphOwner], so its
      * `SyncManager` holds that owner the way an installed runtime does.
+     *
+     * @param replicaEpoch a stand-in for the store's epoch; `null` reads the graph's own store,
+     *   as production does.
      */
     private fun photos(
         root: String,
         graphOwner: String = "owner-a",
         secureStorage: SecureStorageDelegate = InMemorySecureStorageDelegate(),
         backupExclusion: ((String) -> String?)? = null,
-        replica: String = temp("photos-owned-inference-replica"),
+        replica: String = this.replica,
+        replicaEpoch: (() -> Long?)? = null,
     ): PhotosLocalRuntime.Assembly = PhotosLocalRuntime.assemble(
         replicaDirectory = replica,
         secureStorage = secureStorage,
@@ -159,6 +170,7 @@ class PhotosOwnedInferenceStoresTest {
         inferenceRoot = root,
         deviceRealmOwner = { deviceOwner },
         inferenceBackupExclusion = backupExclusion,
+        replicaEpoch = replicaEpoch,
     )
 
     private fun text(path: String): String? = files.contentsAtPath(path)?.let {
@@ -215,6 +227,11 @@ class PhotosOwnedInferenceStoresTest {
         assertSame<Any>(UnownedEmbeddingStore, koin.get<EmbeddingStore>(), "$who binds a vector store that can write")
         assertSame<Any>(UnownedFaceTemplateStore, koin.get<FaceTemplateStore>(), "$who binds a template store that can write")
         assertTrue(koin.get<InferenceBackendRegistry>().available.isEmpty(), "$who has a backend")
+        // ⚠⚠ And no face pair (`ios-face-grouping.md` F5): Photos' graph alone, behind its flag.
+        assertFalse(koin.get<InferenceBackendRegistry>().isAvailable(InferenceCapability.FACE_CLUSTERING), "$who claims faces")
+        assertNull(koin.getOrNull<org.tenshu.inference.proxy.coreml.VisionCoreMlFaceBackend>(), "$who binds a face backend")
+        assertNull(koin.getOrNull<org.tenshu.inference.proxy.AiReadiness>(named(app.tenshu.control.di.PhotosOnDeviceAi.FACE_READINESS)), "$who binds a face readiness")
+        assertNull(koin.getOrNull<org.tenshu.inference.proxy.FaceTemplateCustody>(), "$who binds a face custody")
         assertNull(koin.getOrNull<List<InferenceBackend>>(named("inferenceBackends")))
         assertNull(koin.getOrNull<IndexingConditions>(named("indexingConditions")), "$who may index")
         assertNull(koin.getOrNull<Set<String>>(named("supportedModelRuntimes")), "$who is offered models")
@@ -672,6 +689,146 @@ class PhotosOwnedInferenceStoresTest {
         assertTrue(PhotosLocalRuntime.checkInferenceStores(relaunched))
         assertEquals(1, relaunched.vectors())
         assertEquals(1, relaunched.templates())
+    }
+
+    // ─── Photos: the realm stamp's epoch half (ios-face-grouping.md §2.2 item 8, threat model A40) ──
+
+    /** The graph's own shared store wiped, as a reset or a re-pull that keeps the owner does it. */
+    private suspend fun PhotosLocalRuntime.Assembly.wipeTheSharedStore() {
+        assertIs<org.tenshu.core.common.proxy.db.WipeableObjectStore>(koin.get<ObjectStore>()).wipeAllObjects()
+    }
+
+    @Test
+    fun aWipeOfTheSharedStoreThatKeepsTheOwnerIsClearedAtTheNextLaunch() = runBlocking {
+        val root = temp("photos-inference")
+        photos(root).apply {
+            assertTrue(PhotosLocalRuntime.checkInferenceStores(this))
+            index()
+            installModel()
+            // ⚠⚠ Same owner, a new store: the paths now name whatever the re-pull brings.
+            wipeTheSharedStore()
+        }
+
+        val relaunched = photos(root)
+        assertFalse(OwnedInferenceStores.usable(relaunched.koin), "usable before the stamp was checked")
+        assertTrue(PhotosLocalRuntime.checkInferenceStores(relaunched))
+
+        assertEquals(0, relaunched.vectors(), "vectors of the replaced store survived a same-owner wipe")
+        assertEquals(0, relaunched.templates(), "templates of the replaced store survived a same-owner wipe")
+        assertEquals(1, relaunched.koin.get<ModelStore>().installed().size, "the weights are every store's")
+        // And once cleared, the new store's index is kept as any other.
+        relaunched.index()
+        val again = photos(root)
+        assertTrue(PhotosLocalRuntime.checkInferenceStores(again))
+        assertEquals(1, again.vectors())
+        assertEquals(1, again.templates())
+    }
+
+    /**
+     * The graph that saw the wipe can no longer vouch for the store (production: its handle is
+     * fenced and the graph rebuilt). ⚠⚠ Nothing is served by it, and nothing is cleared by it
+     * either: "cannot tell" is not "changed" any more than it is "unchanged". The rebuilt graph,
+     * which can tell, clears.
+     * ⚠ The blind graph's custody keeps its last answer (no state is set from evidence of nothing);
+     * what refuses is each check, and a query and a pass both ask one first.
+     */
+    @Test
+    fun aWipeWhilePhotosIsResidentServesNothingUntilTheRebuiltGraphClears() = runBlocking {
+        val root = temp("photos-inference")
+        val photos = photos(root)
+        assertTrue(PhotosLocalRuntime.checkInferenceStores(photos))
+        photos.index()
+
+        photos.wipeTheSharedStore()
+        val (hits, status) = photos.photosRepository.searchSemantic("a dog", 5)
+        assertTrue(hits.isEmpty())
+        assertEquals(SemanticSearchStatus.Unavailable(SemanticSearchUnavailable.Reasons.NO_BACKEND), status)
+        assertIs<TResult.Failure<*>>(photos.tenshuClient.inferenceService.faceGroups(10), "People answered over a replaced store")
+        assertFalse(photos.koin.get<InferenceStoreGate>().open(fromPass = true), "a pass would start over a replaced store")
+        assertEquals(1, photos.vectors(), "the blind graph cleared: that is the rebuilt graph's, which can tell")
+
+        val rebuilt = photos(root)
+        assertTrue(PhotosLocalRuntime.checkInferenceStores(rebuilt))
+        assertEquals(0, rebuilt.vectors())
+        assertEquals(0, rebuilt.templates())
+    }
+
+    @Test
+    fun anEpochThatCannotBeToldAtLaunchServesNothingAndClearsNothing() = runBlocking {
+        val root = temp("photos-inference")
+        var epoch: Long? = 7L
+        photos(root, replicaEpoch = { epoch }).apply {
+            assertTrue(PhotosLocalRuntime.checkInferenceStores(this))
+            index()
+        }
+
+        // A stand-in store, a fenced handle, a refused access.
+        epoch = null
+        val blind = photos(root, replicaEpoch = { epoch })
+        assertFalse(PhotosLocalRuntime.checkInferenceStores(blind), "usable on an unknown store generation")
+        assertEquals(InferenceStoreState.Unchecked, blind.koin.get<InferenceStoreCustody>().state())
+        assertFalse(OwnedInferenceStores.usable(blind.koin))
+        assertFalse(blind.koin.get<InferenceStoreGate>().open(fromPass = false), "the gate opened on an unknown epoch")
+        assertTrue("7" in text("$root/inference/realm.stamp").orEmpty(), "the stamp moved without an epoch")
+
+        // The same store, readable again: nothing was lost to the blind spell.
+        epoch = 7L
+        assertTrue(PhotosLocalRuntime.checkInferenceStores(blind))
+        assertEquals(1, blind.vectors())
+        assertEquals(1, blind.templates())
+    }
+
+    /**
+     * ⚠⚠ A read refused for a moment while Photos is resident (a sibling's `-wal` reset, a deferred
+     * admission): the search is refused, and **the custody's answer is not taken away** — no
+     * `NoRealm`, no cancelled pass, nothing cleared. Before this, the blind read was `NoRealm`,
+     * which stopped a running pass that nothing then restarted.
+     */
+    @Test
+    fun aMomentaryBlindReadWhileResidentRefusesTheSearchAndLeavesTheCustodyAsItWas() = runBlocking {
+        val root = temp("photos-inference")
+        var epoch: Long? = 7L
+        val photos = photos(root, replicaEpoch = { epoch })
+        assertTrue(PhotosLocalRuntime.checkInferenceStores(photos))
+        photos.index()
+
+        epoch = null
+        assertFalse(photos.koin.get<InferenceStoreGate>().open(fromPass = false), "served on an unread store generation")
+        assertEquals(InferenceStoreState.Usable, photos.koin.get<InferenceStoreCustody>().state(), "a blind read set a state")
+        assertTrue(OwnedInferenceStores.usable(photos.koin))
+        assertEquals(1, photos.vectors())
+        assertEquals(1, photos.templates())
+
+        epoch = 7L
+        assertTrue(photos.koin.get<InferenceStoreGate>().open(fromPass = false))
+        assertEquals(1, photos.vectors())
+    }
+
+    /**
+     * ⚠ An install from before the epoch was plumbed holds `{"ownerId":…}` and no epoch. Its first
+     * launch on this build clears **once** (a store generation nobody recorded is not adopted),
+     * and every launch after keeps.
+     */
+    @Test
+    fun aStampFromBeforeTheEpochClearsOnceAndOnlyOnce() = runBlocking {
+        val root = temp("photos-inference")
+        photos(root).apply {
+            assertTrue(PhotosLocalRuntime.checkInferenceStores(this))
+            index()
+        }
+        IosFileDatabase(root).writeRawByteArray("/inference/realm.stamp", """{"ownerId":"owner-a"}""".encodeToByteArray())
+
+        val upgraded = photos(root)
+        assertTrue(PhotosLocalRuntime.checkInferenceStores(upgraded))
+        assertEquals(0, upgraded.vectors())
+        assertEquals(0, upgraded.templates())
+        assertTrue("storeEpoch" in text("$root/inference/realm.stamp").orEmpty())
+
+        upgraded.index()
+        val next = photos(root)
+        assertTrue(PhotosLocalRuntime.checkInferenceStores(next))
+        assertEquals(1, next.vectors(), "every launch clears: the epoch never settles")
+        assertEquals(1, next.templates())
     }
 
     @Test

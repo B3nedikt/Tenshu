@@ -19,6 +19,7 @@ import org.tenshu.calendar.common.recurrence.ResolvedOccurrence
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.tenshu.ui.test.NoMotion
 
 /**
  * Titles inside the month cells (CA-2e) — the rendering half. The ordering, colour
@@ -55,7 +56,7 @@ class MonthCellEventsTest {
 
     @Test
     fun aDesktopCellListsItsEventsByTitle() {
-        runDesktopComposeUiTest(width = 1440, height = 900) {
+        runDesktopComposeUiTest(width = 1440, height = 900, effectContext = NoMotion) {
             setContent { TenshuTheme { Grid(mapOf(day to events(3))) } }
             waitForIdle()
 
@@ -74,7 +75,7 @@ class MonthCellEventsTest {
     @Test
     fun tooManyEventsCollapseToACountedOverflowRow() {
         var moreLabel: String? = null
-        runDesktopComposeUiTest(width = 1440, height = 900) {
+        runDesktopComposeUiTest(width = 1440, height = 900, effectContext = NoMotion) {
             setContent { TenshuTheme { Grid(mapOf(day to events(20))) } }
             waitForIdle()
 
@@ -93,7 +94,7 @@ class MonthCellEventsTest {
     @Test
     fun clickingATitleOpensThatEvent() {
         var opened: String? = null
-        runDesktopComposeUiTest(width = 1440, height = 900) {
+        runDesktopComposeUiTest(width = 1440, height = 900, effectContext = NoMotion) {
             setContent {
                 TenshuTheme { Grid(mapOf(day to events(3)), onOpen = { opened = it.title }) }
             }
@@ -111,7 +112,7 @@ class MonthCellEventsTest {
      */
     @Test
     fun aCellWithNoRoomForATitleFallsBackToDotsRatherThanShowingNothing() {
-        runDesktopComposeUiTest(width = 1440, height = 300) {
+        runDesktopComposeUiTest(width = 1440, height = 300, effectContext = NoMotion) {
             setContent { TenshuTheme { Grid(mapOf(day to events(3))) } }
             waitForIdle()
 
@@ -125,7 +126,7 @@ class MonthCellEventsTest {
     /** The phone keeps its dots — every branch here is `>= Medium`. */
     @Test
     fun aPhoneShowsNoTitles() {
-        runDesktopComposeUiTest(width = 420, height = 800) {
+        runDesktopComposeUiTest(width = 420, height = 800, effectContext = NoMotion) {
             setContent { TenshuTheme { Grid(mapOf(day to events(3))) } }
             waitForIdle()
 

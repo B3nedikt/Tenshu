@@ -313,9 +313,11 @@ class BasemapStyleTest {
             val filter = layer.getValue("filter").toString()
             // Exactly one `["zoom"]` — the per-feature min_zoom gate, which is *correct* against
             // tile zoom. A second one would mean road class had been gated there too.
+            // ⚠ Both brackets escaped: Kotlin/JS compiles a `Regex` with the `u` flag, where a lone
+            // `]` is a SyntaxError — the JVM accepts it, so only the browser target failed.
             assertEquals(
                 1,
-                Regex("""\["zoom"]""").findAll(filter).count(),
+                Regex("""\["zoom"\]""").findAll(filter).count(),
                 "$id: road class must not be gated by filter-zoom — that is capped by archive maxzoom",
             )
             assertTrue(

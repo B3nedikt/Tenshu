@@ -112,6 +112,28 @@ class DeviceBridgeHost(
     var publishedStateCount: Long = 0L
         private set
 
+    /** What [handleCommand] last decided for a command id, and for which issue of it. */
+    data class HandledCommand(val issuedAtEpochMs: Long, val decision: HubCommandGate.Decision)
+
+    private val handledCommands = java.util.concurrent.ConcurrentHashMap<String, HandledCommand>()
+
+    /** The last state per device that went all the way through the gate (and its publish, if any). */
+    private val handledStates = java.util.concurrent.ConcurrentHashMap<String, BridgeDeviceState>()
+
+    /**
+     * The system tests' "it arrived and was declined" probe: the gate's last decision for
+     * [commandId], with the `issuedAt` it was made for — a re-issued command carries a newer one.
+     * ⚠ A test that proves a command did NOT run must first prove the hub saw it; waiting a few
+     * sync cycles proves neither.
+     */
+    fun handledCommand(commandId: String): HandledCommand? = handledCommands[commandId]
+
+    /** The rate-limit tests' "this state has been decided on" probe (see [handledCommand]). */
+    fun handledState(deviceId: String): BridgeDeviceState? = handledStates[deviceId]
+
+    /** Whether a rate-limited state is still waiting for its flush slot. */
+    fun hasPendingFlush(): Boolean = synchronized(lock) { flushJobs.values.any { it.isActive } }
+
     /** Start the publisher + executor. Idempotent; call after `runtime.start()`. */
     fun start() {
         if (inventoryJob?.isActive == true) return
@@ -249,6 +271,8 @@ class DeviceBridgeHost(
 
                 DeviceStatePublishGate.Decision.RateLimited -> scheduleFlush(state)
             }
+            // Last, so a reader that sees this state also sees whatever the gate did with it.
+            handledStates[state.deviceId] = state
         }
     }
 
@@ -301,13 +325,17 @@ class DeviceBridgeHost(
             alreadyConsumed = journal.isConsumed(commandId),
             staleWindowMs = staleWindowMs,
         )
-        if (decision != HubCommandGate.Decision.Execute) return
+        if (decision != HubCommandGate.Decision.Execute) {
+            handledCommands[commandId] = HandledCommand(command.issuedAtEpochMs.get(), decision)
+            return
+        }
 
         // Persist BEFORE executing: at-MOST-once. A crash between here and
         // the radio loses the command (the issuer re-issues off the stale
         // state row) — never doubles a physical actuation.
         journal.markConsumed(commandId)
         executedCommandCount += 1
+        handledCommands[commandId] = HandledCommand(command.issuedAtEpochMs.get(), decision)
 
         val verb = command.verb.get()
         val result = try {

@@ -34,6 +34,7 @@ import org.tenshu.identity.Device
 import org.tenshu.sync.SyncStatus
 import org.tenshu.viewmodel.test.OwnedViewModels
 import org.tenshu.viewmodel.test.closeBlocking
+import org.tenshu.ui.test.NoMotion
 
 class PairingWizardScreenTest {
 
@@ -46,7 +47,6 @@ class PairingWizardScreenTest {
 
     @Before
     fun setup() {
-        stopKoin()
         mockSyncRepository = object : SyncRepository {
             override val devices = MutableStateFlow<List<Device>>(emptyList())
 
@@ -163,7 +163,7 @@ class PairingWizardScreenTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun pairingWizardFlow() = runComposeUiTest {
+    fun pairingWizardFlow() = runComposeUiTest(effectContext = NoMotion) {
         val viewModelStoreOwner = object : ViewModelStoreOwner {
             override val viewModelStore: ViewModelStore = this@PairingWizardScreenTest.viewModelStore
         }
@@ -206,7 +206,7 @@ class PairingWizardScreenTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun hostDeviceAdded_autoContinuesAfterThreeSeconds() = runComposeUiTest {
+    fun hostDeviceAdded_autoContinuesAfterThreeSeconds() = runComposeUiTest(effectContext = NoMotion) {
         mainClock.autoAdvance = false
         var done = 0
         setContent {
@@ -239,7 +239,7 @@ class PairingWizardScreenTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun hostDeviceAdded_onAnUnfundedRealm_neverCountsDown() = runComposeUiTest {
+    fun hostDeviceAdded_onAnUnfundedRealm_neverCountsDown() = runComposeUiTest(effectContext = NoMotion) {
         mainClock.autoAdvance = false
         var done = 0
         setContent {
@@ -268,7 +268,7 @@ class PairingWizardScreenTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun sasResponderSuccess_staysManual() = runComposeUiTest {
+    fun sasResponderSuccess_staysManual() = runComposeUiTest(effectContext = NoMotion) {
         mainClock.autoAdvance = false
         var done = 0
         setContent {

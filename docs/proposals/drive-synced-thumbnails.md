@@ -1635,7 +1635,7 @@ quality, and the stored classes answer those first (§12.5 D-2).
 - `UploadDecodesOnceTest` (jvmTest): the real op and decoder, counted — 1 decode per upload with the
   ladder, 4 without it, more than 4 for a frame that walks the step-down.
 - `ThumbnailLadderParityTest` (jvmTest): the same rungs stored and declined, JPEG, dimensions to the
-  pixel, under the cap, mean pixel difference within tolerance, on a 5000 × 3000 landscape, a portrait,
+  pixel, under the cap, mean pixel difference within tolerance, on a landscape past the top rung, a portrait,
   a small PNG and a noise frame that reaches both a decline and the step-down; and 1 px stripes, whose
   every rung must keep the stripes' mean (an unfiltered subsampled read made it 0.0).
 - `ThumbnailLadderSeamTest` (commonTest, so it also runs on Kotlin/Native): the minter's half — order,

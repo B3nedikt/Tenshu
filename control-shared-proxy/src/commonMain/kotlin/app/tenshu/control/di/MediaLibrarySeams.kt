@@ -3,6 +3,8 @@ package app.tenshu.control.di
 import org.tenshu.core.TByteArray
 import org.tenshu.core.common.proxy.ExecutionContext
 import org.tenshu.core.common.proxy.FileDatabase
+import org.tenshu.core.file.FileCategory
+import org.tenshu.core.file.fileCategoryForName
 import org.tenshu.file.proxy.MeteredNetworkSignal
 import org.tenshu.file.proxy.livePathsAmong
 import org.tenshu.file.proxy.previewForIndex
@@ -68,6 +70,16 @@ fun controlMediaSource(
         val library = executionContext.walkImageLibrary()
         val media = library.paths.map { path -> executionContext.indexable(files, metered, path) }
         return if (library.complete) MediaWalk.complete(media, livePaths) else MediaWalk.partial(media)
+    }
+
+    /**
+     * ⚠⚠ Point reads only (IN-D6a's batch): one row lookup per path through [livePaths], never the
+     * tree. A path that is no image, trashed or not a live `File` row any more is not returned.
+     */
+    override suspend fun mediaAt(executionContext: ExecutionContext, paths: Collection<String>): List<IndexableMedia> {
+        val images = paths.filter { fileCategoryForName(it.substringAfterLast('/')) == FileCategory.Image }
+        val live = livePaths.live(executionContext, images)
+        return images.filter { it in live }.map { path -> executionContext.indexable(files, metered, path) }
     }
 }
 

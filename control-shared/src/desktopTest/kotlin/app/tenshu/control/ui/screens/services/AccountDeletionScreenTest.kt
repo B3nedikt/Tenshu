@@ -9,6 +9,7 @@ import androidx.compose.ui.test.performScrollTo
 import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertEquals
+import org.tenshu.ui.test.NoMotion
 
 /**
  * The account-deletion surface (§9.7). Content-composable level; the flow's rules live in
@@ -17,7 +18,7 @@ import kotlin.test.assertEquals
 class AccountDeletionScreenTest {
 
     @get:Rule
-    val composeTestRule = createComposeRule()
+    val composeTestRule = createComposeRule(NoMotion)
 
     private fun show(state: AccountDeletionUiState, onSendCode: () -> Unit = {}, onConfirm: () -> Unit = {}) {
         composeTestRule.setContent {

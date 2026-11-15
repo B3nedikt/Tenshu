@@ -1,5 +1,6 @@
 package app.tenshu.drive.data
 
+import org.tenshu.sync.client.anyCatchUpHeartbeat
 import app.tenshu.error.ErrorCopyKey
 import app.tenshu.error.errorCopyKey
 
@@ -1098,29 +1099,19 @@ class TenshuFilesRepository(
         }
             .flowOn(Dispatchers.Default)
 
+    // Through Control's heartbeat (`suite-sync-status.md` SS-D8): a killed Control's stale flag is
+    // discounted instead of holding "Syncing…" on screen.
+    override fun catchingUp(): Flow<Boolean> = client.syncService.anyCatchUpHeartbeat()
+
     override fun syncHealth(): Flow<SyncHealthStatusModel?> =
         client.syncService.syncHealth()
             .map { status ->
                 status?.let {
-                    SyncHealthStatusModel(
-                        // ⚠ Retrying is online: the relay answers, it only fails content (§5.7).
-                        isOnline = it.connectivity.get() == SyncHealthStatus.CONNECTIVITY_ONLINE ||
-                            it.connectivity.get() == SyncHealthStatus.CONNECTIVITY_RELAY_RETRYING,
+                    syncHealthModelOf(
+                        connectivity = it.connectivity.get(),
                         isSyncing = it.isSyncing.get(),
                         pendingBlockCount = it.pendingBlockCount.get().toInt(),
                         lastSyncedAtMillis = it.lastSyncedAtMillis.get(),
-                        needsAttention =
-                            it.connectivity.get() == SyncHealthStatus.CONNECTIVITY_NEEDS_ATTENTION,
-                        deferred =
-                            it.connectivity.get() == SyncHealthStatus.CONNECTIVITY_DEFERRED,
-                        locked =
-                            it.connectivity.get() == SyncHealthStatus.CONNECTIVITY_LOCKED,
-                        deviceUnrecognized = it.connectivity.get() ==
-                            SyncHealthStatus.CONNECTIVITY_DEVICE_UNRECOGNIZED,
-                        storageRejected = it.connectivity.get() ==
-                            SyncHealthStatus.CONNECTIVITY_STORAGE_FULL,
-                        relayRetrying = it.connectivity.get() ==
-                            SyncHealthStatus.CONNECTIVITY_RELAY_RETRYING,
                     )
                 }
             }

@@ -1,5 +1,6 @@
 package org.tenshu.sync.proxy
 
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import org.tenshu.core.collection.list.toList
 import org.tenshu.core.common.TestProxy
@@ -160,8 +161,9 @@ class AddsBeforeRemovesTest {
         fun wireName(dataId: DataId): String = WireIdResolver(syncManager) { null }.of(dataId)
     }
 
-    private fun rig(): Rig {
+    private fun TestScope.rig(): Rig {
         val proxy = TestProxy(
+            coroutineScope = backgroundScope,
             schemaRegistry = createSyntheticTestRegistry().apply {
                 registerConfig(syncServiceCommonModule)
                 registerConfig(fileServiceCommonModule)

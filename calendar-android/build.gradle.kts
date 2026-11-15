@@ -39,6 +39,12 @@ android {
         }
     }
 
+    // ⚠ One scoped ignore, explained in the file: Calendar carries `:app-notify`'s Android
+    // presenter on its classpath but never builds one — Control posts the reminders.
+    lint {
+        lintConfig = file("lint.xml")
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11

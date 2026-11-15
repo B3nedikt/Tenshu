@@ -24,6 +24,7 @@ import org.junit.Test
 import org.tenshu.inference.InferenceCapability
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.tenshu.ui.test.NoMotion
 
 /**
  * The screen's shape: one scrolling body, models first and features last, and the only retry on the
@@ -36,7 +37,7 @@ import kotlin.test.assertTrue
 class ModelsScreenLayoutTest {
 
     @get:Rule
-    val composeTestRule = createComposeRule()
+    val composeTestRule = createComposeRule(NoMotion)
 
     private val models = (1..8).map { ManagedModel("model-$it", "Model $it", byteSize = 104_857_600) }
 

@@ -544,4 +544,134 @@ final class ModelsUITests: XCTestCase {
         wait("the wait was not said: \(indexing().label)") { self.indexing().label.contains("Waiting: this iPhone is warm.") }
         XCTAssertEqual(indexActions(), ["PAUSE"], "a pass that goes on by itself is offered again")
     }
+
+    // MARK: - Face grouping (ios-face-grouping.md F6)
+
+    private let faceModel = "auraface-v1-int8"
+    private func faceRow() -> XCUIElement { element("models-row-\(faceModel)") }
+    private func faceAction(_ kind: String) -> XCUIElement { app.buttons["models-action-\(kind)-\(faceModel)"] }
+    private func faceFeature() -> XCUIElement { element("models-feature-FACE_CLUSTERING") }
+    private let deletesHere = "Turning this off deletes this iPhone's face data; names stay."
+
+    private func openFaceFeature() {
+        openModels()
+        if !faceFeature().waitForExistence(timeout: 5) { app.swipeUp() }
+        XCTAssertTrue(faceFeature().waitForExistence(timeout: 10), "the face switch's row")
+        faceFeature().tap()
+        XCTAssertTrue(app.navigationBars["Group photos by people"].waitForExistence(timeout: 10), "the face feature screen")
+    }
+
+    /// The face model's row: its own sizes, its own download, *Preparing*, then the switch's own question.
+    /// ⚠⚠ And the consent order: yes writes the realm, then this device, and search's is untouched.
+    func testTheFaceModelHasADownloadRowAndASwitchOfItsOwnAndYesWritesTheRealmThenThisDevice() {
+        launch("facesAbsent")
+        openModels()
+        XCTAssertTrue(faceRow().waitForExistence(timeout: 10), "the face model's row")
+        for sentence in ["People (AuraFace + Apple Vision)", "131 MB download", "about 453 MB on this iPhone", "Apache-2.0"] {
+            XCTAssertTrue(faceRow().label.contains(sentence), "the face row says \"\(faceRow().label)\", not \"\(sentence)\"")
+        }
+        XCTAssertTrue(row().label.contains("Ready"), "search's row")
+        // ⚠⚠ Never written: shown off, and nothing promises a deletion over it.
+        if !faceFeature().waitForExistence(timeout: 3) { app.swipeUp() }
+        XCTAssertTrue(faceFeature().label.contains("Group photos by people"), faceFeature().label)
+        XCTAssertTrue(faceFeature().label.contains("Off for this iPhone"), faceFeature().label)
+        XCTAssertFalse(faceFeature().label.contains("deletes"), "a deletion promised over a switch that was never on: \(faceFeature().label)")
+        XCTAssertTrue(element("models-feature").label.contains("On for this iPhone"), "search's switch")
+        attach("faces-absent")
+        app.swipeDown()
+
+        faceAction("DOWNLOAD").tap()
+        wait("the face download was not asked: \(calls())") { self.calls() == "checkAgain · download(\(self.faceModel), wifi)" }
+        advance()
+        wait("the download was not shown: \(faceRow().label)") { self.faceRow().label.contains("52 MB of 131 MB") }
+        advance()
+        wait("preparing was not shown: \(faceRow().label)") { self.faceRow().label.contains("Preparing… Keep Photos open.") }
+        attach("faces-preparing")
+        advance()
+        wait("checking was not shown: \(faceRow().label)") { self.faceRow().label.contains("Checking this iPhone…") }
+        advance()
+        let offer = app.alerts["Turn on \"Group photos by people\" for this iPhone?"]
+        XCTAssertTrue(offer.waitForExistence(timeout: 10), "the face switch's own question")
+        XCTAssertTrue(offer.staticTexts.element(matching: NSPredicate(format: "label CONTAINS 'Turning this off deletes the face data and keeps the names.'")).exists)
+        attach("faces-offer")
+        offer.buttons["Turn on"].tap()
+        wait("the consent was not written in order: \(calls())") { self.calls().hasSuffix("faces.realm(on) · faces.device(on)") }
+        XCTAssertFalse(calls().contains(" realm(") || calls().contains(" device("), "search's switch was written: \(calls())")
+        if !faceFeature().waitForExistence(timeout: 3) { app.swipeUp() }
+        wait("the face row did not say what off deletes: \(faceFeature().label)") { self.faceFeature().label.contains(self.deletesHere) }
+    }
+
+    /// ⚠⚠ *Turn off* asks first, naming what is deleted; *Keep on* writes nothing; *Turn off* writes this device's no.
+    func testTurningFacesOffAsksFirstAndSaysExactlyWhatIsDeleted() {
+        launch("facesOn")
+        openFaceFeature()
+        XCTAssertTrue(device("this").waitForExistence(timeout: 10))
+        XCTAssertEqual(device("this").value as? String, "1")
+        XCTAssertTrue(device("this").label.contains(deletesHere), device("this").label)
+        XCTAssertTrue(element("feature-description").label.contains("Only the names you type sync to your devices."))
+        attach("faces-feature")
+
+        flip(device("this"))
+        let question = app.alerts["Turn off \"Group photos by people\" on this iPhone?"]
+        XCTAssertTrue(question.waitForExistence(timeout: 10), "Turn off did not ask first")
+        XCTAssertTrue(question.staticTexts["This iPhone's face data is deleted. The names you typed are kept, and other devices are not changed."].exists)
+        attach("faces-turn-off-question")
+        XCTAssertEqual(calls(), "checkAgain", "switched off before it was confirmed")
+        question.buttons["Keep on"].tap()
+        wait("the question stayed") { self.app.alerts.count == 0 }
+        XCTAssertEqual(calls(), "checkAgain", "Keep on wrote something")
+        XCTAssertEqual(device("this").value as? String, "1", "Keep on moved the switch")
+
+        flip(device("this"))
+        XCTAssertTrue(question.waitForExistence(timeout: 10))
+        question.buttons["Turn off"].tap()
+        wait("this device's no was not written: \(calls())") { self.calls() == "checkAgain · faces.device(off) · faces.withdrawn" }
+        wait("the switch did not move") { (self.device("this").value as? String) == "0" }
+        XCTAssertFalse(device("this").label.contains("deletes"), "a deletion still promised over a switch that is off")
+    }
+
+    func testTurningFacesOffForAnotherDeviceOrEverywhereAsksFirstToo() {
+        launch("facesOn")
+        openFaceFeature()
+        XCTAssertTrue(device("mac").waitForExistence(timeout: 10))
+        flip(device("mac"))
+        let other = app.alerts["Turn off \"Group photos by people\" on Alex's Mac?"]
+        XCTAssertTrue(other.waitForExistence(timeout: 10), "another device's off did not ask first")
+        XCTAssertTrue(other.staticTexts["Its face data is deleted. The names you typed are kept, and other devices are not changed."].exists)
+        other.buttons["Keep on"].tap()
+        wait("the question stayed") { self.app.alerts.count == 0 }
+        XCTAssertEqual(calls(), "checkAgain")
+
+        let everywhere = app.buttons["feature-everywhere"]
+        XCTAssertEqual(everywhere.label, "Turn off everywhere and delete face data")
+        everywhere.tap()
+        let all = app.alerts["Turn off \"Group photos by people\" everywhere?"]
+        XCTAssertTrue(all.waitForExistence(timeout: 10))
+        XCTAssertTrue(all.staticTexts["Face data is deleted on every device. The names you typed are kept."].exists)
+        attach("faces-everywhere-question")
+        all.buttons["Turn off"].tap()
+        // This device first, every other device that holds a yes, the realm last (the two-switch rule).
+        // ⚠ Each no that lands tells the source once (`faces.withdrawn`), on its own coroutine: where
+        // those two fall among the writes is not the order under test, so they are taken out first.
+        wait("not switched off in order: \(calls())") {
+            let calls = self.calls()
+            return calls.components(separatedBy: "faces.withdrawn").count == 3 &&
+                calls.replacingOccurrences(of: " · faces.withdrawn", with: "") == "checkAgain · faces.device(off) · faces.clear(mac) · faces.realm(off)"
+        }
+    }
+
+    /// ⚠⚠ Absent is not off: a switch never written asks nothing on, writes nothing on open, and promises no deletion.
+    func testAFaceSwitchNeverWrittenAsksNothingAndTurnsOnRealmFirst() {
+        launch("facesAbsent")
+        openFaceFeature()
+        XCTAssertTrue(device("this").waitForExistence(timeout: 10))
+        XCTAssertEqual(device("this").value as? String, "0")
+        XCTAssertFalse(device("this").label.contains("deletes"), device("this").label)
+        XCTAssertEqual(calls(), "checkAgain", "opening the screen wrote or deleted something")
+        flip(device("this"))
+        XCTAssertEqual(app.alerts.count, 0, "turning on asked a question")
+        wait("not switched on in order: \(calls())") { self.calls() == "checkAgain · faces.realm(on) · faces.device(on)" }
+        wait("the switch did not move") { (self.device("this").value as? String) == "1" }
+        wait("the deletion was not said once it was on") { self.device("this").label.contains(self.deletesHere) }
+    }
 }

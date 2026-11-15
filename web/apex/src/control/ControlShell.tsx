@@ -1,21 +1,21 @@
-// Apex shell for /control/* and /drive/* routes (per
-// `web-control-plane.md` §3 + §7). Top bar (sticky), side rail (≥md),
-// bottom nav (<md), and a session-expired guard that bounces to /lock.
+// Apex shell for /control/* (per `web-control-plane.md` §3, as split by `web-apex-home.md` §3.2):
+// top bar (sticky), side rail (≥md), bottom nav (<md). The overview and the hosted apps have their
+// own slimmer shell (`shell/AppShell.tsx`); the session guard both need is `shell/SessionLayout`.
 //
 // Sync status indicator: per AGENTS.md's in-flight refactor table the
 // SyncManager.divergenceWarning StateFlow is currently a perpetually-null
 // placeholder until proxy init wires it. Phase A renders the green-default
 // dot; the status pipe lights up once the SDK exposes the stream.
-import { useEffect, useState } from 'react'
-import { Link, NavLink, Outlet, useNavigate } from 'react-router'
+import { Link, NavLink, Outlet } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
-import { Session } from '@tenshu/sdk/onboarding'
 import { BrandLockup } from '../components/BrandLockup'
+import { OVERVIEW_PATH } from '../lib/overviewPath'
+import { BellIcon, GearIcon } from '../shell/icons'
+import { useSessionDevice } from '../shell/sessionContext'
 import { AppLauncher } from './AppLauncher'
 import { DeviceMenu } from './DeviceMenu'
 import { TryModeBanner } from './TryModeBanner'
-import { ensurePersistence } from '../lib/persistentStorage'
 
 interface SectionEntry {
   readonly to: string
@@ -25,8 +25,10 @@ interface SectionEntry {
   readonly basePath: string
 }
 
+// The first section is Control's notification feed at its old route; it is labelled
+// "Notifications", never "Home" — the overview and the Home app both own that word (§3.4).
 const SECTIONS: readonly SectionEntry[] = [
-  { to: '/control/home', basePath: '/control/home', labelKey: 'shell.sections.home', icon: HomeIcon },
+  { to: '/control/home', basePath: '/control/home', labelKey: 'shell.sections.notifications', icon: NotificationsIcon },
   { to: '/control/apps', basePath: '/control/apps', labelKey: 'shell.sections.apps', icon: AppsIcon },
   { to: '/control/data', basePath: '/control/data', labelKey: 'shell.sections.data', icon: DataIcon },
   { to: '/control/services', basePath: '/control/services', labelKey: 'shell.sections.services', icon: ServicesIcon },
@@ -34,51 +36,7 @@ const SECTIONS: readonly SectionEntry[] = [
 ]
 
 export function ControlShell() {
-  const { t } = useTranslation('control')
-  const navigate = useNavigate()
-  const [deviceName, setDeviceName] = useState<string | null>(null)
-  useEffect(() => {
-    let cancelled = false
-    void Session.detect().then(s => {
-      if (cancelled) return
-      if (s.kind === 'firstTime') {
-        navigate('/', { replace: true })
-        return
-      }
-      if (s.kind === 'locked') {
-        const next = encodeURIComponent(window.location.pathname + window.location.search)
-        navigate(`/lock?next=${next}`, { replace: true })
-        return
-      }
-      setDeviceName(s.deviceName)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [navigate])
-  // W10a. Ask the browser to keep this origin's data, once. This is the signed-in shell, so by
-  // here the device has (or is acquiring) a realm — asking earlier would request durability for
-  // nothing.
-  //
-  // ⚠⚠ ABOVE the `deviceName === null` early return, deliberately. Placed after it this is a
-  // CONDITIONAL hook — not called on the loading render, called on the next — which throws
-  // "rendered more hooks than during the previous render" and takes the whole shell down. Three
-  // ControlShell tests caught exactly that.
-  //
-  // ⚠ Not awaited and never surfaced as an error: a refusal is a normal outcome (Chrome grants on
-  // its own heuristics, Firefox prompts), and the honest report is the Services row that reads
-  // the state, not a toast at an arbitrary moment.
-  useEffect(() => {
-    void ensurePersistence()
-  }, [])
-
-  if (deviceName === null) {
-    return (
-      <div className="grid min-h-screen place-items-center bg-surface text-text">
-        <div className="text-sm text-text-2">{t('shell.loading')}</div>
-      </div>
-    )
-  }
+  const deviceName = useSessionDevice()
   return (
     <div className="min-h-screen bg-surface text-text">
       <TopBar deviceName={deviceName} />
@@ -98,13 +56,13 @@ function TopBar({ deviceName }: { readonly deviceName: string }) {
   return (
     <header className="sticky top-0 z-20 h-14 border-b border-line bg-surface/80 backdrop-blur">
       <div className="mx-auto flex h-full max-w-7xl items-center justify-between gap-3 px-4">
-        <Link to="/control/home">
+        <Link to={OVERVIEW_PATH}>
           <BrandLockup />
         </Link>
-        <div className="flex justify-center">
+        <div className="flex items-center gap-1">
           <AppLauncher />
+          <DeviceMenu deviceName={deviceName} />
         </div>
-        <DeviceMenu deviceName={deviceName} />
       </div>
     </header>
   )
@@ -203,14 +161,6 @@ function matchesBase(isActive: boolean, entry: SectionEntry): boolean {
   return window.location.pathname.startsWith(entry.basePath + '/')
 }
 
-function HomeIcon() {
-  return (
-    <svg aria-hidden viewBox="0 0 20 20" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.6}>
-      <path d="M3 10l7-6 7 6" />
-      <path d="M5 9v8h10V9" />
-    </svg>
-  )
-}
 function AppsIcon() {
   return (
     <svg aria-hidden viewBox="0 0 20 20" width={18} height={18} fill="currentColor">
@@ -239,10 +189,8 @@ function ServicesIcon() {
   )
 }
 function SettingsIcon() {
-  return (
-    <svg aria-hidden viewBox="0 0 20 20" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.6}>
-      <circle cx={10} cy={10} r={2.5} />
-      <path d="M10 1.5l1.2 2.1 2.4-.5.5 2.4 2.1 1.2-1.2 2.1.5 2.4-2.4.5-1.2 2.1-2.1-1.2-2.4 1.2-1.2-2.1-2.4-.5.5-2.4-2.1-1.2 1.2-2.1-.5-2.4 2.4.5L10 1.5z" />
-    </svg>
-  )
+  return <GearIcon />
+}
+function NotificationsIcon() {
+  return <BellIcon />
 }

@@ -19,8 +19,8 @@ package org.tenshu.sync.common
 object AdmissionChainVerifier {
 
     /**
-     * Default depth bound (proposal §7 Q2): caps verification cost and the
-     * revocation-subtree blast radius. Deliberately generous — an owner
+     * Default depth bound (proposal §7 Q2): caps verification cost.
+     * Deliberately generous — an owner
      * re-root (P4) flattens live chains back to depth 1, so real chains only
      * approach this if a realm grows device-by-device with no A1-holder ever
      * present.
@@ -30,16 +30,23 @@ object AdmissionChainVerifier {
     /**
      * The chain is well-formed for [ownerId]'s realm: within [maxDepth], every
      * cert names that realm, each link is signed by its parent's A33 key, the
-     * root is signed by [masterPublicKey], no link is revoked, and no link names a
-     * device the owner has **removed**.
+     * root is signed by [masterPublicKey], no device id appears twice, and the **approver**
+     * — `chain[0]`, the device exercising the authority — is neither revoked (any revocation
+     * naming its id, §7j.10.2) nor a device the owner has **removed**.
      *
-     * ⚠⚠ [isRemovedDevice] is the key-independent strip (S1, 2026-10-28). F5b made every
-     * revocation name a key, and the revoker learns keys from synced rows a device can write
-     * about itself — so a malicious device can blank its own `admissionPublicKey` and become
-     * unstrippable by key. Its removal still lands in the relay's F2′ ledger, which a removed id
-     * never leaves, so refusing any chain *through* a removed device kills every "sleeper" it
-     * admitted without needing its key. The relay passes `knownDevices::wasRemoved`; a client
-     * without the ledger passes nothing.
+     * ⚠⚠ Both the revocation list and [isRemovedDevice] are consulted for `chain[0]` ONLY,
+     * never for an ancestor link (`admission-revocation-names-the-capability.md` §7j, §7j.10).
+     * A device is either a member — it can admit — or removed — it can do nothing; there is no
+     * "member that cannot admit" state. §7j retired S1's removed-ancestor rule, which locked a
+     * realm with no A1 holder out of admission for good; §7j.10 retired the matching
+     * revoked-ancestor rule, which did the same thing in a realm that HAS an A1 holder (removing
+     * a device revokes its key, and every chain through it then failed). The threat is a
+     * **silent** rejoin; an approval a person confirms by SAS on a current member is the user's
+     * okay. Sleepers are handled where the user can see them: removing a device lists the
+     * devices it admitted, each removable by id. A removed *new* device is refused by the
+     * caller (F2′), a removed or revoked *approver* here, and the relay additionally binds
+     * `chain[0]` to the authenticated, registered poster (§7j.9). The relay passes
+     * `knownDevices::wasRemoved`; a client without the ledger passes nothing.
      */
     fun verifyChain(
         masterPublicKey: ByteArray,
@@ -58,13 +65,51 @@ object AdmissionChainVerifier {
             verify.verify(parentKey, cert.signedMessage(), cert.signature)
         } -> AdmissionChainVerdict.RejectBadCert
 
-        chain.any { isRevoked(masterPublicKey, it, revocations, verify) } ->
+        // §7j.10: the APPROVER only — never another device's link (that is the revoked-ancestor
+        // lock-out, pinned by `AdmissionChainVerifierTest.aRevokedAncestor_doesNotRefuse_whenTheApproversOwnKeyIsValid`).
+        // ⚠⚠ ID-scoped for the approver, not key-scoped (§7j.10.2): any master-signed revocation
+        // naming the approver's device id refuses, whatever key it names. Under §7j.10 a revocation
+        // is only ever minted for a REMOVED device, so a revoked id is a removed id whose tombstone
+        // has not landed yet — and a key-scoped check let it escape under a fresh key: a self-re-key
+        // `[D(K'), D(K_D), …]` (§7j.10.1, pinned by
+        // `AdmissionChainVerifierTest.aSelfReKeyThroughTheApproversOwnRevokedKey_isRefusedAsRevoked`),
+        // or a depth-1 `[D(K')]` an A1 holder that has not applied D's tombstone minted by P4 for an
+        // announced K' (pinned by `AdmissionChainVerifierTest.aFreshKeyForARevokedApprover_isStillRefused`).
+        isApproverRevoked(masterPublicKey, ownerId, chain.first().deviceId, revocations, verify) ->
             AdmissionChainVerdict.RejectRevoked
 
-        chain.any { isRemovedDevice(it.deviceId) } -> AdmissionChainVerdict.RejectRemovedLink
+        // §7j.10 fix round: no honest chain names a device twice (`PairingAdmission.admit` prepends a
+        // cert for a NEW, key-derived id that F2′ keeps out of the realm's past; a P4 grant is depth
+        // 1), so a repeat is a forged re-key — refused whatever the revocation list says. Pinned by
+        // `AdmissionChainVerifierTest.aChainThatNamesADeviceTwice_isRefused_evenWithNoRevocation`.
+        chain.map { it.deviceId }.toSet().size != chain.size -> AdmissionChainVerdict.RejectRepeatedDevice
+
+        // §7j: the approver only. Applying this to `chain.drop(1)` is the S1 lock-out — pinned by
+        // `AdmissionChainVerifierTest.aChainThroughARemovedAncestor_isAdmitted_whenTheApproverIsCurrent`.
+        isRemovedDevice(chain.first().deviceId) -> AdmissionChainVerdict.RejectRemovedApprover
 
         else -> AdmissionChainVerdict.Admit
     }
+
+    /**
+     * True if a validly-master-signed revocation names [approverDeviceId] at all — whatever key it
+     * names (§7j.10.2). ⚠ A keyless revocation still counts for nothing (F5b: the relay refuses to
+     * store one, and an empty key never named a capability). [isRevoked] stays the key-exact
+     * predicate; this is the approver's.
+     */
+    fun isApproverRevoked(
+        masterPublicKey: ByteArray,
+        ownerId: String,
+        approverDeviceId: String,
+        revocations: List<AdmissionRevocation>,
+        verify: Ed25519SignatureVerifier,
+    ): Boolean =
+        revocations.any { revocation ->
+            revocation.ownerId == ownerId &&
+                revocation.deviceId == approverDeviceId &&
+                revocation.deviceA33PublicKey.isNotEmpty() &&
+                verify.verify(masterPublicKey, revocation.signedMessage(), revocation.signature)
+        }
 
     /**
      * True if some validly-master-signed revocation strips [cert]. A revocation signed by anything
@@ -74,8 +119,10 @@ object AdmissionChainVerifier {
      *
      * A revocation strips a cert iff both name the same device **and the same A33 key**, matched
      * exactly. No epoch comparison, so a **re-mint clears the revocation for free** — the re-mint
-     * issues a new key that the old revocation does not name. That keeps Q3 conservative subtree
-     * revocation recoverable (`admission-revocation-names-the-capability.md` §7b.2).
+     * issues a new key that the old revocation does not name (`admission-revocation-names-the-capability.md`
+     * §7b.2). ⚠⚠ [verifyChain] no longer uses it: since §7j.10.2 the approver's refusal is id-scoped
+     * ([isApproverRevoked]) — a revocation is minted only for a removed device, so "a re-mint clears it"
+     * would be exactly the escape a removed device needs.
      *
      * ⚠⚠ F5b retired the epoch fallback (§7g): a revocation always carries a key now
      * ([AdmissionRevocation.deviceA33PublicKey] is required), so there is no "either side lacks a
@@ -159,11 +206,23 @@ enum class AdmissionChainVerdict {
     /** Some link's signature doesn't verify against its parent (incl. a root not signed by A1). */
     RejectBadCert,
 
-    /** A master-signed revocation supersedes a link in the chain. */
+    /**
+     * A master-signed revocation names the approver's (`chain[0]`'s) device id — any key (§7j.10.2).
+     * ⚠ Not another device's (§7j.10).
+     */
     RejectRevoked,
 
-    /** A link names a device the owner removed (the relay's F2′ ledger) — key-independent (S1). */
-    RejectRemovedLink,
+    /**
+     * The approver (`chain[0]`) is a device the owner removed (the relay's F2′ ledger) —
+     * key-independent. ⚠ An *ancestor* link's removal is not a refusal (§7j).
+     */
+    RejectRemovedApprover,
+
+    /**
+     * Some device id appears on more than one link — a self-re-key (§7j.10 fix round). No honest
+     * client builds one.
+     */
+    RejectRepeatedDevice,
 
     /** Chain valid, but the new-device delegation isn't signed by the admitting device's A33 key. */
     RejectBadDelegation,
