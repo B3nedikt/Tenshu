@@ -71,6 +71,8 @@ import app.tenshu.drive.shared.resources.synced_folders_new_folders_title
 import app.tenshu.drive.shared.resources.synced_folders_no_folders
 import app.tenshu.drive.shared.resources.synced_folders_status_backing_up
 import app.tenshu.drive.shared.resources.synced_folders_status_finished
+import app.tenshu.drive.shared.resources.synced_folders_status_finished_all_held
+import app.tenshu.drive.shared.resources.synced_folders_status_finished_some_held
 import app.tenshu.drive.shared.resources.synced_folders_status_finished_with_failures
 import app.tenshu.drive.shared.resources.synced_folders_status_finished_could_not_check
 import app.tenshu.drive.shared.resources.synced_folders_status_finished_with_reason
@@ -499,7 +501,17 @@ private fun backupStatusText(state: BackupState): String = when (state) {
         // ⚠ A local: `failureReason` is another module's public property, so no smart cast.
         val reason = state.failureReason
         if (state.failed == 0) {
-            stringResource(Res.string.synced_folders_status_finished, state.uploaded)
+            // ⚠ A file skipped because the realm already holds it is counted, never dropped: a run
+            // whose every file was already backed up otherwise read "Backed up 0 files".
+            when {
+                state.alreadyInRealm == 0 ->
+                    stringResource(Res.string.synced_folders_status_finished, state.uploaded)
+                state.uploaded == 0 ->
+                    stringResource(Res.string.synced_folders_status_finished_all_held, state.alreadyInRealm)
+                else -> stringResource(
+                    Res.string.synced_folders_status_finished_some_held, state.uploaded, state.alreadyInRealm,
+                )
+            }
         } else {
             // A cause the engine knows is copy from this catalogue, never the engine's English (§40).
             // ⚠ A `when` with no `else`: a new kind must fail to compile here, not fall through.

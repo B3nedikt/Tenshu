@@ -34,22 +34,27 @@ export function TryModeBanner() {
   // Services card is where that story continues. Preserves the previous behaviour.
   if (account !== null) return null
   return (
+    // Rose attention strip (ADR 0027), translucent so it sits on the overview's wallpaper and on an
+    // app's plain surface alike.
     <div
       role="status"
-      className="border-b border-warning/30 bg-warning/10 px-4 py-3"
+      className="border-b border-attention-line bg-glass px-4 py-3 backdrop-blur-xl backdrop-saturate-150"
     >
       <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-warning">
-            {t('tryMode.title')}
-          </p>
-          <p className="text-xs text-warning">
-            {t('tryMode.body')}
-          </p>
+        <div className="flex min-w-0 items-center gap-3">
+          <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full bg-attention" />
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-text">
+              {t('tryMode.title')}
+            </p>
+            <p className="text-xs text-text-2">
+              {t('tryMode.body')}
+            </p>
+          </div>
         </div>
         <Link
           to="/control/services/picker"
-          className="rounded-md bg-warning px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-warning/90"
+          className="rounded-pill bg-attention px-4 py-1.5 text-xs font-semibold text-on-attention hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-line-strong"
         >
           {t('tryMode.cta')}
         </Link>

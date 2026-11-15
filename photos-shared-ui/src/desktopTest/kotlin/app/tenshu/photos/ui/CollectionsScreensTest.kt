@@ -31,6 +31,7 @@ import app.tenshu.ui.theme.TenshuTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.tenshu.ui.test.NoMotion
 
 /** What S4 (Collections) and S5 (album detail) render (`photos-app.md` §21). */
 @OptIn(ExperimentalTestApi::class)
@@ -42,7 +43,7 @@ class CollectionsScreensTest {
     private fun photo(i: Int) = Photo("/p$i.jpg", 1_000L - i, isVideo = false, contentId = "c$i")
 
     @Test
-    fun albumsShowTheirNameAndCount() = runComposeUiTest {
+    fun albumsShowTheirNameAndCount() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 CollectionsScreen(
@@ -64,7 +65,7 @@ class CollectionsScreensTest {
     }
 
     @Test
-    fun anAlbumOfOneReadsOnePhoto() = runComposeUiTest {
+    fun anAlbumOfOneReadsOnePhoto() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 CollectionsScreen(
@@ -85,7 +86,7 @@ class CollectionsScreensTest {
     }
 
     @Test
-    fun favouritesIsAlwaysOffered_evenWithNoAlbums() = runComposeUiTest {
+    fun favouritesIsAlwaysOffered_evenWithNoAlbums() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 CollectionsScreen(
@@ -106,7 +107,7 @@ class CollectionsScreensTest {
     }
 
     @Test
-    fun anUnreachableProxyShowsTheProxyMessage_neverAnEmptyShelf() = runComposeUiTest {
+    fun anUnreachableProxyShowsTheProxyMessage_neverAnEmptyShelf() = runComposeUiTest(effectContext = NoMotion) {
         var retried = false
         setContent {
             TenshuTheme {
@@ -133,7 +134,7 @@ class CollectionsScreensTest {
     }
 
     @Test
-    fun theEmptyCopySpeaksForTheWholeTab() = runComposeUiTest {
+    fun theEmptyCopySpeaksForTheWholeTab() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 CollectionsScreen(
@@ -161,7 +162,7 @@ class CollectionsScreensTest {
     }
 
     @Test
-    fun aLongPressRemovesOnlyWhileNoEditRuns() = runComposeUiTest {
+    fun aLongPressRemovesOnlyWhileNoEditRuns() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠ The view model ignores an edit while one runs, so a long-press offered meanwhile
         // would be a removal that silently never happened.
         var writing by androidx.compose.runtime.mutableStateOf(true)
@@ -189,7 +190,7 @@ class CollectionsScreensTest {
     }
 
     @Test
-    fun thereIsNoBackWhileAnEditRuns() = runComposeUiTest {
+    fun thereIsNoBackWhileAnEditRuns() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠⚠ A reopened album is a new view model whose lock is free.
         setContent {
             TenshuTheme {
@@ -206,7 +207,7 @@ class CollectionsScreensTest {
     }
 
     @Test
-    fun anEmptyFavouritesSaysHowToFillIt_notHowToFillAnAlbum() = runComposeUiTest {
+    fun anEmptyFavouritesSaysHowToFillIt_notHowToFillAnAlbum() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 AlbumDetailScreen(
@@ -236,7 +237,7 @@ class CollectionsScreensTest {
     }
 
     @Test
-    fun theBackAffordanceIsThere() = runComposeUiTest {
+    fun theBackAffordanceIsThere() = runComposeUiTest(effectContext = NoMotion) {
         var backs = 0
         setContent {
             TenshuTheme {
@@ -260,7 +261,7 @@ class CollectionsScreensTest {
     }
 
     @Test
-    fun thingsRenderUnderTheirOwnHeader_aboveTheOtherDerivedSections() = runDesktopComposeUiTest(width = 1024, height = 2400) {
+    fun thingsRenderUnderTheirOwnHeader_aboveTheOtherDerivedSections() = runDesktopComposeUiTest(width = 1024, height = 2400, effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 CollectionsScreen(
@@ -300,7 +301,7 @@ class CollectionsScreensTest {
     }
 
     @Test
-    fun theThingsHeaderIsAbsentWhenNothingHasBeenLabelled() = runComposeUiTest {
+    fun theThingsHeaderIsAbsentWhenNothingHasBeenLabelled() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠⚠ Every device today: the proxy binds an empty backend registry, so no `MediaLabel`
         // exists anywhere. An empty "Things" header would advertise a feature nobody can turn on —
         // the argument that keeps dead tabs out of the app.
@@ -330,7 +331,7 @@ class CollectionsScreensTest {
     // ── the person header ────────────────────────────────────────────────────────────────
 
     @Test
-    fun aPersonOpensWithTheirHeaderNameAndCount() = runComposeUiTest {
+    fun aPersonOpensWithTheirHeaderNameAndCount() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 AlbumDetailScreen(
@@ -353,7 +354,7 @@ class CollectionsScreensTest {
     }
 
     @Test
-    fun aPersonWithOnePhotoReadsOnePhoto() = runComposeUiTest {
+    fun aPersonWithOnePhotoReadsOnePhoto() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 AlbumDetailScreen(
@@ -375,7 +376,7 @@ class CollectionsScreensTest {
 
     /** An unnamed group's name slot IS the naming action. */
     @Test
-    fun anUnnamedPersonsHeaderOffersTheName() = runComposeUiTest {
+    fun anUnnamedPersonsHeaderOffersTheName() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 AlbumDetailScreen(
@@ -400,7 +401,7 @@ class CollectionsScreensTest {
     // ── naming a person ──────────────────────────────────────────────────────────────────────
 
     @Test
-    fun aPersonScreenOffersANameAndAPlaceThatIsNotOneDoesNot() = runComposeUiTest {
+    fun aPersonScreenOffersANameAndAPlaceThatIsNotOneDoesNot() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 AlbumDetailScreen(
@@ -417,7 +418,7 @@ class CollectionsScreensTest {
     }
 
     @Test
-    fun withoutANamingCallbackThereIsNoNamingButtonAtAll() = runComposeUiTest {
+    fun withoutANamingCallbackThereIsNoNamingButtonAtAll() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 AlbumDetailScreen(
@@ -437,7 +438,7 @@ class CollectionsScreensTest {
     }
 
     @Test
-    fun anAlreadyNamedPersonIsOfferedAnotherPersonAndNeverARename() = runComposeUiTest {
+    fun anAlreadyNamedPersonIsOfferedAnotherPersonAndNeverARename() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 AlbumDetailScreen(
@@ -464,7 +465,7 @@ class CollectionsScreensTest {
     }
 
     @Test
-    fun addingAnotherPersonStartsFromAnEmptyFieldRatherThanTheCurrentName() = runComposeUiTest {
+    fun addingAnotherPersonStartsFromAnEmptyFieldRatherThanTheCurrentName() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 AlbumDetailScreen(
@@ -485,7 +486,7 @@ class CollectionsScreensTest {
     }
 
     @Test
-    fun aRefusedNameIsShownToTheUserRatherThanOnlyRecorded() = runComposeUiTest {
+    fun aRefusedNameIsShownToTheUserRatherThanOnlyRecorded() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 AlbumDetailScreen(
@@ -505,7 +506,7 @@ class CollectionsScreensTest {
     }
 
     @Test
-    fun theNamingSheetSaysTheNameWillReachTheUsersOtherDevices() = runComposeUiTest {
+    fun theNamingSheetSaysTheNameWillReachTheUsersOtherDevices() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 AlbumDetailScreen(
@@ -529,7 +530,7 @@ class CollectionsScreensTest {
     }
 
     @Test
-    fun anEmptyNameCannotBeSaved() = runComposeUiTest {
+    fun anEmptyNameCannotBeSaved() = runComposeUiTest(effectContext = NoMotion) {
         var named: String? = null
         setContent {
             TenshuTheme {
@@ -585,13 +586,13 @@ class CollectionsScreensTest {
     private fun ComposeUiTest.tileCount() = onAllNodesWithTag(PHOTO_TILE_TAG).fetchSemanticsNodes().size
 
     @Test
-    fun theWithChipIsOfferedOnAPersonAndNeverOnAYearOrPlace() = runComposeUiTest {
+    fun theWithChipIsOfferedOnAPersonAndNeverOnAYearOrPlace() = runComposeUiTest(effectContext = NoMotion) {
         annasPage(person = null)
         assertEquals(0, onAllNodesWithText("With…").fetchSemanticsNodes().size)
     }
 
     @Test
-    fun choosingASecondPersonNarrowsTheGridToPhotographsOfBoth() = runComposeUiTest {
+    fun choosingASecondPersonNarrowsTheGridToPhotographsOfBoth() = runComposeUiTest(effectContext = NoMotion) {
         annasPage()
         assertEquals(3, tileCount())
 
@@ -606,7 +607,7 @@ class CollectionsScreensTest {
     }
 
     @Test
-    fun theViewerPagesThroughTheNarrowedList() = runComposeUiTest {
+    fun theViewerPagesThroughTheNarrowedList() = runComposeUiTest(effectContext = NoMotion) {
         var handed: List<Photo>? = null
         annasPage(onOpen = { _, visible -> handed = visible })
         onNodeWithText("With…").performClick()
@@ -618,7 +619,7 @@ class CollectionsScreensTest {
     }
 
     @Test
-    fun peopleNeverPhotographedTogetherSaySoRatherThanShowABlankGrid() = runComposeUiTest {
+    fun peopleNeverPhotographedTogetherSaySoRatherThanShowABlankGrid() = runComposeUiTest(effectContext = NoMotion) {
         annasPage()
         onNodeWithText("With…").performClick()
         onNodeWithText("Unnamed").performClick()
@@ -629,7 +630,7 @@ class CollectionsScreensTest {
     }
 
     @Test
-    fun removingTheSecondPersonRestoresTheWholeGrid() = runComposeUiTest {
+    fun removingTheSecondPersonRestoresTheWholeGrid() = runComposeUiTest(effectContext = NoMotion) {
         annasPage()
         onNodeWithText("With…").performClick()
         onNodeWithText("Bob").performClick()
@@ -643,7 +644,7 @@ class CollectionsScreensTest {
 
     /** A picker with nobody in it would be a chip that does nothing. */
     @Test
-    fun aPersonWithNobodyElseToPickIsNotOfferedTheChip() = runComposeUiTest {
+    fun aPersonWithNobodyElseToPickIsNotOfferedTheChip() = runComposeUiTest(effectContext = NoMotion) {
         annasPage(person = PersonHeader(cover = null))
         onNodeWithText("Anna").assertIsDisplayed()
         assertEquals(0, onAllNodesWithText("With…").fetchSemanticsNodes().size)
@@ -655,7 +656,7 @@ class CollectionsScreensTest {
      * whole grid.
      */
     @Test
-    fun namingIsNotOfferedWhileTheGridIsNarrowed() = runComposeUiTest {
+    fun namingIsNotOfferedWhileTheGridIsNarrowed() = runComposeUiTest(effectContext = NoMotion) {
         annasPage(onName = {})
         onNodeWithText("Add another person").assertIsDisplayed()
 

@@ -13,6 +13,7 @@ import app.tenshu.ui.theme.TenshuTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlinx.coroutines.flow.emptyFlow
+import org.tenshu.ui.test.NoMotion
 
 /**
  * The viewer's keyboard (`photos-app.md` §33): arrows page, Esc closes, delete trashes. ⚠ Every
@@ -26,7 +27,7 @@ class PhotoViewerKeyboardTest {
     private val photos = List(5) { photoAt(it) }
 
     @Test
-    fun theArrowKeysPageThroughThePhotographs() = runComposeUiTest {
+    fun theArrowKeysPageThroughThePhotographs() = runComposeUiTest(effectContext = NoMotion) {
         val shown = mutableListOf<String>()
         setContent {
             TenshuTheme {
@@ -53,7 +54,7 @@ class PhotoViewerKeyboardTest {
     }
 
     @Test
-    fun escapeClosesTheViewer_andBothDeleteKeysTrashThePhotographOnScreen() = runComposeUiTest {
+    fun escapeClosesTheViewer_andBothDeleteKeysTrashThePhotographOnScreen() = runComposeUiTest(effectContext = NoMotion) {
         var closed = 0
         val trashed = mutableListOf<String>()
         setContent {

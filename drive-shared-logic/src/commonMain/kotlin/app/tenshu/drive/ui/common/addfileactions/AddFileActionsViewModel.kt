@@ -25,6 +25,16 @@ class AddFileActionsViewModel(
         AddFileActionsUiState()
     )
 
+    /**
+     * Conflicts waiting behind the one on screen ([AddFileActionsUiState.uploadConflict]).
+     *
+     * A multi-select pick is N concurrent uploads, so several can collide at once. The dialog
+     * shows one at a time; the rest wait here in arrival order and each resolution surfaces the
+     * next. Touched only from `viewModelScope` (Main), so it needs no lock.
+     */
+    private val queuedConflicts = ArrayDeque<UploadConflict>()
+    private var nextConflictId = 1L
+
     init {
         // The folder-upload loop lives in the app-scoped FolderUploadController
         // (Phase 3a — it must outlive this ViewModel). The ViewModel only
@@ -86,14 +96,13 @@ class AddFileActionsViewModel(
         fileName: String
     ) {
         when (result) {
-            is RepositoryResult.Success -> {
-                _uiState.update { it.copy(uploadConflict = null) }
-            }
+            // ⚠ A success must not touch [AddFileActionsUiState.uploadConflict]: in a multi-pick
+            // it belongs to a *different* file, and clearing it skipped that file silently.
+            is RepositoryResult.Success -> Unit
 
             is RepositoryResult.Error -> when (result.error) {
-                is RepositoryError.AlreadyExists -> _uiState.update {
-                    it.copy(uploadConflict = UploadConflict(uriString, parentPath, fileName))
-                }
+                is RepositoryError.AlreadyExists ->
+                    enqueueConflict(UploadConflict(uriString, parentPath, fileName, nextConflictId++))
                 // Subscribed but over quota (ADR 0019): surface the storage dialog
                 // instead of silently dropping the failure. A *missing* subscription
                 // doesn't reach here — local-first uploads succeed locally.
@@ -112,8 +121,15 @@ class AddFileActionsViewModel(
         }
     }
 
-    fun resolveConflictKeepBoth() {
-        val conflict = _uiState.value.uploadConflict ?: return
+    /**
+     * *Keep both* for conflict [conflictId]: the next conflict is shown at once and this file is
+     * retried under the first free `name (n).ext` in the background.
+     *
+     * ⚠ No-op unless [conflictId] is the conflict on screen — a repeated or late answer must not
+     * consume the next file's conflict.
+     */
+    fun resolveConflictKeepBoth(conflictId: Long) {
+        val conflict = takeDisplayedConflict(conflictId) ?: return
         viewModelScope.launch {
             var counter = 1
             while (counter < KEEP_BOTH_LIMIT) {
@@ -143,19 +159,35 @@ class AddFileActionsViewModel(
                         }
                     }
                 }
-                _uiState.update { it.copy(uploadConflict = null) }
                 return@launch
             }
             // Ran out of candidate names — say so, rather than reporting a generic failure after
             // 99 silent attempts.
-            _uiState.update {
-                it.copy(uploadConflict = null, uploadError = ERROR_TOO_MANY_COPIES)
-            }
+            _uiState.update { it.copy(uploadError = ERROR_TOO_MANY_COPIES) }
         }
     }
 
-    fun cancelConflict() {
-        _uiState.update { it.copy(uploadConflict = null) }
+    /**
+     * Skip conflict [conflictId] (that file is not uploaded) and show the next one, if any.
+     * No-op unless it is the conflict on screen, as for [resolveConflictKeepBoth].
+     */
+    fun cancelConflict(conflictId: Long) {
+        takeDisplayedConflict(conflictId)
+    }
+
+    private fun enqueueConflict(conflict: UploadConflict) {
+        if (_uiState.value.uploadConflict == null) {
+            _uiState.update { it.copy(uploadConflict = conflict) }
+        } else {
+            queuedConflicts.addLast(conflict)
+        }
+    }
+
+    /** Remove the displayed conflict if it is [conflictId], showing the next queued one. */
+    private fun takeDisplayedConflict(conflictId: Long): UploadConflict? {
+        val shown = _uiState.value.uploadConflict?.takeIf { it.id == conflictId } ?: return null
+        _uiState.update { it.copy(uploadConflict = queuedConflicts.removeFirstOrNull()) }
+        return shown
     }
 
     /** Dismiss the storage (over-quota) dialog raised by a blocked upload. */

@@ -14,6 +14,7 @@ import app.tenshu.fit.model.Source
 import app.tenshu.fit.model.Workout
 import app.tenshu.ui.theme.TenshuTheme
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
@@ -50,8 +51,10 @@ import app.tenshu.fit.composeVmTest
 @OptIn(ExperimentalTestApi::class)
 class HistoryFeedReactivityTest {
 
+    // ⚠ Real motion (`EmptyCoroutineContext`, not `NoMotion`): this is one of the paging reactivity
+    // guards, and a guard is not where a speed-up is taken (docs/testing.md §13).
     @Test
-    fun aWorkoutSavedWhileHistoryIsOpenAppearsWithoutLeavingTheTab() = composeVmTest { vms ->
+    fun aWorkoutSavedWhileHistoryIsOpenAppearsWithoutLeavingTheTab() = composeVmTest(effectContext = EmptyCoroutineContext) { vms ->
         val repository = ReactiveRepository(initialDays = 3)
         val vm = vms.own(HistoryViewModel(repository))
         setContent {

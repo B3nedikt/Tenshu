@@ -20,12 +20,15 @@ import org.tenshu.core.TByteArray
 import org.tenshu.core.common.epc.RealmKeyMaterialBridge
 import org.tenshu.core.common.proxy.FileDatabase
 import org.tenshu.core.common.proxy.IosFileDatabase
+import org.tenshu.core.common.proxy.db.ObjectStore
+import org.tenshu.core.common.proxy.db.ReplicaEpochSource
 import org.tenshu.inference.proxy.DefaultEmbeddingStore
 import org.tenshu.inference.proxy.DefaultFaceTemplateStore
 import org.tenshu.inference.proxy.EmbeddingStore
 import org.tenshu.inference.ModelProvenance
 import org.tenshu.inference.proxy.FaceTemplateStore
 import org.tenshu.inference.proxy.InferenceRealm
+import org.tenshu.inference.proxy.RealmReading
 import org.tenshu.inference.proxy.InferenceStoreCustody
 import org.tenshu.inference.proxy.InferenceStoreGate
 import org.tenshu.inference.proxy.MediaIndexRunner
@@ -62,11 +65,14 @@ import platform.Foundation.NSUserDomainMask
  *   it did not see, and that reset is what the stamp exists to catch.
  * @param excludeFromBackup marks a directory excluded from backup and answers why it could not, or
  *   `null`. A test's seam; production is [OwnedInferenceStores.excludeFromBackup].
+ * @param storeEpoch the shared store's `meta.epoch` now, or `null` when it cannot be told. A test's
+ *   seam; `null` (production) reads this graph's own store, [OwnedInferenceStores.replicaEpochOf].
  */
 fun ownedInferenceStoresModule(
     root: String = OwnedInferenceStores.privateRoot(),
     deviceRealmOwner: () -> String? = { RealmKeyMaterialBridge.read()?.ownerId },
     excludeFromBackup: (String) -> String? = OwnedInferenceStores::excludeFromBackup,
+    storeEpoch: (() -> Long?)? = null,
 ): Module = module {
     single<FileDatabase>(named(INFERENCE_FILE_DATABASE)) { OwnedInferenceStores.openDatabase(root, excludeFromBackup) }
     // ⚠⚠ B.16 (247): built, and so their logs read, only on first use after a stopped graph's
@@ -86,10 +92,32 @@ fun ownedInferenceStoresModule(
             embeddings = get(),
             faces = get(),
             cancelPass = { get<MediaIndexRunner>().cancelRunningPass() },
-            currentRealm = {
-                // ⚠⚠ THE `meta.epoch` SEAM. `storeEpoch` is null: the shared store exposes no epoch
-                // to read here, and this lambda is the one place that would supply it.
-                deviceRealmOwner()?.let { owner -> InferenceRealm(ownerId = owner, storeEpoch = null) }
+            // IN-D6a: the arrived paths are the realm's too, cleared with its stores.
+            arrivals = getOrNull(),
+            readRealm = {
+                // ⚠⚠ Both halves, or no answer (`ios-face-grouping.md` §2.2 item 8, threat model
+                // A40). The owner alone cannot see a reset that keeps it; the store's epoch moves
+                // at every wipe and migration. ⚠⚠ An epoch that cannot be read is CannotTell:
+                // neither "the same one" (this asker is refused) nor "another one" (no running pass
+                // is stopped, nothing is cleared). A read refused for a moment — a sibling's -wal
+                // reset, a deferred admission, protected data — must not stop indexing.
+                val owner: String? = deviceRealmOwner()
+                if (owner == null) {
+                    RealmReading.None
+                } else {
+                    // ⚠ A seam's `null` is its answer, never a cue to read the graph's store instead.
+                    // ⚠ A closed graph's store cannot be resolved: that too is "cannot tell".
+                    val epoch: Long? = if (storeEpoch != null) {
+                        storeEpoch()
+                    } else {
+                        runCatching { get<ObjectStore>() }.getOrNull()?.let(OwnedInferenceStores::replicaEpochOf)
+                    }
+                    if (epoch == null) {
+                        RealmReading.CannotTell(owner, "the shared store's epoch could not be read")
+                    } else {
+                        RealmReading.Of(InferenceRealm(ownerId = owner, storeEpoch = epoch.toString()))
+                    }
+                }
             },
             runtimeServes = { realm -> get<SyncManager>().residentOwnerId == realm.ownerId },
             // ⚠ In the custody, not beside it: the gate a query or a pass reaches first must not
@@ -305,6 +333,17 @@ object OwnedInferenceStores {
         heldLogged = false
     }
 
+    /**
+     * The shared store's `meta.epoch` as [store] reads it **now** ([ReplicaEpochSource.currentEpoch]),
+     * or `null`: the not-ready stand-in, a fenced handle, a refused access, or a store with no
+     * epoch at all. ⚠ `null` is "cannot tell", never "unchanged" — see [ownedInferenceStoresModule].
+     * ⚠ Blocking (one empty transaction on the SQLite store); the custody asks it off the main thread.
+     */
+    fun replicaEpochOf(store: ObjectStore): Long? = epochSourceOf(store)?.currentEpoch()
+
+    /** A function of its own: the type test is never made in place on another call's value (K/N). */
+    private fun epochSourceOf(store: ObjectStore): ReplicaEpochSource? = store as? ReplicaEpochSource
+
     /** Whether the stores may be read or written: what a backend's readiness consults. */
     fun usable(koin: Koin): Boolean = koin.get<InferenceStoreCustody>().usable()
 
@@ -354,7 +393,12 @@ object OwnedInferenceStores {
         // not the owner's, that name is the App Group's.
         // ⚠ A plain database, not [openDatabase]: erasing must not wait on the backup exclusion.
         if (!cleared) {
-            InferenceStoreCustody.eraseAtRest(IosFileDatabase(root), listOf(INFERENCE_EMBEDDINGS_PATH, INFERENCE_FACES_PATH))
+            InferenceStoreCustody.eraseAtRest(
+                IosFileDatabase(root),
+                // ⚠ IN-D6a's arrived paths too: names of the realm's photographs.
+                // ⚠ And where the log was last read: no path, but this realm's.
+                listOf(INFERENCE_EMBEDDINGS_PATH, INFERENCE_FACES_PATH, INFERENCE_ARRIVALS_PATH) + app.tenshu.control.inference.ARRIVALS_CURSOR_PATH,
+            )
         }
     }.onFailure { println("OwnedInferenceStores -> relinquish failed, the next check clears: $it") }.isSuccess
 

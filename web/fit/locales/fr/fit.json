@@ -1,8 +1,4 @@
 {
-  "app": {
-    "title": "Fit",
-    "tagline": "Votre activité, chiffrée de bout en bout."
-  },
   "runtime": {
     "connectingTitle": "Connexion à Tenshu en cours…",
     "connectingBody": "L’onglet Tenshu qui héberge Fit est occupé. Fit se chargera dès qu’il répondra.",
@@ -19,6 +15,7 @@
     "reload": "Recharger"
   },
   "nav": {
+    "label": "Sections de Fit",
     "dashboard": "Tableau de bord",
     "history": "Historique",
     "profile": "Profil"

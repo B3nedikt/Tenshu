@@ -430,7 +430,7 @@ class ModelPreparerTest {
         probes += passed
         preparer.check { _ ->
             duringTheProbe = preparer.checksEnded.value
-            ModelPreparer.Probed(preflightKey(store), probes.removeFirst())
+            ModelPreparer.Probed(preflightKey(store), probes.removeAt(0))
         }
         assertEquals(0L, duringTheProbe, "a check was counted as ended while it ran")
         assertEquals(1L, preparer.checksEnded.value)
@@ -696,7 +696,7 @@ class ModelPreparerTest {
         // The check compiles the towers and probes them: the pass is the answer it hands back,
         // which is what the warm-up follows.
         val checked = preparer().check { _ ->
-            ModelPreparer.Probed(preflightKey(store), probes.removeFirst())
+            ModelPreparer.Probed(preflightKey(store), probes.removeAt(0))
         }
         assertEquals(passed, checked.probed)
     }

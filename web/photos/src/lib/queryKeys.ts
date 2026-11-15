@@ -5,7 +5,12 @@
 import { defineQueryKeys } from '@tenshu/app-kit/query'
 
 export const queryKeys = defineQueryKeys({
-  captureTimes: () => ['captureTimes'] as const,
+  // The library's key is unchanged; the Videos collection's times are their own entry.
+  captureTimes: (kind: 'all' | 'videos' = 'all') => (kind === 'all' ? (['captureTimes'] as const) : (['captureTimes', kind] as const)),
+  // L6: this browser's remembered Library density.
+  photoSettings: () => ['photoSettings'] as const,
+  // L7: one entry per parsed query (name, range) — not per keystroke spelling.
+  photoSearch: (name: string, fromMs: number | null, toMs: number | null) => ['photoSearch', name, fromMs, toMs] as const,
   albums: () => ['albums'] as const,
   albumPhotos: (albumId: string) => ['albumPhotos', albumId] as const,
   albumsFor: (contentId: string) => ['albumsFor', contentId] as const,

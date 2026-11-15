@@ -30,3 +30,27 @@ internal suspend fun requireOwnerId(
     val claims = jwtAuthenticator.require(call) ?: return null
     return claims.ownerId
 }
+
+/** The authenticated caller of a device-JWT route: its realm, and the device that signed the JWT. */
+internal class AuthenticatedDevice(val ownerId: String, val deviceId: String?)
+
+/**
+ * [requireOwnerId], keeping the authenticated **device** too — the JWT's `sub`. The admit routes
+ * need it to bind an A33 chain's approver (`chain[0]`) to the device actually posting
+ * (`admission-revocation-names-the-capability.md` §7j.3 rule 2).
+ *
+ * ⚠ Dev mode: `X-Dev-Owner` carries no device, so the caller may add `X-Dev-Device`; without it
+ * [AuthenticatedDevice.deviceId] is null and a chain-presenting admission is refused (fails closed).
+ */
+internal suspend fun requireOwnerAndDevice(
+    call: ApplicationCall,
+    config: RelayConfig,
+    jwtAuthenticator: JwtAuthenticator,
+): AuthenticatedDevice? {
+    if (config.devMode) {
+        val devOwner = call.request.headers["X-Dev-Owner"]
+        if (devOwner != null) return AuthenticatedDevice(devOwner, call.request.headers["X-Dev-Device"])
+    }
+    val claims = jwtAuthenticator.require(call) ?: return null
+    return AuthenticatedDevice(claims.ownerId, claims.deviceId)
+}

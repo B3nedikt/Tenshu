@@ -464,8 +464,11 @@ object DriveBackupSurface {
             if (state.failed > 0) {
                 "Backed up ${state.uploaded}, ${state.failed} failed" +
                     (state.failureKind?.let { " — ${failureText(it)}" } ?: state.failureReason?.let { " — $it" }.orEmpty())
+            } else if (state.alreadyInRealm > 0 && state.uploaded == 0) {
+                "Nothing new to back up · ${state.alreadyInRealm} already in your Drive"
             } else {
-                "Backed up ${state.uploaded} photo" + if (state.uploaded == 1) "" else "s"
+                "Backed up ${state.uploaded} photo" + (if (state.uploaded == 1) "" else "s") +
+                    (if (state.alreadyInRealm > 0) " · ${state.alreadyInRealm} already in your Drive" else "")
             }
     }
 

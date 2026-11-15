@@ -10,6 +10,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import org.tenshu.ui.test.NoMotion
 
 /**
  * `ForgetThisDevice`'s confirmation must **route through the recovery phrase**, not refuse
@@ -28,7 +29,7 @@ class ForgetDeviceDialogTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun aDeviceHoldingThePhrase_showsIt_andCannotConfirmUntilAcknowledged() = runComposeUiTest {
+    fun aDeviceHoldingThePhrase_showsIt_andCannotConfirmUntilAcknowledged() = runComposeUiTest(effectContext = NoMotion) {
         var confirmed = false
         var acked = false
 
@@ -67,7 +68,7 @@ class ForgetDeviceDialogTest {
      */
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun aDeviceWithNoPhrase_confirmsInOneStep_withNoAcknowledgement() = runComposeUiTest {
+    fun aDeviceWithNoPhrase_confirmsInOneStep_withNoAcknowledgement() = runComposeUiTest(effectContext = NoMotion) {
         var confirmed = false
 
         setContent {
@@ -97,7 +98,7 @@ class ForgetDeviceDialogTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun theCopyNamesTheRealmWideConsequence_notJustTheDeviceLocalOne() = runComposeUiTest {
+    fun theCopyNamesTheRealmWideConsequence_notJustTheDeviceLocalOne() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 ForgetDeviceDialog(
@@ -113,9 +114,11 @@ class ForgetDeviceDialogTest {
 
         // ⚠ "Start fresh" is safe for the device doing it; the harm lands on the devices left
         // behind. The warning has to say that, or it repeats RG-1's original omission.
+        // ⚠ Since §7j the old clause ("nobody can add devices to this realm again") is false — a
+        // current member can still admit without A1. What is lost is recovery.
         onNodeWithText(
             "This device holds your recovery phrase. It may be the only copy. Write it down before " +
-                "continuing — without it nobody can add devices to this realm again.",
+                "continuing — without it your realm cannot be recovered once your other devices are gone.",
         ).assertIsDisplayed()
     }
 
@@ -138,7 +141,7 @@ class ForgetDeviceDialogTest {
      */
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun working_saysSoAndCannotBeConfirmedOrCancelledTwice() = runComposeUiTest {
+    fun working_saysSoAndCannotBeConfirmedOrCancelledTwice() = runComposeUiTest(effectContext = NoMotion) {
         var confirmed = 0
         var dismissed = 0
 
@@ -173,7 +176,7 @@ class ForgetDeviceDialogTest {
     /** ⚠ The guard is `working`, not the acknowledgement — a joiner has no phrase and must still confirm. */
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun notWorking_aJoinerConfirmsWithNoAcknowledgement() = runComposeUiTest {
+    fun notWorking_aJoinerConfirmsWithNoAcknowledgement() = runComposeUiTest(effectContext = NoMotion) {
         var confirmed = 0
         setContent {
             TenshuTheme {

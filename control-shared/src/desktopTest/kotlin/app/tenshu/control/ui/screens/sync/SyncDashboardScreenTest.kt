@@ -3,6 +3,9 @@ package app.tenshu.control.ui.screens.sync
 import kotlinx.coroutines.flow.Flow
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -51,6 +54,7 @@ import org.tenshu.sync.PairingRequest
 import org.tenshu.sync.SyncStatus
 import org.tenshu.viewmodel.test.OwnedViewModels
 import org.tenshu.viewmodel.test.closeBlocking
+import org.tenshu.ui.test.NoMotion
 
 class SyncDashboardScreenTest {
 
@@ -71,7 +75,6 @@ class SyncDashboardScreenTest {
 
     @Before
     fun setup() {
-        stopKoin()
         mockSyncRepository = FakeSyncRepository()
         reauthenticator = FakeReauthenticator(AppLockAuthResult.Success)
 
@@ -93,7 +96,7 @@ class SyncDashboardScreenTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun dashboardDisplaysEmptyState() = runComposeUiTest {
+    fun dashboardDisplaysEmptyState() = runComposeUiTest(effectContext = NoMotion) {
         val viewModelStoreOwner = object : ViewModelStoreOwner {
             override val viewModelStore: ViewModelStore = this@SyncDashboardScreenTest.viewModelStore
         }
@@ -115,7 +118,7 @@ class SyncDashboardScreenTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun dashboardDisplaysDevices() = runComposeUiTest {
+    fun dashboardDisplaysDevices() = runComposeUiTest(effectContext = NoMotion) {
         val viewModelStoreOwner = object : ViewModelStoreOwner {
             override val viewModelStore: ViewModelStore = this@SyncDashboardScreenTest.viewModelStore
         }
@@ -152,7 +155,7 @@ class SyncDashboardScreenTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun dashboardDisplaysDeviceSyncPolicy() = runComposeUiTest {
+    fun dashboardDisplaysDeviceSyncPolicy() = runComposeUiTest(effectContext = NoMotion) {
         // §4.6: the device list surfaces each device's read-only offline-sync
         // policy, read through the typed FileSynchronisationSettings facade.
         val viewModelStoreOwner = object : ViewModelStoreOwner {
@@ -200,7 +203,7 @@ class SyncDashboardScreenTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun approvalDialogDisplaysRequest() = runComposeUiTest {
+    fun approvalDialogDisplaysRequest() = runComposeUiTest(effectContext = NoMotion) {
         // control-pairing-ux.md Phase 1: the Approve/Deny approval is now the app-global
         // HostPairingApprovalDialog (mounted at the App root, driven by HostPairingMonitor),
         // not the Sync screen. Render it directly with a mock request.
@@ -280,7 +283,7 @@ class SyncDashboardScreenTest {
             })
         }
 
-        runComposeUiTest {
+        runComposeUiTest(effectContext = NoMotion) {
             val viewModelStoreOwner = object : ViewModelStoreOwner {
                 override val viewModelStore: ViewModelStore = this@SyncDashboardScreenTest.viewModelStore
             }
@@ -310,6 +313,99 @@ class SyncDashboardScreenTest {
         }
     }
 
+    // --- §7j.4: removing a device lists the devices it admitted, keep by default ---
+
+    private fun admittedDevice(id: String, name: String, admittedBy: String?): Device {
+        val context = createTestContext()
+        (context.schemaProvider() as SchemaRegistry).registerConfig(identityServiceCommonModule)
+        return Device.create(
+            context = context, deviceId = id, name = name, publicKey = byteArrayOf(2),
+            isAuthorized = true, admittedByDeviceId = admittedBy ?: "",
+        )
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun removingADevice_listsItsAdmittees_keepsThemByDefault_andRemovesTheUnticked() = runComposeUiTest(effectContext = NoMotion) {
+        var removed: Pair<String, List<String>>? = null
+        setContent {
+            TenshuTheme {
+                SyncDashboardContent(
+                    uiState = SyncDashboardUiState(
+                        devices = listOf(
+                            admittedDevice("this-id", "This Phone", admittedBy = null),
+                            admittedDevice("mac-id", "Old Mac", admittedBy = "this-id"),
+                            admittedDevice("ipad-id", "iPad", admittedBy = "mac-id"),
+                            admittedDevice("tv-id", "TV", admittedBy = "mac-id"),
+                        ),
+                        isSyncEnabled = true,
+                    ),
+                    currentDeviceId = "this-id",
+                    onRefresh = {},
+                    onRevokeDevice = { id, alsoRemove -> removed = id to alsoRemove },
+                    onApproveDevice = {},
+                    onAddDevice = {},
+                    onShowRecoveryPhrase = {},
+                    onCreateRealm = {},
+                )
+            }
+        }
+
+        onAllNodesWithContentDescription("Revoke Device")[0].performClick() // the Old Mac — this device has none
+        waitForIdle()
+        onNodeWithText("Keep “iPad”").assertIsDisplayed()
+        onNodeWithText("Keep “TV”").assertIsDisplayed()
+
+        onNodeWithText("Keep “TV”").performClick()
+        onNodeWithText("I understand this cannot be undone").performClick()
+        onNodeWithText("Remove device").performClick()
+        waitForIdle()
+
+        assertEquals("mac-id" to listOf("tv-id"), removed, "the iPad is kept by default; the unticked TV goes too")
+    }
+
+    /**
+     * ⚠⚠ The roster is live. An admittee that syncs in while the dialog is open must be KEPT — a
+     * kept-set snapshot showed it unticked and removed it on confirm, irreversibly and unchosen.
+     */
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun anAdmitteeArrivingWhileTheDialogIsOpen_isKept_notRemoved() = runComposeUiTest(effectContext = NoMotion) {
+        var removed: Pair<String, List<String>>? = null
+        val base = listOf(
+            admittedDevice("this-id", "This Phone", admittedBy = null),
+            admittedDevice("mac-id", "Old Mac", admittedBy = "this-id"),
+            admittedDevice("ipad-id", "iPad", admittedBy = "mac-id"),
+        )
+        var state by mutableStateOf(SyncDashboardUiState(devices = base, isSyncEnabled = true))
+        setContent {
+            TenshuTheme {
+                SyncDashboardContent(
+                    uiState = state,
+                    currentDeviceId = "this-id",
+                    onRefresh = {},
+                    onRevokeDevice = { id, alsoRemove -> removed = id to alsoRemove },
+                    onApproveDevice = {},
+                    onAddDevice = {},
+                    onShowRecoveryPhrase = {},
+                    onCreateRealm = {},
+                )
+            }
+        }
+
+        onAllNodesWithContentDescription("Revoke Device")[0].performClick() // the Old Mac
+        waitForIdle()
+        state = state.copy(devices = base + admittedDevice("tv-id", "TV", admittedBy = "mac-id"))
+        waitForIdle()
+        onNodeWithText("Keep “TV”").assertIsDisplayed()
+
+        onNodeWithText("I understand this cannot be undone").performClick()
+        onNodeWithText("Remove device").performClick()
+        waitForIdle()
+
+        assertEquals("mac-id" to emptyList<String>(), removed, "nothing the user did not untick is removed")
+    }
+
     // --- ReadmitDevice ("Restore access"): the exit for a peer the relay no longer recognises ---
 
     private fun peerDevice(id: String, name: String): Device {
@@ -320,7 +416,7 @@ class SyncDashboardScreenTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun restoreAccessOnAPeerRow_callsBackWithThatDevicesId() = runComposeUiTest {
+    fun restoreAccessOnAPeerRow_callsBackWithThatDevicesId() = runComposeUiTest(effectContext = NoMotion) {
         var readmitCalledWith: String? = null
         setContent {
             TenshuTheme {
@@ -331,7 +427,7 @@ class SyncDashboardScreenTest {
                     ),
                     currentDeviceId = "this-id",
                     onRefresh = {},
-                    onRevokeDevice = {},
+                    onRevokeDevice = { _, _ -> },
                     onApproveDevice = {},
                     onReadmitDevice = { readmitCalledWith = it },
                     onAddDevice = {},
@@ -349,7 +445,7 @@ class SyncDashboardScreenTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun restoreAccessIsNotOfferedForThisDevice() = runComposeUiTest {
+    fun restoreAccessIsNotOfferedForThisDevice() = runComposeUiTest(effectContext = NoMotion) {
         // `ReadmitDevice` refuses self and points at `ReregisterDevice`, which re-asserts genesis
         // first. An affordance that can only ever refuse is worse than none.
         setContent {
@@ -361,7 +457,7 @@ class SyncDashboardScreenTest {
                     ),
                     currentDeviceId = "this-id",
                     onRefresh = {},
-                    onRevokeDevice = {},
+                    onRevokeDevice = { _, _ -> },
                     onApproveDevice = {},
                     onReadmitDevice = {},
                     onAddDevice = {},
@@ -377,7 +473,7 @@ class SyncDashboardScreenTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun anOutcomeReachesTheUser_ratherThanVanishing() = runComposeUiTest {
+    fun anOutcomeReachesTheUser_ratherThanVanishing() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠⚠ Until this screen grew a snackbar host it rendered `uiState.error` NOWHERE — only the
         // iOS roster ever showed it. `Restore access` acts on ANOTHER device, so with no message
         // here a success and a dead button are the same thing. Pinned for both outcomes.
@@ -390,7 +486,7 @@ class SyncDashboardScreenTest {
                     ),
                     currentDeviceId = "this-id",
                     onRefresh = {},
-                    onRevokeDevice = {},
+                    onRevokeDevice = { _, _ -> },
                     onApproveDevice = {},
                     onReadmitDevice = {},
                     onAddDevice = {},
@@ -409,7 +505,7 @@ class SyncDashboardScreenTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun pairingRowShowsCountdownWhileWaiting() = runComposeUiTest {
+    fun pairingRowShowsCountdownWhileWaiting() = runComposeUiTest(effectContext = NoMotion) {
         // control-pairing-ux.md §3.5: the "in Pairing" placeholder row shows the bounded-window
         // countdown while waiting for a joiner. Driven through SyncDashboardContent directly
         // (the monitor state is mirrored into uiState) to keep the assertion deterministic.
@@ -423,7 +519,7 @@ class SyncDashboardScreenTest {
                     ),
                     currentDeviceId = "d",
                     onRefresh = {},
-                    onRevokeDevice = {},
+                    onRevokeDevice = { _, _ -> },
                     onApproveDevice = {},
                     onAddDevice = {},
                     onShowRecoveryPhrase = {},
@@ -437,7 +533,7 @@ class SyncDashboardScreenTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun pairingRowFlipsToReviewWhenRequestArrives() = runComposeUiTest {
+    fun pairingRowFlipsToReviewWhenRequestArrives() = runComposeUiTest(effectContext = NoMotion) {
         // §3.6 / Phase 3-Android: once a joiner's request arrives the row flips to the
         // PII-free "wants to join" review prompt (the SAS comparison is the global modal).
         setContent {
@@ -450,7 +546,7 @@ class SyncDashboardScreenTest {
                     ),
                     currentDeviceId = "d",
                     onRefresh = {},
-                    onRevokeDevice = {},
+                    onRevokeDevice = { _, _ -> },
                     onApproveDevice = {},
                     onAddDevice = {},
                     onShowRecoveryPhrase = {},
@@ -471,7 +567,7 @@ class SyncDashboardScreenTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun revokingADevice_asksFirst_andDoesNotRevokeOnTheTapAlone() = runComposeUiTest {
+    fun revokingADevice_asksFirst_andDoesNotRevokeOnTheTapAlone() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠⚠ THE point of the confirmation: removing a device takes its access away immediately and
         // is final for that identity — under option F
         // (admission-revocation-names-the-capability.md §4.1) there is no re-admission at all, so
@@ -549,7 +645,7 @@ class SyncDashboardScreenTest {
      */
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun refusingTheReauthPrompt_doesNotRevoke() = runComposeUiTest {
+    fun refusingTheReauthPrompt_doesNotRevoke() = runComposeUiTest(effectContext = NoMotion) {
         val viewModelStoreOwner = object : ViewModelStoreOwner {
             override val viewModelStore: ViewModelStore = this@SyncDashboardScreenTest.viewModelStore
         }
@@ -608,7 +704,7 @@ class SyncDashboardScreenTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun revokingADevice_needsTheAcknowledgement_notJustTheConfirmTap() = runComposeUiTest {
+    fun revokingADevice_needsTheAcknowledgement_notJustTheConfirmTap() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠⚠ This is the guard for the checkbox gate, and it is written so that DELETING the gate
         // turns it red: it taps "Remove device" while the box is unchecked and asserts nothing was
         // revoked. Remove `enabled = acknowledged` and the tap lands, `revoked` is set, and this

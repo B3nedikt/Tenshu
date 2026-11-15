@@ -34,6 +34,7 @@ const { ensureRuntime, photos } = vi.hoisted(() => {
     photos: {
       feedPage: vi.fn(async (_c: string | null, _n: number) => ({ ok: true, photos: [], nextCursor: null })),
       captureTimes: vi.fn(async () => ({ ok: true, times: [] })),
+      search: vi.fn(async (_n: string | null, _f: number | null, _t: number | null) => ({ ok: true, photos: [], truncated: false })),
       photo: vi.fn(async (_p: string) => ({ ok: true, photo: null })),
       details: vi.fn(async (_p: string) => ({ ok: true, details: null })),
       motionClip: vi.fn(async (_p: string) => ({ ok: true, bytes: null })),
@@ -90,6 +91,7 @@ vi.mock('@tenshu/sdk/storage', () => ({ Storage: {} }))
 vi.mock('@tenshu/sdk/syncHealth', () => ({ SyncHealth: {} }))
 vi.mock('@tenshu/sdk/syncStatus', () => ({ SyncStatus: {} }))
 vi.mock('@tenshu/sdk/timeline', () => ({ Timeline: {} }))
+vi.mock('@tenshu/sdk/viewSettings', () => ({ DriveSettings: {}, PhotosSettings: {} }))
 
 import { mountProxyGateway } from './proxyGateway'
 
@@ -133,6 +135,7 @@ describe('proxyGateway — photos', () => {
         'photo.removeFromAlbum',
         'photo.renameAlbum',
         'photo.restore',
+        'photo.search',
         'photo.setFavourite',
         'photo.trash',
         'photo.trashed',
@@ -146,10 +149,16 @@ describe('proxyGateway — photos', () => {
   })
 
   it.each<[string, unknown, keyof typeof photos, unknown[]]>([
-    ['photo.feedPage', { pageSize: 60 }, 'feedPage', [null, 60]],
-    ['photo.feedPage', { cursor: null, pageSize: 1 }, 'feedPage', [null, 1]],
-    ['photo.feedPage', { cursor: 'v1.5.2', pageSize: 500 }, 'feedPage', ['v1.5.2', 500]],
-    ['photo.captureTimes', undefined, 'captureTimes', []],
+    ['photo.feedPage', { pageSize: 60 }, 'feedPage', [null, 60, 'all']],
+    ['photo.feedPage', { cursor: null, pageSize: 1 }, 'feedPage', [null, 1, 'all']],
+    ['photo.feedPage', { cursor: 'v1.5.2', pageSize: 500 }, 'feedPage', ['v1.5.2', 500, 'all']],
+    // L5: the Videos collection is the same feed with `kind`.
+    ['photo.feedPage', { pageSize: 60, kind: 'videos' }, 'feedPage', [null, 60, 'videos']],
+    ['photo.captureTimes', undefined, 'captureTimes', ['all']],
+    ['photo.captureTimes', { kind: 'videos' }, 'captureTimes', ['videos']],
+    // L7: search by name and/or capture time.
+    ['photo.search', { name: 'beach' }, 'search', ['beach', null, null]],
+    ['photo.search', { fromMs: 1, toMs: 2 }, 'search', [null, 1, 2]],
     ['photo.get', { path: '/a.jpg' }, 'photo', ['/a.jpg']],
     ['photo.details', { path: '/a.jpg' }, 'details', ['/a.jpg']],
     ['photo.motionClip', { path: '/v.mp4' }, 'motionClip', ['/v.mp4']],
@@ -193,6 +202,12 @@ describe('proxyGateway — photos', () => {
     ['photo.feedPage', { pageSize: 2.5 }],
     ['photo.feedPage', { pageSize: '60' }],
     ['photo.feedPage', { cursor: 7, pageSize: 60 }],
+    // An unknown kind is a malformed call, never quietly "everything".
+    ['photo.feedPage', { pageSize: 60, kind: 'images' }],
+    ['photo.captureTimes', { kind: 'images' }],
+    ['photo.search', { name: 7 }],
+    ['photo.search', { fromMs: 'yesterday' }],
+    ['photo.search', { name: 'x'.repeat(201) }],
     ['photo.get', {}],
     ['photo.get', { path: '' }],
     ['photo.details', { path: 3 }],

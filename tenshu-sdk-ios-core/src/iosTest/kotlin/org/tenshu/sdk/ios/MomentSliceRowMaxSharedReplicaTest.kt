@@ -85,6 +85,9 @@ class MomentSliceRowMaxSharedReplicaTest {
                     onJobOutcome = onJobOutcome,
                 )
             },
+            // ⚠ Not about HOLD_MAX: 600 saves and a 1 MiB row on a starved CI runner once held
+            // the lock past its 1 s, fenced the handle, and failed both tests as COMMIT_FAILED.
+            limits = ReplicaLimits(holdMaxMs = 30_000),
         )
         binding.installAtLaunch()
         return binding.open(build)

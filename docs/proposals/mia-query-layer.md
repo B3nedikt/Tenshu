@@ -1,6 +1,6 @@
 # Mia Query Layer — Turning an Utterance into Grounded Realm Data
 
-**Status:** v0.8 — **Mia on the web runs the same planner in the tab, read-only** (§20). v0.7 — **Mia on iPhone is real and read-only** (§19): a route-1 runtime in place of the mock, and a proxy that offers no action there. ⚠⚠ No question has been asked on a real device yet (§19.4).
+**Status:** v0.9 — ⭐ §21 (2026-11-09) measures the photo-search text tower as `ClassifyIntent`'s backend. v0.8 — **Mia on the web runs the same planner in the tab, read-only** (§20). v0.7 — **Mia on iPhone is real and read-only** (§19): a route-1 runtime in place of the mock, and a proxy that offers no action there. ⚠⚠ No question has been asked on a real device yet (§19.4).
 **v0.6** — **§15.1's 200-series cap is closed** (§17). `queryOccurrences` moves the scan inside `:calendar-service` and bounds **occurrences in the window** instead of **series scanned** — the one quantity there was no safe order to truncate. ⚠⚠ Saturation is now a fact rather than a guess. ⚠ `CalendarService` → v5.
 **v0.5 — MQ-1 … MQ-4 SHIPPED** 2026-08-11/14 (as-built: §7–§11, §13), plus Track A
 slice A1 (§12), **`QueryCalendar` (§15)** — which completes MQ-D4a and every named read intent —
@@ -1719,6 +1719,9 @@ module now registers both halves with a note saying so.
 ### 16.8 Still open — most of MQ-5, deliberately
 
 - **A model.** The registry is empty; IN-3b owns it. Until then this path cannot run outside a test.
+  ⭐ §21 measured the photo-search text tower as this backend: with per-intent exemplars its top-1
+  pick is right for 80% of in-scope questions (int8); end to end, right answers among the 54
+  in-scope questions the grammar hands over go 8 → 27 (§21.3). It cannot reject off-topic ones by score.
 - **Answer phrasing** (§5's "optionally as answer phrasing") — not built. ⚠ It is the half that
   touches MQ-D1's citation property directly: generated prose must accompany real rows and never
   replace them, and there is no reason to take that risk before there is a model whose prose could
@@ -2041,3 +2044,93 @@ pins that, and that the grant row is the only write. The app renders `noMatch` a
 alone, never as a result list (§14.1). Threat model: A39's web amendment.
 
 Pinned by `MiaWebContractTest`; `NoBackgroundWorkInATabTest.askingMiaInstallsNothing`.
+
+## 21. Measured — the photo-search text tower as the intent picker (2026-11-09)
+
+The question: can `ClassifyIntent` (§16) be backed by the SigLIP text tower that `photosLike`
+already ships (`inference-service.md` §21), instead of a new model? Measured on a Mac, nothing
+built; the corpus, exemplars and harness script are not in the tree. The text tower is `siglip-base-patch16-256-multilingual`: fp32 PyTorch, and the int8 ONNX
+tower the catalog publishes. Tokens are lowercased and padded with `</s>` as `SiglipTextTokenizer`
+does.
+
+**Corpus.** 146 hand-written questions: 121 in scope across the 11 `MiaIntent`s (93 English,
+23 German, plus the §14 failures) and 25 off-topic ("what's the weather tomorrow", "tell me a
+joke"). A separate set of **4 English exemplars per intent** never appears among the test
+questions. The real `QueryPlanner` ran over every question (fixed clock, UTC, `OFFERED`) and
+recorded both its plan and which intents `planForIntent` can fill. ⚠ One author wrote both
+sets in one sitting, so the phrasing is correlated and the numbers are optimistic. Each figure
+over ~120 questions is good to about ±4 points (1σ); the German-only figures (23 questions) to
+about ±7. An off-topic question counts as right only when it ends in `NoMatch`.
+
+### 21.1 The grammar is the bigger problem
+
+**57 of 146 are planned correctly by the grammar alone: 53/118 English, 4/28 German.**
+78 questions reach the model under §16.3's rule: 73 end in the catch-all name search, 5 in
+`NoMatch`. ⚠⚠ Of those 78, 24 are off-topic, and **22 of the 24 also end in a file search**.
+So "not understood" almost never reaches the user today. A file search for "weather tomorrow"
+is the usual answer. ⚠ Of the 89 questions the grammar plans wrong, 68 reach the model; the other
+21 end in a committed wrong plan that §16.3 never lets a model overrule, so no picker reaches them.
+
+### 21.2 Descriptions do not work; exemplars do
+
+Top-1 accuracy over the 121 in-scope questions:
+
+| Scored against | fp32 | int8 (shipped) | int8, German only |
+|---|---|---|---|
+| `MiaIntent.description` | 0.44 | 0.43 | 0.57 |
+| "a question about …" + description | 0.46 | 0.44 | 0.44 |
+| **max cosine over 4 exemplars** | **0.84** | **0.80** | **0.87** |
+
+⭐ English exemplars carry over to German. ⚠ The one-clause descriptions in `MiaIntent` are no
+use to this backend: it needs exemplars, so a SigLIP binding would add an exemplar list beside
+each intent.
+
+### 21.3 ⚠⚠ It cannot tell an off-topic question from an on-topic one by score
+
+Off-topic top scores (int8, exemplars) have a median of 0.79 and reach 0.88. In-scope top scores
+have a median of 0.85. A cut that admits no off-topic question admits almost nothing else. The
+margin between first and second place works better. End to end, picks applied only where §16.3
+consults the model and only where `planForIntent` fills the slots:
+
+| int8, exemplars | consulted in-scope right (of 54) | swapped to another wrong intent | off-topic given an intent (of 24) | total right (of 146) |
+|---|---|---|---|---|
+| grammar alone | 8 | — | — | 57 |
+| no cut | 34 | 8 | 13 | 82 ¹ |
+| **margin ≥ 0.02** | **27** | **1** | **3** | **76** |
+| margin ≥ 0.04 | 18 | 0 | 0 | 67 |
+
+¹ One of the 13 is an off-topic question the grammar had already answered with `NoMatch`, so the
+total loses it: 57 + (34 − 8) − 1.
+
+fp32 does better at margin 0.02 (31 vs 27 right, 1 vs 3 off-topic given an intent, though 2 vs 1
+swaps). ⚠ int8
+quantisation costs this use more than it costs search, so a threshold has to be measured on the
+artifact that ships.
+
+⚠ An off-topic question given an intent replaces one wrong answer (a file search) with another
+("weather tomorrow" → tomorrow's calendar). The second is harder for a user to read as "not
+understood". Neither path says "I don't know". That sentence needs an off-topic class of its own
+(exemplars for "not a question Mia answers"), which was not tried.
+
+### 21.4 ⚠⚠ The slots, not the intent, cap German
+
+In 10 consulted questions the model (int8, exemplars, no cut) picked the right intent and
+`planForIntent` returned `null`, so the grammar's catch-all stood. 8 of the 10 are German ("fotos aus berlin", "wo war ich am
+dienstag"): `TimeGrammar` and the place/like/of anchors are English. The other two are English
+phrasings the anchors miss ("a shot of a snowy village at dusk", "my day on the 3rd"). So a
+better picker does nothing for German until MQ-D4's per-language slot grammar exists.
+
+### 21.5 What follows
+
+- ⭐ The shipped text tower, with per-intent exemplars and a margin cut, roughly triples the
+  right answers among the 54 in-scope questions §16.3 hands to the model (8 → 27 here), at the
+  cost of 1 swapped intent and 3 off-topic questions given an intent. No new download and no new native dependency, so this is a candidate backend for
+  `ClassifyIntent`, ahead of any generative model.
+- ⚠ It reaches only users who downloaded the photo-search model and turned on
+  `QUERY_PLANNING`. That is a second consent, absent = no (§16).
+- ⚠ Owed before building: real user utterances (from history on a device, with consent, or a
+  second author) to replace this corpus; the margin re-measured on the on-device int8 path
+  (the Kotlin `SiglipTextTokenizer` and the runtime, not PyTorch/ONNX on a Mac) and on the Core ML
+  export; an off-topic class.
+- Independent of any model: 22 of the 24 off-topic questions that reach the model becoming file searches is §16.3's
+  catch-all doing its job too broadly. That is a grammar question.

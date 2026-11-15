@@ -16,6 +16,7 @@ import app.tenshu.timeline.ui.theme.Personalisation
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import org.tenshu.ui.test.NoMotion
 
 /**
  * Where a tap on a photo goes, and why the answer differs by surface
@@ -49,7 +50,7 @@ class PhotoTapTest {
     private val photoFrame: SemanticsMatcher = hasClickAction() and hasAnyAncestor(hasClickAction())
 
     @Test
-    fun aFeedRowsPhotoOpensTheRowRatherThanAnotherApp() = runComposeUiTest {
+    fun aFeedRowsPhotoOpensTheRowRatherThanAnotherApp() = runComposeUiTest(effectContext = NoMotion) {
         var opened: Photo? = null
         var rowClicks = 0
         setContent {
@@ -72,7 +73,7 @@ class PhotoTapTest {
     fun theTitleAndThePhotoAgree() {
         // The other half of the same claim: whichever the user presses, one destination.
         var rowClicks = 0
-        runComposeUiTest {
+        runComposeUiTest(effectContext = NoMotion) {
             setContent {
                 NamedMoment(
                     moment = moment,
@@ -86,7 +87,7 @@ class PhotoTapTest {
     }
 
     @Test
-    fun aDetailScreensPhotoStillOpensTheOwningApp() = runComposeUiTest {
+    fun aDetailScreensPhotoStillOpensTheOwningApp() = runComposeUiTest(effectContext = NoMotion) {
         // `MomentDetailScreen` / `PlaceDetailScreen` shape: the photo IS the subject, so the
         // cross-app open (TT-2a) is the right answer and must survive this change.
         var opened: Photo? = null
@@ -102,7 +103,7 @@ class PhotoTapTest {
     }
 
     @Test
-    fun aRowThatDoesNotNavigateStillOpensTheOwningApp() = runComposeUiTest {
+    fun aRowThatDoesNotNavigateStillOpensTheOwningApp() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠ The fallback: with no destination of its own the row has nothing better to offer, and
         // an inert photo would be a loss rather than a fix.
         var opened: Photo? = null

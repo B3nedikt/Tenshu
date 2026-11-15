@@ -39,6 +39,14 @@ interface MembershipRegistry : OwnerScopedStore {
     /** Device ids admitted under `(realmId, memberAuthorityPublicKey)`. */
     fun admittedDevices(realmId: String, memberAuthorityPublicKey: ByteArray): Set<String>
 
+    /**
+     * Whether [deviceId] was admitted to [realmId] as a **member** device (through
+     * `/sync/realm-member/admit`), as opposed to one of the realm owner's own devices.
+     * `/sync/push-tombstone` asks this before letting a `Device` tombstone revoke anything:
+     * a member device may only revoke itself.
+     */
+    fun isMemberDevice(realmId: String, deviceId: String): Boolean
+
     /** Forget the admission associations for `(realmId, memberAuthorityPublicKey)` (post-purge). */
     fun clearAdmissions(realmId: String, memberAuthorityPublicKey: ByteArray)
 

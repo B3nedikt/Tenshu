@@ -80,6 +80,21 @@ interface FaceTemplateStore {
      * faces — the same defect `EmbeddingStore.clear` exists for, and worse in kind.
      */
     suspend fun clear()
+
+    /**
+     * Every "this face is not X" the user said on this device (IN-6 F6c name suggestions).
+     *
+     * ⚠⚠ **Here, on the template store, on purpose** — see [FaceRejections]: [clear] drops them and
+     * [forget]/[remove] drop a photograph's, so they leave by every exit the templates leave by.
+     */
+    suspend fun rejections(): List<FaceRejection>
+
+    /**
+     * Records [rejections] — ⚠ only those on photographs this store holds templates for, so a
+     * rejection never outlives the row whose erasure is what deletes it.
+     * @return how many were new.
+     */
+    suspend fun reject(rejections: List<FaceRejection>): Int
 }
 
 /**
@@ -96,6 +111,7 @@ class InMemoryFaceTemplateStore : FaceTemplateStore {
     private val lock = Mutex()
     private val rows = mutableMapOf<String, List<StoredFace>>()
     private var stamp: ModelProvenance? = null
+    private val rejected = FaceRejections(file = null, path = null)
 
     override suspend fun put(
         filePath: String,
@@ -123,14 +139,20 @@ class InMemoryFaceTemplateStore : FaceTemplateStore {
 
     override suspend fun visited(filePath: String): Boolean = lock.withLock { filePath in rows }
 
+    // ⚠ The durable store's orders, kept here too: rejections before rows, and only beside a row.
     override suspend fun remove(filePath: String) {
-        lock.withLock { rows.remove(filePath) }
+        lock.withLock {
+            rejected.forget(listOf(filePath))
+            rows.remove(filePath)
+        }
     }
 
     override suspend fun remembered(): Set<String> = lock.withLock { rows.keys.toSet() }
 
-    override suspend fun forget(paths: Collection<String>): Removal =
-        lock.withLock { Removal(removed = paths.count { rows.remove(it) != null }) }
+    override suspend fun forget(paths: Collection<String>): Removal = lock.withLock {
+        rejected.forget(paths)
+        Removal(removed = paths.count { rows.remove(it) != null })
+    }
 
     override suspend fun provenance(): ModelProvenance? = lock.withLock { stamp }
 
@@ -138,8 +160,16 @@ class InMemoryFaceTemplateStore : FaceTemplateStore {
 
     override suspend fun clear() {
         lock.withLock {
+            rejected.clear()
             rows.clear()
             stamp = null
         }
+    }
+
+    override suspend fun rejections(): List<FaceRejection> = rejected.all()
+
+    override suspend fun reject(rejections: List<FaceRejection>): Int = lock.withLock {
+        if (stamp == null) return@withLock 0
+        rejected.add(rejections.filter { it.filePath in rows })
     }
 }

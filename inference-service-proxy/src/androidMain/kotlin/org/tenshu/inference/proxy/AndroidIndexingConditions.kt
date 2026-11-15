@@ -35,6 +35,14 @@ class AndroidIndexingConditions(private val context: Context) : IndexingConditio
     override fun allowManualIndexing(): Boolean =
         batteryLow(context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager) != true
 
+    /**
+     * IN-D6a's new-arrivals batch: a low battery is a no, and ⚠⚠ so is an unknown one — nobody
+     * asked for this work, unlike a press. Charging and screen-off are not required: the batch is
+     * small, and its WorkManager job asks battery-not-low alone.
+     */
+    override fun allowArrivalIndexing(): Boolean =
+        batteryLow(context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager) == false
+
     /** ⚠ `Int.MIN_VALUE` / 0 is "not supported" on some devices — unknown, so not "not low". */
     private fun batteryLow(battery: BatteryManager?): Boolean? =
         battery?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)

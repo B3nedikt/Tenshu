@@ -7,6 +7,7 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.withTimeout
+import org.tenshu.core.paging.fromTheObservedGeneration
 
 /**
  * A deadline that exists ONLY to make a hang loud. It is not a latency budget.
@@ -42,6 +43,16 @@ private const val SNAPSHOT_TIMEOUT_MS = 30_000L
  *
  * ⚠ Prefer this to a hand-written `withTimeout` at the call site so the rule stays in one
  * place and stays greppable; two spellings of it is how the next person misses it.
+ *
+ * ⚠⚠ **It starts from the listing's first OBSERVED generation** ([fromTheObservedGeneration]).
+ * A `pagingSource` listing reads once at once and again when its change observer is confirmed,
+ * a proxy round trip later, and `asSnapshot` cannot survive a generation that lands mid-scroll:
+ * it peeks an index computed on the old one (`IndexOutOfBoundsException: Index: 20, Size: 20`,
+ * `FilesListingEfficiencyTest` on public Linux CI), or ends on the new one's first page. Which of
+ * the two generations a scroll overlaps is decided by machine speed, so the snapshot waits out the
+ * provisional one rather than racing it; after it, a new generation can only come from a write
+ * the test made. Pinned in `:core-paging` by `ObservedGenerationSnapshotTest`. ⚠ A listing whose
+ * observer is never confirmed now times out here, naming no generations after the first.
  */
 suspend fun <T : Any> Flow<PagingData<T>>.boundedSnapshot(
     timeoutMillis: Long = SNAPSHOT_TIMEOUT_MS,
@@ -57,6 +68,7 @@ suspend fun <T : Any> Flow<PagingData<T>>.boundedSnapshot(
     return try {
         withTimeout(timeoutMillis) {
             onEach { generations += (System.nanoTime() - started) / 1_000_000 }
+                .fromTheObservedGeneration()
                 .asSnapshot(loadOperations = loadOperations)
         }
     } catch (timeout: TimeoutCancellationException) {

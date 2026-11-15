@@ -336,10 +336,10 @@ fun <T : Data, P : Data, R : Any> TList<T>.pagingSource(
     //
     @Suppress("UNCHECKED_CAST")
     val observed = invalidation(list) as TList<Data>
-    return observed.reloadSignals(firstLoadWaitsForObserver = false).flatMapLatest {
+    return observed.reloadSignals(firstLoadWaitsForObserver = false).flatMapLatest { reload ->
         Pager(config = pagingConfig) {
             TenshuPagingSource(context, list, projection, ordering, rowKey, mapper)
-        }.flow
+        }.flow.labelled(reload)
     }
 }
 
@@ -387,25 +387,25 @@ fun <T : Data, P : Data, R : Any> TList<T>.pagingSource(
  * does.
  */
 @OptIn(FlowPreview::class)
-internal fun <T : Data> TList<T>.reloadSignals(firstLoadWaitsForObserver: Boolean): Flow<Unit> =
+internal fun <T : Data> TList<T>.reloadSignals(firstLoadWaitsForObserver: Boolean): Flow<Reload> =
     if (firstLoadWaitsForObserver) firstLoadAfterTheObserver() else merge(
-        flowOf(Unit), // initial load — at once, and again on the subscribe tick below
+        flowOf(Reload.PROVISIONAL), // initial load — at once, and again on the subscribe tick below
         changes(emitOnSubscribe = true)
             .debounceExceptFirst(INVALIDATION_COOLDOWN_MS, INVALIDATION_MAX_WAIT_MS)
-            .map { },
+            .map { Reload.OBSERVED },
     )
 
 @OptIn(FlowPreview::class)
-private fun <T : Data> TList<T>.firstLoadAfterTheObserver(): Flow<Unit> = channelFlow {
+private fun <T : Data> TList<T>.firstLoadAfterTheObserver(): Flow<Reload> = channelFlow {
     val deadline = launch {
         delay(FIRST_LOAD_OBSERVER_DEADLINE_MS)
-        send(Unit)
+        send(Reload.PROVISIONAL)
     }
     changes(emitOnSubscribe = true, emitOnFailedSubscribe = true)
         .debounceExceptFirst(INVALIDATION_COOLDOWN_MS, INVALIDATION_MAX_WAIT_MS)
         .collect {
             deadline.cancel()
-            send(Unit)
+            send(Reload.OBSERVED)
         }
 }
 

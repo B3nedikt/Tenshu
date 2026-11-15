@@ -92,4 +92,14 @@ class LargePreviewContractTest {
                 "report failure — see this test's KDoc",
         )
     }
+
+    /** The grid tile's read keeps the same fail-safe: no relay ⇒ `unknown`, never `absent`. */
+    @OptIn(DelicateCoroutinesApi::class)
+    @Test
+    fun aTileReadThatCannotReachTheRelayNeverClaimsTheClassIsAbsent() = GlobalScope.promise {
+        val answer = FileSystem.getTilePreview("/x5-no-such-tile.jpg").await()
+        assertTrue(answer.ok as Boolean, "the read itself is not a failure")
+        assertEquals(null, answer.bytes, "nothing to draw")
+        assertNotEquals("absent", answer.coveringRung as String)
+    }
 }

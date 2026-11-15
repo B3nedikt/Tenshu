@@ -309,6 +309,16 @@ internal class SqliteObjectStore private constructor(
     @Volatile
     internal var appliedWriteOps: Int = 0
 
+    /**
+     * Set once [close] has closed both connections — the part of its teardown that the
+     * `NonCancellable` guard protects. ⚠ The lock is released in a nested `finally` and would be
+     * handed back even without the guard, so a test that only checks the lock cannot see the
+     * guard go missing; this is what `a close cancelled while flushing…` checks instead.
+     */
+    @Volatile
+    internal var connectionsClosed: Boolean = false
+        private set
+
     private sealed interface WriteOp {
         data class Put(val entry: DbEntry) : WriteOp
         data class Delete(val dataIdHash: Long) : WriteOp
@@ -546,6 +556,7 @@ internal class SqliteObjectStore private constructor(
                                 readConn.close()
                             }
                         }
+                        connectionsClosed = true
                     }
                 } finally {
                     // ⚠ Last, and unconditional: the lock is what a later open misreports as

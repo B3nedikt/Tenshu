@@ -177,18 +177,20 @@ class Metrics(unittest.TestCase):
         self.assertEqual((float(found[0][0]), float(found[0][1])), ev.APP_CALIBRATION)
         self.assertEqual(ev.APP_CALIBRATION, ev.CHECKPOINT_CALIBRATION)
 
-    def test_the_apps_search_floor_is_the_cosine_it_was_before_the_constants_were_corrected(self):
-        # History: `SEMANTIC_RELEVANCE_FLOOR = 0.10` under the -224 constants was cos 0.0915. The
-        # floor now states the probability the pinned checkpoint gives that cosine, so the cut has
-        # not moved. ⚠ A carried-over cosine, never measured on the pinned checkpoint.
-        former = (math.log(0.10 / 0.90) + 12.932437) / 117.330765
-        self.assertAlmostEqual(former, 0.0915, places=4)
+    def test_the_apps_search_floor_cuts_at_the_measured_cosine(self):
+        # `SEMANTIC_RELEVANCE_FLOOR` is measured on the pinned checkpoint (inference-service.md
+        # §35.1): cosine 0.06 is admitted and 0.0599 is not, under the app's own constants. The
+        # iPhone's five cats scored 0.080-0.084 for "cat"; the carried-over cut was cosine 0.0915.
         found = re.findall(r"const val SEMANTIC_RELEVANCE_FLOOR = ([0-9.]+)f", self.kotlin("PhotosLikeImplementation.kt"))
-        self.assertEqual(found, ["0.061245844"])
+        self.assertEqual(found, ["0.00197"])
         floor = float(found[0])
         scale, bias = ev.APP_CALIBRATION
-        self.assertAlmostEqual((math.log(floor / (1 - floor)) - bias) / scale, former, places=8)
-        self.assertAlmostEqual(ev.probability(former), floor, places=7)
+        cut = (math.log(floor / (1 - floor)) - bias) / scale
+        self.assertAlmostEqual(cut, 0.06, places=4)
+        self.assertGreaterEqual(ev.probability(0.06), floor)
+        self.assertLess(ev.probability(0.0599), floor)
+        self.assertGreaterEqual(ev.probability(0.0802), floor, "the iPhone's weakest cat")
+        self.assertLess(ev.probability(0.0213), floor, "the iPhone's best non-cat")
 
     def test_difference_separates_the_offset_from_the_noise(self):
         got = ev.difference([0.5, 0.25, 0.75, 0.5], [0.25, 0.25, 0.5, 0.25])  # deltas .25 0 .25 .25

@@ -1,12 +1,10 @@
 package org.tenshu.systemtest
 
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.tenshu.core.Composite
 import org.tenshu.core.Data
 import org.tenshu.core.TResult
 import org.tenshu.core.TString
-import org.tenshu.core.collection.list.toList
 import org.tenshu.core.entity.DataId
 import org.tenshu.core.entity.Entity
 import org.tenshu.core.file.ContentId
@@ -24,21 +22,14 @@ import org.tenshu.core.common.proxy.ExecutionContext
 import org.tenshu.core.collection.list.TList
 import org.tenshu.core.schema.propertyRef
 import org.tenshu.file.client.fileService
-import org.tenshu.sync.approvePairingRequest
-import org.tenshu.sync.client.syncService
 import org.tenshu.sync.common.SyncGate
 import org.tenshu.sync.common.resolveListField
-import org.tenshu.sync.getPairingStatus
-import org.tenshu.sync.getPendingPairingRequests
-import org.tenshu.sync.initiatePairing
-import org.tenshu.sync.startPairing
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kotlin.time.Duration.Companion.seconds
 
 /**
  * **Concurrent move vs delete**: A moves `/x→/y` while B deletes `/x`, neither having seen the
@@ -70,12 +61,20 @@ import kotlin.time.Duration.Companion.seconds
  * either device's work had leaked to the relay during the window, the second edit would have been
  * made against the first's result and the test would be asserting a sequence, not a merge.
  *
- * ⚠⚠ Closing a gate and *standing on* a closed gate are different things, and only the second is
- * a partition. A gate is read once per tick; the push branch it opens is not re-read. So both
- * closures are followed by a `drainNow()` on each device — the scheduler's own `tickMutex`, which
- * cannot be taken while a tick is in flight — before either edit is issued. Without that the two
- * edits race the closure, and a run that happens to win the race passes for a reason it never
- * tested.
+ * ## Stepped: each ordering is written, not waited for
+ *
+ * The system is stepped (`TestSystem` KDoc, `docs/testing.md` §12): no device ticks unless the test
+ * ticks it. Two consequences:
+ *
+ *  - A gate cannot change under a tick in flight, because no tick is in flight between the test's
+ *    own steps. The polled version had to close both gates and then cross a `drainNow()` boundary
+ *    on each device before writing — a gate is sampled once per tick, and a tick that sampled
+ *    `true` an instant before the close would carry the edit straight to the relay. Here that
+ *    hazard has no loop to come from.
+ *  - The release is a sequence. With one gate open and the other shut, rounds of
+ *    [TestSystem.syncUntil] over both devices push only the released device's edit and let the
+ *    other *pull* it, so "the move reaches the relay first" is true by construction, and the
+ *    second gate opens only once its arrival on the peer is observed.
  *
  * ## What is pinned
  *
@@ -89,10 +88,10 @@ import kotlin.time.Duration.Companion.seconds
  *     member dead when it is tombstoned **and** absent locally (`SyncProcessor`), so an
  *     interleaving that made `/y` look briefly like both would silently strip it from the folder
  *     while the entity itself survived — invisible to assertion 1.
- *  4. The state **settles** there. Every assertion is made after a quiet period rather than on the
- *     first tick the convergence predicate holds, because the failure mode that matters (a later
- *     tick reaping `/y`, a late tombstone resurrecting `/x`) is one a first-sighting assertion
- *     cannot see.
+ *  4. The state **settles** there. Every assertion is made after [TestSystem.syncUntilQuiet] — two
+ *     rounds on both devices in which nothing is pushed — rather than on the first round the
+ *     convergence predicate holds, because the failure mode that matters (a later tick reaping
+ *     `/y`, a late tombstone resurrecting `/x`) is one a first-sighting assertion cannot see.
  *
  * ## ⚠⚠ What is NOT pinned: the bytes
  *
@@ -116,8 +115,6 @@ class ConcurrentMoveVsDeleteSystemTest {
         const val OLD_PATH = "$SOURCE_FOLDER/x.bin"
         const val NEW_PATH = "$TARGET_FOLDER/y.bin"
 
-        /** How long the converged state must hold before it is believed. ~15 ticks at 200 ms. */
-        val SETTLE = 3.seconds
     }
 
     @Test
@@ -131,7 +128,7 @@ class ConcurrentMoveVsDeleteSystemTest {
     }
 
     private suspend fun moveVersusDelete(moveReachesTheRelayFirst: Boolean) {
-        val system = TestSystem.builder().build()
+        val system = TestSystem.builder().stepped().build()
         try {
             // Both gates start open so the shared starting state can be established normally.
             val moverPushes = AtomicBoolean(true)
@@ -140,16 +137,14 @@ class ConcurrentMoveVsDeleteSystemTest {
             val mover = system.client(
                 deviceId = "mover",
                 role = TestClientRole.RealmHost,
-                pollingIntervalMs = 200,
                 storageGate = SyncGate { moverPushes.get() },
             )
             val deleter = system.client(
                 deviceId = "deleter",
                 role = TestClientRole.JoiningDevice,
-                pollingIntervalMs = 200,
                 storageGate = SyncGate { deleterPushes.get() },
             )
-            pair(system, host = mover, joiner = deleter)
+            system.pair(host = mover, joiner = deleter, hostName = "Mover Tablet", joinerName = "Deleter Phone")
             val ownerId = mover.syncManager.currentRealmContext()!!.ownerId
 
             // ---- Shared starting state: /src/x.bin exists on BOTH devices, /dst exists on both.
@@ -164,7 +159,7 @@ class ConcurrentMoveVsDeleteSystemTest {
             )
             val contentId = assertNotNull(contentIdOf(mover, OLD_PATH), "the upload has a contentId")
 
-            system.advanceUntil(timeout = 60.seconds) {
+            system.syncUntil("both devices hold $OLD_PATH and $TARGET_FOLDER, and the relay holds its content") {
                 rowAt(deleter, OLD_PATH) != null &&
                     rowAt(deleter, TARGET_FOLDER) != null &&
                     system.contentRefs.refsOf(ownerId, contentId).isNotEmpty()
@@ -183,33 +178,24 @@ class ConcurrentMoveVsDeleteSystemTest {
                 "precondition: $SOURCE_FOLDER lists $OLD_PATH; got ${childPathsOf(deleter, SOURCE_FOLDER)}",
             )
 
+            // ⚠⚠ Precondition for a pull-only tick: a device whose push gate is shut still pulls
+            // only once `realmRelayRegistered` has latched (`SyncScheduler.drainAndPull`'s
+            // `pullAllowed`), and a joiner latches it in `RealmRegistrar.ensureRegistered` on a
+            // push-allowed tick AFTER its first pull. The polled version got that second open tick
+            // from its cadence; stepped, the joiner can have pulled exactly once, and its gated
+            // ticks below would then do nothing at all — so the ordering would degrade silently.
+            system.syncUntil("both devices have latched their relay registration") {
+                mover.syncManager.realmRelayRegistered && deleter.syncManager.realmRelayRegistered
+            }
+
             // ---- The partition. Nothing either device does from here reaches the relay.
             //
-            // ⚠⚠ Clearing the flags is not closing the gates, and the difference is the whole
-            // determinism of this test. `storageGate` is sampled ONCE per tick, at the top of
-            // `SyncScheduler.drainAndPull`, and the push branch it opens is never re-checked
-            // against it — so a tick that sampled `true` an instant before these two lines is
-            // still inside `drainPendingBlocks`/`drainPendingTombstones`, and the move and delete
-            // below queue straight into a drain that is already running. The partition would then
-            // hold or not depending on where each scheduler happened to be: the test would pass
-            // most of the time, fail a correct implementation some of the time, and — worse —
-            // every pass would be a pass for a reason it never checked.
-            //
-            // [SyncScheduler.drainNow] is the boundary, and it is the scheduler's OWN: it takes
-            // the same `tickMutex` the loop holds for the whole of `tickOnce`, so it cannot return
-            // while a tick is in flight, and the tick it then runs samples the gate after the
-            // close. Once both calls have returned, every tick either device can start from here
-            // computes `pushAllowed = false`. Not a sleep and not a timeout — a wait on the actual
-            // serialization the scheduler already has.
-            //
-            // ⚠ Both devices are closed and both boundaries crossed BEFORE either edit, not one
-            // device at a time: the mover's move must not be able to cross while the deleter is
-            // still draining, and vice versa.
+            // In a stepped system no tick is running while these flags change, so every tick from
+            // here samples them shut; the polled version's `drainNow()` boundary had nothing else
+            // to do.
             val tombstonesBefore = tombstoneCount(system, ownerId)
             moverPushes.set(false)
             deleterPushes.set(false)
-            mover.syncScheduler.drainNow()
-            deleter.syncScheduler.drainNow()
 
             // ---- The two concurrent edits, each made against the realm as its own device saw it.
             assertTrue(
@@ -223,14 +209,16 @@ class ConcurrentMoveVsDeleteSystemTest {
                 "the deleter deletes $OLD_PATH",
             )
 
-            // ⚠⚠ The divergence is only real if neither edit crossed. Held long enough for several
-            // ticks on both devices, then checked from the relay's own state and from the peer's.
-            delay(SETTLE)
+            // ⚠⚠ The divergence is only real if neither edit crossed. Each device ticks with its gate
+            // shut — a real push attempt and a real pull — and then it is checked from the relay's
+            // own state and from the peer's.
+            system.sync(mover, deleter)
             assertNothingCrossed(system, ownerId, tombstonesBefore, mover, deleter)
 
             // ---- Release, one device at a time, in the ordering under test.
             //
-            // ⚠⚠ The ordering is ESTABLISHED, not assumed: each branch waits until the released
+            // ⚠⚠ The ordering is ESTABLISHED, not assumed: the shut gate means only the released
+            // device can push in these rounds, and each branch waits until the released
             // device's whole delete/move — blocks *and* its tombstone for $OLD_PATH — is on the
             // relay and has landed on the peer, before the second gate opens. Without the tombstone
             // half the wait can finish on the block drain alone (a tick pushes every block before
@@ -238,16 +226,17 @@ class ConcurrentMoveVsDeleteSystemTest {
             if (moveReachesTheRelayFirst) {
                 moverPushes.set(true)
                 // The deleter applies the move: the row appears at the new path.
-                system.advanceUntil(timeout = 60.seconds) {
-                    rowAt(deleter, NEW_PATH) != null && tombstoneCount(system, ownerId) > tombstonesBefore
+                system.syncUntil("the move's tombstone for $OLD_PATH reached the relay") {
+                    tombstoneCount(system, ownerId) > tombstonesBefore
                 }
+                system.syncUntil("the deleter applied the move: $NEW_PATH is on it") { rowAt(deleter, NEW_PATH) != null }
             } else {
                 deleterPushes.set(true)
                 // The mover applies the delete. Its own `/src/x.bin` row is already gone (it moved
                 // it), so the arrival is observed through the synced `FileDeletedNotification` the
                 // delete writes — the only side effect of the deleter's delete that is visible on a
                 // device which has already retired that path itself.
-                system.advanceUntil(timeout = 60.seconds) {
+                system.syncUntil("the delete and its tombstone reached the relay, and the mover pulled them") {
                     OLD_PATH in deletedNotificationPaths(mover.executionContext) &&
                         tombstoneCount(system, ownerId) > tombstonesBefore
                 }
@@ -262,12 +251,13 @@ class ConcurrentMoveVsDeleteSystemTest {
             // than as an opaque timeout. What rides along here is the second half of the ordering:
             // the second device's tombstone for the SAME path arrives in its own phase, after the
             // first's. Two tombstones for one path is the idempotence the whole claim rests on.
-            system.advanceUntil(timeout = 60.seconds) {
+            system.syncUntil("the second device's edit arrived and both converged on $NEW_PATH") {
                 tombstoneCount(system, ownerId) > afterFirst &&
                     listOf(mover, deleter).all { rowAt(it, NEW_PATH) != null && rowAt(it, OLD_PATH) == null }
             }
-            // ⚠ And it has to STAY converged. A reap or a late tombstone is a second-tick event.
-            delay(SETTLE)
+            // ⚠ And it has to STAY converged. A reap or a late tombstone is a later tick's event, so
+            // tick both until two rounds in a row push nothing.
+            system.syncUntilQuiet()
 
             for (device in listOf(mover, deleter)) {
                 val who = device.deviceId
@@ -410,27 +400,5 @@ class ConcurrentMoveVsDeleteSystemTest {
                 else -> null
             }
         }.toSet()
-    }
-
-    private suspend fun pair(system: TestSystem, host: TestClient, joiner: TestClient) {
-        host.bootstrapAsHost(deviceName = "Mover Tablet")
-        host.tenshuClient.syncService.startPairing()
-        val parsed = PairingUri.parse(host.syncManager.getPairingString()!!)
-        joiner.tenshuClient.syncService.initiatePairing(
-            ownerId = parsed.ownerId,
-            pairingSecret = parsed.secret,
-            deviceName = "Deleter Phone",
-            otherDevicePublicKey = parsed.hostPairingPublicKey,
-        )
-        val request = host.tenshuClient.syncService.getPendingPairingRequests()
-            .let { it.valueOrFail("getPendingPairingRequests")!!.toList().single() }
-        host.tenshuClient.syncService.approvePairingRequest(request.deviceId.get())
-        system.advanceUntil(timeout = 60.seconds) {
-            val status = joiner.tenshuClient.syncService.getPairingStatus(
-                pairingSecret = parsed.secret,
-                otherDevicePublicKey = parsed.hostPairingPublicKey,
-            )
-            status is TResult.Success && status.value?.get() == true
-        }
     }
 }

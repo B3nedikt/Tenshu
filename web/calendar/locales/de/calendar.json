@@ -1,7 +1,6 @@
 {
   "app": {
-    "title": "Kalender",
-    "tagline": "Deine Kalender, Ende-zu-Ende-verschlüsselt."
+    "sections": "Kalender-Bereiche"
   },
   "tabs": {
     "calendar": "Kalender",

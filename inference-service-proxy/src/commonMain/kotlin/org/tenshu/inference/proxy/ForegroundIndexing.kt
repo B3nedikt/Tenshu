@@ -69,19 +69,50 @@ fun manualIndexingBlock(state: DeviceIndexingState): IndexingBlock? = when {
     else -> null
 }
 
-/**
- * [IndexingConditions] for a phone that indexes **only in the foreground** (iOS until a
- * processing wake exists, §3.3): read per image, as every platform's are.
- *
- * ⚠⚠ [allowIndexing] — the scheduled bar — is `false`, always: a scheduled pass runs only inside a
- * processing wake (§1.3), and none is built (no `BGProcessingTask`). Nothing on iOS
- * dispatches one either: the shared registry item is not registered there.
- */
-class ForegroundIndexingConditions(private val read: () -> DeviceIndexingState) : IndexingConditions {
+/** [ForegroundIndexingConditions.allowArrivalIndexing]: the manual bar, with an unknown battery a no. */
+fun arrivalIndexingAllowed(state: DeviceIndexingState): Boolean =
+    manualIndexingBlock(state) == null && (state.charging == true || state.batteryLevel != null)
 
-    override fun allowIndexing(): Boolean = false
+/**
+ * The scheduled bar inside a processing wake (`ios-on-device-inference.md` PR-6, §16), with its
+ * reason; `null` is *may run*. ⚠ The foreground is not asked: a wake runs with Photos in the
+ * background. ⚠⚠ Never on battery (D5): a charger the phone says is gone is a no, though the
+ * platform granted the wake only on external power; an unknown charging state is the grant's word.
+ */
+fun scheduledIndexingBlock(state: DeviceIndexingState): IndexingBlock? = when {
+    state.thermal >= ThermalState.SERIOUS -> IndexingBlock.TOO_WARM
+    state.lowPowerMode -> IndexingBlock.LOW_POWER_MODE
+    state.charging == false -> IndexingBlock.BATTERY_LOW
+    else -> null
+}
+
+/**
+ * [IndexingConditions] for a phone that indexes in the foreground and, on the charger, inside a
+ * processing wake (iOS, §3.3): read per image, as every platform's are.
+ *
+ * ⚠⚠ [allowIndexing] — the scheduled bar — is `false` **outside a wake**, always ([inWake]: on iOS
+ * `ProcessingWake.carriesPass`, PR-6). Inside one it is [scheduledIndexingBlock]'s answer. Nothing
+ * on iOS dispatches a scheduled pass any other way: the shared registry item is not registered there.
+ *
+ * @param inWake whether a processing wake carries the pass now; `false` where no wake exists.
+ * @param read the phone now. ⚠ Last, so a trailing lambda is still it.
+ */
+class ForegroundIndexingConditions(
+    private val inWake: () -> Boolean = { false },
+    private val read: () -> DeviceIndexingState,
+) : IndexingConditions {
+
+    override fun allowIndexing(): Boolean = inWake() && scheduledIndexingBlock(read()) == null
 
     override fun allowManualIndexing(): Boolean = block() == null
+
+    /**
+     * A new-arrivals batch (IN-D6a, PR-6b): *Index now*'s bar — in front, not `.serious`, not Low
+     * Power Mode, the battery not low — and ⚠⚠ **an unknown battery is a no**, because nobody asked
+     * ([PassBar.ARRIVALS]). A phone reads its battery (monitoring is switched on); only a simulator
+     * does not.
+     */
+    override fun allowArrivalIndexing(): Boolean = arrivalIndexingAllowed(read())
 
     /** Why not, now. ⚠ A snapshot: the next read may differ. */
     fun block(): IndexingBlock? = manualIndexingBlock(read())
@@ -211,6 +242,12 @@ class ForegroundIndexing(
      * cancel; once it lets go, [continuationReleased] does what the leave would have.
      */
     private val continuation: PassContinuation = PassContinuation.None,
+    /**
+     * Whether a processing wake carries the pass now (`ProcessingWake.carriesPass`, iOS, PR-6).
+     * ⚠⚠ While it does, [leftForeground] cancels nothing: the wake's task keeps the app running and
+     * only its expiry stops the pass. `false` everywhere else.
+     */
+    private val wakeCarriesPass: () -> Boolean = { false },
 ) {
     private val passes: StateFlow<PassStanding> by lazy { runnerStanding() }
 
@@ -304,6 +341,12 @@ class ForegroundIndexing(
     // ⚠ `CoroutineStart.ATOMIC` is experimental: opted in here, where it is load-bearing.
     @OptIn(ExperimentalCoroutinesApi::class)
     private fun leave(afterRelease: Boolean) {
+        // ⚠⚠ PR-6: a pass a processing wake carries is the wake's. Nothing is cancelled or closed and
+        // the leave is not counted; the wake's end does the stop if Photos is not in front.
+        if (wakeCarriesPass()) {
+            println("ForegroundIndexing -> left the foreground inside a processing wake: the pass goes on")
+            return
+        }
         when (continuation.standing()) {
             // ⚠⚠ §3.3: a pass a continued task owns is that task's. Nothing is cancelled,
             // nothing closed and the ask stands; the leave is not counted either, so a press

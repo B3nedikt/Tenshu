@@ -35,6 +35,19 @@ interface Database {
 
     fun saveData(data: Data)
 
+    /**
+     * [saveData], and report whether the store **changed**: `false` only when every entry the save
+     * wrote was already stored with identical content (`core-deterministic-invalidation.md` §8).
+     *
+     * ⚠ Defaulted to `true` — *unknown is news*. A store that cannot tell must never report a
+     * redundant save, because the one consumer that acts on `false` drops a listing notification,
+     * and a wrongly dropped notification is a stale screen where a wrong `true` is a wasted reload.
+     */
+    fun saveDataReportingChange(data: Data): Boolean {
+        saveData(data)
+        return true
+    }
+
     fun addToArray(
         reference: ArrayDatabaseReference,
         value: Data,
@@ -144,7 +157,8 @@ interface Database {
      * must not keep anything from the abandoned read beyond whole rows its store already caches.
      *
      * ⚠⚠ The hook exists because a real store materialises the array **eagerly, under its lock**
-     * (`DatabaseImpl` returns a `Sequence` over an already-built list), so a check on the returned
+     * (`DatabaseImpl` returns a `Sequence` over an already-built list, built a page per access —
+     * `core-ordered-window-fusion.md` §6.1), so a check on the returned
      * sequence fires only after every row has been read. Default: no hook — correct, just not
      * stoppable mid-read.
      */
@@ -224,6 +238,11 @@ interface Database {
      * row re-saved with a new value would update the store and never reach the
      * Home UI. This method is that job, separated: no store write, no membership
      * change, listeners notified once.
+     *
+     * ⚠ **Not called for a redundant re-save** (`core-deterministic-invalidation.md` §8, P1):
+     * `RelationMaintainer` skips it when every entry the save wrote was already stored
+     * byte-identically ([saveDataReportingChange]). The `DeviceState` case above is a *new value*
+     * and still notifies; the relay echoing this device's own write back is identical and does not.
      *
      * The default is a no-op, so a `Database` that has no listeners (every test
      * double) need not implement it.

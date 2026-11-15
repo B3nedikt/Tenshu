@@ -8,9 +8,12 @@ import app.tenshu.photos.data.PhotoPageResult
 import app.tenshu.photos.data.LibraryWatch
 import app.tenshu.photos.data.PhotosRepository
 import app.tenshu.photos.model.FaceCover
+import app.tenshu.photos.model.withoutEditedCovers
 import app.tenshu.photos.model.NamingOutcome
 import app.tenshu.photos.model.PeopleStatus
 import app.tenshu.photos.model.peopleFrom
+import app.tenshu.photos.model.NameSuggestion
+import app.tenshu.photos.model.nameSuggestions
 import org.tenshu.inference.FaceGroupsUnavailable
 import org.tenshu.inference.InferenceCapability
 import app.tenshu.photos.model.Photo
@@ -26,6 +29,7 @@ import kotlin.time.TimeSource
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.CancellationException
@@ -68,7 +72,7 @@ data class SmartAlbum(
      */
     val snapshotCard: SnapshotCard? = null,
 ) {
-    val coverPath: String? get() = coverFace?.path ?: snapshotCard?.coverPath ?: photos.firstOrNull()?.path
+    val coverPath: String? get() = coverFace?.path ?: snapshotCard?.coverPath ?: photos.firstOrNull()?.previewPath
 
     /** How many photographs the card counts — the snapshot's count until the live list arrives. */
     val photoCount: Int get() = snapshotCard?.photoCount ?: photos.size
@@ -76,7 +80,11 @@ data class SmartAlbum(
     /** The cover's stored pixel size, for its tile's rung — `null` when unknown. */
     val coverPixelWidth: Int? get() = if (snapshotCard != null) snapshotCard.coverPixelWidth else coverPhoto?.pixelWidth
     val coverPixelHeight: Int? get() = if (snapshotCard != null) snapshotCard.coverPixelHeight else coverPhoto?.pixelHeight
-    private val coverPhoto: Photo? get() = coverPath?.let { path -> photos.firstOrNull { it.path == path } }
+    private val coverPhoto: Photo? get() = coverPath?.let { path -> photos.firstOrNull { it.previewPath == path || it.path == path } }
+
+    /** The cover photo's `contentId`, for the snapshot's edit check (`photos-editing.md` §12.13) — `null` when unknown. */
+    val coverContentId: String? get() =
+        if (snapshotCard != null) snapshotCard.coverContentId else coverPhoto?.contentId?.takeIf { it.isNotEmpty() }
 }
 
 /**
@@ -169,6 +177,14 @@ data class CollectionsUiState(
      * launched from the same card overwrite each other.
      */
     val namingIncompleteFor: Set<UnfinishedNaming> = emptySet(),
+    /**
+     * *"Is this Anna?"* per unnamed person, keyed by their [SmartAlbum.id] (IN-6 F6c name
+     * suggestions; [nameSuggestions] decides). ⚠ A question, never a fact: nothing is named until
+     * the user says Yes ([CollectionsViewModel.acceptSuggestion]).
+     */
+    val nameSuggestions: Map<String, NameSuggestion> = emptyMap(),
+    /** The person whose "No" could not be recorded, by [SmartAlbum.id] — the question stays, and says so. */
+    val suggestionRejectFailedFor: String? = null,
     val loading: Boolean = false,
     val error: FeedError? = null,
     /**
@@ -329,6 +345,19 @@ class CollectionsViewModel(
      * model's own scope: only values cross back.
      */
     private val workDispatcher: CoroutineDispatcher? = null,
+    /**
+     * Emits whenever this device's own index may have changed what People draws — an index pass
+     * that wrote, dropped or cleared face templates (`photos-ios.md` §8.22.3, `ios-face-grouping.md`
+     * §17.6). `null` (Android, desktop, tests): nothing to follow.
+     *
+     * ⚠⚠ The [watch] cannot see it. Face templates are device-local and a pass whose backend does
+     * not tag writes no `MediaLabel` marker — the iOS Core ML backend claims search and faces only —
+     * so after such a pass the watch's revision has not moved, and without this every return said
+     * `walk=skipped (clean)` over the pre-pass People until Photos was relaunched. Each emission is
+     * handled like an edit this app made: walked for while the tab is shown, owed to the return
+     * while it is not — and, unlike [changed], never walked at once with nobody looking.
+     */
+    private val indexChanges: Flow<Unit>? = null,
 ) : ViewModel() {
 
     private val snapshots: CollectionsSnapshotStore? = snapshotStore?.takeIf { currentRealm != null }
@@ -410,7 +439,9 @@ class CollectionsViewModel(
                 val realm = readRealm() ?: return@launch // unknown: draw nothing, drop nothing
                 observeRealm(realm) // no realm on this device: the tracker drops the file
                 val ownerId = realm.ownerId ?: return@launch
+                // ⚠⚠ Never drawn with a cover that names an edited original (§12.13).
                 val snapshot = offMain(store) { _, _ -> store.read(ownerId) }
+                    ?.let { it.withoutCoversFrom(editedContentIdsForSnapshot()) }
                 // ⚠ Drawn only for the realm the tracker holds NOW, with no transition pending.
                 val drawable = generation <= 1 && !tornDown && !snapshotHidden &&
                     snapshotRealm == ownerId && realmChangedAt == null
@@ -454,8 +485,21 @@ class CollectionsViewModel(
             // A change while the tab is on screen is walked for; one while it is not waits for the
             // return ([refreshIfChanged]) — walking a library nobody is looking at is the cost this exists to end.
             viewModelScope.launch { watch.revision.drop(1).collect { if (shownOn.isNotEmpty()) changeTicks.trySend(Unit) } }
-            viewModelScope.launch { walkForChanges() }
         }
+        indexChanges?.let { changes ->
+            viewModelScope.launch {
+                try {
+                    changes.collect { indexChanged() }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    // ⚠ Safe direction only with a watch that stops vouching too; logged either way.
+                    println("CollectionsViewModel -> index-change watch ended: $e")
+                }
+            }
+        }
+        // ⚠ Also without a watch: an index change while the tab is shown is walked for by this loop.
+        if (watch != null || indexChanges != null) viewModelScope.launch { walkForChanges() }
         // §38: only the FIRST live refresh waits for the feed's first rows; the snapshot above is
         // applied at construction regardless (§36 step 2).
         val gate = startAfter
@@ -487,6 +531,28 @@ class CollectionsViewModel(
             throw e
         } catch (e: Throwable) {
             println("CollectionsViewModel -> realm unknown, snapshot neither drawn nor dropped: $e")
+            null
+        } finally {
+            if (job.isActive) job.cancel()
+        }
+    }
+
+    /**
+     * The edited photos' `contentId`s, for cleaning the snapshot before it is drawn — `null` when they
+     * are not known within [SNAPSHOT_EDITS_WAIT_MS], and the snapshot is then drawn with no covers.
+     *
+     * ⚠ Bounded, because the snapshot is for exactly the start where Control is slow: it waits a
+     * moment for the answer, never for Control. ⚠ Awaited, never joined, for [bounded]'s reason —
+     * a read blocked in a Binder call cannot be interrupted.
+     */
+    private suspend fun editedContentIdsForSnapshot(): Set<String>? {
+        val job = viewModelScope.async(work) { repository.editedContentIds() }
+        return try {
+            withTimeoutOrNull(SNAPSHOT_EDITS_WAIT_MS) { job.await() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            println("CollectionsViewModel -> edited paths unknown, snapshot drawn without covers: $e")
             null
         } finally {
             if (job.isActive) job.cancel()
@@ -695,6 +761,17 @@ class CollectionsViewModel(
     }
 
     /**
+     * This device's index changed what People may draw ([indexChanges]). ⚠⚠ Noted as an edit
+     * ([toldChanged]) whether or not the watch is watching: the watch cannot see this change at all,
+     * so its revision says nothing either way. Walked for at once while shown (through the burst
+     * wait); with nobody looking, the return walks — [refreshIfChanged] reads [toldChanged].
+     */
+    private fun indexChanged() {
+        toldChanged = true
+        if (shownOn.isNotEmpty()) changeTicks.trySend(Unit)
+    }
+
+    /**
      * One walk per BURST of changes, while the tab is shown: waits until [CHANGE_SETTLE_MS] pass with
      * no further change — but never more than [CHANGE_MAX_WAIT_MS], or a long sync would show nothing
      * until it ended — and never beside a walk already running.
@@ -847,6 +924,11 @@ class CollectionsViewModel(
         // ⚠⚠ The status travels with it: an empty list has three possible meanings and only
         // `faceGroups`' own refusal can tell them apart.
         val facesRead = async { bounded("faceGroups", timings) { repository.faceGroups(PEOPLE_GROUP_LIMIT) } }
+        // IN-6 F6c name suggestions. ⚠ Its own read, which People WAITS for — a fold changes which
+        // cards exist, so drawing first would flash an unnamed card that then merges. It is one
+        // small device-local read; a failure (or an older Control without the op) costs the folds
+        // and the questions, never the section.
+        val rejectionsRead = async { bounded("faceSuggestionRejections", timings) { repository.faceSuggestionRejections() } }
 
         // ⚠⚠ ONE walk for every derived section. The alternative — `photosNear` per place — is an
         // O(files-in-realm) scan each. Here the walk happens once and the grouping is arithmetic.
@@ -928,14 +1010,26 @@ class CollectionsViewModel(
                 return@launch
             }
             val (faceGroups, peopleStatus) = faces
+            val faceLabels = labels.filter { label -> label.capability == InferenceCapability.FACE_CLUSTERING.id }
+            // IN-6 F6c name suggestions. ⚠⚠ No rejections read ⇒ no folds and no questions: an
+            // answered "No" must never come back, as a question or as a fold, because a read
+            // failed. ⚠ The RAW groups, not `withoutEditedCovers`: that strips faces for an avatar's
+            // sake, and a face is the evidence here.
+            val rejections = rejectionsRead.await()
+            val attributions = if (rejections == null || peopleStatus != PeopleStatus.Available) {
+                emptyMap()
+            } else {
+                derived { nameSuggestions(faceGroups, faceLabels, rejections) }
+            }
             val people = derived {
                 // ⚠ Built once: a `firstOrNull` per path would be O(people × photos).
                 val byPath = everything.associateBy { photo -> photo.path }
                 peopleFrom(
-                    faceGroups = faceGroups,
-                    faceLabels = labels.filter { label ->
-                        label.capability == InferenceCapability.FACE_CLUSTERING.id
-                    },
+                    // ⚠⚠ An edited photo never supplies an avatar (`photos-editing.md` §12.13).
+                    faceGroups = faceGroups.withoutEditedCovers(byPath),
+                    faceLabels = faceLabels,
+                    // ⚠⚠ The confident level: drawn as the name's on THIS screen, written nowhere.
+                    displayFolds = attributions.values.filter { it.confident }.associate { it.groupId to it.name },
                 ).mapNotNull { person ->
                     // ⚠ A path whose file has moved or been trashed is dropped, and a person
                     // left with nothing is dropped rather than drawn as a card opening an
@@ -952,10 +1046,17 @@ class CollectionsViewModel(
                     )
                 }
             }
+            // ⚠ Keyed by the card the answer is given on: a question on the unnamed group's card, a
+            // fold on the NAME's card (where its photographs now are). Only cards on screen.
+            val shown = people.mapTo(HashSet()) { it.id }
+            val suggestions = attributions.values
+                .associateBy { if (it.confident) "person:name:${it.name}" else "person:${it.groupId}" }
+                .filterKeys { it in shown }
             _state.update {
                 it.copy(
                     people = people,
                     peopleStatus = peopleStatus,
+                    nameSuggestions = suggestions,
                     // ⚠⚠ The naming fields are NOT cleared here: a refresh is how a naming
                     // failure's own state gets to the screen — see [nameFailure].
                     peopleLoad = SectionLoad.LOADED,
@@ -1126,6 +1227,11 @@ class CollectionsViewModel(
         if (typed.isEmpty()) return
         val paths = _state.value.people.firstOrNull { it.id == smartId }?.photos?.map { it.path }
         if (paths.isNullOrEmpty()) return
+        name(smartId, paths, typed)
+    }
+
+    /** [nameGroup]'s write and verdicts, over exactly [paths]. */
+    private fun name(smartId: String, paths: List<String>, typed: String) {
         viewModelScope.launch {
             val outcome = repository.nameFaceGroup(paths, typed)
             // ⚠⚠ The verdict FIRST, then the re-read — and the re-read happens on every
@@ -1156,6 +1262,50 @@ class CollectionsViewModel(
     }
 
     /**
+     * "Yes" to *"Is this Anna?"*, or "Confirm" on a display fold — the ordinary naming, with the
+     * suggested name, of the group's photographs that lack it, so its verdicts and retries are
+     * [nameGroup]'s. ⚠ The next read folds the group into Anna on every device, because the labels
+     * now say so.
+     */
+    fun acceptSuggestion(smartId: String) {
+        val suggestion = _state.value.nameSuggestions[smartId] ?: return
+        _state.update { it.copy(nameSuggestions = it.nameSuggestions - smartId, suggestionRejectFailedFor = null) }
+        // ⚠ Only the photographs that lack the name — for a fold, the card also holds every
+        // labelled one, and re-sending those is Binder traffic that changes nothing.
+        val unlabelled = suggestion.unlabelledPaths.toHashSet()
+        val paths = _state.value.people.firstOrNull { it.id == smartId }?.photos?.map { it.path }
+            ?.filter { it in unlabelled }
+        if (paths.isNullOrEmpty()) return
+        name(smartId, paths, suggestion.name)
+    }
+
+    /**
+     * "No" to *"Is this Anna?"*, or "Not Anna" on a display fold — recorded on this device only, so
+     * the question is not asked again and the fold is undone at the next read.
+     *
+     * ⚠ The question goes at once; a "No" that could not be recorded brings it back with
+     * [CollectionsUiState.suggestionRejectFailedFor] set, rather than vanishing and returning on the
+     * next refresh as though the tap had been lost.
+     */
+    fun rejectSuggestion(smartId: String) {
+        val suggestion = _state.value.nameSuggestions[smartId] ?: return
+        _state.update { it.copy(nameSuggestions = it.nameSuggestions - smartId, suggestionRejectFailedFor = null) }
+        viewModelScope.launch {
+            val recorded = repository.rejectNameSuggestion(suggestion.name, suggestion.faces)
+            // ⚠ Re-read on success: a fold is undone only by the next read, which now sees the "No".
+            if (recorded) changed()
+            if (!recorded) {
+                _state.update {
+                    it.copy(
+                        nameSuggestions = it.nameSuggestions + (smartId to suggestion),
+                        suggestionRejectFailedFor = smartId,
+                    )
+                }
+            }
+        }
+    }
+
+    /**
      * Dismiss the "that name did not save" surface.
      *
      * ⚠ The flag is cleared by the next [refresh] too, so this exists for the case where the
@@ -1176,6 +1326,13 @@ class CollectionsViewModel(
 
         /** See `refreshTimeoutMs`: ~15× the phone's measured whole-library read. */
         const val REFRESH_TIMEOUT_MS = 120_000L
+
+        /**
+         * How long a cold start's snapshot waits for the edited originals before it is drawn with no
+         * covers (§12.13). The answer is the edit index's keys — one short-list read (§12.9: 0.4 ms
+         * for 100 edits in process), no library walk; this bound is for a Control still starting.
+         */
+        const val SNAPSHOT_EDITS_WAIT_MS = 400L
 
         /**
          * How many face groups the tab asks for.

@@ -104,7 +104,7 @@ class MediaLibrarySeamsTest {
         val runner = MediaIndexRunner(
             indexer = MediaIndexer(
                 registry = InferenceBackendRegistry(listOf(FakeInferenceBackend())),
-                deviceId = thisDevice,
+                deviceId = { thisDevice },
                 embeddings = embeddings,
                 faces = faces,
                 conditions = IndexingConditions { true },

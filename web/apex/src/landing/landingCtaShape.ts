@@ -9,6 +9,7 @@
 // runs them through `t(...)` at render time so the marketing copy can
 // be translated without touching this table.
 import type { LandingCtaState } from './landingCtaContext'
+import { OVERVIEW_PATH } from '../lib/overviewPath'
 
 export interface CtaShape {
   readonly label: string
@@ -46,7 +47,7 @@ export function landingCtaShape(state: LandingCtaState, signupOpen: boolean): Ct
         secondary: { label: 'cta.iAlreadyHaveTenshu', to: '/start' },
       }
     case 'active':
-      return { label: 'cta.openTenshu', to: '/control', secondary: null }
+      return { label: 'cta.openTenshu', to: OVERVIEW_PATH, secondary: null }
     case 'locked':
       return { label: 'cta.welcomeBackUnlock', to: '/lock', secondary: null }
   }

@@ -8,10 +8,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import org.tenshu.inference.IndexPassRefused
+import org.tenshu.inference.proxy.ContinuationStanding
 import org.tenshu.inference.proxy.ForegroundIndexing
 import org.tenshu.inference.proxy.ForegroundIndexingState
 import org.tenshu.inference.proxy.IndexNowAnswer
@@ -51,8 +53,21 @@ class ForegroundIndexSource(
      * comes or goes. ⚠ A provider, like the others.
      */
     private val alsoWhen: () -> Flow<Any?>,
+    /**
+     * The continued task's standing (`ContinuedIndexing.standings`), or `null` where this graph
+     * can make none. ⚠ A provider, like the others; asked when the screen first collects.
+     */
+    private val continuation: () -> Flow<ContinuationStanding>? = { null },
     private val context: CoroutineContext = Dispatchers.Default,
 ) : OnDeviceIndexSource {
+
+    /** ⚠⚠ [ContinuationStanding.LIVE] alone: a submitted request may still be refused, and then a leave stops the pass. */
+    override val continued: Flow<Boolean> = flow {
+        // ⚠ The provider is asked once per collection, so a graph replaced while the screen is up
+        // keeps this collector on the old bridge — harmless: the teardown ends its claim, so it
+        // reads NONE (*Keep Photos open*), and the next screen collects the new one.
+        emitAll(continuation()?.map { it == ContinuationStanding.LIVE } ?: flowOf(false))
+    }.distinctUntilChanged().flowOn(context)
 
     override val standing: Flow<ForegroundIndexStanding> = flow {
         val live: ForegroundIndexing = driver() ?: return@flow emit(ForegroundIndexStanding.NotAsked)

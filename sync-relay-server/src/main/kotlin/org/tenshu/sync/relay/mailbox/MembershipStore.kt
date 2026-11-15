@@ -31,6 +31,11 @@ class MembershipStore : MembershipRegistry {
     override fun admittedDevices(realmId: String, memberAuthorityPublicKey: ByteArray): Set<String> =
         admissions[admissionKey(realmId, memberAuthorityPublicKey)]?.toSet() ?: emptySet()
 
+    override fun isMemberDevice(realmId: String, deviceId: String): Boolean {
+        val prefix = "$realmId|"
+        return admissions.any { (key, devices) -> key.startsWith(prefix) && deviceId in devices }
+    }
+
     override fun clearAdmissions(realmId: String, memberAuthorityPublicKey: ByteArray) {
         admissions.remove(admissionKey(realmId, memberAuthorityPublicKey))
     }

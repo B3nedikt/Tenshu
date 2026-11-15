@@ -80,7 +80,15 @@ fun photosRepositoryModule(): Module = module {
         )
     }
     single<PhotosRepository> {
-        TenshuPhotosRepository(get<TenshuClient>(), reachability = get())
+        TenshuPhotosRepository(
+            get<TenshuClient>(),
+            reachability = get(),
+            // ⚠ Android binds a file-backed upload; desktop has none and uploads inline.
+            copyUpload = getOrNull() ?: app.tenshu.photos.data.InlineEditedCopyUpload,
+            // The app's scope: a save returns once the copy is on the device, and its push to the
+            // relay finishes here after the editor has closed (`photos-editing.md` §9.6).
+            copyUploadScope = get<CoroutineScope>(),
+        )
     }
 }
 
@@ -99,6 +107,13 @@ fun viewModelsModule(): Module = module {
     single { FeedFirstPage() }
     viewModel { PhotosFeedViewModel(get(), PhotoDates::sectionStart, PhotoDates::yearOf, firstPage = get()) }
     viewModel { (photo: app.tenshu.photos.model.Photo) -> PhotoViewerViewModel(get(), photo) }
+    // ED-1: the editor. ⚠ The renderer is the Compose one on both Compose platforms; iOS builds its
+    // own view model with a Core Image renderer (`PhotosSurface.editor`).
+    viewModel { (photo: app.tenshu.photos.model.Photo) ->
+        app.tenshu.photos.edit.PhotoEditorViewModel(
+            get(), photo, app.tenshu.photos.ui.screens.editor.ComposePhotoEditRenderer(),
+        )
+    }
     // ⚠ The real, calendar-aware year (the `groupIntoDays` precedent).
     // §36 step 2: `getOrNull` — each platform module binds its local snapshot store; a graph without
     // one (previews, render tests) simply starts from placeholders. The realm is Control's answer.

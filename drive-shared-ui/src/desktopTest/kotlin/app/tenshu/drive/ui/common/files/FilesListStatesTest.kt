@@ -10,6 +10,7 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import app.tenshu.liststate.ListLoadPhase
 import app.tenshu.ui.theme.TenshuTheme
 import org.junit.Test
+import org.tenshu.ui.test.NoMotion
 
 /**
  * The non-paged sibling of [PagedFilesListStatesTest] — Home's *Recent files*.
@@ -42,7 +43,7 @@ class FilesListStatesTest {
     }
 
     @Test
-    fun aFailedReadSaysSoInsteadOfClaimingTheDriveIsEmpty() = runComposeUiTest {
+    fun aFailedReadSaysSoInsteadOfClaimingTheDriveIsEmpty() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 FilesList(
@@ -63,7 +64,7 @@ class FilesListStatesTest {
     }
 
     @Test
-    fun aReadStillInFlightDoesNotClaimTheDriveIsEmptyEither() = runComposeUiTest {
+    fun aReadStillInFlightDoesNotClaimTheDriveIsEmptyEither() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 FilesList(
@@ -82,7 +83,7 @@ class FilesListStatesTest {
     }
 
     @Test
-    fun aGenuinelyEmptyDriveStillSaysSo() = runComposeUiTest {
+    fun aGenuinelyEmptyDriveStillSaysSo() = runComposeUiTest(effectContext = NoMotion) {
         // The control. Without this the two tests above pass against an implementation that simply
         // never renders the empty state — which would be a different bug, not a fix.
         setContent {

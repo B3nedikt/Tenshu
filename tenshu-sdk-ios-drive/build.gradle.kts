@@ -76,6 +76,9 @@ kotlin {
         getByName("iosTest") {
             dependencies {
                 implementation(libs.kotlinx.coroutines.test)
+                // `OwnedViewModels`: every view model a test builds is joined before `Main` is
+                // reset (`docs/testing.md` §11).
+                implementation(project(":viewmodel-test-utils"))
             }
         }
     }

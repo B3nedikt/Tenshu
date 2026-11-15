@@ -10,11 +10,12 @@ import UIKit
 // sources run, in what order, the debounce and "a newer query supersedes an older one" are the shared
 // `PhotoSearchViewModel`. This file owns the bar, lays the layout out, and opens the viewer.
 //
-// ⚠⚠ What iOS can truthfully offer today: names, and tags another device's model wrote and sync
-// delivered (AI-R). Search by description needs an index on THIS device (PIO-7, not built), so the
-// view model is built with `DescriptionSearch.NotBuilt` (`PhotosSurface.search`): the source is never
-// asked, and the screen says "isn't available on this iPhone yet" — never "no results", and never a
-// switch or a download this device cannot honour.
+// ⚠⚠ What iOS can truthfully offer: names, tags another device's model wrote and sync delivered
+// (AI-R), and — where this build and this phone bind the on-device model — search by description.
+// Where they do not, the view model is built with `DescriptionSearch.NotBuilt` (`PhotosSurface.search`):
+// the source is never asked, and the screen says "isn't available on this iPhone yet" — never "no
+// results", and never a switch or a download this device cannot honour. ⚠ The idle line follows the
+// proxy's answer (`PhotoSearchCopy.idle`), never this file: it is `layout.body`'s text.
 
 /// Bridges the shared `PhotoSearchViewModel` to SwiftUI.
 @MainActor
@@ -62,6 +63,7 @@ struct SearchScreen: View {
     @State private var viewing: SearchViewerRoute?
     /// ⚠ Only a RETURN re-reads: on the first appearance nothing has been asked yet.
     @State private var appeared = false
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         let layout = model.state.layout
@@ -84,10 +86,19 @@ struct SearchScreen: View {
         // was trashed there — or on another device meanwhile (`PhotoSearchViewModel.refresh`).
         .onAppear {
             if appeared {
-                if viewing == nil { model.viewModel.refresh() }
+                if viewing == nil {
+                    model.viewModel.refresh()
+                    // ⚠ The idle line asks again (a consent switched, an index finished meanwhile);
+                    // Kotlin ignores it over a typed bar or a running search.
+                    model.viewModel.screenShown()
+                }
             } else {
                 appeared = true
             }
+        }
+        // ⚠ The same, back from another app: Settings → Models may have changed what runs here.
+        .onChange(of: scenePhase) { phase in
+            if phase == .active && appeared && viewing == nil { model.viewModel.screenShown() }
         }
     }
 

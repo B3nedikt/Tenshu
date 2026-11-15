@@ -23,6 +23,7 @@ import org.tenshu.core.security.SyncCryptoManager
 import org.tenshu.identity.Device
 import org.tenshu.sync.common.ContentBlobStore
 import org.tenshu.sync.common.HlcWatermarkStore
+import org.tenshu.sync.common.and
 import org.tenshu.sync.common.DataIdMigrator
 import org.tenshu.sync.common.FileContentSyncEmitter
 import org.tenshu.sync.common.RealmContext
@@ -220,6 +221,11 @@ fun ExecutionContext.initSyncService(
      */
     syncGate: SyncGate = SyncGate.AlwaysAllow,
     /**
+     * The user's device-local pause switch ([SyncGate] KDoc): closed, the scheduler skips its whole
+     * tick and the content plane parks uploads. Only web wires one today.
+     */
+    pauseGate: SyncGate = SyncGate.AlwaysAllow,
+    /**
      * Local-first storage gate (ADR 0019): gates the **personal** realm's drain/pull only.
      * Production passes a `StorageCapacityHolder`-backed gate so nothing reaches the relay before a
      * storage subscription is bound.
@@ -276,10 +282,11 @@ fun ExecutionContext.initSyncService(
     /** The host binary's version string. Display only — never compared. */
     hostAppVersion: String = org.tenshu.sync.RuntimeIdentity.UNKNOWN_VERSION,
     /**
-     * Whether this runtime writes the catch-up heartbeat (`ios-sync-activity-indicator.md` §12):
-     * only where several runtimes share one store and a sibling reads it — iOS. ⚠ `false` on
-     * Android, desktop and web, where one runtime owns the store and nothing reads the relation;
-     * its own `SyncCatchUpStatus` row is written either way.
+     * Whether this runtime writes the catch-up heartbeat (`ios-sync-activity-indicator.md` §12): on
+     * iOS, where several runtimes share one store and read each other's beats, and in Control on
+     * Android and desktop, whose apps read the pull through it across IPC so a killed Control's
+     * stale `true` is discounted (`suite-sync-status.md` SS-D8). ⚠ `false` on web, where nothing
+     * reads the relation. Its own `SyncCatchUpStatus` row is written either way.
      */
     catchUpHeartbeat: Boolean = false,
     /**
@@ -360,7 +367,7 @@ fun ExecutionContext.initSyncService(
                 wakeSignal = existing.wakeSignal,
                 contentBlobStore = contentBlobStore,
                 fileDatabase = fileDatabase,
-                syncGate = syncGate,
+                syncGate = syncGate.and(pauseGate),
                 grantedRelayFactory = grantedRelayFactory,
                 nowMs = nowMs,
                 backgroundScope = coroutineScope ?: sessionScope,
@@ -537,7 +544,7 @@ fun ExecutionContext.initSyncService(
             wakeSignal = wakeSignal,
             contentBlobStore = contentBlobStore,
             fileDatabase = fileDatabase,
-            syncGate = syncGate,
+            syncGate = syncGate.and(pauseGate),
             grantedRelayFactory = grantedRelayFactory,
             nowMs = nowMs,
             backgroundScope = backgroundScope,
@@ -707,6 +714,7 @@ fun ExecutionContext.initSyncService(
             onPeerTip = divergenceTracker::observe,
             wakeSignal = wakeSignal,
             syncGate = syncGate,
+            pauseGate = pauseGate,
             storageGate = storageGate,
             realmRegistry = realmRegistry,
             realmRegistrar = realmRegistrar,

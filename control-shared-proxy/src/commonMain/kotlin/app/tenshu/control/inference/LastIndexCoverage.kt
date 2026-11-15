@@ -28,3 +28,15 @@ class LastIndexCoverage : IndexCoverageSource {
         state.value = IndexCoverage(total = total, notOnDevice = notOnDevice)
     }
 }
+
+/**
+ * [LastIndexCoverage.record] for one finished pass. ⚠⚠ Only a **library walk** that ran to its end
+ * speaks for the library: a new-arrivals path batch of three photographs recorded here would read
+ * "3 of 3" over "1,290 of 1,300 aren't on this device" (IN-D6a); a deferred or paused one walked
+ * nothing; a capped one stopped part-way.
+ */
+fun LastIndexCoverage.recordPass(result: org.tenshu.inference.proxy.IndexPassResult) = record(
+    total = result.imagesVisited,
+    notOnDevice = result.notOnDevice,
+    ran = result.libraryWalk && !result.deferred && !result.paused && !result.batchCapReached,
+)

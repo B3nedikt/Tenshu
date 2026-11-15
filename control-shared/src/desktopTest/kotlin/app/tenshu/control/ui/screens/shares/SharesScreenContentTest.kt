@@ -10,11 +10,12 @@ import app.tenshu.control.data.SharedFolderSummary
 import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertEquals
+import org.tenshu.ui.test.NoMotion
 
 class SharesScreenContentTest {
 
     @get:Rule
-    val composeTestRule = createComposeRule()
+    val composeTestRule = createComposeRule(NoMotion)
 
     private fun share(
         shareId: String,

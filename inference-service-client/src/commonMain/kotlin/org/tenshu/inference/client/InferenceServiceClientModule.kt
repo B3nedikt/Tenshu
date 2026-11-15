@@ -17,6 +17,8 @@ import org.tenshu.inference.InstalledModels
 import org.tenshu.inference.MediaLabel
 import org.tenshu.inference.FaceGroups
 import org.tenshu.inference.NameFaceGroup
+import org.tenshu.inference.FaceSuggestionRejections
+import org.tenshu.inference.RejectFaceSuggestion
 import org.tenshu.inference.PhotosLike
 import org.tenshu.inference.StartMediaIndexPass
 import org.tenshu.inference.client.impl.InferenceServiceRo
@@ -29,6 +31,8 @@ import org.tenshu.inference.client.impl.IndexProgressRo
 import org.tenshu.inference.client.impl.InstalledModelsRo
 import org.tenshu.inference.client.impl.FaceGroupsRo
 import org.tenshu.inference.client.impl.NameFaceGroupRo
+import org.tenshu.inference.client.impl.FaceSuggestionRejectionsRo
+import org.tenshu.inference.client.impl.RejectFaceSuggestionRo
 import org.tenshu.inference.client.impl.PhotosLikeRo
 
 val inferenceServiceClientModule = tModule {
@@ -70,6 +74,19 @@ val inferenceServiceClientModule = tModule {
         interfaceClass = NameFaceGroup::class,
         protocolSchema = NameFaceGroup.Schema,
         roFactory = ::NameFaceGroupRo,
+    )
+
+    // IN-6 F6c name suggestions — both halves registered, for the reason above.
+    operation(
+        interfaceClass = RejectFaceSuggestion::class,
+        protocolSchema = RejectFaceSuggestion.Schema,
+        roFactory = ::RejectFaceSuggestionRo,
+    )
+
+    operation(
+        interfaceClass = FaceSuggestionRejections::class,
+        protocolSchema = FaceSuggestionRejections.Schema,
+        roFactory = ::FaceSuggestionRejectionsRo,
     )
 
     // ⚠ `SimilarPhoto` needs no `roFactory`, unlike `MediaLabel` above: it is only ever READ back

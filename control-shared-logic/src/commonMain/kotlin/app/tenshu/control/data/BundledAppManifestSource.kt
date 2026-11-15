@@ -629,6 +629,37 @@ class BundledAppManifestSource : AppManifestSource {
                     gesture = GestureRequirement.RequiresUserGesture,
                     humanLabel = "Find photos by describing them",
                 ),
+                // ── People (IN-6) — the same two-switch consent gates each of these in the proxy ──
+                AppPermission(
+                    serviceId = "tenshu/inference/service",
+                    operationId = "tenshu/inference/faceGroups",
+                    capabilityClass = CapabilityClass.Ambient,
+                    gesture = GestureRequirement.None,
+                    humanLabel = "Group your photos by the faces in them, on this device",
+                ),
+                // ⚠ The one People write that syncs: a typed name on photographs (A40).
+                AppPermission(
+                    serviceId = "tenshu/inference/service",
+                    operationId = "tenshu/inference/nameFaceGroup",
+                    capabilityClass = CapabilityClass.Ambient,
+                    gesture = GestureRequirement.RequiresUserGesture,
+                    humanLabel = "Name the people in your photos",
+                ),
+                // IN-6 F6c name suggestions: the device-local "No" and its read.
+                AppPermission(
+                    serviceId = "tenshu/inference/service",
+                    operationId = "tenshu/inference/rejectFaceSuggestion",
+                    capabilityClass = CapabilityClass.Ambient,
+                    gesture = GestureRequirement.RequiresUserGesture,
+                    humanLabel = "Remember on this device that a face is not someone",
+                ),
+                AppPermission(
+                    serviceId = "tenshu/inference/service",
+                    operationId = "tenshu/inference/faceSuggestionRejections",
+                    capabilityClass = CapabilityClass.Ambient,
+                    gesture = GestureRequirement.None,
+                    humanLabel = "Check which face suggestions you already answered",
+                ),
 
                 // ── albums and favourites (PH-2) ─────────────────────────────────────────────
                 AppPermission(
@@ -693,6 +724,23 @@ class BundledAppManifestSource : AppManifestSource {
                     gesture = GestureRequirement.RequiresExplicitConfirmation,
                     humanLabel = "Delete photos permanently",
                 ),
+                // ED-1 (`photos-editing.md`): *Save as copy* uploads the edited photograph as a NEW
+                // file beside the original — never an overwrite (ED-D1). Inline on desktop and iOS,
+                // from a cache file on Android (a request over Binder cannot carry the bytes).
+                AppPermission(
+                    serviceId = "tenshu/file/system",
+                    operationId = "tenshu/file/system/uploadFiles",
+                    capabilityClass = CapabilityClass.Picker,
+                    gesture = GestureRequirement.RequiresUserGesture,
+                    humanLabel = "Save edited photos as new copies",
+                ),
+                AppPermission(
+                    serviceId = "tenshu/file/system",
+                    operationId = "tenshu/file/system/sourceFileUpload",
+                    capabilityClass = CapabilityClass.Picker,
+                    gesture = GestureRequirement.RequiresUserGesture,
+                    humanLabel = "Save edited photos as new copies",
+                ),
                 // ⚠ Bookkeeping, and listed anyway. These two record where a trashed photograph
                 // came from so it can be put back; they are not separately invocable by the user.
                 // Hiding them is what this manifest already did once, and the point of the entry
@@ -710,6 +758,23 @@ class BundledAppManifestSource : AppManifestSource {
                     capabilityClass = CapabilityClass.Picker,
                     gesture = GestureRequirement.RequiresUserGesture,
                     humanLabel = "Forget a trashed photo once it is restored or deleted",
+                ),
+                // ED-3 (`photos-editing.md` §12): *Save* records the edit beside the untouched
+                // original, and *Revert* forgets it. The rendition itself is a file, uploaded and
+                // deleted with the file ops above.
+                AppPermission(
+                    serviceId = "tenshu/photo/service",
+                    operationId = "tenshu/photo/service/setPhotoEdit",
+                    capabilityClass = CapabilityClass.Picker,
+                    gesture = GestureRequirement.RequiresUserGesture,
+                    humanLabel = "Save edits to photos, keeping the originals",
+                ),
+                AppPermission(
+                    serviceId = "tenshu/photo/service",
+                    operationId = "tenshu/photo/service/clearPhotoEdit",
+                    capabilityClass = CapabilityClass.Picker,
+                    gesture = GestureRequirement.RequiresUserGesture,
+                    humanLabel = "Revert edited photos to their originals",
                 ),
             ),
         )

@@ -28,6 +28,12 @@ data class PersonEntry(
     val alternateIds: List<String> = emptyList(),
     /** The face the person header shows (IN-6 F6a); `null` falls back to the whole photograph. */
     val cover: FaceCover? = null,
+    /**
+     * Photographs on this card ONLY because this device's face grouping folded a group into the
+     * name ([peopleFrom]'s `displayFolds`) — they carry no label. ⚠ Shown as the name's, and said to
+     * be unconfirmed on its page; never written anywhere.
+     */
+    val foldedPaths: List<String> = emptyList(),
 )
 
 /**
@@ -54,6 +60,14 @@ data class PersonEntry(
  * — which is the honest rendering, because that photograph genuinely carries no name. Recovering
  * that nicety is what cost six rounds; it is not worth a seventh.
  *
+ * ⚠⚠ **Amended 2026-11-11 (maintainer): [displayFolds].** The loss above is recovered on screen
+ * only, and only where the FACE grouping — not label overlap — says so: `nameSuggestions` decides,
+ * by attributing a name to a group through its unambiguous single-face photographs, and its
+ * confident answers arrive here as `groupId -> name`. Such a group is drawn as part of that name
+ * on this device — its photographs in [PersonEntry.foldedPaths], its id an alias — and **nothing
+ * is written**: no `MediaLabel`, so it cannot sync, and it disappears the moment the grouping no
+ * longer says so. The labelled set is still exactly what syncs; a fold is a rendering.
+ *
  * ⚠ A group is hidden only when **every** photograph in it already belongs to one named person — an
  * exact test, never a proportion. Such a group also lends that person its id, which is what keeps
  * an open `Destination.Smart` alive across a naming: the route holds an id and naming refreshes.
@@ -66,10 +80,13 @@ data class PersonEntry(
  *
  * @param faceGroups what this device clusters — may be empty on a device with no model
  * @param faceLabels `MediaLabel` rows for the face capability only; the caller filters
+ * @param displayFolds `groupId -> name` for the groups this device's grouping confidently folds
+ *   into a name (`nameSuggestions`' confident answers). Empty folds nothing — the pre-amendment rule.
  */
 fun peopleFrom(
     faceGroups: List<FaceGroup>,
     faceLabels: List<PhotoLabel>,
+    displayFolds: Map<String, String> = emptyMap(),
 ): List<PersonEntry> {
     val pathsByName = faceLabels
         .groupBy({ it.label }, { it.path })
@@ -92,6 +109,14 @@ fun peopleFrom(
             aliasOwner.getOrPut(group.groupId) { name }
         }
     }
+    // ⚠ A display fold lends its id too — after the exact covers, which keep priority — so an open
+    // route on the unnamed card follows it into the name.
+    val folded: Map<String, FaceGroup> = faceGroups
+        .filter { group ->
+            val name = displayFolds[group.groupId] ?: return@filter false
+            name in pathsByName && aliasOwner.getOrPut(group.groupId) { name } == name
+        }
+        .associateBy { it.groupId }
 
     val named = pathsByName.entries
         .sortedBy { it.key }
@@ -111,19 +136,29 @@ fun peopleFrom(
             // ⚠ F6a: the cover comes only from clusters this name ENTIRELY covers (its lenders),
             // because only there is every face this person's. A labelled photo with two faces
             // cannot say which is hers — §6a's face-level gap — so it never supplies the cover.
+            // ⚠ A display-folded group is THIS person by the grouping's own faces, so its faces may
+            // cover too — exactly as a group the name entirely covers.
             val cover = faceGroups.filter { it.groupId in lenderIds }.flatMap { it.faces }.largestFace()
+            val labelledSet = labelled.toHashSet()
+            val foldedPaths = folded.values
+                .filter { displayFolds[it.groupId] == name }
+                .flatMap { it.filePaths }
+                .filter { it !in labelledSet }
+                .distinct()
             PersonEntry(
                 id = "person:name:$name",
                 name = name,
-                filePaths = labelled,
+                filePaths = labelled + foldedPaths,
                 // ⚠ Sorted so the list never depends on map iteration order.
                 alternateIds = lenders.sorted(),
                 cover = cover,
+                foldedPaths = foldedPaths,
             )
         }
 
     val unnamed = faceGroups
         .filterNot { group -> pathsByName.values.any { group.isEntirely(it.toHashSet()) } }
+        .filterNot { group -> group.groupId in folded }
         .map { group ->
             PersonEntry(
                 id = "person:${group.groupId}",

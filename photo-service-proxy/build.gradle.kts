@@ -36,6 +36,8 @@ kotlin {
                 api(project(":photo-service-common"))
                 api(project(":core-common"))
                 api(project(":core-proxy"))
+                // ED-3: `ClearPhotoEdit`'s tombstone (`SyncObserver.onDataDeleted` emits none).
+                api(project(":sync-service-common"))
             }
         }
 

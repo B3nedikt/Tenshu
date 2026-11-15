@@ -836,7 +836,16 @@ warmest-first order — were each caught by the intended test.
   the content gate is closed. Both needed `FileContentSyncEmitter` to answer questions it could not
   when X-2a was written.
 - **The web ceiling** (§4.7): the JS runtime registers no keeper schedule at all, so there is nothing
-  to give a smaller ceiling to yet. X-5 owns it.
+  to give a smaller ceiling to yet. X-5 owns it. ⭐ **Built 2026-11-15** (`web-apps-layout.md` §4.8):
+  the pass is split out of the keeper (`evictThumbnailCache`, `ThumbnailCachePass.kt`; the keeper
+  calls it with `ThumbnailCachePolicy.NATIVE`, unchanged) and the browser runs it alone
+  (`ThumbnailCachePlugin`, a maintenance hook, one tree walk per 30 min) with
+  `ThumbnailCachePolicy.WEB`: **64 MiB** default (RAM — the JS store hydrates every byte), ⚠ rungs
+  still owed to the relay are never candidates (no backfill on the web: one evicted unsent is gone
+  in a web-only realm), and ⚠ unknown recency sorts *coldest* (`IndexedDbFileDatabase` has no write
+  times; an unstamped rung is one this browser minted and never viewed). A stored
+  `MaxThumbnailBytes` row still wins; there is no UI for it on any platform. Grid tiles add nothing
+  to it: `FileSystem.getTilePreview` pulls, reads and drops (`dropPulledThumbnail`).
 
 ### 9.3 X-2b — the sentinel is only believed while the relay still has the class (2026-09-17)
 

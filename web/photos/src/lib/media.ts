@@ -87,3 +87,10 @@ export function formatDuration(ms: number): string {
 export function formatCoordinate(latE7: number, lngE7: number): string {
   return `${(latE7 / 1e7).toFixed(5)}, ${(lngE7 / 1e7).toFixed(5)}`
 }
+
+// ED-3 (photos-editing.md §12.4): the path that draws a photo — its edit's rendition when it has
+// one, else the photo itself. ⚠⚠ Every thumbnail and preview reads through this: an edited photo is
+// shown by its rendition or not at all, never by its original (which a redaction hides).
+export function previewPathOf(photo: { path: string; renditionPath?: string | null }): string {
+  return photo.renditionPath ?? photo.path
+}

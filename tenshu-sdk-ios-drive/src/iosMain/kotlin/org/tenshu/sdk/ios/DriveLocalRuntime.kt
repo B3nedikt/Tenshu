@@ -152,15 +152,9 @@ object DriveLocalRuntime {
                     baseUrl = get(named("syncRelayUrl")),
                     httpClient = get(),
                     context = get(),
-                    authTokenProvider = jwtTokenProvider(
-                        ownerIdProvider = { syncManager.currentOwnerId },
-                        deviceIdProvider = { syncManager.currentDeviceId },
-                        signer = { msg ->
-                            cryptoManager.signEd25519(
-                                privateKey = syncManager.getDeviceSigningKeyPair().privateKey,
-                                message = msg,
-                            )
-                        },
+                    authTokenProvider = org.tenshu.sync.proxy.deviceJwtTokenProvider(
+                        syncManager = syncManager,
+                        cryptoManager = cryptoManager,
                         nowEpochSec = { nowEpochSeconds() },
                     ),
                     entitlementTokenProvider = { get<CachingEntitlementTokenProvider>().token() },
@@ -175,15 +169,9 @@ object DriveLocalRuntime {
                     journal = get(),
                     baseUrl = get(named("syncRelayUrl")),
                     foreground = get(named("p3bForegroundContentBlobStore")),
-                    authTokenProvider = jwtTokenProvider(
-                        ownerIdProvider = { syncManager.currentOwnerId },
-                        deviceIdProvider = { syncManager.currentDeviceId },
-                        signer = { msg ->
-                            cryptoManager.signEd25519(
-                                privateKey = syncManager.getDeviceSigningKeyPair().privateKey,
-                                message = msg,
-                            )
-                        },
+                    authTokenProvider = org.tenshu.sync.proxy.deviceJwtTokenProvider(
+                        syncManager = syncManager,
+                        cryptoManager = cryptoManager,
                         nowEpochSec = { nowEpochSeconds() },
                     ),
                     entitlementTokenProvider = { get<CachingEntitlementTokenProvider>().token() },

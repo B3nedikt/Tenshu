@@ -442,10 +442,15 @@ class ModelsLedgerTest {
                     assertTrue(removals.all { it == ModelDeleteOutcome.Removed || it == ModelDeleteOutcome.Busy }, "$removals")
                     // ⚠ And something ran: a run in which every press was refused proves nothing.
                     assertTrue(unknownModel in downloads || ModelDeleteOutcome.Removed in removals, "nothing ran: $answers")
-                    // Nothing is left claimed once every press was answered.
-                    val after = ledger.state.first()
-                    assertEquals(emptySet(), after.removing)
-                    assertTrue((after.availability as ModelsAvailability.Listed).models.none { it.fetching })
+                    // Nothing is left claimed once every call has ended. ⚠ Awaited, not read once: a
+                    // press is answered from inside its call, which releases the claim in its own
+                    // `finally` a moment later, so a single read right after the last answer can still
+                    // see a row fetching (seen in 1 of 9 runs in a 4-core Linux container). A claim that is never
+                    // released fails on the `withTimeout` above instead.
+                    ledger.state.first { after ->
+                        after.removing.isEmpty() &&
+                            (after.availability as ModelsAvailability.Listed).models.none { it.fetching }
+                    }
                 }
             }
         } finally {

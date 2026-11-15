@@ -13,6 +13,7 @@ import app.tenshu.ui.theme.TenshuTheme
 import org.tenshu.core.file.MediaMetadata
 import kotlin.test.Test
 import kotlinx.coroutines.flow.emptyFlow
+import org.tenshu.ui.test.NoMotion
 
 /**
  * What the viewer's info sheet renders (`photos-app.md` S3 / PH-7).
@@ -44,7 +45,7 @@ class PhotoViewerInfoSheetTest {
     }
 
     @Test
-    fun theSheetIsClosedUntilItIsAskedFor() = runComposeUiTest {
+    fun theSheetIsClosedUntilItIsAskedFor() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠⚠ **`assertIsNotDisplayed`, not `assertDoesNotExist`, and the change is the point of
         // §11.** The panel is no longer an overlay that is absent until summoned — it is the next
         // thing down the page's own scrolling column, so it is composed all along and simply below
@@ -62,7 +63,7 @@ class PhotoViewerInfoSheetTest {
     }
 
     @Test
-    fun anOpenSheetShowsWhatTheFileSaid() = runComposeUiTest {
+    fun anOpenSheetShowsWhatTheFileSaid() = runComposeUiTest(effectContext = NoMotion) {
         setContent(
             screen(
                 PhotoViewerUiState(
@@ -89,7 +90,7 @@ class PhotoViewerInfoSheetTest {
     }
 
     @Test
-    fun aFileThatSaidNothingShowsAShortSheetRatherThanUnknowns() = runComposeUiTest {
+    fun aFileThatSaidNothingShowsAShortSheetRatherThanUnknowns() = runComposeUiTest(effectContext = NoMotion) {
         setContent(
             screen(
                 PhotoViewerUiState(
@@ -110,7 +111,7 @@ class PhotoViewerInfoSheetTest {
     }
 
     @Test
-    fun theSheetOpensBeforeTheReadLands() = runComposeUiTest {
+    fun theSheetOpensBeforeTheReadLands() = runComposeUiTest(effectContext = NoMotion) {
         // Opening the panel must not feel like loading a screen: the path is known without any
         // read, so it is shown immediately and the rest fills in.
         setContent(screen(PhotoViewerUiState(photo = photo(path), infoOpen = true)))
@@ -120,7 +121,7 @@ class PhotoViewerInfoSheetTest {
     }
 
     @Test
-    fun aVideoShowsItsLength() = runComposeUiTest {
+    fun aVideoShowsItsLength() = runComposeUiTest(effectContext = NoMotion) {
         setContent(
             screen(
                 PhotoViewerUiState(

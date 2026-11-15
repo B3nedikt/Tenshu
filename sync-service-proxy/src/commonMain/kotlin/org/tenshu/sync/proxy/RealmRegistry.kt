@@ -89,6 +89,32 @@ class RealmRegistry(
     // Insertion-ordered for deterministic iteration; keyed by realm ownerId.
     private val runtimes = LinkedHashMap<String, RealmRuntime>()
 
+    /** How many forgets are running — [register] refuses while any is (a count: forgets can overlap). */
+    @OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+    private val forgetsInProgress = kotlin.concurrent.atomics.AtomicInt(0)
+
+    /**
+     * Run [block] — "Forget this device" — with registration refused throughout, and every shared
+     * realm unregistered both before it and after it: a runtime registered in between (a
+     * membership pulled before custody went) holds the forgotten identity.
+     */
+    @OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+    inline fun <R> whileForgetting(block: () -> R): R {
+        beginForget()
+        try {
+            return block()
+        } finally {
+            unregisterAll()
+            endForget()
+        }
+    }
+
+    @OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+    @PublishedApi internal fun beginForget() { forgetsInProgress.fetchAndAdd(1) }
+
+    @OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+    @PublishedApi internal fun endForget() { forgetsInProgress.fetchAndAdd(-1) }
+
     /**
      * Register a shared realm this device belongs to, optionally with the [relay]
      * its outbound queue drains to / inbound stream is pulled from. When a
@@ -97,7 +123,15 @@ class RealmRegistry(
      * Idempotent on re-register (rebuilds the runtime — note a re-register resets
      * the pull cursor; shared realms aren't re-registered mid-session today).
      */
+    @OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
     fun register(realm: RealmContext, relay: SyncRelay? = null) {
+        // ⚠⚠ Refused while "Forget this device" runs: the personal pull keeps going until custody is
+        // cleared, and a membership it pulls would register a runtime under the identity being
+        // forgotten — surviving the forget, then failing on its zeroed key (§7i.5).
+        if (forgetsInProgress.load() > 0) {
+            println("RealmRegistry -> not registering ${realm.ownerId}: this device is being forgotten")
+            return
+        }
         val resolvedRelay = relay ?: relayFactory?.invoke(realm.ownerId)
         val processor = processorFactory?.invoke(realm)
         val contentStore = contentBlobStoreFactory?.invoke(realm.ownerId)
@@ -113,6 +147,17 @@ class RealmRegistry(
     /** Forget a shared realm (e.g. on removal from it). */
     fun unregister(realmId: String) {
         runtimes.remove(realmId)
+    }
+
+    /**
+     * Forget every shared realm — "Forget this device" (`ForgetThisDeviceImplementation`). Each
+     * runtime holds the forgotten identity and its own cursor, both dropped with it. Returns how
+     * many were registered.
+     */
+    fun unregisterAll(): Int {
+        val count = runtimes.size
+        runtimes.clear()
+        return count
     }
 
     /** The registered shared realms (excludes the personal realm). */

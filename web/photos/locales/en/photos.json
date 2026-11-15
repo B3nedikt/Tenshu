@@ -1,13 +1,17 @@
 {
   "app": {
-    "title": "Photos",
-    "tagline": "Your photos and videos, end-to-end encrypted."
+    "title": "Photos"
   },
   "nav": {
-    "photos": "Photos",
+    "label": "Photos sections",
+    "photos": "Library",
     "albums": "Albums",
     "favourites": "Favourites",
-    "trash": "Trash"
+    "trash": "Trash",
+    "years": "Years",
+    "collections": "Collections",
+    "videos": "Videos",
+    "search": "Search"
   },
   "common": {
     "cancel": "Cancel",
@@ -22,20 +26,31 @@
   },
   "tile": {
     "photoLabel": "Photo {name}, {date}",
-    "videoLabel": "Video {name}, {date}"
+    "videoLabel": "Video {name}, {date}",
+    "select": "Select {name}",
+    "actions": "Actions for {name}"
+  },
+  "menu": {
+    "open": "Open",
+    "download": "Download",
+    "favourite": "Favourite",
+    "unfavourite": "Unfavourite",
+    "addToAlbum": "Add to album…",
+    "trash": "Move to trash"
   },
   "feed": {
-    "scrubber": "Jump to a date",
     "refresh": "Refresh",
     "empty": "No photos yet. Photos and videos you add in Drive or on your phone appear here."
   },
   "select": {
-    "start": "Select",
     "count": "{count, plural, =0 {Nothing selected} one {# selected} other {# selected}}",
     "addToAlbum": "Add to album",
     "favourite": "Add to favourites",
     "removeFromAlbum": "Remove from album",
-    "partial": "{done} of {total} done."
+    "partial": "{done} of {total} done.",
+    "clear": "Clear selection",
+    "trash": "Move to trash",
+    "actions": "Selection"
   },
   "albums": {
     "addTo": "Add to album",
@@ -70,7 +85,9 @@
     "downloadOriginal": "Download original",
     "downloaded": "Saved.",
     "play": "Play",
-    "cannotPlay": "This video can’t be played here yet. Try again once it has synced."
+    "cannotPlay": "This video can’t be played here yet. Try again once it has synced.",
+    "filmstrip": "Photos nearby",
+    "position": "{index} of {total}"
   },
   "details": {
     "name": "Name",
@@ -82,6 +99,12 @@
     "location": "Location",
     "gone": "This file is no longer there.",
     "albums": "In albums"
+  },
+  "pane": {
+    "toggle": "Info",
+    "label": "Info",
+    "none": "Select a photo to see its details.",
+    "several": "{count, plural, one {# photo selected} other {# photos selected}}"
   },
   "favourites": {
     "empty": "No favourites yet. Mark a photo as a favourite in the viewer."
@@ -105,6 +128,8 @@
     "bridge": "Couldn’t reach Tenshu. Make sure it is open and unlocked, then try again.",
     "bridge_timeout": "Tenshu took too long to answer. Try again.",
     "error_photos_bad_cursor": "The library changed while loading. Refresh to start again.",
+    "error_photos_bad_search": "Type a name or a date to search.",
+    "error_photos_bad_kind": "Something went wrong loading your library. Please try again.",
     "error_photos_bad_page_size": "Something went wrong loading your library. Please try again.",
     "error_photos_unknown_album": "That album no longer exists.",
     "error_photos_not_found": "That photo is no longer there.",
@@ -135,5 +160,39 @@
     "body": "This part of Photos hit an unexpected error. Your data is safe — nothing was changed.",
     "retry": "Try again",
     "reload": "Reload"
+  },
+  "density": {
+    "label": "View",
+    "days": "Days",
+    "months": "Months",
+    "years": "Years"
+  },
+  "years": {
+    "count": "{count, plural, one {# photo} other {# photos}}",
+    "open": "Show {year}"
+  },
+  "videos": {
+    "empty": "No videos yet."
+  },
+  "search": {
+    "label": "Search photos",
+    "placeholder": "Search photos",
+    "prompt": "Search by name, or a date like “May 2025”.",
+    "fromDate": "{count, plural, =0 {No photos from {when}} one {# photo from {when}} other {# photos from {when}}}",
+    "matching": "{count, plural, =0 {No photos match “{query}”} one {# photo matches “{query}”} other {# photos match “{query}”}}",
+    "truncated": "Showing the newest 500 — narrow the search.",
+    "none": "Nothing found. Try another name or date."
+  },
+  "layout": {
+    "mosaic": "Mosaic",
+    "mosaicYears": "Mosaic is not available by year",
+    "fit": "Whole photos"
+  },
+  "size": {
+    "label": "Photo size",
+    "smaller": "Smaller photos",
+    "larger": "Larger photos",
+    "perRow": "{count, plural, one {# photo per row} other {# photos per row}}",
+    "years": "Size is fixed in the Years view"
   }
 }

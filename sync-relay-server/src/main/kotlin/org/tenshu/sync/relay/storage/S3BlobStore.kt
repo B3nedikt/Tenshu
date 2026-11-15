@@ -5,6 +5,7 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
 import software.amazon.awssdk.core.checksums.RequestChecksumCalculation
 import software.amazon.awssdk.core.checksums.ResponseChecksumValidation
 import software.amazon.awssdk.core.sync.RequestBody
+import software.amazon.awssdk.http.SdkHttpClient
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.s3.S3Client
@@ -246,9 +247,13 @@ class S3BlobStore(
             region: String,
             accessKey: String,
             secretKey: String,
+            // Production never passes this. It exists so the S3Mock contract test can dial S3Mock's
+            // loopback-only HTTPS connector with a client that trusts its self-signed certificate
+            // (`S3BlobStoreRealS3ContractTest`); every other setting below stays the shipped one.
+            httpClient: SdkHttpClient = UrlConnectionHttpClient.create(),
         ): S3Client =
             S3Client.builder()
-                .httpClient(UrlConnectionHttpClient.create())
+                .httpClient(httpClient)
                 .endpointOverride(URI.create(endpoint))
                 .region(Region.of(region))
                 .credentialsProvider(

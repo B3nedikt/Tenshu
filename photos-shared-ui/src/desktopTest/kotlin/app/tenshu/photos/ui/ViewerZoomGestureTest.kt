@@ -15,6 +15,7 @@ import app.tenshu.ui.theme.TenshuTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlinx.coroutines.flow.flowOf
+import org.tenshu.ui.test.NoMotion
 
 /**
  * Gesture priority in the viewer (PH-15 / D4): **while zoomed in, the drag belongs to the pan.**
@@ -113,7 +114,7 @@ class ViewerZoomGestureTest {
     }
 
     @Test
-    fun atFitScaleAOneFingerDragStillBelongsToThePager() = runComposeUiTest {
+    fun atFitScaleAOneFingerDragStillBelongsToThePager() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠⚠ The regression this file exists for. The obvious way to add zoom —
         // `detectTransformGestures` — consumes a one-finger pan the moment it passes slop, which
         // would take every page swipe with it. The gesture loop therefore consumes only for two
@@ -132,7 +133,7 @@ class ViewerZoomGestureTest {
     }
 
     @Test
-    fun aDragIsNotAlsoATap() = runComposeUiTest {
+    fun aDragIsNotAlsoATap() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠ The other half of §9.3b, kept honest here too: a drag that the pager consumes must not
         // additionally register as a chrome toggle.
         val shown = mutableListOf<String>()
@@ -149,7 +150,7 @@ class ViewerZoomGestureTest {
     }
 
     @Test
-    fun aTapIsStillATap() = runComposeUiTest {
+    fun aTapIsStillATap() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠ The control. Without it, "no toggles" above would also pass for a build where tapping
         // the photograph had stopped working altogether.
         val shown = mutableListOf<String>()
@@ -171,7 +172,7 @@ class ViewerZoomGestureTest {
     // ── PH-15's second half: drag down to dismiss ────────────────────────────────────────────
 
     @Test
-    fun aLongDownwardDragDismissesTheViewer() = runComposeUiTest {
+    fun aLongDownwardDragDismissesTheViewer() = runComposeUiTest(effectContext = NoMotion) {
         val backs = mutableListOf<Unit>()
         setContent(screen(mutableListOf(), mutableListOf(), backs))
         waitForIdle()
@@ -184,7 +185,7 @@ class ViewerZoomGestureTest {
     }
 
     @Test
-    fun aShortDownwardDragSpringsBackInsteadOfDismissing() = runComposeUiTest {
+    fun aShortDownwardDragSpringsBackInsteadOfDismissing() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠⚠ The control, and the more important of the pair. Without it the test above passes for
         // a build that dismisses on ANY downward movement — which would make the viewer impossible
         // to hold on to, and would look like the feature working.
@@ -200,7 +201,7 @@ class ViewerZoomGestureTest {
     }
 
     @Test
-    fun aDownwardDragIsNotAlsoATap() = runComposeUiTest {
+    fun aDownwardDragIsNotAlsoATap() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠ §9.3b again, for the new gesture: a drag the page consumes must not additionally
         // register as a chrome toggle. This is the failure that shipped once already.
         val toggles = mutableListOf<Unit>()
@@ -216,7 +217,7 @@ class ViewerZoomGestureTest {
     }
 
     @Test
-    fun theDismissIsOffWhileTheAboutSheetIsOpen() = runComposeUiTest {
+    fun theDismissIsOffWhileTheAboutSheetIsOpen() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠ The sheet is the interaction target while it is up; pulling the picture out from under
         // it is not what the gesture means there.
         val backs = mutableListOf<Unit>()

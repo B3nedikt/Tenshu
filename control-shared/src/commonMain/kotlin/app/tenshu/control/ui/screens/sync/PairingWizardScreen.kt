@@ -51,6 +51,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.tenshu.control.shared.resources.pairing_error_no_authority
 import app.tenshu.control.shared.resources.pairing_error_admitter_unrecognised
+import app.tenshu.control.shared.resources.pairing_error_device_removed
+import app.tenshu.control.shared.resources.pairing_error_this_device_removed
+import app.tenshu.control.shared.resources.pairing_error_approver_revoked
 import app.tenshu.ui.error.label
 import app.tenshu.control.shared.resources.Res
 import app.tenshu.control.shared.resources.add_device_connection_lost
@@ -243,6 +246,7 @@ fun PairingWizardScreen(
                         sas = state.offerSas,
                         denied = state.offerDenied,
                         failed = state.offerFailed,
+                        removed = state.offerRemoved,
                         onRetry = viewModel::onRetryOffer,
                         onStop = viewModel::onStopShowing,
                         onContinue = viewModel::onSuccessContinue,
@@ -348,6 +352,9 @@ private fun pairingErrorText(error: PairingError?): String? = when (error) {
     null -> null
     PairingError.AdmitterUnrecognised -> stringResource(Res.string.pairing_error_admitter_unrecognised)
     PairingError.NoAuthority -> stringResource(Res.string.pairing_error_no_authority)
+    PairingError.DeviceRemoved -> stringResource(Res.string.pairing_error_device_removed)
+    PairingError.ApproverRevoked -> stringResource(Res.string.pairing_error_approver_revoked)
+    PairingError.ThisDeviceRemoved -> stringResource(Res.string.pairing_error_this_device_removed)
     is PairingError.Unexpected -> error.copyKey.label()
 }
 
@@ -562,6 +569,7 @@ private fun ColumnScope.OfferCodeStep(
     sas: String?,
     denied: Boolean,
     failed: Boolean,
+    removed: Boolean = false,
     onRetry: () -> Unit,
     onStop: () -> Unit,
     onContinue: () -> Unit,
@@ -576,7 +584,7 @@ private fun ColumnScope.OfferCodeStep(
             .fillMaxWidth()
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = if (paired || scanned || denied || failed) Arrangement.Center else Arrangement.Top,
+        verticalArrangement = if (paired || scanned || denied || failed || removed) Arrangement.Center else Arrangement.Top,
     ) {
         when {
             // Terminal success: the responder approved and the proxy installed the keys —
@@ -649,6 +657,21 @@ private fun ColumnScope.OfferCodeStep(
                     armed = autoContinueArmed,
                     state = autoContinue,
                 )
+            }
+
+            // ⚠ Before `failed`: a removed identity is refused on every retry, so it gets the remedy
+            // (forget this device) instead of "try again" (F2′, `admission-revocation-names-the-capability.md` §7i.5).
+            removed -> {
+                Text(
+                    text = stringResource(Res.string.pairing_error_this_device_removed),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                OutlinedButton(onClick = onStop, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(Res.string.add_device_show_stop))
+                }
             }
 
             denied || failed -> {

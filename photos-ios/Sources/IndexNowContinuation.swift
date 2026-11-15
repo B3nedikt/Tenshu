@@ -64,17 +64,22 @@ final class IndexNowContinuation: NSObject, IndexNowContinuationBridge {
         // ⚠⚠ `.fail`, never the default `.queue`: a queued request may not launch while the user is
         // still in front, and the pass it was for would then be cancelled by the leave.
         request.strategy = .fail
+        // ⚠ `#if compiler`, not only `#available`: `submitTaskRequest(_:completion:)` exists in the
+        // iOS 27 SDK alone, and `#available` decides at RUN time — the call must still compile.
+        // Swift 6.4 is Xcode 27's; an Xcode 26 build (CI's runner) takes the iOS 26 path below.
+        #if compiler(>=6.4)
         if #available(iOS 27, *) {
             BGTaskScheduler.shared.submitTaskRequest(request) { error in
                 PhotosLocalRuntime.shared.onIndexNowTaskAnswered(identifier: identifier, accepted: error == nil)
             }
-        } else {
-            do {
-                try BGTaskScheduler.shared.submit(request)
-                PhotosLocalRuntime.shared.onIndexNowTaskAnswered(identifier: identifier, accepted: true)
-            } catch {
-                PhotosLocalRuntime.shared.onIndexNowTaskAnswered(identifier: identifier, accepted: false)
-            }
+            return
+        }
+        #endif
+        do {
+            try BGTaskScheduler.shared.submit(request)
+            PhotosLocalRuntime.shared.onIndexNowTaskAnswered(identifier: identifier, accepted: true)
+        } catch {
+            PhotosLocalRuntime.shared.onIndexNowTaskAnswered(identifier: identifier, accepted: false)
         }
     }
 }

@@ -19,6 +19,7 @@ import app.tenshu.ui.theme.TenshuTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlinx.coroutines.flow.emptyFlow
+import org.tenshu.ui.test.NoMotion
 
 /**
  * The About sheet on screen (`photos-viewer-about-screen.md` PH-10).
@@ -71,7 +72,7 @@ class AboutSheetTest {
     }
 
     @Test
-    fun theSheetLeadsWithWhenTheDayWas() = runComposeUiTest {
+    fun theSheetLeadsWithWhenTheDayWas() = runComposeUiTest(effectContext = NoMotion) {
         val all = photos(1)
         setContent(screen(PhotoViewerUiState(photo = all[0], infoOpen = true), all))
 
@@ -81,7 +82,7 @@ class AboutSheetTest {
     }
 
     @Test
-    fun albumMembershipIsNamedAndCounted() = runComposeUiTest {
+    fun albumMembershipIsNamedAndCounted() = runComposeUiTest(effectContext = NoMotion) {
         val all = photos(1)
         setContent(
             screen(
@@ -101,7 +102,7 @@ class AboutSheetTest {
     }
 
     @Test
-    fun aPhotoInNoAlbumGetsNoAlbumsHeading() = runComposeUiTest {
+    fun aPhotoInNoAlbumGetsNoAlbumsHeading() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠ An empty "Albums" heading is a section that exists to say nothing.
         val all = photos(1)
         setContent(
@@ -113,7 +114,7 @@ class AboutSheetTest {
     }
 
     @Test
-    fun aPlaceIsShownOnlyWhenOneIsNamed() = runComposeUiTest {
+    fun aPlaceIsShownOnlyWhenOneIsNamed() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠⚠ D2. PH-G7 is unshipped, so most photographs have no named place and there is no honest
         // fallback — the section is absent rather than filled with a country or a coordinate.
         val all = photos(1)
@@ -136,7 +137,7 @@ class AboutSheetTest {
     }
 
     @Test
-    fun thePagerStaysFreeWithThePanelOpen() = runComposeUiTest {
+    fun thePagerStaysFreeWithThePanelOpen() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠⚠ The inverted rule (§11). Verified against Google Photos first: swiping sideways with
         // its info panel open pages the photograph AND updates the panel, because the panel belongs
         // to the page. Ours does the same, so the lock this test used to assert is gone.
@@ -185,7 +186,7 @@ class AboutSheetTest {
         // chrome, taking the sheet with it.
         val toggles = mutableListOf<Unit>()
         val all = photos(4)
-        runComposeUiTest {
+        runComposeUiTest(effectContext = NoMotion) {
             setContent {
                 TenshuTheme {
                     PhotoViewerScreen(
@@ -214,7 +215,7 @@ class AboutSheetTest {
     }
 
     @Test
-    fun theSameSwipeMovesWithTheSheetClosed() = runComposeUiTest {
+    fun theSameSwipeMovesWithTheSheetClosed() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠ The other half: the lock must be the *sheet*, not a pager that stopped working.
         val shown = mutableListOf<String>()
         val all = photos(4)
@@ -237,7 +238,7 @@ class AboutSheetTest {
     // ── §11: the panel is part of the page, not an overlay over it ───────────────────────────
 
     @Test
-    fun thePanelSitsBelowTheFoldUntilItIsOpened() = runComposeUiTest {
+    fun thePanelSitsBelowTheFoldUntilItIsOpened() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠⚠ The shape of §11 in one assertion. The panel is composed the whole time — it is the
         // next thing down the page's own scrolling column — so "closed" is a SCROLL POSITION, not
         // an absence. Closed means below the fold; open means the binding scrolled it into view.
@@ -252,7 +253,7 @@ class AboutSheetTest {
     }
 
     @Test
-    fun openingScrollsThePanelIntoView() = runComposeUiTest {
+    fun openingScrollsThePanelIntoView() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠⚠ The other half, and the one that proves `PanelScrollBinding` runs at all: with the
         // flag set, the same row that was below the fold above must now be on screen. Break the
         // flag→scroll direction and this is what objects.
@@ -269,7 +270,7 @@ class AboutSheetTest {
     }
 
     @Test
-    fun onlyThePageOnScreenIsGivenItsDetails() = runComposeUiTest {
+    fun onlyThePageOnScreenIsGivenItsDetails() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠⚠ **This is what replaced the pager lock, so it is the load-bearing test of §11.**
         // PH-10 stopped the pager moving because an overlay could describe the wrong photograph.
         // The panel now belongs to the page, and the guarantee is that only the CURRENT page is

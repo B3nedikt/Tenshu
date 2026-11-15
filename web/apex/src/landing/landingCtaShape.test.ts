@@ -30,7 +30,7 @@ describe('landingCtaShape', () => {
       true,
     )
     expect(cta.label).toBe('cta.openTenshu')
-    expect(cta.to).toBe('/control')
+    expect(cta.to).toBe('/overview')
     expect(cta.secondary).toBeNull()
   })
 
@@ -72,7 +72,7 @@ describe('landingCtaShape', () => {
         false,
       )
       expect(cta.label).toBe('cta.openTenshu')
-      expect(cta.to).toBe('/control')
+      expect(cta.to).toBe('/overview')
     })
 
     it('leaves a returning-locked visitor their unlock route', () => {

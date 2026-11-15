@@ -6,10 +6,12 @@
 // strip types from a `.ts` it resolved through `node_modules`.
 import { tenshuAppConfig } from '../app-kit/src/vite.ts'
 
-// ⚠ No `chunkSizeWarningLimit` override: this bundle must NOT contain the Kotlin runtime, so Vite's
-// default 500 kB warning is the tripwire for a stray SDK value import.
+// ⚠ The size warning is the tripwire for a stray SDK value import: this bundle must NOT contain the
+// Kotlin runtime (~1.7 MB). Raised from Vite's 500 kB to 700 kB when L4 brought in the Radix menus
+// (459 → 525 kB, no Kotlin): still far below what a leaked runtime would add.
 export default tenshuAppConfig({
   // The apex registry entry (`web/apex/src/apps/registry/apps/photos.ts`) names the same port.
+  chunkSizeWarningLimit: 700,
   port: 5178,
   manifest: {
     id: 'photos',

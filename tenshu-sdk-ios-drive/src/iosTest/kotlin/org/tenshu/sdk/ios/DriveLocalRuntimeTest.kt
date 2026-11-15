@@ -19,6 +19,7 @@ import org.tenshu.core.common.delegate.InMemorySecureStorageDelegate
 import org.tenshu.core.common.epc.RealmKeyMaterial
 import org.tenshu.core.common.proxy.db.ObjectStore
 import org.tenshu.sync.common.SyncManager
+import org.tenshu.viewmodel.test.OwnedViewModels
 import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.create
 import platform.Foundation.writeToFile
@@ -344,20 +345,29 @@ class DriveLocalRuntimeTest {
         assertTrue(created is RepositoryResult.Success, "createFolder failed: $created")
 
         val scope = CoroutineScope(Dispatchers.Default)
+        val owned = OwnedViewModels()
         try {
             val bound = DriveReadSurface.create(
                 assembly.client.filesRepository,
                 scope,
                 Dispatchers.Default,
                 "/",
-            )
+            ).also {
+                // First, so it is closed last: the listing's model reads it (closeAll reverses).
+                owned.own(it.selection)
+                owned.own(it.viewModel)
+                owned.own(it.addFileActions)
+            }
             withTimeout(30_000) {
                 while (bound.presenter.snapshot.value.none { it.name == "paged-folder" }) {
                     delay(100)
                 }
             }
         } finally {
+            // ⚠ Joined here, before `restoreMain` resets `Main` (`docs/testing.md` §11).
+            owned.closeAll()
             scope.cancel()
         }
+        owned.assertNothingActive()
     }
 }

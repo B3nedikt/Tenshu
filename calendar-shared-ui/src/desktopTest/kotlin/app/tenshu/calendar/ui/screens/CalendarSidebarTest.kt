@@ -14,6 +14,7 @@ import app.tenshu.calendar.data.CalendarSummary
 import app.tenshu.ui.theme.TenshuTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import org.tenshu.ui.test.NoMotion
 
 /**
  * The calendars sidebar (CA-2f).
@@ -32,7 +33,7 @@ class CalendarSidebarTest {
 
     @Test
     fun listsEveryCalendar_showingWhichAreVisibleOnThisDevice() {
-        runDesktopComposeUiTest(width = 400, height = 600) {
+        runDesktopComposeUiTest(width = 400, height = 600, effectContext = NoMotion) {
             setContent { TenshuTheme { Sidebar() } }
             waitForIdle()
 
@@ -46,7 +47,7 @@ class CalendarSidebarTest {
     @Test
     fun clickingARowTogglesThatCalendar() {
         val toggles = mutableListOf<Pair<String, Boolean>>()
-        runDesktopComposeUiTest(width = 400, height = 600) {
+        runDesktopComposeUiTest(width = 400, height = 600, effectContext = NoMotion) {
             setContent {
                 TenshuTheme { Sidebar(onToggleVisible = { id, v -> toggles += id to v }) }
             }
@@ -64,7 +65,7 @@ class CalendarSidebarTest {
     @Test
     fun offersOneWayThroughToTheFullManagementScreen() {
         var managed = 0
-        runDesktopComposeUiTest(width = 400, height = 600) {
+        runDesktopComposeUiTest(width = 400, height = 600, effectContext = NoMotion) {
             setContent { TenshuTheme { Sidebar(onManage = { managed++ }) } }
             waitForIdle()
 

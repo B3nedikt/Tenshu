@@ -109,6 +109,13 @@ abstract class PhotosRepositoryDecorator(protected val inner: PhotosRepository) 
     override suspend fun details(path: String): PhotoDetails? = call("details") { inner.details(path) }
     override suspend fun photographicSettings(path: String): ExifReadResult =
         call("photographicSettings") { inner.photographicSettings(path) }
+    override suspend fun originalBytes(path: String): ByteArray? = call("originalBytes") { inner.originalBytes(path) }
+    override suspend fun saveEditedCopy(original: Photo, rendered: ByteArray): Photo? =
+        write("saveEditedCopy") { inner.saveEditedCopy(original, rendered) }
+    override suspend fun photoEdit(contentId: String): StoredEdit? = call("photoEdit") { inner.photoEdit(contentId) }
+    override suspend fun saveEdit(original: Photo, recipe: app.tenshu.photos.edit.EditRecipe, rendered: ByteArray): Photo? =
+        write("saveEdit") { inner.saveEdit(original, recipe, rendered) }
+    override suspend fun revertEdit(photo: Photo): Photo? = write("revertEdit") { inner.revertEdit(photo) }
 
     override suspend fun searchByName(query: String): List<Photo> = call("searchByName") { inner.searchByName(query) }
     override suspend fun searchByLabel(query: String): List<Pair<Photo, String>> =
@@ -125,8 +132,14 @@ abstract class PhotosRepositoryDecorator(protected val inner: PhotosRepository) 
     override suspend fun allLabelsRead(): List<PhotoLabel>? = call("allLabelsRead") { inner.allLabelsRead() }
     override suspend fun faceGroups(limit: Int): Pair<List<FaceGroup>, PeopleStatus> =
         call("faceGroups") { inner.faceGroups(limit) }
+    override suspend fun editedContentIds(): Set<String>? =
+        call("editedContentIds") { inner.editedContentIds() }
     override suspend fun nameFaceGroup(filePaths: List<String>, name: String): NamingOutcome =
         write("nameFaceGroup") { inner.nameFaceGroup(filePaths, name) }
+    override suspend fun faceSuggestionRejections(): List<app.tenshu.photos.model.FaceRejection>? =
+        call("faceSuggestionRejections") { inner.faceSuggestionRejections() }
+    override suspend fun rejectNameSuggestion(name: String, faces: List<app.tenshu.photos.model.GroupFace>): Boolean =
+        write("rejectNameSuggestion") { inner.rejectNameSuggestion(name, faces) }
 }
 
 /**

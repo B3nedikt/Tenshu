@@ -9,6 +9,7 @@ import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.tenshu.ui.test.NoMotion
 
 /**
  * The Services card after CE-4: **one** card, whose numbers always come from the synced
@@ -17,7 +18,7 @@ import kotlin.test.assertTrue
 class ServicesScreenTest {
 
     @get:Rule
-    val composeTestRule = createComposeRule()
+    val composeTestRule = createComposeRule(NoMotion)
 
     private val oneGib = 1L * 1024 * 1024 * 1024
 

@@ -24,6 +24,7 @@ const momentMock = vi.fn<(id: string) => Promise<TimelineMoment | null>>()
 const tripsMock = vi.fn<() => Promise<TimelineTrip[]>>()
 const tracesMock = vi.fn<() => Promise<TimelineTrace[]>>()
 
+vi.mock('@tenshu/sdk/viewSettings', () => ({ DriveSettings: {}, PhotosSettings: {} }))
 vi.mock('@tenshu/sdk/timeline', () => ({
   Timeline: {
     moments: () => momentsMock(),

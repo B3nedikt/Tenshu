@@ -9,9 +9,13 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.sync.Mutex
@@ -93,7 +97,12 @@ class MediaIndexRunner(
      * asked for is happening": a scheduled pass runs only while the device is idle and charging, so
      * a press that merely joined one would report success over work that stops a moment later.
      */
-    private class Pass(val deferred: Deferred<IndexPassResult>, val manual: Boolean)
+    private class Pass(
+        val deferred: Deferred<IndexPassResult>,
+        val manual: Boolean,
+        /** ⚠ [PassBar.ARRIVALS] is automatic ([manual] `false`) and gives way to the other two. */
+        val bar: PassBar = if (manual) PassBar.MANUAL else PassBar.SCHEDULED,
+    )
 
     private val lock = Mutex()
 
@@ -120,6 +129,21 @@ class MediaIndexRunner(
      * pass into [progress], and back to [PassStanding.Idle] only after [progress] is cleared.
      */
     val standing: StateFlow<PassStanding> = standingNow.asStateFlow()
+
+    private val faceChangesNow = MutableStateFlow(0L)
+
+    /**
+     * Moves once for every pass that changed the face template store — ⚠⚠ however it ended:
+     * finished, refused (a withdrawal's clear), stopped or thrown, judged by
+     * [MediaIndexer.faceStoreWrites] across the pass, in the pass's own `finally`, never by its
+     * report or by [standing]'s compare-and-set (which a pass superseded mid-unwind loses).
+     * A pass that wrote nothing does not move it, so an iOS backgrounding that stops a pass
+     * over a current library is no walk.
+     *
+     * ⚠ Errs toward moving: with two passes of this runner unwinding at once (a cancel and a
+     * racing start), the later one may also count the earlier's last writes.
+     */
+    val faceChanges: StateFlow<Long> = faceChangesNow.asStateFlow()
 
     /**
      * Each recent pass's **terminal outcome**, by its number (`ios-on-device-inference.md` §15):
@@ -205,13 +229,27 @@ class MediaIndexRunner(
     suspend fun runToCompletion(executionContext: ExecutionContext, manual: Boolean = false): IndexPassResult {
         val pass = lock.withLock {
             if (retired) return IndexPassResult(deferred = true)
-            inFlight?.takeIf { it.deferred.isActive }
+            // ⚠⚠ A new-arrivals batch is not joined, it is REPLACED (IN-D6a): joining would hand the
+            // caller the batch's capped report as if the library were done. Only once this pass's
+            // own bar holds — a batch is never stopped for a pass that would not run.
+            val running = inFlight?.takeIf { it.deferred.isActive }
+            if (running?.bar == PassBar.ARRIVALS) {
+                if (!indexer.allowed(manual)) {
+                    return IndexPassResult(deferred = true, facesCleared = withdrawalDeleted(executionContext))
+                }
+                running.deferred.cancel()
+                running.deferred.join()
+            }
+            running?.takeIf { it.bar != PassBar.ARRIVALS }
                 ?: run {
                     // ⚠⚠ The bar is asked BEFORE the slot is taken, not inside the pass. A pass that
                     // cannot run must not occupy the single-flight slot — nor walk the whole realm
                     // tree first, which is what every Control startup did before deferring, since
                     // `ScheduleDrainLoop` dispatches without enforcing the charging/idle constraint.
-                    if (!indexer.allowed(manual)) return IndexPassResult(deferred = true)
+                    // ⚠ And still deletes what a consent withdrawal owes, as the pass's own refusals do.
+                    if (!indexer.allowed(manual)) {
+                        return IndexPassResult(deferred = true, facesCleared = withdrawalDeleted(executionContext))
+                    }
                     Pass(launchPass(executionContext, manual), manual).also { inFlight = it }
                 }
         }
@@ -231,6 +269,80 @@ class MediaIndexRunner(
     }
 
     /**
+     * A batch over **named paths** (IN-D6a's arrivals; general — any caller holding a queue of paths,
+     * iOS's foreground batch included), run to its end by its caller.
+     *
+     * ⚠⚠ **Never a walk.** It reads the photographs at [paths] through [MediaSource.mediaAt] — point
+     * reads — and nothing else of the library, and it reconciles nothing (`wholeLibrary = null`): an
+     * absence from a list of arrivals is no evidence about the rest of the library. Its bar counts
+     * [paths], not the library.
+     *
+     * - `null` when **any** pass is already running, or the runner is retired: single-flight, and
+     *   that pass is the one indexing. ⚠ Never joined: a short job waiting on an hours-long pass would
+     *   be stopped at its 10-minute limit, and its stop would end that pass.
+     * - Nothing read, every path kept, when no half may run (no model, no consent, paused —
+     *   [MediaIndexer.anyHalfMayRun]), or deferred when [bar] says no. Both asked BEFORE the slot is
+     *   taken. ⚠⚠ Both still delete what a consent withdrawal owes, as the pass's own refusals do.
+     * - Otherwise one pass over those photographs, stopping after [cap] whose bytes were read
+     *   ([IndexPassResult.batchCapReached]). ⚠⚠ Never chained: what is not reached stays the caller's.
+     *
+     * Automatic, like a scheduled pass: its liveness promotes nothing, and a press or the scheduled
+     * pass REPLACES it. ⚠ A cancelled caller cancels its batch; a cancelled batch reports nothing.
+     */
+    suspend fun runPathsBatch(
+        executionContext: ExecutionContext,
+        paths: Collection<String>,
+        cap: Int,
+        bar: PassBar = PassBar.ARRIVALS,
+    ): PathsBatch? {
+        require(cap > 0) { "a batch of $cap" }
+        val outcomes = mutableMapOf<String, PathOutcome>()
+        val pass = lock.withLock {
+            if (retired) return null
+            if (inFlight?.deferred?.isActive == true) return null
+            // ⚠ Not a deferral (§32.9): no model, no consent or a pause does not pass on its own.
+            if (!indexer.anyHalfMayRun(executionContext)) {
+                return PathsBatch(
+                    IndexPassResult(facesCleared = withdrawalDeleted(executionContext)),
+                    emptyMap(),
+                    everyHalfWithdrawn = indexer.everyHalfWithdrawn(executionContext),
+                )
+            }
+            if (!indexer.allowed(bar)) {
+                return PathsBatch(
+                    IndexPassResult(deferred = true, facesCleared = withdrawalDeleted(executionContext)),
+                    emptyMap(),
+                )
+            }
+            if (paths.isEmpty()) return PathsBatch(IndexPassResult(), emptyMap())
+            val pathsPass = PathsPass(paths, cap) { path, outcome -> outcomes[path] = outcome }
+            Pass(launchPass(executionContext, manual = false, bar = bar, pathsPass = pathsPass), manual = false, bar = bar)
+                .also { inFlight = it }
+        }
+        val result = try {
+            pass.deferred.await()
+        } catch (cancellation: CancellationException) {
+            // ⚠ As `runToCompletion`: the caller going away ends its batch; a batch superseded by a
+            // press or the scheduled pass is not this caller's failure — that pass is indexing.
+            if (!currentCoroutineContext().isActive) {
+                pass.deferred.cancel()
+                throw cancellation
+            }
+            return null
+        }
+        return PathsBatch(result, outcomes.toMap())
+    }
+
+    /**
+     * [MediaIndexer.deleteTemplatesOnWithdrawal] for a refusal made before any pass: what a
+     * withdrawal owes is deleted however the pass was refused. Counts toward [faceChanges].
+     */
+    private suspend fun withdrawalDeleted(executionContext: ExecutionContext): Boolean =
+        indexer.deleteTemplatesOnWithdrawal(executionContext).also { cleared ->
+            if (cleared) faceChangesNow.update { it + 1 }
+        }
+
+    /**
      * Stops the running pass and waits for it to let go.
      *
      * ⚠⚠ **What a local-store wipe must call before clearing derived state.** A pass suspended in the
@@ -245,6 +357,24 @@ class MediaIndexRunner(
         pass.deferred.cancel()
         // ⚠ `join`, never `await`: a cancelled `Deferred` always carries an exception, and it is not
         // this caller's to re-throw — the wipe must not fail because a pass was stopped on purpose.
+        pass.deferred.join()
+    }
+
+    /**
+     * [cancelRunningPass], but only for a **scheduled** pass (`ios-on-device-inference.md` §16): a
+     * pass a person started is left running. ⚠⚠ What a processing wake's expiry stops: the wake
+     * may have joined a press's pass (iOS 26's continued *Index now*, under its own task), and that
+     * pass is not the wake's to end. The check and the claim are one step under the lock.
+     *
+     * ⚠⚠ Nor a new-arrivals batch ([PassBar.ARRIVALS]): it is not the wake's either, it is short, and
+     * whatever started it owns its end — on iOS the foreground batch stops when Photos leaves the
+     * foreground, on its own bar.
+     */
+    suspend fun cancelRunningScheduledPass() {
+        val pass = lock.withLock {
+            inFlight?.takeIf { !it.manual && it.bar != PassBar.ARRIVALS }.also { if (it != null) inFlight = null }
+        } ?: return
+        pass.deferred.cancel()
         pass.deferred.join()
     }
 
@@ -273,7 +403,12 @@ class MediaIndexRunner(
     /** ⚠ Called under [lock]: the check and the launch must not interleave, or two passes start. */
     // ⚠ `CoroutineStart.ATOMIC` is experimental: opted in here, where it is load-bearing.
     @OptIn(ExperimentalCoroutinesApi::class)
-    private fun launchPass(executionContext: ExecutionContext, manual: Boolean): Deferred<IndexPassResult> {
+    private fun launchPass(
+        executionContext: ExecutionContext,
+        manual: Boolean,
+        bar: PassBar = if (manual) PassBar.MANUAL else PassBar.SCHEDULED,
+        pathsPass: PathsPass? = null,
+    ): Deferred<IndexPassResult> {
         val pass: Long = ++serial
         // ⚠ Registered before the coroutine exists, so an awaiter that reads the standing as
         // `Running(pass)` always finds the outcome to await.
@@ -293,7 +428,10 @@ class MediaIndexRunner(
         // scheduled pass dispatched by the in-process drain loop with a client open promoted the
         // dataSync service for an hours-long automatic pass.
         val livenessKey = if (manual) BackgroundLiveness.MEDIA_INDEX_PASS else BackgroundLiveness.SCHEDULED_MEDIA_INDEX_PASS
+        // ⚠ Read before the pass exists: every face write of this pass lands after it.
+        val faceWritesBefore = indexer.faceStoreWrites.value
         val launched = scope.async(start = CoroutineStart.ATOMIC) {
+
             // ⚠ Set by every ending that returned or threw; a cancellation leaves it `null`, which is
             // [PassEnding.Stopped].
             var ending: PassEnding? = null
@@ -313,29 +451,44 @@ class MediaIndexRunner(
                     progress?.start(0)
                     if (!beforePass()) {
                         // ⚠⚠ A refused pass indexes nothing, and still deletes what a withdrawal owes.
-                        indexer.deleteTemplatesOnWithdrawal(executionContext)
-                        return@around IndexPassResult(deferred = true)
+                        val cleared = indexer.deleteTemplatesOnWithdrawal(executionContext)
+                        return@around IndexPassResult(deferred = true, facesCleared = cleared)
                     }
                     // ⚠⚠ The bar once more, before the walk (§14.19): a pass that begins after the
                     // device stopped allowing it — on iOS, after Photos left the foreground —
                     // reads nothing of the library. Without it the walk and the reconcile ran
                     // first, a whole tree read of the shared replica in the background.
-                    if (!indexer.allowed(manual)) {
+                    if (!indexer.allowed(bar)) {
                         // ⚠ And still deletes what a withdrawal owes, as the gate's refusal does.
-                        indexer.deleteTemplatesOnWithdrawal(executionContext)
-                        return@around IndexPassResult(deferred = true)
+                        val cleared = indexer.deleteTemplatesOnWithdrawal(executionContext)
+                        return@around IndexPassResult(deferred = true, facesCleared = cleared)
                     }
                     // ⚠ `wholeLibrary` only for a walk that RETURNED and that the source vouches for as
                     // complete: a throwing walk never reaches the indexer, and a partial one — a subtree
                     // the file walk could not read — must not be taken for the library.
-                    val walk = source.walk(executionContext)
+                    // ⚠⚠ A path batch reads its paths and nothing else: no walk, no reconcile.
+                    val walk = if (pathsPass == null) {
+                        source.walk(executionContext)
+                    } else {
+                        val found = source.mediaAt(executionContext, pathsPass.paths)
+                        val live = found.mapTo(HashSet()) { it.filePath }
+                        // ⚠⚠ Not "gone": a peer's modification row can be applied before its File row,
+                        // so "no row yet" is retried a bounded number of times rather than dropped.
+                        pathsPass.paths.filterNot { it in live }.forEach { pathsPass.onPath(it, PathOutcome.UNAVAILABLE) }
+                        MediaWalk.partial(found)
+                    }
                     indexer.index(
                         executionContext,
                         walk.media,
                         capability,
                         manual = manual,
                         wholeLibrary = walk.wholeLibrary,
+                        bar = bar,
+                        batchCap = pathsPass?.cap,
+                        onPath = pathsPass?.onPath,
                     )
+                        // ⚠⚠ Only a walk speaks for the library (the Models screen's coverage).
+                        .copy(libraryWalk = pathsPass == null)
                         // ⚠ Here, where EVERY pass runs — the manual *Index now* path never reached the
                         // op's own line, so the pass a user actually watched was the one never reported.
                         .also { println(it.summaryLine()) }
@@ -372,6 +525,9 @@ class MediaIndexRunner(
                 // ⚠⚠ The terminal outcome, on every path (§15): after the bar and the standing, so
                 // an awaiter woken by it reads both as ended. Unconditional, unlike the two above:
                 // this value is this pass's alone, whatever pass replaced it.
+                // ⚠⚠ Unconditional on the standing, like the outcome: whatever pass replaced
+                // this one, what this one wrote changed People.
+                if (indexer.faceStoreWrites.value != faceWritesBefore) faceChangesNow.update { it + 1 }
                 outcome.complete(passOutcomeOf(ended))
                 liveness?.setActive(false, livenessKey)
             }
@@ -382,6 +538,27 @@ class MediaIndexRunner(
         return launched
     }
 }
+
+/**
+ * How many photographs one new-arrivals batch reads and indexes (IN-D6a,
+ * [MediaIndexRunner.runPathsBatch]). ⚠ A starting value, to measure on the floor-class phone:
+ * at ~121 ms a vector and a few hundred ms for faces, 50 is well inside a short job's 10 minutes.
+ */
+const val NEW_ARRIVALS_BATCH_CAP: Int = 50
+
+/** A path batch's paths, its cap and where each path's outcome goes. */
+internal class PathsPass(val paths: Collection<String>, val cap: Int, val onPath: (String, PathOutcome) -> Unit)
+
+/**
+ * What [MediaIndexRunner.runPathsBatch] did: the pass's report, and what became of each path it
+ * reached. ⚠ A path missing from [outcomes] was not reached — the caller keeps it.
+ */
+class PathsBatch(
+    val result: IndexPassResult,
+    val outcomes: Map<String, PathOutcome>,
+    /** Refused because the user switched every half off — the paths themselves are owed deletion. */
+    val everyHalfWithdrawn: Boolean = false,
+)
 
 /** How many passes' outcomes a runner keeps ([MediaIndexRunner.outcomeOf]). */
 private const val OUTCOMES_KEPT = 8
@@ -425,6 +602,16 @@ sealed interface PassStanding {
     /** No pass runs. [last] is how the last one ended, or `null` when none has in this runner. */
     data class Idle(val last: PassEnding?) : PassStanding
 }
+
+/**
+ * One emission per change of [faceChanges] AFTER it was first read — what the iOS Collections tab
+ * re-reads People for (`ios-face-grouping.md` §17.6). ⚠ The value at subscribe is a baseline: the
+ * reader's own first read postdates it. ⚠⚠ A counter, never the standing: [MediaIndexRunner.standing]
+ * is conflated (a pass's ending and the next pass's start, back to back, deliver only the start) and
+ * its ending is published only over the pass's own `Running` — so a reader of endings lost passes.
+ * A conflated counter loses nothing a reader needs: any later value still differs from the last seen.
+ */
+fun faceChangingPasses(faceChanges: Flow<Long>): Flow<Unit> = faceChanges.distinctUntilChanged().drop(1).map { }
 
 /** How one pass ended. */
 sealed interface PassEnding {

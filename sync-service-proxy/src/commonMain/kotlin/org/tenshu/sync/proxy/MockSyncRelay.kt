@@ -21,7 +21,19 @@ import org.tenshu.sync.SyncLogResponse
 import org.tenshu.sync.TombstonesResponse
 import org.tenshu.sync.common.SyncRelay
 
-class MockSyncRelay(private val context: TContext) : SyncRelay {
+/**
+ * An in-memory relay for tests.
+ *
+ * [simulateLatency] pauses each call for a fixed time, standing in for network latency. ⚠ That
+ * time is real unless the call runs on `runTest`'s scheduler: a rig whose proxy runs on
+ * `Dispatchers.Default` pays it in wall-clock time (`docs/testing-flakes.md` §6). Prefer putting
+ * the rig on the test's scope. Turn the latency off only where the harness cannot run on virtual
+ * time, and only where no assertion depends on a call taking time.
+ */
+class MockSyncRelay(
+    private val context: TContext,
+    private val simulateLatency: Boolean = true,
+) : SyncRelay {
     // Mirror the real relay's arrival-time cursor: every push gets a monotonic seq, reads
     // filter by `seq > since`, and responses carry `nextCursor`. Lets MockSyncRelay-backed
     // tests exercise the same cursor semantics RestSyncRelay sees in production.
@@ -37,7 +49,7 @@ class MockSyncRelay(private val context: TContext) : SyncRelay {
     private val cascadeByBlock = mutableMapOf<String, List<String>>()
 
     override suspend fun pushBlock(block: SyncBlock, edges: List<ContentEdge>): TResult<Data?> {
-        delay(500) // Simulate network latency
+        latency(500) // Simulate network latency
         blocks.add(++arrivalSeq to block)
         edgesByBlock[block.blockId.get()] = edges
         return TResult.Success.create(context, value = null)
@@ -56,7 +68,7 @@ class MockSyncRelay(private val context: TContext) : SyncRelay {
         sinceTimestamp: Long,
         tip: SignedHlcTip
     ): TResult<ChangesResponse> {
-        delay(500) // Simulate network latency
+        latency(500) // Simulate network latency
         // Record the requester's tip BEFORE assembling peer tips — mirrors the relay.
         val ownerId = tip.ownerId.get()
         val deviceId = tip.deviceId.get()
@@ -81,14 +93,14 @@ class MockSyncRelay(private val context: TContext) : SyncRelay {
     }
 
     override suspend fun pushTombstone(block: DeleteBlock, cascade: List<String>): TResult<Data?> {
-        delay(500)
+        latency(500)
         tombstones.add(++arrivalSeq to block)
         cascadeByBlock[block.blockId.get()] = cascade
         return TResult.Success.create(context, value = null)
     }
 
     override suspend fun getTombstones(sinceTimestamp: Long): TResult<TombstonesResponse> {
-        delay(500)
+        latency(500)
         val matched = tombstones.filter { it.first > sinceTimestamp }
         val nextCursor = matched.maxOfOrNull { it.first } ?: sinceTimestamp
         return TResult.Success.create(
@@ -114,7 +126,7 @@ class MockSyncRelay(private val context: TContext) : SyncRelay {
         sinceTimestamp: Long,
         tip: SignedHlcTip
     ): SyncRelay.SyncLogFetch {
-        delay(500) // Simulate network latency
+        latency(500) // Simulate network latency
         // Record the requester's tip BEFORE assembling peer tips — mirrors the relay.
         val ownerId = tip.ownerId.get()
         val deviceId = tip.deviceId.get()
@@ -155,7 +167,7 @@ class MockSyncRelay(private val context: TContext) : SyncRelay {
         beforeSeq: Long,
         tip: SignedHlcTip
     ): SyncRelay.SyncLogFetch {
-        delay(500) // Simulate network latency
+        latency(500) // Simulate network latency
         val ownerId = tip.ownerId.get()
         val deviceId = tip.deviceId.get()
         val perDevice = tipsByOwner.getOrPut(ownerId) { mutableMapOf() }
@@ -200,7 +212,7 @@ class MockSyncRelay(private val context: TContext) : SyncRelay {
     override suspend fun fetchEntityBlocks(
         entityWireId: String
     ): TResult<TList<SyncBlock>> {
-        delay(1000) // Fetching might be slower
+        latency(1000) // Fetching might be slower
         return TResult.Success.create(
             context,
             value = entityBlocks.toList().toTList(context)
@@ -218,7 +230,7 @@ class MockSyncRelay(private val context: TContext) : SyncRelay {
         publicKey: ByteArray,
         signingPublicKey: ByteArray
     ): TResult<Data?> {
-        delay(500)
+        latency(500)
         refuseUnderivedId(deviceId, signingPublicKey)?.let { return it }
         pairingRequests[pairingSecretHash] = SyncRelay.RelayPairingRequest(
             deviceId = deviceId,
@@ -231,7 +243,7 @@ class MockSyncRelay(private val context: TContext) : SyncRelay {
     }
 
     override suspend fun getPairingRequests(ownerId: String): SyncRelay.PairingRequestsFetch {
-        delay(500)
+        latency(500)
         return SyncRelay.PairingRequestsFetch.Found(pairingRequests.values.toList())
     }
 
@@ -245,20 +257,20 @@ class MockSyncRelay(private val context: TContext) : SyncRelay {
         admissionCertChain: ByteArray?,
         admittedAtHlc: String?,
     ): TResult<Data?> {
-        delay(500)
+        latency(500)
         refuseUnderivedId(newDeviceId, newDevicePublicKey)?.let { return it }
         pairingResponses[pairingSecretHash] = encryptedMasterKey
         return TResult.Success.create(context, value = null)
     }
 
     override suspend fun ackPairingResponse(pairingSecretHash: String): TResult<Data?> {
-        delay(100)
+        latency(100)
         pairingResponses.remove(pairingSecretHash)
         return TResult.Success.create(context, value = null)
     }
 
     override suspend fun getPairingResponse(pairingSecretHash: String): TResult<Data?> {
-        delay(500)
+        latency(500)
         val response = pairingResponses[pairingSecretHash]
         return TResult.Success.create(
             context,
@@ -283,7 +295,7 @@ class MockSyncRelay(private val context: TContext) : SyncRelay {
         admissionCertChain: ByteArray?,
         admittedAtHlc: String?,
     ): TResult<Data?> {
-        delay(100)
+        latency(100)
         if (offererDeviceId != null && offererSigningKey != null) {
             refuseUnderivedId(offererDeviceId, offererSigningKey)?.let { return it }
         }
@@ -303,7 +315,7 @@ class MockSyncRelay(private val context: TContext) : SyncRelay {
     }
 
     override suspend fun getOfferResponse(pairingSecretHash: String): SyncRelay.OfferResponseFetch {
-        delay(100)
+        latency(100)
         return offerResponses[pairingSecretHash] ?: SyncRelay.OfferResponseFetch.NotFound
     }
 
@@ -325,7 +337,7 @@ class MockSyncRelay(private val context: TContext) : SyncRelay {
         epoch: Long,
         admittedAtHlc: String?,
     ): TResult<Data?> {
-        delay(500)
+        latency(500)
         refuseUnderivedId(newDeviceId, newDevicePublicKey)?.let { return it }
         admittedDevices.add(Triple(ownerId, newDeviceId, newDevicePublicKey))
         return TResult.Success.create(context, value = null)
@@ -339,7 +351,7 @@ class MockSyncRelay(private val context: TContext) : SyncRelay {
         masterSelfSignature: ByteArray,
         admittedAtHlc: String?,
     ): TResult<Data?> {
-        delay(500)
+        latency(500)
         refuseUnderivedId(firstDeviceId, firstDevicePublicKey)?.let { return it }
         // Mock relay just acks + records the ownerId; tests that exercise the real
         // bootstrap-verification flow use the Ktor relay.
@@ -348,7 +360,7 @@ class MockSyncRelay(private val context: TContext) : SyncRelay {
     }
 
     override suspend fun recoveryChallenge(): TResult<org.tenshu.core.TByteArray> {
-        delay(500)
+        latency(500)
         return TResult.Success.create(
             context,
             org.tenshu.core.common.impl.TByteArrayDto(byteArrayOf(0x01, 0x02))
@@ -362,7 +374,7 @@ class MockSyncRelay(private val context: TContext) : SyncRelay {
         challenge: ByteArray,
         masterSignature: ByteArray
     ): TResult<Data?> {
-        delay(500)
+        latency(500)
         refuseUnderivedId(newDeviceId, newDevicePublicKey)?.let { return it }
         return TResult.Success.create(context, value = null)
     }
@@ -391,7 +403,7 @@ class MockSyncRelay(private val context: TContext) : SyncRelay {
     override suspend fun fetchRealmEpoch(
         ownerId: String
     ): TResult<org.tenshu.core.number.TInteger> {
-        delay(100)
+        latency(100)
         // Mirror the relay's authoritative source: count Device-targeted tombstones the
         // mock has accepted via [pushTombstone]. Lets `RevokeDevicePropagationTest`-style
         // multi-proxy fixtures observe the same OOB epoch view a recovering device would
@@ -400,5 +412,9 @@ class MockSyncRelay(private val context: TContext) : SyncRelay {
             it.second.targetEntityType.get() == org.tenshu.identity.Device.ID
         }.toLong()
         return TResult.Success.create(context, count.toTInteger(context))
+    }
+
+    private suspend fun latency(ms: Long) {
+        if (simulateLatency) delay(ms)
     }
 }

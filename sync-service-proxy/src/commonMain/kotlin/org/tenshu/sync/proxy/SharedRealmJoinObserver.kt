@@ -73,11 +73,12 @@ class SharedRealmJoinObserver(
             return
         }
 
+        val identity = syncManager.currentDeviceIdentity()
         val realmContext = RealmContext(
             ownerId = sharedRealmId,
-            deviceId = syncManager.currentDeviceId,
+            deviceId = identity.deviceId,
             derivedKeys = cryptoManager.deriveSharedRealmKeys(masterKey),
-            deviceSigningKeyPair = syncManager.getDeviceSigningKeyPair(),
+            deviceSigningKeyPair = identity.signingKeyPair,
             // Joiner: this device holds Kr (read/write the realm) but not the realm's
             // Ed25519 identity — device admission stays with the OWNER.
             masterKeyPair = null,

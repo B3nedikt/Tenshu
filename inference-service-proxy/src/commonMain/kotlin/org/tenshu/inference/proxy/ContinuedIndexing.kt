@@ -7,8 +7,11 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /**
@@ -172,7 +175,16 @@ class ContinuedIndexing(
 
     override fun holdsPass(): Boolean = claim.value != Claim.None
 
-    override fun standing(): ContinuationStanding = when (claim.value) {
+    override fun standing(): ContinuationStanding = standingOf(claim.value)
+
+    /**
+     * [standing] as it moves — what the Models screen's running line follows
+     * (`ios-on-device-inference.md` §15.7 Q2): *Keep Photos open* is true only while no task
+     * carries the pass. ⚠ Emits at once, and never completes.
+     */
+    val standings: Flow<ContinuationStanding> = claim.map { standingOf(it) }.distinctUntilChanged()
+
+    private fun standingOf(now: Claim): ContinuationStanding = when (now) {
         Claim.None -> ContinuationStanding.NONE
         is Claim.Submitted -> ContinuationStanding.SUBMITTED
         is Claim.Live -> ContinuationStanding.LIVE

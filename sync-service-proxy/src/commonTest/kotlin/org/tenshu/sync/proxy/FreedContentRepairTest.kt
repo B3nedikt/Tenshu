@@ -1,5 +1,6 @@
 package org.tenshu.sync.proxy
 
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import org.tenshu.core.Data
 import org.tenshu.core.collection.list.toList
@@ -97,9 +98,10 @@ class FreedContentRepairTest {
         }
     }
 
-    private fun rig(): Rig {
+    private fun TestScope.rig(): Rig {
         val files = InMemoryFileDatabase()
         val proxy = TestProxy(
+            coroutineScope = backgroundScope,
             schemaRegistry = createSyntheticTestRegistry().apply {
                 registerConfig(syncServiceCommonModule)
                 registerConfig(fileServiceCommonModule)

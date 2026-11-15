@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!--
+      ⚠⚠ Calendar does NOT post its own reminders, so it does not declare POST_NOTIFICATIONS.
+      Control owns the AlarmManager and posts them (calendar-app.md §4.6, CA-5f): the only
+      construction of `AndroidNotificationPresenter` is in `:control-shared-proxy`'s
+      PlatformProxyModule, and Control declares the permission and requests it at runtime
+      (control MainActivity.maybeAskForNotifications). The presenter reaches this APK only because
+      `:calendar-shared-logic` exposes `:app-notify`'s common types with `api`.
+
+      Declaring the permission here would be the wrong process asking: a grant to Calendar does not
+      let Control post. The ignore matches that one class's message only, so a notify() written in
+      Calendar itself is still caught.
+    -->
+    <issue id="NotificationPermission">
+        <ignore regexp="usage from app\.tenshu\.notify\.AndroidNotificationPresenter" />
+    </issue>
+</lint>

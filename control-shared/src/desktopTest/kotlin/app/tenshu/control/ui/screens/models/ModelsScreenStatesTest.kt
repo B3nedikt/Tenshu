@@ -18,6 +18,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.tenshu.inference.InferenceCapability
 import kotlin.test.assertEquals
+import org.tenshu.ui.test.NoMotion
 
 /**
  * The Models screen **opened** in each state its repository can report: what it says, and which
@@ -30,7 +31,7 @@ import kotlin.test.assertEquals
 class ModelsScreenStatesTest {
 
     @get:Rule
-    val composeTestRule = createComposeRule()
+    val composeTestRule = createComposeRule(NoMotion)
 
     private val search = InferenceCapability.SEMANTIC_IMAGE_SEARCH
     private val absent = ManagedModel("siglip", "SigLIP", byteSize = 401_604_608)

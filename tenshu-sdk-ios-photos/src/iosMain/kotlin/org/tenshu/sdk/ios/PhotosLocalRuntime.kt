@@ -1,5 +1,6 @@
 package org.tenshu.sdk.ios
 
+import app.tenshu.photos.data.LibraryWatch
 import app.tenshu.photos.data.PhotosRepository
 import app.tenshu.photos.data.TenshuPhotosRepository
 import app.tenshu.photos.data.declarePhotosWantedThumbnailClasses
@@ -10,6 +11,12 @@ import app.tenshu.control.di.PhotosModelTransfers
 import app.tenshu.control.di.PhotosOnDeviceAi
 import app.tenshu.control.di.PhotosIndexNow
 import app.tenshu.control.di.PhotosIndexNowTask
+import app.tenshu.control.di.PhotosProcessingWake
+import app.tenshu.control.di.PhotosProcessingWakeTask
+import org.tenshu.inference.proxy.ForegroundArrivals
+import org.tenshu.inference.proxy.ProcessingWake
+import org.tenshu.inference.proxy.WakeScheduler
+import org.tenshu.inference.proxy.WakeTask
 import org.tenshu.inference.proxy.ContinuedIndexing
 import org.tenshu.core.common.proxy.db.sqlite.SharedReplicaTaskProtection
 import org.tenshu.inference.proxy.ContinuedTask
@@ -23,8 +30,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import org.koin.core.Koin
+import org.tenshu.inference.proxy.MediaIndexRunner
+import org.koin.core.qualifier.named
+import org.tenshu.inference.proxy.AiReadiness
 import org.koin.core.module.Module
 import org.koin.dsl.module
 import org.tenshu.core.common.TenshuClient
@@ -52,7 +65,8 @@ import platform.Foundation.NSBundle
  *
  * ⚠⚠ **Photos owns the inference stores on iOS** (PIO-D10, `ios-on-device-inference.md` §3.1): the
  * vector and template logs, the model bytes and their index live in Photos' own container, bound
- * through `ownedInferenceStoresModule`, and carry a stamp of the realm they were built for. Every
+ * through `ownedInferenceStoresModule`, and carry a stamp of the realm they were built for (the owner
+ * id and the shared store's `meta.epoch`). Every
  * other route-1 graph binds stores that cannot write.
  * ⚠⚠ **On-device AI is behind a build flag that is off** ([ON_DEVICE_AI_INFO_KEY],
  * `ios-on-device-inference.md` §14). With it off, or on a phone a static gate refuses, no backend
@@ -101,11 +115,32 @@ object PhotosLocalRuntime {
         raw: Any? = NSBundle.mainBundle.objectForInfoDictionaryKey(ON_DEVICE_AI_INFO_KEY),
     ): Boolean = (raw as? String)?.trim() == "YES"
 
-    /** A test's stand-in for the build flag and the phone the static gates read. */
+    /**
+     * The Info.plist key of the **face** build flag (`ios-face-grouping.md` FD10, F5):
+     * `photos-ios/project.yml` writes the build setting `TENSHU_PHOTOS_FACES` into it, and that
+     * setting is `NO`.
+     *
+     * ⚠⚠ A second flag, never a widening of the first: it binds the face backend only where the AI
+     * flag and both static gates already admitted the phone ([PhotosOnDeviceAi.facesAdmitted]).
+     * Off until F8's device pass, and flipped after the AI flag (FD10).
+     */
+    const val FACES_INFO_KEY: String = "TenshuPhotosFaces"
+
+    /** Whether [raw], the Info.plist value, switches faces on. ⚠ Only the exact `YES`, as [onDeviceAiBuildFlag]. */
+    internal fun facesBuildFlag(
+        raw: Any? = NSBundle.mainBundle.objectForInfoDictionaryKey(FACES_INFO_KEY),
+    ): Boolean = (raw as? String)?.trim() == "YES"
+
+    /**
+     * A test's stand-in for the build flags and the phone the static gates read.
+     *
+     * @param facesBuildFlag the face flag; off unless a case says otherwise, as in production.
+     */
     class OnDeviceAiInputs(
         val buildFlag: Boolean,
         val osMajorVersion: Int,
         val physicalMemoryBytes: Long,
+        val facesBuildFlag: Boolean = false,
     )
 
     private val runtime = FirstPartyLocalRuntime(
@@ -126,6 +161,8 @@ object PhotosLocalRuntime {
         internal val inferenceRoot: String,
         /** Whether a backend was bound: the static gates' answer, for the life of this assembly. */
         internal val onDeviceAi: Boolean,
+        /** Whether the face backend was bound too: the face flag over [onDeviceAi]'s answer. */
+        internal val faces: Boolean,
         /**
          * What the Models screen is built over. ⚠ A provider, resolved when the screen first
          * opens: resolving it constructs the graph's model source, which is not launch-path work.
@@ -134,6 +171,13 @@ object PhotosLocalRuntime {
     ) {
         /** After a deprovision: the towers being unloaded behind it. A test waits on it. */
         internal var unloading: Job? = null
+
+        /**
+         * The last inference-store check [launchInferenceCheck] started: what a processing wake waits
+         * for before it asks what is asked of it (until it ends no backend serves).
+         */
+        @kotlin.concurrent.Volatile
+        internal var checking: Job? = null
     }
 
     private var installed: Assembly? = null
@@ -162,6 +206,11 @@ object PhotosLocalRuntime {
         deviceRealmOwner: (() -> String?)? = null,
         /** A test's stand-in for marking the directory excluded from backup; `null` is the real call. */
         inferenceBackupExclusion: ((String) -> String?)? = null,
+        /**
+         * A test's answer for the shared store's `meta.epoch`, the realm stamp's second half; `null`
+         * reads the graph's own store, as production does (`ownedInferenceStoresModule`).
+         */
+        replicaEpoch: (() -> Long?)? = null,
         /** A test's build flag and phone; production reads the Info.plist and `NSProcessInfo`. */
         onDeviceAi: OnDeviceAiInputs? = null,
         /** A test's bindings over the on-device AI module (a compiler that compiles nothing). */
@@ -176,11 +225,19 @@ object PhotosLocalRuntime {
             } else {
                 PhotosOnDeviceAi.admitted(onDeviceAiBuildFlag())
             }
+        // ⚠⚠ Faces: their own flag AND everything above. Decided once, with the same inputs.
+        val facesAdmitted: Boolean = aiAdmitted &&
+            if (onDeviceAi != null) {
+                PhotosOnDeviceAi.facesAdmitted(onDeviceAi.buildFlag, onDeviceAi.facesBuildFlag, onDeviceAi.osMajorVersion, onDeviceAi.physicalMemoryBytes)
+            } else {
+                PhotosOnDeviceAi.facesAdmitted(onDeviceAiBuildFlag(), facesBuildFlag())
+            }
         // The one thing that makes this app, and no other, the device's inference owner.
         val ownedStores: Module = ownedInferenceStoresModule(
             root = ownedRoot,
             deviceRealmOwner = deviceRealmOwner ?: { RealmKeyMaterialBridge.read()?.ownerId },
             excludeFromBackup = inferenceBackupExclusion ?: OwnedInferenceStores::excludeFromBackup,
+            storeEpoch = replicaEpoch,
         )
         val base = runtime.assembleBase(
             replicaDirectory = replicaDirectory,
@@ -189,7 +246,7 @@ object PhotosLocalRuntime {
             relayBaseUrl = relayBaseUrl,
             // ⚠ Not admitted: the very module this graph had before the flag existed.
             appOverrides = if (aiAdmitted) {
-                module { includes(listOfNotNull(ownedStores, photosOnDeviceAiModule(ownedRoot), onDeviceAiOverrides)) }
+                module { includes(listOfNotNull(ownedStores, photosOnDeviceAiModule(ownedRoot, faces = facesAdmitted), onDeviceAiOverrides)) }
             } else {
                 ownedStores
             },
@@ -213,11 +270,14 @@ object PhotosLocalRuntime {
                 client,
                 reachability = reachability,
                 watchScope = CoroutineScope(scope.coroutineContext + Dispatchers.Default.limitedParallelism(1)),
+                // An edited copy's push to the relay outlives the editor (`photos-editing.md` §9.6).
+                copyUploadScope = scope,
             ),
             reachability = reachability,
             scope = scope,
             inferenceRoot = ownedRoot,
             onDeviceAi = aiAdmitted,
+            faces = facesAdmitted,
             // ⚠ From the same inputs the decision above was made from, so the screen and the
             // graph cannot disagree about whether this phone is offered a model.
             modelsRepository = {
@@ -250,7 +310,7 @@ object PhotosLocalRuntime {
      * returns the stores are not usable, which is the safe side.
      */
     private fun launchInferenceCheck(assembly: Assembly, launch: Boolean) {
-        assembly.scope.launch {
+        assembly.checking = assembly.scope.launch {
             runCatching { checkInferenceStores(assembly) }
                 .onFailure { println("PhotosLocalRuntime -> inference store check failed: $it") }
             // Readiness's writer at launch and on every foreground, after the stores' own check:
@@ -289,6 +349,19 @@ object PhotosLocalRuntime {
         install()
     }
 
+    /**
+     * Whether [assembly]'s phone groups faces, for People — or `null` where the assembly bound no
+     * face backend (`ios-face-grouping.md` F7). ⚠⚠ Read from the graph's face readiness, so a phone
+     * the face preflight found unsuitable, or a graph that was torn down (its readiness retired,
+     * B.16) answers `false` until the next install replaces it ([PhotosFaceGrouping.over]).
+     */
+    internal fun faceGrouping(assembly: Assembly): PhotosFaceGrouping? {
+        if (!assembly.faces) return null
+        val readiness: AiReadiness = assembly.koin.getOrNull(named(PhotosOnDeviceAi.FACE_READINESS)) ?: return null
+        val koin: Koin = assembly.koin
+        return PhotosFaceGrouping.over(readiness) { koin.getOrNull<MediaIndexRunner>() }
+    }
+
     /** [install]'s body over a given assembly — the testable entry point. */
     internal fun install(assembly: Assembly) {
         installed = assembly
@@ -307,17 +380,38 @@ object PhotosLocalRuntime {
         // ⚠ Started now, not when Collections is first opened: its observers take a moment to go
         // live, and a first walk that began before they did cannot be called clean — the first
         // return to the tab would walk the library once more for nothing.
-        assembly.photosRepository.libraryWatch()
+        val watch: LibraryWatch? = assembly.photosRepository.libraryWatch()
+        // ⚠ PR-6b (IN-D6a): new arrivals are indexed while Photos is in front, found from that same
+        // watch — never from a walk. Only where a backend was bound (the AI flag; faces their own).
+        if (assembly.onDeviceAi) followArrivals(assembly, watch)
         // ⚠ The route search takes is the assembly's, decided with its graph: `null` keeps the
         // "isn't available on this iPhone yet" surface, where the proxy is never asked.
         val koin: Koin = assembly.koin
         PhotosSurface.installOnDeviceAi(if (assembly.onDeviceAi) ({ PhotosOnDeviceAi.unsuitable(koin) }) else null)
+        // F7: People's `groupingRunsHere`, from the same assembly — never a literal in Swift.
+        PhotosSurface.installFaceGrouping(faceGrouping(assembly))
         PhotosSurface.installModels(assembly.modelsRepository)
         // The stamp's first check point: before anything can be bound over the stores.
         launchInferenceCheck(assembly, launch = true)
         // The graph is complete; only from here does the shared store's host take it, and it may
         // stop it at once (a not-ready stand-in). Nothing when the process has no binding.
         runtime.graphReady()
+    }
+
+    /**
+     * The library watch's changes into the arrivals batch (`ios-on-device-inference.md` §17). ⚠⚠ Every
+     * move of the revision may be an arrival (it errs toward moving, `LibraryWatch`); with no watch,
+     * or one not watching, nothing vouches, and every foreground owes a batch. ⚠ A batch waits for
+     * the latest store check first ([Assembly.checking]): until it ends no backend serves.
+     */
+    private fun followArrivals(assembly: Assembly, watch: LibraryWatch?) {
+        runCatching {
+            assembly.koin.get<ForegroundArrivals>().follow(
+                changes = watch?.revision?.drop(1)?.map { } ?: emptyFlow(),
+                vouches = { watch?.watching?.value == true },
+                prepare = { assembly.checking?.join() },
+            )
+        }.onFailure { println("PhotosLocalRuntime -> new arrivals are not followed: $it") }
     }
 
     /**
@@ -598,6 +692,195 @@ object PhotosLocalRuntime {
         continuedIndexing()?.expired(identifier)
         hold?.endToken()
         holds { remove(identifier) }
+    }
+
+    // ─── The processing wake (`ios-on-device-inference.md` PR-6, §16) ─────────────────────────────
+
+    /** What Swift registers at launch, submits and finds in `BGTaskSchedulerPermittedIdentifiers`. */
+    fun processingWakeIdentifier(): String = PhotosProcessingWakeTask.IDENTIFIER
+
+    /**
+     * Registers Swift's `BGTaskScheduler` driver for the wake. Once, at app launch, and only with
+     * [modelDownloadsOffered] (the build flag and the static gates): with the flag off nothing is
+     * ever submitted, and a wake that comes anyway is completed at once ([runProcessingWake]).
+     */
+    fun installProcessingWake(bridge: ProcessingWakeBridge) {
+        PhotosProcessingWake.install(
+            object : WakeScheduler {
+                // ⚠ Not journalled here: the submission is Swift's and asynchronous, and a refusal
+                // (Background App Refresh off, the simulator) must not read as *armed*. Swift says
+                // what it got through [onProcessingWakeSubmitAnswered].
+                override fun submit() = bridge.submit(
+                    PhotosProcessingWakeTask.IDENTIFIER,
+                    requiresExternalPower = PhotosProcessingWakeTask.REQUIRES_EXTERNAL_POWER,
+                    requiresNetworkConnectivity = PhotosProcessingWakeTask.REQUIRES_NETWORK_CONNECTIVITY,
+                )
+
+                override fun withdraw() {
+                    bridge.withdraw(PhotosProcessingWakeTask.IDENTIFIER)
+                    journal("withdrawn")
+                }
+            },
+        )
+    }
+
+    /** Swift → Kotlin: what `BGTaskScheduler.submit` answered, for the journal. */
+    fun onProcessingWakeSubmitAnswered(accepted: Boolean, detail: String?) {
+        journal(if (accepted) "armed" else "submit refused: ${detail ?: "unknown"}")
+    }
+
+    /**
+     * The wake's journal, one line per arm, launch and end, for the device runbook's three nights
+     * (`how-to/photos-processing-wake.md`): nothing is attached to a phone overnight, so stdout is
+     * lost. ⚠ In Photos' private inference root, never the App Group; kept small
+     * by dropping its older half ([ProcessingWakeJournal]). A test's root is the assembly's.
+     */
+    internal fun journal(event: String) {
+        println("[photos-wake] $event")
+        val root: String = installed?.inferenceRoot ?: return
+        ProcessingWakeJournal.append(root, event)
+    }
+
+    /**
+     * One wake's place, by the id Swift gave it: whether it expired, its hold on the store, and the
+     * [ProcessingWake] that carries it once it runs. ⚠ Created only by [onProcessingWakeBegan] (or a
+     * run with none), removed at the completion: an expiry never creates one.
+     */
+    private class WakeEntry {
+        var expired = false
+        var hold: SharedReplicaTaskProtection? = null
+        var wake: ProcessingWake? = null
+    }
+
+    private val wakes = HashMap<String, WakeEntry>()
+
+    private fun <T> wakeEntries(block: HashMap<String, WakeEntry>.() -> T): T {
+        taskHoldsLock.lock()
+        try {
+            return wakes.block()
+        } finally {
+            taskHoldsLock.unlock()
+        }
+    }
+
+    /** How many wakes the runtime holds a place for. A test's: none is left behind. */
+    internal fun wakeEntryCount(): Int = wakeEntries { size }
+
+    /** A test seam: run after the wake is marked running and before it is launched. Null in production. */
+    internal var beforeWakeLaunchForTests: (() -> Unit)? = null
+
+    /** [ProcessingWakeTask] completed once, whichever path reaches it first. */
+    private class OnceProcessingTask(private val task: ProcessingWakeTask) {
+        private val done = kotlin.concurrent.AtomicInt(0)
+        fun complete(success: Boolean) {
+            if (done.compareAndSet(0, 1)) task.complete(success)
+        }
+    }
+
+    /**
+     * Swift → Kotlin, **first** in the wake's launch handler, before its `expirationHandler` is set:
+     * the wake's place, so an expiry that comes before [runProcessingWake] is kept, and an expiry
+     * that comes after the completion (none should) finds nothing and leaves nothing behind.
+     */
+    fun onProcessingWakeBegan(wakeId: String) {
+        wakeEntries { getOrPut(wakeId) { WakeEntry() } }
+    }
+
+    /**
+     * Swift → Kotlin, from the wake's launch handler, **off the main thread and after Swift installed
+     * the runtime on it** (a background launch builds no view, so nothing else would). ⚠⚠ Every task
+     * handed here is completed exactly once: by the wake's terminal outcome, or at once (`false`) when
+     * no installed graph can carry it, the store's token cannot be had, or [wakeId] already expired.
+     *
+     * ⚠⚠ **The store's task token first** (`ios-shared-store-sqlite.md` B.23.3): taken before the wake
+     * does anything, its assertion the task itself, and ended inside the completion, **before**
+     * `setTaskCompleted`. Never an entry's `withProtection`, whose `beginBackgroundTask` iOS ends
+     * within seconds whatever task keeps the app running. ⚠ Blocks while the token is taken.
+     *
+     * @param wakeId a fresh id per launch, the same one [onProcessingWakeExpired] is called with.
+     */
+    fun runProcessingWake(wakeId: String, task: ProcessingWakeTask) {
+        val once = OnceProcessingTask(task)
+        val expiredFirst: Boolean = wakeEntries { getOrPut(wakeId) { WakeEntry() }.expired }
+        val assembly: Assembly? = installed?.takeIf { it.onDeviceAi }
+        val wake: ProcessingWake? = assembly?.koin?.let { koin -> runCatching { koin.get<ProcessingWake>() }.getOrNull() }
+        if (expiredFirst || wake == null) {
+            println("[photos-wake] nothing to carry it (expired=$expiredFirst installed=${assembly != null}): completed")
+            wakeEntries { remove(wakeId) }
+            once.complete(false)
+            return
+        }
+        val hold: SharedReplicaTaskProtection = taskProtection("photos-processing-wake")
+        // Registered before the token is taken: an expiry from here on finds it.
+        val expiredMeanwhile: Boolean = wakeEntries {
+            val entry = getOrPut(wakeId) { WakeEntry() }
+            entry.hold = hold
+            entry.expired
+        }
+        if (expiredMeanwhile || !hold.begin()) {
+            println("[photos-wake] no token for it (expired=$expiredMeanwhile): completed")
+            hold.finish {
+                wakeEntries { remove(wakeId) }
+                once.complete(false)
+            }
+            return
+        }
+        // ⚠ The wake this entry's expiry tells, held here: never re-resolved from whatever graph
+        // is installed when the expiry comes.
+        wakeEntries { getOrPut(wakeId) { WakeEntry() }.wake = wake }
+        val checking: Job? = assembly.checking
+        val began: kotlin.time.Instant = kotlin.time.Clock.System.now()
+        PhotosProcessingWake.lastPass = null
+        journal("launched")
+        beforeWakeLaunchForTests?.invoke()
+        wake.launched(
+            object : WakeTask {
+                // ⚠⚠ The token ends, then the task is completed (the wake calls this once). The
+                // entry stays findable until the token has ended: an expiry during this release
+                // turns it into an expiry and waits for it.
+                override fun complete(success: Boolean) {
+                    val minutes: Double = (kotlin.time.Clock.System.now() - began).inWholeSeconds / 60.0
+                    val expired: Boolean = wakeEntries { this[wakeId]?.expired == true }
+                    journal("ended minutes=${(minutes * 10).toLong() / 10.0} success=$success expired=$expired ${PhotosProcessingWake.lastPass ?: "nopass"}")
+                    hold.finish {
+                        wakeEntries { remove(wakeId) }
+                        once.complete(success)
+                    }
+                }
+            },
+            // ⚠ Until the store check has ended, no backend serves and nothing would be asked.
+            prepare = {
+                val waited: kotlin.time.Instant = kotlin.time.Clock.System.now()
+                checking?.join()
+                // 📱 How long the launch's store check held the wake (§16.6).
+                journal("checked ms=${(kotlin.time.Clock.System.now() - waited).inWholeMilliseconds}")
+            },
+        )
+        // ⚠⚠ Read AFTER the launch: an expiry anywhere before it (the journal's write, the seam)
+        // found no wake current, and its token has ended — a wake launched past it would park at
+        // the closed gate and never complete. `expired()` is idempotent.
+        if (wakeEntries { this[wakeId]?.expired == true }) wake.expired()
+    }
+
+    /**
+     * Swift → Kotlin, from the wake's `expirationHandler`. ⚠⚠ The order (B.23): the token's end is
+     * made an expiry; the wake is told (the scheduled bar says no at once, the pass is cancelled at its
+     * next photo, and the task is completed with `false` once it has stopped); then the token is ended
+     * as a backstop — B.15.3's interrupt and its 2 s drain — before this returns.
+     * ⚠ An expiry for a wake the runtime holds no place for (completed already) does nothing.
+     */
+    fun onProcessingWakeExpired(wakeId: String) {
+        val entry: WakeEntry = wakeEntries { this[wakeId]?.also { it.expired = true } } ?: run {
+            println("[photos-wake] an expiry for a wake that is not held ($wakeId)")
+            return
+        }
+        val (hold: SharedReplicaTaskProtection?, wake: ProcessingWake?) = wakeEntries { entry.hold to entry.wake }
+        println("[photos-wake] expired (running=${wake != null})")
+        hold?.expire()
+        wake?.expired()
+        hold?.endToken()
+        // ⚠ After the token has ended: the journal's write is no part of the handler's budget before it.
+        journal("expired (running=${wake != null})")
     }
 
     private fun continuedIndexing(): ContinuedIndexing? =

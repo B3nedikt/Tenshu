@@ -29,6 +29,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import org.tenshu.ui.test.NoMotion
 
 /** The People section of Collections: face cards and the line that says why it is empty. */
 @OptIn(ExperimentalTestApi::class)
@@ -116,7 +117,7 @@ class PeopleSectionTest {
     // ── the screen ──────────────────────────────────────────────────────────────────────────
 
     @Test
-    fun aPersonWithACoverFaceIsDrawnAsTheirFace() = runComposeUiTest {
+    fun aPersonWithACoverFaceIsDrawnAsTheirFace() = runComposeUiTest(effectContext = NoMotion) {
         val requested = mutableListOf<String>()
         val face = FaceCover("/face.jpg", FaceRegion(0.4f, 0.3f, 0.6f, 0.5f))
         setContent {
@@ -147,7 +148,7 @@ class PeopleSectionTest {
     }
 
     @Test
-    fun aPersonWithNoFaceHereFallsBackToTheWholePhotograph() = runComposeUiTest {
+    fun aPersonWithNoFaceHereFallsBackToTheWholePhotograph() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 CollectionsScreen(
@@ -172,7 +173,7 @@ class PeopleSectionTest {
     }
 
     @Test
-    fun anEmptyPeopleSectionSaysWhy_forEveryStatus() = runComposeUiTest {
+    fun anEmptyPeopleSectionSaysWhy_forEveryStatus() = runComposeUiTest(effectContext = NoMotion) {
         var current by mutableStateOf(state(status = PeopleStatus.Available))
         setContent {
             TenshuTheme {
@@ -208,7 +209,7 @@ class PeopleSectionTest {
     }
 
     @Test
-    fun onAPlatformThatCannotGroupFaces_thereIsNoPeopleSectionAtAll() = runComposeUiTest {
+    fun onAPlatformThatCannotGroupFaces_thereIsNoPeopleSectionAtAll() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 CollectionsScreen(
@@ -231,7 +232,7 @@ class PeopleSectionTest {
     }
 
     @Test
-    fun anEmptyLibraryLeavesItToTheTabsOwnEmptyCopy() = runComposeUiTest {
+    fun anEmptyLibraryLeavesItToTheTabsOwnEmptyCopy() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 CollectionsScreen(
@@ -254,7 +255,7 @@ class PeopleSectionTest {
 
     /** An empty album makes the tab non-empty, but there is still nothing to index. */
     @Test
-    fun anEmptyAlbumWithNoPhotographsAsksForNothing() = runComposeUiTest {
+    fun anEmptyAlbumWithNoPhotographsAsksForNothing() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 CollectionsScreen(

@@ -4,10 +4,12 @@ import app.tenshu.drive.data.FilesRepository
 import app.tenshu.drive.data.RepositoryError
 import app.tenshu.drive.data.RepositoryResult
 import app.tenshu.drive.integration.utils.AppIntegrationKoin
+import app.tenshu.drive.integration.utils.mockPngBytesForUri
 import app.tenshu.drive.integration.utils.startAppIntegrationKoin
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertTrue
 
 class UploadFileIntegrationTest {
@@ -46,5 +48,23 @@ class UploadFileIntegrationTest {
             repoError is RepositoryError.AlreadyExists,
             "Error should be AlreadyExists but was $repoError"
         )
+    }
+
+    /**
+     * An uploaded file reads back, byte for byte, through `getRemoteFile`, the repository surface
+     * a click on a file uses. Moved here from `FilesScreenIntegrationTest`, whose version uploaded
+     * through the UI and then only checked that this call did not throw.
+     */
+    @Test
+    fun uploadFile_thenGetRemoteFile_returnsTheUploadedBytes() = runBlocking {
+        appKoin = startAppIntegrationKoin()
+        val uri = "mock://to_click.jpg"
+
+        val upload = filesRepository.uploadFile(uri, "/", "to_click.jpg")
+        assertTrue(upload is RepositoryResult.Success, "upload: $upload")
+
+        val read = filesRepository.getRemoteFile("/to_click.jpg")
+        assertTrue(read is RepositoryResult.Success, "getRemoteFile: $read")
+        assertContentEquals(mockPngBytesForUri(uri), read.value)
     }
 }

@@ -219,13 +219,21 @@ concurrency:
   group: web-ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Nothing here writes through the token: artifacts and caches use the Actions runtime token.
+permissions:
+  contents: read
+
 jobs:
   build:
     name: typecheck + lint + test + build
-    runs-on: ubuntu-latest
+    # ⚠ Pinned, not `ubuntu-latest`: GitHub moves that label to Ubuntu 26.04 from 2026-10-19, and
+    # the pinned Playwright refuses to install its browser there ("does not support
+    # chromium-headless-shell on ubuntu26.04-x64"). Move the pin on purpose, with the tools that
+    # need it, rather than finding out from a red run.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # ⚠⚠ A PIN, not a fix. control-desktop / drive-desktop resolve an `FFM_JDK = 25` launcher
       # eagerly at CONFIGURATION time and there is no configure-on-demand, so every invocation
@@ -234,13 +242,18 @@ jobs:
       # JDK 17 alone was green. Pinning removes that per-run download and the network dependency.
       # 17 is listed LAST so it stays the daemon JVM. Full reasoning in android.yml.
       - name: Set up JDK 25 (desktop FFM toolchain) + JDK 17 (daemon + shared modules)
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: |
             25
             17
           distribution: "temurin"
-          cache: gradle
+
+      # Gradle's own cache action: Gradle's user home (dependencies, wrapper, and the local BUILD
+      # cache). It replaces setup-java's `cache: gradle`, which kept dependencies only. ⚠ By default
+      # only the default branch WRITES the cache; PRs read it.
+      - name: Set up Gradle (dependency + build cache)
+        uses: gradle/actions/setup-gradle@v5
 
       # ⚠ setup-java installs into the hosted tool cache, which is NOT a location Gradle's
       # toolchain auto-detection scans — so the 25 above is invisible to `launcherFor` without
@@ -253,7 +266,7 @@ jobs:
           echo "org.gradle.java.installations.fromEnv=JAVA_HOME_25_X64,JAVA_HOME_25_ARM64,JAVA_HOME_17_X64,JAVA_HOME_17_ARM64" >> ~/.gradle/gradle.properties
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
         with:
           version: 10.34.5
 
@@ -266,7 +279,7 @@ jobs:
       # `pnpm install --frozen-lockfile` does NOT enforce `engines`, so nothing upstream
       # of this line catches an engine-floor bump — see web/package.json's `engines`.
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
@@ -362,7 +375,7 @@ jobs:
 
       - name: Upload apex dist
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: apex-dist
           path: web/apex/dist

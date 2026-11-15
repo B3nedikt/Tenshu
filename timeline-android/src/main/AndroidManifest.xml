@@ -23,6 +23,12 @@
          backgrounded, FGS being restarted by the watchdog or a boot receiver. That is the state this
          permission serves, and it is the one that matters after an OEM kill. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- ⚠ COARSE beside FINE, and requested together (MainActivity.missingPermissions): from
+         Android 12 the system ignores a FINE request made without COARSE, and the dialog it shows
+         lets the user pick "Approximate". Capture needs PRECISE — an approximate fix cannot tell one
+         place from the next — so an approximate-only grant is handled as a refusal, with a toast
+         saying why (MainActivity.requestPermissions). -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <!-- Reads the CONNECTED access point's BSSID for opt-in Wi-Fi place recognition (§4.5): folds
          repeat visits onto the place you named, past the ±100 m indoor GPS floor. Off by default.

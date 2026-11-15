@@ -24,7 +24,7 @@
   },
   "banner": {
     "thisDevice": "cet appareil",
-    "signedInAs": "Vous êtes connecté en tant que <strong>{deviceName}</strong>. <controlPlane>Ouvrir votre centre de contrôle →</controlPlane>",
+    "signedInAs": "Vous êtes connecté en tant que <strong>{deviceName}</strong>. <apps>Ouvrir vos applications →</apps>",
     "lock": "Verrouiller",
     "lockAriaLabel": "Verrouiller cet appareil. Vous devrez le déverrouiller pour continuer",
     "dismiss": "Fermer"

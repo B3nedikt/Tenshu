@@ -22,6 +22,7 @@ import app.tenshu.ui.theme.TenshuTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.tenshu.ui.test.NoMotion
 
 /**
  * Pins **how wide the navigation chrome is** at every window size class, how much window margin
@@ -62,7 +63,7 @@ class AdaptiveNavMetricsTest {
     ): Body {
         var density = 0f
         var body = Body(-1f, -1f)
-        runDesktopComposeUiTest(width = windowWidthPx, height = 900) {
+        runDesktopComposeUiTest(width = windowWidthPx, height = 900, effectContext = NoMotion) {
             setContent {
                 CompositionLocalProvider(LocalNavRailPreference provides preference) {
                     TenshuTheme {
@@ -174,7 +175,7 @@ class AdaptiveNavMetricsTest {
         // reach, and the button spent 124 dp of body width re-flowing text the user could
         // already read. Below Large the size class is now the entire rule.
         listOf(800, 1024, 1199).forEach { windowWidth ->
-            runDesktopComposeUiTest(width = windowWidth, height = 900) {
+            runDesktopComposeUiTest(width = windowWidth, height = 900, effectContext = NoMotion) {
                 setContent {
                     TenshuTheme { AdaptiveNavScaffold(navItems = navItems(shortLabels)) {} }
                 }
@@ -183,7 +184,7 @@ class AdaptiveNavMetricsTest {
                 onAllNodesWithContentDescription(COLLAPSE).assertCountEquals(0)
             }
         }
-        runDesktopComposeUiTest(width = 1280, height = 900) {
+        runDesktopComposeUiTest(width = 1280, height = 900, effectContext = NoMotion) {
             setContent { TenshuTheme { AdaptiveNavScaffold(navItems = navItems(shortLabels)) {} } }
             waitForIdle()
             // Large starts expanded, so the control on offer is the collapse direction.
@@ -197,7 +198,7 @@ class AdaptiveNavMetricsTest {
         // it back for the body. Both directions, because only the collapse direction is
         // reachable from the default state and a one-way control is a trap.
         var density = 0f
-        runDesktopComposeUiTest(width = 1280, height = 900) {
+        runDesktopComposeUiTest(width = 1280, height = 900, effectContext = NoMotion) {
             setContent {
                 TenshuTheme {
                     density = LocalDensity.current.density
@@ -240,7 +241,7 @@ class AdaptiveNavMetricsTest {
         // content description is the *action* ("Collapse navigation" — what a click does); the
         // state description is what the rail *is*. Flipping only the description, as this did
         // before, renames the control between announcements and never reports a state at all.
-        runDesktopComposeUiTest(width = 1280, height = 900) {
+        runDesktopComposeUiTest(width = 1280, height = 900, effectContext = NoMotion) {
             setContent { TenshuTheme { AdaptiveNavScaffold(navItems = navItems(shortLabels)) {} } }
             waitForIdle()
 
@@ -271,7 +272,7 @@ class AdaptiveNavMetricsTest {
         // button that is not rendered there and failed on `assertExists`. Every other toggle test
         // in this file uses 1280 for the same reason.
         var density = 0f
-        runDesktopComposeUiTest(width = 1280, height = 900) {
+        runDesktopComposeUiTest(width = 1280, height = 900, effectContext = NoMotion) {
             setContent {
                 TenshuTheme {
                     density = LocalDensity.current.density
@@ -359,7 +360,7 @@ class AdaptiveNavMetricsTest {
         measureBody(1280, shortLabels, preference)
         assertTrue(preference.writes.isEmpty(), "rendering alone must not write a preference")
 
-        runDesktopComposeUiTest(width = 1280, height = 900) {
+        runDesktopComposeUiTest(width = 1280, height = 900, effectContext = NoMotion) {
             setContent {
                 CompositionLocalProvider(LocalNavRailPreference provides preference) {
                     TenshuTheme { AdaptiveNavScaffold(navItems = navItems(shortLabels)) {} }

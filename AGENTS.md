@@ -130,6 +130,7 @@ the `:tenshu-sdk-ios-*` modules + `:ui-core` reach (`tech-debt.md` *"The JS and 
 scripts/run-gate.sh          # `desktopTest jvmTest test testAndroidHostTest` + the JS/iOS lanes
                              # ⚠⚠ `testAndroidHostTest` is NOT reachable from `test` — omitting it
                              # hid 219 test classes and let a widened AIDL break master.
+scripts/run-gate.sh --quick  # changed modules + dependents; ⚠ full before shared merges/syncs
 
 # Every `iosMain` the SDK graph REACHES — not all of them, see above. NOT covered by the gate; ~45 s.
 # ⚠⚠ macOS ONLY, and it REFUSES elsewhere rather than lying: K/N cannot cross-compile an Apple

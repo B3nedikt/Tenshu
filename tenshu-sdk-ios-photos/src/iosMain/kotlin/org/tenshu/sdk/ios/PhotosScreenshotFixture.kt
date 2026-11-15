@@ -11,7 +11,14 @@ import app.tenshu.photos.data.PhotoPageResult
 import app.tenshu.photos.data.PhotoPreview
 import app.tenshu.photos.data.PhotosRepository
 import app.tenshu.photos.data.PhotosRepositoryDecorator
+import app.tenshu.photos.model.FaceGroup
+import app.tenshu.photos.model.FaceRegion
+import app.tenshu.photos.model.GroupFace
+import app.tenshu.photos.model.NamingOutcome
+import app.tenshu.photos.model.PeopleStatus
 import app.tenshu.photos.model.Photo
+import org.tenshu.inference.FaceGroupsUnavailable
+import org.tenshu.inference.InferenceCapability
 import androidx.paging.Pager
 import androidx.paging.PagingData
 import androidx.paging.PagingSource
@@ -97,6 +104,9 @@ internal object PhotosScreenshotFixture {
                     // Alternate landscape and portrait, so the viewer's letterboxing shows too.
                     pixelWidth = if (i % 3 == 0) 3024 else 4032,
                     pixelHeight = if (i % 3 == 0) 4032 else 3024,
+                    // `-photosPeople`: Leo's first photograph (#60) carries an edit (ED-3), so his
+                    // header — which has no face to cut — must draw the rendition, never the original.
+                    renditionPath = if (peopleState != null && i == EDITED_PERSON_PHOTO) EDITED_PERSON_RENDITION else null,
                 )
             }
             day++
@@ -118,10 +128,72 @@ internal object PhotosScreenshotFixture {
                 // the Collections tab gets its Things row.
                 DOGS.forEach { label(photos[it].path, "dog") }
                 label(photos[BEACH].path, "beach")
+                peopleState?.let { people(this, photos, it) }
             },
             family = photos.take(FAMILY_SIZE),
             trashed = photos.subList(TRASHED_FROM, TRASHED_FROM + TRASHED_SIZE),
         )))
+    }
+
+    // ── People (`ios-face-grouping.md` F7) ───────────────────────────────────────────────────────
+
+    /**
+     * `-photosPeople <state>`: People as a phone with a face backend sees it — **DEV_HARNESS only**.
+     * With it [PhotosSurface.installScreenshotFixture] says this phone groups faces; without it the
+     * fixture is the shipped build's (no face backend, People's lines silent).
+     *
+     * - `noModel` / `noConsent` / `notIndexed`: the proxy's refusal (`FaceGroupsUnavailable.Reasons`).
+     * - `syncedOnly`: ⚠ the SHIPPED build's People — no face backend (both flags off), so
+     *   [peopleGroupsFaces] is false: only the synced names, and no naming.
+     * - `none`: grouping ran and found nobody.
+     * - `faces`: three clusters — **g1** (#30–#33 and #50), **g2** (#40–#42), **g3** (#50–#53).
+     * - `suggest` (IN-6 F6c name suggestions): **gA** (#50–#52, #54) and **gB** (#53, #55) split Mia's
+     *   own faces, so gA — holding most of them — is ASKED *"Is this Mia?"*; **gLeo** (#60–#63) holds
+     *   every face of Leo's, so it is FOLDED into Leo on screen, #62–#63 unconfirmed.
+     *
+     * ⚠ In EVERY state, two names synced from another device (`MediaLabel` rows with the face
+     * capability, as Android writes them): **Mia** on #50–#53 and **Leo** on #60–#61. Before this
+     * phone has faces both show from their labels alone, with no face to crop; once it has, g3 is
+     * entirely Mia's, so `peopleFrom` folds it into her and she gets its face (`PeopleCollectionsTest`'s
+     * rule) — Leo, whom no cluster here covers, never does.
+     */
+    val peopleState: String? = NSProcessInfo.processInfo.arguments.map { it.toString() }.let { args ->
+        args.getOrNull(args.indexOf("-photosPeople") + 1)?.takeIf { "-photosPeople" in args }
+    }
+
+    /** Whether the fixture's phone groups faces: every `-photosPeople` state but `syncedOnly`. */
+    val peopleGroupsFaces: Boolean get() = peopleState != null && peopleState != "syncedOnly"
+
+    /** Leo's first photograph, edited; its rendition's path (a name `render` draws without a number). */
+    private const val EDITED_PERSON_PHOTO = 60
+    const val EDITED_PERSON_RENDITION = "/Trash/.edits/fixture-60-edit.jpg"
+
+    private fun people(mock: MockPhotosRepository, photos: List<Photo>, state: String) {
+        fun name(range: IntRange, who: String) = range.forEach {
+            mock.label(photos[it].path, who, capability = InferenceCapability.FACE_CLUSTERING.id)
+        }
+        name(50..53, "Mia")
+        name(60..61, "Leo")
+        // ⚠ Off-centre on purpose — upper right — so a centred cover cannot pass for the face.
+        val region = FaceRegion(0.60f, 0.10f, 0.85f, 0.45f)
+        fun group(id: String, members: List<Int>) = FaceGroup(
+            groupId = id,
+            filePaths = members.map { photos[it].path },
+            faces = members.map { GroupFace(photos[it].path, faceIndex = 0, region = region, facesInPhoto = 1) },
+        )
+        mock.peopleOutcome = when (state) {
+            "faces" -> listOf(group("g1", listOf(30, 31, 32, 33, 50)), group("g2", listOf(40, 41, 42)), group("g3", (50..53).toList())) to
+                PeopleStatus.Available
+            "suggest" -> listOf(
+                group("gA", listOf(50, 51, 52, 54)),
+                group("gLeo", (60..63).toList()),
+                group("gB", listOf(53, 55)),
+            ) to PeopleStatus.Available
+            "none" -> emptyList<FaceGroup>() to PeopleStatus.Available
+            "noConsent" -> emptyList<FaceGroup>() to PeopleStatus.Unavailable(FaceGroupsUnavailable.Reasons.NO_CONSENT)
+            "notIndexed" -> emptyList<FaceGroup>() to PeopleStatus.Unavailable(FaceGroupsUnavailable.Reasons.NOT_INDEXED)
+            else -> emptyList<FaceGroup>() to PeopleStatus.Unavailable(FaceGroupsUnavailable.Reasons.NO_BACKEND)
+        }
     }
 
     // ── where a call ran (`photos-ios.md` §8.22.2) ──────────────────────────────────────────────────
@@ -403,6 +475,15 @@ internal object PhotosScreenshotFixture {
             return mock.searchByLabel(query)
         }
 
+        /**
+         * A name, written as the proxy writes it: one face-capability `MediaLabel` per photograph,
+         * which the next Collections read joins into People (`-photosPeople`).
+         */
+        override suspend fun nameFaceGroup(filePaths: List<String>, name: String): NamingOutcome = edit {
+            filePaths.forEach { mock.label(it, name, capability = InferenceCapability.FACE_CLUSTERING.id) }
+            NamingOutcome.Saved
+        }
+
         /** Every fourth photograph (#3, #7, …) refuses every trash write — see the class KDoc. */
         private fun refuses(contentId: String) = contentId.removePrefix("fixture-").toIntOrNull()?.rem(4) == 3
 
@@ -454,7 +535,14 @@ internal object PhotosScreenshotFixture {
             photo.path.substringAfterLast("IMG_").substringBefore('.').toIntOrNull()?.minus(10_000)?.rem(4) == 3
 
         override suspend fun preview(path: String, width: Int, height: Int): PhotoPreview? =
-            PhotoPreview(render(path, maxOf(width, height).coerceIn(64, 512)))
+            PhotoPreview(mock.originals[path] ?: render(path, maxOf(width, height).coerceIn(64, 512)))
+
+        /**
+         * The editor's original (ED-1) — the same swatch, at a size worth editing. ⚠ An edited copy
+         * the mock saved is served as its own bytes, here and in the two previews, so the copy opened
+         * after a save shows the edit rather than a fresh swatch.
+         */
+        override suspend fun originalBytes(path: String): ByteArray? = mock.originals[path] ?: render(path, 1600)
 
         /**
          * ⚠ Two rungs, like the real read: the local preview at once, then a sharper one after a pull
@@ -465,6 +553,7 @@ internal object PhotosScreenshotFixture {
          */
         override fun viewerPreview(path: String, requestPx: Int, mayMint: Flow<Unit>): Flow<PhotoPreview> =
             flow {
+                mock.originals[path]?.let { emit(PhotoPreview(it)); return@flow }
                 emit(PhotoPreview(render(path, (requestPx / 2).coerceIn(256, 800))))
                 delay(6_000)
                 emit(PhotoPreview(render(path, requestPx.coerceIn(256, 1600))))

@@ -104,3 +104,11 @@ kotlin {
         }
     }
 }
+
+// `WebDriveSettingsMatchNativeTest` reads the web SDK's copy of Drive's display preferences
+// (web-apps-layout.md L6). ⚠ Declared as an input, or an edit there leaves this test UP-TO-DATE and
+// a drift between native and web would pass the gate unseen.
+tasks.matching { it.name == "desktopTest" }.configureEach {
+    inputs.file(rootProject.file("tenshu-sdk-js/src/jsMain/kotlin/app/tenshu/sdk/ViewSettings.kt"))
+        .withPropertyName("webDriveSettings")
+}

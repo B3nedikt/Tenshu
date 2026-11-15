@@ -7,12 +7,12 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertTrue
+import org.tenshu.viewmodel.test.vmTest
 
 /**
  * Reactive coverage of [TimelineSurface] over the explicitly-installed
@@ -32,24 +32,24 @@ class TimelineSurfaceTest {
     @AfterTest fun tearDown() = Dispatchers.resetMain()
 
     @Test
-    fun home_vm_loads_days_and_a_moment_and_place_resolve() = runTest(dispatcher) {
+    fun home_vm_loads_days_and_a_moment_and_place_resolve() = vmTest(dispatcher) { vms ->
         // Fresh mock so the assertions don't depend on other tests' installs.
         TimelineSurface.installMock()
 
-        val home = TimelineSurface.homeViewModel()
+        val home = vms.own(TimelineSurface.homeViewModel())
         advanceUntilIdle()
         val state = home.uiState.value
         assertTrue(state.days.isNotEmpty(), "Home feed should surface mock days")
 
         // A moment from the loaded feed resolves through the detail factory.
         val momentId = state.days.firstNotNullOf { it.moments.firstOrNull() }.id
-        val moment = TimelineSurface.momentViewModel(momentId)
+        val moment = vms.own(TimelineSurface.momentViewModel(momentId))
         advanceUntilIdle()
         assertTrue(moment.uiState.value is MomentDetailUiState.Loaded, "moment $momentId should load")
 
         // Places tab data is loaded onto the same Home VM; a place resolves via its factory.
         assertTrue(state.places.isNotEmpty(), "Places should surface mock places")
-        val place = TimelineSurface.placeViewModel(state.places.first().id)
+        val place = vms.own(TimelineSurface.placeViewModel(state.places.first().id))
         advanceUntilIdle()
         assertTrue(place.uiState.value is PlaceDetailUiState.Loaded, "place should load")
     }

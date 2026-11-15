@@ -4,6 +4,7 @@ import org.tenshu.core.Data
 import org.tenshu.core.common.proxy.ArrayDatabaseReference
 import org.tenshu.core.common.proxy.DataObserver
 import org.tenshu.core.common.proxy.ExecutionContext
+import org.tenshu.core.common.proxy.SaveOutcomeAwareDataObserver
 import org.tenshu.core.common.proxy.WriteOrigin
 import org.tenshu.core.entity.DataId
 import org.tenshu.core.entity.Entity
@@ -44,7 +45,7 @@ import org.tenshu.core.entity.getDataIdHash
 class RelationMaintainer(
     private val executionContext: ExecutionContext,
     private val registry: RelationRegistry,
-) : DataObserver {
+) : SaveOutcomeAwareDataObserver {
 
     /**
      * `concreteTypeId → matching specs`, filled lazily. Lock-free CAS for the
@@ -54,9 +55,24 @@ class RelationMaintainer(
      */
     private val resolved = AtomicReference<Map<String, List<RelationSpec>>>(emptyMap())
 
-    override fun onDataSaved(data: Data, origin: WriteOrigin) {
-        val typeId = (data as? Entity<*>)?.type?.get() ?: data.id
-        val specs = specsFor(typeId)
+    /**
+     * Only a type some relation keys on can reach the notification [redundant] gates, so only its
+     * saves pay the store comparison (`SyncMetadata`, tombstones and other bookkeeping rows do not).
+     */
+    override fun wantsSaveOutcome(data: Data): Boolean = specsFor(typeIdOf(data)).isNotEmpty()
+
+    private fun typeIdOf(data: Data): String = (data as? Entity<*>)?.type?.get() ?: data.id
+
+    /**
+     * [redundant] — every entry the save wrote was already stored byte-identically — silences only
+     * the steady-state *notification* below, never a membership write (`core-deterministic-invalidation.md`
+     * §8, P1). A redundant save cannot change what the relation resolves to, so re-evaluating every
+     * stream over it is pure cost; the relay's echo of this device's own write is the case measured
+     * (`SelfEchoRedundancySystemTest`). A peer's write, a rehydrating store's first sight of a row and
+     * a slice-snapshot row are never redundant, because the stored row differs or is absent.
+     */
+    override fun onDataSaved(data: Data, origin: WriteOrigin, redundant: Boolean) {
+        val specs = specsFor(typeIdOf(data))
         if (specs.isEmpty()) return
 
         // The element's identity comes from the registered `DataIdProvider`,
@@ -75,13 +91,17 @@ class RelationMaintainer(
                     // Steady state — already a member, exactly once. Nothing to
                     // write: the row itself was saved by the `saveData` that got
                     // us here, and membership is unchanged. Readers are still
-                    // told, because a re-save IS a change to what the relation
-                    // resolves to (see `Database.notifyArrayMemberUpdated`).
-                    1 -> executionContext.database.notifyArrayMemberUpdated(
-                        reference,
-                        data,
-                        origin,
-                    )
+                    // told, because a re-save that changed the row IS a change to
+                    // what the relation resolves to (see
+                    // `Database.notifyArrayMemberUpdated`) — and one that changed
+                    // nothing is not.
+                    1 -> if (!redundant) {
+                        executionContext.database.notifyArrayMemberUpdated(
+                            reference,
+                            data,
+                            origin,
+                        )
+                    }
 
                     // A genuinely new member. One write, not the remove-then-add
                     // pair the pre-R2b code did unconditionally — `removeFromArray`

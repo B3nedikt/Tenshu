@@ -119,6 +119,13 @@ data class ModelsCapabilities(
     val indexing: Boolean,
     /** The realm's other devices can be listed and switched off from here. */
     val otherDevices: Boolean,
+    /**
+     * Which feature each model this graph prepares serves, by model id, as the graph BOUND it
+     * (`ios-face-grouping.md` F6). ⚠ What a screen falls back on before the catalog was read
+     * (`ModelsUiState.serves` empty: a cold, offline launch), so a face model's row is never read as
+     * search's. Empty where nothing says (Android, desktop): every row is then read as before.
+     */
+    val modelFeatures: Map<String, InferenceCapability> = emptyMap(),
 ) {
     /** When the space of a removed model comes back. */
     enum class SpaceReturns {
@@ -483,6 +490,12 @@ interface ModelsRepository : ModelsConsents {
 
     /** What the index holds, read from the store (§14.19.6); `null` where it is not read. ⚠ Defaulted to none. */
     fun storedIndex(): Flow<StoredIndex?> = flowOf(null)
+
+    /**
+     * Whether a continued task carries the running pass (`OnDeviceIndexSource.continued`, iOS 26+,
+     * §15). ⚠ Defaulted to `false`: everywhere else a pass is not continued.
+     */
+    fun indexContinued(): Flow<Boolean> = flowOf(false)
 
     /**
      * Pause or resume indexing on this device.

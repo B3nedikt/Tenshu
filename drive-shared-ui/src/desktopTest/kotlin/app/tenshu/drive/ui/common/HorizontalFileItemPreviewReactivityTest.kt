@@ -14,6 +14,7 @@ import app.tenshu.ui.theme.TenshuTheme
 import org.jetbrains.skia.EncodedImageFormat
 import org.jetbrains.skia.Surface
 import org.junit.Test
+import org.tenshu.ui.test.NoMotion
 
 /**
  * Guards the preview-reactivity bug: the row used to load its thumbnail once and
@@ -29,7 +30,7 @@ class HorizontalFileItemPreviewReactivityTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun projectedPreviewArrivingLaterSwapsIconForImage() = runComposeUiTest {
+    fun projectedPreviewArrivingLaterSwapsIconForImage() = runComposeUiTest(effectContext = NoMotion) {
         var item by mutableStateOf(
             FileUiModel(
                 path = "/photo.jpg",

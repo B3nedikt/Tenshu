@@ -1,5 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+// ⚠ Imported at module scope, never `await import(...)` inside a test body. A cold import inside a
+// test runs under that test's 5 s timeout, and vitest does not cancel a timed-out body: it keeps
+// running against the NEXT test's DOM and mocks (`docs/tech-debt.md`, the SharesPage entry).
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import type { ShareListItem } from '@tenshu/sdk/share'
 
@@ -69,7 +73,7 @@ describe('SharesPage', () => {
   it('revokes a share after the confirm dialog and reloads the list', async () => {
     listMock.mockResolvedValue([share({ shareId: 'share-42', fileName: 'doc.pdf' })])
     revokeMock.mockResolvedValue(true)
-    const user = (await import('@testing-library/user-event')).default.setup()
+    const user = userEvent.setup()
 
     renderPage()
     await screen.findByText('doc.pdf')
@@ -87,7 +91,7 @@ describe('SharesPage', () => {
 
   it('can cancel the confirm dialog without revoking', async () => {
     listMock.mockResolvedValue([share({ shareId: 'share-42', fileName: 'doc.pdf' })])
-    const user = (await import('@testing-library/user-event')).default.setup()
+    const user = userEvent.setup()
 
     renderPage()
     await screen.findByText('doc.pdf')

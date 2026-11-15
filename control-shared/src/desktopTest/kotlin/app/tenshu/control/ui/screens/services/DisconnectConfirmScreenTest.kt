@@ -8,6 +8,7 @@ import androidx.compose.ui.test.performClick
 import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertEquals
+import org.tenshu.ui.test.NoMotion
 
 /**
  * §6.4 disconnect surface. Content composable level — the
@@ -17,7 +18,7 @@ import kotlin.test.assertEquals
 class DisconnectConfirmScreenTest {
 
     @get:Rule
-    val composeTestRule = createComposeRule()
+    val composeTestRule = createComposeRule(NoMotion)
 
     /**
      * ⚠⚠ The visible half of the unreachable-disconnect bug: with no local passphrase configured

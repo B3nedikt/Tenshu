@@ -47,7 +47,7 @@ internal object JsRuntimeBuilder {
                 MapRegionPlugin, // W-MAP: catalog + streamed ranges, nothing at init (MapRegionPlugin.kt)
                 MiaPlugin, // Mia run A: the planner's `askMia` only, no action, nothing at init (MiaPlugin.kt)
             ) + HomePlugins + // Home run A: schema + relation maintainer, NO ops — read-only (HomePlugin.kt)
-                SyncedServicePlugins + listOf(SyncPlugin, ContactPlugin)
+                SyncedServicePlugins + listOf(SyncPlugin, ContactPlugin, ThumbnailCachePlugin)
         ).forEach(::register)
     }
 

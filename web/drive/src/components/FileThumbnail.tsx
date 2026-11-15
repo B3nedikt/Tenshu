@@ -57,7 +57,8 @@ export function FileThumbnail({ path, name }: { path: string; name: string }) {
   return (
     <span ref={ref} className="flex size-5 shrink-0 items-center justify-center">
       {url ? (
-        <img src={url} alt="" className="size-5 rounded object-cover" />
+        // Not draggable: a dragged <img> can carry `Files`, and dropping it on Drive would upload it.
+        <img src={url} alt="" draggable={false} className="size-5 rounded object-cover" />
       ) : (
         <FileGlyph />
       )}

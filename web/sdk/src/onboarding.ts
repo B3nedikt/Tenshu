@@ -311,6 +311,12 @@ export type PairingShowError =
 
 export type ApprovePairingError =
   | { readonly kind: 'network' }
+  // The device being added was removed from this realm before and is back
+  // under the same identity; the relay refuses it for good.
+  | { readonly kind: 'deviceRemoved' }
+  // This device's admission capability was revoked: it can no longer add
+  // devices until it is removed and paired again from another device.
+  | { readonly kind: 'approverRevoked' }
   | { readonly kind: 'other'; readonly message: string }
 
 export interface PairingSession {

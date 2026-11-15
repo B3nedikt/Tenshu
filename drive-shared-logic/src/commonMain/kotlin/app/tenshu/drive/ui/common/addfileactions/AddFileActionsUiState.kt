@@ -34,7 +34,13 @@ data class AddFileActionsUiState(
 data class UploadConflict(
     val uriString: String,
     val parentPath: String,
-    val fileName: String
+    val fileName: String,
+    /**
+     * Which conflict an answer is for. A multi-select pick queues several, and a dialog can
+     * deliver its answer more than once (iOS: the button AND the alert's dismissal); keying the
+     * answer makes a repeat a no-op instead of silently skipping the next file.
+     */
+    val id: Long = 0L,
 )
 
 /** Non-null while a folder upload is in flight or briefly after it ends.

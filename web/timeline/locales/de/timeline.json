@@ -1,8 +1,4 @@
 {
-  "app": {
-    "title": "Timeline",
-    "tagline": "Wo du warst – Ende-zu-Ende-verschlüsselt."
-  },
   "runtime": {
     "connectingTitle": "Verbindung zu Tenshu wird noch hergestellt…",
     "connectingBody": "Der Tenshu-Tab, in dem Timeline läuft, ist beschäftigt. Timeline lädt, sobald er antwortet.",
@@ -19,6 +15,7 @@
     "reload": "Neu laden"
   },
   "nav": {
+    "label": "Timeline-Bereiche",
     "timeline": "Zeitleiste",
     "places": "Orte"
   },

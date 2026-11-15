@@ -223,9 +223,15 @@
 	redir @macosDownloadNeutral /apps/{re.macosdl.1}/download/macos/{legal_lang} 302
 
 	# Vite emits content-hashed asset filenames, so they're safe to cache forever.
-	# index.html itself is served uncached (default) so a redeploy is picked up.
 	@assets path /assets/*
 	header @assets Cache-Control "public, immutable, max-age=31536000"
+	# ⚠⚠ Everything else (index.html, the SPA fallback, the static pages) must SAY no-cache: with no
+	# Cache-Control at all a browser caches heuristically (~10% of the Last-Modified age), so a
+	# page built a day ago is reused for hours and keeps loading the OLD hashed bundle after a
+	# deploy. no-cache = revalidate every load (a 304 when unchanged). `?` sets it only when nothing
+	# else did, so the redirects' `no-store` above stands.
+	@notAssets not path /assets/*
+	header @notAssets ?Cache-Control "no-cache"
 
 	import access_log apex
 }
@@ -268,6 +274,10 @@
 
 	@assets path /assets/*
 	header @assets Cache-Control "public, immutable, max-age=31536000"
+	# index.html and the SPA fallback revalidate on every load, or a deploy is invisible for hours
+	# (the apex block above says why).
+	@notAssets not path /assets/*
+	header @notAssets ?Cache-Control "no-cache"
 
 	import access_log {args[0]}
 }

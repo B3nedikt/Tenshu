@@ -115,6 +115,10 @@ targets:
         # `PhotosLocalRuntime.onDeviceAiBuildFlag` reads. Only the exact string YES binds a
         # backend; the setting below is NO.
         TenshuPhotosOnDeviceAi: $(TENSHU_PHOTOS_ON_DEVICE_AI)
+        # Faces (`ios-face-grouping.md` FD10, F5): the build flag `PhotosLocalRuntime.facesBuildFlag`
+        # reads. Only the exact string YES binds the face backend, and only over an admitted
+        # on-device AI graph (the flag above AND its static gates); the setting below is NO.
+        TenshuPhotosFaces: $(TENSHU_PHOTOS_FACES)
         # *Index now* goes on after Photos is left (PIO-7 PR-7, `ios-on-device-inference.md` §15):
         # a `BGContinuedProcessingTask`, iOS 26+. ⚠ Only the wildcard is declared; each press
         # registers and submits `app.tenshu.photos.ios.indexnow.<uuid>`. ⚠ The base begins with the
@@ -123,6 +127,16 @@ targets:
         # `PhotosIndexNowTaskDeclaredTest` keeps this in step with `PhotosIndexNowTask`.
         BGTaskSchedulerPermittedIdentifiers:
           - app.tenshu.photos.ios.indexnow.*
+          # The overnight index wake (PIO-7 PR-6, `ios-on-device-inference.md` §16): one fixed
+          # `BGProcessingTask` identifier, registered in `App.init` and submitted with
+          # `requiresExternalPower` (D5: never on battery). Registered in every build; submitted only
+          # behind the build flag. `PhotosProcessingWakeTaskDeclaredTest` keeps this in step with
+          # `PhotosProcessingWakeTask`.
+          - app.tenshu.photos.processing
+        # ⚠⚠ What a `BGProcessingTaskRequest` needs, or `submit` refuses it. App Review: "index photos
+        # on device while charging" (PR-6). PR-7's continued task did not need one (§15.7 Q3).
+        UIBackgroundModes:
+          - processing
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.tenshu.photos.ios
@@ -130,6 +144,10 @@ targets:
         # is not finished behind it. Try it with `xcodebuild … TENSHU_PHOTOS_ON_DEVICE_AI=YES`,
         # never by editing this line.
         TENSHU_PHOTOS_ON_DEVICE_AI: "NO"
+        # ⚠⚠ OFF, and it stays off until the face device pass (`ios-face-grouping.md` F8), flipped
+        # after the flag above (FD10). It needs that flag too: alone it binds nothing. Try it with
+        # `xcodebuild … TENSHU_PHOTOS_ON_DEVICE_AI=YES TENSHU_PHOTOS_FACES=YES`, never by editing this line.
+        TENSHU_PHOTOS_FACES: "NO"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_ENTITLEMENTS: Photos.entitlements
         TENSHU_SHARED_KEYCHAIN_GROUP: app.tenshu.shared
@@ -165,6 +183,29 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: app.tenshu.photos.ios.uitests
         GENERATE_INFOPLIST_FILE: "YES"
         TEST_TARGET_NAME: PhotosIos
+
+  # Hosted unit tests — in the app's process, because that is where Core Image has a GPU: a Kotlin/
+  # Native simulator test process has no Metal device, and every `CIContext` there is nil. Holds
+  # ED-D8's iOS golden test (photos-editing.md §10). ⚠ Search path only, no `-framework TenshuSdk`:
+  # the framework is static and already in the host, and linking it twice duplicates the K/N runtime.
+  PhotosIosTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: PhotosIos
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.tenshu.photos.ios.tests
+        GENERATE_INFOPLIST_FILE: "YES"
+        TENSHU_SDK_MODULE: tenshu-sdk-ios-photos
+        TENSHU_SDK_VARIANT: debug
+        TENSHU_SDK_TARGET: iosSimulatorArm64
+        TENSHU_SDK_TARGET[sdk=iphoneos*]: iosArm64
+        FRAMEWORK_SEARCH_PATHS:
+          - $(inherited)
+          - $(SRCROOT)/../$(TENSHU_SDK_MODULE)/build/bin/$(TENSHU_SDK_TARGET)/$(TENSHU_SDK_VARIANT)Framework
 
   # The store and landing captures (docs/how-to/store-screenshots.md §3d, §9): XCUITests over the
   # SHIPPING app — `Debug`, so no `-photosFixture` mock — on the realm Drive's landing seed filled.
@@ -202,10 +243,12 @@ schemes:
       targets:
         PhotosIos: all
         PhotosIosUITests: [test]
+        PhotosIosTests: [test]
     test:
       config: DebugHarness
       targets:
         - PhotosIosUITests
+        - PhotosIosTests
     run:
       config: DebugHarness
   PhotosIos-Screenshots:

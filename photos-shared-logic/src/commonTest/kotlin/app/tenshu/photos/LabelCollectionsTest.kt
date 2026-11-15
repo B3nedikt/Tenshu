@@ -58,6 +58,33 @@ class LabelCollectionsTest {
     }
 
     @Test
+    fun aLabelFromACapabilityThisBuildDoesNotKnowIsNotAThing() {
+        // ⚠⚠ The skew this exists for (`photos-pets.md` §3): another device names a pet under a
+        // capability this build has never heard of. A denylist that excluded only people would
+        // show "Mochi" here as a Thing beside "Dog". Unknown ⇒ not a Thing.
+        val groups = groupPhotosByLabel(
+            library,
+            listOf(
+                label("a", "dog"), label("b", "dog"),
+                label("a", "Mochi", 1_000, capability = "petRecognition"),
+                label("b", "Mochi", 1_000, capability = "petRecognition"),
+            ),
+        )
+        assertEquals(listOf("Dog"), groups.map { it.label })
+    }
+
+    @Test
+    fun onlyContentTaggingLabelsAreThings() {
+        // Every known capability except CONTENT_TAGGING — a person's name, and anything a future
+        // pass might write under search, OCR or the rest — stays out of Things.
+        val others = InferenceCapability.entries.filter { it != InferenceCapability.CONTENT_TAGGING }
+        val labels = others.flatMap { cap ->
+            listOf(label("a", cap.id, capability = cap.id), label("b", cap.id, capability = cap.id))
+        }
+        assertTrue(groupPhotosByLabel(library, labels).isEmpty())
+    }
+
+    @Test
     fun aLabelOnOnePhotoIsNotACollection() {
         // ⚠ One photograph is a search result, not a collection — and the tab already has search.
         // Without this floor an open-ended vocabulary buries the sections a user can actually use.

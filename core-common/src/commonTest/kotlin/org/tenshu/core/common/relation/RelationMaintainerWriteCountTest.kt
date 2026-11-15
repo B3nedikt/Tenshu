@@ -2,17 +2,21 @@ package org.tenshu.core.common.relation
 
 import org.tenshu.core.Data
 import org.tenshu.core.collection.list.TList
+import org.tenshu.core.common.SyntheticGenericHolder
 import org.tenshu.core.common.SyntheticTestData
 import org.tenshu.core.common.TestProxy
 import org.tenshu.core.common.createSyntheticTestRegistry
 import org.tenshu.core.common.module.service as registerService
 import org.tenshu.core.common.module.tModule
 import org.tenshu.core.common.proxy.ArrayDatabaseReference
+import org.tenshu.core.common.proxy.SaveOutcomeAwareDataObserver
 import org.tenshu.core.common.proxy.SchemaRegistry
+import org.tenshu.core.common.proxy.WriteOrigin
 import org.tenshu.core.common.proxy.db.InMemoryObjectStore
 import org.tenshu.core.common.proxy.db.ObjectStore
 import org.tenshu.core.entity.DataId
 import org.tenshu.core.entity.getDataIdHash
+import org.tenshu.core.number.toTInteger
 import org.tenshu.core.schema.ServiceSchema
 import org.tenshu.core.schema.service
 import org.tenshu.core.schema.serviceDataRelation
@@ -20,6 +24,7 @@ import org.tenshu.core.schema.typeOf
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * The evidence for R2b's write-path claim, and for the listener contract that
@@ -53,7 +58,9 @@ import kotlin.test.assertEquals
  * and nothing else). Probe-first writes nothing in the steady state, so without
  * [org.tenshu.core.common.proxy.Database.notifyArrayMemberUpdated] a re-saved
  * `DeviceState` would update the store and never reach the Home UI. These tests
- * pin that a re-save still produces exactly one listener event.
+ * pin that a re-save **with a new value** still produces exactly one listener
+ * event — and, since `core-deterministic-invalidation.md` §8 P1, that a
+ * byte-identical one produces none.
  */
 class RelationMaintainerWriteCountTest {
 
@@ -61,6 +68,12 @@ class RelationMaintainerWriteCountTest {
         private val delegate: ObjectStore = InMemoryObjectStore(),
     ) : ObjectStore by delegate {
         val writtenRows = mutableListOf<Long>()
+        var reads = 0
+
+        override fun getObject(dataIdHash: Long): ObjectStore.DbEntry? {
+            reads++
+            return delegate.getObject(dataIdHash)
+        }
 
         override fun storeObject(dbEntry: ObjectStore.DbEntry) {
             writtenRows += dbEntry.dataIdHash
@@ -101,10 +114,10 @@ class RelationMaintainerWriteCountTest {
     }
 
     @Test
-    fun reSavingAnExistingMember_writesNothing_andNotifiesOnce() {
+    fun reSavingAnExistingMemberWithANewValue_writesNothing_andNotifiesOnce() {
         save("a")
 
-        val writes = countingArrayWrites { save("a") }
+        val writes = countingArrayWrites { save("a", value = 2) }
 
         assertEquals(
             0,
@@ -113,6 +126,52 @@ class RelationMaintainerWriteCountTest {
                 "(it was 2 under MostRecentLast: one remove-write, one add-write)",
         )
         assertEquals(1, added + removed, "…but a reactive reader is still told exactly once")
+    }
+
+    /**
+     * `core-deterministic-invalidation.md` §8, P1: a re-save whose every entry is already stored
+     * byte-identically — the relay echoing this device's own write — is not news, so nothing is told.
+     * ⚠ Until P1 this fired once; the new-value case above is the one the notification exists for.
+     */
+    @Test
+    fun reSavingAnExistingMemberUnchanged_writesNothing_andNotifiesNobody() {
+        save("a")
+
+        val writes = countingArrayWrites { save("a") }
+
+        assertEquals(0, writes)
+        assertEquals(0, added + removed, "a byte-identical re-save changes nothing a reader can see")
+    }
+
+    /**
+     * The store comparison costs a read per written entry, so the maintainer asks for it only for a
+     * type some relation keys on. A row no relation names (here a `SyntheticGenericHolder`, standing
+     * in for `SyncMetadata` and other bookkeeping) is saved as the plain write it always was — the
+     * read count only rises once an observer that wants the bit for every type is added.
+     */
+    @Test
+    fun aTypeNoRelationKeysOn_doesNotPayTheStoreComparison() {
+        // A fresh key each time, so every save is a first sight and costs the same.
+        var key = 0
+        fun readsForOneSave(): Int {
+            store.reads = 0
+            proxy.executionContext.saveData(
+                SyntheticGenericHolder.Factory.create(proxy.tContext, "g${key++}", 1L.toTInteger(proxy.tContext)),
+            )
+            return store.reads
+        }
+        val withMaintainerOnly = readsForOneSave()
+
+        proxy.executionContext.addDataObserver(object : SaveOutcomeAwareDataObserver {
+            override fun onDataSaved(data: Data, origin: WriteOrigin, redundant: Boolean) = Unit
+            override fun onDataDeleted(dataId: DataId, origin: WriteOrigin) = Unit
+        })
+        val compared = readsForOneSave()
+
+        assertTrue(
+            compared > withMaintainerOnly,
+            "only the observer that wants every type makes this save pay ($compared vs $withMaintainerOnly)",
+        )
     }
 
     @Test
@@ -170,10 +229,10 @@ class RelationMaintainerWriteCountTest {
         return store.writtenRows.count { it == arrayHash }
     }
 
-    private fun save(name: String) = proxy.executionContext.saveData(item(name))
+    private fun save(name: String, value: Long = 1) = proxy.executionContext.saveData(item(name, value))
 
-    private fun item(name: String): Data =
-        SyntheticTestData.Factory.create(proxy.tContext, name, 1)
+    private fun item(name: String, value: Long = 1): Data =
+        SyntheticTestData.Factory.create(proxy.tContext, name, value)
 
     private fun namesInArray(): List<String> =
         proxy.executionContext.database.getArrayData(reference)

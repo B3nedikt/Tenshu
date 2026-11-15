@@ -13,6 +13,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import org.tenshu.ui.test.NoMotion
 
 /**
  * Which photo surfaces may spend the hero rung, and what size they ask for.
@@ -41,7 +42,7 @@ class PhotoFidelityTest {
 
     private fun record(content: @androidx.compose.runtime.Composable () -> Unit): Recorder {
         val recorder = Recorder()
-        runDesktopComposeUiTest(width = 1440, height = 900) {
+        runDesktopComposeUiTest(width = 1440, height = 900, effectContext = NoMotion) {
             setContent {
                 TenshuTheme {
                     CompositionLocalProvider(LocalPhotoBytes provides recorder.loaders) {

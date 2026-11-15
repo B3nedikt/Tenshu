@@ -20,9 +20,9 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import app.tenshu.photos.model.FaceRegion
+import app.tenshu.photos.model.faceCropRequestPx
+import app.tenshu.photos.model.faceCropSquare
 import app.tenshu.ui.image.decodePreviewBitmap
-import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.roundToInt
 
 /**
@@ -77,36 +77,16 @@ fun FaceAvatar(
 
 /**
  * How large a preview to ask for: enough that the FACE, not the photograph, covers the avatar.
- * Capped, because a tiny detected face would otherwise ask for the original.
+ * ⚠ The shared rule ([faceCropRequestPx]) — the SwiftUI person card asks for the same size.
  */
-internal fun faceRequestPx(edgePx: Int, region: FaceRegion?): Int {
-    if (region == null) return edgePx * 2
-    val faceFraction = max(region.right - region.left, region.bottom - region.top).coerceIn(0.05f, 1f)
-    return (edgePx * 2 / (faceFraction * (1f + 2 * FACE_MARGIN))).roundToInt().coerceIn(edgePx, MAX_REQUEST_PX)
-}
+internal fun faceRequestPx(edgePx: Int, region: FaceRegion?): Int = faceCropRequestPx(edgePx, region)
 
 /**
- * The square of the bitmap to draw: the face box grown by a margin (hair and chin read as a face;
- * the detector's box alone reads as a mask), made square around its centre, and kept inside the
- * image. `null` region → the centred square of the whole photograph.
+ * The square of the bitmap to draw — the shared rule ([faceCropSquare]), so the SwiftUI person card
+ * cuts the same face from the same preview. `null` region → the centred square of the whole photograph.
  */
-internal fun faceSourceRect(width: Int, height: Int, region: FaceRegion?): Pair<IntOffset, IntSize> {
-    if (region == null || region.area <= 0f) {
-        val side = min(width, height)
-        return IntOffset((width - side) / 2, (height - side) / 2) to IntSize(side, side)
-    }
-    val cx = (region.left + region.right) / 2f * width
-    val cy = (region.top + region.bottom) / 2f * height
-    val faceSide = max((region.right - region.left) * width, (region.bottom - region.top) * height)
-    val side = (faceSide * (1f + 2 * FACE_MARGIN)).roundToInt().coerceIn(1, min(width, height))
-    val left = (cx - side / 2f).roundToInt().coerceIn(0, width - side)
-    val top = (cy - side / 2f).roundToInt().coerceIn(0, height - side)
-    return IntOffset(left, top) to IntSize(side, side)
-}
+internal fun faceSourceRect(width: Int, height: Int, region: FaceRegion?): Pair<IntOffset, IntSize> =
+    faceCropSquare(width, height, region).let { IntOffset(it.left, it.top) to IntSize(it.side, it.side) }
 
 /** Every face drawn by [FaceAvatar] — the person header and the People cards alike. */
 const val FACE_AVATAR_TAG = "faceAvatar"
-
-/** A quarter of the face's size on each side. */
-private const val FACE_MARGIN = 0.25f
-private const val MAX_REQUEST_PX = 2048

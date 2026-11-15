@@ -111,7 +111,7 @@ class MediaIndexRunnerTest {
         registry = InferenceBackendRegistry(
             listOf(FakeInferenceBackend(capabilities = setOf(InferenceCapability.SEMANTIC_IMAGE_SEARCH))),
         ),
-        deviceId = thisDevice,
+        deviceId = { thisDevice },
         embeddings = embeddings,
         conditions = conditions,
         progress = progressHolder,
@@ -927,7 +927,7 @@ class MediaIndexRunnerTest {
     private fun refusedRunner(faces: FaceTemplateStore, source: MediaSource) = MediaIndexRunner(
         MediaIndexer(
             registry = InferenceBackendRegistry(listOf(FakeInferenceBackend())),
-            deviceId = thisDevice,
+            deviceId = { thisDevice },
             embeddings = InMemoryEmbeddingStore(),
             faces = faces,
             conditions = IndexingConditions { true },
@@ -964,7 +964,7 @@ class MediaIndexRunnerTest {
         val runner = MediaIndexRunner(
             MediaIndexer(
                 registry = InferenceBackendRegistry(listOf(FakeInferenceBackend())),
-                deviceId = thisDevice,
+                deviceId = { thisDevice },
                 embeddings = InMemoryEmbeddingStore(),
                 faces = faces,
                 conditions = object : IndexingConditions {

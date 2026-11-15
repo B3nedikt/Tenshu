@@ -63,6 +63,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import app.tenshu.control.shared.resources.device_revoke_dialog_acknowledge
 import app.tenshu.control.shared.resources.device_revoke_dialog_body
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import app.tenshu.control.shared.resources.device_revoke_dialog_unlisted
+import app.tenshu.control.shared.resources.device_revoke_dialog_keep_admittee
+import app.tenshu.control.shared.resources.device_revoke_dialog_admittees_intro
 import app.tenshu.control.shared.resources.device_revoke_dialog_cancel
 import app.tenshu.control.shared.resources.device_revoke_dialog_confirm
 import app.tenshu.control.shared.resources.device_revoke_dialog_title
@@ -112,10 +117,10 @@ fun SyncDashboardScreen(
         // the finest), so a recomposition-driven clock would buy nothing and churn.
         nowMs = remember(uiState.deviceLastSeen) { KClock.System.now().toEpochMilliseconds() },
         onRefresh = viewModel::refresh,
-        onRevokeDevice = { deviceId ->
+        onRevokeDevice = { deviceId, alsoRemove ->
             reauthScope.launch {
                 if (reauthenticator.confirm(promptHost, reauthCopy)) {
-                    viewModel.revokeDevice(deviceId)
+                    viewModel.revokeDeviceAndAdmittees(deviceId, alsoRemove)
                 }
             }
         },
@@ -146,7 +151,8 @@ fun SyncDashboardContent(
      */
     nowMs: Long = 0L,
     onRefresh: () -> Unit,
-    onRevokeDevice: (String) -> Unit,
+    /** The device to remove, plus the admittees the user chose to stop trusting (§7j.4). */
+    onRevokeDevice: (deviceId: String, alsoRemove: List<String>) -> Unit,
     onApproveDevice: (String) -> Unit,
     onReadmitDevice: (String) -> Unit = {},
     /** Called once a surfaced [SyncDashboardUiState.error] / `notice` has been shown. */
@@ -286,10 +292,16 @@ fun SyncDashboardContent(
     }
 
     pendingRevoke?.let { device ->
+        // §7j.4: the devices it admitted, so a sleeper does not survive its admitter's removal
+        // unseen. Computed from the roster this screen already renders.
+        val admittees = remember(device, uiState.devices, currentDeviceId) {
+            removalAdmittees(uiState.devices, device.deviceId.get(), currentDeviceId)
+        }
         RevokeDeviceConfirmDialog(
             deviceName = device.name.get(),
-            onConfirm = {
-                onRevokeDevice(device.deviceId.get())
+            admittees = admittees,
+            onConfirm = { alsoRemove ->
+                onRevokeDevice(device.deviceId.get(), alsoRemove)
                 pendingRevoke = null
             },
             onDismiss = { pendingRevoke = null },
@@ -352,19 +364,68 @@ private fun formatRemaining(seconds: Int): String {
 @Composable
 private fun RevokeDeviceConfirmDialog(
     deviceName: String,
-    onConfirm: () -> Unit,
+    admittees: RemovalAdmittees,
+    onConfirm: (alsoRemove: List<String>) -> Unit,
     onDismiss: () -> Unit,
 ) {
     // Only composed while `pendingRevoke` is non-null, so this resets every time the dialog opens —
     // an acknowledgement that survived a cancel would defeat the point of having one.
     var acknowledged by remember { mutableStateOf(false) }
+    // §7j.4: per admittee, "keep trusting it?" — default KEEP. An honest device the removed one
+    // added is the common case; removing it by default would punish the user for the removal.
+    // ⚠⚠ Track what the user explicitly UNticked, never a kept-set snapshot: the roster is live, and
+    // an admittee that arrives while the dialog is open would otherwise show unticked and be removed
+    // on confirm — an irreversible removal nobody chose. Pinned by
+    // `SyncDashboardScreenTest.anAdmitteeArrivingWhileTheDialogIsOpen_isKept_notRemoved`.
+    var deselected by remember { mutableStateOf(emptySet<String>()) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(Res.string.device_revoke_dialog_title)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
                 Text(stringResource(Res.string.device_revoke_dialog_body, deviceName))
+                if (admittees.admittees.isNotEmpty()) {
+                    Text(
+                        text = stringResource(Res.string.device_revoke_dialog_admittees_intro, deviceName),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    admittees.admittees.forEach { admittee ->
+                        val id = admittee.deviceId.get()
+                        val name = admittee.name.get().ifEmpty { id }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .toggleable(
+                                    value = id !in deselected,
+                                    onValueChange = { kept -> deselected = if (kept) deselected - id else deselected + id },
+                                    role = Role.Checkbox,
+                                ),
+                            verticalAlignment = Alignment.Top,
+                        ) {
+                            Checkbox(checked = id !in deselected, onCheckedChange = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = stringResource(Res.string.device_revoke_dialog_keep_admittee, name),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    }
+                }
+                if (admittees.unlistedCount > 0) {
+                    // ⚠ Never imply the list is complete: the admitter field is self-written, and
+                    // a device that blanked it is listed only in the roster, removable by id.
+                    Text(
+                        text = stringResource(
+                            Res.string.device_revoke_dialog_unlisted,
+                            admittees.unlistedCount,
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -388,7 +449,12 @@ private fun RevokeDeviceConfirmDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onConfirm, enabled = acknowledged) {
+            TextButton(
+                onClick = {
+                    onConfirm(admittees.admittees.map { it.deviceId.get() }.filter { it in deselected })
+                },
+                enabled = acknowledged,
+            ) {
                 Text(stringResource(Res.string.device_revoke_dialog_confirm))
             }
         },
@@ -409,7 +475,7 @@ private fun SyncDashboardPreview() = PreviewBox {
         ),
         currentDeviceId = "device-1",
         onRefresh = {},
-        onRevokeDevice = {},
+        onRevokeDevice = { _, _ -> },
         onApproveDevice = {},
         onAddDevice = {},
         onShowRecoveryPhrase = {},

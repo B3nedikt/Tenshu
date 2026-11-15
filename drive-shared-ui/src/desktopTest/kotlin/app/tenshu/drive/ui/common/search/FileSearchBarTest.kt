@@ -11,6 +11,7 @@ import app.tenshu.ui.theme.TenshuTheme
 import app.tenshu.drive.composeVmTest
 import org.junit.Test
 import kotlin.test.assertEquals
+import org.tenshu.ui.test.NoMotion
 
 class FileSearchBarTest {
 
@@ -28,7 +29,7 @@ class FileSearchBarTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun tappingAResultRow_invokesOnResultClickedWithThatFile() = runComposeUiTest {
+    fun tappingAResultRow_invokesOnResultClickedWithThatFile() = runComposeUiTest(effectContext = NoMotion) {
         val folder = FileUiModel("/Reports", "Reports", "3 files", FileIcon.Folder, isFolder = true)
         val file = FileUiModel("/Reports/q3.pdf", "q3.pdf", "1 MB", FileIcon.GenericFile)
         var clicked: FileUiModel? = null

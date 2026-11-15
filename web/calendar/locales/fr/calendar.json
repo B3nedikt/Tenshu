@@ -1,7 +1,6 @@
 {
   "app": {
-    "title": "Calendrier",
-    "tagline": "Vos calendriers, chiffrés de bout en bout."
+    "sections": "Sections du Calendrier"
   },
   "tabs": {
     "calendar": "Calendrier",

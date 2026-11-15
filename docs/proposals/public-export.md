@@ -102,10 +102,20 @@ It never pushes. The push and the PR are the maintainer's.
 
 ```bash
 scripts/public-export.py                          # dry run: must end "Dry run clean"
-scripts/public-export.py --publish ~/src/tenshu-public
+scripts/public-export.py --publish ~/src/tenshu-public --summary summary.md
 (cd ~/src/tenshu-public && scripts/run-gate.sh)   # the export must build on its own
 git -C ~/src/tenshu-public push -u origin sync/<date>-<sha>
+(cd ~/src/tenshu-public && gh pr create --base master --title '…' --body-file .git/SYNC_PR_BODY.md)
 ```
+
+**The message is for public readers**, who cannot open this repository. `summary.md` is a short
+summary of what changed, grouped by area (a few bullets each), naming the design docs that hold
+the detail by path (`docs/proposals/….md`). Without `--summary` the script writes a draft instead:
+the date span, the design docs the sync adds, and the internal commit subjects with their PR
+numbers dropped. Write the summary from that draft. The script keeps the subject line and the
+`Internal-Source:` trailer itself: the next sync finds its base by them. It refuses a message that
+links an internal PR. `SYNC_PR_BODY.md` is the same text with every doc path linked to the sync
+commit, so the links open before the merge and after it.
 
 **The first cut**, once. The maintainer does it, in this order. ⚠⚠ Renaming leaves a redirect, so
 until a new repository takes the name, `B3nedikt/Tenshu.git` still reaches the private one. From

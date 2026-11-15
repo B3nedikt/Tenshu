@@ -16,6 +16,7 @@ import androidx.compose.ui.test.v2.runDesktopComposeUiTest
 import app.tenshu.ui.theme.TenshuTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import org.tenshu.ui.test.NoMotion
 
 /**
  * Pins that [AdaptiveNavScaffold] **keeps its content subtree alive** when the chrome changes —
@@ -67,7 +68,7 @@ class AdaptiveNavContentIdentityTest {
 
     private fun assertContentSurvives(windowWidthPx: Int) {
         val instances = Instances()
-        runDesktopComposeUiTest(width = windowWidthPx, height = 900) {
+        runDesktopComposeUiTest(width = windowWidthPx, height = 900, effectContext = NoMotion) {
             var showNav by mutableStateOf(true)
             setContent {
                 TenshuTheme {
@@ -113,7 +114,7 @@ class AdaptiveNavContentIdentityTest {
     @Test
     fun contentSurvivesCrossingTheCompactBreakpoint() {
         val instances = Instances()
-        runDesktopComposeUiTest(width = 1024, height = 900) {
+        runDesktopComposeUiTest(width = 1024, height = 900, effectContext = NoMotion) {
             var sizeClass by mutableStateOf(WindowWidthSizeClass.Compact)
             setContent {
                 // ⚠ Inside `TenshuTheme`, not around it: the theme wraps its content in

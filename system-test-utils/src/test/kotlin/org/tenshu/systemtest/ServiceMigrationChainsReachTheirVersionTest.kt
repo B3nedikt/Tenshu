@@ -55,6 +55,33 @@ class ServiceMigrationChainsReachTheirVersionTest {
     }
 
     /**
+     * ⚠⚠ A service's **first** bump, which `verify()` cannot see. It judges a chain only for a
+     * service that registered at least one step (`migrations.groupBy { serviceId }`), so a service
+     * bumped from the v1 release baseline with NO step raises nothing — and its derived floor is then
+     * its new version, so every v1 store is **WIPED** at open. Post-release every service starts at
+     * v1 with no steps, so this is the case every first bump hits (`photos-editing.md` §12.1 found
+     * it: deleting `:photo-service`'s v1→v2 step left the test above green).
+     */
+    @Test
+    fun aServiceAboveTheBaseline_registersAChainAtAll() {
+        val registry: SchemaRegistry = createCoreTestRegistry().apply {
+            serviceGraphConfigs().forEach { registerConfig(it) }
+        }
+        val stepped = registry.schemaMigrations().map { it.serviceId }.toSet()
+        val bumpedWithNoChain = registry.serviceSchemas()
+            .filter { it.version > 1 && it.id.get() !in stepped }
+            .map { "${it.id.get()} v${it.version}" }
+            .distinct()
+        assertEquals(
+            emptyList(),
+            bumpedWithNoChain,
+            "a service above v1 registers no migration step at all — `verify()` only checks chains " +
+                "that exist, so this would WIPE every store at the previous version. Register " +
+                "`schemaMigration(schemaMigration(<Service>.ID, fromVersion = N-1) {})`.",
+        )
+    }
+
+    /**
      * ⚠⚠ `:core`'s chain is the one `verify()` structurally cannot judge, and it is the one whose
      * failure is worst.
      *

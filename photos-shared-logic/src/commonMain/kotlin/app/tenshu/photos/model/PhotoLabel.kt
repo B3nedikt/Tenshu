@@ -80,18 +80,19 @@ fun groupPhotosByLabel(
     for (row in labels) {
         val label = row.label.trim()
         if (label.isEmpty() || label == INDEX_MARKER_LABEL) continue
-        // ⚠⚠ A PERSON is not a THING. Person names are `MediaLabel` rows exactly like tags
-        // (IN-6 F3b), and this section is what a *model* said about a picture — so naming Anna
-        // would otherwise mint a Things card called "Anna" beside "Dog", and the People card and
-        // the Thing card would be the same photographs under two headings.
-        if (row.capability == InferenceCapability.FACE_CLUSTERING.id) continue
+        // ⚠⚠ Only a model's tag is a THING — an allowlist, never a denylist. A person's name is a
+        // `MediaLabel` exactly like a tag (IN-6 F3b), and so will a pet's be under a capability
+        // this build has never heard of (`photos-pets.md` §3). A denylist would show either as a
+        // Things card ("Anna" or "Mochi" beside "Dog") on every build older than the capability.
+        if (row.capability !in THING_CAPABILITIES) continue
         if (row.confidencePerMille < minConfidencePerMille) continue
         if (!byPath.containsKey(row.path)) continue
         val key = label.lowercase()
         display.getOrPut(key) { label.replaceFirstChar { c -> c.uppercaseChar() } }
         val paths = groups.getOrPut(key) { mutableMapOf() }
-        // ⚠ Strongest wins per photo: the same file can carry `dog` from two capabilities, and the
-        // cover should be the one the model was surest about rather than whichever row read first.
+        // ⚠ Strongest wins per photo: the same file can carry `dog` twice (two model stamps, or two
+        // capabilities once [THING_CAPABILITIES] grows), and the cover should be the one the model
+        // was surest about rather than whichever row read first.
         paths[row.path] = maxOf(paths[row.path] ?: 0, row.confidencePerMille)
     }
 
@@ -118,3 +119,13 @@ const val DEFAULT_MIN_LABEL_PHOTOS = 2
  * obviously so, and a plausible-looking constant is the kind nobody re-examines.
  */
 const val DEFAULT_MIN_LABEL_CONFIDENCE_PER_MILLE = 0
+
+/**
+ * The capabilities whose labels are *Things* — what a model said a picture shows.
+ *
+ * ⚠⚠ **An allowlist, so a capability added later is invisible to Things until someone adds it
+ * here.** Names typed by the user (people today, pets in `photos-pets.md`) are `MediaLabel` rows
+ * too, and a released build cannot know a capability that does not exist yet. A denylist shipped
+ * today would put tomorrow's pet name on this build's Things section.
+ */
+val THING_CAPABILITIES: Set<String> = setOf(InferenceCapability.CONTENT_TAGGING.id)

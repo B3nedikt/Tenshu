@@ -17,6 +17,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.v2.runComposeUiTest
 import kotlin.test.Test
+import org.tenshu.ui.test.NoMotion
 
 /**
  * Regression coverage for the desktop [KmpNavHost]: an entry that sits *below*
@@ -40,7 +41,7 @@ class KmpNavHostTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun listScrollPositionSurvivesNavigationRoundTrip() = runComposeUiTest {
+    fun listScrollPositionSurvivesNavigationRoundTrip() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             val backStack = remember { mutableStateListOf<Dest>(Dest.List) }
             KmpNavHost(

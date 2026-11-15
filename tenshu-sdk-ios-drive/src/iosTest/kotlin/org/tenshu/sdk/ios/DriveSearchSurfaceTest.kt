@@ -8,8 +8,8 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import org.tenshu.viewmodel.test.vmTest
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -45,8 +45,8 @@ class DriveSearchSurfaceTest {
     )
 
     @Test
-    fun query_matches_names_case_insensitively() = runTest(dispatcher) {
-        val vm = DriveSearchSurface.search(repo())
+    fun query_matches_names_case_insensitively() = vmTest(dispatcher) { vms ->
+        val vm = vms.own(DriveSearchSurface.search(repo()))
 
         vm.onQueryChanged("report")
         advanceUntilIdle()
@@ -60,8 +60,8 @@ class DriveSearchSurfaceTest {
     }
 
     @Test
-    fun blank_query_yields_no_results() = runTest(dispatcher) {
-        val vm = DriveSearchSurface.search(repo())
+    fun blank_query_yields_no_results() = vmTest(dispatcher) { vms ->
+        val vm = vms.own(DriveSearchSurface.search(repo()))
 
         vm.onQueryChanged("   ")
         advanceUntilIdle()
@@ -73,8 +73,8 @@ class DriveSearchSurfaceTest {
     }
 
     @Test
-    fun query_is_debounced_so_a_keystroke_burst_runs_one_scan() = runTest(dispatcher) {
-        val vm = DriveSearchSurface.search(repo())
+    fun query_is_debounced_so_a_keystroke_burst_runs_one_scan() = vmTest(dispatcher) { vms ->
+        val vm = vms.own(DriveSearchSurface.search(repo()))
 
         // Type "report" a character at a time, faster than the debounce window.
         "report".forEachIndexed { index, _ ->
@@ -95,8 +95,8 @@ class DriveSearchSurfaceTest {
     }
 
     @Test
-    fun collapsing_the_bar_clears_query_and_results() = runTest(dispatcher) {
-        val vm = DriveSearchSurface.search(repo())
+    fun collapsing_the_bar_clears_query_and_results() = vmTest(dispatcher) { vms ->
+        val vm = vms.own(DriveSearchSurface.search(repo()))
 
         vm.onQueryChanged("report")
         advanceUntilIdle()

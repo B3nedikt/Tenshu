@@ -8,9 +8,10 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.tenshu.contact.ContactInvite
+import org.tenshu.viewmodel.test.OwnedViewModels
+import org.tenshu.viewmodel.test.vmTest
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -45,13 +46,14 @@ class ContactPromptTest {
         claimedSas = "12 34 56",
     )
 
-    private fun prompt(contacts: FakeContactsRepository, inviteId: String = "inv1") =
-        DriveShareSurface.contactPrompt(contacts, inviteId)
+    /** Takes the test's [OwnedViewModels] so no call site can build a prompt it does not own. */
+    private fun prompt(vms: OwnedViewModels, contacts: FakeContactsRepository, inviteId: String = "inv1") =
+        vms.own(DriveShareSurface.contactPrompt(contacts, inviteId))
 
     @Test
-    fun the_redeemed_row_seeds_the_claim_and_sas() = runTest(dispatcher) {
+    fun the_redeemed_row_seeds_the_claim_and_sas() = vmTest(dispatcher) { vms ->
         val contacts = FakeContactsRepository(invites = listOf(redeemedInvite()))
-        val vm = prompt(contacts)
+        val vm = prompt(vms, contacts)
         advanceUntilIdle()
 
         assertEquals("Bob", vm.uiState.value.claimedName)
@@ -60,9 +62,9 @@ class ContactPromptTest {
     }
 
     @Test
-    fun accept_completes_the_handshake_with_the_confirmed_sas_and_names() = runTest(dispatcher) {
+    fun accept_completes_the_handshake_with_the_confirmed_sas_and_names() = vmTest(dispatcher) { vms ->
         val contacts = FakeContactsRepository(invites = listOf(redeemedInvite()))
-        val vm = prompt(contacts)
+        val vm = prompt(vms, contacts)
         advanceUntilIdle()
 
         vm.onSasConfirmedChanged(confirmed = true)
@@ -81,9 +83,9 @@ class ContactPromptTest {
     }
 
     @Test
-    fun decline_completes_the_handshake_rejected() = runTest(dispatcher) {
+    fun decline_completes_the_handshake_rejected() = vmTest(dispatcher) { vms ->
         val contacts = FakeContactsRepository(invites = listOf(redeemedInvite()))
-        val vm = prompt(contacts)
+        val vm = prompt(vms, contacts)
         advanceUntilIdle()
 
         vm.onDeclineClicked()
@@ -94,7 +96,7 @@ class ContactPromptTest {
     }
 
     @Test
-    fun accepting_a_share_folder_invite_just_completes() = runTest(dispatcher) {
+    fun accepting_a_share_folder_invite_just_completes() = vmTest(dispatcher) { vms ->
         // ⚠ The grant offer used to appear here; it is now a deferred card on the Shared
         // screen, derived from the COMPLETED row (`contacts-app.md` §9.1). That is what
         // makes this view model pure — and therefore movable to the Contacts app.
@@ -102,7 +104,7 @@ class ContactPromptTest {
             invites = listOf(redeemedInvite(intentKind = ContactInvite.IntentKind.SHARE_FOLDER, intentLabel = "Photos")),
             contacts = listOf(ContactModel(personId = "p1", displayName = "Bob", fingerprint = "FP-RAW", grantable = true)),
         )
-        val vm = prompt(contacts)
+        val vm = prompt(vms, contacts)
         advanceUntilIdle()
 
         vm.onSaveClicked()

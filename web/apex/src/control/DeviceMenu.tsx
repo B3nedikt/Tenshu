@@ -105,10 +105,11 @@ export function DeviceMenu({ deviceName }: { readonly deviceName: string }) {
           onClick={() => setOpen(o => !o)}
           aria-haspopup="menu"
           aria-expanded={open}
-          className="flex max-w-[12rem] items-center gap-1.5 rounded-full border border-line px-3 py-1 text-sm text-text-2 hover:bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-line-strong"
+          className="flex h-8 max-w-[12rem] items-center gap-1.5 rounded-full border border-line px-3 text-sm text-text-2 hover:bg-well focus:outline-none focus-visible:ring-2 focus-visible:ring-line-strong max-sm:px-2.5"
         >
           <span aria-hidden className="h-2 w-2 rounded-full bg-success" />
-          <span className="truncate font-mono text-xs">{deviceName}</span>
+          {/* On a phone the bar has no room for the name: it stays the button's accessible name. */}
+          <span className="truncate font-mono text-xs max-sm:sr-only">{deviceName}</span>
         </button>
         {open && (
           <div

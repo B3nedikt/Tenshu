@@ -12,6 +12,7 @@ import app.tenshu.ui.theme.TenshuTheme
 import org.tenshu.core.file.MediaMetadata
 import kotlin.test.Test
 import kotlinx.coroutines.flow.emptyFlow
+import org.tenshu.ui.test.NoMotion
 
 /**
  * What the info sheet says about how a photograph was taken (PH-11b).
@@ -40,7 +41,7 @@ class PhotoViewerExifRowsTest {
     }
 
     @Test
-    fun theSettingsRenderWhenTheyWereRead() = runComposeUiTest {
+    fun theSettingsRenderWhenTheyWereRead() = runComposeUiTest(effectContext = NoMotion) {
         setContent(
             screen(
                 ExifReadResult.Read(
@@ -67,7 +68,7 @@ class PhotoViewerExifRowsTest {
     }
 
     @Test
-    fun aPhotoWhoseBytesAreElsewhereSaysSo() = runComposeUiTest {
+    fun aPhotoWhoseBytesAreElsewhereSaysSo() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠⚠ The state PH-11b's gate exists to produce. It is a fact about *this device*, not a
         // failure, and hiding it would make the panel look broken for most of a real library.
         setContent(screen(ExifReadResult.NotOnDevice))
@@ -79,7 +80,7 @@ class PhotoViewerExifRowsTest {
     }
 
     @Test
-    fun anUnreadSheetShowsNoSettingsAndNoExcuse() = runComposeUiTest {
+    fun anUnreadSheetShowsNoSettingsAndNoExcuse() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠ `null` is "still reading". It must not render the not-on-device line, which would flash
         // a claim that is not yet known to be true.
         setContent(screen(null))
@@ -91,7 +92,7 @@ class PhotoViewerExifRowsTest {
     }
 
     @Test
-    fun anUnreachableProxySaysNothingHereRatherThanTwice() = runComposeUiTest {
+    fun anUnreachableProxySaysNothingHereRatherThanTwice() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠⚠ The shell's banner already says the proxy is down. Saying it again in a metadata panel,
         // in different words, reads to a user as two separate problems.
         setContent(screen(ExifReadResult.Unreachable))
@@ -103,7 +104,7 @@ class PhotoViewerExifRowsTest {
     }
 
     @Test
-    fun aStrippedPhotographAddsNoRowsAtAll() = runComposeUiTest {
+    fun aStrippedPhotographAddsNoRowsAtAll() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠ `Read` with nothing in it is the messaging-app case. It must add no heading and no
         // blank rows — the same "omit rather than print Unknown" rule PH-7's sheet follows.
         setContent(screen(ExifReadResult.Read(MediaMetadata())))

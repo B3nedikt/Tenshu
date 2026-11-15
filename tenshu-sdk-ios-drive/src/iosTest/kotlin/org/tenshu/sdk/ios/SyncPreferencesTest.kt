@@ -10,11 +10,11 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.tenshu.core.file.sync.PathSyncOverride
 import org.tenshu.core.file.sync.SyncPolicy
 import org.tenshu.core.file.sync.SyncRuleSet
+import org.tenshu.viewmodel.test.vmTest
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -56,10 +56,10 @@ class SyncPreferencesTest {
     }
 
     @Test
-    fun uiState_reflects_the_offline_list_and_default_policy() = runTest(dispatcher) {
+    fun uiState_reflects_the_offline_list_and_default_policy() = vmTest(dispatcher) { vms ->
         val offline = FakeOfflinePrefs(listOf("/a.txt", "/b.txt"))
         val rules = FakeSyncRulesPrefs().apply { defaultPolicy.value = SyncPolicy.KEEP_OFFLINE }
-        val vm = DriveSettingsSurface.syncPreferences(offline, rules)
+        val vm = vms.own(DriveSettingsSurface.syncPreferences(offline, rules))
         advanceUntilIdle()
 
         assertEquals(listOf("/a.txt", "/b.txt"), vm.uiState.value.offlineFiles)
@@ -67,9 +67,9 @@ class SyncPreferencesTest {
     }
 
     @Test
-    fun toggling_keep_offline_by_default_writes_the_policy() = runTest(dispatcher) {
+    fun toggling_keep_offline_by_default_writes_the_policy() = vmTest(dispatcher) { vms ->
         val rules = FakeSyncRulesPrefs()
-        val vm = DriveSettingsSurface.syncPreferences(FakeOfflinePrefs(emptyList()), rules)
+        val vm = vms.own(DriveSettingsSurface.syncPreferences(FakeOfflinePrefs(emptyList()), rules))
         advanceUntilIdle()
         assertFalse(vm.uiState.value.keepOfflineByDefault)
 
@@ -81,9 +81,9 @@ class SyncPreferencesTest {
     }
 
     @Test
-    fun removing_an_offline_file_updates_state_and_persists() = runTest(dispatcher) {
+    fun removing_an_offline_file_updates_state_and_persists() = vmTest(dispatcher) { vms ->
         val offline = FakeOfflinePrefs(listOf("/a.txt", "/b.txt"))
-        val vm = DriveSettingsSurface.syncPreferences(offline, FakeSyncRulesPrefs())
+        val vm = vms.own(DriveSettingsSurface.syncPreferences(offline, FakeSyncRulesPrefs()))
         advanceUntilIdle()
 
         vm.removeOfflineFile("/a.txt")

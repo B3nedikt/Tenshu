@@ -226,28 +226,42 @@ internal class PhotosLikeImplementation(
         private val CAPABILITY = InferenceCapability.SEMANTIC_IMAGE_SEARCH
 
         /**
-         * The model's own probability below which a photograph is **not** a match.
+         * The model's own probability below which a photograph is **not** a match: cosine
+         * **≈ 0.05998** under `VisionModel.PinnedSigLip`'s calibration (cosine 0.06 is admitted,
+         * 0.0599 is not).
          *
-         * ⚠⚠ **A carried-over cosine, not a measured probability.** The cut is at cosine
-         * **0.09149529** (the smallest admitted `Float`, bits `0x3DBB61E2`). That is where the
-         * floor stood when it read `0.10` against the `-224` checkpoint's constants
-         * (117.330765, −12.932437), which are not those of `VisionModel.PinnedSigLip`. The pinned
-         * checkpoint's own constants score that cosine at
-         * **p ≈ 0.0612459**, so this is the number that keeps every search result where it was:
-         * the correction of the constants changed no result (`SemanticFloorCarryOverTest`, on the
-         * JVM and the iOS simulator; `models.md` §3.10.8 says what that rests on). The value sits
-         * mid-way between the model's score for that cosine and for the `Float` below it, 8 ulps
-         * from each.
+         * ⚠⚠ **Measured on the pinned checkpoint** (2026-11-09, `inference-service.md` §35.1): the
+         * fp32, ONNX (uint8 vision + int8 text) and Core ML fp16 pairs of
+         * `siglip-base-patch16-256-multilingual`, scored against COCO val2017 (5,000 images, ground
+         * truth), a 554-photo camera roll and the 22 vectors an iPhone had indexed. What it rests on:
+         * - **True matches of a one-word query typically sit at cosine 0.06–0.10** — typically, not
+         *   all: COCO's cats have a median of 0.085 but a 5th percentile of 0.038. On that iPhone,
+         *   the five cat photographs scored 0.080–0.084 for "cat" and the best non-cat 0.021; the
+         *   floor this replaces (cosine 0.0915, carried over from another checkpoint) returned none.
+         * - **An object that is not in the library tops out below it.** Five instruments
+         *   ("xylophone" …) over the camera roll peak at 0.030–0.057, and "xylophone" over the iPhone's
+         *   library at 0.021: at this floor none returns a photograph, on any of the three pairs.
+         * - At this floor a bare-word query over COCO keeps a median 57 % of its photographs (so a
+         *   weak true match can still fall below it) at a median precision of 0.88, the same on
+         *   Core ML and ONNX.
          *
-         * ⚠⚠ **Re-measuring it is still owed** (`inference-service.md` §35.1). The `0.10` it
-         * descends from was the middle of a band — *"usable thresholds sit around 0.05–0.15"*,
-         * `models.md` §3.7.2 — measured on the `-224` checkpoint, so neither `0.10` nor this is a
-         * measurement of the pinned model. A true p ≥ 0.10 on it would be cosine ≥ 0.0963.
+         * ⚠ One absolute floor, not a rule relative to the best score or the library's median. A cut
+         * relative to the top always admits the top, so it cannot return nothing for "xylophone"; one
+         * relative to the median returns nothing for "cat" in a library that is mostly cats.
+         *
+         * ⚠ One constant for every platform. What was observed: on that 554-photo camera roll no
+         * instrument crosses 0.06 on any of the three pairs. ⚠ The margin is thin next to the skew:
+         * the worst instrument is ~0.003 below the floor, while ONNX minus Core ML for the same image
+         * and query near the cut has a mean +0.002, sd 0.009–0.014 and |difference| ≤ 0.028 for
+         * 95 % of pairs. Another library may put an absent object just over the cut on one platform.
          *
          * ⚠ Erring low on purpose: a floor that is slightly too generous shows a weak match, which
          * the user can dismiss. One that is too strict makes a photograph the user knows they own
          * unfindable, and they cannot tell that from it not being indexed.
+         *
+         * ⚠ A new checkpoint has new constants and owes a new measurement
+         * (`PinnedSigLipCalibrationPinTest`).
          */
-        const val SEMANTIC_RELEVANCE_FLOOR = 0.061245844f
+        const val SEMANTIC_RELEVANCE_FLOOR = 0.00197f
     }
 }

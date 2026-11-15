@@ -7,6 +7,7 @@ import org.tenshu.core.core.TContext
 import org.tenshu.core.request.RequestChain
 import org.tenshu.photo.Album
 import org.tenshu.photo.AlbumEntry
+import org.tenshu.photo.PhotoEdit
 import org.tenshu.photo.PhotoFlags
 import org.tenshu.photo.PhotoService
 import org.tenshu.photo.TrashedPhoto
@@ -30,4 +31,7 @@ internal class PhotoServiceRo(
 
     override val trashedPhotos: TList<TrashedPhoto>
         get() = serviceRelation(PhotoService.Relations.TRASHED_PHOTOS, TrashedPhoto.Schema)
+
+    override val photoEdits: TList<PhotoEdit>
+        get() = serviceRelation(PhotoService.Relations.PHOTO_EDITS, PhotoEdit.Schema)
 }

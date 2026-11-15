@@ -77,6 +77,63 @@ class CoreMlReadinessTest {
         assertNotEquals(iosPreflightKey(store.installed(), appBuild = "1.0 (1)", osBuild = "23A1"), iosPreflightKeyOf(entry, appBuild = "1.0 (1)", osBuild = "23B2"))
     }
 
+    /**
+     * ⚠⚠ The same pin, over the store a phone runs (§14.18.16 item 11): [DefaultModelStore] with
+     * its index in a [FileModelIndexStorage] over the real [IosFileDatabase], the artifacts
+     * arriving as the background download delivers them ([ModelStore.adoptStaged], then
+     * [ModelStore.commitStaged]), and the key read back by a **new** store over the same disk, as
+     * the next launch reads it. A store that recorded a digest other than the entry's — normalised,
+     * recomputed, or another field's — would offer a download its install then meets answered.
+     */
+    @OptIn(ExperimentalStdlibApi::class)
+    @Test
+    fun theKeyOfAnEntryAsItWouldBeInstalledIsTheKeyThePhonesFileStoreReadsBack() {
+        val root = "${NSTemporaryDirectory()}preflight-key-store-${Random.nextLong()}"
+        try {
+            val files = IosFileDatabase(root)
+            fun store() = org.tenshu.inference.proxy.catalog.DefaultModelStore(
+                org.tenshu.inference.proxy.catalog.FileModelIndexStorage(files),
+                files,
+                modelsDir = org.tenshu.inference.proxy.catalog.DEFAULT_MODELS_DIR,
+                digestOf = { error("the staged path digests nothing: the downloader verified the bytes") },
+                ownership = org.tenshu.inference.proxy.catalog.ModelStoreOwnership.SoleProcess,
+            )
+            val bodies: Map<String, ByteArray> = mapOf(
+                ModelArtifactRole.VISION to "vision tower".encodeToByteArray(),
+                ModelArtifactRole.TEXT to "text tower".encodeToByteArray(),
+                ModelArtifactRole.VOCABULARY to "vocabulary".encodeToByteArray(),
+            )
+            fun sha256(bytes: ByteArray): String =
+                org.tenshu.core.common.util.Sha256Digest().apply { update(bytes, bytes.size) }.digest().toHexString()
+            val entry = org.tenshu.inference.proxy.catalog.ModelEntryData(
+                modelId = model.modelId, name = "SigLIP", modelVersion = 1, capabilities = listOf(InferenceCapability.SEMANTIC_IMAGE_SEARCH),
+                labelSetVersion = 0, runtime = "coreml", artifactVersion = 1,
+                artifacts = bodies.map { (role, body) ->
+                    org.tenshu.inference.proxy.catalog.ModelArtifactData(role, "${model.modelId}/1/coreml/$role", sha256(body), body.size.toLong())
+                },
+                licence = "Apache-2.0",
+            )
+            val delivering = store()
+            val staged: Map<String, Long> = entry.artifacts.associate { artifact ->
+                // Where the session's delegate leaves a transfer (`inference/downloads/<ref>.delivered`).
+                val delivered = "inference/downloads/${artifact.role}.delivered"
+                files.writeRawByteArray(delivered, bodies.getValue(artifact.role))
+                artifact.role to delivering.adoptStaged(entry.modelId, artifact.role, artifact.sha256, delivered)
+            }
+            delivering.commitStaged(entry, staged)
+
+            val installed: List<InstalledModelData> = store().installed()
+            assertEquals(listOf(entry.modelId), installed.map { it.modelId }, "the next launch's store reads no install")
+            assertEquals(
+                iosPreflightKey(installed, appBuild = "1.0.1 (202611091200)", osBuild = "23G83"),
+                iosPreflightKeyOf(entry, appBuild = "1.0.1 (202611091200)", osBuild = "23G83"),
+                "the key a Models screen asks about before a download is not the key its install reads back",
+            )
+        } finally {
+            NSFileManager.defaultManager.removeItemAtPath(root, error = null)
+        }
+    }
+
     private class FakeSession(
         override val compiledPath: String,
         private val dimensions: Int,

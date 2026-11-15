@@ -7,6 +7,7 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import app.tenshu.ui.theme.TenshuTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import org.tenshu.ui.test.NoMotion
 
 /** The shared notices screen (`docs/oss-licences.md`) over each [OssLicencesState]. */
 @OptIn(ExperimentalTestApi::class)
@@ -32,7 +33,7 @@ class OpenSourceLicencesScreenTest {
     }
 
     @Test
-    fun aLoadedListShowsEachLibraryAndItsLicenceText() = runComposeUiTest {
+    fun aLoadedListShowsEachLibraryAndItsLicenceText() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 OpenSourceLicencesContent(
@@ -49,7 +50,7 @@ class OpenSourceLicencesScreenTest {
     }
 
     @Test
-    fun aBuildWithoutTheListSaysSoRatherThanShowingNothing() = runComposeUiTest {
+    fun aBuildWithoutTheListSaysSoRatherThanShowingNothing() = runComposeUiTest(effectContext = NoMotion) {
         setContent { TenshuTheme { OpenSourceLicencesContent(OssLicencesState.Missing, onBack = {}) } }
         onNodeWithText("This build does not include its licence list.").assertExists()
     }
