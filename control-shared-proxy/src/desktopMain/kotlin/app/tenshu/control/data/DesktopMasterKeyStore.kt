@@ -103,9 +103,29 @@ class DesktopMasterKeyStore(
         val tmp = Files.createTempFile(file.parentFile.toPath(), file.name + ".", ".tmp")
         try {
             Files.write(tmp, blob)
-            Files.move(tmp, file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+            replaceAtomically(tmp, file.toPath())
         } finally {
             Files.deleteIfExists(tmp)
+        }
+    }
+
+    /**
+     * The atomic rename of [persist]. ⚠ On Windows `MoveFileEx(REPLACE_EXISTING)` fails with
+     * `ERROR_ACCESS_DENIED` while another writer's replace of the same target is still in flight —
+     * the very race the unique temp name above is for (measured: `concurrentWritersOnOneDirectory_
+     * neverCollideOnTheTempFile` red on Windows without this). It clears within milliseconds, so the
+     * move is retried briefly there; last writer still wins. Elsewhere access denied is real and thrown.
+     */
+    private fun replaceAtomically(tmp: java.nio.file.Path, target: java.nio.file.Path) {
+        var attempt = 0
+        while (true) {
+            try {
+                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+                return
+            } catch (e: java.nio.file.AccessDeniedException) {
+                if (!IS_WINDOWS || ++attempt >= WINDOWS_REPLACE_ATTEMPTS) throw e
+                Thread.sleep(WINDOWS_REPLACE_BACKOFF_MS)
+            }
         }
     }
 
@@ -128,6 +148,9 @@ class DesktopMasterKeyStore(
     }
 
     private companion object {
+        val IS_WINDOWS = System.getProperty("os.name").orEmpty().startsWith("Windows", ignoreCase = true)
+        const val WINDOWS_REPLACE_ATTEMPTS = 50
+        const val WINDOWS_REPLACE_BACKOFF_MS = 10L
         const val TRANSFORMATION = "AES/GCM/NoPadding"
         const val NONCE_LEN = 12
         const val GCM_TAG_BITS = 128
