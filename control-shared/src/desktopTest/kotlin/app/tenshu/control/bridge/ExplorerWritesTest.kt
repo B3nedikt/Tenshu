@@ -112,6 +112,20 @@ class ExplorerWritesTest {
     }
 
     @Test
+    fun rowsDifferingOnlyInCase_resolveToTheOneTheFolderShows() {
+        // Codex's case: /A.txt is shown, /a.txt is hidden; an edit of the shown one must never go to the hidden one.
+        val remote = listOf(row("/a.txt"), row("/A.txt"))
+        val edited = ExplorerMirror.Local(
+            "A.txt", isFolder = false, isPlaceholder = false, size = 12, modifiedAtMillis = old,
+            contentVersion = "v1", identityPath = "/A.txt", ours = true,
+        )
+        assertEquals("/A.txt", ExplorerWrites.candidates(remote, listOf(edited), emptyMap(), now).single().row?.path)
+        // An ordinary file over the path resolves the way the mirror does too: the first in path order.
+        val shown = ExplorerMirror.shown(remote).values.single().second.path
+        assertEquals(shown, ExplorerWrites.candidates(remote, listOf(ordinary("a.txt")), emptyMap(), now).single().row?.path)
+    }
+
+    @Test
     fun aConflictCopyAlreadyMadeIsRecognised_soARetryDoesNotMakeAnother() {
         for (taken in listOf(emptySet(), setOf("report (conflict, DESK).docx"))) {
             val made = ExplorerWrites.conflictName("report.docx", "DESK", taken)

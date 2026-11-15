@@ -85,8 +85,14 @@ internal object ExplorerMirror {
      *   renames made elsewhere are therefore delete + create, as on macOS (§7.3); a hydrated copy is dropped.
      * - A row whose path holds a non-placeholder (the user's own file) is not shown: theirs wins.
      */
-    fun plan(remote: List<Remote>, local: List<Local>): List<Action> {
-        val wanted = LinkedHashMap<String, Pair<String, Remote>>() // key → (relative, row)
+    /**
+     * The rows the folder shows, by lower-case relative path → (relative, row). ⚠⚠ The one place that decides which
+     * row a path means: of rows differing only in case the first in path order wins and the others' subtrees are not
+     * shown, and a name Windows cannot hold is skipped with everything below it. The write path ([ExplorerWrites])
+     * must resolve a path the same way, or an edit of the shown file is uploaded over its hidden twin.
+     */
+    fun shown(remote: List<Remote>): LinkedHashMap<String, Pair<String, Remote>> {
+        val wanted = LinkedHashMap<String, Pair<String, Remote>>()
         val skipped = HashSet<String>() // realm paths whose subtree is not shown
         for (row in withAncestors(remote).sortedBy { it.path }) {
             val relative = row.path.trim('/')
@@ -99,6 +105,11 @@ internal object ExplorerMirror {
             }
             wanted[key] = relative to row
         }
+        return wanted
+    }
+
+    fun plan(remote: List<Remote>, local: List<Local>): List<Action> {
+        val wanted = shown(remote) // key → (relative, row)
 
         val localByKey = local.associateBy { key(it.relative) }
         val removals = HashMap<String, Action.Remove>()

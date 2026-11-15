@@ -66,14 +66,18 @@ internal object ExplorerWrites {
         settleMillis: Long = FILE_SETTLE_MILLIS,
         folderSettleMillis: Long = FOLDER_SETTLE_MILLIS,
     ): List<Candidate> {
-        val rows = remote.associateBy { key(it.path.trim('/')) }
+        // ⚠ The row the folder shows at each path (ExplorerMirror.shown), not any row whose path matches: of two that
+        // differ only in case, the other is hidden, and writing to it would overwrite a file the user never saw.
+        val rows = ExplorerMirror.shown(remote).mapValues { it.value.second }
+        val byPath = remote.associateBy { it.path }
         val out = ArrayList<Candidate>()
         for (entry in local) {
             if (ignored(entry)) continue
             val settle = if (entry.isFolder) folderSettleMillis else settleMillis
             if (nowMillis - entry.modifiedAtMillis < settle) continue
             val key = key(entry.relative)
-            val row = rows[key]
+            // Our placeholder names its row exactly: that one, while the realm still has it.
+            val row = (if (entry.ours) entry.identityPath?.let(byPath::get) else null) ?: rows[key]
             when {
                 entry.isFolder -> if (!entry.ours && row == null) out += Candidate(entry.relative, Kind.NEW_FOLDER, null, null)
                 row != null && row.isFolder -> continue
