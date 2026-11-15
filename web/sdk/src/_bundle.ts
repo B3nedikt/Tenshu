@@ -19,11 +19,13 @@
 /// <reference path="./native.d.ts" />
 
 export {
+  Apps,
   Bip39,
   Calendar,
   Contacts,
   ContentStream,
   Devices,
+  DriveSettings,
   FileSystem,
   Files,
   Fit,
@@ -35,8 +37,10 @@ export {
   Membership,
   Mia,
   Notifications,
+  Overview,
   Pairing,
   Photos,
+  PhotosSettings,
   Realm,
   Recovery,
   Session,

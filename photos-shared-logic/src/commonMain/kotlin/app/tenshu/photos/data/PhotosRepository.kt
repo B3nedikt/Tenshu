@@ -350,6 +350,62 @@ interface PhotosRepository {
      */
     suspend fun photographicSettings(path: String): ExifReadResult
 
+    // ── editing (`photos-editing.md` ED-1) ───────────────────────────────────────────────────
+
+    /**
+     * The photograph's **original** bytes, for the editor — fetched over the content plane when
+     * this device does not hold them. `null` when they cannot be had (not synced yet, reclaimed,
+     * the proxy unreachable).
+     *
+     * ⚠⚠ The original, never a thumbnail rung: Android/JVM rungs are raw sensor order with no tag,
+     * so an edit drawn from one saves sideways (`photos-creation-features.md` §9.1).
+     *
+     * ⚠ Defaults to `null` so a repository that cannot edit says so; the editor renders that as
+     * "not available on this device" rather than spinning.
+     */
+    suspend fun originalBytes(path: String): ByteArray? = null
+
+    /**
+     * Upload [rendered] (an upright JPEG) as a **new** file in [original]'s folder, and answer the
+     * copy as a [Photo] — `null` when it was not written.
+     *
+     * ⚠⚠ **Never an overwrite** (ED-D1): an overwrite re-mints `contentId`, clearing the favourite and
+     * breaking album entries (`photos-editing.md` §3.1). An implementation only ever creates a name
+     * that does not exist yet.
+     *
+     * ⚠ The copy carries [original]'s capture time (`SOURCE_MODIFIED_AT`) so it sits beside it in the
+     * feed, and its location (`CAPTURE_LAT_E7`/`LNG_E7`), because the re-encoded bytes carry no
+     * EXIF (`photos-creation-features.md` §9.2) — so camera, lens and EXIF date are gone, by design.
+     */
+    suspend fun saveEditedCopy(original: Photo, rendered: ByteArray): Photo? = null
+
+    /**
+     * The stored non-destructive edit of the photo with [contentId] (`photos-editing.md` §12), for
+     * re-opening the editor — `null` when it has none. ⚠⚠ **Throws when the read failed**, never
+     * `null`: an editor that took a failed read for "no edit" would let a save replace an edit the
+     * user never saw.
+     *
+     * ⚠ Read by the editor only. Nothing renders [StoredEdit.recipe] for display (ED-D2).
+     */
+    suspend fun photoEdit(contentId: String): StoredEdit? = null
+
+    /**
+     * *Save* (ED-3, ED-D11): record [recipe] as [original]'s edit, with [rendered] (an upright JPEG of
+     * it) as the rendition every device shows, and answer the photo as it now reads — its own path
+     * and `contentId`, with [Photo.renditionPath] set. `null` when nothing was saved, and then the
+     * photo's previous edit (or none) is what stands.
+     *
+     * ⚠⚠ The original is never written. Its `contentId` — what albums, flags and trash key on — is
+     * the row's key, which is the point (§3.1).
+     */
+    suspend fun saveEdit(original: Photo, recipe: app.tenshu.photos.edit.EditRecipe, rendered: ByteArray): Photo? = null
+
+    /**
+     * *Revert*: forget [photo]'s edit and delete its rendition. Answers the photo as it now reads
+     * (no rendition), or `null` when the edit could not be forgotten.
+     */
+    suspend fun revertEdit(photo: Photo): Photo? = null
+
     // ── search (S2) ──────────────────────────────────────────────────────────────────────────
 
     /**
@@ -454,6 +510,19 @@ interface PhotosRepository {
     suspend fun faceGroups(limit: Int): Pair<List<FaceGroup>, PeopleStatus>
 
     /**
+     * The `contentId` of every edited photo — the edit index's keys. `null` when it cannot be known.
+     *
+     * ⚠⚠ For a reader holding covers it did NOT map just now — the Collections snapshot, written
+     * before the edit may have existed (`photos-editing.md` §12.13): a cover it names may be an
+     * original that is now edited, and must not be drawn. A reader holding mapped [Photo]s reads
+     * [Photo.isEdited]. ⚠ Cheap by construction — the index is a short list, no library walk — since
+     * the snapshot exists for exactly the start when Control is slow.
+     *
+     * ⚠ Defaults to `null`, the fail-closed answer: a repository that cannot say draws no such cover.
+     */
+    suspend fun editedContentIds(): Set<String>? = null
+
+    /**
      * Record that [filePaths] show a person called [name].
      *
      * ⚠⚠ **Takes the photographs, not a group id.** A group id is rebuilt per call and an index
@@ -473,12 +542,42 @@ interface PhotosRepository {
      *   "switch it on" from "try again", and a single `false` forced one sentence to serve both.
      */
     suspend fun nameFaceGroup(filePaths: List<String>, name: String): NamingOutcome
+
+    /**
+     * Every "this face is not X" answered on this device (IN-6 F6c name suggestions) — what keeps
+     * an answered *"Is this X?"* from coming back.
+     *
+     * ⚠⚠ `null` when it could not be read, and the caller then asks NOTHING: an empty answer read
+     * as "nothing was rejected" would bring every answered question back. ⚠ Defaults to `null` —
+     * a repository that cannot say offers no suggestion.
+     */
+    suspend fun faceSuggestionRejections(): List<app.tenshu.photos.model.FaceRejection>? = null
+
+    /**
+     * Record "these faces are not [name]" — the "No" to a suggestion. **Device-local**: it writes
+     * no realm data and never syncs (`photos-people-and-pets.md` §6a F6c.9 D2).
+     *
+     * @return whether it was recorded. ⚠ Defaults to `false` — nothing recorded is never "saved".
+     */
+    suspend fun rejectNameSuggestion(name: String, faces: List<app.tenshu.photos.model.GroupFace>): Boolean = false
 }
 
 /**
  * One set of files whose bytes are identical, oldest first — so the copy most likely to be the
  * original leads, and "keep the first one" is a defensible default rather than an arbitrary one.
  */
+/**
+ * A photo's stored edit, as the editor re-opens it (`photos-editing.md` §12).
+ *
+ * ⚠ [recipe] is `null` when the row's recipe is one this build cannot read — a newer editor's
+ * (ED-D9). The photo still shows its rendition; only re-editing is blocked.
+ */
+data class StoredEdit(
+    val recipe: app.tenshu.photos.edit.EditRecipe?,
+    val renditionPath: String,
+    val redacted: Boolean,
+)
+
 data class DuplicateGroup(
     val contentHash: String,
     val photos: List<Photo>,
@@ -556,6 +655,8 @@ data class AlbumSummary(
     /** The cover's stored pixel size, for its card's thumbnail class; see `Photo.pixelWidth`. */
     val coverPixelWidth: Int? = null,
     val coverPixelHeight: Int? = null,
+    /** The cover photo's `contentId` — what a snapshot of this card checks against the edits (`photos-editing.md` §12.13). */
+    val coverContentId: String? = null,
 )
 
 /** The album-list read, with the same three cases as [PhotoPageResult] and for the same reason. */

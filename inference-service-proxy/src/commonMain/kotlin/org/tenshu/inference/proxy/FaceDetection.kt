@@ -22,7 +22,26 @@ data class FaceBox(
      * whether two embeddings are the same person.
      */
     val confidence: Float = 1f,
-)
+) {
+    // ⚠⚠ Equal at **float32** precision, by `toBits`. The face-template log stores float32 bits,
+    // and on Kotlin/JS a `Float` is a double in memory — a literal included — so `0.11f` reopens as
+    // `0.10999999940395355` and a generated equality would say the row changed. `toBits` rounds on
+    // JS and is the JVM's own `Float.equals`/`hashCode` elsewhere (NaN equals NaN, -0 is not 0), so
+    // off JS nothing about this class's equality moved. Rounding the fields on construction does not
+    // work instead: the value then no longer equals the literal it was built from.
+    override fun equals(other: Any?): Boolean =
+        other is FaceBox && left.toBits() == other.left.toBits() && top.toBits() == other.top.toBits() &&
+            right.toBits() == other.right.toBits() && bottom.toBits() == other.bottom.toBits() &&
+            confidence.toBits() == other.confidence.toBits()
+
+    override fun hashCode(): Int {
+        var hash = left.toBits()
+        hash = 31 * hash + top.toBits()
+        hash = 31 * hash + right.toBits()
+        hash = 31 * hash + bottom.toBits()
+        return 31 * hash + confidence.toBits()
+    }
+}
 
 /**
  * A point in an image, as fractions of its size — [FaceBox]'s convention.

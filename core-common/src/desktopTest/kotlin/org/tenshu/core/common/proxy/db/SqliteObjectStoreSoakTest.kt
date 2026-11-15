@@ -6,8 +6,12 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.test.runTest
 import org.tenshu.core.common.proxy.db.ObjectStore.DbEntry
 import org.tenshu.core.common.proxy.db.ObjectStore.DbValue
+import java.nio.file.Path
+import kotlin.io.path.ExperimentalPathApi
 import kotlin.io.path.createTempDirectory
+import kotlin.io.path.deleteRecursively
 import kotlin.random.Random
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -21,8 +25,19 @@ import kotlin.test.assertTrue
 // stream of store/remove/get calls.
 class SqliteObjectStoreSoakTest {
 
+    // Each database is ~48 MB, so a run that left them behind filled TMPDIR.
+    private val tempDirs = mutableListOf<Path>()
+
     private fun tempDbPath(): String =
-        createTempDirectory("sqlite-objstore-soak").resolve("objects.db").toString()
+        createTempDirectory("sqlite-objstore-soak").also { tempDirs.add(it) }
+            .resolve("objects.db").toString()
+
+    @OptIn(ExperimentalPathApi::class)
+    @AfterTest
+    fun deleteTempDirs() {
+        tempDirs.forEach { it.deleteRecursively() }
+        tempDirs.clear()
+    }
 
     private fun scope() = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 

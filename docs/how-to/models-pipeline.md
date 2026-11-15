@@ -128,7 +128,9 @@ ignores. `contentTagging`, `semanticImageSearch`, `textInImages`, `faceClusterin
 
 ⚠ **`runtime` must be one this build can execute** or the entry is filtered out on arrival
 (IN-D13). `onnx` on JVM and Android; `onnx+mediapipe` (IN-6's face pair, `FaceModel.RUNTIME`) on
-Android only, so desktop filters that entry out by construction; `coreml` on no shipped build. In
+Android only, so desktop filters that entry out by construction; `coreml+vision` (AuraFace on iOS:
+Vision detects, Core ML embeds, `ios-face-grouping.md` FD4) on no build at all until that plan's F5;
+`coreml` on no shipped build. In
 the repository, Photos on iOS contributes it since 2026-10-11, **behind a build flag that is off**
 and two static gates (`ios-on-device-inference.md` §3.1, §14.11); every other iOS app, and Photos
 with the flag off, contributes nothing.
@@ -516,6 +518,106 @@ for every build anyone has: nothing shipped is offered the entry.
 555 540 480 bytes, twice, and `206` minutes later. Step 5's `curl -fsSI -r 0-1023 … | head -1`
 therefore proves less than it reads, and a `curl -r` without `-I` may download the archive. The
 opt-in `ModelCdnRangeProbeTest` reads the headers and drops the connection.
+
+### 6.2 The Core ML face entry — what the maintainer runs for the export of 2026-11-10
+
+`auraface-v1-int8`, `runtime: "coreml+vision"` (`ios-face-grouping.md` §7 F2, §12): one
+`faceEmbedder` archive, pinned. The export is kept at
+`~/tenshu-models/coreml-face-export-984e39d3d798/`, and unlike SigLIP's it is **reproducible**: running
+`scripts/inference/export-coreml-face-embedder.py` on the pinned toolchain gives the same bytes, so a
+lost copy is re-made rather than lost. There is no retrieval gate or preflight probe for this
+artifact; its self-check (cosine against the fp32 source) is the export's, and the probe is F4's, in
+the app. Run from the repository root, on a tree that contains the entry, with the key in the
+Keychain. ⚠ The block has no `set -e`: run it a step at a time, and **stop if step 1 or step 2 prints
+`FAILED`**. Nothing before step 6 is destructive, but every expectation after a failed check is void.
+
+```bash
+E=$HOME/tenshu-models/coreml-face-export-984e39d3d798
+S=$HOME/tenshu-models/coreml-export-3fd1918106d4
+A=deploy/models/build/artifacts
+M=siglip-base-patch16-256-multilingual
+F=auraface-v1-int8
+BASE=https://models.service.tenshu.app
+
+# 1. The directory is the export the entry pins. Must print two OKs.
+( cd "$E" && shasum -a 256 -c <<'SUMS'
+d503f893c01153ae9fbc241973c797578b537d9dd4e6962d3326ec71a5c3b80c  auraface_fp16.mlpackage.tar
+984e39d3d798f90ef74983a76cd1edf2de7272a5f79e579860ddd75d1fffd87f  export-manifest.json
+SUMS
+)
+
+# 2. Keep what is live now: the rollback, and step 5's yardstick. It must be the catalog this
+#    block was written against (built 2026-09-25, three entries), or step 5's numbers do not apply.
+mkdir -p deploy/models/build/live
+curl -fsS -o deploy/models/build/live/catalog.json     "$BASE/catalog.json"
+curl -fsS -o deploy/models/build/live/catalog.json.sig "$BASE/catalog.json.sig"
+echo "a45351047f5bc513a2233addea1f5997aec75a25c358fb5c114a8a60357b45d4  deploy/models/build/live/catalog.json" | shasum -a 256 -c
+
+# 3. Stage. The new archive from the export; the SigLIP towers from their kept export; every other
+#    published file from the CDN unless it is staged already. The signer checks the pinned ones
+#    against their pins; step 5 checks the rest.
+mkdir -p "$A/$M/1/coreml" "$A/$F/1/coreml"
+cp "$E/auraface_fp16.mlpackage.tar" "$A/$F/1/coreml/"
+for t in vision_fp16 text_fp16; do
+  [ -f "$A/$M/1/coreml/$t.mlpackage.tar" ] || cp "$S/$t.mlpackage.tar" "$A/$M/1/coreml/"
+done
+for p in "$M/1/vision_model_uint8.onnx" "$M/1/text_model_int8.onnx" "$M/1/tokenizer.bin" \
+         "$F/1/face_landmarker.task" "$F/1/auraface_int8.onnx"; do
+  [ -f "$A/$p" ] || curl -fsS -o "$A/$p" "$BASE/$p"
+done
+
+# 4. Sign, with the key from the Keychain. --build-date is pinned so step 5's diff is one block.
+( umask 077; K=$(mktemp -t tenshu-model-key); trap 'rm -f "$K"' EXIT; \
+  security find-generic-password -s tenshu-model-signing-key -w > "$K" && \
+  ./gradlew :model-signer:run --args="build-and-sign --manifest deploy/models/models.json \
+    --artifacts deploy/models/build/artifacts --out deploy/models/build/catalog.json \
+    --build-date 2026-09-25 --key $K" )
+#    ⚠ It must list "auraface-v1-int8 v1 — 1 artifact(s), runtime='coreml+vision'", and end with:
+#      Signed with public key: b417e9105c61b59f335bed4f7e6b4a86ca811518c6f90d7184d1239c5c7d8877
+
+# 5. Nothing but the new entry moved. Expect exactly ONE added block, "113a114,152", 39 lines, every
+#    one starting ">". ANY "<" line is a staged file that is not the published one: stop, and do not
+#    publish.
+diff deploy/models/build/live/catalog.json deploy/models/build/catalog.json
+
+# 6. Rehearse, then publish. The dry run uploads nothing; it prints ten lines: eight artifacts, then
+#    catalog.json, then catalog.json.sig. (It does not need the R2 keys, but this command reads them
+#    anyway, so the real run below is the same line minus DRY_RUN=1.)
+( export R2_ACCESS_KEY_ID=$(security find-generic-password -a tenshu -s r2-models-access-key-id -w) \
+         R2_SECRET_ACCESS_KEY=$(security find-generic-password -a tenshu -s r2-models-secret-access-key -w); \
+  env -u AWS_SESSION_TOKEN -u AWS_SECURITY_TOKEN DRY_RUN=1 SPACES_BUCKET=tenshu-models \
+    SPACES_ENDPOINT=$(terraform -chdir=deploy/cloudflare-models output -raw s3_endpoint) \
+    AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
+    ./scripts/models-publish.sh )
+#    ⚠⚠ THE IRREVERSIBLE STEP: the same command without DRY_RUN=1.
+
+# 7. Verify from outside. The archive must answer 206 and hash to its pin.
+#    ⚠ catalog.json is served with max-age=300: the cmp can fail for up to five minutes after the
+#    upload. That is the cache, not a failed publish — wait and run it again before rolling back.
+curl -fsS "$BASE/catalog.json" | cmp - deploy/models/build/catalog.json && echo "catalog: live"
+curl -fsSI -r 0-1023 "$BASE/$F/1/coreml/auraface_fp16.mlpackage.tar" | head -1
+curl -fsS "$BASE/$F/1/coreml/auraface_fp16.mlpackage.tar" | shasum -a 256
+#    expect d503f893c01153ae9fbc241973c797578b537d9dd4e6962d3326ec71a5c3b80c
+```
+
+⚠ **Rehearsed 2026-11-10 with a throwaway key** [M]: staged from the kept exports and the files
+already published, `build-and-sign` printed the line step 4 names, step 5's diff against the live
+catalog (`a4535104…45d4`) was exactly `113a114,152` with no `<` line, and step 6's dry run printed the
+ten lines. That catalog was signed with a key no device trusts, and was deleted.
+
+⚠ **The publish uploads eight objects for one new one.** The script uploads every path the catalog
+names, ~1.32 GB for ~131 MB of new content. The seven already on the CDN are overwritten with the
+bytes step 5 has shown to be the published ones.
+
+⚠⚠ **Why this is safe for every build anyone has.** A build keeps an entry only when its runtime is
+in the set the build contributes. Android contributes `{"onnx", "onnx+mediapipe"}`, desktop
+`{"onnx"}`, and Photos on iOS with AI-L on `{"coreml"}`; none contributes `coreml+vision`, so every
+one drops the entry and still sees one AuraFace entry or none (`FaceCatalogEntryTest`). Until
+`ios-face-grouping.md` F5 contributes the runtime, the entry is on the CDN and nobody is offered it.
+
+**What cannot be taken back, and the rollback**, are §6.1's: the archive's URL is public and
+`immutable` for a year from the moment it uploads, so a bad archive is fixed with a new path, never
+by uploading over it; the catalog is rolled back by uploading step 2's pair over it.
 
 ---
 

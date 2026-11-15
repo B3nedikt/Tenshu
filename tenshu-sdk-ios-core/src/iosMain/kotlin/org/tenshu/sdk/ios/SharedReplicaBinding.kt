@@ -14,6 +14,7 @@ import org.tenshu.core.common.proxy.db.ObjectStore
 import org.tenshu.sync.proxy.SyncManagerImpl
 import org.tenshu.core.common.proxy.db.sqlite.ReplicaBuild
 import org.tenshu.core.common.proxy.db.sqlite.ReplicaFence
+import org.tenshu.core.common.proxy.db.sqlite.ReplicaLimits
 import org.tenshu.core.common.proxy.db.sqlite.ReplicaMigrationSteps
 import org.tenshu.core.common.proxy.db.sqlite.RegistryReplicaMigrationSteps
 import org.tenshu.core.common.proxy.db.sqlite.ReplicaOpenResult
@@ -111,6 +112,8 @@ internal class SharedReplicaBinding(
      * worker to finish a job it was handed (B.16 (227), B.17 (258)). The graph's own open never waits.
      */
     private val updatingWaitMs: Long = UPDATING_WAIT_MS,
+    /** The store's limits, attached at [installAtLaunch]. Production passes none. */
+    private val limits: ReplicaLimits = ReplicaLimits(),
 ) {
     /** What the binding asks of the process, behind a seam for the tests. */
     interface Seams {
@@ -228,7 +231,7 @@ internal class SharedReplicaBinding(
         made.onProtectedDataAvailable = ::protectedDataAvailable
         // ⚠⚠ B.12 (163): every registry attached BEFORE install. The protection refuses an attach
         // after install; this order is what makes the production open's check pass.
-        made.lifecycle.attach(directory)
+        made.lifecycle.attach(directory, limits)
         made.install(loops = loops)
         adapter = made
     }

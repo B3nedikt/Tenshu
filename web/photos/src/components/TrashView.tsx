@@ -7,6 +7,7 @@ import { useTrash } from '../lib/live'
 import { useFeed } from '../lib/feed'
 import { attempt, type Outcome } from '../lib/errors'
 import { useOnScreen, useThumbnail } from '../lib/thumbnails'
+import { previewPathOf } from '../lib/media'
 import { Button, ConfirmDialog, ErrorPanel, Loading, OutcomeText } from './ui'
 
 // The trash, pushed over `photo.trash.observe`: restore, or delete forever behind a confirm.
@@ -49,7 +50,7 @@ function TrashRow({ item, onDelete }: { item: TrashedPhoto; onDelete: () => void
   const feed = useFeed()
   const ref = useRef<HTMLLIElement>(null)
   const onScreen = useOnScreen(ref)
-  const thumb = useThumbnail(item.photo.path, onScreen)
+  const thumb = useThumbnail(previewPathOf(item.photo), onScreen)
   const [outcome, setOutcome] = useState<Outcome>(null)
   const [busy, setBusy] = useState(false)
   const when = new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium' }).format(item.trashedAtMs)

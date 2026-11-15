@@ -1,8 +1,4 @@
 {
-  "app": {
-    "title": "Timeline",
-    "tagline": "Where you’ve been, end-to-end encrypted."
-  },
   "runtime": {
     "connectingTitle": "Still connecting to Tenshu…",
     "connectingBody": "The Tenshu tab hosting Timeline is busy. Timeline will load as soon as it answers.",
@@ -19,6 +15,7 @@
     "reload": "Reload"
   },
   "nav": {
+    "label": "Timeline sections",
     "timeline": "Timeline",
     "places": "Places"
   },

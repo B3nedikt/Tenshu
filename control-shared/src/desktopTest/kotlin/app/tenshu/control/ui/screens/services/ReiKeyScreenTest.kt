@@ -8,6 +8,7 @@ import androidx.compose.ui.test.performClick
 import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertEquals
+import org.tenshu.ui.test.NoMotion
 
 /**
  * §2.3 redemption-code entry: Content composable surface. The redeem-result behaviour is exercised
@@ -16,7 +17,7 @@ import kotlin.test.assertEquals
 class ReiKeyScreenTest {
 
     @get:Rule
-    val composeTestRule = createComposeRule()
+    val composeTestRule = createComposeRule(NoMotion)
 
     @Test
     fun rendersExplainerCopy() {

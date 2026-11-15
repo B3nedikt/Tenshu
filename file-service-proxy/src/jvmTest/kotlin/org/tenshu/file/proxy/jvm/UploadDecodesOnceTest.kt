@@ -33,7 +33,7 @@ class UploadDecodesOnceTest {
     fun aFrameThatWalksTheStepDownStillDecodesOnce() = runTest {
         val decoder = LadderFixtures.CountingDecoder()
 
-        LadderFixtures.upload(backgroundScope, "noise.png", LadderFixtures.noise(2_400, 2_400), ladder = true, decoder = decoder)
+        LadderFixtures.upload(backgroundScope, "noise.png", LadderFixtures.noise(STEP_DOWN_NOISE_EDGE, STEP_DOWN_NOISE_EDGE), ladder = true, decoder = decoder)
 
         assertEquals(1, decoder.decodes.get(), "a quality step re-encodes the scaled bitmap; it never decodes again")
     }
@@ -57,12 +57,25 @@ class UploadDecodesOnceTest {
     fun withoutTheLadder_eachQualityStepDecodesAgain() = runTest {
         val decoder = LadderFixtures.CountingDecoder()
 
-        LadderFixtures.upload(backgroundScope, "noise.png", LadderFixtures.noise(2_400, 2_400), ladder = false, decoder = decoder)
+        LadderFixtures.upload(backgroundScope, "noise.png", LadderFixtures.noise(STEP_DOWN_NOISE_EDGE, STEP_DOWN_NOISE_EDGE), ladder = false, decoder = decoder)
 
         println("[decodes] per-rung path, step-down frame: ${decoder.decodes.get()}")
         assertTrue(
             decoder.decodes.get() > ThumbnailClasses.STILLS.size,
             "a step-down re-renders from the original on the per-rung path: ${decoder.decodes.get()} decodes",
         )
+    }
+
+    private companion object {
+        /**
+         * The smallest noise frame whose top rung walks the whole step-down: every quality in
+         * `ThumbnailClassMinter.STEP_DOWN_QUALITIES` is tried over the 1 MB cap, then declined. That is
+         * 6 decodes on the per-rung path, the walk a 2 400² frame made, at 44 % of its pixels.
+         *
+         * ⚠ Measured, not derived: the boundary is noise's JPEG size against the cap. At 1 300 the
+         * top rung fits at the default quality (4 decodes, no step at all, and these tests go vacuous);
+         * 1 400 takes one step, 1 500 two. The per-rung test above is the anti-vacuity for both.
+         */
+        const val STEP_DOWN_NOISE_EDGE = 1_600
     }
 }

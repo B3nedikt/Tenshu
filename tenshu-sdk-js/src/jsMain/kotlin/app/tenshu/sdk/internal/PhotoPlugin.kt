@@ -48,7 +48,12 @@ internal object PhotoPlugin : JsRuntimePlugin {
 
     override fun operationFactory(ctx: RuntimeContext) =
         OperationImplementationFactory { id ->
-            photoServiceProxyImplementationFactory(id, nowEpochMs = { Date.now().toLong() })
+            // ⚠ The tombstone emitter (ED-3): without it a `ClearPhotoEdit` never leaves this tab.
+            photoServiceProxyImplementationFactory(
+                id,
+                nowEpochMs = { Date.now().toLong() },
+                tombstoneEmitter = ctx.tombstoneEmitterHolder.emitter,
+            )
         }
 
     override fun initialize(executionContext: ExecutionContext, runtime: RuntimeContext) {

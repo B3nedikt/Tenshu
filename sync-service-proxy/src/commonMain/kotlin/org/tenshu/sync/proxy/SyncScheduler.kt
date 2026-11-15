@@ -124,6 +124,15 @@ class SyncScheduler(
      */
     private val syncGate: SyncGate = SyncGate.AlwaysAllow,
     /**
+     * The user's device-local **pause** switch ([SyncGate] KDoc). Unlike [syncGate] this one *is*
+     * enforced here: while closed, [tickOnce] runs its local maintenance, reports health and returns
+     * — no push, no pull, no shared realm, no slice bootstrap. The content plane parks uploads on the
+     * same gate (`initSyncService` composes it into the observer's `contentGate`), so nothing leaves
+     * the device until it opens. ⚠ A pending [forceDrainOnce] waits for the gate too: "Sync now" is
+     * not a way past the user's own pause.
+     */
+    private val pauseGate: SyncGate = SyncGate.AlwaysAllow,
+    /**
      * Local-first storage gate (ADR 0019, local-first reframe): consulted each
      * tick around the **personal** realm's drain/pull only. `false` (no bound
      * storage subscription) keeps the personal realm local-only — its blocks
@@ -776,6 +785,30 @@ class SyncScheduler(
     suspend fun drainNow() = tickMutex.withLock { tickOnce() }
 
     /**
+     * The relay is refusing this device's identity: its sync traffic met a `401` that no repair has
+     * cleared yet. The same bit the health row publishes as `deviceUnrecognized`.
+     *
+     * Read without [tickMutex], on purpose: its reader is `ForgetThisDevice`'s retirement wait,
+     * which polls while ticks run, and must stop waiting for a push this relay will not accept
+     * (`ForgetThisDeviceImplementation`).
+     */
+    val relayRefusesThisDevice: Boolean get() = registrationBackoff.isBlocked
+
+    /**
+     * [drainNow], answering whether that tick left **more to pull** — a full page on the forward
+     * lane, an unfinished backward walk, or a full page from any shared realm ([tickBacklog]).
+     *
+     * For a caller that steps ticks itself and has to know when it has caught up rather than guess:
+     * the system-test harness's stepped mode (`TestSystem.syncUntilQuiet`), which runs with the
+     * polling loop off, so the wake a backlog normally raises is never acted on. Read inside the same
+     * [tickMutex] hold as the tick, so the answer is this tick's.
+     */
+    suspend fun drainNowReportingBacklog(): Boolean = tickMutex.withLock {
+        tickOnce()
+        tickBacklog
+    }
+
+    /**
      * [drainNow], answering whether the cycle **failed to reach the relay or had a write refused**
      * — the stall signal for Android's `SyncPushWorker` (`control-background-work-off-fgs.md` §5.3).
      *
@@ -987,6 +1020,17 @@ class SyncScheduler(
             // a sealed realm (wrapper present, keys absent) vs a device that never onboarded.
             reportSyncHealth()
             // A realm that locked mid-catch-up pulls nothing; the flag must not outlive it.
+            catchUp?.settle(false)
+            return
+        }
+        // The user paused sync on this device: no push, no pull, no shared realm. Ahead of the latch on
+        // purpose — [onEnabled]'s replay is work that wants to push, so it waits for the first
+        // unpaused tick. Health is still reported (with no relay outcome: this tick made no call),
+        // so the row does not freeze mid-sync.
+        if (!pauseGate.shouldSync()) {
+            tickOnline = null
+            tickAuthorized = null
+            reportSyncHealth()
             catchUp?.settle(false)
             return
         }
@@ -1412,8 +1456,13 @@ class SyncScheduler(
         // is still false, so gating it on the *local* figure deadlocks any device
         // that isn't the current subscription holder. `realmRelayRegistered` is the
         // safe opener — it is only ever true for a realm that was funded at least
-        // once (genesis ran, or a joiner completed its first pull), so this never
-        // lets a never-funded realm reach the relay.
+        // once, so this never lets a never-funded realm reach the relay. ⚠ A joiner
+        // does not latch it on its first pull: `RealmRegistrar.ensureRegistered` sets it
+        // (via `lastSyncTimestamp > 0`) on the first PUSH-allowed tick after that pull.
+        // That is never a gap in production, because a paired joiner's `storageGate`
+        // (`StorageSyncGate`) is held open by `joinedFundedRealm`, which pairing sets and
+        // nothing clears. Only a test that swaps the gate for a bare lambda can shut a
+        // joiner's gate before the latch (`docs/testing.md` §12).
         // Realm schema pull fence (core-schema-evolution.md §7.3): if the realm's
         // epoch records a service version above what this device declares, the inbound
         // blocks are shapes this device's positional decoders would garble mid-parse — so
@@ -1992,6 +2041,9 @@ class SyncScheduler(
             // at the first one and let the next tick retry, rather than emitting one doomed request
             // per queued block. Other realms in the loop are unaffected.
             for (data in pending.toList()) {
+                // ⚠ A realm unregistered mid-pass — "Forget this device" (§7i.5) — pushes nothing
+                // more under the identity it was registered with.
+                if (registry.runtimeFor(runtime.context.ownerId) !== runtime) break
                 val block = data as SyncBlock
                 // The edges the emit fixed from this block's payload. ⚠ None yet: a shared realm's
                 // `SharedFile` declares no content edges until it has a tombstone path (§10.12 Q6).
@@ -2065,6 +2117,9 @@ class SyncScheduler(
 
                 else -> result.getOrNull() ?: return@forEach
             }
+            // ⚠⚠ Unregistered while the fetch was in flight — "Forget this device" (§7i.5): the
+            // store it would write into has just been wiped, and the identity that fetched is gone.
+            if (registry.runtimeFor(runtime.context.ownerId) !== runtime) return@forEach
             // The realm answered and accepted our identity — clear any window so the next tick runs
             // at full cadence.
             backoff.onCleared()
@@ -2648,9 +2703,11 @@ class SyncScheduler(
      */
     private suspend fun buildSignedTip(): SignedHlcTip? {
         val ownerId = syncManager.currentOwnerId ?: return null
-        val deviceId = syncManager.currentDeviceId
+        // One snapshot: the id and the key that signs it can never come from two identities.
+        val identity = syncManager.currentDeviceIdentity()
+        val deviceId = identity.deviceId
         val hlc = mergedHlc()
-        val signingKey = syncManager.getDeviceSigningKeyPair().privateKey
+        val signingKey = identity.signingKeyPair.privateKey
         val message = hlcTipCanonicalMessage(ownerId, deviceId, hlc)
         val signature = cryptoManager.signEd25519(signingKey, message)
         return SignedHlcTip.create(

@@ -93,6 +93,15 @@ internal class PhotosModelsFixture private constructor(
     private val indexScript: List<IndexStep> = emptyList(),
     /** How *Index now* answers. ⚠ It moves nothing: the section moves when the probe advances. */
     private val indexAnswer: IndexStartOutcome = IndexStartOutcome.Started,
+    /**
+     * Face grouping bound beside search (`ios-face-grouping.md` F6): its switch is offered, and the
+     * list's face row is the face model's. [facesRealm] / [facesDevice] `false` stands for a row
+     * that is **absent** as much as for an explicit no: the screen's consent read does not tell them
+     * apart (both are shown off), and only the operation's deletion does (`inferenceConsentWithdrawn`).
+     */
+    private val faces: Boolean = false,
+    private val facesRealm: Boolean = false,
+    private val facesDevice: Boolean = false,
 ) {
     /** One state of the fake pass: what the driver, the bar, the coverage, the store and the pause say. */
     internal data class IndexStep(
@@ -107,11 +116,14 @@ internal class PhotosModelsFixture private constructor(
     private val list = MutableStateFlow(first)
     private val step = MutableStateFlow(0)
     private val waiting = MutableStateFlow<List<CompletableDeferred<Unit>>>(emptyList())
-    private val rows = MutableStateFlow(listOf(CapabilityConsent(search, realm, device)))
-    private val roster = MutableStateFlow(others?.let { mapOf(search to it) })
+    private val rows = MutableStateFlow(listOfNotNull(CapabilityConsent(search, realm, device), CapabilityConsent(facesCapability, facesRealm, facesDevice).takeIf { faces }))
+    private val roster = MutableStateFlow(others?.let { if (faces) mapOf(search to it, facesCapability to it) else mapOf(search to it) })
 
     /** ⚠ One step: two calls recorded at once keep the order they were recorded in. */
     private fun record(call: String) = shown.update { if (it.isEmpty()) call else "$it · $call" }
+
+    /** A consent write, as recorded: search's as it always was, face grouping's under its own prefix. */
+    private fun consentCall(capability: InferenceCapability, call: String): String = if (capability == facesCapability) "faces.$call" else call
 
     /**
      * Records [call], and when [held] suspends until the probe next advances. ⚠⚠ The wait is
@@ -128,7 +140,14 @@ internal class PhotosModelsFixture private constructor(
     private val source = object : OnDeviceModelSource {
         override val models: Flow<ModelsAvailability> =
             list.onStart { armSelfAdvance() }.transformWhile { emit(it); it != ModelsAvailability.NotConnected }
-        override val serves: Flow<Map<String, List<String>>> = MutableStateFlow(mapOf(MODEL_ID to listOf(search.id)))
+        override val serves: Flow<Map<String, List<String>>> =
+            MutableStateFlow(if (faces) mapOf(MODEL_ID to listOf(search.id), FACE_MODEL_ID to listOf(facesCapability.id)) else mapOf(MODEL_ID to listOf(search.id)))
+
+        override suspend fun consentWithdrawn(capability: InferenceCapability) {
+            // ⚠ What the real source does next (the operation's own withdrawal-first deletion) is not
+            // this fixture's; only that it was told, and of which capability.
+            if (capability == facesCapability) record("faces.withdrawn")
+        }
 
         override suspend fun download(modelId: String, allowsCellular: Boolean): ModelActionResult {
             record("download($modelId, ${if (allowsCellular) "mobile" else "wifi"})")
@@ -153,13 +172,13 @@ internal class PhotosModelsFixture private constructor(
         override fun consents(): Flow<List<CapabilityConsent>> = rows
 
         override suspend fun setRealmConsent(capability: InferenceCapability, allowed: Boolean): Boolean {
-            record("realm(${onOff(allowed)})")
+            record(consentCall(capability, "realm(${onOff(allowed)})"))
             rows.update { all -> all.map { if (it.capability == capability) it.copy(realm = allowed) else it } }
             return true
         }
 
         override suspend fun setDeviceConsent(capability: InferenceCapability, allowed: Boolean): Boolean {
-            record("device(${onOff(allowed)})")
+            record(consentCall(capability, "device(${onOff(allowed)})"))
             // ⚠ As the real one: nothing is written under an id that is not known.
             if (!deviceKnown) return false
             rows.update { all -> all.map { if (it.capability == capability) it.copy(device = allowed) else it } }
@@ -171,7 +190,7 @@ internal class PhotosModelsFixture private constructor(
         override fun otherDeviceConsents(): Flow<Map<InferenceCapability, List<OtherDeviceConsent>>?> = roster
 
         override suspend fun clearOtherDeviceConsent(capability: InferenceCapability, deviceId: String): Boolean {
-            record("clear($deviceId)")
+            record(consentCall(capability, "clear($deviceId)"))
             roster.update { known -> known?.mapValues { (_, devices) -> devices.map { if (it.deviceId == deviceId) it.copy(allowed = false) else it } } }
             return true
         }
@@ -216,7 +235,7 @@ internal class PhotosModelsFixture private constructor(
             OnDeviceModelsRepository(
                 source = source,
                 notOffered = null,
-                capabilities = OnDeviceModelsCapabilities,
+                capabilities = if (faces) OnDeviceModelsCapabilities.copy(features = listOf(search, facesCapability), modelFeatures = mapOf(MODEL_ID to search, FACE_MODEL_ID to facesCapability)) else OnDeviceModelsCapabilities,
                 remove = { modelId ->
                     recordAndHold("delete($modelId)", held = removal == null)
                     removal ?: ModelDeleteOutcome.Removed
@@ -265,6 +284,24 @@ internal class PhotosModelsFixture private constructor(
         /** [DOWNLOAD_BYTES] and what preparing it takes (`CoreMlDiskBudget.prepareBytes`; held to it in `ModelsViewModelOnNativeTest`). */
         const val ON_DEVICE_BYTES = 2_579_969_593L
         private val search = InferenceCapability.SEMANTIC_IMAGE_SEARCH
+        private val facesCapability = InferenceCapability.FACE_CLUSTERING
+
+        // ⚠ The face entry of `deploy/models/models.json` (runtime `coreml+vision`): its id, name,
+        // licence and its one archive's size; on-device is that and `CoreMlDiskBudget.prepareBytes`.
+        const val FACE_MODEL_ID = "auraface-v1-int8"
+        private const val FACE_NAME = "People (AuraFace + Apple Vision)"
+        const val FACE_DOWNLOAD_BYTES = 130_631_680L
+        const val FACE_ON_DEVICE_BYTES = 453_327_426L
+        private val faceOffered = OfferedModel(FACE_MODEL_ID, FACE_NAME, 1, downloadBytes = FACE_DOWNLOAD_BYTES, onDeviceBytes = FACE_ON_DEVICE_BYTES, licence = "Apache-2.0")
+        private val faceHeld = HeldModel(FACE_MODEL_ID, FACE_NAME, 1, onDeviceBytes = FACE_ON_DEVICE_BYTES, licence = "Apache-2.0")
+
+        /** Search's model ready, and the face model as [face] says, in the order the real source lists them. */
+        private fun withFaces(face: ModelSetup) = ModelsAvailability.Listed(
+            ModelsAvailability.Catalog.READ,
+            ModelsAvailability.Downloads.KNOWN,
+            listOf(ModelRow(MODEL_ID, NAME, ModelSetup.Held(heldModel, Standing.Ready, ModelSetup.Update.None)), ModelRow(FACE_MODEL_ID, FACE_NAME, face)),
+        )
+        private val faceReady = ModelSetup.Held(faceHeld, Standing.Ready, ModelSetup.Update.None)
         private fun onOff(allowed: Boolean) = if (allowed) "on" else "off"
 
         private val offered = OfferedModel(MODEL_ID, NAME, 1, downloadBytes = DOWNLOAD_BYTES, onDeviceBytes = ON_DEVICE_BYTES, licence = "Apache-2.0")
@@ -379,6 +416,21 @@ internal class PhotosModelsFixture private constructor(
             // The model is ready and search is off everywhere: no button, the switch named.
             "indexSwitchOff" -> PhotosModelsFixture(ready, index = IndexStep(stored = StoredIndex(0)))
             // A press the phone holds back: it says no message, and the section moves when the probe does.
+            // ─── Face grouping beside search (`ios-face-grouping.md` F6).
+            // The face model not downloaded and its rows ABSENT (never written): a step per advance
+            // takes it through the download, the prepare and the probe to ready, and the last asks.
+            "facesAbsent" -> PhotosModelsFixture(
+                withFaces(ModelSetup.Absent(faceOffered, null)),
+                realm = true, device = true, faces = true,
+                script = listOf(
+                    withFaces(ModelSetup.Fetching(faceOffered, ModelSetup.Download(allowsCellular = false, 52_000_000, FACE_DOWNLOAD_BYTES, null))),
+                    withFaces(ModelSetup.Held(faceHeld, Standing.Preparing(Standing.Preparing.How.Now), ModelSetup.Update.None)),
+                    withFaces(ModelSetup.Held(faceHeld, Standing.Checking(Standing.Checking.How.Running), ModelSetup.Update.None)),
+                    withFaces(faceReady),
+                ),
+            )
+            // Both models ready, face grouping on here and on a Mac.
+            "facesOn" -> PhotosModelsFixture(withFaces(faceReady), realm = true, device = true, others = others, faces = true, facesRealm = true, facesDevice = true)
             "indexPressWaits" -> indexed(
                 IndexStep(coverage = reach, stored = StoredIndex(1_204)),
                 script = listOf(IndexStep(waiting(ForegroundIndexStanding.Waiting.Why.WARM), coverage = reach, stored = StoredIndex(1_204))),

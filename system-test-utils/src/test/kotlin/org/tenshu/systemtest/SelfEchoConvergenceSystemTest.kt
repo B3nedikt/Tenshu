@@ -5,7 +5,6 @@ import kotlinx.coroutines.runBlocking
 import org.tenshu.core.Data
 import org.tenshu.core.TResult
 import org.tenshu.core.TString
-import org.tenshu.core.collection.list.toList
 import org.tenshu.core.entity.DataId
 import org.tenshu.core.file.ContentId
 import org.tenshu.core.file.File
@@ -14,13 +13,7 @@ import org.tenshu.core.file.system.replaceFile
 import org.tenshu.core.file.system.uploadFile
 import org.tenshu.core.schema.propertyRef
 import org.tenshu.file.client.fileService
-import org.tenshu.sync.approvePairingRequest
-import org.tenshu.sync.client.syncService
 import org.tenshu.sync.common.SyncGate
-import org.tenshu.sync.getPairingStatus
-import org.tenshu.sync.getPendingPairingRequests
-import org.tenshu.sync.initiatePairing
-import org.tenshu.sync.startPairing
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -28,7 +21,6 @@ import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.seconds
 
 /**
  * ⭐ CR-2 B3b, B2 audit Q8 (`content-plane-cr2-quorumless.md` §10.12): **two devices that overwrite
@@ -44,18 +36,29 @@ import kotlin.time.Duration.Companion.seconds
  *  2. the device then pulls its **own** block back — the relay serves every block past the cursor with
  *     no device filter — and that echo restores the newer row (caveat 2).
  *
- * Nothing tested step 2, and dropping a device's own blocks is an obvious "optimisation" to make, on
- * either side. With it, the devices would diverge silently: one on each write, and the relay's
- * register on neither. This test fails the day that happens.
+ * Dropping a device's own blocks is an obvious "optimisation" to make, on either side. With it, the
+ * devices would diverge silently: one on each write, and the relay's register on neither.
+ *
+ * ⚠⚠ **This test no longer catches that.** The LWW now also compares against the device's own last
+ * local write (`LocalWriteMetadata`), so the older block no longer overwrites `newer`'s unpushed
+ * write: caveat 1 does not happen here and the echo has nothing to restore. Checked 2026-11-15 by
+ * dropping every own-device block in `SyncProcessor.processSyncBlock`/`processSyncBlockAsync`: this
+ * test stayed green, polled and stepped alike. The echo is pinned instead by
+ * `SyncProcessorOwnEchoTest.aQueuedWriteOverwrittenByAnIngest_stillConvergesFromItsEcho` (the
+ * caveat-2 claim, forced) and `ListingNotificationSystemTest.aWipedDeviceRefillingItsOwnHistory_…`
+ * (rehydrating from its own blocks), both red under that break. What this test still pins is the
+ * end state: two concurrent overwrites converge on the higher-HLC write on both devices, and stay.
  *
  * ## Shape
  *
  * The partition is `ConcurrentMoveVsDeleteSystemTest`'s: both devices' production push gate
- * (`storageGate`) is closed, and [org.tenshu.sync.proxy.SyncScheduler.drainNow] is the boundary that
- * makes the closure real. `older` overwrites first and `newer` second, so `newer`'s write carries the
- * higher HLC. `older` is released first: its older block reaches `newer` while `newer`'s own write is
- * still unpushed — exactly caveat 1's precondition. Then `newer` is released, and both must settle on
- * `newer`'s content and stay there.
+ * (`storageGate`) is closed. The system is stepped (`docs/testing.md` §12), so no tick runs while
+ * the gates change and every tick after the closure samples them shut. `older` overwrites first and
+ * `newer` second, so `newer`'s write carries the higher HLC. `older` is released first: one tick of
+ * each, in that order, carries its older block to `newer` while `newer`'s own write is still unpushed
+ * — exactly caveat 1's precondition. Then `newer` is released, and both must settle on `newer`'s
+ * content and **stay** there: [TestSystem.syncUntilQuiet] ticks both until two rounds push nothing,
+ * where a late re-application of the older block would be a push.
  *
  * ⚠ The intermediate state on `newer` (did caveat 1 actually overwrite it?) is reported, not asserted:
  * the claim under test is the end state. Asserting the intermediate would pin the very caveat §10.13
@@ -67,28 +70,25 @@ class SelfEchoConvergenceSystemTest {
         const val FOLDER = "/echo"
         const val NAME = "x.bin"
         const val PATH = "$FOLDER/$NAME"
-        val SETTLE = 3.seconds
     }
 
     @Test
     fun concurrentOverwritesConvergeOnTheHigherHlcWrite_onBothDevices() = runBlocking {
-        val system = TestSystem.builder().build()
+        val system = TestSystem.builder().stepped().build()
         try {
             val olderPushes = AtomicBoolean(true)
             val newerPushes = AtomicBoolean(true)
             val older = system.client(
                 deviceId = "older",
                 role = TestClientRole.RealmHost,
-                pollingIntervalMs = 200,
                 storageGate = SyncGate { olderPushes.get() },
             )
             val newer = system.client(
                 deviceId = "newer",
                 role = TestClientRole.JoiningDevice,
-                pollingIntervalMs = 200,
                 storageGate = SyncGate { newerPushes.get() },
             )
-            pair(system, host = older, joiner = newer)
+            system.pair(host = older, joiner = newer, hostName = "Older Tablet", joinerName = "Newer Phone")
 
             // ---- Shared starting state: the file exists on both devices with one content.
             val olderFs = older.tenshuClient.fileService.defaultFileSystem
@@ -98,13 +98,19 @@ class SelfEchoConvergenceSystemTest {
                 "uploadFile $PATH",
             )
             val initial = assertNotNull(contentIdOf(older, PATH), "the upload has a contentId")
-            system.advanceUntil(timeout = 60.seconds) { contentIdOf(newer, PATH) == initial }
+            system.syncUntil("`newer` holds the shared starting content") { contentIdOf(newer, PATH) == initial }
+
+            // ⚠⚠ Precondition for `newer`'s pull-only tick below: a device whose push gate is shut
+            // pulls only once `realmRelayRegistered` has latched, and a joiner latches it on a
+            // push-allowed tick after its first pull (`ConcurrentMoveVsDeleteSystemTest` says why).
+            // Without it, the tick that should carry the older block to `newer` would do nothing.
+            system.syncUntil("both devices have latched their relay registration") {
+                older.syncManager.realmRelayRegistered && newer.syncManager.realmRelayRegistered
+            }
 
             // ---- The partition: nothing either device writes from here reaches the relay.
             olderPushes.set(false)
             newerPushes.set(false)
-            older.syncScheduler.drainNow()
-            newer.syncScheduler.drainNow()
 
             // ---- Two concurrent overwrites; `newer` writes second, so its HLC is the higher one.
             assertTrue(
@@ -122,14 +128,18 @@ class SelfEchoConvergenceSystemTest {
             assertNotEquals(initial, olderContent, "precondition: an overwrite mints a fresh contentId")
             assertNotEquals(olderContent, newerContent, "precondition: the two writes differ")
 
-            delay(SETTLE)
+            // ⚠ The partition is checked after each device has really ticked with its gate shut (a
+            // push attempt and a pull), and from the relay's own count, not after a wait.
+            val arrivalsBefore = system.syncMailbox.lastArrivalSeq
+            system.sync(older, newer)
+            assertEquals(arrivalsBefore, system.syncMailbox.lastArrivalSeq, "partition held: the relay accepted nothing")
             assertEquals(olderContent, contentIdOf(older, PATH), "partition held: `newer`'s write did not reach `older`")
             assertEquals(newerContent, contentIdOf(newer, PATH), "partition held: `older`'s write did not reach `newer`")
 
             // ---- Release `older` first: its OLDER block reaches `newer`, whose newer write is unpushed.
             olderPushes.set(true)
-            older.syncScheduler.drainNow() // pushes `older`'s block
-            newer.syncScheduler.drainNow() // pulls it; `newer` still cannot push
+            system.sync(older, newer) // `older` pushes its block; `newer` pulls it and still cannot push
+            assertTrue(system.syncMailbox.lastArrivalSeq > arrivalsBefore, "precondition: `older`'s block reached the relay")
             println(
                 "SelfEchoConvergenceSystemTest -> after the older block landed, `newer` holds " +
                     (if (contentIdOf(newer, PATH) == olderContent) "the OLDER write (caveat 1 overwrote it)" else "its own newer write"),
@@ -137,12 +147,12 @@ class SelfEchoConvergenceSystemTest {
 
             // ---- Release `newer`: its block (and its echo) must win on both devices.
             newerPushes.set(true)
-            system.advanceUntil(timeout = 60.seconds) {
+            system.syncUntil("both devices converged on `newer`'s write") {
                 contentIdOf(older, PATH) == newerContent && contentIdOf(newer, PATH) == newerContent
             }
-            // ⚠ After a quiet period, not on first sighting: a late re-application of the older block
+            // ⚠ Once sync is quiet, not on first sighting: a late re-application of the older block
             // would flip a device back, and a first-sighting assertion cannot see that.
-            delay(SETTLE)
+            system.syncUntilQuiet()
             assertEquals(newerContent, contentIdOf(older, PATH), "`older` ends on the higher-HLC write")
             assertEquals(
                 newerContent,
@@ -165,26 +175,4 @@ class SelfEchoConvergenceSystemTest {
         rowAt(client, path)?.let { row ->
             (client.executionContext.resolveProperty(row, propertyRef(File.ContentId.id)) as? TString)?.get()
         }
-
-    private suspend fun pair(system: TestSystem, host: TestClient, joiner: TestClient) {
-        host.bootstrapAsHost(deviceName = "Older Tablet")
-        host.tenshuClient.syncService.startPairing()
-        val parsed = PairingUri.parse(host.syncManager.getPairingString()!!)
-        joiner.tenshuClient.syncService.initiatePairing(
-            ownerId = parsed.ownerId,
-            pairingSecret = parsed.secret,
-            deviceName = "Newer Phone",
-            otherDevicePublicKey = parsed.hostPairingPublicKey,
-        )
-        val request = host.tenshuClient.syncService.getPendingPairingRequests()
-            .let { it.valueOrFail("getPendingPairingRequests")!!.toList().single() }
-        host.tenshuClient.syncService.approvePairingRequest(request.deviceId.get())
-        system.advanceUntil(timeout = 60.seconds) {
-            val status = joiner.tenshuClient.syncService.getPairingStatus(
-                pairingSecret = parsed.secret,
-                otherDevicePublicKey = parsed.hostPairingPublicKey,
-            )
-            status is TResult.Success && status.value?.get() == true
-        }
-    }
 }

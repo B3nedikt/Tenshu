@@ -16,6 +16,7 @@ import org.tenshu.inference.proxy.PreparedModel
 import org.tenshu.inference.proxy.catalog.InstalledModelData
 import org.tenshu.inference.proxy.catalog.ModelArtifactRole
 import org.tenshu.inference.proxy.catalog.ModelStore
+import org.tenshu.inference.proxy.onnx.FaceModel
 import org.tenshu.inference.proxy.onnx.ImageDecoder
 import org.tenshu.inference.proxy.onnx.VisionModel
 import platform.Foundation.NSProcessInfo
@@ -117,6 +118,12 @@ fun iosAiDevice(): AiStaticGates.Device = autoreleasepool {
 class CoreMlCompiledModels(
     private val cache: CoreMlModelCache,
     private val model: VisionModel = VisionModel.PinnedSigLip,
+    /**
+     * The face embedder's model (`ios-face-grouping.md` F6): its tower is compiled and first-opened
+     * with the backend's own spec. ⚠ The cache is one directory for both models; which tower is
+     * whose is the role, and each preparer asks only for its own roles.
+     */
+    private val face: FaceModel = FaceModel.AuraFaceCoreMl,
 ) : CompiledModels {
 
     override fun tower(role: String, archiveDigest: String): CompiledTower = try {
@@ -130,6 +137,7 @@ class CoreMlCompiledModels(
         val spec: CoreMlTowerSpec = when (role) {
             ModelArtifactRole.VISION -> CoreMlTowerSpec.vision(model)
             ModelArtifactRole.TEXT -> CoreMlTowerSpec.text(model)
+            ModelArtifactRole.FACE_EMBEDDER -> CoreMlTowerSpec.faceEmbedder(face)
             else -> throw CoreMlPrepareException("'$role' is not a tower")
         }
         // ⚠⚠ [proceed] before EVERY step, the marker's included.

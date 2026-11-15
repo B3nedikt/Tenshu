@@ -14,6 +14,8 @@
      - palettes.ts  → the role custom properties (amethyst, canonical)
      - radii.ts     → the radius scale
      - spacing.ts   → the spacing scale
+     - glass.ts     → the overview's wallpaper, glass and attention roles (ADR 0027)
+     - apps.ts      → the per-app icon colours, `--app-<id>-a/-b` (ADR 0027)
    Do NOT hand-edit the values below; round-trip through those files per
    docs/design/brand/brand-agent.md ("How to codify" → Web). Roles map 1:1
    to the keys in palettes.ts.
@@ -61,6 +63,28 @@
   --success:      #1F6B4D;
   --danger:       #BA1A1A;
   --warning:      #7A5310;
+  /* glass.ts */
+  --wall:           radial-gradient(120% 80% at 10% 0%, #E9E2FF 0%, transparent 60%), radial-gradient(90% 70% at 100% 10%, #FFE3EE 0%, transparent 55%), radial-gradient(100% 80% at 60% 100%, #DCEBFF 0%, transparent 60%), #F3EFFA;
+  --glass:          rgb(255 255 255 / 0.66);
+  --glass-line:     rgb(255 255 255 / 0.75);
+  --glass-head:     rgb(255 255 255 / 0.35);
+  --glass-shadow:   0 1px 1px rgb(40 25 90 / 0.04), 0 12px 32px -8px rgb(60 40 120 / 0.18);
+  --well:           rgb(90 74 150 / 0.10);
+  --attention:      #B4476F;
+  --attention-2:    #7B5265;
+  --on-attention:   #FFFFFF;
+  --attention-line: rgb(123 82 101 / 0.25);
+  /* apps.ts — the same in both schemes (a white glyph sits on them) */
+  --app-drive-a: #4C8DF6; --app-drive-b: #2459D8;
+  --app-photos-a: #F2557F; --app-photos-b: #B8358F;
+  --app-calendar-a: #EE5A52; --app-calendar-b: #C9302C;
+  --app-fit-a: #23A35A; --app-fit-b: #13733D;
+  --app-timeline-a: #7A63E0; --app-timeline-b: #4F3E9E;
+  --app-maps-a: #0E97A6; --app-maps-b: #0B6477;
+  --app-contacts-a: #6B7A90; --app-contacts-b: #3F4A5C;
+  --app-home-a: #EE6A30; --app-home-b: #C2410C;
+  --app-mia-a: #A05FD6; --app-mia-b: #6D3BA8;
+  --app-default-a: #8B6FE0; --app-default-b: #5A4A96;
 }
 
 /* ── Base document canvas ─────────────────────────────────────────────────
@@ -91,6 +115,17 @@ html {
     --success:      #7FD0AE;
     --danger:       #FFB4AB;
     --warning:      #F5C77A;
+    /* glass.ts */
+    --wall:           radial-gradient(110% 80% at 0% 0%, #3B2A80 0%, transparent 55%), radial-gradient(80% 70% at 100% 20%, #5A2350 0%, transparent 55%), radial-gradient(120% 90% at 50% 110%, #123266 0%, transparent 60%), #120F24;
+    --glass:          rgb(30 26 52 / 0.62);
+    --glass-line:     rgb(255 255 255 / 0.10);
+    --glass-head:     rgb(255 255 255 / 0.04);
+    --glass-shadow:   0 16px 40px -12px rgb(0 0 0 / 0.55);
+    --well:           rgb(255 255 255 / 0.08);
+    --attention:      #B4476F;
+    --attention-2:    #7B5265;
+    --on-attention:   #FFFFFF;
+    --attention-line: rgb(235 184 203 / 0.25);
   }
 }
 
@@ -113,6 +148,17 @@ html {
   --success:      #7FD0AE;
   --danger:       #FFB4AB;
   --warning:      #F5C77A;
+  /* glass.ts */
+  --wall:           radial-gradient(110% 80% at 0% 0%, #3B2A80 0%, transparent 55%), radial-gradient(80% 70% at 100% 20%, #5A2350 0%, transparent 55%), radial-gradient(120% 90% at 50% 110%, #123266 0%, transparent 60%), #120F24;
+  --glass:          rgb(30 26 52 / 0.62);
+  --glass-line:     rgb(255 255 255 / 0.10);
+  --glass-head:     rgb(255 255 255 / 0.04);
+  --glass-shadow:   0 16px 40px -12px rgb(0 0 0 / 0.55);
+  --well:           rgb(255 255 255 / 0.08);
+  --attention:      #B4476F;
+  --attention-2:    #7B5265;
+  --on-attention:   #FFFFFF;
+  --attention-line: rgb(235 184 203 / 0.25);
 }
 
 :root[data-theme="light"] {
@@ -133,6 +179,17 @@ html {
   --success:      #1F6B4D;
   --danger:       #BA1A1A;
   --warning:      #7A5310;
+  /* glass.ts */
+  --wall:           radial-gradient(120% 80% at 10% 0%, #E9E2FF 0%, transparent 60%), radial-gradient(90% 70% at 100% 10%, #FFE3EE 0%, transparent 55%), radial-gradient(100% 80% at 60% 100%, #DCEBFF 0%, transparent 60%), #F3EFFA;
+  --glass:          rgb(255 255 255 / 0.66);
+  --glass-line:     rgb(255 255 255 / 0.75);
+  --glass-head:     rgb(255 255 255 / 0.35);
+  --glass-shadow:   0 1px 1px rgb(40 25 90 / 0.04), 0 12px 32px -8px rgb(60 40 120 / 0.18);
+  --well:           rgb(90 74 150 / 0.10);
+  --attention:      #B4476F;
+  --attention-2:    #7B5265;
+  --on-attention:   #FFFFFF;
+  --attention-line: rgb(123 82 101 / 0.25);
 }
 
 /* ── Tailwind v4 mapping ──────────────────────────────────────────────────
@@ -158,6 +215,16 @@ html {
   --color-success:      var(--success);
   --color-danger:       var(--danger);
   --color-warning:      var(--warning);
+  /* glass.ts */
+  --color-glass:          var(--glass);
+  --color-glass-line:     var(--glass-line);
+  --color-glass-head:     var(--glass-head);
+  --color-well:           var(--well);
+  --color-attention:      var(--attention);
+  --color-attention-2:    var(--attention-2);
+  --color-on-attention:   var(--on-attention);
+  --color-attention-line: var(--attention-line);
+  --shadow-glass:         var(--glass-shadow);
 }
 
 @theme {

@@ -33,6 +33,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import org.tenshu.viewmodel.test.OwnedViewModels
 import org.tenshu.viewmodel.test.closeAndResetMain
+import org.tenshu.ui.test.NoMotion
 
 /**
  * The feed keeps its place across a round trip through a pushed screen.
@@ -79,7 +80,7 @@ class PhotosNavRoundTripTest {
     @Test
     fun aScrolledFeedKeepsItsPlaceAfterOpeningAPhotographAndComingBack() {
         val all = photos(120)
-        runDesktopComposeUiTest(width = 420, height = 900) {
+        runDesktopComposeUiTest(width = 420, height = 900, effectContext = NoMotion) {
             val backStack = mutableStateListOf<Destination>(Destination.Feed)
             setContent {
                 TenshuTheme {

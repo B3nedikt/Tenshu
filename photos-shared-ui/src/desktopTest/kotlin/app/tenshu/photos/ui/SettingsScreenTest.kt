@@ -12,6 +12,7 @@ import app.tenshu.photos.ui.screens.settings.SettingsUiState
 import app.tenshu.ui.theme.TenshuTheme
 import kotlin.test.Test
 import kotlin.test.assertTrue
+import org.tenshu.ui.test.NoMotion
 
 /** What S7 renders (`photos-app.md` PH-4). */
 @OptIn(ExperimentalTestApi::class)
@@ -41,7 +42,7 @@ class SettingsScreenTest {
         }
 
     @Test
-    fun theDuplicateSkipRowSaysWhatItCompares() = runComposeUiTest {
+    fun theDuplicateSkipRowSaysWhatItCompares() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠⚠ "Already in Tenshu" could mean the file name, the date, or this phone's own memory
         // of what it uploaded — and only one of those is what the drain does. The supporting line
         // is where that is said, so it is what the test holds.
@@ -55,7 +56,7 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun theHeaderSaysWhereBackupIsActuallyConfigured() = runComposeUiTest {
+    fun theHeaderSaysWhereBackupIsActuallyConfigured() = runComposeUiTest(effectContext = NoMotion) {
         setContent(screen(SettingsUiState(sources = listOf(source("Camera")), loading = false)))
 
         // ⚠⚠ The sentence that keeps the switch honest: off really stops a source, but on cannot
@@ -69,7 +70,7 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun anUnreachableProxyIsNotAnEmptyBackupList() = runComposeUiTest {
+    fun anUnreachableProxyIsNotAnEmptyBackupList() = runComposeUiTest(effectContext = NoMotion) {
         setContent(screen(SettingsUiState(loading = false, readFailed = true)))
 
         waitUntil { onAllNodesWithText("Try again").fetchSemanticsNodes().isNotEmpty() }
@@ -82,7 +83,7 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun aDeviceWithNoSourcesIsPointedAtDrive_notAtAPickerThatDoesNotExist() = runComposeUiTest {
+    fun aDeviceWithNoSourcesIsPointedAtDrive_notAtAPickerThatDoesNotExist() = runComposeUiTest(effectContext = NoMotion) {
         setContent(screen(SettingsUiState(sources = emptyList(), loading = false)))
 
         // ⚠ Photos does not own the drain yet (PH-4b), so it must not offer to create a source.
@@ -94,7 +95,7 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun aFailingSourceReadsAsAProblem_notAsPaused() = runComposeUiTest {
+    fun aFailingSourceReadsAsAProblem_notAsPaused() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠ A source that is failing and a source the user paused look the same in a list and mean
         // opposite things.
         setContent(
@@ -110,7 +111,7 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun anOffSourceReadsAsOff() = runComposeUiTest {
+    fun anOffSourceReadsAsOff() = runComposeUiTest(effectContext = NoMotion) {
         setContent(
             screen(SettingsUiState(sources = listOf(source("Camera", enabled = false)), loading = false))
         )
@@ -119,7 +120,7 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun progressSaysHowMuchIsLeft() = runComposeUiTest {
+    fun progressSaysHowMuchIsLeft() = runComposeUiTest(effectContext = NoMotion) {
         setContent(
             screen(
                 SettingsUiState(

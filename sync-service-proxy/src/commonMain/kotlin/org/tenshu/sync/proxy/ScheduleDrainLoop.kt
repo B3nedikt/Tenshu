@@ -128,10 +128,10 @@ class ScheduleDrainLoop(
     /**
      * Keys whose run is in flight, with that run — the per-key single flight.
      *
-     * ⚠ An atomic, not under [lock], because a key is freed from the run's **completion handler**,
-     * which cannot suspend. It has to be the handler and not a `finally` in the run's body: a run
-     * launched across a [stop] never runs its body at all, and its key must be freed all the same,
-     * or the item is skipped for the rest of the loop's life. Only a tick adds, under [lock].
+     * ⚠ An atomic, not under [lock], because a key is also freed from the run's **completion
+     * handler**, which cannot suspend: a run launched across a [stop] never runs its body at all,
+     * and its key must be freed all the same. The body frees it too, at its end, so that a
+     * completed run's key is already free (see [claim]). Only a tick adds, under [lock].
      */
     private val inFlight = AtomicReference<Map<String, Job>>(emptyMap())
 
@@ -232,7 +232,15 @@ class ScheduleDrainLoop(
 
                 val due = Due(item, key, generation)
                 // ⚠ Into `runs`, and nothing else decides whether it may run (see [runs]).
-                val launched = coroutineScope.launch(runs) { run(ref, due) }
+                // The body releases its own key on the way out ([release]); see [claim] for why the
+                // completion handler cannot be the only release.
+                val launched = coroutineScope.launch(runs) {
+                    try {
+                        run(ref, due)
+                    } finally {
+                        release(key, coroutineContext[Job]!!)
+                    }
+                }
                 claim(key, launched)
                 started += launched
             }
@@ -319,20 +327,39 @@ class ScheduleDrainLoop(
         }
     }
 
-    /** Marks [key] in flight until [run] completes — however it completes, body or no body. */
+    /**
+     * Marks [key] in flight until [run] is over — however it ends, body or no body.
+     *
+     * ⚠⚠ Two releases, and both are needed:
+     *  - **The body's own, at its end** (the `finally` the tick wraps [run] in). This is the one
+     *    that makes "the run's job is complete" imply "its key is free". A completion handler cannot
+     *    promise that: kotlinx-coroutines makes a job's state final *before* it invokes the job's
+     *    handlers, so a `join()` that arrives in between returns at once, while the handler that
+     *    frees the key has not run yet. A tick made right after such a join saw the key still in
+     *    flight and skipped it. `ScheduleRunGuardTest.aPeriodicKeyReRegisteredDuringItsRunStartsItsTimingAfresh`
+     *    hit exactly that under a loaded gate. The body's release always finds its own claim: the
+     *    body's last step takes [lock], which the tick that launched it holds until after this call.
+     *  - **The completion handler**, for the run whose body never runs: one launched across a
+     *    [stop] is born cancelled (see [runs]), and its key must be freed all the same, or the item
+     *    is skipped for the rest of the loop's life. Registered after the claim, so it cannot fire
+     *    before there is something to release; on a run that has already completed it fires at once.
+     *
+     * Each release frees the key only while it is still this run's, so the second is a no-op.
+     */
     private fun claim(key: String, run: Job) {
         while (true) {
             val current = inFlight.load()
             if (inFlight.compareAndSet(current, current + (key to run))) break
         }
-        // Registered after the claim, so it cannot fire before there is something to release; on a
-        // run that has already completed it fires at once.
-        run.invokeOnCompletion {
-            while (true) {
-                val current = inFlight.load()
-                if (current[key] !== run) break
-                if (inFlight.compareAndSet(current, current - key)) break
-            }
+        run.invokeOnCompletion { release(key, run) }
+    }
+
+    /** Frees [key] if [run] is still the run holding it. Non-suspending, so a handler may call it. */
+    private fun release(key: String, run: Job) {
+        while (true) {
+            val current = inFlight.load()
+            if (current[key] !== run) break
+            if (inFlight.compareAndSet(current, current - key)) break
         }
     }
 

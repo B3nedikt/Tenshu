@@ -108,6 +108,9 @@ fun systemTestProxyModule() = module {
             // the relation maintainer are in `systemTestPlatformModule`, as in production.
             calendarServiceCommonModule,
             calendarServiceClientModule,
+            // Photos (ED-3): `PhotoEditSyncSystemTest` syncs a `PhotoEdit` between two devices.
+            org.tenshu.photo.common.photoServiceCommonModule,
+            org.tenshu.photo.client.photoServiceClientModule,
             preferenceServiceCommonModule,
             preferenceServiceClientModule,
             hubManagementServiceCommonModule,

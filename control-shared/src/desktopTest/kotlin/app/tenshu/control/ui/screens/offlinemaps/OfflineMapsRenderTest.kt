@@ -9,6 +9,7 @@ import org.junit.Test
 import java.io.File
 import javax.imageio.ImageIO
 import kotlin.test.assertTrue
+import org.tenshu.ui.test.NoMotion
 
 /**
  * Renders each Offline-maps state to a PNG under `build/reports/offline-maps/`, so this slice can be
@@ -26,7 +27,7 @@ import kotlin.test.assertTrue
 class OfflineMapsRenderTest {
 
     @get:Rule
-    val composeTestRule = createComposeRule()
+    val composeTestRule = createComposeRule(NoMotion)
 
     private fun render(name: String, state: OfflineMapsUiState) {
         composeTestRule.setContent {

@@ -18,6 +18,7 @@ import app.tenshu.ui.theme.TenshuTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.tenshu.ui.test.NoMotion
 
 /**
  * What S8 renders (`photos-app.md`).
@@ -56,7 +57,7 @@ class TrashScreenTest {
     }
 
     @Test
-    fun anEmptyTrashSaysWhatTheTrashIsFor() = runComposeUiTest {
+    fun anEmptyTrashSaysWhatTheTrashIsFor() = runComposeUiTest(effectContext = NoMotion) {
         setContent(screen(TrashUiState(items = emptyList(), loading = false)))
 
         waitUntil {
@@ -66,7 +67,7 @@ class TrashScreenTest {
     }
 
     @Test
-    fun anUnreachableProxyIsNotAnEmptyTrash() = runComposeUiTest {
+    fun anUnreachableProxyIsNotAnEmptyTrash() = runComposeUiTest(effectContext = NoMotion) {
         setContent(screen(TrashUiState(loading = false, error = FeedError.Unreachable)))
 
         waitUntil {
@@ -81,7 +82,7 @@ class TrashScreenTest {
     }
 
     @Test
-    fun theEmptyActionNamesWhatIsLostAndCanBeBackedOutOf() = runComposeUiTest {
+    fun theEmptyActionNamesWhatIsLostAndCanBeBackedOutOf() = runComposeUiTest(effectContext = NoMotion) {
         var emptied = false
         setContent(
             screen(
@@ -105,7 +106,7 @@ class TrashScreenTest {
     }
 
     @Test
-    fun confirmingTheEmptyActuallyEmpties() = runComposeUiTest {
+    fun confirmingTheEmptyActuallyEmpties() = runComposeUiTest(effectContext = NoMotion) {
         var emptied = false
         setContent(
             screen(
@@ -123,7 +124,7 @@ class TrashScreenTest {
     }
 
     @Test
-    fun thereIsNoEmptyActionWhenThereIsNothingToEmpty() = runComposeUiTest {
+    fun thereIsNoEmptyActionWhenThereIsNothingToEmpty() = runComposeUiTest(effectContext = NoMotion) {
         setContent(screen(TrashUiState(items = emptyList(), loading = false)))
 
         waitUntil {
@@ -134,7 +135,7 @@ class TrashScreenTest {
     }
 
     @Test
-    fun aWriteThatDidNotHappenIsSaid_andDismissed() = runComposeUiTest {
+    fun aWriteThatDidNotHappenIsSaid_andDismissed() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠⚠ The report must be drawn, not dropped (`photos-app.md` §22).
         var dismissed = false
         setContent(
@@ -154,7 +155,7 @@ class TrashScreenTest {
     }
 
     @Test
-    fun nothingIsOfferedWhileAWriteRuns() = runComposeUiTest {
+    fun nothingIsOfferedWhileAWriteRuns() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠ The writes are single-flight: a tap the view model then ignores is a restore that never happened.
         val restored = mutableListOf<String>()
         setContent(screen(TrashUiState(items = listOf(item(1)), loading = false, writing = true), onRestore = { restored += it }))

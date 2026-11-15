@@ -1,6 +1,6 @@
 // Top-level landing-state router (UX §2). Calls `Session.detect()` on
 // mount and routes the user to the right flow:
-//   active    → control plane (`/control/home`)
+//   active    → the overview (`/overview`)
 //   locked    → §3 Locked unlock (`/lock`)
 //   firstTime → §4.0 chooser (`/onboarding`)
 //
@@ -8,6 +8,7 @@
 // brief local spinner is the entire pre-route delay.
 import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router'
+import { OVERVIEW_PATH } from '../lib/overviewPath'
 import { useTranslation } from 'react-i18next'
 import type { SessionState } from '@tenshu/sdk/onboarding'
 import { useOnboardingSdk } from '../lib/useOnboardingSdk'
@@ -27,7 +28,7 @@ export function OnboardingRouter() {
   if (state === null) return <BootSplash />
   switch (state.kind) {
     case 'active':
-      return <Navigate to="/control/home" replace />
+      return <Navigate to={OVERVIEW_PATH} replace />
     case 'locked':
       return <Navigate to="/lock" replace />
     case 'firstTime':

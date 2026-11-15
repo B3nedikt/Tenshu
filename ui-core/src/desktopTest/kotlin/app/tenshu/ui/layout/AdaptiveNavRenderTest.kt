@@ -28,6 +28,7 @@ import java.io.File
 import javax.imageio.ImageIO
 import kotlin.test.Test
 import kotlin.test.assertTrue
+import org.tenshu.ui.test.NoMotion
 
 /**
  * Renders the navigation chrome at each size class into `build/reports/adaptive-nav/` so the
@@ -70,7 +71,7 @@ class AdaptiveNavRenderTest {
 
     private fun render(name: String, width: Int, height: Int = 720, collapseRail: Boolean = false) {
         val outDir = File("build/reports/adaptive-nav").apply { mkdirs() }
-        runDesktopComposeUiTest(width = width, height = height) {
+        runDesktopComposeUiTest(width = width, height = height, effectContext = NoMotion) {
             setContent {
                 TenshuTheme {
                     AdaptiveNavScaffold(navItems = items()) {

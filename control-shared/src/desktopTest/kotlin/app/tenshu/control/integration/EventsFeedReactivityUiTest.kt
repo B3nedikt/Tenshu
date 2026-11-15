@@ -58,6 +58,8 @@ class EventsFeedReactivityUiTest {
         stopAppIntegrationKoin()
     }
 
+    // ⚠ Real motion (no `NoMotion`): this is one of the paging reactivity guards, and a guard is
+    // not where a speed-up is taken (docs/testing.md §13).
     @OptIn(ExperimentalTestApi::class)
     @Test
     fun anEventRaisedWhileTheFeedIsOpenAppearsWithoutLeavingTheTab() = runComposeUiTest {

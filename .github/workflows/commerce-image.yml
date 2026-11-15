@@ -57,7 +57,7 @@ jobs:
       packages: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # ⚠⚠ Two JDKs, 17 listed LAST so it stays the Gradle daemon's JVM. The same pin android.yml
       # carries, for the same reason: control-desktop / drive-desktop resolve a JDK-25 launcher
@@ -65,7 +65,7 @@ jobs:
       # including this one-module build — configures them. Without the pin nothing fails; the
       # foojay resolver silently DOWNLOADS a 25 mid-configuration instead.
       - name: Set up JDK 25 (desktop FFM toolchain) + JDK 17 (daemon + shared modules)
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: |
             25

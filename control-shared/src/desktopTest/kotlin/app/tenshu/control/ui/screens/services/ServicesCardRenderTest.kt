@@ -10,6 +10,7 @@ import org.junit.Test
 import java.io.File
 import javax.imageio.ImageIO
 import kotlin.test.assertTrue
+import org.tenshu.ui.test.NoMotion
 
 /**
  * Renders each Services-card state to a PNG under `build/reports/services-card/`, so the CE-4
@@ -28,7 +29,7 @@ import kotlin.test.assertTrue
 class ServicesCardRenderTest {
 
     @get:Rule
-    val composeTestRule = createComposeRule()
+    val composeTestRule = createComposeRule(NoMotion)
 
     private val oneGib = 1L * 1024 * 1024 * 1024
 

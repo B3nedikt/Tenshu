@@ -10,7 +10,10 @@ import TenshuSdk
 // An album's edits — rename, delete, remove a photograph (§8.16): the shared
 // `AlbumDetailViewModel` decides and reports each; this file only asks and says what it answered.
 //
-// ⚠ Not here: a person's header, naming and "Photos with…" — they wait on face grouping on iOS.
+// A person's page (IN-6 F3b, F6a, F6b; `ios-face-grouping.md` F7) is the same grid under a header —
+// the face, the name, the count and the "With…" chip — with naming in the toolbar. Who is a person,
+// whether naming is offered and whose verdict a dialog is are the shared `personPage`; every word is
+// `PersonPageCopy`'s, the words Compose says.
 
 /// A grid of photographs — the shared layout of every collection's page.
 struct PhotoGrid: View {
@@ -25,6 +28,8 @@ struct PhotoGrid: View {
     var caption: ((PhotosPhoto) -> String?)? = nil
     /// Lines under the whole grid — Search's "showing the first N" (§8.19).
     var footers: [String] = []
+    /// What heads the grid and scrolls with it — a person's header (F7); `nil` for none.
+    var header: AnyView? = nil
     private let previews = PreviewGate()
     @Environment(\.displayScale) private var scale
 
@@ -36,6 +41,7 @@ struct PhotoGrid: View {
             let spacing: CGFloat = 2
             let edge = floor((geometry.size.width - spacing * CGFloat(columns - 1)) / CGFloat(columns))
             ScrollView {
+                if let header { header }
                 LazyVGrid(columns: Array(repeating: GridItem(.fixed(edge), spacing: spacing), count: columns), spacing: spacing) {
                     ForEach(photos, id: \.path) { photo in
                         VStack(alignment: .leading, spacing: 1) {
@@ -235,7 +241,7 @@ final class AlbumGridModel: ObservableObject {
 }
 
 /// A derived section's grid — its photographs come from the Collections state, computed from one feed
-/// walk; nothing is re-queried (Compose's `Destination.Smart`).
+/// walk; nothing is re-queried (Compose's `Destination.Smart`). A person's opens with their header.
 struct SmartGridScreen: View {
     let id: String
     @ObservedObject var collections: CollectionsModel
@@ -244,6 +250,12 @@ struct SmartGridScreen: View {
     /// rather than a blank grid — Compose's `lastResolved`.
     @State private var lastResolved: SmartAlbum?
     @State private var viewing: CollectionViewerRoute?
+    /// The "With…" second person, by id — ⚠ this route's own (`PersonHeader.key`), so opening someone
+    /// else starts un-narrowed; and it survives the viewer, which keeps this screen alive beneath it.
+    @State private var withId: String?
+    @State private var choosing = false
+    @State private var naming = false
+    @State private var typedName = ""
 
     /// The section as the Collections state resolves it right now — `nil` once its id and every alias
     /// are gone. ⚠ Only a LIVE resolution: a card drawn from the on-device snapshot (§36 step 2) has no
@@ -262,6 +274,17 @@ struct SmartGridScreen: View {
         let page = self.page
         let album = page.album
         let photos = (page.loading || page.failed) ? [] : (album?.photos ?? [])
+        // ⚠⚠ The shared `personPage`: who is a person, whether naming is offered, whose verdict this is —
+        // and ⚠⚠ none of it where this phone groups no faces (`PhotosSurface.personPage`): with the flags
+        // off a synced name is still a person in the state, but naming could never save, so the page is
+        // the plain grid it was before F7.
+        let person = PhotosSurface.shared.personPage(state: collections.state, smartId: id, page: page)
+        let second = person.header?.chosenCompanion(withId: withId)
+        let visible = second.map { AlbumDetailViewModelKt.photosWithBoth(first: photos, second: $0.photos) } ?? photos
+        // ⚠⚠ No naming while narrowed: naming writes the name to EVERY photo of this person, not the
+        // intersection on screen — from "Anna & Bob" it would label Anna-only photos nobody can see.
+        let nameId: String? = second == nil ? person.nameId : nil
+        let title = album?.title ?? ""
         Group {
             if page.loading {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -272,12 +295,86 @@ struct SmartGridScreen: View {
                     .multilineTextAlignment(.center)
                     .padding(32)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let header = person.header {
+                PhotoGrid(
+                    photos: visible,
+                    onOpen: { viewing = CollectionViewerRoute(path: $0.path) },
+                    header: AnyView(VStack(alignment: .leading, spacing: 0) {
+                        PersonHeaderView(
+                            name: title,
+                            header: header,
+                            fallback: photos.first,
+                            shownCount: visible.count,
+                            second: second,
+                            onAddName: nameId == nil ? nil : { startNaming(unfinished: person.unfinishedName) },
+                            onChooseWith: { choosing = true },
+                            onClearWith: { withId = nil }
+                        )
+                        // IN-6 F6c name suggestions — ⚠ only where naming is offered (`nameId`, which is
+                        // nil while narrowed and wherever this phone groups no faces): a Yes IS a naming.
+                        if let nameId {
+                            NameSuggestionView(
+                                person: person,
+                                name: title,
+                                onYes: { collections.viewModel.acceptSuggestion(smartId: nameId) },
+                                onNo: { collections.viewModel.rejectSuggestion(smartId: nameId) }
+                            )
+                        }
+                    })
+                )
             } else {
                 PhotoGrid(photos: photos) { viewing = CollectionViewerRoute(path: $0.path) }
             }
         }
-            .navigationTitle(album?.title ?? "")
+            // ⚠ A person's name heads the grid instead, beside their face — shown twice it reads as two things.
+            .navigationTitle(person.header == nil ? title : "")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                // ⚠⚠ Always offered on a person, and never "Rename": naming is ADDITIVE, so on a named
+                // card it adds a SECOND person (`PersonPageCopy`). ⚠ Absent, not inert, elsewhere.
+                if nameId != nil {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(PersonPageCopy.shared.nameAction(unfinished: person.unfinishedName != nil, titleBlank: title.isEmpty)) {
+                            startNaming(unfinished: person.unfinishedName)
+                        }
+                    }
+                }
+            }
+            .alert(PersonPageCopy.shared.dialogTitle(initial: person.unfinishedName ?? ""), isPresented: $naming) {
+                TextField(PersonPageCopy.shared.NAME_FIELD, text: $typedName)
+                Button(PersonPageCopy.shared.CANCEL, role: .cancel) {}
+                Button(PersonPageCopy.shared.SAVE) {
+                    if let nameId { collections.viewModel.nameGroup(smartId: nameId, name: typedName) }
+                }
+                // ⚠ Disabled rather than accepting-then-ignoring: a blank name is a no-op.
+                .disabled(typedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            } message: {
+                Text(PersonPageCopy.shared.NAME_SYNCS)
+            }
+            // ⚠ Bounded at the field: the name is repeated in every call the write is split into.
+            .onChange(of: typedName) { typed in
+                let limit = Int(PersonPageCopy.shared.NAME_MAX_LENGTH)
+                if typed.count > limit { typedName = String(typed.prefix(limit)) }
+            }
+            // ⚠⚠ Rendering a refusal is not optional: the alert closes on Save, so without this the
+            // person is simply still unnamed and the user concludes it worked.
+            .alert(
+                person.nameFailure.map { PersonPageCopy.shared.failureTitle(outcome: $0) } ?? "",
+                isPresented: Binding(
+                    get: { person.nameFailure != nil },
+                    set: { if !$0 { collections.viewModel.dismissNameRefusal() } }
+                )
+            ) {
+                Button(PersonPageCopy.shared.OK) { collections.viewModel.dismissNameRefusal() }
+            } message: {
+                Text(person.nameFailure.map { PersonPageCopy.shared.failureText(outcome: $0) } ?? "")
+            }
+            .sheet(isPresented: $choosing) {
+                CompanionPicker(companions: person.header?.companions ?? []) { chosen in
+                    choosing = false
+                    withId = chosen.id
+                }
+            }
             .onAppear {
                 if let resolved { lastResolved = resolved }
                 // This grid draws the Collections state too (§8.22.3).
@@ -290,9 +387,162 @@ struct SmartGridScreen: View {
             .onChange(of: resolved) { newer in if let newer { lastResolved = newer } }
             .navigationDestination(isPresented: Binding(get: { viewing != nil }, set: { if !$0 { viewing = nil } })) {
                 if let viewing {
-                    PhotoViewerScreen(photos: photos, path: viewing.path) { collections.viewModel.changed() }
+                    // ⚠ The viewer pages through the list the user is LOOKING at — the "With…"
+                    // intersection when one is chosen.
+                    PhotoViewerScreen(photos: visible, path: viewing.path) { collections.viewModel.changed() }
                 }
             }
+    }
+
+    /// ⚠⚠ The INTERRUPTED name when finishing one, and empty otherwise — never the card's title: on a
+    /// named card the act is "add another person", and the data layer cannot rename.
+    private func startNaming(unfinished: String?) {
+        typedName = unfinished ?? ""
+        naming = true
+    }
+}
+
+/// WHO a person's page is about, before any photograph — the face, the name and the count, and the
+/// "With…" chip (Compose's `PersonHeaderRow`).
+///
+/// ⚠ An unnamed group's name slot IS the naming action, where one is offered.
+/// ⚠⚠ No "Only them" chip, as on Android: the face count it would rely on is the detector's, which
+/// misses the people behind (`photos-people-and-pets.md` §6a).
+private struct PersonHeaderView: View {
+    let name: String
+    let header: PersonHeader
+    /// The first photograph, whole — the face when this phone can place none (a synced name).
+    let fallback: PhotosPhoto?
+    let shownCount: Int
+    let second: SmartAlbum?
+    let onAddName: (() -> Void)?
+    let onChooseWith: () -> Void
+    let onClearWith: () -> Void
+
+    private var copy: PersonPageCopy { PersonPageCopy.shared }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: second == nil ? 16 : 28) {
+                ZStack(alignment: .topLeading) {
+                    FaceCoverView(cover: header.cover, edge: 72, fallback: fallback.map {
+                        // ⚠⚠ `previewPath`: an edited photograph is drawn by its rendition or not at all — the
+                        // original can hold what a crop or Redact hides (ED-3, `photos-editing.md` §12.4).
+                        CoverRef(path: $0.previewPath, width: $0.pixelWidth?.int32Value ?? 0, height: $0.pixelHeight?.int32Value ?? 0)
+                    })
+                    // The second face, smaller and overlapping the first's lower corner.
+                    if let second {
+                        FaceCoverView(cover: second.coverFace, edge: 40, fallback: CoverRef(smart: second))
+                            .offset(x: 44, y: 40)
+                    }
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    if let second {
+                        Text(copy.both(first: name, second: second.title)).font(.title2.weight(.semibold))
+                    } else if !name.isEmpty {
+                        Text(name).font(.title2.weight(.semibold))
+                    } else if let onAddName {
+                        Button(copy.ADD_A_NAME, action: onAddName).font(.title3)
+                    } else {
+                        Text(copy.UNNAMED).font(.title2.weight(.semibold))
+                    }
+                    Text(PhotoCountKt.photoCount(count: Int32(shownCount))).font(.subheadline).foregroundStyle(.secondary)
+                }
+            }
+            // ⚠ Absent when there is nobody else to pick, rather than a chip that opens an empty list.
+            if !header.companions.isEmpty {
+                if let second {
+                    // ⚠ Tapping the chip anywhere removes the second person — the ✕ says so.
+                    Button(action: onClearWith) {
+                        Label(copy.withChip(second: second.title), systemImage: "xmark")
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityLabel(copy.removeWith(second: second.title))
+                } else {
+                    Button(action: onChooseWith) { Label(copy.WITH, systemImage: "plus") }
+                        .buttonStyle(.bordered)
+                }
+            }
+            if second != nil && shownCount == 0 {
+                Text(copy.NO_PHOTOS_TOGETHER)
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(32)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// *"Is this Anna?"* on an unnamed person, or a display fold's unconfirmed photographs on a named one
+/// (IN-6 F6c name suggestions) — Compose's `NameSuggestionRow`, in `PersonPageCopy`'s words. Absent when
+/// there is nothing to ask.
+private struct NameSuggestionView: View {
+    let person: PersonPage
+    let name: String
+    let onYes: () -> Void
+    let onNo: () -> Void
+
+    private var copy: PersonPageCopy { PersonPageCopy.shared }
+
+    var body: some View {
+        let asked = person.suggestedName
+        let folded = Int(person.unconfirmedCount)
+        if asked != nil || folded > 0 {
+            VStack(alignment: .leading, spacing: 6) {
+                if let asked {
+                    Text(copy.suggestionQuestion(name: asked)).font(.headline)
+                    Text(copy.SUGGESTION_EXPLAINED).font(.footnote).foregroundStyle(.secondary)
+                } else {
+                    Text(copy.unconfirmed(count: Int32(folded), name: name)).font(.subheadline)
+                }
+                if person.suggestionRejectFailed {
+                    Text(copy.SUGGESTION_NOT_SAVED).font(.footnote).foregroundStyle(.red)
+                }
+                HStack(spacing: 12) {
+                    Button(asked != nil ? copy.SUGGESTION_YES : copy.CONFIRM, action: onYes)
+                        .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("suggestion.yes")
+                    Button(asked != nil ? copy.SUGGESTION_NO : copy.notThem(name: name), action: onNo)
+                        .buttonStyle(.bordered)
+                        .accessibilityIdentifier("suggestion.no")
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+/// Pick the second person for the "With…" chip — Compose's `CompanionPicker`. Unnamed people are
+/// offered too: the intersection is by photo path (`photosWithBoth`), the same for both.
+private struct CompanionPicker: View {
+    let companions: [SmartAlbum]
+    let onChoose: (SmartAlbum) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List(companions, id: \.id) { companion in
+                Button { onChoose(companion) } label: {
+                    HStack(spacing: 16) {
+                        FaceCoverView(cover: companion.coverFace, edge: 40, fallback: CoverRef(smart: companion))
+                        Text(PersonPageCopy.shared.name(title: companion.title)).foregroundStyle(.primary)
+                    }
+                }
+            }
+            .navigationTitle(PersonPageCopy.shared.PICKER_TITLE)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(PersonPageCopy.shared.CANCEL) { dismiss() }
+                }
+            }
+        }
     }
 }
 
@@ -307,9 +557,8 @@ struct SectionScreen: View {
     var body: some View {
         ScrollView {
             // §36: a failed read is said on the section's own page too — the shared sentence, with Try Again.
-            if let failure = CollectionsLayoutCompanion.shared.sectionFailure(
-                section: section, state: collections.state, groupingRunsHere: false
-            ) {
+            // ⚠ This phone's `groupingRunsHere`, as the tab's (`PhotosSurface.sectionFailure`).
+            if let failure = PhotosSurface.shared.sectionFailure(section: section, state: collections.state) {
                 HStack {
                     Text(failure).font(.footnote).foregroundStyle(.red)
                     Spacer()
@@ -336,8 +585,11 @@ struct SectionScreen: View {
                 case .people:
                     // Named first, as Compose orders them (`CollectionsUiState.peopleNamedFirst`).
                     ForEach(collections.state.peopleNamedFirst, id: \.id) { person in
-                        NavigationLink(value: CollectionsRoute.smart(id: person.id)) { PersonCardView(person: person) }
+                        NavigationLink(value: CollectionsRoute.smart(id: person.id)) {
+                            PersonCardView(person: person, groupingRunsHere: collections.groupingRunsHere)
+                        }
                             .buttonStyle(.plain)
+                            .personCardAccessibility(person, groupingRunsHere: collections.groupingRunsHere)
                     }
                 default:
                     ForEach(smartAlbums, id: \.id) { smart in

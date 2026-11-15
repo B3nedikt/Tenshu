@@ -22,6 +22,7 @@
 // same `Tail` component below.
 import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router'
+import { OVERVIEW_PATH } from '../lib/overviewPath'
 import { useTranslation } from 'react-i18next'
 import type { PairingSession, PairingStatus } from '@tenshu/sdk/onboarding'
 import type { OfferTerminalStatus, PairingTab } from './screens/PairingScreens'
@@ -119,7 +120,7 @@ export function OnboardingFlow() {
       // a free account; try-mode (and the joiner path) lands on the control
       // plane, where the TryModeBanner offers conversion when no account is
       // bound yet.
-      navigate(intent === 'signup' ? '/control/services/picker' : '/control/home', {
+      navigate(intent === 'signup' ? '/control/services/picker' : OVERVIEW_PATH, {
         replace: true,
       })
     },

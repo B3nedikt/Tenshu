@@ -64,4 +64,18 @@
     <string name="oss_data_photon_credit">Ortsnamen stammen bei aktivierter Online-Suche aus OpenStreetMap-Daten über Photon, betrieben von komoot</string>
     <string name="oss_data_models_title">Modelle auf dem Gerät</string>
     <string name="oss_data_models_credit">Werden separat geladen; jedes Modell zeigt seine Lizenz unter Einstellungen → Modelle</string>
+
+    <string name="suite_sync_locked">Tenshu ist gesperrt – entsperre Control, um mit deinen anderen Geräten zu synchronisieren.</string>
+    <string name="suite_sync_locked_action">Entsperren</string>
+    <string name="suite_sync_device_unrecognized">Dieses Gerät ist nicht mehr mit deinem Konto verbunden, daher wird hier nichts synchronisiert. Deine Daten darauf sind sicher. Öffne Control und füge dieses Gerät von einem deiner anderen Geräte aus erneut hinzu. Verwende nicht zuerst „Dieses Gerät vergessen“ – alles, was noch auf den Upload wartet, ginge sonst verloren.</string>
+    <string name="suite_sync_open_control">Control öffnen</string>
+    <string name="suite_sync_needs_attention">Der Speicher auf diesem Gerät braucht deine Aufmerksamkeit – deine Änderungen sind hier gespeichert, können aber noch nicht synchronisiert werden. Öffne Control, um auf diesem Gerät zu synchronisieren.</string>
+    <string name="suite_sync_storage_full">Speicher voll – deine Daten bleiben auf diesem Gerät und nichts wird gelöscht, aber sie können erst synchronisiert werden, wenn du Platz schaffst oder deinen Speicher erweiterst.</string>
+    <string name="suite_sync_manage_storage">Speicher verwalten</string>
+    <string name="suite_sync_offline">Offline – deine Änderungen sind auf diesem Gerät gespeichert und werden synchronisiert, sobald du wieder verbunden bist.</string>
+
+    <string name="sync_activity_catching_up">Wird synchronisiert…</string>
+    <string name="sync_activity_uploading_count">%1$d von %2$d werden hochgeladen</string>
+    <string name="sync_activity_uploading">Wird hochgeladen…</string>
+    <string name="sync_activity_catching_up_a11y">Wird mit deinen anderen Geräten synchronisiert</string>
 </resources>

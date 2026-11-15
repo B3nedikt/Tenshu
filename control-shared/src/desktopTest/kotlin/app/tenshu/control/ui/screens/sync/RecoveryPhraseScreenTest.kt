@@ -19,7 +19,9 @@ import org.tenshu.core.TString
 import org.tenshu.core.common.impl.TStringDto
 import org.tenshu.core.common.impl.ResultSuccessDto
 import org.tenshu.core.TResult
+import kotlin.test.AfterTest
 import kotlin.test.Test
+import org.tenshu.ui.test.NoMotion
 
 /**
  * The recovery-phrase screen must tell the truth about whether **this** device has the phrase.
@@ -38,6 +40,10 @@ class RecoveryPhraseScreenTest {
 
     private val fakePreferences = FakeAffordancePreferences()
 
+    /** Each test starts its own global Koin through [startKoinWith]; none may outlive the test. */
+    @AfterTest
+    fun stopTheTestsKoin() = stopKoin()
+
     private fun startKoinWith(
         phrase: String?,
         // Ph-reauth: Success is the default so the pre-existing cases keep asserting what they
@@ -45,7 +51,6 @@ class RecoveryPhraseScreenTest {
         reauth: AppLockAuthResult = AppLockAuthResult.Success,
     ): FakeReauthenticator {
         val reauthenticator = FakeReauthenticator(reauth)
-        stopKoin()
         startKoin {
             modules(
                 module {
@@ -60,7 +65,7 @@ class RecoveryPhraseScreenTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun aDeviceWithNoPhrase_saysSo_ratherThanRenderingADeadButton() = runComposeUiTest {
+    fun aDeviceWithNoPhrase_saysSo_ratherThanRenderingADeadButton() = runComposeUiTest(effectContext = NoMotion) {
         startKoinWith(null)
 
         setContent { TenshuTheme { RecoveryPhraseScreen(onBack = {}) } }
@@ -76,7 +81,7 @@ class RecoveryPhraseScreenTest {
      */
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun aDeviceWithNoPhrase_offersNoRevealControlAtAll() = runComposeUiTest {
+    fun aDeviceWithNoPhrase_offersNoRevealControlAtAll() = runComposeUiTest(effectContext = NoMotion) {
         startKoinWith(null)
 
         setContent { TenshuTheme { RecoveryPhraseScreen(onBack = {}) } }
@@ -93,7 +98,7 @@ class RecoveryPhraseScreenTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun aDeviceWithAPhrase_revealsItOnTap() = runComposeUiTest {
+    fun aDeviceWithAPhrase_revealsItOnTap() = runComposeUiTest(effectContext = NoMotion) {
         val phrase = "abandon ability able about above absent absorb abstract absurd abuse access accident"
         startKoinWith(phrase)
 
@@ -117,7 +122,7 @@ class RecoveryPhraseScreenTest {
      */
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun revealingThenAcknowledging_recordsThatThePhraseWasSaved() = runComposeUiTest {
+    fun revealingThenAcknowledging_recordsThatThePhraseWasSaved() = runComposeUiTest(effectContext = NoMotion) {
         startKoinWith("abandon ability able about above absent absorb abstract absurd abuse access accident")
 
         setContent { TenshuTheme { RecoveryPhraseScreen(onBack = {}) } }
@@ -147,7 +152,7 @@ class RecoveryPhraseScreenTest {
      */
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun refusingTheReauthPrompt_keepsThePhraseHidden() = runComposeUiTest {
+    fun refusingTheReauthPrompt_keepsThePhraseHidden() = runComposeUiTest(effectContext = NoMotion) {
         val phrase = "abandon ability able about above absent absorb abstract absurd abuse access accident"
         val reauthenticator = startKoinWith(phrase, reauth = AppLockAuthResult.Cancelled)
 
@@ -171,7 +176,7 @@ class RecoveryPhraseScreenTest {
      */
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun copyingWhileConcealed_alsoAsks() = runComposeUiTest {
+    fun copyingWhileConcealed_alsoAsks() = runComposeUiTest(effectContext = NoMotion) {
         val reauthenticator = startKoinWith(
             "abandon ability able about above absent absorb abstract absurd abuse access accident",
             reauth = AppLockAuthResult.Cancelled,
@@ -194,7 +199,7 @@ class RecoveryPhraseScreenTest {
      */
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun aDeviceThatCannotPrompt_stillRevealsThePhrase() = runComposeUiTest {
+    fun aDeviceThatCannotPrompt_stillRevealsThePhrase() = runComposeUiTest(effectContext = NoMotion) {
         val phrase = "abandon ability able about above absent absorb abstract absurd abuse access accident"
         startKoinWith(phrase, reauth = AppLockAuthResult.Unavailable)
 
@@ -209,7 +214,7 @@ class RecoveryPhraseScreenTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun theAcknowledgementIsNotOfferedBeforeTheReveal() = runComposeUiTest {
+    fun theAcknowledgementIsNotOfferedBeforeTheReveal() = runComposeUiTest(effectContext = NoMotion) {
         startKoinWith("abandon ability able about above absent absorb abstract absurd abuse access accident")
 
         setContent { TenshuTheme { RecoveryPhraseScreen(onBack = {}) } }

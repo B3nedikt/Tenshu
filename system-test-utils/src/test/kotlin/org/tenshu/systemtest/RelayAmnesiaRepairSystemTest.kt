@@ -13,13 +13,23 @@ import org.tenshu.sync.getPairingStatus
 import org.tenshu.sync.getPendingPairingRequests
 import org.tenshu.sync.initiatePairing
 import org.tenshu.sync.revokeDevice
+import org.tenshu.sync.forgetThisDevice
+import org.tenshu.sync.OfferPairingSession
+import org.tenshu.sync.PairingThisDeviceRemovedError
+import org.tenshu.sync.approvePairingOffer
+import org.tenshu.sync.getOfferStatus
+import org.tenshu.sync.offerPairing
+import org.tenshu.sync.respondToPairingOffer
+import kotlin.test.assertIs
 import org.tenshu.sync.startPairing
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
-import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Duration.Companion.milliseconds
+import org.tenshu.sync.proxy.RejectionBackoff
 
 /**
  * The recovery path: what happens to a device the relay has stopped recognising, and to the
@@ -34,6 +44,16 @@ import kotlin.time.Duration.Companion.seconds
  * This harness is the right place for that, because it runs the **real relay app** against clients
  * on the **real `RestSyncRelay`** — so a refusal here is a genuine HTTP `401` produced by the
  * relay's own auth, not a fake's `TResult.Failure`.
+ *
+ * ## Stepped, with the sync clock stepped too
+ *
+ * The real scheduler is the subject here (`docs/testing.md` §10's exception): what these cases pin
+ * is that the scheduler's *own* probing boundary, the first tick after a `RejectionBackoff` window
+ * elapses, runs the repair with no user action. The system is stepped (`docs/testing.md` §12), and
+ * so is the clock those windows read ([TestSystem.syncClock]): the test ticks a refused device
+ * inside its window and asserts nothing was repaired, advances the clock past the window, and ticks
+ * once more. The window lengths are still `RejectionBackoff`'s own; only *when* the window has
+ * passed is the test's, where it used to be a real 2 s wait the test could not see.
  *
  * ⚠ What it still cannot see, stated so nobody reads a green run as more than it is:
  *  - `TestApplication` speaks **HTTP/1.1**, so it sends a reason phrase. A detector that matches
@@ -61,7 +81,7 @@ class RelayAmnesiaRepairSystemTest {
      */
     @Test
     fun aReAdmittedDevice_canAdmitOthers_itsCapabilityIsNotBornRevoked(): Unit = runBlocking {
-        val system = TestSystem.builder().build()
+        val system = TestSystem.builder().stepped().build()
         try {
             val host = system.client("host", TestClientRole.RealmHost)
             val second = system.client("second", TestClientRole.JoiningDevice)
@@ -126,7 +146,7 @@ class RelayAmnesiaRepairSystemTest {
     @Test
     fun aJoinerTheRelayHasForgotten_cannotRepairItself_andSaysSoRatherThanBlamingTheNetwork(): Unit =
         runBlocking {
-            val system = TestSystem.builder().build()
+            val system = TestSystem.builder().stepped().build()
             try {
                 val host = system.client("host", TestClientRole.RealmHost)
                 val joiner = system.client("joiner", TestClientRole.JoiningDevice)
@@ -137,10 +157,15 @@ class RelayAmnesiaRepairSystemTest {
                 system.knownDevices.revoke(ownerId, joinerDeviceId)
 
                 // The joiner must reach the "not recognised" state on its own, from its own traffic.
-                system.advanceUntil(timeout = 30.seconds) {
+                system.syncUntil("the refused joiner reports CONNECTIVITY_DEVICE_UNRECOGNIZED", devices = listOf(joiner)) {
                     joiner.tenshuClient.syncService.syncHealth().first()?.connectivity?.get() ==
                         SyncHealthStatus.CONNECTIVITY_DEVICE_UNRECOGNIZED
                 }
+                // ⚠ And it stays unregistered through its own probing boundary: past the longest
+                // backoff window, so the tick below is one in which a device that COULD repair
+                // itself would have tried.
+                system.syncClock!!.advance(RejectionBackoff.DEFAULT_MAX_DELAY_MS.milliseconds)
+                system.sync(joiner)
 
                 val connectivity =
                     joiner.tenshuClient.syncService.syncHealth().first()?.connectivity?.get()
@@ -179,7 +204,7 @@ class RelayAmnesiaRepairSystemTest {
      */
     @Test
     fun anA1Holder_theRelayHasForgotten_reRegistersItself_withAStamp(): Unit = runBlocking {
-        val system = TestSystem.builder().build()
+        val system = TestSystem.builder().stepped().build()
         try {
             val host = system.client("host", TestClientRole.RealmHost)
             host.bootstrapAsHost(deviceName = "Host Tablet")
@@ -197,9 +222,19 @@ class RelayAmnesiaRepairSystemTest {
             assertTrue(hostDeviceId !in system.knownDevices.deviceIds(ownerId))
 
             // No user action, no restart: the scheduler's own probing boundary should do this.
-            system.advanceUntil(timeout = 30.seconds) {
-                hostDeviceId in system.knownDevices.deviceIds(ownerId)
-            }
+            // First the refusal: a tick that meets the `401` arms the registration backoff…
+            system.sync(host)
+            // …and ticks inside the window repair nothing. Without this half, a repair run on the
+            // very tick that met the `401` would pass as well, and that is the storm the backoff
+            // exists to prevent.
+            repeat(3) { system.sync(host) }
+            assertTrue(
+                hostDeviceId !in system.knownDevices.deviceIds(ownerId),
+                "inside the backoff window the scheduler must not probe the relay, so nothing is repaired yet",
+            )
+            // Past the longest window, whatever this one is: the next tick is the probing boundary.
+            system.syncClock!!.advance(RejectionBackoff.DEFAULT_MAX_DELAY_MS.milliseconds)
+            system.sync(host)
 
             assertTrue(
                 hostDeviceId in system.knownDevices.deviceIds(ownerId),
@@ -229,7 +264,7 @@ class RelayAmnesiaRepairSystemTest {
      */
     @Test
     fun aQueuedRetirement_doesNotRevokeADeviceReAdmittedAfterItWasAuthored() = runBlocking {
-        val system = TestSystem.builder().build()
+        val system = TestSystem.builder().stepped().build()
         try {
             val host = system.client("host", TestClientRole.RealmHost)
             val joiner = system.client("joiner", TestClientRole.JoiningDevice)
@@ -277,6 +312,12 @@ class RelayAmnesiaRepairSystemTest {
             // not acted on it. ⚠ This assertion is load-bearing for the whole test: if the
             // tombstone reached the relay HERE, the re-admission below would come after the
             // revocation and the ordering the guard exists for would never be exercised.
+            // A real tick first: the author tries to push it and the relay refuses it.
+            system.sync(host)
+            assertTrue(
+                system.syncMailbox.getTombstones(ownerId, 0L, Int.MAX_VALUE).tombstones.isEmpty(),
+                "the refused author's retirement must not have reached the relay",
+            )
             assertTrue(
                 joinerDeviceId in system.knownDevices.deviceIds(ownerId),
                 "the retirement must not reach the relay while its author is refused",
@@ -326,7 +367,10 @@ class RelayAmnesiaRepairSystemTest {
             // deleted. The mailbox is the honest anchor: the relay stores and serves a stale tombstone either
             // way (only the registry revocation is skipped), so its presence here means delivery
             // without presuming the outcome.
-            system.advanceUntil(timeout = 30.seconds) {
+            // Delivered only once the author's backoff window has passed. The window is stepped, so
+            // that is a tick the test takes rather than up to 2 s of real time it waits out.
+            system.syncClock!!.advance(RejectionBackoff.DEFAULT_MAX_DELAY_MS.milliseconds)
+            system.syncUntil("the queued retirement reached the relay", devices = listOf(host)) {
                 system.syncMailbox.getTombstones(ownerId, 0L, Int.MAX_VALUE).tombstones.isNotEmpty()
             }
             assertTrue(
@@ -364,7 +408,7 @@ class RelayAmnesiaRepairSystemTest {
      */
     @Test
     fun aRemovedDeviceCannotRejoinUnderTheSameIdentity(): Unit = runBlocking {
-        val system = TestSystem.builder().build()
+        val system = TestSystem.builder().stepped().build()
         try {
             val host = system.client("host", TestClientRole.RealmHost)
             val second = system.client("second", TestClientRole.JoiningDevice)
@@ -382,7 +426,7 @@ class RelayAmnesiaRepairSystemTest {
             // APPLIES it (`revokeIfNotStale`), which needs a push. Without the wait the refusal
             // below could pass for the wrong reason, "refused" being indistinguishable from
             // "never arrived".
-            system.advanceUntil(timeout = 30.seconds) {
+            system.syncUntil("the removal reached the relay's ledger") {
                 system.knownDevices.wasRemoved(ownerId, removedDeviceId)
             }
             assertTrue(
@@ -434,6 +478,104 @@ class RelayAmnesiaRepairSystemTest {
         }
     }
 
+    /**
+     * ⚠⚠ The 2026-11-11 desktop incident, over the real relay: a removed device chooses *Forget this
+     * device* and pairs again **without restarting** — Desktop and Android Control keep one graph
+     * for the process (`admission-revocation-names-the-capability.md` §7i.5). Before the fix the
+     * process kept the forgotten A4 key and id in memory, offered them, and F2′ refused every
+     * approve until a restart. Now Forget re-mints in-process: the rejoin is a stranger, admitted,
+     * and the removed id stays refused.
+     *
+     * ⚠ The removed device's own retirement push is refused, and as a joiner it holds no A1, so the
+     * relay strip that would short-circuit `ForgetThisDevice`'s retirement wait is never tried. The
+     * wait stops instead on the scheduler's `401` state (`SyncScheduler.relayRefusesThisDevice`),
+     * which this device's ticks in the `wasRemoved` wait above have already reached. Before that
+     * short-circuit the op waited its whole 8 s `RETIREMENT_PUSH_TIMEOUT_MS` here, on a real
+     * device too (`ForgetThisDeviceRetirementWaitTest` pins both branches).
+     */
+    @Test
+    fun aForgottenDevice_rejoinsFromTheSameProcess_underANewIdentity(): Unit = runBlocking {
+        val system = TestSystem.builder().stepped().build()
+        try {
+            val host = system.client("host", TestClientRole.RealmHost)
+            val second = system.client("second", TestClientRole.JoiningDevice)
+
+            host.bootstrapAsHost(deviceName = "Host Tablet")
+            val ownerId = assertNotNull(host.syncManager.currentOwnerId)
+            pairJoiner(system, host, second)
+            val removedDeviceId = second.syncManager.currentDeviceId
+
+            host.tenshuClient.syncService.revokeDevice(removedDeviceId)
+            system.syncUntil("the removal reached the relay's ledger") { system.knownDevices.wasRemoved(ownerId, removedDeviceId) }
+            assertTrue(system.knownDevices.wasRemoved(ownerId, removedDeviceId), "precondition: F2′ applies to the old id")
+
+            // The op the Settings / Welcome "Forget this device" runs — in this same process.
+            second.tenshuClient.syncService.forgetThisDevice()
+            val newDeviceId = second.syncManager.currentDeviceId
+            assertNotEquals(removedDeviceId, newDeviceId, "Forget must give the running process a new identity")
+            assertEquals(
+                org.tenshu.sync.common.deviceIdForPublicKey(second.syncManager.getDeviceSigningKeyPair().publicKey),
+                newDeviceId,
+                "§7i: the new id is the new key's",
+            )
+
+            val admittedId = pairJoiner(system, host, second)
+
+            assertEquals(newDeviceId, admittedId, "the pairing after Forget presents the new id")
+            assertTrue(
+                newDeviceId in system.knownDevices.deviceIds(ownerId),
+                "the rejoin must be admitted without a restart — before the fix the relay refused it",
+            )
+            assertEquals(ownerId, second.syncManager.currentOwnerId, "and the device is in the realm again")
+            assertFalse(removedDeviceId in system.knownDevices.deviceIds(ownerId), "the removed id never returns (F2′)")
+            assertTrue(system.knownDevices.wasRemoved(ownerId, removedDeviceId))
+        } finally {
+            system.shutdown()
+        }
+    }
+
+    /**
+     * The offerer's own half of F2′, over the REAL relay: removed between the approval and its
+     * fetch, the device is refused at delivery (`GET /sync/pairing/offer-response`), and is told
+     * so as `PairingThisDeviceRemovedError` — not the generic error its poll used to retry until
+     * the window closed (`admission-revocation-names-the-capability.md` §7i.5). Pins the relay's
+     * body token and the client's marker together, which a fake relay cannot.
+     */
+    @Test
+    fun aDeviceRemovedBetweenApprovalAndFetch_isToldThisDeviceWasRemoved(): Unit = runBlocking {
+        val system = TestSystem.builder().stepped().build()
+        try {
+            val host = system.client("host", TestClientRole.RealmHost)
+            val second = system.client("second", TestClientRole.JoiningDevice)
+            host.bootstrapAsHost(deviceName = "Host Tablet")
+            val ownerId = assertNotNull(host.syncManager.currentOwnerId)
+            pairJoiner(system, host, second)
+            val removedDeviceId = second.syncManager.currentDeviceId
+
+            // The device offers (the flow a returning device uses), and the host approves while it
+            // is still a member — so the post is admitted and the registration queued.
+            val offer = assertIs<TResult.Success<OfferPairingSession>>(second.tenshuClient.syncService.offerPairing("Second"))
+            val session = assertNotNull(offer.value)
+            val hash = session.pairingSecretHash.get()
+            assertIs<TResult.Success<*>>(host.tenshuClient.syncService.respondToPairingOffer(session.offerUri.get()))
+            val approved = host.tenshuClient.syncService.approvePairingOffer(hash)
+            assertIs<TResult.Success<*>>(approved, "precondition: the approval is admitted at post time; got $approved")
+
+            // Removed before it fetches.
+            host.tenshuClient.syncService.revokeDevice(removedDeviceId)
+            system.syncUntil("the removal reached the relay's ledger") { system.knownDevices.wasRemoved(ownerId, removedDeviceId) }
+            assertTrue(system.knownDevices.wasRemoved(ownerId, removedDeviceId), "precondition: the removal reached the ledger")
+
+            val status = second.tenshuClient.syncService.getOfferStatus(hash)
+
+            val failure = assertIs<TResult.Failure<*>>(status, "a removed identity's fetch must fail; got $status")
+            assertIs<PairingThisDeviceRemovedError>(failure.error, "typed, so the offerer is told THIS device was removed")
+            assertFalse(removedDeviceId in system.knownDevices.deviceIds(ownerId), "and the delivery registered nothing")
+        } finally {
+            system.shutdown()
+        }
+    }
+
     /** The real handshake, lifted from [PairingSystemTest] so this class tests recovery, not pairing. */
     private suspend fun pairJoiner(system: TestSystem, host: TestClient, joiner: TestClient): String {
         host.tenshuClient.syncService.startPairing()
@@ -449,7 +591,7 @@ class RelayAmnesiaRepairSystemTest {
         ).toList()
         val joinerDeviceId = pending.single().deviceId.get()
         host.tenshuClient.syncService.approvePairingRequest(joinerDeviceId)
-        system.advanceUntil(timeout = 15.seconds) {
+        system.syncUntil("the joiner is paired", devices = listOf(host, joiner)) {
             val status = joiner.tenshuClient.syncService.getPairingStatus(
                 pairingSecret = parsed.secret,
                 otherDevicePublicKey = parsed.hostPairingPublicKey,
@@ -483,7 +625,7 @@ class RelayAmnesiaRepairSystemTest {
         // ⚠ The joiner must FETCH its response: the relay registers it on delivery (peek), not on
         // the admitter's post, so an admission nobody fetched leaves no registered device.
         runCatching {
-            system.advanceUntil(timeout = 15.seconds) {
+            system.syncUntil("$name is registered on the relay", devices = listOf(admitter, joiner)) {
                 joiner.tenshuClient.syncService.getPairingStatus(
                     pairingSecret = uri.secret,
                     otherDevicePublicKey = uri.hostPairingPublicKey,

@@ -31,7 +31,7 @@ class ExifUprightTest {
     }
 
     @Test
-    fun `1 asks for nothing, and so does anything it does not know`() {
+    fun `1 asks for nothing and so does anything it does not know`() {
         for (o in listOf(1, null, 0, 9)) {
             assertNull(ExifUpright.turnFor(o), "$o")
             assertTrue(ExifUpright.isIdentity(o), "$o")

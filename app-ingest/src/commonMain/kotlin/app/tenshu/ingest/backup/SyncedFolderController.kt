@@ -767,6 +767,7 @@ class SyncedFolderController(
         var completed = 0
         var uploaded = 0
         var failed = 0
+        var alreadyHeld = 0
         var doneBytes = 0L
         // ⚠ `completed` and the bytes it stands for must move together at EVERY exit an item can
         // take — uploaded, skipped by path, skipped by content hash, failed. A site that bumped
@@ -809,6 +810,7 @@ class SyncedFolderController(
             run.handedOffBytes += doneBytes
             run.uploaded += uploaded
             run.failed += failed
+            run.alreadyInRealm += alreadyHeld
             // ⚠ The run's cause is its LAST failure's, across drains as within one: a drain that
             // failed replaces both fields together (never one beside the other drain's), and a
             // drain in which nothing failed leaves them alone — the summary still counts the
@@ -827,8 +829,10 @@ class SyncedFolderController(
             val bucketName = buckets[bucketId]?.displayName ?: bucketId.substringAfterLast('/')
             val destination = backupDestinationFolder(deviceLabel, bucketName)
             // Once per bucket per drain, not per item — see
-            // [BackupDataPlane.ensureBackupDestination].
-            dataPlane.ensureBackupDestination(destination)
+            // [BackupDataPlane.ensureBackupDestination]. ⚠ Lazily, before the bucket's first
+            // UPLOAD (§3.3): a bucket whose every file the realm already holds must not leave an
+            // empty `/Backup/<device>/<bucket>` behind, which reads as a backup that broke.
+            var destinationEnsured = false
             var reachedInBucket = 0
             var cursorFrozen = false
             var consecutiveFailures = 0
@@ -949,6 +953,7 @@ class SyncedFolderController(
                             // by an upload or a data-plane skip. Without this, "could not look"
                             // alternating with "held" would stop the folder with no five in a row.
                             consecutiveFailures = 0
+                            alreadyHeld++
                             advanceCursor(item.cursor)
                             itemDone(item)
                             continue
@@ -978,6 +983,10 @@ class SyncedFolderController(
                     run.remainingBytes(doneBytes),
                     userInitiated = userInitiated(),
                 )
+                if (!destinationEnsured) {
+                    dataPlane.ensureBackupDestination(destination)
+                    destinationEnsured = true
+                }
                 // ⚠⚠ Marked user-started only for a run the user asked for (*Back up now*): that is the
                 // one case Control may hold its foreground service for. An automatic run's uploads stay
                 // unmarked and ride Control's own jobs (control-background-work-off-fgs.md §5.1).
@@ -1034,6 +1043,7 @@ class SyncedFolderController(
                 failed = run.failed,
                 failureReason = run.failureReason,
                 failureKind = run.failureKind,
+                alreadyInRealm = run.alreadyInRealm,
             )
             scheduleClear(source)
         }
@@ -1052,6 +1062,9 @@ class SyncedFolderController(
         var completed: Int = 0
         var uploaded: Int = 0
         var failed: Int = 0
+
+        /** Files skipped because the realm already held their content — see [BackupState.JustFinished.alreadyInRealm]. */
+        var alreadyInRealm: Int = 0
 
         /** Bytes behind [total], summed from the same enumeration. Meaningless while [bytesKnown]
          *  is false. */
@@ -1160,6 +1173,7 @@ fun aggregateState(states: List<BackupState>): BackupState {
             // single sentence, and an arbitrary-but-real reason beats none.
             failureReason = justFinished.firstOrNull { it.hasFailureCause }?.failureReason,
             failureKind = justFinished.firstOrNull { it.hasFailureCause }?.failureKind,
+            alreadyInRealm = justFinished.sumOf { it.alreadyInRealm },
         )
     }
     // ⚠ Ahead of the environment pauses: Stop is device-wide, so if any source reports it, that is
@@ -1272,6 +1286,14 @@ sealed interface BackupState {
          * free text stays for what a data plane reports.
          */
         val failureKind: BackupFailureKind? = null,
+        /**
+         * Files skipped because the realm already holds their content (`photos-app.md` §16) —
+         * neither [uploaded] nor [failed]. ⚠⚠ Shown, not dropped: a run whose every file was
+         * already in the realm otherwise summarises as "Backed up 0 files" over an empty
+         * destination, which is indistinguishable from backup being broken.
+         * ⚠ Defaulted to `0`, the reading for a caller that did not count.
+         */
+        val alreadyInRealm: Int = 0,
     ) : BackupState {
         /** Whether either the free-text reason or the typed cause is known. */
         val hasFailureCause: Boolean get() = failureReason != null || failureKind != null

@@ -69,6 +69,9 @@ internal class CancellableReadRig(
     /** Completed on the first row a walk visits. */
     val walking = CompletableDeferred<Unit>()
 
+    /** Completed when a walk's loop is left — by its last row, or by a cancel reaching it. */
+    val walkEnded = CompletableDeferred<Unit>()
+
     private inner class SlowWalk : SyncOperationImplementation {
         override fun <T : Data?> execute(
             executionContext: ExecutionContext,
@@ -77,10 +80,14 @@ internal class CancellableReadRig(
             caller: Any?,
             params: Map<String, Data>?,
         ): T {
-            for (row in executionContext.resolveList(caller)!!) {
-                walked.incrementAndGet()
-                walking.complete(Unit)
-                Thread.sleep(rowMs)
+            try {
+                for (row in executionContext.resolveList(caller)!!) {
+                    walked.incrementAndGet()
+                    walking.complete(Unit)
+                    Thread.sleep(rowMs)
+                }
+            } finally {
+                walkEnded.complete(Unit)
             }
             @Suppress("UNCHECKED_CAST")
             return null as T

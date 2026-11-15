@@ -497,6 +497,10 @@ private const val INITIAL_HEAP_CAPACITY = 1024
  * [keepFields] is the caller's projection; [orderByFieldId] is added to it automatically, since the
  * key must survive the thin read. Ordering, nulls-last and stability match the chain path exactly —
  * same [compareSortKeys], same encounter-order tie-break.
+ *
+ * ⚠ It bounds the selection, not the scan: every member is still read (thin). The scan pages across
+ * store accesses, so no single access — one write-locked transaction on the iOS replica — holds more
+ * than a page (§6.1); a write between pages can make members mutually skewed, never duplicated.
  */
 fun ExecutionContext.readOrderedWindow(
     reference: ArrayDatabaseReference,

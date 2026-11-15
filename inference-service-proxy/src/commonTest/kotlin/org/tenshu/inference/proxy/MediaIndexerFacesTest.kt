@@ -71,7 +71,7 @@ class MediaIndexerFacesTest {
         capabilities: Set<InferenceCapability> = setOf(InferenceCapability.FACE_CLUSTERING),
     ) = MediaIndexer(
         registry = InferenceBackendRegistry(listOf(FakeInferenceBackend(capabilities = capabilities))),
-        deviceId = thisDevice,
+        deviceId = { thisDevice },
         embeddings = embeddings,
         faces = store,
         conditions = IndexingConditions { true },
@@ -101,7 +101,7 @@ class MediaIndexerFacesTest {
         assertEquals(1, result.facesNotHuman)
         assertEquals(2, result.facesEmbedded, "anna and bob — the pass went on past the cat")
         assertEquals(1, store.facesOf("/a.jpg").size, "anna kept, the cat left out")
-        assertEquals(0, result.embeddingsFailed, "not a failure")
+        assertEquals(0, result.facesFailed, "not a failure")
         assertEquals(2, result.photosSearchedForFaces)
     }
 
@@ -312,7 +312,7 @@ class MediaIndexerFacesTest {
 
     private fun indexerWith(backend: InferenceBackend, store: FaceTemplateStore) = MediaIndexer(
         registry = InferenceBackendRegistry(listOf(backend)),
-        deviceId = thisDevice,
+        deviceId = { thisDevice },
         faces = store,
         conditions = IndexingConditions { true },
     )
@@ -335,7 +335,7 @@ class MediaIndexerFacesTest {
 
         assertFalse(store.visited("/a.jpg"), "a failure is not a fact about the file")
         assertEquals(0, store.size())
-        assertEquals(1, result.embeddingsFailed, "and it is counted, not silently dropped")
+        assertEquals(1, result.facesFailed, "and it is counted, not silently dropped")
     }
 
     /** ⚠ Bytes this device cannot decode ARE a fact about the file, and are remembered. */
@@ -443,7 +443,7 @@ class MediaIndexerFacesTest {
 
         assertFalse(store.visited("/a.jpg"), "a model that could not run is not a fact about the file")
         assertEquals(0, store.size(), "and the half that DID embed is not kept either")
-        assertEquals(1, result.embeddingsFailed)
+        assertEquals(1, result.facesFailed)
     }
 
     /** ⚠ The whole-success case, so the test above cannot pass by never storing anything. */
@@ -487,7 +487,46 @@ class MediaIndexerFacesTest {
         )
 
         assertEquals(0, result.alreadyCurrent, "none of the three was indexed, so none is current")
-        assertEquals(3, result.embeddingsFailed, "and all three are reported as not done")
+        assertEquals(3, result.facesFailed, "and all three are reported as not done")
+    }
+
+    /**
+     * ⚠⚠ Found on a real phone: SigLIP was fine and only the face detector latched, and the line read
+     * `embedded=1 … embedFailed=29` — the face half counted into the vector half's counters. Each
+     * half has its own, so the line says which one failed.
+     */
+    @Test
+    fun aLatchedFaceDetectorBesideAWorkingEmbedderIsTheFaceHalfsFailure() = runTest {
+        val proxy = proxy().apply {
+            consentTo(faceCapability)
+            consentTo(InferenceCapability.SEMANTIC_IMAGE_SEARCH)
+        }
+        val indexer = MediaIndexer(
+            registry = InferenceBackendRegistry(
+                listOf(
+                    FakeInferenceBackend(capabilities = setOf(InferenceCapability.SEMANTIC_IMAGE_SEARCH)),
+                    FailingDetector(FaceDetectionOutcome.Failed),
+                ),
+            ),
+            deviceId = { thisDevice },
+            embeddings = InMemoryEmbeddingStore(),
+            faces = InMemoryFaceTemplateStore(),
+            conditions = IndexingConditions { true },
+        )
+
+        val result = indexer.index(
+            proxy.executionContext,
+            media("/a.jpg" to "anna", "/b.jpg" to "bob", "/c.jpg" to "cara"),
+            capability = InferenceCapability.CONTENT_TAGGING,
+        )
+
+        assertEquals(3, result.embedded, "the vector half ran fine")
+        assertEquals(0, result.embeddingsFailed, "and nothing of it failed")
+        assertEquals(0, result.embeddingsRejected)
+        assertEquals(3, result.facesFailed, "the detector's failure, and the two it latched")
+        val line = result.summaryLine()
+        assertTrue("embedded=3 rejected=0 embedFailed=0 " in line, line)
+        assertTrue(" facesFailed=3 facesRejected=0 " in line, line)
     }
 
     /**
@@ -513,7 +552,7 @@ class MediaIndexerFacesTest {
      * A store that refuses every write — a foreign stamp, or a width it does not hold.
      *
      * ⚠ Distinct from a broken model, and the pass report is the only place that distinction
-     * survives: one is `embeddingsRejected`, the other `embeddingsFailed`. Folding them together
+     * survives: one is `facesRejected`, the other `facesFailed`. Folding them together
      * loses the difference between "this device's store disagrees" and "the model would not run",
      * which are fixed by completely different things.
      */
@@ -538,6 +577,8 @@ class MediaIndexerFacesTest {
         override suspend fun provenance(): ModelProvenance? = null
         override suspend fun size(): Int = 0
         override suspend fun clear() = Unit
+        override suspend fun rejections(): List<FaceRejection> = emptyList()
+        override suspend fun reject(rejections: List<FaceRejection>): Int = 0
     }
 
     @Test
@@ -551,8 +592,8 @@ class MediaIndexerFacesTest {
             capability = InferenceCapability.CONTENT_TAGGING,
         )
 
-        assertEquals(3, result.embeddingsRejected, "the refusal, and the two it latched")
-        assertEquals(0, result.embeddingsFailed, "nothing here FAILED — the model ran fine")
+        assertEquals(3, result.facesRejected, "the refusal, and the two it latched")
+        assertEquals(0, result.facesFailed, "nothing here FAILED — the model ran fine")
     }
 
     /**
@@ -573,8 +614,8 @@ class MediaIndexerFacesTest {
             capability = InferenceCapability.CONTENT_TAGGING,
         )
 
-        assertEquals(3, result.embeddingsRejected, "the refusal, and the two it latched")
-        assertEquals(0, result.embeddingsFailed, "nothing FAILED — the detector answered fine")
+        assertEquals(3, result.facesRejected, "the refusal, and the two it latched")
+        assertEquals(0, result.facesFailed, "nothing FAILED — the detector answered fine")
         // ⚠⚠ The counts alone cannot see the latch — a per-file refusal totals the same. Only the
         // store knowing it was asked once distinguishes "latched" from "re-asked every time".
         assertEquals(1, store.putCalls, "asked once, then latched")
@@ -600,7 +641,7 @@ class MediaIndexerFacesTest {
         val model = ModelProvenance("auraface-v1-int8", 1)
         val indexer = MediaIndexer(
             registry = InferenceBackendRegistry(listOf(StampedBackend(FakeInferenceBackend(), model))),
-            deviceId = thisDevice,
+            deviceId = { thisDevice },
             faces = store,
             conditions = IndexingConditions { true },
         )
@@ -682,7 +723,7 @@ class MediaIndexerFacesTest {
         val current = ModelProvenance("auraface-v1-int8", 2)
         val indexer = MediaIndexer(
             registry = InferenceBackendRegistry(listOf(StampedBackend(FakeInferenceBackend(), current))),
-            deviceId = thisDevice,
+            deviceId = { thisDevice },
             faces = store,
             conditions = IndexingConditions { true },
         )
@@ -691,7 +732,7 @@ class MediaIndexerFacesTest {
 
         assertEquals(current, store.provenance())
         assertEquals(1, result.facesEmbedded, "the photograph was re-read under the new model, not skipped")
-        assertEquals(0, result.embeddingsRejected, "the old stamp must not refuse the new model")
+        assertEquals(0, result.facesRejected, "the old stamp must not refuse the new model")
     }
 
     /** ⚠ The guard's other side: the same model's store is left alone. */
@@ -852,5 +893,144 @@ class MediaIndexerFacesTest {
         indexer(store).index(proxy.executionContext, media("/b.jpg" to "bob"), capability = faceCapability)
 
         assertEquals(1, store.size())
+    }
+
+    // ─── The pass report says whether the face half ran (`faces=`), and what it cost.
+
+    private val both = setOf(InferenceCapability.FACE_CLUSTERING, InferenceCapability.SEMANTIC_IMAGE_SEARCH)
+
+    /**
+     * ⚠⚠ The device-pass case: search runs, faces cannot, and the SECOND pass counts the photograph
+     * `current` because its vector is — so without `faces=` the line read like a finished library.
+     */
+    @Test
+    fun aFaceHalfWithNoBackendIsNamedInTheReport_evenWhereThePhotoIsCurrent() = runTest {
+        val store = InMemoryFaceTemplateStore()
+        val embeddings = InMemoryEmbeddingStore()
+        val proxy = proxy().apply {
+            consentTo(faceCapability)
+            consentTo(InferenceCapability.SEMANTIC_IMAGE_SEARCH)
+        }
+        val searchOnly = setOf(InferenceCapability.SEMANTIC_IMAGE_SEARCH)
+        indexer(store, embeddings, searchOnly).index(proxy.executionContext, media("/a.jpg" to "anna"), capability = faceCapability)
+
+        val second = indexer(store, embeddings, searchOnly)
+            .index(proxy.executionContext, media("/a.jpg" to "anna"), capability = faceCapability)
+
+        assertEquals(1, second.alreadyCurrent, "the vector is current")
+        assertEquals(FaceHalf.NO_BACKEND, second.faceHalf)
+        val line = second.summaryLine()
+        assertTrue(" faces=off(noBackend) facesSkipped=1 " in line, line)
+    }
+
+    @Test
+    fun aFaceHalfWithNoConsentIsNamedInTheReport() = runTest {
+        val proxy = proxy().apply { consentTo(InferenceCapability.SEMANTIC_IMAGE_SEARCH) }
+
+        val result = indexer(InMemoryFaceTemplateStore(), InMemoryEmbeddingStore(), both)
+            .index(proxy.executionContext, media("/a.jpg" to "anna", "/b.jpg" to "bob"), capability = faceCapability)
+
+        assertEquals(FaceHalf.NO_CONSENT, result.faceHalf)
+        val line = result.summaryLine()
+        assertTrue(" faces=off(noConsent) facesSkipped=2 " in line, line)
+    }
+
+    @Test
+    fun aFaceHalfWithNoStoreIsNamedInTheReport() = runTest {
+        val proxy = proxy().apply {
+            consentTo(faceCapability)
+            consentTo(InferenceCapability.SEMANTIC_IMAGE_SEARCH)
+        }
+
+        val result = indexer(store = null, embeddings = InMemoryEmbeddingStore(), capabilities = both)
+            .index(proxy.executionContext, media("/a.jpg" to "anna"), capability = faceCapability)
+
+        assertEquals(FaceHalf.NO_STORE, result.faceHalf)
+        val line = result.summaryLine()
+        assertTrue(" faces=off(noStore) facesSkipped=1 " in line, line)
+    }
+
+    /** ⚠ The guard's other side: a face half that ran says so, and skipped nothing. */
+    @Test
+    fun aFaceHalfThatRanIsReportedOn() = runTest {
+        val proxy = proxy().apply {
+            consentTo(faceCapability)
+            consentTo(InferenceCapability.SEMANTIC_IMAGE_SEARCH)
+        }
+
+        val result = indexer(InMemoryFaceTemplateStore(), InMemoryEmbeddingStore(), both)
+            .index(proxy.executionContext, media("/a.jpg" to "anna"), capability = faceCapability)
+
+        assertEquals(FaceHalf.ON, result.faceHalf)
+        val line = result.summaryLine()
+        assertTrue(" faces=on facesSkipped=0 " in line, line)
+    }
+
+    /** ⚠ No backend at all: every photograph is skipped, and the face half's reason is still named. */
+    @Test
+    fun aPassWithNoBackendAtAllNamesTheFaceReasonToo() = runTest {
+        val proxy = proxy().apply { consentTo(faceCapability) }
+
+        val result = indexer(InMemoryFaceTemplateStore(), capabilities = emptySet())
+            .index(proxy.executionContext, media("/a.jpg" to "anna"), capability = faceCapability)
+
+        assertEquals(1, result.skippedNoBackend)
+        assertTrue(" faces=off(noBackend) facesSkipped=1 " in result.summaryLine(), result.summaryLine())
+    }
+
+    // ─── Whether a pass changed what People draws (`ios-face-grouping.md` §17.6).
+
+    @Test
+    fun aPassThatEmbeddedFacesMayHaveChangedPeople() = runTest {
+        val proxy = proxy().apply { consentTo(faceCapability) }
+        val result = indexer(InMemoryFaceTemplateStore())
+            .index(proxy.executionContext, media("/a.jpg" to "anna"), capability = faceCapability)
+        assertTrue(result.mayHaveChangedFaces)
+    }
+
+    /** ⚠ The skip this must not regress: a pass over a library already done changed nothing. */
+    @Test
+    fun aPassOverACurrentLibraryChangedNothing() = runTest {
+        val store = InMemoryFaceTemplateStore()
+        val proxy = proxy().apply { consentTo(faceCapability) }
+        indexer(store).index(proxy.executionContext, media("/a.jpg" to "anna"), capability = faceCapability)
+
+        val second = indexer(store).index(proxy.executionContext, media("/a.jpg" to "anna"), capability = faceCapability)
+
+        assertFalse(second.mayHaveChangedFaces)
+    }
+
+    /** ⚠ A withdrawal that lands MID-pass deletes too — and the pass says so. */
+    @Test
+    fun aWithdrawalMidPassIsReportedAsCleared() = runTest {
+        val store = InMemoryFaceTemplateStore()
+        val proxy = proxy().apply { consentTo(faceCapability) }
+        val items = listOf(
+            IndexableMedia("/a.jpg") {
+                proxy.write(faceCapability.deviceConsent, false, deviceId = thisDevice)
+                "anna".encodeToByteArray()
+            },
+            IndexableMedia("/b.jpg") { "bob".encodeToByteArray() },
+        )
+
+        val result = indexer(store).index(proxy.executionContext, items, capability = faceCapability)
+
+        assertEquals(0, store.size(), "the withdrawal deleted what the pass had written")
+        assertTrue(result.facesCleared)
+    }
+
+    /** ⚠⚠ A withdrawal embeds nothing and still empties People. */
+    @Test
+    fun aPassThatDeletedTheTemplatesMayHaveChangedPeople() = runTest {
+        val store = InMemoryFaceTemplateStore()
+        val proxy = proxy().apply { consentTo(faceCapability) }
+        indexer(store).index(proxy.executionContext, media("/a.jpg" to "anna"), capability = faceCapability)
+        proxy.write(faceCapability.deviceConsent, false, deviceId = thisDevice)
+
+        val second = indexer(store).index(proxy.executionContext, media("/a.jpg" to "anna"), capability = faceCapability)
+
+        assertEquals(0, second.facesEmbedded)
+        assertTrue(second.facesCleared)
+        assertTrue(second.mayHaveChangedFaces)
     }
 }

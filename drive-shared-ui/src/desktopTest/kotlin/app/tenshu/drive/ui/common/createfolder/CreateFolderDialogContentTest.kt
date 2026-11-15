@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.v2.runComposeUiTest
 import app.tenshu.ui.theme.TenshuTheme
 import kotlin.test.Test
+import org.tenshu.ui.test.NoMotion
 
 /**
  * The create-folder dialog's failure states. The dialog used to read its error as a mere presence
@@ -31,7 +32,7 @@ class CreateFolderDialogContentTest {
     )
 
     @Test
-    fun aCollisionOffersKeepBoth() = runComposeUiTest {
+    fun aCollisionOffersKeepBoth() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 CreateFolderDialogContent(
@@ -49,7 +50,7 @@ class CreateFolderDialogContentTest {
     }
 
     @Test
-    fun aNonCollisionFailureDoesNotOfferKeepBoth() = runComposeUiTest {
+    fun aNonCollisionFailureDoesNotOfferKeepBoth() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 CreateFolderDialogContent(
@@ -71,7 +72,7 @@ class CreateFolderDialogContentTest {
     }
 
     @Test
-    fun aSeparatorInTheNameIsItsOwnMessage() = runComposeUiTest {
+    fun aSeparatorInTheNameIsItsOwnMessage() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 CreateFolderDialogContent(
@@ -96,7 +97,7 @@ class CreateFolderDialogContentTest {
     }
 
     @Test
-    fun anEmptyNameDisablesConfirm() = runComposeUiTest {
+    fun anEmptyNameDisablesConfirm() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 CreateFolderDialogContent(
@@ -115,7 +116,7 @@ class CreateFolderDialogContentTest {
     }
 
     @Test
-    fun aNamedFolderEnablesConfirm() = runComposeUiTest {
+    fun aNamedFolderEnablesConfirm() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 CreateFolderDialogContent(
@@ -132,7 +133,7 @@ class CreateFolderDialogContentTest {
     }
 
     @Test
-    fun confirmIsDisabledWhileTheWriteIsInFlight() = runComposeUiTest {
+    fun confirmIsDisabledWhileTheWriteIsInFlight() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 CreateFolderDialogContent(

@@ -22,6 +22,7 @@ import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.tenshu.ui.test.NoMotion
 
 /**
  * ⚠⚠ **The time grid used to show the same twelve hours whatever the window.**
@@ -47,7 +48,7 @@ class TimeGridScaleTest {
     /** The drawn gap between two adjacent hour labels — i.e. one hour, as rendered. */
     private fun measuredHourHeight(windowHeight: Int): Dp {
         var height = Dp.Unspecified
-        runDesktopComposeUiTest(width = 1440, height = windowHeight) {
+        runDesktopComposeUiTest(width = 1440, height = windowHeight, effectContext = NoMotion) {
             setContent { TenshuTheme { Grid() } }
             waitForIdle()
             height = onNodeWithText(label(10)).getBoundsInRoot().top -
@@ -91,7 +92,7 @@ class TimeGridScaleTest {
     fun aTapLandsOnTheHourTheRulerDrew() {
         var created: Pair<LocalDate, LocalTime>? = null
 
-        runDesktopComposeUiTest(width = 1440, height = 1000) {
+        runDesktopComposeUiTest(width = 1440, height = 1000, effectContext = NoMotion) {
             setContent { TenshuTheme { Grid(onCreateAt = { d, t -> created = d to t }) } }
             waitForIdle()
 

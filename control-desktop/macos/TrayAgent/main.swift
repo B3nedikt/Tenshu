@@ -357,8 +357,17 @@ final class TrayModel: ObservableObject {
         }
     }
 
+    /// ⚠⚠ Waits for the daemon to take `quitApp` before exiting. Fire-and-forget here raced
+    /// `terminate`: the tray exited before the call went out, so Quit removed the icon and left
+    /// the daemon running, hidden, holding the instance lock — and every relaunch then deferred
+    /// to it. Bounded, so a wedged daemon cannot keep the tray from quitting.
     func quit() {
-        fireAndForget("quitApp")
+        let delivered = DispatchSemaphore(value: 0)
+        DispatchQueue.global(qos: .userInitiated).async { [bridge] in
+            _ = try? bridge.call("quitApp")
+            delivered.signal()
+        }
+        _ = delivered.wait(timeout: .now() + 2)
         NSApp.terminate(nil)
     }
 

@@ -101,7 +101,7 @@ class AskMiaLiveCitationTest {
         val imageTags = tags.map { ImageTag(it, 0.9f) }
         MediaIndexer(
             registry = InferenceBackendRegistry(listOf(FakeInferenceBackend(tags = imageTags))),
-            deviceId = thisDevice,
+            deviceId = { thisDevice },
             vocabulary = vocabularyOf(
                 version = 1,
                 labels = imageTags.map { VocabularyLabel(it.label, LabelTier.TOP, floor = 0f) },

@@ -1,11 +1,19 @@
 package app.tenshu.ui.layout
 
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -87,7 +95,7 @@ data class AdaptiveNavItem(
 )
 
 @Composable
-private fun NavItemIcon(item: AdaptiveNavItem) {
+internal fun NavItemIcon(item: AdaptiveNavItem) {
     val icon: @Composable () -> Unit = {
         if (item.emphasized) {
             Box(
@@ -281,14 +289,30 @@ fun AdaptiveNavScaffold(
     navItems: List<AdaptiveNavItem>,
     modifier: Modifier = Modifier,
     showNav: Boolean = true,
+    /** What a phone sees; see [CompactNavStyle]. Ignored at every wider size class. */
+    compactNavStyle: CompactNavStyle = CompactNavStyle.Bar,
     contentWindowInsets: WindowInsets = WindowInsets(0, 0, 0, 0),
+    /**
+     * Drawn over [content], inside the content area — above the bottom bar, beside the rail — so an
+     * indicator aligned to the bottom clears the nav chrome without measuring it
+     * (`suite-sync-status.md` SS-2, the "Syncing…" capsule). ⚠ An overlay, never a sibling: a
+     * sibling would shift the screen each time activity starts or ends.
+     */
+    overlay: @Composable BoxScope.() -> Unit = {},
     content: @Composable () -> Unit,
 ) {
     val sizeClass = LocalWindowWidthSizeClass.current
     // Compact puts the chrome in a bottom bar; every wider class puts it in a leading rail. Both
     // are siblings of the content, so which one is drawn — or neither — never reaches [content].
-    val showBar = showNav && sizeClass == WindowWidthSizeClass.Compact
+    val compact = showNav && sizeClass == WindowWidthSizeClass.Compact
+    val floating = compactNavStyle == CompactNavStyle.Floating
+    val showBar = compact && !floating
+    val showPill = compact && floating
     val showRail = showNav && sizeClass != WindowWidthSizeClass.Compact
+    // Measured off the pill's wrapper, which spans from the pill's top to the content's bottom
+    // edge. Reset when the pill goes, so a pushed screen never inherits the tab's clearance.
+    var pillClearancePx by remember { mutableIntStateOf(0) }
+    val clearance = if (showPill) with(LocalDensity.current) { pillClearancePx.toDp() } else 0.dp
 
     Scaffold(
         modifier = modifier,
@@ -314,7 +338,11 @@ fun AdaptiveNavScaffold(
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding),
+                .padding(innerPadding)
+                // ⚠ Only for the pill, so the docked bar and the rail keep exactly the insets they
+                // always had: what the scaffold already applied must not be applied a second
+                // time by the pill's own `windowInsetsPadding`.
+                .then(if (floating) Modifier.consumeWindowInsets(innerPadding) else Modifier),
         ) {
             if (showRail) NavRail(navItems, sizeClass)
             Box(
@@ -325,7 +353,26 @@ fun AdaptiveNavScaffold(
                     // chrome-less screen is deliberately edge-to-edge.
                     .then(if (showRail) Modifier.appWindowMargin() else Modifier),
             ) {
-                content()
+                // ⚠ Always provided, 0.dp when there is no pill, so this stays the one call site of
+                // `content()` (see the KDoc) whichever chrome is showing.
+                CompositionLocalProvider(LocalNavBarClearance provides clearance) {
+                    content()
+                }
+                // The overlay is lifted above the pill, so a bottom-aligned capsule clears it the
+                // same way it clears the docked bar.
+                Box(Modifier.fillMaxSize().padding(bottom = clearance)) { overlay() }
+                if (showPill) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            // ⚠ First in the chain, so the size includes the inset and margin below.
+                            .onSizeChanged { pillClearancePx = it.height }
+                            .windowInsetsPadding(WindowInsets.navigationBars)
+                            .padding(bottom = FloatingNavBarBottomMargin),
+                    ) {
+                        FloatingNavBar(navItems)
+                    }
+                }
             }
         }
     }

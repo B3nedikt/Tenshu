@@ -647,8 +647,15 @@ class ExecutionContext(
         // ⭐ CR-2 B4 (§2.3): and, in the same breath, what each lane-aware observer needs of the row
         // being replaced (the content a save clears), carried to the dispatch as a token.
         val prepared = observerRegistry.prepareSave(toSave, origin, syncLaneId ?: requestSyncLaneId)
-        database.saveData(toSave)
-        observerRegistry.onDataSaved(toSave, origin, prepared)
+        // The store comparison is paid only when a SaveOutcomeAwareDataObserver would act on it for
+        // this type (`core-deterministic-invalidation.md` §8); otherwise this is the plain save.
+        val redundant = if (observerRegistry.wantsSaveOutcome(toSave)) {
+            !database.saveDataReportingChange(toSave)
+        } else {
+            database.saveData(toSave)
+            false
+        }
+        observerRegistry.onDataSaved(toSave, origin, prepared, redundant)
     }
 
     private val storedContentReferences: org.tenshu.core.common.content.StoredContentReferences? by lazy {

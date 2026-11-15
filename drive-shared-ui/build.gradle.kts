@@ -157,6 +157,7 @@ kotlin {
         }
         getByName("desktopTest") {
             dependencies {
+                implementation(project(":ui-test-utils"))
                 implementation(project(":core-test-utils"))
                 implementation(project(":viewmodel-test-utils"))
                 implementation(project(":control-shared"))

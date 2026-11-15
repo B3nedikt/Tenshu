@@ -55,5 +55,19 @@ kotlin {
                 implementation(project(":home-device-service-common"))
             }
         }
+        // ⚠⚠ Kotlin/JS ships no time-zone database (`:app-notify`'s build file has the long
+        // version). The engine resolves a routine's zone with
+        // `runCatching { TimeZone.of(id) }.getOrNull() ?: return null` (`FiringCalculator`), so
+        // without it nothing throws: every "06:00 Europe/Berlin" routine silently never fires, and
+        // nine engine tests read zero runs on the browser target only.
+        //
+        // ⚠ `jsTest`, not `jsMain`: the browser runtime that ships this proxy (`:tenshu-sdk-js`)
+        // already bundles the database in its own `jsMain`. 2.26.0 is that same pin — never
+        // app-notify's 2.3.0 (tzdb 2020a), see `tenshu-sdk-js/build.gradle.kts`.
+        getByName("jsTest") {
+            dependencies {
+                implementation(npm("@js-joda/timezone", "2.26.0"))
+            }
+        }
     }
 }

@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.tenshu.ui.test.NoMotion
 
 /**
  * Covers the §7.2 Level 0 banner's two wordings and their actions. State (visibility, which
@@ -25,7 +26,7 @@ import kotlin.test.assertTrue
 class RecoveryAffordanceTest {
 
     @get:Rule
-    val composeTestRule = createComposeRule()
+    val composeTestRule = createComposeRule(NoMotion)
 
     private var saveClicks = 0
     private var syncClicks = 0

@@ -87,7 +87,11 @@ class RetiredBlockSweeper internal constructor(
         // ⚠ No registry ⇒ shared-realm queues are unknowable ⇒ cannot prove any block is orphaned.
         val registry = realmRegistry ?: return null
 
-        val from = cursor ?: store.loadRetiredBlockSweepCursor()?.also {
+        // ⚠⚠ The cursor is an ordinary row, so its load and store take the DatabaseLock like any
+        // other row access: `SqliteObjectStore`'s row cache is an access-ordered map that every
+        // `get` restructures, and this runs on the sync tick beside locked writers. (The page scan
+        // needs no lock here — each store serialises its own scan.)
+        val from = cursor ?: executionContext.database.transaction { store.loadRetiredBlockSweepCursor() }?.also {
             // ⚠⚠ A device that already finished must never scan again — that is the entire point
             // of persisting this. Recomputing it per process is what made a swept store pay a
             // full read of every row at every launch.
@@ -145,13 +149,15 @@ class RetiredBlockSweeper internal constructor(
 
     /** Persists the sweep past [page]: the next cursor, or `SWEEP_COMPLETE` on the last page. */
     private fun advancePast(page: ObjectStore.TypeScanPage, store: ObjectStore) {
-        if (page.exhausted) {
+        val next = if (page.exhausted) {
             finished = true
-            store.storeRetiredBlockSweepCursor(ObjectStore.SWEEP_COMPLETE)
+            ObjectStore.SWEEP_COMPLETE
         } else {
             cursor = page.nextCursor
-            store.storeRetiredBlockSweepCursor(page.nextCursor)
+            page.nextCursor
         }
+        // ⚠ Under the lock for the same reason as the load in [sweepOnce].
+        executionContext.database.transaction { store.storeRetiredBlockSweepCursor(next) }
     }
 
     /**

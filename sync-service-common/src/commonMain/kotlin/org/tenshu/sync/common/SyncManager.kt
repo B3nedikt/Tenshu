@@ -341,6 +341,11 @@ interface SyncManager {
      * ⚠ Does **not** touch the object store — that is [wipeLocalStore], called separately because it
      * suspends. Leaves in-memory key material cleared so the running session cannot keep signing
      * with keys that no longer exist at rest.
+     *
+     * ⚠⚠ And returns holding a **new** A4 key, so [currentDeviceId] (derived from it) and
+     * [hlcManager] answer the new identity at once. Desktop and Android Control keep their graph
+     * across a forget, so the pairing that follows runs in this same process; a forgotten id
+     * surviving in memory is offered to the relay and refused there as a removed device (F2′).
      */
     fun forgetThisDevice()
 
@@ -490,6 +495,21 @@ interface SyncManager {
     fun getDeviceSigningKeyPair(): SyncCryptoManager.KeyPair
 
     /**
+     * This device's id **and** the A4 pair it is derived from, read as one snapshot.
+     *
+     * ⚠ Sign with this, not with [currentDeviceId] and [getDeviceSigningKeyPair] read separately:
+     * [forgetThisDevice] replaces the pair in a running process, and two reads either side of it
+     * give a signature by one identity over the other's id (`threat-model.md` A4, *lifecycle*).
+     * The default composes the two accessors (test fakes); `SyncManagerImpl` answers from one
+     * atomic reference.
+     */
+    fun currentDeviceIdentity(): DeviceKeyIdentity =
+        DeviceKeyIdentity(deviceId = currentDeviceId, signingKeyPair = getDeviceSigningKeyPair())
+
+    /** A device id with the A4 pair it was derived from — see [currentDeviceIdentity]. */
+    class DeviceKeyIdentity(val deviceId: String, val signingKeyPair: SyncCryptoManager.KeyPair)
+
+    /**
      * Realm master identity Ed25519 keypair (asset A1 in `docs/sync/threat-model.md`).
      * Derived from the recovery phrase during [initialize]; null before that. Used to
      * sign master delegations during pairing / recovery (`sync-relay-api.md` §3.3, §3.4).
@@ -516,11 +536,12 @@ interface SyncManager {
     fun currentRealmContext(): RealmContext? {
         val ownerId = currentOwnerId ?: return null
         val keys = getDerivedKeys() ?: return null
+        val identity = currentDeviceIdentity()
         return RealmContext(
             ownerId = ownerId,
-            deviceId = currentDeviceId,
+            deviceId = identity.deviceId,
             derivedKeys = keys,
-            deviceSigningKeyPair = getDeviceSigningKeyPair(),
+            deviceSigningKeyPair = identity.signingKeyPair,
             masterKeyPair = currentMasterKeyPair,
         )
     }

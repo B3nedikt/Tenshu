@@ -90,10 +90,18 @@ Clients discover models **only** through a Tenshu-signed `catalog.json`
   - ⚠ **One provenance stamp then covers two precisions.** Vectors never leave the device, so
     nothing compares an fp16 vector with a uint8 one. Labels do sync, and are inert today (`inference-service.md` §27.2):
     whether the two artifacts' labels are interchangeable is owed before they stop being inert.
+- ⚠⚠ **AuraFace is listed twice too** (`ios-face-grouping.md` FD4): `runtime: "onnx+mediapipe"`
+  on Android (MediaPipe detects, int8 ONNX embeds) and `runtime: "coreml+vision"` on iOS (Apple
+  Vision detects, so its one artifact is an fp16 Core ML embedder). Same `id`, same `version`.
+  - ⚠ The id says `-int8` and the iOS artifact is fp16. **Kept on purpose**: one id is one
+    checkpoint across runtimes, and renaming Android's id would re-index every Android library.
+  - ⚠⚠ The iOS runtime is **not** bare `coreml`: Photos on iOS contributes `coreml` for SigLIP
+    whenever AI-L is on, and would be offered a ~130 MB face download nothing on it can run.
 - **`source`** (optional, per entry) names the upstream repo and commit the artifact was exported
   from, with the source files' hashes and the export toolchain. It is in the signed bytes and no
-  client reads it. The Core ML entry has one. ⚠ The ONNX entry has none: nothing recorded which
-  snapshot those files were exported from, and a revision written there would be a claim.
+  client reads it. Both Core ML entries have one. ⚠ The ONNX and `onnx+mediapipe` entries have
+  none: nothing recorded which snapshot those files were exported from, and a revision written there
+  would be a claim.
 
 ### 1.1 What is published
 
@@ -103,10 +111,26 @@ Clients discover models **only** through a Tenshu-signed `catalog.json`
 | `auraface-v1-int8` v1 | `onnx+mediapipe` | `face_landmarker.task` 3 758 596 B, `auraface_int8.onnx` 66 033 423 B | 69 792 019 B | published 2026-09-25 |
 | `siglip-base-patch16-256-multilingual` v1 | `coreml` | `coreml/vision_fp16.mlpackage.tar` 184 842 240 B, `coreml/text_fp16.mlpackage.tar` 555 540 480 B, and the ONNX entry's `tokenizer.bin` | 743 448 870 B | published 2026-10-11 (the three URLs answer with these sizes [M: headers read 2026-10-11]; the signature was verified against the pinned key by the maintainer's own check, not re-run for this line). ⚠ No shipped build is offered it: Photos on iOS contributes `coreml` behind a build flag that is off (`ios-on-device-inference.md` §14.11). ⚠ The text archive does not always honour a `Range` (§14.12) |
 
+| `auraface-v1-int8` v1 | `coreml+vision` | `coreml/auraface_fp16.mlpackage.tar` 130 631 680 B, sha256 `d503f893…c3b80c` | 130 631 680 B | ✅ **published 2026-11-10** (`ios-face-grouping.md` §12.5: live archive hashes to `d503f893…`). Only a Photos-on-iOS build with `TENSHU_PHOTOS_FACES` on contributes `coreml+vision`, and that flag is off in every shipped build |
+
 The Core ML archives are the export of 2026-10-05 that passed the retrieval gate
 (`ios-on-device-inference.md` §9.6): vision sha256 `a30d4dde…10d8de`, text `628f7f32…41907d`,
 upstream commit `8952a4ea…84ca9c6`. ⚠ On a phone the download is the smaller part: the prepare step
 brought a first install to ~2.58 GB of free space on an iPhone 17e (same doc, §3.4).
+
+**The Core ML face embedder** (`ios-face-grouping.md` §12) is AuraFace's fp32 `glintr100.onnx`
+(`fal/AuraFace-v1` at `af6d057c9b0ec4071d4c49c80e3539258798b609`, sha256 `a7933ea5…25c60`,
+260 694 151 B) converted by `scripts/inference/export-coreml-face-embedder.py`: onnx2torch →
+coremltools 9.0, ML Program, fp16 compute, iOS 17. Never from Android's int8 file.
+- ⭐ **The archive is byte-reproducible**, unlike SigLIP's: two runs of the pinned toolchain give
+  `d503f893…c3b80c`. The script zeroes the tar's times, rewrites `Manifest.json`'s random item ids
+  and re-serialises `model.mlmodel` deterministically. The export manifest is `984e39d3…fd87f`.
+- Its self-check against the fp32 source under ONNX Runtime gives a mean cosine of 0.999987
+  (min 0.999980) over Vec2Face's 80 public synthetic faces. F1a measured 0.99998 / 0.99991 over 845
+  real aligned faces on the same `weight.bin`.
+- ⚖️ It is **a derivative of the same weights in a second format**, and falls under §5.4's deferred
+  written confirmation, whose clause (c) now names format conversion. The model's own metadata
+  carries the Apache-2.0 §4(b) notice that the file was changed.
 
 ## 2. What each row must answer before it ships
 
@@ -732,6 +756,11 @@ three things concrete:
 - ⚠⚠ **Nothing in the library reaches p = 0.5.** The highest score observed on any (image, label)
   pair is ≈ 0.25. A "50% confident" cut-off would label nothing at all; usable thresholds sit
   around 0.05–0.15, which is normal for SigLIP and looks broken if you expect softmax numbers.
+  ⚠⚠ **That band does not hold on the pinned checkpoint.** Measured there (2026-11-09,
+  `inference-service.md` §35.1.1), one-word true matches *typically* sit at cosine 0.06–0.10
+  (COCO's cats: median 0.085, but 5th percentile 0.038; median recall at 0.06 is 0.57), which is
+  **p ≈ 0.002–0.14**, and search's floor is p = 0.00197 (cosine 0.06). §3.10.3's per-label floors
+  agree: median p ≈ 0.002.
 - Re-measured with correct preprocessing, uint8-vs-fp32 drift is **mean 0.979, worst 0.942** —
   slightly worse than the 0.988/0.971 of §3.5.2, and measured on the right inputs.
 
@@ -1085,14 +1114,16 @@ unblinded, the top-1 image was on topic for 17 of 36 queries with pad 0 and 27 o
 (partly on topic: 12 and 5; off topic: 7 and 4).
 
 ⚠⚠ **The last column is the product consequence, and it is larger than the ranking one.**
-`photosLike`'s relevance floor (`inference-service.md` §35) is cosine ≥ 0.0915 — written `p ≥ 0.10`
+`photosLike`'s relevance floor (`inference-service.md` §35) was then cosine ≥ 0.0915 — written `p ≥ 0.10`
 here and in the table because that is what it read under the constants the app then carried
-(§3.10.8; the cosine has not moved) —
+(§3.10.8); since 2026-11-09 it is cosine 0.06, measured (`inference-service.md` §35.1.1) —
 taken from §3.7.2's band — which was measured on label vectors that `embed-label-set.py` had padded
 with id 1 all along. No pad-0 query in this set reached 0.0915 against any image (highest 0.081), so
 on this corpus search-by-description returned **nothing** for every query, not a worse ranking.
 ⚠ 17 of 36 pad-1 queries still clear nothing here, several with a correct top-1 at cosine 0.06–0.09:
-whether 0.10 is too strict is now a question that can be asked, and it has not been answered.
+whether 0.10 is too strict is now a question that can be asked. ⭐ Answered 2026-11-09: it was —
+it hid all five cats on the first iPhone to search; the floor is now cosine 0.06
+(`inference-service.md` §35.1.1).
 
 ⚠ Nothing stored moved. Text vectors are computed per query and never written; the image vectors,
 the label vectors and `ScoreCalibration` were never touched by the Kotlin tokenizer.
@@ -1465,22 +1496,24 @@ the catalog pins (`google/siglip-base-patch16-256-multilingual` at revision `895
 constant carried by the consumer would silently describe whichever model it was written against."*
 
 ⚠⚠ **The correction changed no search result, by construction.** The only reader of the calibration
-is `photosLike`'s `SEMANTIC_RELEVANCE_FLOOR`. `p ≥ 0.10` under the old constants was cosine ≥
+was `photosLike`'s `SEMANTIC_RELEVANCE_FLOOR`. `p ≥ 0.10` under the old constants was cosine ≥
 **0.09149529** (the smallest admitted `Float`), which the pinned checkpoint scores at
-**p ≈ 0.0612459** — so the floor became `0.061245844` in the same change, and the cut is on the same
-`Float`. `SemanticFloorCarryOverTest` holds the two pairs against each other over 2,000,001 cosines
-and every `Float` for 65,536 either side of the cut.
+**p ≈ 0.0612459** — so the floor became `0.061245844` in the same change, and the cut stayed on the
+same `Float`. `SemanticFloorCarryOverTest` (retired 2026-11-09) held the two pairs against each
+other over 2,000,001 cosines and every `Float` for 65,536 either side of the cut.
 
-⚠ What "no result" rests on. The old pair scored the cut cosine at **exactly** its floor, to the
-bit, so its cut hung on the last bit of `exp`; the new floor sits 8 ulps inside the gap it
-separates and does not. The comparison ran on the JVM (the arithmetic Android and desktop use:
+⚠ What "no result" rested on. The old pair scored the cut cosine at **exactly** its floor, to the
+bit, so its cut hung on the last bit of `exp`; the restated floor sat 8 ulps inside the gap it
+separated and did not. The comparison ran on the JVM (the arithmetic Android and desktop use:
 IEEE `Float` multiply and add around a double `exp`) and on the iOS simulator (`expf`). It did not
-run on a phone. Were a device's `expf` to round that one value the other way, the old build would
-have rejected the single `Float` `0x3DBB61E2` and the new one admits it.
+run on a phone. Had a device's `expf` rounded that one value the other way, the old build would
+have rejected the single `Float` `0x3DBB61E2` and the restated one admitted it.
 
-⚠⚠ **So the floor is a carried-over cosine and not a measurement.** `0.10` was the middle of
-§3.7.2's band, and that band was read on the `-224` checkpoint. A true p ≥ 0.10 on the pinned model
-is cosine ≥ 0.0963. Re-measuring the floor is owed (§3.10.10 item 5; `tech-debt.md`).
+⚠⚠ **So the floor was a carried-over cosine and not a measurement.** `0.10` was the middle of
+§3.7.2's band, and that band was read on the `-224` checkpoint. ⭐ **Re-measured 2026-11-09**
+(`inference-service.md` §35.1.1): the floor is now cosine 0.06, `SEMANTIC_RELEVANCE_FLOOR =
+0.00197`, and `SemanticFloorCarryOverTest` is retired. The carried-over 0.0915 hid every true
+match on the first iPhone to search (five cats at 0.080–0.084).
 
 ⚠ **No gate can read the weights.** `PinnedSigLipCalibrationPinTest` holds the two literals beside
 the repository, revision and digest they were read from, and `PinnedSigLipCalibrationSourceTest`
@@ -1539,8 +1572,8 @@ per-mille column argued for it.
    screenshots and documents (§3.12.9), and a sample large enough to confirm a bar and not only
    to refute one (§3.12.6; ◐ selected for L5's 23 and not yet embedded, §3.13). `inference-service.md` §7.7's labelled sample of a *library* is
    untouched by it.
-5. **Re-measure `SEMANTIC_RELEVANCE_FLOOR`** on the pinned checkpoint. Its constants are corrected
-   (§3.10.8); the floor's cosine was carried over unchanged and has never been measured on it.
+5. ✅ **Re-measure `SEMANTIC_RELEVANCE_FLOOR`** on the pinned checkpoint: cosine 0.06, p = 0.00197
+   (2026-11-09, `inference-service.md` §35.1.1).
 6. ✅ **The floors under the bare-word prompt** (`inference-service.md` §39.4 item 11): re-derived
    from the saved vectors, §3.11.4. 29 labels get a floor on both artifacts, not the 31 of §3.10.3.
 7. ◐ **A firing rate on a real library** (§39.4 item 15): §3.11.5 is a first look at 554 camera
@@ -2882,7 +2915,14 @@ fal's public claim; the written confirmation below is deferred until the product
 
 ⚠ Mirror `glintr100.onnx` **only**, never the repo, and obtain written confirmation of
 (a) from-scratch training, (b) datasets and licence basis, (c) that Apache-2.0 extends to CDN
-redistribution and quantisation. Apache-2.0 §§8–9 disclaim all warranty, so the risk sits with us.
+redistribution, quantisation **and format conversion**. Apache-2.0 §§8–9 disclaim all warranty, so
+the risk sits with us.
+
+⚖️ **Format conversion was added to (c) on 2026-11-10** (`ios-face-grouping.md` FD13). The iOS
+artifact is the same `glintr100.onnx` converted to Core ML fp16 (§1.1), which makes it a derivative
+of the same weights in a second format, under this same deferred confirmation. It is not a new
+question. Apache-2.0 §4's conditions apply to it as to the int8 file: the licence text, any
+NOTICE, and a statement that the file was changed (the last is in the model's own metadata).
 
 ### 5.5 Two candidates eliminated on facts other than licence
 

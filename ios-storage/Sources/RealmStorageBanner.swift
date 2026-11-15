@@ -2,7 +2,8 @@ import SwiftUI
 import TenshuSdk
 
 /// The realm-storage banner (`drive-synced-folders.md` §8b.5c) — the iOS half of the strip every
-/// Android app shows, shared by every first-party iOS app.
+/// Android app shows, shared by every first-party iOS app. Since SS-1b (`suite-sync-status.md`) it
+/// also says when this device's sync is broken: locked, not recognised, needs attention, offline.
 ///
 /// ⚠ Compiled INTO each app target via `ios-storage/storage.yml`, the same convention
 /// `ios-shell` / `ios-onboarding` / `ios-basemap` use — a SwiftPM package cannot be used here
@@ -55,8 +56,10 @@ struct RealmStorageBanner: View {
             // ⚠ Offered only when Control can actually be reached. Drive on iOS runs its own
             // in-process runtime and works perfectly without Control installed, so "no route"
             // is an ordinary state — and a button that goes nowhere is worse than no button.
-            if model.canOpenControl {
-                Button("Manage storage") { RealmStorageSurface.shared.openControlServices() }
+            // ⚠ The label is Kotlin's (SS-1b): *Manage storage* for storage, *Open Control* for a
+            // device Control must unlock or add again, none for offline, which recovers by itself.
+            if model.canOpenControl, let label = model.actionLabel {
+                Button(label) { RealmStorageSurface.shared.openControlServices() }
                     .font(.footnote.weight(.semibold))
                     .fixedSize()
             }
@@ -98,15 +101,16 @@ private struct RealmStorageObservation: ViewModifier {
 final class RealmStorageModel: ObservableObject {
     @Published var text: String?
     @Published var isError = false
+    @Published var actionLabel: String?
     @Published var canOpenControl = false
 
     /// Which call of [observe] owns the published values: a cancelled call unwinds some time after
     /// its replacement has started, and must not publish over it.
     private var run = 0
 
-    /// Follow the two Kotlin flows (via SKIE) until the calling task is cancelled.
+    /// Follow the three Kotlin flows (via SKIE) until the calling task is cancelled.
     ///
-    /// ⚠ It holds no task. This IS the observation, and both collectors are children of the task
+    /// ⚠ It holds no task. This IS the observation, and all three collectors are children of the task
     /// that called it.
     /// ⚠ `canOpenControl` is read once per observation rather than observed: it depends on whether
     /// Control is installed and on this app's `LSApplicationQueriesSchemes`. Neither changes while
@@ -126,6 +130,12 @@ final class RealmStorageModel: ObservableObject {
                 for await isError in RealmStorageSurface.shared.observeIsError() {
                     guard self.run == mine else { return }
                     self.isError = isError.boolValue
+                }
+            }
+            group.addTask { @MainActor in
+                for await label in RealmStorageSurface.shared.observeActionLabel() {
+                    guard self.run == mine else { return }
+                    self.actionLabel = label
                 }
             }
         }

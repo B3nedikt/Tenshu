@@ -106,4 +106,21 @@
     <string name="oss_data_photon_credit">Place names, when online lookup is on, come from OpenStreetMap data via Photon, run by komoot</string>
     <string name="oss_data_models_title">On-device models</string>
     <string name="oss_data_models_credit">Downloaded separately; each model shows its licence under Settings → Models</string>
+
+    <!-- The shared sync strip (suite-sync-status.md SS-1), for every app except Drive, which words
+         its own. App-neutral: never "your files" or "your photos". -->
+    <string name="suite_sync_locked">Tenshu is locked — unlock Control to sync with your other devices.</string>
+    <string name="suite_sync_locked_action">Unlock</string>
+    <string name="suite_sync_device_unrecognized">This device isn't connected to your account any more, so nothing syncs here. Your data on it is safe. Open Control and add this device again from one of your other devices. Don't use Forget this device first — anything still waiting to upload would be lost.</string>
+    <string name="suite_sync_open_control">Open Control</string>
+    <string name="suite_sync_needs_attention">Storage needs attention on this device — your changes are saved here but can't sync yet. Open Control to sync on this device.</string>
+    <string name="suite_sync_storage_full">Storage full — your data stays on this device and nothing is deleted, but it can't sync until you free up space or get more.</string>
+    <string name="suite_sync_manage_storage">Manage storage</string>
+    <string name="suite_sync_offline">Offline — your changes are saved on this device and will sync when you reconnect.</string>
+
+    <!-- The "Syncing…" indicator (suite-sync-status.md SS-2), the Compose twin of iOS's capsule. -->
+    <string name="sync_activity_catching_up">Syncing…</string>
+    <string name="sync_activity_uploading_count">Uploading %1$d of %2$d</string>
+    <string name="sync_activity_uploading">Uploading…</string>
+    <string name="sync_activity_catching_up_a11y">Syncing with your other devices</string>
 </resources>

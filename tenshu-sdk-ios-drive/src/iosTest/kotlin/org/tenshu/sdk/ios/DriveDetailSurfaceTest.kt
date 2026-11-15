@@ -10,8 +10,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import org.tenshu.viewmodel.test.vmTest
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -37,7 +37,7 @@ class DriveDetailSurfaceTest {
     private fun file(path: String) = FileModel.File(path, path.substringAfterLast('/'), "", FileIcon.Document)
 
     @Test
-    fun details_uiState_reflects_the_repository_metadata_and_activity() = runTest(dispatcher) {
+    fun details_uiState_reflects_the_repository_metadata_and_activity() = vmTest(dispatcher) { vms ->
         val fake = FakeFilesRepository(
             initialListing = listOf(file("/a.txt")),
             detailsFor = { FileDetailsModel(file = file(it), size = "1 KB", created = "Jun 1", lastModified = "Jun 2") },
@@ -46,7 +46,7 @@ class DriveDetailSurfaceTest {
             },
         )
 
-        val bound = DriveDetailSurface.create(fake, "/a.txt", isFolder = false)
+        val bound = DriveDetailSurface.create(fake, "/a.txt", isFolder = false).also { vms.own(it.details); vms.own(it.actions) }
         advanceUntilIdle()
 
         val state = bound.details.uiState.value
@@ -58,9 +58,9 @@ class DriveDetailSurfaceTest {
     }
 
     @Test
-    fun delete_action_calls_the_repository() = runTest(dispatcher) {
+    fun delete_action_calls_the_repository() = vmTest(dispatcher) { vms ->
         val fake = FakeFilesRepository(initialListing = listOf(file("/a.txt")))
-        val bound = DriveDetailSurface.create(fake, "/a.txt", isFolder = false)
+        val bound = DriveDetailSurface.create(fake, "/a.txt", isFolder = false).also { vms.own(it.details); vms.own(it.actions) }
 
         bound.actions.onDeleteClicked()
         advanceUntilIdle()
@@ -69,9 +69,9 @@ class DriveDetailSurfaceTest {
     }
 
     @Test
-    fun offline_toggle_flips_state_and_downloads() = runTest(dispatcher) {
+    fun offline_toggle_flips_state_and_downloads() = vmTest(dispatcher) { vms ->
         val fake = FakeFilesRepository(initialListing = listOf(file("/a.txt")))
-        val bound = DriveDetailSurface.create(fake, "/a.txt", isFolder = false)
+        val bound = DriveDetailSurface.create(fake, "/a.txt", isFolder = false).also { vms.own(it.details); vms.own(it.actions) }
         advanceUntilIdle()
         assertFalse(bound.actions.uiState.value.isAvailableOffline)
 

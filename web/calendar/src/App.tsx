@@ -1,5 +1,6 @@
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { AppLayout } from '@tenshu/app-kit/ui'
+import { useAppRoute } from '@tenshu/app-kit/route'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { RuntimeBanner } from './components/RuntimeBanner'
 import { SyncBanner } from './components/SyncBanner'
@@ -11,54 +12,54 @@ import { LiveProvider } from './lib/live'
 
 type Tab = 'calendar' | 'calendars' | 'subscriptions' | 'transfer'
 
-const TABS: readonly Tab[] = ['calendar', 'calendars', 'subscriptions', 'transfer']
+const SECTIONS: readonly Tab[] = ['calendar', 'calendars', 'subscriptions']
+// Import & export is a utility, not a place to read the book: it sits at the sidebar's foot.
+const FOOTER: readonly Tab[] = ['transfer']
+// Every section is also a URL path (web-apps-layout.md §3.4): `calendar` is `/`, the rest `/<id>` —
+// they must equal the apex registry's `sections`. Module-level: its identity is an effect dependency.
+const ROUTES: readonly Tab[] = [...SECTIONS, ...FOOTER]
 
 // Calendar on the web (web-app-suite.md Wave 2, run B). No backend of its own: every view reads and
 // writes through the apex bridge (`lib/proxy.ts`), and the book-wide streams are subscribed once,
 // here, by `LiveProvider`. ⚠⚠ Not on the web, by decision (calendar-app.md §Web scope): reminder
 // firing, feed fetching, a first-run "Personal" seed, device calendars and widgets.
+//
+// The shell is the shared `AppLayout` (web-apps-layout.md §3.1): no headline — the apex top bar
+// names the app — and the month/week grid takes the full width; the list screens keep a reading
+// width.
 export default function App() {
   const { t } = useTranslation()
-  const [tab, setTab] = useState<Tab>('calendar')
+  const { section: tab, navigate } = useAppRoute(ROUTES, 'calendar')
+  const item = (id: Tab) => ({ id, label: t(`tabs.${id}`) })
 
   return (
     <LiveProvider>
-      <div className="min-h-screen bg-surface">
-        <main className="mx-auto max-w-6xl px-6 py-10">
-          <header className="mb-6">
-            <h1 className="text-2xl font-semibold tracking-tight text-text">{t('app.title')}</h1>
-            <p className="mt-1 text-sm text-text-2">{t('app.tagline')}</p>
-          </header>
-
-          <nav className="mb-5 flex gap-1 border-b border-line">
-            {TABS.map((id) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setTab(id)}
-                aria-current={tab === id ? 'page' : undefined}
-                className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
-                  tab === id ? 'border-primary text-primary' : 'border-transparent text-text-2 hover:text-text'
-                }`}
-              >
-                {t(`tabs.${id}`)}
-              </button>
-            ))}
-          </nav>
-
-          {/* First: in a tab without the runtime, every other read fails too. */}
-          <RuntimeBanner />
-          <SyncBanner />
-
-          {/* Keyed by tab, so a crashed view recovers on navigation and the shell stays usable. */}
-          <ErrorBoundary key={tab}>
-            {tab === 'calendar' && <CalendarView />}
-            {tab === 'calendars' && <CalendarsView />}
-            {tab === 'subscriptions' && <SubscriptionsView />}
-            {tab === 'transfer' && <TransferView />}
-          </ErrorBoundary>
-        </main>
-      </div>
+      <AppLayout
+        navLabel={t('app.sections')}
+        nav={SECTIONS.map(item)}
+        navFooter={FOOTER.map(item)}
+        active={tab}
+        onNavigate={navigate}
+        banners={
+          <>
+            {/* First: in a tab without the runtime, every other read fails too. */}
+            <RuntimeBanner />
+            <SyncBanner />
+          </>
+        }
+      >
+        {/* Keyed by tab, so a crashed view recovers on navigation and the shell stays usable. */}
+        <ErrorBoundary key={tab}>
+          {tab === 'calendar' && <CalendarView />}
+          {tab !== 'calendar' && (
+            <div className="max-w-3xl">
+              {tab === 'calendars' && <CalendarsView />}
+              {tab === 'subscriptions' && <SubscriptionsView />}
+              {tab === 'transfer' && <TransferView />}
+            </div>
+          )}
+        </ErrorBoundary>
+      </AppLayout>
     </LiveProvider>
   )
 }

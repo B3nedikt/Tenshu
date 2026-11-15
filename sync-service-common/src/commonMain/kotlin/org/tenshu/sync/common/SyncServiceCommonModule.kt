@@ -102,6 +102,9 @@ import org.tenshu.sync.StopPairing
 import org.tenshu.sync.SyncBlock
 import org.tenshu.sync.SyncService
 import org.tenshu.sync.SyncStatus
+import org.tenshu.sync.PairingDeviceRemovedError
+import org.tenshu.sync.PairingApproverRevokedError
+import org.tenshu.sync.PairingThisDeviceRemovedError
 import org.tenshu.sync.PairingFailedError
 import org.tenshu.sync.RecoveryPhraseUnreadableError
 import org.tenshu.sync.DeviceAlreadySetUpError
@@ -728,6 +731,24 @@ val syncServiceCommonModule = tModule {
         interfaceClass = PairingFailedError::class,
         dataSchema = PairingFailedError.Schema,
         dtoFactory = ::PairingFailedErrorDto
+    )
+
+    composite(
+        interfaceClass = PairingDeviceRemovedError::class,
+        dataSchema = PairingDeviceRemovedError.Schema,
+        dtoFactory = { _ -> PairingDeviceRemovedErrorDto() }
+    )
+
+    composite(
+        interfaceClass = PairingApproverRevokedError::class,
+        dataSchema = PairingApproverRevokedError.Schema,
+        dtoFactory = { _ -> PairingApproverRevokedErrorDto() }
+    )
+
+    composite(
+        interfaceClass = PairingThisDeviceRemovedError::class,
+        dataSchema = PairingThisDeviceRemovedError.Schema,
+        dtoFactory = { _ -> PairingThisDeviceRemovedErrorDto() }
     )
 
     composite(

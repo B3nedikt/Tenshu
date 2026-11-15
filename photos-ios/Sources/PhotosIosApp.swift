@@ -18,6 +18,10 @@ struct PhotosIosApp: App {
     @UIApplicationDelegateAdaptor(PhotosAppDelegate.self) private var appDelegate
 
     init() {
+        // ⚠⚠ The overnight index wake (ios-on-device-inference.md PR-6, §16): a `BGProcessingTask`
+        // handler must be registered before launch finishes, so here, first, and in every build.
+        // Only its submitting half is behind the build flag (`ProcessingWakeDriver.register`).
+        ProcessingWakeDriver.register()
         // On-device AI's model download (ios-on-device-inference.md §14.11). ⚠ Behind the build
         // flag and the static gates: with either against it there is no bridge and no transfer.
         // Re-attaching lets a transfer that ended while Photos was dead deliver its file.

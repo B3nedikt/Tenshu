@@ -52,6 +52,7 @@ import app.tenshu.ui.theme.TenshuTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.swing.Swing
 import kotlinx.coroutines.test.setMain
 import org.koin.core.context.startKoin
@@ -87,6 +88,9 @@ fun main() {
         )
     ) {
         is ControlInstanceGuard.Decision.Defer -> {
+            // ⚠ No tray is spawned here, even if the running Control's tray died: the handoff
+            // below asks the running Control, which revives its own. Spawning from a deferring
+            // copy races the lock holder's tray when two channels start together.
             val handedOff = !startHidden && ControlInstanceGuard.requestOpenWindow(SocketPathResolver.resolveBridge())
             println(
                 "ControlInstanceGuard: Control is already running (${decision.holder}); " +
@@ -187,7 +191,7 @@ fun main() {
         developerMode = developerMode,
     )
     nativeBridgeServer.registerControlMethods(koinApp.koin)
-    nativeBridgeServer.registerWindowMethods(windowController)
+    nativeBridgeServer.registerWindowMethods(windowController, onOpenWindow = ::reviveTrayInBackground)
     nativeBridgeServer.registerDataMethods(koinApp.koin)
     // File-read methods (listFolder / itemMetadata / readContents) that
     // back the macOS Drive File Provider; served from the daemon's in-process
@@ -244,9 +248,40 @@ fun main() {
     // background. Latched so opting out later sticks. (Packaged bundle only.)
     ensureStartAtLoginDefault()
 
+    // ⚠⚠ Opening Control while it runs (Finder, Spotlight, `open -a`) starts NO second process:
+    // LaunchServices sends this one a reopen event, so the instance guard above never sees it.
+    // Unanswered, a hidden Control with a dead tray does nothing at all when the person opens
+    // it, which reads as "Control will not start". Show the window and revive the tray.
+    runCatching {
+        if (Desktop.isDesktopSupported()) {
+            Desktop.getDesktop().addAppEventListener(
+                java.awt.desktop.AppReopenedListener {
+                    windowController.show()
+                    reviveTrayInBackground()
+                },
+            )
+        }
+    }.onFailure { println("Reopen handler not installed (${it::class.simpleName}: ${it.message})") }
+
+    // ⚠ Cmd+Q, the Dock's Quit and logout reach AWT's default quit handler, which calls
+    // `System.exit` at once and skips the shutdown at the end of `main`. Route them through the
+    // same quit as the tray, and hand the response back only after the shutdown, so a logout
+    // waits for Control instead of being cancelled.
+    runCatching {
+        if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.APP_QUIT_HANDLER)) {
+            Desktop.getDesktop().setQuitHandler { _, response ->
+                pendingQuitResponse = response
+                windowController.requestQuit()
+            }
+        }
+    }.onFailure { println("Quit handler not installed (${it::class.simpleName}: ${it.message})") }
+
     // (The tray is started at the very top of main() — see the note there.)
 
-    application {
+    // ⚠⚠ `exitProcessOnExit = false`: the default calls `exitProcess(0)` the moment this block
+    // returns, so the shutdown below never ran — sync was never quiesced and the socket files
+    // outlived every quit. The process exits explicitly at the end of `main` instead.
+    application(exitProcessOnExit = false) {
         val isVisible by windowController.visible.collectAsState()
         val windowState = rememberPersistedWindowState(
             key = "control",
@@ -377,7 +412,13 @@ fun main() {
     // (sync scheduler, schedule-drain, constraint gate) before the process
     // tears down. The deterministic counterpart to process-death cleanup; see
     // the "Proxy Background Lifecycle" tech-debt entry.
-    runBlocking { proxyGateway.shutdownAndJoin() }
+    //
+    // ⚠ Bounded: one loop that ignores cancellation would otherwise keep this process alive,
+    // invisible, holding the instance lock — and every later launch would defer to it.
+    val quiesced = runBlocking {
+        withTimeoutOrNull(SHUTDOWN_TIMEOUT_MS) { proxyGateway.shutdownAndJoin() } != null
+    }
+    if (!quiesced) println("WARN Control: proxy did not quiesce within ${SHUTDOWN_TIMEOUT_MS} ms; exiting anyway.")
 
     // Take the socket files with us. A client connecting to a leftover file gets "connection
     // refused" — the same answer a Control that is still starting gives — and a person looking
@@ -389,7 +430,17 @@ fun main() {
     unixSocketServer.removeSocketFile()
     // Last, so a successor cannot start until our socket files are gone.
     instanceLock?.release()
+    // AWT, OkHttp and the store's writer are non-daemon threads; without this the JVM stays up.
+    // A quit macOS asked for is answered through its response, so a logout carries on.
+    pendingQuitResponse?.performQuit()
+    exitProcess(0)
 }
+
+/** The macOS quit request being held while Control shuts down; null for a tray quit. */
+@Volatile
+private var pendingQuitResponse: java.awt.desktop.QuitResponse? = null
+
+private const val SHUTDOWN_TIMEOUT_MS = 10_000L
 
 /**
  * The single-instance lock, held for the life of the process. ⚠ A top-level field on purpose: an
@@ -492,17 +543,47 @@ private fun ensureTrayRunning() {
             // configured. Passing it down removes that drift for the bridge socket and the
             // heartbeat alike (§4.1).
             .apply { environment()[SocketPathResolver.DIR_ENV] = socketDir.absolutePath }
+            // ⚠ Not the default pipes: nobody reads them, so a chatty tray would eventually
+            // block on a full pipe, and one outliving this process would die of SIGPIPE.
+            .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+            .redirectError(ProcessBuilder.Redirect.DISCARD)
             .start()
     }
 }
 
 /**
+ * [ensureTrayRunning] for a tray that may have died after start-up (reopen, a deferring relaunch).
+ *
+ * ⚠ Gated on the shared heartbeat first: [ensureTrayRunning] finds a tray by *this bundle's*
+ * helper path, so another install channel's working tray is invisible to it and it would spawn
+ * a second icon beside it. The heartbeat file is shared by every channel.
+ */
+private fun reviveTrayUnlessOneIsHealthy() {
+    // Serialized: a reopen and a bridge call arriving together must not both see "no tray".
+    synchronized(trayReviveLock) {
+        val heartbeat = TrayLiveness.readHeartbeat(File(SocketPathResolver.resolveDir()))
+        if (TrayLiveness.isHealthy(heartbeat, System.currentTimeMillis())) return
+        ensureTrayRunning()
+    }
+}
+
+private val trayReviveLock = Any()
+
+/** Off the caller's thread (AppKit, EDT or a bridge worker): it shells out to pgrep and ps. */
+private fun reviveTrayInBackground() {
+    Thread({ reviveTrayUnlessOneIsHealthy() }, "tray-revive").start()
+}
+
+/**
  * The running tray agent's pid, or null when none is. `pgrep -f` matches the full command
- * line, and the tray's *is* the absolute helper path — which is why this cannot collide
- * with the daemon's own (`Contents/MacOS/TenshuControl`).
+ * line, and the tray's *is* the absolute helper path (it is spawned with no arguments).
+ *
+ * ⚠⚠ Anchored ([TrayLiveness.trayPgrepPattern]): an unanchored pattern matches any process whose
+ * command line merely *contains* the path — a shell script, `codesign -dv <path>`, a debugger —
+ * and the REPLACE branch would then kill that process. Seen while verifying the reopen path.
  */
 private fun trayAgentPid(path: String): Long? = runCatching {
-    val process = ProcessBuilder("pgrep", "-f", path).start()
+    val process = ProcessBuilder("pgrep", "-f", TrayLiveness.trayPgrepPattern(path)).start()
     val out = process.inputStream.bufferedReader().use { it.readText() }
     process.waitFor()
     out.lineSequence().mapNotNull { it.trim().toLongOrNull() }.firstOrNull()

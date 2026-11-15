@@ -15,7 +15,6 @@ import org.tenshu.core.common.proxy.executor.OperationImplementationFactory
 import org.tenshu.core.common.proxy.executor.read
 import org.tenshu.core.entity.DataId
 import org.tenshu.core.entity.getDataIdHash
-import org.tenshu.core.entity.Entity
 import org.tenshu.core.security.SyncCryptoManager
 import org.tenshu.identity.Device
 import org.tenshu.identity.IdentityService
@@ -38,19 +37,22 @@ import org.tenshu.identity.DeviceHardware
  * short-circuit any subsequent SyncBlock for the same entity at HLC ≤ tombstone.hlc;
  * the relay treats the tombstone as a GC marker.
  *
- * P5 (`delegated-device-admission-authority.md` §5, Q3): removal also strips the
- * device's **admission capability** — and, conservatively, its whole lineage
- * *subtree* (every device it transitively admitted, per `admittedByDeviceId`):
- * those were vouched for by the removed device, and the P4 re-root is automatic,
- * so a re-rooted descendant's depth-1 chain must not be treated as an owner
- * endorsement. One master-signed [AdmissionRevocation] per subtree member is
- * POSTed to `/sync/admission/revoke` — best-effort (an offline relay doesn't
- * block the removal; a failed revocation is re-mintable, and the descendants'
- * data access was never conferred by A33 anyway). Requires A1 — a delegated
- * (A33-only) admitter can remove a device but cannot master-sign revocations;
- * the admission strip then waits for an A1-holder. Subtree members are
- * admission-revoked but **not** removed: they stay visible (with lineage) in
- * Manage devices for the user to remove individually.
+ * P5 (`delegated-device-admission-authority.md` §5): removal also strips the removed
+ * device's **own admission capability** — one master-signed [AdmissionRevocation] per A33
+ * key this replica knows it held, POSTed to `/sync/admission/revoke`. Best-effort (an
+ * offline relay doesn't block the removal; the relay also refuses a removed approver by its
+ * F2′ ledger and by the poster binding, `admission-revocation-names-the-capability.md`
+ * §7j.9). Requires A1 — a delegated (A33-only) admitter can remove a device but cannot
+ * master-sign revocations.
+ *
+ * ⚠⚠ **Only the removed device's own keys — never its lineage subtree** (§7j.10, 2026-11-11,
+ * retiring Q3's conservative subtree strip). A device is either a member (it can admit) or
+ * removed (it can do nothing); there is no "member that cannot admit" state. The devices
+ * the removed one admitted are listed in the removal dialog (§7j.4) and the user decides per
+ * device: a kept one stays a full member, an unticked one is removed in the same action by
+ * its own `RevokeDevice` call (tombstone, F2′, its own keys). Re-adding a subtree walk here
+ * strips kept devices silently — pinned by
+ * `RevokeDeviceAdmissionRevocationTest.a1Holder_revokesOnlyTheRemovedDevice_neverTheDevicesItAdmitted`.
  *
  * **A missing local `Device` row does not block the revocation** (2026-08-28). The row is the
  * descriptive half of membership; the tombstone is the revocation. When the row is absent the
@@ -101,7 +103,7 @@ internal class RevokeDeviceImplementation(
         // The local `Device` row is the DESCRIPTIVE half of membership; the tombstone below is the
         // revocation itself, and it is keyed by the entity-id hash — it needs no row. So a missing
         // row must not fail the eviction: doing that failed the security-critical step because an
-        // enrichment step (lineage subtree, key-scoped revocation) was unavailable, and it is why
+        // enrichment step (key-scoped revocation) was unavailable, and it is why
         // a wiped/degraded roster meant nothing could be revoked at all.
         //
         // ⚠⚠ But NOT unconditionally. `currentRealmEpoch` is derived from the count of `Device`
@@ -123,27 +125,16 @@ internal class RevokeDeviceImplementation(
                 )
             }
             // ⚠ Degraded, and deliberately loud: without the row there is no captured A33 key, so
-            // the relay strip below can only name keys from the synced announcement / grant rows,
-            // and the lineage subtree can only be found through the *children's* rows (the walk
-            // seeds itself with this id anyway).
+            // the relay strip below can only name keys from the synced announcement / grant rows.
             println(
                 "RevokeDevice: no local Device row for $deviceId — revoking by id. " +
                     "Captured A33 key unavailable; naming announced/granted keys only."
             )
         }
 
-        // Compute the admission subtree BEFORE the row disappears: the removed device
-        // plus everything it transitively admitted (admittedByDeviceId lineage).
-        val admissionSubtree = admissionSubtree(executionContext, deviceId)
-
-        // F1′: read the A33 keys HERE, for the same reason the subtree is computed here — step 2
-        // below deletes the revoked device's row, and its captured key would be gone by the time
-        // the revocations are minted. ⚠⚠ Only the revoked device's row disappears; subtree members
-        // keep theirs, so the bug this avoids is *partial*: every subtree member would be revoked
-        // and the removed device alone would not.
-        val capabilityKeys: Map<String, List<ByteArray>> = admissionSubtree.associateWith { member ->
-            admissionKeysOf(executionContext, member)
-        }
+        // F1′: read the A33 keys HERE — step 2 below deletes the revoked device's row, and its
+        // captured key would be gone by the time the revocations are minted.
+        val capabilityKeys: List<ByteArray> = admissionKeysOf(executionContext, deviceId)
 
         // 1. Remove from the synced DEVICES relation array so observers see the device
         // disappear from `IdentityService.Relations.DEVICES` immediately.
@@ -182,11 +173,10 @@ internal class RevokeDeviceImplementation(
             revokedDeviceId = deviceId
         )
 
-        // 4. P5: strip the admission subtree's minting power on the relay. Needs A1
-        // (revocations are master-signed) — resolve like the approve path does; a
-        // delegated admitter simply skips (see class KDoc). Best-effort per member:
-        // a failed POST is retried implicitly the next time an A1-holder removes a
-        // device, and never blocks the removal itself.
+        // 4. P5: strip the removed device's own minting power on the relay — its keys only,
+        // never the devices it admitted (§7j.10, class KDoc). Needs A1 (revocations are
+        // master-signed) — resolve like the approve path does; a delegated admitter simply
+        // skips. Best-effort: a failed POST never blocks the removal itself.
         val masterKeyPair = syncManager?.let { sm ->
             sm.currentMasterKeyPair
                 ?: sm.getRecoveryPhrase()?.let { cryptoManager?.deriveMasterKeyPair(it) }
@@ -209,23 +199,20 @@ internal class RevokeDeviceImplementation(
             // whose tombstone count is already higher.
             syncManager.seedCurrentRealmEpoch(epoch + 1)
 
-            for (member in admissionSubtree) {
-                // F1′/F5b: a revocation names a capability KEY — there is no device-scoped form any
-                // more (§7g). One revocation per key this replica knows the member held; a member
-                // with none is skipped, loudly, rather than revoked by an epoch rule that no longer
-                // exists. ⚠ The skip fails OPEN for that member's A33 alone — its data access is
-                // still cut by the tombstone above and its relay registration by F2′'s ledger.
-                val keys = capabilityKeys[member].orEmpty()
-                if (keys.isEmpty()) {
-                    println(
-                        "RevokeDevice: no known A33 key for $member — relay admission strip " +
-                            "skipped (F5b: a keyless revocation cannot be expressed)"
-                    )
-                    continue
-                }
-                for (capabilityKey in keys) {
-                    revokeAdmissionKey(ownerId, member, epoch, revokedAt, capabilityKey, masterKeyPair)
-                }
+            // F1′/F5b: a revocation names a capability KEY — there is no device-scoped form any
+            // more (§7g). One revocation per key this replica knows the device held; a device with
+            // none is skipped, loudly, rather than revoked by an epoch rule that no longer exists.
+            // ⚠ The skip fails OPEN for its A33 alone — its data access is still cut by the
+            // tombstone above, and the relay refuses it as an approver by F2′'s ledger and the
+            // poster binding (§7j.9).
+            if (capabilityKeys.isEmpty()) {
+                println(
+                    "RevokeDevice: no known A33 key for $deviceId — relay admission strip " +
+                        "skipped (F5b: a keyless revocation cannot be expressed)"
+                )
+            }
+            for (capabilityKey in capabilityKeys) {
+                revokeAdmissionKey(ownerId, deviceId, epoch, revokedAt, capabilityKey, masterKeyPair)
             }
         }
 
@@ -247,8 +234,7 @@ internal class RevokeDeviceImplementation(
             AdmissionRevocation.message(ownerId, member, epoch, revokedAt, capabilityKey),
         )
         // Deliberately best-effort (class KDoc / step-4 comment): the tombstone above
-        // is the primary revocation and the relay strip re-fires on the next A1-holder
-        // removal. But best-effort must still be VISIBLE — a dropped Failure here was
+        // is the primary revocation, and the relay refuses a removed approver on its own. But best-effort must still be VISIBLE — a dropped Failure here was
         // indistinguishable from success (tech-debt "TResult ops discardable").
         val result = syncRelay.revokeAdmission(
             ownerId = ownerId,
@@ -262,7 +248,7 @@ internal class RevokeDeviceImplementation(
             println(
                 "RevokeDevice: relay admission strip for $member failed " +
                     "(${result.error.messageOrNull() ?: result.error.schema.id}) — " +
-                    "local tombstone revocation stands; strip retries on the next removal",
+                    "local tombstone revocation stands",
             )
             onRelayStripFailed()
         }
@@ -354,50 +340,5 @@ internal class RevokeDeviceImplementation(
             if (key.isNotEmpty() && keys.none { it.contentEquals(key) }) keys.add(key)
         }
         return keys
-    }
-
-    /**
-     * [rootDeviceId] plus every device that chains to it through
-     * `admittedByDeviceId` — read from the synced Device rows (§5: the lineage
-     * exists precisely for this walk). BFS over the DEVICES relation; a cycle
-     * (corrupt lineage) can't loop because visited ids are skipped.
-     */
-    private fun admissionSubtree(
-        executionContext: ExecutionContext,
-        rootDeviceId: String,
-    ): Set<String> {
-        val devicesRef = ArrayDatabaseReference(
-            arrayId = DataId.RelationDataId.create(
-                context = executionContext.context,
-                type = TList.ID,
-                relationId = IdentityService.Relations.DEVICES
-            ),
-            isEntity = true,
-            elementSchemaId = Device.ID
-        )
-        // Parent → children map from the rows' recorded lineage.
-        val children = mutableMapOf<String, MutableList<String>>()
-        executionContext.database.getArrayData(devicesRef)?.forEach { data ->
-            val device = data as? Device ?: (data as? Entity<*>)?.let {
-                executionContext.database.getData(
-                    DataId.StringDataId.create(
-                        executionContext.context,
-                        Device.ID,
-                        it.getFieldValue<TString>(Device.Fields.DEVICE_ID).get(),
-                    )
-                ) as? Device
-            } ?: return@forEach
-            val admittedBy = device.admittedByDeviceId?.get()?.takeIf { it.isNotEmpty() } ?: return@forEach
-            children.getOrPut(admittedBy) { mutableListOf() }.add(device.deviceId.get())
-        }
-
-        val subtree = linkedSetOf(rootDeviceId)
-        val queue = ArrayDeque(listOf(rootDeviceId))
-        while (queue.isNotEmpty()) {
-            for (child in children[queue.removeFirst()].orEmpty()) {
-                if (subtree.add(child)) queue.add(child)
-            }
-        }
-        return subtree
     }
 }

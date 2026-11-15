@@ -2,6 +2,7 @@ package app.tenshu.photos.ui.screens.collections
 
 import app.tenshu.photos.data.AlbumSummary
 import app.tenshu.photos.ui.screens.feed.FeedError
+import app.tenshu.photos.ui.screens.search.ModelsSwitchHome
 
 /** A fixed destination at the top of the tab — a compact tile, not a full-width block (§35). */
 data class CollectionsTile(
@@ -132,8 +133,15 @@ sealed interface CollectionsLayout {
         /**
          * [groupingRunsHere] is the platform's answer to "can this device group faces?" — ⚠⚠ it
          * silences People's line where the remedy cannot be taken (see [peopleStatusLine]).
+         * [modelsSwitch] is where that line sends the user: Control (Android) or this app (iOS);
+         * [faceModelPending] says the face model is installed and not ready yet (iOS only).
          */
-        fun of(state: CollectionsUiState, groupingRunsHere: Boolean): CollectionsLayout = when {
+        fun of(
+            state: CollectionsUiState,
+            groupingRunsHere: Boolean,
+            modelsSwitch: ModelsSwitchHome = ModelsSwitchHome.CONTROL,
+            faceModelPending: Boolean = false,
+        ): CollectionsLayout = when {
             // ⚠⚠ No full-screen spinner any more (§36): the tab draws its tiles and a placeholder row
             // per loading section at once, and each fills in when its own read lands. [Loading] stays
             // for a shell that has not drawn anything yet, but this never answers it.
@@ -146,10 +154,15 @@ sealed interface CollectionsLayout {
                     else -> "Something went wrong loading your collections."
                 },
             )
-            else -> content(state, groupingRunsHere)
+            else -> content(state, groupingRunsHere, modelsSwitch, faceModelPending)
         }
 
-        private fun content(state: CollectionsUiState, groupingRunsHere: Boolean): Content {
+        private fun content(
+            state: CollectionsUiState,
+            groupingRunsHere: Boolean,
+            modelsSwitch: ModelsSwitchHome,
+            faceModelPending: Boolean,
+        ): Content {
             // ⚠ `years`, not `isEmpty`: an empty album keeps the tab from being empty, and a user with
             // no photographs must not be asked to index them. A year row exists exactly
             // when a photograph does.
@@ -160,7 +173,7 @@ sealed interface CollectionsLayout {
             val peopleLine = if (state.years.isEmpty() || peopleLoading) {
                 null
             } else {
-                peopleStatusLine(state.peopleStatus, hasPeople = state.people.isNotEmpty(), groupingRunsHere)
+                peopleStatusLine(state.peopleStatus, hasPeople = state.people.isNotEmpty(), groupingRunsHere, modelsSwitch, faceModelPending)
             }
             // ⚠ Gated like everything else People says: a platform that cannot group faces
             // never grows a People section to report a failure in.

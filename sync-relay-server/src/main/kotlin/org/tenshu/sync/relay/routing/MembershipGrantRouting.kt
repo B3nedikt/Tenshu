@@ -199,6 +199,19 @@ fun Route.configureMembershipGrantRouting(
                 )
             ) {
                 MembershipAdmission.Admit -> {
+                    // ⚠⚠ A binding may not claim an id already registered in this realm unless this
+                    // same authority admitted it (a re-admit). Device public keys are not secret, so
+                    // otherwise a member could bind an OWNER device's id under its own authority: the
+                    // T-GR-08 guard would then treat that owner device as a member (ignoring its
+                    // revocations), and the owner's `/revoke` of the member would purge it.
+                    val alreadyRegistered = knownDevices.getPublicKey(body.realmId, binding.deviceId) != null
+                    if (alreadyRegistered &&
+                        binding.deviceId !in
+                        membershipStore.admittedDevices(body.realmId, capability.memberAuthorityPublicKey)
+                    ) {
+                        call.respond(HttpStatusCode.Conflict, "Device is already registered in this realm")
+                        return@post
+                    }
                     membershipStore.recordAdmission(body.realmId, capability.memberAuthorityPublicKey, binding.deviceId)
                     knownDevices.register(body.realmId, binding.deviceId, binding.perRealmDevicePublicKey)
                     call.respond(HttpStatusCode.OK, "OK")

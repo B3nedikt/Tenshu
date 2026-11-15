@@ -1,5 +1,7 @@
 package app.tenshu.sdk.internal
 
+import org.tenshu.file.impl.ThumbnailCachePolicy
+import org.tenshu.file.impl.evictThumbnailCache
 import org.tenshu.sync.proxy.NoOpPlatformScheduler
 
 import org.tenshu.core.common.proxy.ExecutionContext
@@ -268,6 +270,42 @@ internal object ContactPlugin : JsRuntimePlugin {
     }
 }
 
+/**
+ * The browser's thumbnail-cache pass (`drive-xxlarge-thumbnail-rung.md` §4.7, web carve-out): what the
+ * offline keeper does natively for stored classes above `LARGE`, without its other two halves (no
+ * KEEP_OFFLINE download, no file-cache ceiling — `drive-web-parity.md` W6). Default ceiling 64 MiB
+ * (`ThumbnailCachePolicy.WEB`): ⚠⚠ the JS store hydrates every byte into memory, so this is RAM.
+ *
+ * On the maintenance hook (every ~30 s, sealed realm included), throttled to one tree walk per
+ * [THUMBNAIL_PASS_INTERVAL_MS], the first one tick after start. No device id yet ⇒ nothing.
+ */
+internal object ThumbnailCachePlugin : JsRuntimePlugin {
+    override val id: String = "thumbnail-cache"
+
+    // The scheduler is SyncPlugin's (published in its initialize).
+    override val dependsOn: Set<String> = setOf("sync")
+
+    private const val THUMBNAIL_PASS_INTERVAL_MS = 30L * 60 * 1000
+
+    override fun initialize(executionContext: ExecutionContext, runtime: RuntimeContext) {
+        var lastRunMs: Long? = null
+        runtime.syncSchedulerHolder.scheduler?.addMaintenanceHook {
+            val now = kotlin.js.Date.now().toLong()
+            val last = lastRunMs
+            if (last != null && now - last < THUMBNAIL_PASS_INTERVAL_MS) return@addMaintenanceHook
+            val deviceId = runCatching { runtime.syncManager.currentDeviceId }.getOrNull()?.takeIf { it.isNotBlank() }
+                ?: return@addMaintenanceHook
+            lastRunMs = now
+            executionContext.evictThumbnailCache(
+                fileDatabase = runtime.fileDatabase,
+                deviceId = deviceId,
+                syncBlockEmitterHolder = runtime.syncBlockEmitterHolder,
+                policy = ThumbnailCachePolicy.WEB,
+            )
+        }
+    }
+}
+
 // Timeline-service plugin — the read bridge behind `@tenshu/sdk/timeline`
 // (`Timeline.kt`). Makes `client.timelineService.{moments,trips,traces}` readable
 // on the web: the same three maintained relations `:control-shared-proxy`'s
@@ -390,7 +428,13 @@ internal object SyncPlugin : JsRuntimePlugin {
             // origin stop overwriting the relay's single per-device tip slot with unrelated values.
             hlcWatermarkStore = runtime.hlcWatermarkStore,
             platformScheduler = NoOpPlatformScheduler,
+            // The browser's device-local pause switch (`web-apex-home.md` §4.7): closed, no tick
+            // runs and no content uploads until the user resumes.
+            pauseGate = SyncPause.gate,
         )
+        // Resuming should sync now, not after the rest of a tick. `notifyForegrounded` is the
+        // gate-respecting wake: it also re-tries a waiting content plane and bypasses nothing.
+        SyncPause.onResumed = { components.scheduler.notifyForegrounded() }
         runtime.tombstoneEmitterHolder.emitter = components.tombstoneEmitter
         // Publish the scheduler so `Devices.revokeSelf` can force a drain
         // (push the revocation tombstone) before the apex wipes local state.

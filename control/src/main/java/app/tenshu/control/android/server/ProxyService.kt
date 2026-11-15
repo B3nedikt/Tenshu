@@ -1,9 +1,10 @@
 package app.tenshu.control.android.server
 
-import android.annotation.SuppressLint
+import android.Manifest
 import android.app.Notification
 import android.app.Service
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
@@ -123,10 +124,7 @@ class ProxyService : Service() {
             .onEach {
                 // Only while promoted: notifying otherwise would post a standalone notification
                 // with no foreground service behind it (the hazard ForegroundPromotion guards).
-                if (foregroundPromotion?.promoted == true) {
-                    NotificationManagerCompat.from(this@ProxyService)
-                        .notify(NOTIFICATION_ID, buildNotification(lastTaskCount))
-                }
+                if (foregroundPromotion?.promoted == true) repostNotification(lastTaskCount)
             }
             .launchIn(livenessScope)
     }
@@ -239,7 +237,6 @@ class ProxyService : Service() {
      * [ForegroundPromotion] owns the promote / degrade / retry decisions (and the reasoning); this
      * only supplies the Android effects.
      */
-    @SuppressLint("MissingPermission")
     /**
      * The live promotion state machine, retained (rather than only its [TaskLivenessHandle] face)
      * so the upload-progress collector can ask whether we are promoted before re-posting. Posting a
@@ -277,15 +274,29 @@ class ProxyService : Service() {
         // Ends the started lifecycle started by startForegroundService;
         // the service stays alive as long as Drive remains bound.
         stopStartedLifecycle = { stopSelf() },
-        // notify() reusing the FGS NOTIFICATION_ID no-ops (never throws) when
-        // POST_NOTIFICATIONS is denied; the service stays alive via the
-        // startForeground() in onActive — only the count text goes unshown.
         refreshNotification = { taskCount ->
             lastTaskCount = taskCount
-            NotificationManagerCompat.from(this@ProxyService)
-                .notify(NOTIFICATION_ID, buildNotification(taskCount))
+            repostNotification(taskCount)
         },
     ).also { foregroundPromotion = it }
+
+    /**
+     * Re-posts the foreground notification under its existing [NOTIFICATION_ID] with fresh text.
+     *
+     * ⚠ Skipped, not attempted, when `POST_NOTIFICATIONS` is not held: the service stays alive via
+     * the `startForeground()` in `onActive` either way, so only the count text goes unshown. The
+     * check is explicit rather than leaning on `notify` no-op'ing — that no-op is an implementation
+     * detail of the platform, and `ContextCompat.checkSelfPermission` answers correctly below
+     * API 33 too (it maps to `areNotificationsEnabled()` there).
+     */
+    private fun repostNotification(taskCount: Int) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        NotificationManagerCompat.from(this).notify(NOTIFICATION_ID, buildNotification(taskCount))
+    }
 
     private fun buildNotification(taskCount: Int): Notification {
         val figures = syncHealthHolder.current()

@@ -107,8 +107,10 @@ function Loaded({
   const previous = withPrevious ? rows.slice(0, rows.length - count) : []
   const today = current[current.length - 1]!
 
+  // Wide windows: today and the range chart side by side (web-apps-layout.md §3.1, "a wide
+  // dashboard"); `*:mt-0` drops the range Section's own top margin so both columns start level.
   return (
-    <div>
+    <div className="min-[1200px]:grid min-[1200px]:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] min-[1200px]:items-start min-[1200px]:gap-6 min-[1200px]:*:mt-0">
       <section aria-labelledby="today-heading" className="rounded-lg border border-line bg-surface-2 px-4 py-4">
         <h2 id="today-heading" className="text-sm font-semibold text-text">
           {t('dashboard.today')}

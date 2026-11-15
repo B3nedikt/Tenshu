@@ -1480,6 +1480,8 @@ class SyncObserver(
         }
 
         val hlc = syncManager.hlcManager.tick()
+        // ⚠⚠ The delta's HLC is what an ingest compares against, echo included ([TombstoneRegistry.recordEmittedWrite]).
+        if (propertyId == null) tombstoneRegistry?.recordEmittedWrite(value, hlc)
         val delta = SyncDelta.create(
             context = executionContext.context,
             hlc = hlc,
@@ -1976,6 +1978,11 @@ class SyncObserver(
         val serializer = BinarySerializer()
         val serializedData = BlockPayloadEnvelope.seal(serializer.serialize(wrapped), blockStamp)
 
+        // ⚠⚠ The block's HLC is what an ingest compares against, its own echo included
+        // ([TombstoneRegistry.recordEmittedWrite]): record it as this row's last local write.
+        val blockHlc = syncManager.hlcManager.tick()
+        if (propertyId == null) tombstoneRegistry?.recordEmittedWrite(data, blockHlc)
+
         // Metadata blocks use the shared identity key, with the envelope bound as associated data
         // (⭐ sync-envelope-authentication.md §3.2) so the relay cannot re-stamp hlc/target/blockId.
         val block = EnvelopeAuth.sealSyncBlock(
@@ -1983,7 +1990,7 @@ class SyncObserver(
             context = executionContext.context,
             blockId = generateId(),
             ownerId = ownerId,
-            hlc = syncManager.hlcManager.tick(),
+            hlc = blockHlc,
             targetEntityIdHash = targetEntityId?.let { wireIds.of(it) },
             plaintext = serializedData,
             identityKey = keys.sharedIdentityKey,

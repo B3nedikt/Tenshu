@@ -203,24 +203,53 @@ private const val FOLD_AT = 75
  * Two rules, both needed by real exports: RFC folding (a line starting with a space or tab
  * continues the previous one), and 2.1's `QUOTED-PRINTABLE` soft break (a line ending in `=`
  * continues onto the next, with the `=` dropped).
+ *
+ * ⚠ Linear in the card's size, and must stay so: a big `PHOTO` is megabytes of base64 folded into
+ * tens of thousands of lines. Re-concatenating (or re-scanning for the QP marker) the whole logical
+ * line per continuation made a 2 MiB photo cost ~10¹¹ character operations — 15–30 s per import on
+ * a desktop JVM. So each logical line is built in one [StringBuilder], and the marker is looked for
+ * only in the text each continuation adds (plus an overlap, so a marker split by a fold is found).
  */
 private fun unfold(text: String): List<String> {
     val lines = text.split("\r\n", "\n", "\r")
     val result = mutableListOf<String>()
-    for (line in lines) {
-        val continuesFold = line.startsWith(" ") || line.startsWith("\t")
-        val previousSoftBreak = result.lastOrNull()?.endsWith("=") == true &&
-            result.lastOrNull()?.uppercase()?.contains("QUOTED-PRINTABLE") == true
-        when {
-            result.isNotEmpty() && continuesFold ->
-                result[result.lastIndex] = result.last() + line.substring(1)
-            result.isNotEmpty() && previousSoftBreak ->
-                result[result.lastIndex] = result.last().dropLast(1) + line
-            else -> result += line
+    val current = StringBuilder()
+    var open = false
+    // Whether the logical line in [current] names QUOTED-PRINTABLE anywhere. Appending never
+    // removes the marker once present, so it only ever turns true.
+    var quotedPrintable = false
+
+    fun append(part: CharSequence) {
+        val scanFrom = maxOf(0, current.length - QP_MARKER.length + 1)
+        current.append(part)
+        if (!quotedPrintable) {
+            quotedPrintable = current.indexOf(QP_MARKER, scanFrom, ignoreCase = true) >= 0
         }
     }
+
+    for (line in lines) {
+        val continuesFold = line.startsWith(" ") || line.startsWith("\t")
+        val previousSoftBreak = open && quotedPrintable && current.endsWith("=")
+        when {
+            open && continuesFold -> append(line.subSequence(1, line.length))
+            open && previousSoftBreak -> {
+                current.deleteAt(current.lastIndex)
+                append(line)
+            }
+            else -> {
+                if (open) result += current.toString()
+                current.clear()
+                quotedPrintable = false
+                open = true
+                append(line)
+            }
+        }
+    }
+    if (open) result += current.toString()
     return result
 }
+
+private const val QP_MARKER = "QUOTED-PRINTABLE"
 
 private fun fold(line: String): String {
     if (line.length <= FOLD_AT) return line

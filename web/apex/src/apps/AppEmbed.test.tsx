@@ -12,6 +12,17 @@ import { findHostedApp } from './registry'
 import { AppLauncher } from '../control/AppLauncher'
 import { listApps } from '../control/apps/manifest'
 
+function renderHosted(id: string, at: string) {
+  const app = findHostedApp(id)!
+  return render(
+    <MemoryRouter initialEntries={[at]}>
+      <Routes>
+        <Route path={'/' + app.routePath} element={<HostedAppEmbed app={app} />} />
+      </Routes>
+    </MemoryRouter>,
+  )
+}
+
 describe('AppEmbed', () => {
   it('frames the given origin with the first-party permissions', () => {
     render(<AppEmbed origin="https://x.example" title="X" />)
@@ -21,14 +32,14 @@ describe('AppEmbed', () => {
   })
 
   it('Drive keeps its title, dev origin and allow list', () => {
-    render(<HostedAppEmbed app={findHostedApp('drive')!} />)
+    renderHosted('drive', '/drive')
     const frame = screen.getByTitle('Drive')
     expect(frame).toHaveAttribute('src', 'http://localhost:5174')
     expect(frame).toHaveAttribute('allow', 'clipboard-read; clipboard-write; publickey-credentials-get *')
   })
 
   it('Contacts frames its own dev origin', () => {
-    render(<HostedAppEmbed app={findHostedApp('contacts')!} />)
+    renderHosted('contacts', '/contacts')
     expect(screen.getByTitle('Contacts')).toHaveAttribute('src', 'http://localhost:5175')
   })
 })
@@ -52,7 +63,7 @@ describe('launcher + Apps', () => {
     // ⚠ The first two, not the whole list: since F4 every registered app joins it, and a pin on the
     // exact list would fail the day the next app lands (the registry test pins the full set).
     expect(listApps().slice(0, 2).map((a) => [a.id, a.launchPath])).toEqual([
-      ['drive', '/drive/files'],
+      ['drive', '/drive'],
       ['contacts', '/contacts'],
     ])
   })

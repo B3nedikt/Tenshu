@@ -1,13 +1,17 @@
 {
   "app": {
-    "title": "Photos",
-    "tagline": "Vos photos et vidéos, chiffrées de bout en bout."
+    "title": "Photos"
   },
   "nav": {
-    "photos": "Photos",
+    "label": "Sections de Photos",
+    "photos": "Photothèque",
     "albums": "Albums",
     "favourites": "Favoris",
-    "trash": "Corbeille"
+    "trash": "Corbeille",
+    "years": "Années",
+    "collections": "Collections",
+    "videos": "Vidéos",
+    "search": "Recherche"
   },
   "common": {
     "cancel": "Annuler",
@@ -22,20 +26,31 @@
   },
   "tile": {
     "photoLabel": "Photo {name}, {date}",
-    "videoLabel": "Vidéo {name}, {date}"
+    "videoLabel": "Vidéo {name}, {date}",
+    "select": "Sélectionner {name}",
+    "actions": "Actions pour {name}"
+  },
+  "menu": {
+    "open": "Ouvrir",
+    "download": "Télécharger",
+    "favourite": "Favori",
+    "unfavourite": "Retirer des favoris",
+    "addToAlbum": "Ajouter à un album…",
+    "trash": "Mettre à la corbeille"
   },
   "feed": {
-    "scrubber": "Aller à une date",
     "refresh": "Actualiser",
     "empty": "Aucune photo pour l’instant. Les photos et vidéos ajoutées dans Drive ou sur votre téléphone apparaissent ici."
   },
   "select": {
-    "start": "Sélectionner",
     "count": "{count, plural, =0 {Aucune sélection} one {# sélectionné} other {# sélectionnés}}",
     "addToAlbum": "Ajouter à un album",
     "favourite": "Ajouter aux favoris",
     "removeFromAlbum": "Retirer de l’album",
-    "partial": "{done} sur {total} effectués."
+    "partial": "{done} sur {total} effectués.",
+    "clear": "Effacer la sélection",
+    "trash": "Mettre à la corbeille",
+    "actions": "Sélection"
   },
   "albums": {
     "addTo": "Ajouter à un album",
@@ -70,7 +85,9 @@
     "downloadOriginal": "Télécharger l’original",
     "downloaded": "Enregistré.",
     "play": "Lire",
-    "cannotPlay": "Cette vidéo ne peut pas encore être lue ici. Réessayez une fois synchronisée."
+    "cannotPlay": "Cette vidéo ne peut pas encore être lue ici. Réessayez une fois synchronisée.",
+    "filmstrip": "Photos voisines",
+    "position": "{index} sur {total}"
   },
   "details": {
     "name": "Nom",
@@ -82,6 +99,12 @@
     "location": "Lieu",
     "gone": "Ce fichier n’existe plus.",
     "albums": "Dans les albums"
+  },
+  "pane": {
+    "toggle": "Infos",
+    "label": "Infos",
+    "none": "Sélectionnez une photo pour voir ses détails.",
+    "several": "{count, plural, one {# photo sélectionnée} other {# photos sélectionnées}}"
   },
   "favourites": {
     "empty": "Aucun favori pour l’instant. Marquez une photo comme favorite dans la visionneuse."
@@ -105,6 +128,8 @@
     "bridge": "Impossible de joindre Tenshu. Vérifiez qu’il est ouvert et déverrouillé, puis réessayez.",
     "bridge_timeout": "Tenshu a mis trop de temps à répondre. Réessayez.",
     "error_photos_bad_cursor": "La bibliothèque a changé pendant le chargement. Actualisez pour recommencer.",
+    "error_photos_bad_search": "Saisissez un nom ou une date pour rechercher.",
+    "error_photos_bad_kind": "Une erreur s’est produite lors du chargement de votre bibliothèque. Veuillez réessayer.",
     "error_photos_bad_page_size": "Une erreur s’est produite lors du chargement de votre bibliothèque. Veuillez réessayer.",
     "error_photos_unknown_album": "Cet album n’existe plus.",
     "error_photos_not_found": "Cette photo n’existe plus.",
@@ -135,5 +160,39 @@
     "body": "Cette partie de Photos a rencontré une erreur inattendue. Vos données sont en sécurité — rien n’a été modifié.",
     "retry": "Réessayer",
     "reload": "Recharger"
+  },
+  "density": {
+    "label": "Affichage",
+    "days": "Jours",
+    "months": "Mois",
+    "years": "Années"
+  },
+  "years": {
+    "count": "{count, plural, one {# photo} other {# photos}}",
+    "open": "Afficher {year}"
+  },
+  "videos": {
+    "empty": "Pas encore de vidéos."
+  },
+  "search": {
+    "label": "Rechercher des photos",
+    "placeholder": "Rechercher des photos",
+    "prompt": "Recherchez par nom ou par date, par exemple « mai 2025 ».",
+    "fromDate": "{count, plural, =0 {Aucune photo de {when}} one {# photo de {when}} other {# photos de {when}}}",
+    "matching": "{count, plural, =0 {Aucune photo ne correspond à « {query} »} one {# photo correspond à « {query} »} other {# photos correspondent à « {query} »}}",
+    "truncated": "Les 500 plus récentes sont affichées — affinez la recherche.",
+    "none": "Aucun résultat. Essayez un autre nom ou une autre date."
+  },
+  "layout": {
+    "mosaic": "Mosaïque",
+    "mosaicYears": "La mosaïque n’est pas disponible par année",
+    "fit": "Photos entières"
+  },
+  "size": {
+    "label": "Taille des photos",
+    "smaller": "Photos plus petites",
+    "larger": "Photos plus grandes",
+    "perRow": "{count, plural, one {# photo par rangée} other {# photos par rangée}}",
+    "years": "La taille est fixe dans la vue Années"
   }
 }

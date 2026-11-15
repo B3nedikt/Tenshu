@@ -74,6 +74,7 @@ vi.mock('@tenshu/sdk/storage', () => ({ Storage: {} }))
 vi.mock('@tenshu/sdk/syncHealth', () => ({ SyncHealth: {} }))
 vi.mock('@tenshu/sdk/syncStatus', () => ({ SyncStatus: {} }))
 vi.mock('@tenshu/sdk/timeline', () => ({ Timeline: {} }))
+vi.mock('@tenshu/sdk/viewSettings', () => ({ DriveSettings: {}, PhotosSettings: {} }))
 vi.mock('@tenshu/sdk/calendar', () => ({ Calendar: {} }))
 
 import { mountProxyGateway } from './proxyGateway'

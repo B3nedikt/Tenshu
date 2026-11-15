@@ -14,6 +14,7 @@ import app.tenshu.ui.theme.TenshuTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.tenshu.ui.test.NoMotion
 
 /**
  * ⚠⚠ **A square-celled month grid cannot fit a desktop window, and Compose does not
@@ -56,7 +57,7 @@ class MonthGridFillsWindowTest {
 
     @Test
     fun onADesktopWindow_theLastWeekRowIsStillOnScreen() {
-        runDesktopComposeUiTest(width = 1440, height = 900) {
+        runDesktopComposeUiTest(width = 1440, height = 900, effectContext = NoMotion) {
             setContent { TenshuTheme { Grid() } }
             waitForIdle()
 
@@ -86,7 +87,7 @@ class MonthGridFillsWindowTest {
     @Test
     fun onAPhone_theGridKeepsItsNaturalSquareCelledHeight() {
         var measured = -1
-        runDesktopComposeUiTest(width = 420, height = 800) {
+        runDesktopComposeUiTest(width = 420, height = 800, effectContext = NoMotion) {
             setContent {
                 TenshuTheme { Grid(Modifier.onSizeChanged { measured = it.height }) }
             }

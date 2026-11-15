@@ -85,7 +85,13 @@ class SingleInstanceLockTest {
             SingleInstanceLockProbe::class.java.name,
             mode.name,
             lockFile.absolutePath,
-        ).redirectErrorStream(true).start()
+        ).redirectErrorStream(true).apply {
+            // ⚠ The child's first line is the protocol ("HOLDING"), and a JVM started with any of
+            // these set prints "Picked up …" on stderr before `main` runs. They are set in cloud
+            // containers and some CI images (a proxy trust store), so the test was red there and
+            // green on a dev Mac (`docs/testing-flakes.md`, category F). The probe needs none of them.
+            environment().keys.removeAll(setOf("JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS", "_JAVA_OPTIONS"))
+        }.start()
     }
 
     private fun runProbe(mode: ProbeMode): ProbeResult {

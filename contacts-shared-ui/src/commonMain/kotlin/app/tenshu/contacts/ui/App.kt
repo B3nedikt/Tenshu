@@ -1,5 +1,13 @@
 package app.tenshu.contacts.ui
 
+import app.tenshu.ui.feedback.SyncActivityCapsule
+import app.tenshu.ui.feedback.rememberSyncActivity
+import org.tenshu.sync.client.anyCatchUpHeartbeat
+import app.tenshu.reachability.SuiteSyncProblem
+import app.tenshu.ui.feedback.SuiteSyncBanner
+import app.tenshu.ui.feedback.rememberSuiteSyncProblem
+import org.tenshu.sync.client.syncConnectivity
+import org.tenshu.sync.client.syncService
 import app.tenshu.contacts.shared.resources.contacts_update_action
 import app.tenshu.ui.feedback.appControlCheckingLabel
 import androidx.compose.foundation.layout.Box
@@ -202,20 +210,26 @@ fun App(repository: ContactsRepository = koinInject()) {
         showNav = current is Destination.TopLevel,
     ) {
         val storageState = rememberRealmStorageState()
+        // ⚠⚠ One strip for the app (`suite-sync-status.md` SS-1): Control's state, this device's sync
+        // health and storage, in one order. Control's banner below keeps this app's own words.
+        val tenshuClient: TenshuClient = koinInject()
+        val connectivity = remember(tenshuClient) { tenshuClient.syncService.syncConnectivity() }
+        val syncProblem = rememberSuiteSyncProblem(unreachableReason, storageState, connectivity)
+        // SS-2 (`suite-sync-status.md`): "Syncing…" while Control pulls, through its heartbeat so a
+        // killed Control's stale flag never sticks.
+        val catchingUp = remember(tenshuClient) { tenshuClient.syncService.anyCatchUpHeartbeat() }
+        val syncActivity = rememberSyncActivity(catchingUp)
+        val controlReason = (syncProblem as? SuiteSyncProblem.Control)?.reason
         Column(
             Modifier.fillMaxSize().then(
                 // While the banner is up it *is* the shell's top element, so it takes the inset
                 // for the whole column — and `windowInsetsPadding` consumes what it applies, so
                 // the screen chrome below does not then pad again. Without this the banner would
                 // render under the status bar the moment Control goes away.
-                // ⚠⚠ BOTH banners count — a storage banner is just as much the shell's top
-                // element as the reachability one, and gating the inset on reachability alone
-                // draws it under the status bar.
-                //
-                // ⚠⚠ `unreachableReason`, not `controlReachable == false`, for the same reason:
-                // a fenced device answers every read, so it stays "reachable" while showing a
-                // banner, which would collide with the status bar in exactly the same way (SK-3).
-                if (unreachableReason != null || storageState !is RealmStorageState.Ok) {
+                // ⚠⚠ Gated on the strip, not on `controlReachable == false`: every problem draws
+                // one (a storage one too), and a fenced device answers every read, so it stays
+                // "reachable" while showing one (SK-3).
+                if (syncProblem != SuiteSyncProblem.None) {
                     Modifier.windowInsetsPadding(WindowInsets.statusBars)
                 } else {
                     Modifier
@@ -225,7 +239,7 @@ fun App(repository: ContactsRepository = koinInject()) {
             // ⚠⚠ Gated on the REASON, not `controlReachable == false`. A fenced device answers
             // every read - its state stays true - so that condition could never fire for the
             // one case where the app is silently receiving nothing (SK-3).
-            if (unreachableReason != null) {
+            if (controlReason != null) {
                 // ⚠⚠ The app to name is frequently NOT Contacts: on Android and desktop one
                 // Control-owned proxy serves every app, so a version disagreement is usually
                 // Control's to fix and telling the user to update Contacts is a dead end.
@@ -233,9 +247,9 @@ fun App(repository: ContactsRepository = koinInject()) {
                 // in the store yet must NOT be told "install it the way you installed this app", because
                 // that way does not work yet (ADR 0025 §Decision 6).
                 val installRoute = rememberControlInstallRoute()
-                val action = rememberControlBannerAction(unreachableReason, installRoute)
+                val action = rememberControlBannerAction(controlReason, installRoute)
                 ErrorBanner(
-                    text = when (val r = unreachableReason) {
+                    text = when (val r = controlReason) {
                         is UnreachableReason.Skew -> when (r.update) {
                             UpdateTarget.CONTROL -> stringResource(Res.string.contacts_skew_update_control)
                             UpdateTarget.THIS_APP -> stringResource(Res.string.contacts_skew_update_this_app)
@@ -261,7 +275,7 @@ fun App(repository: ContactsRepository = koinInject()) {
                         }
                         UnreachableReason.Transport, null -> stringResource(Res.string.contacts_control_unreachable)
                     },
-                    icon = controlBannerIcon(unreachableReason),
+                    icon = controlBannerIcon(controlReason),
                     actionLabel = action?.let {
                         when (it.kind) {
                             ControlBannerAction.Kind.OPEN_CONTROL ->
@@ -275,13 +289,13 @@ fun App(repository: ContactsRepository = koinInject()) {
                     onAction = action?.onClick,
                 )
             }
-            // ⚠ Below the reachability banner's slot: "Control is gone" and "the realm cannot
-            // sync" are different facts.
-            // ⚠⚠ Suppressed while Control is unreachable. Both facts are real, but the storage one
-            // is not actionable while the first is true — its *Manage storage* button opens a
-            // Control that is not answering — and two stacked bars push the app's own header off
-            // the top of the screen.
-            if (unreachableReason == null) RealmStorageBannerHost(storageState)
+            // One problem, one bar (two stacked pushed the header off screen): Control's banner is drawn
+            // just above in this app's words when it is the problem; any other problem is drawn here.
+            SuiteSyncBanner(
+                problem = syncProblem,
+                controlBanner = {},
+                storageBanner = { RealmStorageBannerHost(it) },
+            )
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 NavContent(
                     backStack = backStack,
@@ -291,6 +305,8 @@ fun App(repository: ContactsRepository = koinInject()) {
                     onConfirmInvite = { confirmingInviteId = it },
                     onImport = importViewModel::onImportClicked,
                 )
+                // Over the screens, never beside them; a problem strip, or a screen that is not a tab, hides it.
+                SyncActivityCapsule(activity = syncActivity, hidden = syncProblem != SuiteSyncProblem.None || current !is Destination.TopLevel)
             }
         }
     }

@@ -8,12 +8,13 @@ import app.tenshu.control.data.InstalledApp
 import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertEquals
+import org.tenshu.ui.test.NoMotion
 
 /** Stateless `AppsScreenContent` rendering + interaction (no VM / proxy). */
 class AppsScreenContentTest {
 
     @get:Rule
-    val rule = createComposeRule()
+    val rule = createComposeRule(NoMotion)
 
     private val drive = InstalledApp(
         appId = "app.tenshu.drive",

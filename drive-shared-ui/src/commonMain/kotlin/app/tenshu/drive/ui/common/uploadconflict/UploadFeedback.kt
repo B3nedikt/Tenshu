@@ -31,16 +31,17 @@ import androidx.compose.ui.tooling.preview.Preview
 @Composable
 fun UploadFeedback(
     uiState: AddFileActionsUiState,
-    onKeepBoth: () -> Unit,
-    onCancelConflict: () -> Unit,
+    /** Answers carry the conflict's id: a stale or repeated answer is then a no-op. */
+    onKeepBoth: (conflictId: Long) -> Unit,
+    onCancelConflict: (conflictId: Long) -> Unit,
     onDismissStorageGate: () -> Unit,
     onDismissUploadError: () -> Unit,
 ) {
     uiState.uploadConflict?.let { conflict ->
         UploadConflictDialog(
             fileName = conflict.fileName,
-            onConfirmKeepBoth = onKeepBoth,
-            onDismiss = onCancelConflict,
+            onConfirmKeepBoth = { onKeepBoth(conflict.id) },
+            onDismiss = { onCancelConflict(conflict.id) },
         )
     }
 

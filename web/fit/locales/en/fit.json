@@ -1,8 +1,4 @@
 {
-  "app": {
-    "title": "Fit",
-    "tagline": "Your activity, end-to-end encrypted."
-  },
   "runtime": {
     "connectingTitle": "Still connecting to Tenshu…",
     "connectingBody": "The Tenshu tab hosting Fit is busy. Fit will load as soon as it answers.",
@@ -19,6 +15,7 @@
     "reload": "Reload"
   },
   "nav": {
+    "label": "Fit sections",
     "dashboard": "Dashboard",
     "history": "History",
     "profile": "Profile"

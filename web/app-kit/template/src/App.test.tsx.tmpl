@@ -17,7 +17,8 @@ beforeEach(async () => {
 describe('App', () => {
   it('renders its shell, with no lease banner while this tab holds the runtime', async () => {
     renderWithQueryClient(<App />)
-    expect(screen.getByRole('heading', { name: '__NAME__' })).toBeInTheDocument()
+    // No headline: the apex top bar names the app (web-apps-layout.md §3.1).
+    expect(screen.queryByRole('heading', { name: '__NAME__' })).toBeNull()
     expect(await screen.findByText('Nothing here yet.')).toBeInTheDocument()
     expect(screen.queryByRole('status')).toBeNull()
   })

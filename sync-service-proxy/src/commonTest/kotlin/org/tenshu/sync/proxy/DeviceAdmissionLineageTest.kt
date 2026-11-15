@@ -13,7 +13,7 @@ import kotlin.test.assertNotNull
 
 /**
  * `Device.admittedByDeviceId` (`delegated-device-admission-authority.md` §5) —
- * the admission-lineage field the P5 subtree revoke walks. New rows carry it;
+ * the admission-lineage field the removal dialog walks (§7j.4). New rows carry it;
  * omitting it (every pre-P1 caller) yields the empty "root / unknown" marker.
  */
 class DeviceAdmissionLineageTest {

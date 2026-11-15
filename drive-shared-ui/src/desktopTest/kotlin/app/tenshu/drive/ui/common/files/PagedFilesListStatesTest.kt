@@ -16,6 +16,7 @@ import app.tenshu.drive.ui.model.FileUiModel
 import app.tenshu.ui.theme.TenshuTheme
 import kotlinx.coroutines.flow.flowOf
 import org.junit.Test
+import org.tenshu.ui.test.NoMotion
 
 /**
  * The empty listing has **three** states, not two.
@@ -55,7 +56,7 @@ class PagedFilesListStatesTest {
     )
 
     @Test
-    fun aFailedRefreshOffersRetryRatherThanClaimingTheFolderIsEmpty() = runComposeUiTest {
+    fun aFailedRefreshOffersRetryRatherThanClaimingTheFolderIsEmpty() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 PagedFilesList(
@@ -83,7 +84,7 @@ class PagedFilesListStatesTest {
     }
 
     @Test
-    fun aGenuinelyEmptyFolderStillSaysSo() = runComposeUiTest {
+    fun aGenuinelyEmptyFolderStillSaysSo() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 PagedFilesList(

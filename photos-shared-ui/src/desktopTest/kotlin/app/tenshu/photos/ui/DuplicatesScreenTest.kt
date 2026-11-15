@@ -24,6 +24,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import app.tenshu.ui.theme.TenshuTheme
+import org.tenshu.ui.test.NoMotion
 
 /**
  * What the Duplicates surface renders (`photos-app.md` S4 / PH-D2 / PH-6).
@@ -61,7 +62,7 @@ class DuplicatesScreenTest {
     }
 
     @Test
-    fun anEmptyResultSaysWhatWasComparedAndWhatWasNot() = runComposeUiTest {
+    fun anEmptyResultSaysWhatWasComparedAndWhatWasNot() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠ "No duplicates" alone would read as a guarantee. The count says how much was looked at
         // and the second sentence says which copies this method cannot see.
         setContent(screen(DuplicatesUiState(loading = false, filesScanned = 812)))
@@ -75,7 +76,7 @@ class DuplicatesScreenTest {
     }
 
     @Test
-    fun theRowSaysATapKeepsRatherThanDeletes() = runComposeUiTest {
+    fun theRowSaysATapKeepsRatherThanDeletes() = runComposeUiTest(effectContext = NoMotion) {
         setContent(screen(DuplicatesUiState(groups = listOf(group), loading = false, filesScanned = 2)))
 
         waitUntil {
@@ -85,7 +86,7 @@ class DuplicatesScreenTest {
     }
 
     @Test
-    fun theCheckboxDescribesWhatEachModeCosts() = runComposeUiTest {
+    fun theCheckboxDescribesWhatEachModeCosts() = runComposeUiTest(effectContext = NoMotion) {
         setContent(screen(DuplicatesUiState(groups = listOf(group), loading = false)))
 
         waitUntil {
@@ -95,7 +96,7 @@ class DuplicatesScreenTest {
     }
 
     @Test
-    fun theDestructiveCopyOnlyAppearsWhenTheBoxIsTicked() = runComposeUiTest {
+    fun theDestructiveCopyOnlyAppearsWhenTheBoxIsTicked() = runComposeUiTest(effectContext = NoMotion) {
         setContent(
             screen(
                 DuplicatesUiState(groups = listOf(group), loading = false, deletePermanently = true)
@@ -109,7 +110,7 @@ class DuplicatesScreenTest {
     }
 
     @Test
-    fun nothingIsActedOnUntilTheDialogIsConfirmed() = runComposeUiTest {
+    fun nothingIsActedOnUntilTheDialogIsConfirmed() = runComposeUiTest(effectContext = NoMotion) {
         val kept = mutableListOf<DuplicatesConfirmation>()
         setContent(
             screen(
@@ -143,7 +144,7 @@ class DuplicatesScreenTest {
     }
 
     @Test
-    fun theDestructiveModeSaysWhatIsLost_andItsButtonSaysDelete() = runComposeUiTest {
+    fun theDestructiveModeSaysWhatIsLost_andItsButtonSaysDelete() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠⚠ "Delete for good" and "move to the trash" must never read alike.
         setContent(screen(DuplicatesUiState(groups = listOf(group), loading = false, deletePermanently = true)))
 
@@ -156,7 +157,7 @@ class DuplicatesScreenTest {
     }
 
     @Test
-    fun anUnreachableProxyDoesNotRenderAsACleanLibrary_andOffersARetry() = runComposeUiTest {
+    fun anUnreachableProxyDoesNotRenderAsACleanLibrary_andOffersARetry() = runComposeUiTest(effectContext = NoMotion) {
         var retried = 0
         setContent(screen(DuplicatesUiState(loading = false, error = FeedError.Unreachable), onRetry = { retried++ }))
 
@@ -171,7 +172,7 @@ class DuplicatesScreenTest {
     }
 
     @Test
-    fun couldNotLookIsNeverTheEmptySentence_evenOverGroupsAnEarlierReadSaw() = runComposeUiTest {
+    fun couldNotLookIsNeverTheEmptySentence_evenOverGroupsAnEarlierReadSaw() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠⚠ `photos-app.md` §40. And a list that could not be re-read is not drawn to be acted on.
         setContent(screen(DuplicatesUiState(groups = listOf(group), loading = false, error = FeedError.Failed("boom"))))
 
@@ -185,14 +186,14 @@ class DuplicatesScreenTest {
     }
 
     @Test
-    fun anEmptyResultOffersNoRetry() = runComposeUiTest {
+    fun anEmptyResultOffersNoRetry() = runComposeUiTest(effectContext = NoMotion) {
         setContent(screen(DuplicatesUiState(loading = false, filesScanned = 812)))
         waitUntil { onAllNodesWithText("No duplicates.", substring = true).fetchSemanticsNodes().isNotEmpty() }
         assertTrue(onAllNodesWithText("Try Again").fetchSemanticsNodes().isEmpty())
     }
 
     @Test
-    fun aKeepOnlyThatFellShortIsSaid_andDismissed() = runComposeUiTest {
+    fun aKeepOnlyThatFellShortIsSaid_andDismissed() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠⚠ Every result here used to be dropped: the report must be drawn.
         var dismissed = false
         setContent(
@@ -213,7 +214,7 @@ class DuplicatesScreenTest {
     }
 
     @Test
-    fun nothingIsOfferedWhileAWriteRuns() = runComposeUiTest {
+    fun nothingIsOfferedWhileAWriteRuns() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠ The writes are single-flight: a confirmation the view model then ignores is a keep-only
         // that silently never happened.
         var toggled = 0
@@ -234,7 +235,7 @@ class DuplicatesScreenTest {
     }
 
     @Test
-    fun aLockedCopyIsNeverOfferedAsTheOneToKeep() = runComposeUiTest {
+    fun aLockedCopyIsNeverOfferedAsTheOneToKeep() = runComposeUiTest(effectContext = NoMotion) {
         // ⚠⚠ Its write went unanswered and may still land: kept, the others' removal could leave none.
         val three = DuplicateGroup("h1", listOf(photo(1), photo(2), photo(3)), sizeBytes = 4_000L)
         setContent(screen(DuplicatesUiState(groups = listOf(three), loading = false, uncertain = setOf(photo(1).path))))

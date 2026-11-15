@@ -85,10 +85,15 @@
           next upload pass (Uploader: "Unknown backend … deleting event batch"). The libraries
           keep working: the rejection reaches only their fire-and-forget schedule callback. Keep the scheduler service and receiver: a job for
           a removed component would throw. Checked by `checkNoTelemetryBackend` (build.gradle.kts).
+          ⚠ `tools:ignore="MissingClass"` is scoped to this one removal: the class lives in
+          datatransport-runtime, which reaches the APK only transitively (MediaPipe, Play Billing), and
+          a removed component is never instantiated. Making it a direct dependency just to name it
+          would pin a version we do not choose.
         -->
         <service
             android:name="com.google.android.datatransport.runtime.backends.TransportBackendDiscovery"
-            tools:node="remove" />
+            tools:node="remove"
+            tools:ignore="MissingClass" />
 
     <activity
             android:name=".MainActivity"

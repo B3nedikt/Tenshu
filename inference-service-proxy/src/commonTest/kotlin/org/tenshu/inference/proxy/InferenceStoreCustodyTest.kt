@@ -33,6 +33,9 @@ class InferenceStoreCustodyTest {
     private val steps = mutableListOf<String>()
     private var realm: InferenceRealm? = InferenceRealm("owner-a")
 
+    /** When set, what the check reads instead of [realm]: the iOS source's three answers. */
+    private var reading: RealmReading? = null
+
     private val embeddingsPath = "/inference/embeddings.log"
     private val facesPath = "/inference/faces.log"
 
@@ -55,7 +58,7 @@ class InferenceStoreCustodyTest {
                 steps += "cancel"
                 usableWhileClearing += custody.usable()
             },
-            currentRealm = { realm },
+            readRealm = { reading ?: realm?.let { RealmReading.Of(it) } ?: RealmReading.None },
             runtimeServes = runtimeServes,
             currentFingerprint = currentFingerprint,
         )
@@ -268,6 +271,101 @@ class InferenceStoreCustodyTest {
         realm = InferenceRealm("owner-a", storeEpoch = "e2")
         assertTrue(custody().ensureCurrentRealm())
         assertEquals(0, embeddings().size())
+    }
+
+    // ─── a store generation that cannot be told ─────────────────────────────────────────────────
+
+    /** Stamped for owner-a at epoch e1, holding one vector and one template, usable. */
+    private suspend fun usableAtE1(): InferenceStoreCustody {
+        realm = InferenceRealm("owner-a", storeEpoch = "e1")
+        indexedForOwnerA()
+        return custody().also { assertTrue(it.ensureCurrentRealm()) }
+    }
+
+    /**
+     * ⚠⚠ A read refused for a moment (a sibling's `-wal` reset, a deferred admission) while a pass
+     * runs: the asker is refused, and the pass is not stopped. Before the fix the blind answer was
+     * `NoRealm`, which cancelled the pass, and nothing restarted it.
+     */
+    @Test
+    fun aBlindReadForTheSameOwnerRefusesTheAskerAndStopsNoPassClearsNothing() = runTest {
+        val custody = usableAtE1()
+        val stamp = stamp()
+        steps.clear()
+
+        reading = RealmReading.CannotTell("owner-a", "a deferred admission")
+        assertFalse(custody.ensureCurrentRealm(), "served on an unread store generation")
+        assertFalse(custody.ensureCurrentRealm(fromPass = true), "a pass started on an unread store generation")
+
+        assertEquals(emptyList(), steps, "a blind read stopped the pass or cleared")
+        assertTrue(custody.usable(), "the running pass's answer was taken away by evidence of nothing")
+        assertEquals(stamp, stamp())
+        assertEquals(1, embeddings().size())
+        assertEquals(1, faces().size())
+
+        // Readable again, the same generation: as it was.
+        reading = null
+        assertTrue(custody.ensureCurrentRealm())
+        assertEquals(emptyList(), steps)
+        assertEquals(1, embeddings().size())
+    }
+
+    @Test
+    fun anEpochChangeThatWasReadStillStopsThePassAndClears() = runTest {
+        val custody = usableAtE1()
+        reading = RealmReading.CannotTell("owner-a", "blind")
+        assertFalse(custody.ensureCurrentRealm())
+        steps.clear()
+
+        reading = RealmReading.Of(InferenceRealm("owner-a", storeEpoch = "e2"))
+        assertTrue(custody.ensureCurrentRealm())
+        assertEquals(listOf("cancel", "clear vectors", "clear faces"), steps)
+        assertEquals(0, embeddings().size())
+        assertEquals(0, faces().size())
+    }
+
+    /** The owner half needs no epoch to see: a blind read naming another owner is a change. */
+    @Test
+    fun aBlindReadForAnotherOwnerStopsThePassClearsAndErasesTheStamp() = runTest {
+        val custody = usableAtE1()
+        steps.clear()
+
+        reading = RealmReading.CannotTell("owner-b", "blind")
+        assertFalse(custody.ensureCurrentRealm())
+
+        assertEquals(listOf("cancel", "clear vectors", "clear faces"), steps)
+        assertFalse(custody.usable())
+        assertNull(stamp(), "a stamp was left naming the realm the device left")
+        assertEquals(0, embeddings().size())
+        assertEquals(0, faces().size())
+
+        // And the next check that can read the epoch stamps the new realm.
+        reading = RealmReading.Of(InferenceRealm("owner-b", storeEpoch = "e9"))
+        assertTrue(custody.ensureCurrentRealm())
+        assertTrue("owner-b" in stamp().orEmpty())
+    }
+
+    /**
+     * ⚠ The bytes a build before the epoch was plumbed wrote: `storeEpoch` was always `null`, and
+     * the encoder leaves a default out. Its first epoch-bearing check clears **once**, never on
+     * every launch, and adopts nothing (`ios-face-grouping.md` §2.2 item 8).
+     */
+    @Test
+    fun aStampWrittenWithoutAnEpochIsReadAndClearsOnceThenKeeps() = runTest {
+        indexedForOwnerA()
+        disk.writeRawByteArray(InferenceStoreCustody.REALM_STAMP_PATH, """{"ownerId":"owner-a"}""".encodeToByteArray())
+        realm = InferenceRealm("owner-a", storeEpoch = "e1")
+
+        assertTrue(custody().ensureCurrentRealm())
+        assertEquals(0, embeddings().size(), "vectors from a store generation nobody recorded were kept")
+        assertEquals(0, faces().size())
+        assertEquals("""{"ownerId":"owner-a","storeEpoch":"e1"}""", stamp())
+
+        assertTrue(embeddings().put("/a.jpg", floatArrayOf(1f, 0f), model))
+        steps.clear()
+        assertTrue(custody().ensureCurrentRealm())
+        assertEquals(1, embeddings().size(), "a second launch on the same epoch cleared again")
+        assertEquals(emptyList(), steps)
     }
 
     @Test

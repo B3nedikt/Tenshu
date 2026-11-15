@@ -246,6 +246,11 @@ class BundledAppTablesTest {
                 // Mint on view — the one Photos op that can download a whole original.
                 "tenshu/file/system/ensureThumbnailClass",
                 "tenshu/inference/photosLike",
+                // People (IN-6): grouping, naming, and the name-suggestion "No" (F6c-s)
+                "tenshu/inference/faceGroups",
+                "tenshu/inference/nameFaceGroup",
+                "tenshu/inference/rejectFaceSuggestion",
+                "tenshu/inference/faceSuggestionRejections",
                 // albums and favourites
                 "tenshu/photo/service/saveAlbum",
                 "tenshu/photo/service/deleteAlbum",
@@ -258,6 +263,12 @@ class BundledAppTablesTest {
                 "tenshu/file/system/deleteFile",
                 "tenshu/photo/service/recordTrashedPhoto",
                 "tenshu/photo/service/clearTrashedPhoto",
+                // the editor's Save as copy (ED-1)
+                "tenshu/file/system/uploadFiles",
+                "tenshu/file/system/sourceFileUpload",
+                // the non-destructive edit (ED-3)
+                "tenshu/photo/service/setPhotoEdit",
+                "tenshu/photo/service/clearPhotoEdit",
             ),
             photos.permissions.map { it.operationId }.toSet(),
         )

@@ -99,7 +99,9 @@ import app.tenshu.control.ui.sync.HostPairingApprovalDialog
 import app.tenshu.control.ui.screens.sync.RecoveryPhraseScreen
 import app.tenshu.control.ui.screens.sync.SyncDashboardScreen
 import app.tenshu.control.ui.screens.unlock.SetupUnlockScreen
+import app.tenshu.control.ui.screens.welcome.ForgetNotice
 import app.tenshu.control.ui.screens.welcome.WelcomeScreen
+import app.tenshu.control.ui.screens.welcome.forgetNoticesFor
 import app.tenshu.ui.layout.AdaptiveNavItem
 import app.tenshu.control.ui.lock.AppLockGate
 import app.tenshu.ui.layout.AdaptiveNavScaffold
@@ -164,25 +166,6 @@ internal fun resolveStartDestination(landing: Destination, deepLink: Destination
 internal fun appLockGateActive(showNav: Boolean, backStack: List<Destination>): Boolean =
     showNav && !backStack.contains(Destination.Welcome)
 
-/** Shown when the op returned nothing at all — see [isForgetWarning] for why that is not success. */
-internal const val UNKNOWN_FORGET_OUTCOME =
-    "⚠ could not confirm what was removed — check your devices from another one"
-
-/**
- * Does a `ForgetThisDevice` outcome need the user's attention on **another** device?
- *
- * ⚠⚠ **The `⚠` marker is the contract**, and setting it is deliberately the producer's job:
- * `ForgetThisDeviceImplementation` prefixes exactly its non-clean outcomes with it (a leftover row,
- * an unconfirmed retirement, a store that would not wipe) and never a clean one. That coupling is
- * pinned from the producing side by `ForgetThisDeviceOutcomeMarkerTest`, so it cannot silently start
- * matching everything or nothing.
- *
- * ⚠ Not a status-text match on a *remote* contract — the trap this project has already hit with
- * relay errors, where an H2 connection empties the reason phrase and the match goes inert in
- * production. Both ends of this one live in this repo and change together.
- */
-internal fun isForgetWarning(outcome: String): Boolean = outcome.contains('⚠')
-
 @Composable
 private fun AppContent(initialDestination: Destination) {
     // ForgetThisDevice — a confirmation, not a destination, so it lives as screen-level state.
@@ -204,10 +187,10 @@ private fun AppContent(initialDestination: Destination) {
     // full whenever the relay cannot confirm the removal, which is the common case. A dialog that
     // closes over a Settings that just sits there reads as a dead button.
     var forgetWorking by remember { mutableStateOf(false) }
-    // The op's outcome, carried to the Welcome screen this flow lands on. `ForgetThisDevice` does
-    // not fail when the retirement half fails — by design — so this string is the only thing that
-    // can say a row was left behind in the realm, and its remedy is always "from another device".
-    var forgetNotice by remember { mutableStateOf<String?>(null) }
+    // What the forget left to do, carried to the Welcome screen this flow lands on.
+    // `ForgetThisDevice` does not fail when the retirement half fails — by design — so its outcome
+    // is the only thing that can say a row was left behind in the realm.
+    var forgetNotices by remember { mutableStateOf<List<ForgetNotice>>(emptyList()) }
 
     val publisherClient: PublisherClient = koinInject()
     // App-global host-side pairing approval (control-pairing-ux.md). The monitor
@@ -662,7 +645,7 @@ private fun AppContent(initialDestination: Destination) {
                 }
                 entry<Destination.Welcome> { _ ->
                     WelcomeScreen(
-                        notice = forgetNotice,
+                        notices = forgetNotices,
                         onExistingDevice = {
                             backStack.add(Destination.PairingWizard)
                         },
@@ -765,15 +748,9 @@ private fun AppContent(initialDestination: Destination) {
                     // carried out on ANOTHER device, later, and would have to be raised
                     // asynchronously, where it goes unseen.
                     println("ForgetThisDevice: ${outcome ?: "no outcome returned"}")
-                    forgetNotice = when {
-                        // No description means we do not know what happened — announced, never
-                        // quietly treated as success.
-                        outcome == null -> UNKNOWN_FORGET_OUTCOME
-                        isForgetWarning(outcome) -> outcome
-                        // A clean removal needs no notice: a fresh-start screen is the wrong place
-                        // for bookkeeping the user cannot act on.
-                        else -> null
-                    }
+                    // A clean removal shows nothing; anything else is said in plain words, never as
+                    // the op's own outcome string (see `WelcomeScreen`).
+                    forgetNotices = forgetNoticesFor(outcome)
                     // ⚠ Clear rather than pop: this device is in no realm now, so every destination
                     // behind it is meaningless and Back would walk into a realm that is gone.
                     forgetWorking = false

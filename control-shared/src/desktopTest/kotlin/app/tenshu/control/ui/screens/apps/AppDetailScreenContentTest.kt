@@ -14,12 +14,13 @@ import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.tenshu.ui.test.NoMotion
 
 /** Stateless `AppDetailScreenContent` rendering + interaction (no VM / proxy). */
 class AppDetailScreenContentTest {
 
     @get:Rule
-    val rule = createComposeRule()
+    val rule = createComposeRule(NoMotion)
 
     private val detail = AppDetail(
         app = InstalledApp(

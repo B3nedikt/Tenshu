@@ -50,7 +50,7 @@ describe('LandingCta', () => {
       'signup',
     )
     expect(screen.queryByRole('link', { name: 'I already have Tenshu' })).toBeNull()
-    expect(screen.getByRole('link', { name: 'Open Tenshu' })).toHaveAttribute('href', '/control')
+    expect(screen.getByRole('link', { name: 'Open Tenshu' })).toHaveAttribute('href', '/overview')
   })
 
   it('header slot renders a single compact link with no secondary affordance', () => {

@@ -52,7 +52,7 @@ data class PhotoSearchLayout(
     companion object {
         fun of(state: PhotoSearchUiState): PhotoSearchLayout {
             if (state.isIdle) {
-                return PhotoSearchLayout(emptyList(), Body.Idle(PhotoSearchCopy.IDLE), retryInNotes = false)
+                return PhotoSearchLayout(emptyList(), Body.Idle(PhotoSearchCopy.idle(state)), retryInNotes = false)
             }
             val off = listOfNotNull(PhotoSearchCopy.off(state.semanticStatus, state.modelsSwitch))
             if (state.searching || !state.settled) {
@@ -101,6 +101,21 @@ object PhotoSearchCopy {
      * run today.
      */
     const val IDLE = "Search by file name."
+
+    /** [IDLE] where search by description has been seen to run on this device. */
+    const val IDLE_WITH_DESCRIPTION = "Search by file name or by what's in a photo."
+
+    /**
+     * The idle line. ⚠⚠ It promises search by description only when source 3's last ANSWER was that
+     * it ran ([PhotoSearchUiState.semanticKnown] is [SemanticSearchStatus.Available]). Every
+     * other state keeps [IDLE]: not asked yet (the seed is an assumption, and on a device with no
+     * backend it is false), no model, still preparing, not indexed, no consent, a model that cannot
+     * embed text, a phone found unsuitable, a platform with no index ([SemanticSearchStatus.NotBuiltHere]),
+     * and a last attempt that failed — each a query that would refuse, or might. ⚠ The line names no
+     * reason: that is the note's, once a query is typed.
+     */
+    fun idle(state: PhotoSearchUiState): String =
+        if (state.semanticKnown == SemanticSearchStatus.Available) IDLE_WITH_DESCRIPTION else IDLE
 
     const val RETRY = "Try Again"
 

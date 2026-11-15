@@ -5,7 +5,7 @@ import { createAppQueryClient } from '@tenshu/app-kit/query'
 import i18n from '../i18n'
 import { LiveProvider } from '../lib/live'
 import { FeedProvider } from '../lib/feed'
-import { ThumbnailCacheContext, loadTile } from '../lib/thumbnails'
+import { SharpTileCacheContext, ThumbnailCacheContext, loadSharpTile, loadTile, resetSharpTiles } from '../lib/thumbnails'
 import { ThumbnailCache } from '../lib/thumbnailCache'
 
 // Renders under a fresh QueryClient (no retries, like `mountApp`), the app's providers and a fresh
@@ -14,12 +14,17 @@ export function renderWithProviders(ui: ReactNode, options: { cache?: ThumbnailC
   void i18n.changeLanguage('en')
   const client = createAppQueryClient()
   const cache = options.cache ?? new ThumbnailCache(loadTile)
+  // The Retina tiles' cache, fresh too, and no confirmed-absent paths left from another test.
+  resetSharpTiles()
+  const sharpCache = new ThumbnailCache(loadSharpTile, { maxInFlight: 3 })
   const result = render(
     <QueryClientProvider client={client}>
       <ThumbnailCacheContext.Provider value={cache}>
-        <LiveProvider>
-          <FeedProvider>{ui}</FeedProvider>
-        </LiveProvider>
+        <SharpTileCacheContext.Provider value={sharpCache}>
+          <LiveProvider>
+            <FeedProvider>{ui}</FeedProvider>
+          </LiveProvider>
+        </SharpTileCacheContext.Provider>
       </ThumbnailCacheContext.Provider>
     </QueryClientProvider>,
   )

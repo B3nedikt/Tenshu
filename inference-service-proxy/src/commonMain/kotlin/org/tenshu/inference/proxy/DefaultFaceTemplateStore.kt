@@ -47,6 +47,9 @@ class DefaultFaceTemplateStore(
     /** Where each photograph's records sit, so a removal can strike and zero them in place. */
     private val strikes = LogStrikes(fileDatabase, path, ::blank)
 
+    /** IN-6 F6c name suggestions — beside the log, and leaving by every exit it does ([FaceRejections]). */
+    private val rejected = FaceRejections(fileDatabase, FaceRejections.pathBeside(path))
+
     /**
      * ⚠⚠ The log could not be re-read after a write whose outcome is unknown ([resync]). Memory is
      * empty and means nothing; every operation retries the re-read first ([inStep]).
@@ -138,7 +141,19 @@ class DefaultFaceTemplateStore(
         }
         val record = encodePut(filePath, faces)
         strikes.noteStanding(filePath, append(record), record.size, PUT)
-        this.faces[filePath] = faces
+        // ⚠ Held as the log will replay it: the box rounded to the float32 the record stores. Off
+        // Kotlin/JS a no-op; there a `Float` is a double in memory, and a box held unrounded reads
+        // differently before a restart than after one.
+        this.faces[filePath] = faces.map { face ->
+            val box = face.box
+            StoredFace(
+                FaceBox(
+                    box.left.asFloat32(), box.top.asFloat32(), box.right.asFloat32(),
+                    box.bottom.asFloat32(), box.confidence.asFloat32(),
+                ),
+                face.vector,
+            )
+        }
         true
     }
 
@@ -154,13 +169,45 @@ class DefaultFaceTemplateStore(
     override suspend fun visited(filePath: String): Boolean = lock.withLock { inStep { filePath in faces } }
 
     override suspend fun remove(filePath: String) {
-        val removal = lock.withLock { forgetLocked(listOf(filePath)) }
+        val removal = lock.withLock {
+            // ⚠⚠ Rejections FIRST — see [forget].
+            rejected.forget(listOf(filePath))
+            forgetLocked(listOf(filePath))
+        }
         if (!removal.complete) throw RemovalIncomplete(removal)
     }
 
     override suspend fun remembered(): Set<String> = lock.withLock { inStep { faces.keys + strikes.paths() } }
 
-    override suspend fun forget(paths: Collection<String>): Removal = lock.withLock { forgetLocked(paths) }
+    override suspend fun forget(paths: Collection<String>): Removal = lock.withLock {
+        // ⚠⚠ **Rejections FIRST, templates second, and the order is the custody argument.** A
+        // reconcile finds a dead photograph through [remembered] — the TEMPLATE rows — so if the
+        // template went first and the process stopped (or the rejection write failed) before its
+        // rejection did, nothing would ever name that path again and "not Anna, here" would outlive
+        // the photograph. This way round an interruption leaves the template, which the next pass
+        // finds and forgets again. ⚠ A refused rejection removal stops the batch for the same reason.
+        try {
+            rejected.forget(paths)
+        } catch (refused: Throwable) {
+            return@withLock Removal(removed = 0, refused = refused, recordsNotErased = strikes.notErased)
+        }
+        forgetLocked(paths)
+    }
+
+    override suspend fun rejections(): List<FaceRejection> = lock.withLock { inStep { }; rejected.all() }
+
+    /**
+     * ⚠⚠ Only for photographs this store holds templates for, and under the store's lock. That is
+     * what makes [clear] and [forget] sufficient custody: a rejection exists only beside a template
+     * row, so every path that erases the row — and every predicate that asks whether there is
+     * anything to erase ([provenance] for a withdrawal, [remembered] for a deleted photograph) —
+     * covers the rejection too.
+     */
+    override suspend fun reject(rejections: List<FaceRejection>): Int = lock.withLock {
+        inStep { }
+        if (stamp == null) return@withLock 0
+        rejected.add(rejections.filter { it.filePath in faces })
+    }
 
     /**
      * ⚠⚠ **Disk first, memory second, per photograph.** Dropping the row before the write means a
@@ -212,6 +259,13 @@ class DefaultFaceTemplateStore(
 
     override suspend fun clear() {
         lock.withLock {
+            // ⚠⚠ **The rejections FIRST.** Both withdrawal paths decide whether there is anything to
+            // delete by asking [provenance], which the template wipe below sets to null. Erased in
+            // the other order, a clear interrupted between the two — or a rejection erase that
+            // failed — would leave names and boxes on disk behind a store that reports itself empty,
+            // and no later withdrawal would ever look again. This way round a failure here throws
+            // with the templates (and their stamp) still in place, so the next withdrawal retries.
+            rejected.clear()
             // ⚠⚠ **Destroy the magic through a call that FAILS LOUDLY, before anything in memory is
             // reset.** `deleteFile` returns `Unit`, is allowed a no-op default, and the real
             // filesystem implementations do not report a refusal — so a wipe could return happily

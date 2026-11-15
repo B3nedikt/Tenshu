@@ -122,6 +122,29 @@ class PhotosIndexingSectionTest {
         assertEquals(PhotosModelsScreen.Progress.Busy, walking.progress)
     }
 
+    /**
+     * ⚠⚠ §15.7 Q2: *Keep Photos open* only while a leave would stop the pass. A launched continued
+     * task (iOS 26+, accepted) carries it; no task (below iOS 26), a request not yet launched, or a
+     * refused one, does not — the runtime's word, never the OS version.
+     */
+    @Test
+    fun theRunningLineFollowsTheContinuedTask() {
+        val running = { s: ModelsUiState -> s.copy(indexProgress = IndexProgressState(indexing = true, done = 3, total = 9), foregroundIndex = ForegroundIndexStanding.Asked) }
+        val stops = section(state(change = running))
+        assertEquals("Keep Photos open. Indexing stops when you leave.", stops.detail)
+        val carried = section(state { running(it).copy(indexContinued = true) })
+        assertEquals("You can leave Photos. Indexing goes on, and iOS shows how far it has got.", carried.detail)
+        assertEquals(stops.status, carried.status)
+        assertEquals(stops.kinds, carried.kinds, "the task changes the line, not what can be pressed")
+        // The walk before the count, too.
+        assertEquals(copy.INDEX_GOES_ON, section(state { it.copy(indexProgress = IndexProgressState(indexing = true), indexContinued = true) }).detail)
+
+        // The press's message follows the same rule, as the state stands when it is drawn.
+        fun started(continued: Boolean) = photosModelsScreen(state { it.copy(message = ModelsMessage.IndexingStarted, indexContinued = continued) }, "iPhone", null).message
+        assertEquals("Indexing started. Keep Photos open. Indexing stops when you leave.", started(false))
+        assertEquals("Indexing started. You can leave Photos. Indexing goes on, and iOS shows how far it has got.", started(true))
+    }
+
     /** State 5: the phone's three waits, each with when it goes on, and no *Index now*. */
     @Test
     fun eachWaitSaysWhyAndThatItGoesOnByItself() {
@@ -239,11 +262,13 @@ class PhotosIndexingSectionTest {
         val reached = MutableStateFlow<IndexCoverage?>(null)
         val asked = MutableStateFlow<ForegroundIndexStanding>(ForegroundIndexStanding.NotAsked)
         val held = MutableStateFlow(StoredIndex(null))
+        val carried = MutableStateFlow(false)
         var answer: () -> IndexStartOutcome = { IndexStartOutcome.Started }
         override val progress = object : IndexProgressSource { override val progress: Flow<IndexPassPosition?> = bar }
         override val coverage = object : IndexCoverageSource { override val coverage: Flow<IndexCoverage?> = reached }
         override val standing: Flow<ForegroundIndexStanding> = asked
         override val stored: Flow<StoredIndex> = held
+        override val continued: Flow<Boolean> = carried
         override suspend fun indexNow(): IndexStartOutcome = answer()
     }
 
@@ -283,6 +308,7 @@ class PhotosIndexingSectionTest {
         assertTrue(repository(scope, Index()).capabilities.indexing)
         assertEquals(IndexStartOutcome.Failed, repository(scope, null).startIndexing())
         assertNull(repository(scope, null).foregroundIndex().first())
+        assertFalse(repository(scope, null).indexContinued().first(), "no pass, no task")
         // ⚠ A driver that throws is a failure nobody named, answered, never an escape.
         val throwing = Index().apply { answer = { error("the driver threw") } }
         assertEquals(IndexStartOutcome.Failed, repository(scope, throwing).startIndexing())
@@ -308,6 +334,13 @@ class PhotosIndexingSectionTest {
             assertEquals(Waiting(Waiting.Why.LOW_POWER_MODE), now.foregroundIndex)
             assertEquals(StoredIndex(7, clearedByOsUpdate = true), now.storedIndex)
             assertEquals(reach, now.coverage)
+            assertFalse(now.indexContinued)
+            index.carried.value = true
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.indexContinued, "the continued task did not reach the screen's state")
+            index.carried.value = false
+            advanceUntilIdle()
+            assertFalse(vm.uiState.value.indexContinued)
 
             photosIndexingPress(vm, PhotosModelsScreen.IndexAction(Kind.PAUSE, "x"))
             advanceUntilIdle()

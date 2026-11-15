@@ -1,5 +1,7 @@
 package app.tenshu.control.sync
 
+import org.tenshu.core.TResult
+import org.tenshu.sync.PairingThisDeviceRemovedError
 import app.tenshu.control.data.SyncRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -75,6 +77,13 @@ class OfferPairingMonitor(
      */
     private val teardownScope: CoroutineScope =
         CoroutineScope(SupervisorJob() + Dispatchers.Default),
+    /**
+     * The pause before each status poll: [OFFER_POLL_MS] of real time in production. A parameter so
+     * a test can decide when each poll happens instead of waiting out the cadence
+     * (`PairingVmFlowSystemTest` steps it, so "the offerer polls once, after the phone scanned" is
+     * a sequence the test writes).
+     */
+    private val pacePoll: suspend () -> Unit = { delay(OFFER_POLL_MS) },
 ) {
 
     /** The `tenshu://offer?…` URI to render as a QR, or null when no session is live. */
@@ -112,6 +121,14 @@ class OfferPairingMonitor(
     val failed: StateFlow<Boolean> = _failed.asStateFlow()
 
     /**
+     * Terminal: the relay refused to admit THIS device — it is a removed identity (F2′,
+     * `PairingThisDeviceRemovedError`). ⚠ Never folded into [connectionLost]: that one is retried
+     * until the window closes, and every retry of this one is refused identically.
+     */
+    private val _removed = MutableStateFlow(false)
+    val removed: StateFlow<Boolean> = _removed.asStateFlow()
+
+    /**
      * Transient: the last status poll did not reach the relay. Cleared by the next clean poll.
      * ⚠ Not terminal — see the class KDoc. This exists so the wait is *visible*, not so it ends.
      */
@@ -128,7 +145,7 @@ class OfferPairingMonitor(
 
     /** True while a session is live and undecided — the guard that makes [start] idempotent. */
     private val isLive: Boolean
-        get() = secretHash != null && !_paired.value && !_denied.value && !_failed.value
+        get() = secretHash != null && !_paired.value && !_denied.value && !_failed.value && !_removed.value
 
     /**
      * Mint an offer and begin polling. **Idempotent**: re-entering the Show screen while a session
@@ -144,6 +161,7 @@ class OfferPairingMonitor(
         _paired.value = false
         _denied.value = false
         _failed.value = false
+        _removed.value = false
         _connectionLost.value = false
 
         pollJob = pollScope.launch {
@@ -158,8 +176,21 @@ class OfferPairingMonitor(
             armCountdown()
 
             while (isActive) {
-                delay(OFFER_POLL_MS)
+                pacePoll()
                 val result = syncRepository.getOfferStatus(hash)
+                if ((result as? TResult.Failure<*>)?.error is PairingThisDeviceRemovedError) {
+                    // The proxy already dropped the offer session; the code is dead. ⚠ The SAS goes
+                    // too: a refusal after SCANNED left it set, and every surface that shows the
+                    // scanned step while a SAS is present kept the user on it forever.
+                    secretHash = null
+                    _offerUri.value = null
+                    _sas.value = null
+                    _sasShownBeforeApproval.value = false
+                    _connectionLost.value = false
+                    _removed.value = true
+                    cancelCountdown()
+                    return@launch
+                }
                 result.onFailure { _connectionLost.value = true }
                 val status = result.getOrNull() ?: continue
                 _connectionLost.value = false
@@ -212,6 +243,7 @@ class OfferPairingMonitor(
         _paired.value = false
         _denied.value = false
         _failed.value = false
+        _removed.value = false
         _connectionLost.value = false
         _remainingSeconds.value = null
     }

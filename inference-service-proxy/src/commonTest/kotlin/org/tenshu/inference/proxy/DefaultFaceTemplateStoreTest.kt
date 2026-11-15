@@ -195,6 +195,136 @@ class DefaultFaceTemplateStoreTest {
         assertEquals(otherModel, store().provenance())
     }
 
+    // ---- IN-6 F6c name suggestions: the rejections leave by every exit the templates do -------
+
+    private fun no(path: String, name: String = "Anna") = FaceRejection(path, name, 100, 200, 300, 400)
+
+    @Test
+    fun rejectionsSurviveAReopen() = runTest {
+        store().apply {
+            put("/a.jpg", listOf(face(1f, 0f)), model)
+            assertEquals(1, reject(listOf(no("/a.jpg"))))
+            // ⚠ A repeat "No" folds.
+            assertEquals(0, reject(listOf(no("/a.jpg"))))
+        }
+        assertEquals(listOf(no("/a.jpg")), store().rejections())
+    }
+
+    @Test
+    fun aClearDeletesTheRejectionsFileToo() = runTest {
+        store().apply {
+            put("/a.jpg", listOf(face(1f, 0f)), model)
+            reject(listOf(no("/a.jpg")))
+            clear()
+        }
+        // ⚠⚠ Every caller of `clear` is deleting face data — a wipe, a realm change, a withdrawal.
+        assertNull(files.sizeOf(FaceRejections.pathBeside(path)), "the rejections file must be gone")
+        assertTrue(store().rejections().isEmpty())
+    }
+
+    @Test
+    fun aForgottenPhotographTakesItsRejections() = runTest {
+        store().apply {
+            put("/a.jpg", listOf(face(1f, 0f)), model)
+            put("/b.jpg", listOf(face(1f, 0f)), model)
+            reject(listOf(no("/a.jpg"), no("/b.jpg")))
+            forget(listOf("/a.jpg"))
+            remove("/b.jpg")
+        }
+        assertTrue(store().rejections().isEmpty())
+    }
+
+    @Test
+    fun rejectionsAreBoundedNewestKept() = runTest {
+        val rejections = FaceRejections(files, "/r")
+        rejections.add((0 until FaceRejections.MAX_RECORDS + 5).map { no("/p$it.jpg") })
+        val held = rejections.all()
+        assertEquals(FaceRejections.MAX_RECORDS, held.size)
+        assertEquals(no("/p${FaceRejections.MAX_RECORDS + 4}.jpg"), held.last())
+    }
+
+    @Test
+    fun aRejectionIsHeldOnlyBesideATemplate() = runTest {
+        // ⚠⚠ The custody argument: a rejection must never exist where erasing the templates — the
+        // only thing withdrawal and the reconcile look for — would not find it.
+        val empty = store()
+        assertEquals(0, empty.reject(listOf(no("/a.jpg"))), "no stamp: nothing held, nothing recorded")
+        empty.put("/a.jpg", listOf(face(1f, 0f)), model)
+        assertEquals(1, empty.reject(listOf(no("/a.jpg"), no("/never-indexed.jpg"))))
+        assertEquals(listOf(no("/a.jpg")), store().rejections())
+    }
+
+    @Test
+    fun aClearThatDiesAfterTheRejectionsLeavesTheStampForTheNextWithdrawal() = runTest {
+        store().apply {
+            put("/a.jpg", listOf(face(1f, 0f)), model)
+            reject(listOf(no("/a.jpg")))
+        }
+        files.failWritesTo = path // the template wipe dies after the rejections went
+        runCatching { store().clear() }
+        files.failWritesTo = null
+
+        assertNull(files.sizeOf(FaceRejections.pathBeside(path)), "the names and boxes are gone first")
+        // ⚠⚠ And the store still says it holds something, so a withdrawal's `provenance() != null`
+        // asks again and the templates go too.
+        val reopened = store()
+        assertEquals(model, reopened.provenance())
+        reopened.clear()
+        assertNull(reopened.provenance())
+    }
+
+    @Test
+    fun aRejectionEraseThatFailsLeavesEverythingForTheRetry() = runTest {
+        store().apply {
+            put("/a.jpg", listOf(face(1f, 0f)), model)
+            reject(listOf(no("/a.jpg")))
+        }
+        files.failWritesTo = FaceRejections.pathBeside(path)
+        val dying = store()
+        assertTrue(runCatching { dying.clear() }.isFailure)
+        files.failWritesTo = null
+
+        // The templates were not touched, so the stamp still asks for the next withdrawal.
+        assertEquals(model, store().provenance())
+        store().clear()
+        assertNull(files.sizeOf(FaceRejections.pathBeside(path)))
+    }
+
+    @Test
+    fun aForgetWhoseRejectionsFailKeepsTheTemplateSoTheReconcileComesBack() = runTest {
+        store().apply {
+            put("/a.jpg", listOf(face(1f, 0f)), model)
+            reject(listOf(no("/a.jpg")))
+        }
+        files.failWritesTo = FaceRejections.pathBeside(path)
+        val removal = store().forget(listOf("/a.jpg"))
+        files.failWritesTo = null
+
+        assertTrue(!removal.complete)
+        // ⚠⚠ The dead path is still REMEMBERED — which is what the next pass's reconcile walks.
+        assertTrue("/a.jpg" in store().remembered())
+        store().forget(listOf("/a.jpg"))
+        assertTrue(store().rejections().isEmpty())
+        assertTrue("/a.jpg" !in store().remembered())
+    }
+
+    @Test
+    fun anUnreadableRejectionsFileIsAnErrorAndIsNeverWrittenOver() = runTest {
+        store().put("/a.jpg", listOf(face(1f, 0f)), model)
+        files.writeRawByteArray(FaceRejections.pathBeside(path), "not json".encodeToByteArray())
+        val store = store()
+
+        // ⚠⚠ Not an empty list: that would fold and ask about every answered No again.
+        assertTrue(runCatching { store.rejections() }.exceptionOrNull() is RejectionsUnreadable)
+        assertTrue(runCatching { store.reject(listOf(no("/a.jpg"))) }.isFailure)
+        assertEquals("not json", files.read(FaceRejections.pathBeside(path)), "never written over")
+        // ⚠ Still an error on the next ask — a failed read is not cached as "nothing".
+        assertTrue(runCatching { store.rejections() }.isFailure)
+        // A deleted photograph's answers cannot be picked out of it, so the file goes whole.
+        store.forget(listOf("/a.jpg"))
+        assertNull(files.sizeOf(FaceRejections.pathBeside(path)))
+    }
+
     private class MapFileDatabase : FileDatabase {
         private val files = mutableMapOf<String, ByteArray>()
 
@@ -207,7 +337,13 @@ class DefaultFaceTemplateStoreTest {
             }
         }
 
+        /** Writes to this path throw — a disk that refuses one file mid-operation. */
+        var failWritesTo: String? = null
+
+        fun read(filePath: String): String? = files[filePath]?.decodeToString()
+
         override fun writeRawByteArray(filePath: String, bytes: ByteArray) {
+            if (filePath == failWritesTo) error("refused: $filePath")
             files[filePath] = bytes
         }
 

@@ -99,6 +99,10 @@
     <string name="welcome_start_fresh">Auf diesem Gerät neu beginnen</string>
     <string name="welcome_existing_device">Ich habe Tenshu auf einem anderen Gerät</string>
     <string name="welcome_recover_phrase">Mit Wiederherstellungsphrase wiederherstellen</string>
+    <string name="welcome_forget_still_listed">Dieses Gerät wird eventuell noch in deiner Geräteliste angezeigt. Um es ganz zu entfernen, öffne Tenshu Control auf einem anderen Gerät und entferne es unter Realm-Geräte.</string>
+    <string name="welcome_forget_key_not_saved">Der neue Schlüssel dieses Geräts konnte nicht gespeichert werden. Beende Tenshu Control und öffne es erneut, bevor du es koppelst.</string>
+    <string name="welcome_forget_not_finished">Das Vergessen dieses Geräts wurde nicht abgeschlossen. Beende Tenshu Control, öffne es erneut und vergiss das Gerät noch einmal.</string>
+    <string name="welcome_forget_data_not_cleared">Einige frühere Daten konnten nicht von diesem Gerät entfernt werden. Sie werden nicht mehr synchronisiert.</string>
 
     <string name="new_user_registering">Dein Realm wird registriert</string>
     <string name="new_user_youre_set_up">Alles eingerichtet</string>
@@ -146,7 +150,7 @@
     <string name="forget_device_support">Dieses Gerät aus deinem Realm entfernen und hier neu beginnen.</string>
     <string name="forget_device_title">Dieses Gerät vergessen?</string>
     <string name="forget_device_body">Dieses Gerät verlässt dein Realm und vergisst, wer es war. Du kannst es später erneut einrichten, aber es tritt als neues Gerät bei – seinen Namen und seine Einstellungen hier erhält es nicht zurück.</string>
-    <string name="forget_device_phrase_warning">Dieses Gerät enthält deine Wiederherstellungsphrase. Möglicherweise ist das die einzige Kopie. Schreib sie auf, bevor du fortfährst – ohne sie kann niemand mehr Geräte zu diesem Realm hinzufügen.</string>
+    <string name="forget_device_phrase_warning">Dieses Gerät enthält deine Wiederherstellungsphrase. Möglicherweise ist das die einzige Kopie. Schreib sie auf, bevor du fortfährst – ohne sie lässt sich dein Realm nicht wiederherstellen, sobald deine anderen Geräte weg sind.</string>
     <string name="forget_device_acknowledge">Ich habe meine Wiederherstellungsphrase notiert</string>
     <string name="forget_device_confirm">Gerät vergessen</string>
     <string name="forget_device_cancel">Abbrechen</string>
@@ -266,6 +270,9 @@
     <string name="sync_dashboard_message_dismiss">OK</string>
     <string name="device_revoke_dialog_title">Dieses Gerät entfernen?</string>
     <string name="device_revoke_dialog_body">„%1$s“ verliert sofort den Zugriff auf deine Dateien, und das kann nicht rückgängig gemacht werden. Du kannst das Gerät später erneut einrichten, aber es tritt als neues Gerät bei – seinen Namen und seine Einstellungen hier erhält es nicht zurück.</string>
+    <string name="device_revoke_dialog_admittees_intro">Diese Geräte geben an, dass „%1$s“ sie hinzugefügt hat. Willst du ihnen weiter vertrauen? Entferne das Häkchen, um ein Gerät ebenfalls zu entfernen. Jedes Gerät meldet das selbst – die Liste ist ein Anhaltspunkt, keine Garantie.</string>
+    <string name="device_revoke_dialog_keep_admittee">„%1$s“ behalten</string>
+    <string name="device_revoke_dialog_unlisted">%1$d weitere Geräte geben nicht an, wer sie hinzugefügt hat, oder nennen ein Gerät, das hier nicht ist, und stehen deshalb nicht in der Liste. Du kannst jedes davon in der Geräteliste entfernen.</string>
     <string name="device_revoke_dialog_acknowledge">Mir ist klar, dass das nicht rückgängig gemacht werden kann</string>
     <string name="device_revoke_dialog_confirm">Gerät entfernen</string>
     <string name="device_revoke_dialog_cancel">Abbrechen</string>
@@ -570,6 +577,9 @@
 
     <string name="pairing_error_admitter_unrecognised">Dieses Gerät wird vom Relay nicht mehr erkannt und kann daher kein anderes Gerät hinzufügen. Kopple dieses Gerät erneut und versuche es dann noch einmal.</string>
     <string name="pairing_error_no_authority">Dieses Gerät kann noch keine anderen Geräte hinzufügen. Schließ zuerst seine Einrichtung ab.</string>
+    <string name="pairing_error_device_removed">Das Gerät wurde schon einmal aus deinem Realm entfernt und kann nicht als dasselbe Gerät zurückkehren. Um es wieder hinzuzufügen, wähle dort „Dieses Gerät vergessen“ und kopple es dann erneut.</string>
+    <string name="pairing_error_this_device_removed">Dieses Gerät wurde schon einmal aus diesem Realm entfernt und kann nicht als dasselbe Gerät zurückkehren. Wähle „Dieses Gerät vergessen“ und kopple es dann erneut.</string>
+    <string name="pairing_error_approver_revoked">Dieses Gerät kann keine Geräte mehr hinzufügen. Entferne es und kopple es von einem anderen Gerät aus neu.</string>
 
     <!-- Account deletion (commerce-accounts-and-sessions.md §9.7) -->
     <string name="services_delete_account">Konto löschen</string>

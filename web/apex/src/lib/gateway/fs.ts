@@ -107,6 +107,12 @@ export const fsGateway: GatewayModule = {
       const { path, px } = readLargePreview(params)
       return FileSystem.getLargePreview(path, px)
     },
+    // A Retina grid tile's sharp rung, pulled and dropped again (nothing new kept in the store).
+    'fs.getTilePreview': async (params) => {
+      const r = asRecord(params)
+      if (typeof r.path !== 'string') throw new Error('fs.getTilePreview requires { path }')
+      return FileSystem.getTilePreview(r.path)
+    },
   },
 }
 

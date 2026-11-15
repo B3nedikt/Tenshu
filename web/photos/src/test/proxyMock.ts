@@ -70,9 +70,22 @@ export const proxy = {
     thumbnailClass: null,
     coveringRung: 'unknown',
   })),
+  getTilePreview: vi.fn(async (_p: string): Promise<LargePreview> => ({
+    ok: true,
+    bytes: null,
+    thumbnailClass: null,
+    coveringRung: 'unknown',
+  })),
   openContentStream: vi.fn(async (_p: string) => ({ ok: false as const, error: { kind: 'error_generic' } }) as unknown),
   readContentRange: vi.fn(async (_h: string, _o: number, _l: number) => ({ ok: true as const, bytes: new Int8Array(0) }) as unknown),
   closeContentStream: vi.fn(async (_h: string) => {}),
+  // L6: no stored density by default (no sync identity yet).
+  photoSettings: vi.fn(async () => ({ ok: false as const, error: { kind: 'no_device' } }) as unknown),
+  // L7: no matches by default.
+  searchPhotos: vi.fn(async (_n: string | null, _f: number | null, _t: number | null) => ({ ok: true as const, photos: [] as Photo[], truncated: false }) as unknown),
+  setPhotoDensity: vi.fn(async (_d: string) => ({ ok: true }) as unknown),
+  setPhotoLayout: vi.fn(async (_m: boolean, _f: boolean) => ({ ok: true }) as unknown),
+  setPhotoColumns: vi.fn(async (_c: number) => ({ ok: true }) as unknown),
 }
 
 export const proxyModule = { ...proxy, ProxyMethod: {}, APEX: 'http://localhost:5173' }

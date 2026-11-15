@@ -66,6 +66,38 @@
         { "role": "vocabulary", "path": "siglip-base-patch16-256-multilingual/1/tokenizer.bin",
           "sha256": "0077b8d2b79f30ff96015e1b76ff4c7d3d036667083e8a4da3bf1ee3df3d34aa", "byteSize": 3066150 }
       ]
+    },
+    {
+      "id": "auraface-v1-int8",
+      "name": "People (AuraFace + Apple Vision)",
+      "version": 1,
+      "capabilities": ["faceClustering"],
+      "runtime": "coreml+vision",
+      "artifactVersion": 1,
+      "licence": "Apache-2.0",
+      "source": {
+        "repo": "fal/AuraFace-v1",
+        "revision": "af6d057c9b0ec4071d4c49c80e3539258798b609",
+        "files": {
+          "glintr100.onnx": "a7933ea5330113b01c9b60351d8f4c33003f145d8470ac5f0e52ee2effe25c60"
+        },
+        "toolchain": {
+          "coremltools": "9.0",
+          "numpy": "2.2.6",
+          "onnx": "1.23.2",
+          "onnx2torch": "1.5.15",
+          "onnxruntime": "1.31.1",
+          "pillow": "13.0.0",
+          "pinned": true,
+          "python": "3.13.7",
+          "torch": "2.7.0"
+        },
+        "exportManifestSha256": "984e39d3d798f90ef74983a76cd1edf2de7272a5f79e579860ddd75d1fffd87f"
+      },
+      "artifacts": [
+        { "role": "faceEmbedder", "path": "auraface-v1-int8/1/coreml/auraface_fp16.mlpackage.tar",
+          "sha256": "d503f893c01153ae9fbc241973c797578b537d9dd4e6962d3326ec71a5c3b80c", "byteSize": 130631680 }
+      ]
     }
   ]
 }

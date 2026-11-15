@@ -1,5 +1,6 @@
 package app.tenshu.photos.ui.screens.collections
 
+import app.tenshu.ui.layout.LocalNavBarClearance
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -107,7 +108,8 @@ fun CollectionsScreen(
 
         is CollectionsLayout.Content -> LazyColumn(
             modifier = modifier.fillMaxSize(),
-            contentPadding = PaddingValues(vertical = 12.dp),
+            // The bottom also clears the floating nav pill, which the list scrolls under.
+            contentPadding = PaddingValues(top = 12.dp, bottom = 12.dp + LocalNavBarClearance.current),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             layout.refreshFailure?.let { failure ->

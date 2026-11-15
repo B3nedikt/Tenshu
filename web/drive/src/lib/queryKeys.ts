@@ -21,6 +21,8 @@ export const queryKeys = defineQueryKeys({
   // (X-5's lightbox asks for 2048). One key for two sizes serves whichever landed first.
   preview: (path: string, px: number) => ['preview', path, px] as const,
   storageStatus: () => ['storageStatus'] as const,
+  // L6: this browser's remembered listing display (one read, shared by the listing and the pane).
+  driveSettings: () => ['driveSettings'] as const,
   syncHealth: () => ['syncHealth'] as const,
   contentTransfer: () => ['contentTransfer'] as const,
   schemaFence: () => ['schemaFence'] as const,

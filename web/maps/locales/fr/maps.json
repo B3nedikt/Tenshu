@@ -1,8 +1,4 @@
 {
-  "app": {
-    "title": "Maps",
-    "tagline": "Vos lieux, chiffrés de bout en bout."
-  },
   "runtime": {
     "connectingTitle": "Connexion à Tenshu en cours…",
     "connectingBody": "L’onglet Tenshu qui héberge Maps est occupé. Maps se chargera dès qu’il répondra.",

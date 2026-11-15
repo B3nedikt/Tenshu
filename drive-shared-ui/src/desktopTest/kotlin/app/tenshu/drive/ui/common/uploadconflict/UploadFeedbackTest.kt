@@ -9,6 +9,7 @@ import app.tenshu.drive.ui.common.addfileactions.AddFileActionsViewModel
 import app.tenshu.drive.ui.common.addfileactions.UploadConflict
 import app.tenshu.ui.theme.TenshuTheme
 import kotlin.test.Test
+import org.tenshu.ui.test.NoMotion
 
 /**
  * The single-file upload's feedback surface. Only the conflict half existed before — every other
@@ -18,7 +19,7 @@ import kotlin.test.Test
 class UploadFeedbackTest {
 
     @Test
-    fun aConflictOffersKeepBoth() = runComposeUiTest {
+    fun aConflictOffersKeepBoth() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 UploadFeedback(
@@ -37,7 +38,7 @@ class UploadFeedbackTest {
     }
 
     @Test
-    fun aFailedUploadIsReported() = runComposeUiTest {
+    fun aFailedUploadIsReported() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 UploadFeedback(
@@ -57,7 +58,7 @@ class UploadFeedbackTest {
     }
 
     @Test
-    fun runningOutOfCopyNamesIsItsOwnMessage() = runComposeUiTest {
+    fun runningOutOfCopyNamesIsItsOwnMessage() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 UploadFeedback(
@@ -80,7 +81,7 @@ class UploadFeedbackTest {
     }
 
     @Test
-    fun nothingIsShownWhenThereIsNothingToSay() = runComposeUiTest {
+    fun nothingIsShownWhenThereIsNothingToSay() = runComposeUiTest(effectContext = NoMotion) {
         setContent {
             TenshuTheme {
                 UploadFeedback(

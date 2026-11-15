@@ -86,3 +86,36 @@ interface LaneAwareDataObserver : DataObserver {
     override fun onDataSaved(data: Data, origin: WriteOrigin) =
         onDataSaved(data, origin, syncLaneId = null)
 }
+
+/**
+ * A [DataObserver] that is additionally told whether a save was **redundant** — every entry it
+ * wrote was already stored with identical content ([Database.saveDataReportingChange];
+ * `docs/proposals/core-deterministic-invalidation.md` §8).
+ *
+ * Opt-in exactly like [LaneAwareDataObserver]: [ObserverRegistry] dispatches the three-arg overload
+ * only to implementors, and [ExecutionContext.saveData] pays for the comparison only while at least
+ * one is registered. The intended consumer is the reactive-notification side of relation
+ * maintenance, which has no reason to re-evaluate a listing over bytes that did not change.
+ *
+ * ⚠ **Redundant is not "from sync", and not "my own echo".** It is store equality, nothing more —
+ * a peer's write, a rehydrating store's first sight of its own history, and a slice-snapshot row are
+ * all non-redundant by construction, because the stored row differs or is absent.
+ *
+ * ⚠ Not combinable with [LaneAwareDataObserver] today: the registry picks the lane-aware overload
+ * first, so an observer implementing both would never see [redundant].
+ */
+interface SaveOutcomeAwareDataObserver : DataObserver {
+
+    /** [redundant] `== true` only when the store provably did not change; unknown is `false`. */
+    fun onDataSaved(data: Data, origin: WriteOrigin, redundant: Boolean)
+
+    /**
+     * Whether this observer would act on [redundant] for [data] at all. The store comparison costs a
+     * read per written entry, so a save is compared only when some observer answers `true` here;
+     * otherwise it is dispatched with `redundant = false`. Defaulted to `true` — the safe direction.
+     */
+    fun wantsSaveOutcome(data: Data): Boolean = true
+
+    override fun onDataSaved(data: Data, origin: WriteOrigin) =
+        onDataSaved(data, origin, redundant = false)
+}

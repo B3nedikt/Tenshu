@@ -54,6 +54,18 @@ class BackupNotificationTest {
         assertEquals("", notification(BackupState.JustFinished(4, 0))?.text)
     }
 
+    /** A file skipped because the realm already holds it is neither uploaded nor failed — but it is
+     *  not nothing, and a summary that drops it reads as "backup did nothing". */
+    @Test
+    fun justFinished_countsWhatTheRealmAlreadyHeld() {
+        val allHeld = notification(BackupState.JustFinished(0, 0, alreadyInRealm = 3))
+        assertEquals("Nothing new to back up", allHeld?.title)
+        assertEquals("3 already in your Drive", allHeld?.text)
+        val some = notification(BackupState.JustFinished(2, 0, alreadyInRealm = 1))
+        assertEquals("Backed up 2 files", some?.title)
+        assertEquals("1 already in your Drive", some?.text)
+    }
+
     @Test
     fun idlePausedUpToDate_showNothing() {
         assertNull(notification(BackupState.Disabled))

@@ -17,6 +17,7 @@ import app.tenshu.drive.ui.selection.SelectionViewModel
 import app.tenshu.ui.theme.TenshuTheme
 import app.tenshu.drive.composeVmTest
 import kotlinx.coroutines.runBlocking
+import kotlin.coroutines.EmptyCoroutineContext
 import org.junit.After
 import org.junit.Test
 import org.koin.core.context.GlobalContext
@@ -27,7 +28,7 @@ import org.koin.core.context.GlobalContext
  * WITHOUT re-navigating (not only after switching to Home and back).
  *
  * The other listing tests do not cover this path:
- *  - [FilesScreenIntegrationTest] swaps in a static `StaticPagingFilesRepository`,
+ *  - [FilesScreenIntegrationTest] swaps in a static `IdlingFilesRepository`,
  *    routing around the real `pagingSource` observer entirely.
  *  - [FilesPagingIntegrationTest] exercises the real repository flow (and proves
  *    it IS reactive — `pagedListingEmitsNewGenerationWhenFolderCreatedWhileCollecting`),
@@ -56,9 +57,11 @@ class FilesPagingReactivityUiTest {
         stopAppIntegrationKoin()
     }
 
+    // ⚠ Real motion (`EmptyCoroutineContext`, not `NoMotion`): this is one of the paging reactivity
+    // guards, and a guard is not where a speed-up is taken (docs/testing.md §13).
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun folderCreatedWhileListingIsOpenAppearsWithoutRenavigating() = composeVmTest { vms ->
+    fun folderCreatedWhileListingIsOpenAppearsWithoutRenavigating() = composeVmTest(effectContext = EmptyCoroutineContext) { vms ->
         startGlobalAppIntegrationKoin(clientId = "app.tenshu.drive.test")
         val repo = GlobalContext.get().get<FilesRepository>()
         val offlinePreferences = GlobalContext.get().get<OfflinePreferences>()

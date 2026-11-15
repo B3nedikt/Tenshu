@@ -64,6 +64,11 @@ import org.tenshu.core.trait.TraitResolver
  * @param streamScope the scope the session's stream elements are delivered on
  *   ([forwardStreamElementsInOrder]); [serviceScope] unless a test needs to hold delivery alone
  *   (`StreamResubscribeStaleBacklogTest`), as `ProxyModule`'s `clientStreamScope` does.
+ * @param clientScope where the client half runs a cancellable task's round trip
+ *   ([DefaultInteractorProvider]'s `clientScope`). Its own default, a `Dispatchers.Default` scope,
+ *   unless a test needs every dispatcher on the path to be its own: a `runTest` that passes its
+ *   `backgroundScope` here and as [serviceScope] runs the whole stack on virtual time
+ *   (`StreamSubscribeRetryTest`; `docs/testing.md` §10).
  */
 class InProcessProxy(
     private val clientId: String,
@@ -75,6 +80,7 @@ class InProcessProxy(
     clientConnectionFactory: (clientId: String) -> ClientConnection = { LocalClientConnection() },
     initialization: ExecutionContext.() -> Unit = {},
     private val streamScope: CoroutineScope = serviceScope,
+    clientScope: CoroutineScope? = null,
 ) {
 
     private val componentsMap = mutableMapOf<String, TComponent>()
@@ -118,7 +124,9 @@ class InProcessProxy(
      * why iOS route-1 and the web runtime are immune to that bug — but this is the only harness with
      * a real stream stack, so it is where the client-side half of the contract can be exercised.
      */
-    internal val interactorProvider = DefaultInteractorProvider { localTaskExecutor }
+    internal val interactorProvider =
+        if (clientScope == null) DefaultInteractorProvider { localTaskExecutor }
+        else DefaultInteractorProvider(clientScope) { localTaskExecutor }
 
     private val pureOperationRunner: PureOperationRunner =
         PureOperationRunnerImplementation({ tContext }) { operationImplementationFactory }

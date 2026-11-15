@@ -9,11 +9,12 @@ import org.junit.Rule
 import org.junit.Test
 import org.tenshu.core.ingest.IngestSource
 import kotlin.test.assertEquals
+import org.tenshu.ui.test.NoMotion
 
 class BackgroundIngestScreenTest {
 
     @get:Rule
-    val composeTestRule = createComposeRule()
+    val composeTestRule = createComposeRule(NoMotion)
 
     private fun source(enabled: Boolean = true) = IngestSourceModel(
         key = "drive.gallery@dev1",

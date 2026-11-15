@@ -12,6 +12,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.tenshu.inference.IndexPassRefused
+import org.tenshu.inference.proxy.ContinuationStanding
 import org.tenshu.inference.proxy.DeviceIndexingState
 import org.tenshu.inference.proxy.ForegroundIndexing
 import org.tenshu.inference.proxy.ForegroundIndexingConditions
@@ -125,6 +126,42 @@ class ForegroundIndexSourceTest {
         readiness.value = 2
         runCurrent()
         assertEquals(StoredIndex(null, clearedByOsUpdate = false), seen.last())
+    }
+
+    /**
+     * ⚠⚠ The running line's input (§15.7 Q2): `true` only while a launched task carries the pass. A
+     * request submitted (accepted or not yet answered) is not, and no continuation is never.
+     */
+    @Test
+    fun continuedIsTrueOnlyWhileALaunchedTaskCarriesThePass() = runTest {
+        val claim = MutableStateFlow(ContinuationStanding.NONE)
+        fun over(continuation: () -> kotlinx.coroutines.flow.Flow<ContinuationStanding>?) = ForegroundIndexSource(
+            driver = { null },
+            runnerStanding = { MutableStateFlow<PassStanding>(PassStanding.Idle(null)) },
+            progress = HolderIndexProgressSource(IndexProgressHolder()),
+            coverage = LastIndexCoverage(),
+            searchable = { null },
+            clearedByOsUpdate = { MutableStateFlow(false) },
+            alsoWhen = { MutableStateFlow(0) },
+            continuation = continuation,
+            context = UnconfinedTestDispatcher(testScheduler),
+        )
+        val seen = mutableListOf<Boolean>()
+        val watch = CoroutineScope(UnconfinedTestDispatcher(testScheduler) + Job())
+        watch.launch { over { claim }.continued.collect { seen += it } }
+        claim.value = ContinuationStanding.SUBMITTED
+        runCurrent()
+        assertEquals(listOf(false), seen, "a submitted request counted as carrying the pass")
+        claim.value = ContinuationStanding.LIVE
+        runCurrent()
+        assertEquals(listOf(false, true), seen, "a launched task not counted")
+        claim.value = ContinuationStanding.NONE
+        runCurrent()
+        assertEquals(listOf(false, true, false), seen, "a released task still counted")
+        watch.cancel()
+        // No continuation in this graph (below iOS 26), and the default.
+        assertEquals(false, over { null }.continued.first())
+        assertEquals(false, over { null }.let { it as OnDeviceIndexSource }.continued.first())
     }
 
     /**

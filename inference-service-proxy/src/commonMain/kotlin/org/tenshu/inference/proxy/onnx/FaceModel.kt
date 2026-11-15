@@ -47,6 +47,34 @@ data class FaceModel(
         const val RUNTIME = "onnx+mediapipe"
 
         /**
+         * ⚠⚠ The catalog runtime of the iOS face pair (`ios-face-grouping.md` §12.3): Apple Vision
+         * detects — a system framework, so nothing to download — and a Core ML archive embeds. Never
+         * bare `"coreml"`: Photos on iOS contributes that for SigLIP alone, and would be offered a
+         * ~130 MB face archive nothing in it can run.
+         */
+        const val COREML_VISION_RUNTIME = "coreml+vision"
+
+        /**
+         * ⚠⚠ The iOS detection pipeline's stamp — the third field of every iOS face template's
+         * provenance, as `FaceDetectionStrategy.pipelineVersion` is on Android.
+         *
+         * ⚠ Drawn from **≥ 100**, a range Android never uses (it has used 0, 1–4, 11–14 and 21–24),
+         * so an iOS stamp can never read as an Android pipeline. Like Android's, a new Vision
+         * revision, mapping or confidence floor takes a NEW number, which is what re-indexes; never
+         * reuse one.
+         */
+        const val VISION_PIPELINE_VERSION = 100
+
+        /**
+         * ⚠⚠ The `VNDetectFaceLandmarksRequest` revision [VISION_PIPELINE_VERSION] was measured at
+         * (F1a, F1b: `VNDetectFaceLandmarksRequestRevision3`, the 76-point constellation), pinned on
+         * every request (FD9). ⚠ The pair moves together: another revision is another pipeline, so
+         * a new [VISION_PIPELINE_VERSION] — `FaceModelTest` pins the two side by side. It is also in
+         * the face preflight key (`RuntimeFingerprint.detectorRevision`).
+         */
+        const val VISION_LANDMARKS_REVISION = 3
+
+        /**
          * The published ArcFace 112×112 constellation, `models.md` §5.6 — verified three ways and
          * shared by the whole ArcFace family, AuraFace included.
          */
@@ -81,6 +109,29 @@ data class FaceModel(
             // ⚠⚠ OFF (§12.15): 15.0 was measured on full-resolution originals, and on the
             // maintainer's library — indexed mostly from 1024 px previews — it rejected 26 real faces
             // alongside 22 non-faces. Re-enable only with a threshold measured on PREVIEWS.
+            minFaceNorm = null,
+        )
+
+        /**
+         * ⭐ The iOS twin of [PinnedAuraFace]: the SAME checkpoint (`glintr100.onnx`) converted to a
+         * Core ML fp16 archive (`ios-face-grouping.md` §10.2, §12), run under
+         * [COREML_VISION_RUNTIME] beside Apple Vision.
+         *
+         * ⚠⚠ **Same id and version on purpose** (FD4): one checkpoint is one catalog id across
+         * runtimes, so the catalog entry is `(auraface-v1-int8, 1)` under its own runtime. What
+         * tells an iOS stamp from an Android one is the pipeline field, [VISION_PIPELINE_VERSION].
+         * The `-int8` is wrong for an fp16 file and is a recorded wart (§12.3).
+         *
+         * Same template, profile and width as Android: the archive's I/O is `input` Float32
+         * `[1, 3, 112, 112]` → `embedding` 512 wide (§12.1). No norm gate, for [PinnedAuraFace]'s
+         * reason.
+         */
+        val AuraFaceCoreMl = FaceModel(
+            modelId = "auraface-v1-int8",
+            modelVersion = 1,
+            template = ArcFaceTemplate,
+            profile = ImagePreprocessing.Profile.SIGLIP,
+            dimensions = 512,
             minFaceNorm = null,
         )
     }

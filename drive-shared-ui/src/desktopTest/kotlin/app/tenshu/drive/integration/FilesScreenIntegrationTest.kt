@@ -1,8 +1,9 @@
 package app.tenshu.drive.integration
 
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.test.ComposeUiTest
+import androidx.compose.ui.test.DesktopComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotFocused
@@ -16,26 +17,19 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
-import androidx.paging.LoadState
-import androidx.paging.LoadStates
-import androidx.paging.PagingData
-import app.tenshu.drive.data.FileSort
-import app.tenshu.drive.data.FileModel
+import app.tenshu.drive.composeDesktopVmTest
 import app.tenshu.drive.data.FilesRepository
+import app.tenshu.drive.data.RepositoryResult
 import app.tenshu.drive.data.TenshuFilesRepository
+import app.tenshu.drive.integration.utils.IdlingFilesRepository
+import app.tenshu.drive.integration.utils.RepositoryIdling
 import app.tenshu.drive.integration.utils.startGlobalAppIntegrationKoin
 import app.tenshu.drive.integration.utils.stopAppIntegrationKoin
 import app.tenshu.drive.ui.App
 import app.tenshu.drive.ui.common.addfileactions.AddFileActionsViewModel
 import app.tenshu.drive.ui.common.preview.previewImageTestTag
 import app.tenshu.ui.theme.TenshuTheme
-import app.tenshu.drive.composeVmTest
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -43,30 +37,47 @@ import org.junit.Test
 import org.koin.compose.koinInject
 import org.koin.core.context.GlobalContext
 import org.koin.dsl.module
+import org.tenshu.viewmodel.test.OwnedViewModels
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Ceiling for every wait in this class: each one awaits work on real threads (Compose frames
- * rendered on the AWT thread, the in-process proxy on `Dispatchers.Default`), so its duration is
- * whatever the scheduler gives this JVM.
+ * Hang guard for the two waits that remain condition waits — see [awaitUi]. Each awaits work
+ * on a thread no idling resource covers, so its duration is whatever the scheduler gives this
+ * JVM. It only elapses on a genuine failure; a satisfied condition returns at once.
  *
- * ⚠ `waitUntil`'s 1 s default is NOT ample: a wait takes 20–180 ms on a box other builds are
- * using, but measured up to 1.2 s under 28 CPU burners and 3.7 s beside a sibling Gradle build,
- * with the JVM getting a third of a core for the duration. It only
- * elapses on a genuine failure — a satisfied condition returns at once — so the price of the
- * margin is a slower red, never a slower green.
- *
- * ⚠⚠ It cannot paper over a lost update — a listing that never re-emits, the test thread
- * spinning frames at full speed for the whole wait (`ReferenceCollectorConfinementTest` pins
- * one). An update that is lost never arrives at any ceiling.
+ * ⚠⚠ It cannot paper over a lost update, and raising it is never the fix: an update that is
+ * lost never arrives at any ceiling.
  */
 private const val UI_WAIT_TIMEOUT_MS = 10_000L
 
 /** How long `testTheShellWaitsForTheRealmRead` keeps the realm read unanswered. */
 private const val REALM_READ_HELD_MS = 200L
 
+/**
+ * How many of Compose's idle polls `testASlowUploadIsAwaitedNotTimed` holds an upload open for.
+ * A count, not a duration: the test is about *what* the UI waits on, not how long.
+ */
+private const val UPLOAD_HELD_FOR_POLLS = 10
+
+/**
+ * Drive's file screen over a real in-process proxy: one UI round trip per behaviour.
+ *
+ * ⚠⚠ **Assertions follow an action directly; they do not poll.** [RepositoryIdling] is
+ * registered with Compose, so the implicit `waitForIdle()` before every node lookup waits for
+ * the repository calls the action started, the listing's re-emission that reflects them, and
+ * the EDT work that presents both. That is the happens-before; a real-time `waitUntil` was not
+ * one: under load its budget (1 000 ms when they were filed) is what failed
+ * `testFileUploadConflictShowsDialog` and `testTwoUploadsShowCorrectDetailImage`
+ * (`docs/testing-flakes.md`, category C), and a larger one only moves the line.
+ * `testASlowUploadIsAwaitedNotTimed` pins it.
+ *
+ * What a repository-level test covers instead, with no UI: paging and listing data
+ * (`FilesPagingIntegrationTest`), and the upload round trip, its `AlreadyExists` and the bytes
+ * it reads back (`UploadFileIntegrationTest`).
+ */
 class FilesScreenIntegrationTest {
 
     // Shared owner for the App's ViewModels (JUnit news up a fresh instance per
@@ -84,13 +95,18 @@ class FilesScreenIntegrationTest {
      */
     private var realmReadHeld: CompletableDeferred<Unit>? = null
 
+    private val idling = RepositoryIdling()
+
+    /** The graph's [FilesRepository], which is the [IdlingFilesRepository] bound in [setup]. */
+    private val filesRepository: IdlingFilesRepository
+        get() = GlobalContext.get().get<FilesRepository>() as IdlingFilesRepository
+
     @Before
     fun setup() {
-        // Override the listing's paged source with a static one (see
-        // [StaticPagingFilesRepository]). The live TenshuPagingSource keeps an
-        // infinite reactive observer open, which hangs a 2nd runComposeUiTest in
-        // the same JVM. The real paging machinery is covered separately by
-        // FilesPagingIntegrationTest (asSnapshot over the real chain).
+        // Override the listing's paged source with a static one (see [IdlingFilesRepository]).
+        // The live TenshuPagingSource keeps an infinite reactive observer open, which hangs a
+        // 2nd runComposeUiTest in the same JVM. The real paging machinery is covered separately
+        // by FilesPagingIntegrationTest (asSnapshot over the real chain).
         startGlobalAppIntegrationKoin(
             clientId = "app.tenshu.drive.test",
             controlHasRealm = {
@@ -100,9 +116,7 @@ class FilesScreenIntegrationTest {
             additionalModules = listOf(
                 module {
                     single<FilesRepository> {
-                        StaticPagingFilesRepository(
-                            TenshuFilesRepository(get(), get(), get(), get())
-                        )
+                        IdlingFilesRepository(TenshuFilesRepository(get(), get(), get(), get()), idling)
                     }
                 }
             )
@@ -115,24 +129,44 @@ class FilesScreenIntegrationTest {
     }
 
     @OptIn(ExperimentalTestApi::class)
-    @Test
-    fun testInitialEmptyList() = composeVmTest { vms ->
+    private fun DesktopComposeUiTest.startApp(vms: OwnedViewModels, app: @Composable () -> Unit = { App() }) {
         vms.ownStore(viewModelStoreOwner.viewModelStore)
+        // ⚠ A desktop test only: a plain `runComposeUiTest` never polls it (`composeDesktopVmTest`).
+        registerIdlingResource(idling)
         setContent {
             TenshuTheme {
-                CompositionLocalProvider(
-                    LocalViewModelStoreOwner provides viewModelStoreOwner
-                ) {
-                    App()
+                CompositionLocalProvider(LocalViewModelStoreOwner provides viewModelStoreOwner) {
+                    app()
                 }
             }
         }
+    }
 
+    /** `App` whose image picker answers [uri], uploaded through the real FAB view model. */
+    @Composable
+    private fun AppUploading(uri: String) {
+        val fabViewModel: AddFileActionsViewModel = koinInject()
+        App(
+            fabViewModel = fabViewModel,
+            onUploadImages = { parentPath -> fabViewModel.uploadFile(uri, parentPath) }
+        )
+    }
+
+    /** Puts a file in place before the UI exists, for tests whose subject is not the upload. */
+    private fun seed(uri: String, fileName: String) = runBlocking {
+        val result = filesRepository.uploadFile(uri, "/", fileName)
+        assertTrue(result is RepositoryResult.Success, "seeding $fileName: $result")
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun testInitialEmptyList() = composeDesktopVmTest { vms ->
+        startApp(vms)
         openFilesTab()
 
         // ⚠ The assertion is what makes this test: without it, clicking through
         // passes whatever the tab renders, including a spinner (see
-        // [StaticPagingFilesRepository]: a listing whose load states are never
+        // [IdlingFilesRepository]: a listing whose load states are never
         // stated is pinned in `Loading`, and `PagedFilesList` answers
         // zero-items-while-loading with an `AppLoadingIndicator`).
         //
@@ -140,9 +174,6 @@ class FilesScreenIntegrationTest {
         // error arm — absence of data is not evidence of absence of files, and
         // that distinction is the whole point of `PagedFilesList`'s three-way
         // branch.
-        awaitUi {
-            onAllNodesWithText("No files here yet").fetchSemanticsNodes().isNotEmpty()
-        }
         onNodeWithText("No files here yet").assertIsDisplayed()
     }
 
@@ -152,18 +183,9 @@ class FilesScreenIntegrationTest {
      */
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun testTheShellWaitsForTheRealmRead() = composeVmTest { vms ->
-        vms.ownStore(viewModelStoreOwner.viewModelStore)
+    fun testTheShellWaitsForTheRealmRead() = composeDesktopVmTest { vms ->
         val held = CompletableDeferred<Unit>().also { realmReadHeld = it }
-        setContent {
-            TenshuTheme {
-                CompositionLocalProvider(
-                    LocalViewModelStoreOwner provides viewModelStoreOwner
-                ) {
-                    App()
-                }
-            }
-        }
+        startApp(vms)
 
         // The read is held, so this is the gate for as long as we care to look.
         onNodeWithText("Files").assertDoesNotExist()
@@ -179,360 +201,115 @@ class FilesScreenIntegrationTest {
         try {
             openFilesTab()
             assertTrue(answered.get(), "the Files tab was opened before the realm read had answered")
-            awaitUi { onAllNodesWithText("No files here yet").fetchSemanticsNodes().isNotEmpty() }
+            onNodeWithText("No files here yet").assertIsDisplayed()
         } finally {
             held.complete(Unit)
             answering.join()
         }
     }
 
+    /**
+     * Folders end to end: create one at the root, open it, create a folder and upload a file
+     * inside it, and come back to a root that shows neither.
+     *
+     * Also: creating a folder does not hand focus to the search bar. And a file uploaded inside
+     * a folder shows up in that folder's own listing, not only as the parent's file count over a
+     * folder that opens empty — the FAB's `parentPath` is the current navigation path.
+     */
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun testCreateFolderAndNavigation() = composeVmTest { vms ->
-        vms.ownStore(viewModelStoreOwner.viewModelStore)
-        setContent {
-            TenshuTheme {
-                CompositionLocalProvider(
-                    LocalViewModelStoreOwner provides viewModelStoreOwner
-                ) {
-                    App()
-                }
-            }
-        }
-
+    fun testCreateFolderAndNavigation() = composeDesktopVmTest { vms ->
+        startApp(vms) { AppUploading("mock://nested.jpg") }
         openFilesTab()
 
-        // 1. Create a folder at root
-        onNodeWithContentDescription("Add").performClick()
-
-        awaitUi {
-            onAllNodesWithText("Folder").fetchSemanticsNodes().isNotEmpty()
-        }
-        onNodeWithText("Folder").performClick()
-
-        awaitUi {
-            onAllNodesWithText("Create new folder").fetchSemanticsNodes().isNotEmpty()
-        }
-        onNodeWithText("Folder name").performTextReplacement("documents")
-        onNodeWithText("Confirm").performClick()
-
-        // Verify it appears in root list
-        awaitUi {
-            onAllNodesWithText("documents").fetchSemanticsNodes().isNotEmpty()
-        }
+        // 1. Create a folder at root.
+        createFolder("documents")
         onNodeWithText("documents").assertIsDisplayed()
+        onNodeWithText("Search").assertIsNotFocused()
 
-        // 2. Navigate into /documents
+        // 2. Navigate into /documents.
         onNodeWithText("documents").performClick()
-        awaitUi {
-            onAllNodesWithText("/documents").fetchSemanticsNodes().isNotEmpty()
-        }
         onNodeWithText("/documents").assertIsDisplayed()
 
-        // 3. Create a folder inside the folder
-        onNodeWithContentDescription("Add").performClick()
-        awaitUi {
-            onAllNodesWithText("Folder").fetchSemanticsNodes().isNotEmpty()
-        }
-        onNodeWithText("Folder").performClick()
-
-        awaitUi {
-            onAllNodesWithText("Create new folder").fetchSemanticsNodes().isNotEmpty()
-        }
-        onNodeWithText("Folder name").performTextReplacement("work")
-        onNodeWithText("Confirm").performClick()
-
-        // Verify 'work' is there
-        awaitUi {
-            onAllNodesWithText("work").fetchSemanticsNodes().isNotEmpty()
-        }
+        // 3. A folder and a file inside it.
+        createFolder("work")
         onNodeWithText("work").assertIsDisplayed()
+        onNodeWithContentDescription("Add").performClick()
+        onNodeWithText("Images").performClick()
+        onNodeWithText("nested.jpg").assertIsDisplayed()
 
-        // 4. Navigate back to root
+        // 4. Back to the root, which holds neither.
         onNodeWithContentDescription("Back").performClick()
-        awaitUi {
-            onAllNodesWithText("documents").fetchSemanticsNodes().isNotEmpty()
-        }
         onNodeWithText("documents").assertIsDisplayed()
-
-        // Verify 'work' is NOT in root
         onNodeWithText("work").assertDoesNotExist()
+        onNodeWithText("nested.jpg").assertDoesNotExist()
     }
 
+    /** An upload shows up in the list with its preview; a second one of the same name asks. */
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun testFileUploadConflictShowsDialog() = composeVmTest { vms ->
-        vms.ownStore(viewModelStoreOwner.viewModelStore)
-        setContent {
-            TenshuTheme {
-                CompositionLocalProvider(
-                    LocalViewModelStoreOwner provides viewModelStoreOwner
-                ) {
-                    val fabViewModel: AddFileActionsViewModel = koinInject()
-                    App(
-                        fabViewModel = fabViewModel,
-                        onUploadImages = { parentPath ->
-                            fabViewModel.uploadFile("mock://test.jpg", parentPath)
-                        }
-                    )
-                }
-            }
-        }
-
+    fun testFileUploadConflictShowsDialog() = composeDesktopVmTest { vms ->
+        startApp(vms) { AppUploading("mock://test.jpg") }
         openFilesTab()
 
-        // 1. Upload first time
-        onNodeWithContentDescription("Add").performClick()
-        awaitUi { onAllNodesWithText("Images").fetchSemanticsNodes().isNotEmpty() }
-        onNodeWithText("Images").performClick()
-
-        awaitUi { onAllNodesWithText("test.jpg").fetchSemanticsNodes().isNotEmpty() }
+        // 1. Upload first time.
+        pickImage()
         onNodeWithText("test.jpg").assertIsDisplayed()
+        onNodeWithContentDescription("File preview").assertIsDisplayed()
 
-        // 2. Upload second time (same name)
-        onNodeWithContentDescription("Add").performClick()
-        awaitUi { onAllNodesWithText("Images").fetchSemanticsNodes().isNotEmpty() }
-        onNodeWithText("Images").performClick()
-
-        // 3. Verify conflict dialog appears
-        awaitUi { onAllNodesWithText("File already exists").fetchSemanticsNodes().isNotEmpty() }
+        // 2. Upload second time (same name): the conflict dialog.
+        pickImage()
         onNodeWithText("File already exists").assertIsDisplayed()
         onNodeWithText("Keep both").assertIsDisplayed()
 
-        // 4. Resolve by keeping both
+        // 3. Keep both: both files are listed.
         onNodeWithText("Keep both").performClick()
-
-        // 5. Verify both files are in the list
-        awaitUi { onAllNodesWithText("test (1).jpg").fetchSemanticsNodes().isNotEmpty() }
         onNodeWithText("test.jpg").assertIsDisplayed()
         onNodeWithText("test (1).jpg").assertIsDisplayed()
     }
 
-    @OptIn(ExperimentalTestApi::class)
-    @Test
-    fun testSearchBarIsNotAutomaticallyActivatedAfterCreatingFolder() = composeVmTest { vms ->
-        vms.ownStore(viewModelStoreOwner.viewModelStore)
-        setContent {
-            TenshuTheme {
-                CompositionLocalProvider(
-                    LocalViewModelStoreOwner provides viewModelStoreOwner
-                ) {
-                    App()
-                }
-            }
-        }
-
-        openFilesTab()
-
-        // Create a folder
-        onNodeWithContentDescription("Add").performClick()
-        awaitUi {
-            onAllNodesWithText("Folder").fetchSemanticsNodes().isNotEmpty()
-        }
-        onNodeWithText("Folder").performClick()
-
-        awaitUi {
-            onAllNodesWithText("Create new folder").fetchSemanticsNodes().isNotEmpty()
-        }
-        onNodeWithText("Folder name").performTextReplacement("test_folder")
-        onNodeWithText("Confirm").performClick()
-
-        // Wait for folder to appear
-        awaitUi {
-            onAllNodesWithText("test_folder").fetchSemanticsNodes().isNotEmpty()
-        }
-
-        // Check if SearchBar has focus (it shouldn't)
-        onNodeWithText("Search").assertIsNotFocused()
-    }
-
-    @OptIn(ExperimentalTestApi::class)
-    @Test
-    fun testFileUploadShowsUpInList() = composeVmTest { vms ->
-        vms.ownStore(viewModelStoreOwner.viewModelStore)
-        setContent {
-            TenshuTheme {
-                CompositionLocalProvider(
-                    LocalViewModelStoreOwner provides viewModelStoreOwner
-                ) {
-                    val fabViewModel: AddFileActionsViewModel = koinInject()
-                    App(
-                        fabViewModel = fabViewModel,
-                        onUploadImages = { parentPath ->
-                            fabViewModel.uploadFile("mock://test.jpg", parentPath)
-                        }
-                    )
-                }
-            }
-        }
-
-        openFilesTab()
-
-        // Trigger upload
-        onNodeWithContentDescription("Add").performClick()
-        awaitUi {
-            onAllNodesWithText("Images").fetchSemanticsNodes().isNotEmpty()
-        }
-        onNodeWithText("Images").performClick()
-
-        // Verify it appears in root list
-        awaitUi {
-            onAllNodesWithText("test.jpg").fetchSemanticsNodes().isNotEmpty()
-        }
-        onNodeWithText("test.jpg").assertIsDisplayed()
-
-        // Verify preview is displayed (via content description)
-        onNodeWithContentDescription("File preview").assertIsDisplayed()
-    }
-
     /**
-     * A file uploaded inside a folder shows up in that folder's listing — not only as the
-     * parent listing's file count over a folder that opens empty.
-     * [testCreateFolderAndNavigation] covers folder-INSIDE-folder; this is the
-     * FILE-inside-folder case.
+     * The forced form of the old flake: the second upload's answer is held across
+     * [UPLOAD_HELD_FOR_POLLS] of Compose's idle polls, and the dialog is asserted with no wait of
+     * its own. ⚠ With [RepositoryIdling] unregistered this goes red at once ("File already exists"
+     * is not there yet); the condition waits it replaced went red under load whenever the answer
+     * outlived their real-time budget.
      */
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun testFileUploadInsideSubfolderShowsUpInList() = composeVmTest { vms ->
-        vms.ownStore(viewModelStoreOwner.viewModelStore)
-        setContent {
-            TenshuTheme {
-                CompositionLocalProvider(
-                    LocalViewModelStoreOwner provides viewModelStoreOwner
-                ) {
-                    val fabViewModel: AddFileActionsViewModel = koinInject()
-                    App(
-                        fabViewModel = fabViewModel,
-                        onUploadImages = { parentPath ->
-                            fabViewModel.uploadFile("mock://nested.jpg", parentPath)
-                        }
-                    )
-                }
-            }
-        }
-
+    fun testASlowUploadIsAwaitedNotTimed() = composeDesktopVmTest { vms ->
+        startApp(vms) { AppUploading("mock://slow.jpg") }
+        seed("mock://slow.jpg", "slow.jpg")
         openFilesTab()
 
-        // 1. Create /photos at root.
-        onNodeWithContentDescription("Add").performClick()
-        awaitUi { onAllNodesWithText("Folder").fetchSemanticsNodes().isNotEmpty() }
-        onNodeWithText("Folder").performClick()
-        awaitUi { onAllNodesWithText("Create new folder").fetchSemanticsNodes().isNotEmpty() }
-        onNodeWithText("Folder name").performTextReplacement("photos")
-        onNodeWithText("Confirm").performClick()
-        awaitUi { onAllNodesWithText("photos").fetchSemanticsNodes().isNotEmpty() }
-
-        // 2. Navigate into /photos
-        onNodeWithText("photos").performClick()
-        awaitUi { onAllNodesWithText("/photos").fetchSemanticsNodes().isNotEmpty() }
-
-        // 3. Upload a file *inside* /photos (the FAB's parentPath is the
-        // current navigation path, so the upload lands at `/photos/nested.jpg`).
-        onNodeWithContentDescription("Add").performClick()
-        awaitUi { onAllNodesWithText("Images").fetchSemanticsNodes().isNotEmpty() }
-        onNodeWithText("Images").performClick()
-
-        // 4. Verify the file shows up in the /photos detail listing.
-        awaitUi {
-            onAllNodesWithText("nested.jpg").fetchSemanticsNodes().isNotEmpty()
+        val released = CompletableDeferred<Unit>()
+        var heldPolls = 0
+        idling.onBusyPoll = { _ -> if (++heldPolls >= UPLOAD_HELD_FOR_POLLS) released.complete(Unit) }
+        filesRepository.beforeUploadReturns = { released.await() }
+        try {
+            pickImage()
+            onNodeWithText("File already exists").assertIsDisplayed()
+            assertTrue(released.isCompleted, "the dialog was asserted before the upload answered")
+            assertTrue(heldPolls >= UPLOAD_HELD_FOR_POLLS, "held for $heldPolls polls")
+        } finally {
+            released.complete(Unit)
+            filesRepository.beforeUploadReturns = {}
+            idling.onBusyPoll = {}
         }
-        onNodeWithText("nested.jpg").assertIsDisplayed()
     }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun testFileDeletion() = composeVmTest { vms ->
-        vms.ownStore(viewModelStoreOwner.viewModelStore)
-        setContent {
-            TenshuTheme {
-                CompositionLocalProvider(
-                    LocalViewModelStoreOwner provides viewModelStoreOwner
-                ) {
-                    val scope = rememberCoroutineScope()
-                    val filesRepository: FilesRepository = koinInject()
-                    App(
-                        onUploadImages = { parentPath ->
-                            scope.launch {
-                                filesRepository.uploadFile(
-                                    "mock://to_delete.jpg",
-                                    parentPath,
-                                    "to_delete.jpg"
-                                )
-                            }
-                        }
-                    )
-                }
-            }
-        }
-
+    fun testFileDeletion() = composeDesktopVmTest { vms ->
+        seed("mock://to_delete.jpg", "to_delete.jpg")
+        startApp(vms)
         openFilesTab()
-
-        // 1. Upload a file
-        onNodeWithContentDescription("Add").performClick()
-        awaitUi {
-            onAllNodesWithText("Images").fetchSemanticsNodes().isNotEmpty()
-        }
-        onNodeWithText("Images").performClick()
-
-        // Verify it appears
-        awaitUi {
-            onAllNodesWithText("to_delete.jpg").fetchSemanticsNodes().isNotEmpty()
-        }
         onNodeWithText("to_delete.jpg").assertIsDisplayed()
 
-        // 2. Delete it
         onNodeWithContentDescription("More actions for to_delete.jpg").performClick()
-        awaitUi {
-            onAllNodesWithText("Delete").fetchSemanticsNodes().isNotEmpty()
-        }
         onNodeWithText("Delete").performClick()
 
-        // Verify it's gone
-        awaitUi {
-            onAllNodesWithText("to_delete.jpg").fetchSemanticsNodes().isEmpty()
-        }
         onNodeWithText("to_delete.jpg").assertDoesNotExist()
-    }
-
-    @OptIn(ExperimentalTestApi::class)
-    @Test
-    fun testClickOnFileTriggersDownload() = composeVmTest { vms ->
-        vms.ownStore(viewModelStoreOwner.viewModelStore)
-        setContent {
-            TenshuTheme {
-                CompositionLocalProvider(
-                    LocalViewModelStoreOwner provides viewModelStoreOwner
-                ) {
-                    val fabViewModel: AddFileActionsViewModel = koinInject()
-                    App(
-                        fabViewModel = fabViewModel,
-                        onUploadImages = { parentPath ->
-                            // Use the repository directly to ensure we have a file
-                            fabViewModel.uploadFile("mock://to_click.jpg", parentPath)
-                        }
-                    )
-                }
-            }
-        }
-
-        openFilesTab()
-
-        // 1. Upload a file
-        onNodeWithContentDescription("Add").performClick()
-        awaitUi { onAllNodesWithText("Images").fetchSemanticsNodes().isNotEmpty() }
-        onNodeWithText("Images").performClick()
-
-        // Wait for it to appear
-        awaitUi { onAllNodesWithText("to_click.jpg").fetchSemanticsNodes().isNotEmpty() }
-
-        // 2. Fetch the file's bytes through `getRemoteFile`, the repository
-        // surface a click on the file uses.
-        val filesRepository: FilesRepository = GlobalContext.get().get()
-        runBlocking {
-            filesRepository.getRemoteFile("/to_click.jpg")
-        }
-
-        // If no crash occurred, the test passes
     }
 
     /**
@@ -547,75 +324,43 @@ class FilesScreenIntegrationTest {
      * URI's `?w=&h=` hint so the rendered `Image` carries a distinct
      * `previewImageTestTag(w, h)` per file — we can assert *which* bitmap
      * is on screen, not just which `filePath` the destination received.
+     *
+     * The two files are seeded through the repository: the uploads are not this test's subject,
+     * and their call returning is the happens-before the old UI uploads lacked.
      */
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun testTwoUploadsShowCorrectDetailImage() = composeVmTest { vms ->
-        vms.ownStore(viewModelStoreOwner.viewModelStore)
-        var nextUri = "mock://first.jpg?w=2&h=2"
-        setContent {
-            TenshuTheme {
-                CompositionLocalProvider(
-                    LocalViewModelStoreOwner provides viewModelStoreOwner
-                ) {
-                    val scope = rememberCoroutineScope()
-                    val filesRepository: FilesRepository = koinInject()
-                    App(
-                        onUploadImages = { parentPath ->
-                            val uri = nextUri
-                            scope.launch {
-                                filesRepository.uploadFile(
-                                    uri,
-                                    parentPath,
-                                    uri.substringAfter("//")
-                                        .substringBefore("?")
-                                )
-                            }
-                        }
-                    )
-                }
-            }
-        }
-
+    fun testTwoUploadsShowCorrectDetailImage() = composeDesktopVmTest { vms ->
+        seed("mock://first.jpg?w=2&h=2", "first.jpg")
+        seed("mock://second.jpg?w=3&h=3", "second.jpg")
+        startApp(vms)
         openFilesTab()
 
-        // 1. Upload first file (2x2 PNG).
-        onNodeWithContentDescription("Add").performClick()
-        awaitUi { onAllNodesWithText("Images").fetchSemanticsNodes().isNotEmpty() }
-        onNodeWithText("Images").performClick()
-        awaitUi { onAllNodesWithText("first.jpg").fetchSemanticsNodes().isNotEmpty() }
-
-        // 2. Upload second file with different dimensions (3x3 PNG).
-        nextUri = "mock://second.jpg?w=3&h=3"
-        onNodeWithContentDescription("Add").performClick()
-        awaitUi { onAllNodesWithText("Images").fetchSemanticsNodes().isNotEmpty() }
-        onNodeWithText("Images").performClick()
-        awaitUi { onAllNodesWithText("second.jpg").fetchSemanticsNodes().isNotEmpty() }
-
-        // 3. Open detail view for the first file. Title comes from filePath
-        // and would look correct even with a stale view model; the tag derived
-        // from the bitmap's dimensions is what actually catches it.
+        // 1. Open the first file. The title comes from filePath and would look correct even with
+        // a stale view model; the tag derived from the bitmap's dimensions is what catches it.
         onNodeWithText("first.jpg").performClick()
-        awaitUi {
-            onAllNodesWithTag(previewImageTestTag(2, 2)).fetchSemanticsNodes().isNotEmpty()
-        }
+        awaitUi { onAllNodesWithTag(previewImageTestTag(2, 2)).fetchSemanticsNodes().isNotEmpty() }
         onNodeWithTag(previewImageTestTag(2, 2)).assertIsDisplayed()
 
-        // 4. Back to list and open the second file.
+        // 2. Back to the list and open the second. A cached `ImagePreviewViewModel` would still
+        // hold `filePath="/first.jpg"` and show the *first* file's bitmap (2x2).
         onNodeWithContentDescription("Back").performClick()
-        awaitUi { onAllNodesWithText("second.jpg").fetchSemanticsNodes().isNotEmpty() }
         onNodeWithText("second.jpg").performClick()
-
-        // A cached `ImagePreviewViewModel` would still hold
-        // `filePath="/first.jpg"` and show the *first* file's bitmap (2x2).
-        awaitUi {
-            onAllNodesWithTag(previewImageTestTag(3, 3)).fetchSemanticsNodes().isNotEmpty()
-        }
+        awaitUi { onAllNodesWithTag(previewImageTestTag(3, 3)).fetchSemanticsNodes().isNotEmpty() }
         onNodeWithTag(previewImageTestTag(3, 3)).assertIsDisplayed()
+        assertEquals(0, onAllNodesWithTag(previewImageTestTag(2, 2)).fetchSemanticsNodes().size)
     }
 }
 
-/** [ComposeUiTest.waitUntil] under this class's ceiling — see [UI_WAIT_TIMEOUT_MS]. */
+/**
+ * [ComposeUiTest.waitUntil] under [UI_WAIT_TIMEOUT_MS], for the two waits no idling resource
+ * can cover. ⚠ Use it only for those; anything a repository call or the EDT produces is already
+ * awaited by [RepositoryIdling].
+ *
+ * - [openFilesTab]: the realm read that gates the shell is answered through Control's
+ *   reachability state, which no repository call carries.
+ * - The detail screen's bitmap: `ImagePreviewViewModel` decodes on `Dispatchers.Default`.
+ */
 @OptIn(ExperimentalTestApi::class)
 private fun ComposeUiTest.awaitUi(condition: () -> Boolean) =
     waitUntil(timeoutMillis = UI_WAIT_TIMEOUT_MS, condition = condition)
@@ -636,49 +381,17 @@ private fun ComposeUiTest.openFilesTab() {
     onNodeWithText("Files").performClick()
 }
 
-/**
- * Delegates everything to the real [FilesRepository] — so these tests still
- * exercise the real proxy chain for uploads, deletes, navigation and the
- * listing *data* — but replaces the paged listing with a static [PagingData]
- * wrap of the real reactive [FilesRepository.getFiles].
- *
- * The production `getFilesPaged` uses the live `TenshuPagingSource`, whose
- * infinite reactive observer never lets a `runComposeUiTest` reach idle; a 2nd
- * such test in the same JVM then GC-thrashes into a hang. Wrapping `getFiles`
- * keeps reactivity (an upload re-emits → new page) without that observer. Real
- * paging (windowing) is covered by `FilesPagingIntegrationTest` via `asSnapshot`.
- *
- * ⚠⚠ The [LoadStates] are stated because without them this fake MISREPRESENTS
- * the empty folder — the one case `PagedFilesList` takes the most care over. The
- * deprecated single-argument `PagingData.from(list)` pins refresh in
- * `LoadState.Loading` forever, and that composable branches three ways on
- * `refresh` when `itemCount == 0`: Loading → spinner, Error → "couldn't read it",
- * else → "No files here yet". Pinned, an empty folder spins forever and the
- * empty state is unreachable, so a test over this fake could never see what the
- * app really renders. [testInitialEmptyList] asserts it, and that assertion
- * fails against the single-argument form.
- *
- * ⚠ It is NOT an idle hazard, though the spinner makes that look likely: the
- * indicator is an indeterminate `CircularProgressIndicator`, i.e. an infinite
- * animation, and those are a classic reason a `runComposeUiTest` never reaches
- * idle. Measured: the suite passes either way, so the infinite animation does
- * not stall this harness and the hang this class dodges has the one cause named
- * above.
- *
- * (The same trap as any reactive source whose only settle signal is the load
- * states — `FilesPagingIntegrationTest.sortedListingSettles_soItIsReadableLikeAnyOtherListing`.)
- */
-private class StaticPagingFilesRepository(
-    private val delegate: FilesRepository
-) : FilesRepository by delegate {
-    override fun getFilesPaged(folderPath: String, sort: FileSort): Flow<PagingData<FileModel>> = flow {
-        emitAll(delegate.getFiles(folderPath).map { PagingData.from(it, WHOLE_LISTING_LOAD_STATES) })
-    }
+@OptIn(ExperimentalTestApi::class)
+private fun ComposeUiTest.createFolder(name: String) {
+    onNodeWithContentDescription("Add").performClick()
+    onNodeWithText("Folder").performClick()
+    onNodeWithText("Create new folder").assertIsDisplayed()
+    onNodeWithText("Folder name").performTextReplacement(name)
+    onNodeWithText("Confirm").performClick()
 }
 
-/** One page, refresh done, neither end can append — the truth for a whole-listing wrap. */
-private val WHOLE_LISTING_LOAD_STATES = LoadStates(
-    refresh = LoadState.NotLoading(endOfPaginationReached = true),
-    prepend = LoadState.NotLoading(endOfPaginationReached = true),
-    append = LoadState.NotLoading(endOfPaginationReached = true),
-)
+@OptIn(ExperimentalTestApi::class)
+private fun ComposeUiTest.pickImage() {
+    onNodeWithContentDescription("Add").performClick()
+    onNodeWithText("Images").performClick()
+}

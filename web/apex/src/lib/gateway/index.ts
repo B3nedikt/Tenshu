@@ -19,6 +19,7 @@ import { placeGateway } from './place'
 import { fitGateway } from './fit'
 import { homeGateway } from './home'
 import { miaGateway } from './mia'
+import { driveSettingsGateway, photoSettingsGateway } from './viewSettings'
 
 export const GATEWAY_MODULES: readonly GatewayModule[] = [
   sessionGateway,
@@ -32,6 +33,8 @@ export const GATEWAY_MODULES: readonly GatewayModule[] = [
   timelineGateway,
   calendarGateway,
   photoGateway,
+  driveSettingsGateway,
+  photoSettingsGateway,
   mapRegionGateway,
   placeGateway,
   fitGateway,

@@ -9,20 +9,36 @@ import { useFeed } from '../lib/feed'
 import { queryKeys } from '../lib/queryKeys'
 import { attempt } from '../lib/errors'
 import { useOnScreen, useThumbnail } from '../lib/thumbnails'
+import { useCloseViewerWhenEmpty, type ViewerRoute } from '../lib/viewerRoute'
 import { PhotoListView } from './PhotoListView'
 import { Button, ConfirmDialog, ErrorPanel, Loading, PromptDialog } from './ui'
 
 // Albums: the list (pushed over `photo.albums.observe`), create, and one album open — rename,
 // delete, its photographs, and removing from it.
-export function AlbumsView() {
+//
+// Under the app's URL the open album is the fragment's `a=<albumId>` (an opaque id, never the
+// title) and its viewer `open=<index into the album>` (web-apps-layout.md §3.4); rendered on its
+// own, both are local state.
+export function AlbumsView({
+  albumId,
+  onAlbum,
+  viewer,
+}: {
+  albumId?: string | null
+  // Open an album (a history entry), or null for the list (its Back).
+  onAlbum?: (albumId: string | null) => void
+  viewer?: ViewerRoute
+} = {}) {
   const { t } = useTranslation()
   const albums = useAlbums()
-  const [openId, setOpenId] = useState<string | null>(null)
+  const [ownId, setOwnId] = useState<string | null>(null)
+  const openId = onAlbum ? (albumId ?? null) : ownId
+  const setOpenId = onAlbum ?? setOwnId
   const [creating, setCreating] = useState(false)
   const data = albums.data
 
   const open = data?.ok ? data.albums.find((a) => a.albumId === openId) : undefined
-  if (openId && open) return <AlbumDetail album={open} onBack={() => setOpenId(null)} />
+  if (openId && open) return <AlbumDetail album={open} onBack={() => setOpenId(null)} viewer={viewer} />
 
   return (
     <div className="space-y-4">
@@ -75,7 +91,7 @@ function AlbumCard({ album, onOpen }: { album: PhotoAlbum; onOpen: () => void })
   )
 }
 
-function AlbumDetail({ album, onBack }: { album: PhotoAlbum; onBack: () => void }) {
+function AlbumDetail({ album, onBack, viewer }: { album: PhotoAlbum; onBack: () => void; viewer?: ViewerRoute }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const feed = useFeed()
@@ -91,6 +107,7 @@ function AlbumDetail({ album, onBack }: { album: PhotoAlbum; onBack: () => void 
   }, [queryClient, album.albumId, count])
 
   const data = photos.data
+  useCloseViewerWhenEmpty(viewer, !!data?.ok && data.photos.length === 0)
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
       <div className="flex items-center gap-2">
@@ -113,6 +130,7 @@ function AlbumDetail({ album, onBack }: { album: PhotoAlbum; onBack: () => void 
         <PhotoListView
           photos={data.photos}
           albumId={album.albumId}
+          viewer={viewer}
           onTrashed={() => {
             feed.refresh()
             void photos.refetch()

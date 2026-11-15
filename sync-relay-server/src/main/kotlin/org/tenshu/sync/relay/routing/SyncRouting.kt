@@ -58,6 +58,7 @@ import org.tenshu.sync.relay.auth.RelayEntitlementVerifier
 import org.tenshu.sync.relay.mailbox.AdmissionRevocationRegistry
 import org.tenshu.sync.relay.mailbox.ContentEdgeRegistry
 import org.tenshu.sync.relay.mailbox.ContentFreeing
+import org.tenshu.sync.relay.mailbox.MembershipRegistry
 import org.tenshu.sync.relay.mailbox.HubOfferRegistry
 import org.tenshu.sync.relay.mailbox.PairingOfferRegistry
 import org.tenshu.sync.relay.mailbox.HlcTipRegistry
@@ -115,6 +116,13 @@ fun Route.configureSyncRouting(
      * `genesisRateLimit`. `null` (the default, and what tests use) mounts it unwrapped.
      */
     pairingRequestRateLimit: RateLimitName? = null,
+    /**
+     * Which devices of a shared realm are **member** devices. A `Device` tombstone pushed by one
+     * of them revokes nothing unless it names the pusher itself (see `/push-tombstone`).
+     * ⚠ Must be the store `/sync/realm-member/admit` records into; the empty default turns the
+     * guard off.
+     */
+    membershipStore: MembershipRegistry = org.tenshu.sync.relay.mailbox.MembershipStore(),
 ) {
     val context = object : TContext {
         override var components: Map<String, TComponent> = emptyMap()
@@ -453,7 +461,18 @@ fun Route.configureSyncRouting(
             // `content-plane-cr2-b3-wire-spec.md` §3.2: the body is a [CascadedTombstonePush] — the
             // tombstone plus the wire names of every descendant its recursive delete removed. Anything
             // else is a 400.
-            val ownerId = requireOwnerId(call, config, jwtAuthenticator) ?: return@post
+            // The pushing device is needed too: the `Device` revocation below depends on who sent it.
+            val devOwner = if (config.devMode) call.request.headers["X-Dev-Owner"] else null
+            val ownerId: String
+            val pusherDeviceId: String?
+            if (devOwner != null) {
+                ownerId = devOwner
+                pusherDeviceId = call.request.headers["X-Dev-Device"]
+            } else {
+                val claims = jwtAuthenticator.require(call) ?: return@post
+                ownerId = claims.ownerId
+                pusherDeviceId = claims.deviceId
+            }
 
             val push = receiveParsed<CascadedTombstonePush>(call, parser) ?: return@post
             if (!relayProtocolSupported(call, push.relayProtocolVersion.get())) return@post
@@ -513,7 +532,24 @@ fun Route.configureSyncRouting(
                 // string rather than null (known quirk in the binary parser). Guard
                 // both: a missing field gives null OR ""; a present field gives a
                 // non-empty deviceId.
-                block.revokedDeviceId?.get()?.takeIf { it.isNotEmpty() }?.let { revokedDeviceId ->
+                val namedDeviceId = block.revokedDeviceId?.get()?.takeIf { it.isNotEmpty() }
+                // ⚠⚠ A shared-realm MEMBER device may revoke only itself. Owner and member devices
+                // share one registry under the realm's ownerId, the tag is unverifiable here, and
+                // the HLC is the sender's choice — so without this, any member could evict the
+                // owner's and every other member's devices. Removing a member is the master-signed
+                // `/sync/realm-member/revoke`. The tombstone is still stored; only the registry
+                // side effect is skipped (threat model T-GR-08).
+                val memberRevokingOther = namedDeviceId != null && pusherDeviceId != null &&
+                    namedDeviceId != pusherDeviceId &&
+                    membershipStore.isMemberDevice(ownerId, pusherDeviceId)
+                if (memberRevokingOther) {
+                    println(
+                        "SyncRouting -> ignored a Device tombstone for ${logId(namedDeviceId!!)} pushed by " +
+                            "member device ${logId(pusherDeviceId!!)} (realm ${logId(ownerId)}): a member " +
+                            "device may only revoke itself."
+                    )
+                }
+                namedDeviceId?.takeUnless { memberRevokingOther }?.let { revokedDeviceId ->
                     // ⚠⚠ Ordered, not unconditional. The tombstone carries the HLC it was
                     // AUTHORED at (`SyncObserver.emit` → `hlcManager.tick()`), and delivery order
                     // is not authorship order: a retirement that could not push for hours (401 on
@@ -764,7 +800,8 @@ fun Route.configureSyncRouting(
                 //   - `admissionCertChain` present → the delegation is signed by the
                 //     admitting device's A33 key; the relay walks the chain to the
                 //     realm's stored master key and checks the admission revocation list.
-                val ownerId = requireOwnerId(call, config, jwtAuthenticator) ?: return@post
+                val caller = requireOwnerAndDevice(call, config, jwtAuthenticator) ?: return@post
+                val ownerId = caller.ownerId
 
                 val params = call.receive<Map<String, String>>()
                 // F7: the joiner's mailbox is addressed by the secret's hash; the host never sends
@@ -846,6 +883,9 @@ fun Route.configureSyncRouting(
                         masterDelegation = masterDelegation,
                         admissionCertChain = admissionCertChain,
                         isRemovedDevice = { knownDevices.wasRemoved(ownerId, it) },
+                        // §7j.3 rule 2: the chain's approver must be the JWT's device, registered now.
+                        approverDeviceId = caller.deviceId,
+                        isRegisteredDevice = { knownDevices.getPublicKey(ownerId, it) != null },
                     )
                 ) {
                     DelegationOutcome.ADMITTED -> Unit
@@ -877,9 +917,9 @@ fun Route.configureSyncRouting(
 
                 // ── F2′: a removed identity never returns ─────────────────────────────────
                 //
-                // ⚠⚠ Consults the REMOVAL LEDGER, never `revocations(ownerId)`. That list mixes
-                // devices the owner removed with Q3 subtree members who were *not* removed and must
-                // stay re-mintable — refusing on it would bar the second population permanently
+                // ⚠⚠ Consults the REMOVAL LEDGER, never `revocations(ownerId)`. That list can hold
+                // keys of devices that were *not* removed (legacy Q3 subtree strips, retired in
+                // §7j.10) and must stay re-mintable — refusing on it would bar them permanently
                 // (§7c.1).
                 //
                 // ⚠ On iOS the Keychain outlives the app, so a reinstalled device returns with the
@@ -972,9 +1012,9 @@ fun Route.configureSyncRouting(
                 // NOW, before the bytes leave: the joiner can only authenticate after decrypting
                 // them, so it always finds its key registered. Idempotent across re-peeks.
                 delivery.registration?.let { reg ->
-                    // S1 re-checked at delivery too: an admitter in the verified chain may have been
-                    // revoked or removed since the post.
-                    if (!queuedChainStillAdmits(reg, realmStore, admissionRevocationStore, ed25519) {
+                    // Re-checked at delivery: the approver may have been removed, or a link revoked,
+                    // since the post. ⚠ An ancestor's removal is NOT a refusal here either (§7j).
+                    if (!queuedChainStillAdmits(reg, realmStore, admissionRevocationStore, ed25519, { knownDevices.getPublicKey(reg.ownerId, it) != null }) {
                             knownDevices.wasRemoved(reg.ownerId, it)
                         }
                     ) {
@@ -1131,6 +1171,10 @@ fun Route.configureSyncRouting(
                             masterDelegation = masterDelegation,
                             admissionCertChain = admissionCertChain,
                             isRemovedDevice = { knownDevices.wasRemoved(ownerId, it) },
+                            // §7j.3 rule 2: the approver is the responder — authenticated above by
+                            // its registered A4 key over `hostSignature`, not merely named.
+                            approverDeviceId = responderDeviceId,
+                            isRegisteredDevice = { knownDevices.getPublicKey(ownerId, it) != null },
                         )
                     ) {
                         DelegationOutcome.MALFORMED_INPUT ->
@@ -1256,8 +1300,8 @@ fun Route.configureSyncRouting(
                         // its key registered, and an approval that expires unfetched registers
                         // nothing. Idempotent across re-polls.
                         fetch.response.registration?.let { reg ->
-                            // S1 re-checked at delivery (see the join-flow peek).
-                            if (!queuedChainStillAdmits(reg, realmStore, admissionRevocationStore, ed25519) {
+                            // Re-checked at delivery (see the join-flow peek; §7j).
+                            if (!queuedChainStillAdmits(reg, realmStore, admissionRevocationStore, ed25519, { knownDevices.getPublicKey(reg.ownerId, it) != null }) {
                                     knownDevices.wasRemoved(reg.ownerId, it)
                                 }
                             ) {
@@ -1418,6 +1462,27 @@ internal enum class DelegationOutcome {
 }
 
 /**
+ * §7j.3 rule 2, the binding half: an A33 chain's approver (`chain[0]`) must be the device that is
+ * actually asking — [posterDeviceId], authenticated by the route — and be **registered right now**.
+ *
+ * ⚠⚠ Without this the relay checked only that `chain[0]` was not in the removal ledger. A removed
+ * device D whose A33 key was never key-revoked (a realm with no A1 mints no revocations, and a
+ * device can blank its own key) could mint a cert for a fabricated leaf X and post `[X, D, …]`
+ * under any realm JWT: D is only an ancestor, X was never removed ⇒ admitted. §7j's relaxation
+ * made that reachable; this closes it. Returns null when bound, else the refusal.
+ */
+internal fun approverBinding(
+    chain: List<org.tenshu.sync.common.AdmissionCapabilityCert>,
+    posterDeviceId: String?,
+    isRegisteredDevice: (deviceId: String) -> Boolean,
+): DelegationOutcome? {
+    val approver = chain.firstOrNull()?.deviceId ?: return DelegationOutcome.INVALID
+    if (posterDeviceId == null || approver != posterDeviceId) return DelegationOutcome.INVALID
+    if (!isRegisteredDevice(approver)) return DelegationOutcome.REVOKED
+    return null
+}
+
+/**
  * Shared device-admission verification for the two paths that register a new device by
  * master/A33 delegation: `POST /sync/pairing/response` (join flow) and the approved
  * `POST /sync/pairing/offer-response` (offer flow). Verifies [masterDelegation] is a valid
@@ -1437,8 +1502,19 @@ internal fun verifyAdmissionDelegation(
     epoch: Long,
     masterDelegation: ByteArray,
     admissionCertChain: ByteArray?,
-    /** S1: the F2′ removal ledger — a chain through a removed device is refused whatever its keys. */
+    /**
+     * The F2′ removal ledger, consulted for the chain's APPROVER only (`chain[0]`). ⚠⚠ Not for an
+     * ancestor link: `admission-revocation-names-the-capability.md` §7j retired S1's ancestor rule,
+     * which locked a realm with no A1 holder out of admission for good.
+     */
     isRemovedDevice: (deviceId: String) -> Boolean = { false },
+    /**
+     * The device the route authenticated as the poster (`chain[0]` must equal it), and whether an id
+     * is registered now — [approverBinding]. Only consulted for an A33 chain; an A1-signed admission
+     * carries no chain and no approver to bind.
+     */
+    approverDeviceId: String?,
+    isRegisteredDevice: (deviceId: String) -> Boolean,
 ): DelegationOutcome {
     // An exactly-32-byte key and a printable id, before anything is verified — see
     // [RegistrationInputRules].
@@ -1464,6 +1540,7 @@ internal fun verifyAdmissionDelegation(
         } catch (e: IllegalArgumentException) {
             return DelegationOutcome.MALFORMED_CHAIN
         }
+        approverBinding(chain, approverDeviceId, isRegisteredDevice)?.let { return it }
         val revocations = admissionRevocationsOf(admissionRevocationStore, ownerId)
         return when (
             AdmissionChainVerifier.verifyAdmission(
@@ -1478,7 +1555,12 @@ internal fun verifyAdmissionDelegation(
             )
         ) {
             AdmissionChainVerdict.Admit -> DelegationOutcome.ADMITTED
-            AdmissionChainVerdict.RejectRevoked, AdmissionChainVerdict.RejectRemovedLink -> DelegationOutcome.REVOKED
+            // ⚠ `RejectRepeatedDevice` is a REVOKED, not an INVALID: its only honest source is a member
+            // whose chain names it twice (§7j.10.1's accepted edge), and the approver must see §7j.5's
+            // typed copy — a 401 reads as `AdmitterUnrecognised` / the generic error.
+            AdmissionChainVerdict.RejectRevoked,
+            AdmissionChainVerdict.RejectRemovedApprover,
+            AdmissionChainVerdict.RejectRepeatedDevice -> DelegationOutcome.REVOKED
             else -> DelegationOutcome.INVALID
         }
     }
@@ -1641,10 +1723,12 @@ private fun admissionRevocationsOf(
     }
 
 /**
- * S1 at delivery: re-runs the full chain verification of a queued registration — signatures, the
- * key-scoped revocation list and the removal ledger — because the post-time check is up to one TTL
- * old. ⚠⚠ Both halves are needed: a revoker strips by key at once while the removal tombstone is
- * pushed later, and a Q3 subtree member is revoked without ever being removed.
+ * At delivery: re-runs the full chain verification of a queued registration — signatures, and the
+ * key-scoped revocation list and the removal ledger, both for the approver (`chain[0]`) only
+ * (`admission-revocation-names-the-capability.md` §7j, §7j.10) — because the post-time check is up to
+ * one TTL old. ⚠⚠ Both halves are needed: a remover strips the removed device's key at once while the
+ * removal tombstone is pushed later. ⚠⚠ An ancestor removed or key-revoked after the post does not
+ * stop the delivery: refusing it was the lock-out §7j and §7j.10 retired.
  *
  * True for an A1-direct admission (no chain). Fails closed when the realm is gone or the stored chain
  * no longer decodes.
@@ -1654,6 +1738,8 @@ internal fun queuedChainStillAdmits(
     realmStore: RealmRegistry,
     admissionRevocationStore: AdmissionRevocationRegistry,
     ed25519: Ed25519Backend,
+    /** The approver must still be registered at delivery — see [approverBinding]. */
+    isRegisteredDevice: (deviceId: String) -> Boolean,
     isRemovedDevice: (deviceId: String) -> Boolean,
 ): Boolean {
     val encoded = registration.admissionCertChain ?: return true
@@ -1663,6 +1749,10 @@ internal fun queuedChainStillAdmits(
     } catch (e: IllegalArgumentException) {
         return false
     }
+    // The post bound `chain[0]` to the authenticated poster, so `chain[0]` IS the poster here: it
+    // must still be registered (a poster removed between post and delivery delivers nothing).
+    val approver = chain.firstOrNull()?.deviceId ?: return false
+    if (!isRegisteredDevice(approver)) return false
     return AdmissionChainVerifier.verifyChain(
         masterPublicKey = realm.masterPublicKey,
         ownerId = registration.ownerId,
@@ -1673,9 +1763,12 @@ internal fun queuedChainStillAdmits(
     ) == AdmissionChainVerdict.Admit
 }
 
-/** The `403` body when an admitter in a queued registration's chain was removed after the post (S1). */
+/**
+ * The `403` body when a queued registration's approver was removed, or its own A33 key revoked,
+ * after the post. ⚠ The token is what the clients key their copy on; the text is diagnostics.
+ */
 private val chainAdmitterRemovedBody: String =
-    RelayRefusal.body(RelayRefusal.ADMISSION_REVOKED, "An admitter in this device's admission chain was revoked or removed")
+    RelayRefusal.body(RelayRefusal.ADMISSION_REVOKED, "The approving device was removed, or its admission capability revoked")
 
 /** The `409` body of a join-flow response post whose hash the joiner already acked (F7). */
 private val pairingResponseConsumedBody: String =

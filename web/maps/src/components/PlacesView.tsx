@@ -59,8 +59,11 @@ export const ROW_PX = 56
 // Rows rendered beyond the viewport on each side.
 const OVERSCAN = 10
 
-// The rows in (or near) the viewport. The list scrolls with the page, so the window is the page's
-// viewport against the list's own top. ⚠ Only while [active]: a hidden list measures as top 0.
+// The rows in (or near) the viewport: the window's viewport against the list's own top, which
+// `getBoundingClientRect` gives whatever scrolls it. ⚠ The scroller is the app shell's <main>, not
+// the window, and `scroll` does not bubble — so the listener CAPTURES at the window, which sees an
+// ancestor's scroll as well as the window's. A plain listener would never fire and the list would
+// stop at its first window of rows. ⚠ Only while [active]: a hidden list measures as top 0.
 function useWindowRange(list: RefObject<HTMLElement | null>, count: number, active: boolean) {
   const [range, setRange] = useState({ start: 0, end: Math.min(count, 2 * OVERSCAN) })
   useLayoutEffect(() => {
@@ -75,10 +78,10 @@ function useWindowRange(list: RefObject<HTMLElement | null>, count: number, acti
       setRange((r) => (r.start === start && r.end === end ? r : { start, end }))
     }
     update()
-    window.addEventListener('scroll', update, { passive: true })
+    window.addEventListener('scroll', update, { passive: true, capture: true })
     window.addEventListener('resize', update)
     return () => {
-      window.removeEventListener('scroll', update)
+      window.removeEventListener('scroll', update, { capture: true })
       window.removeEventListener('resize', update)
     }
   }, [list, count, active])

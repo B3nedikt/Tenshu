@@ -16,6 +16,7 @@ import org.tenshu.sync.proxy.impl.ForgetThisDeviceImplementation
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertFalse
+import org.tenshu.core.common.delegate.SecureStorageDelegate
 import kotlin.test.assertTrue
 
 /**
@@ -24,7 +25,7 @@ import kotlin.test.assertTrue
  * ⚠⚠ `ForgetThisDevice` is deliberately partially-failable, so its outcome string is the only thing
  * that can tell a user a row was left behind in their realm — and the remedy is always *"from
  * another device"*, which they no longer have in front of them. Control decides whether to surface
- * it by looking for `⚠` (`App.kt`'s `isForgetWarning`), so **which outcomes carry the marker is a
+ * it by looking for `⚠` (`WelcomeScreen.kt`'s `forgetNoticesFor`), so **which outcomes carry the marker is a
  * contract, not a formatting choice.**
  *
  * ⚠ Pinned from the *producing* side on purpose. A test on the consumer would only prove that
@@ -105,5 +106,40 @@ class ForgetThisDeviceOutcomeMarkerTest {
             outcome.contains('⚠'),
             "a clean removal must stay silent on the Welcome screen. Got: $outcome",
         )
+    }
+
+    /**
+     * ⚠⚠ A new key that could not be saved: marked, under the phrase Control's Welcome notice
+     * matches (`FORGET_OUTCOME_KEY_NOT_SAVED`), and **not** "not finished" — that one says custody
+     * was kept, and here it is already gone. The store note travels beside it.
+     */
+    @Test
+    fun aKeyThatCouldNotBeSaved_carriesItsOwnPhrase_andTheStoreNote() = runTest {
+        val inner = InMemorySecureStorageDelegate()
+        val failing = object : SecureStorageDelegate by inner {
+            var fail = false
+            override fun storeSecret(key: String, value: String) {
+                check(!(fail && key == SyncManagerImpl.Keys.DEVICE_SIGNING_KEY)) { "made up: refused" }
+                inner.storeSecret(key, value)
+            }
+        }
+        val manager = SyncManagerImpl(
+            cryptoManager = testProxy.tContext.syncCryptoManager(),
+            storageDelegate = failing,
+            context = testProxy.tContext,
+            objectStore = InMemoryObjectStore(),
+        )
+        manager.currentDeviceId
+        failing.fail = true
+        val outcome = ForgetThisDeviceImplementation(
+            syncManager = manager,
+            revokeDevice = { onStripFailed -> FakeRevoke(onStripFailed, stripFails = false) },
+            nowMs = { 0L },
+        ).execute<TString>(testProxy.executionContext, null, testProxy.executionContext.implementationFactory, null, null)
+            .get().orEmpty()
+
+        assertTrue(outcome.contains("⚠ new device key NOT saved"), "Welcome matches this phrase. Got: $outcome")
+        assertFalse(outcome.contains("not finished"), "custody is gone — this is not the kept-custody outcome. Got: $outcome")
+        assertTrue(outcome.contains("local store"), "the store note is still reported. Got: $outcome")
     }
 }

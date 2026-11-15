@@ -27,16 +27,17 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * P5 of `delegated-device-admission-authority.md` (§5, Q3): removing a device
- * also strips its admission capability on the relay — and, conservatively, the
- * whole lineage *subtree* it vouched for (`admittedByDeviceId` walk), because
- * the P4 re-root is automatic and must not launder a compromised admitter's
- * descendants. Siblings stay untouched; a delegated (A1-less) remover skips
- * the strip but the removal itself still works.
+ * P5 of `delegated-device-admission-authority.md` (§5): removing a device also
+ * strips its own admission capability on the relay. ⚠⚠ Its own keys only — the
+ * devices it admitted are untouched (`admission-revocation-names-the-capability.md`
+ * §7j.10, retiring Q3's subtree strip): a device is a member or removed, never a
+ * member that cannot admit. A delegated (A1-less) remover skips the strip but the
+ * removal itself still works.
  */
 class RevokeDeviceAdmissionRevocationTest {
 
@@ -142,8 +143,14 @@ class RevokeDeviceAdmissionRevocationTest {
         )
     }
 
+    /**
+     * ⚠⚠ §7j.10 (2026-11-11), inverting `a1Holder_revokesTheWholeAdmissionSubtree_notSiblings`:
+     * removing X revokes X's key and nothing else — not C1/C2, which X admitted. The user kept them
+     * (or will remove them by id from the removal dialog); a revocation here would leave them
+     * members that cannot admit, the state the maintainer ruled out.
+     */
     @Test
-    fun a1Holder_revokesTheWholeAdmissionSubtree_notSiblings() = runTest {
+    fun a1Holder_revokesOnlyTheRemovedDevice_neverTheDevicesItAdmitted() = runTest {
         syncManager.initialize(masterPhrase)
         syncManager.setRealmEpochProvider { 7L }
         seedLineage()
@@ -151,10 +158,17 @@ class RevokeDeviceAdmissionRevocationTest {
         revoke("device-x")
 
         assertEquals(
-            setOf("device-x", "child-1", "child-2"),
-            relay.revocations.map { it.deviceId }.toSet(),
-            "the removed device + its transitive lineage — and nothing else",
+            listOf("device-x"),
+            relay.revocations.map { it.deviceId },
+            "the removed device's own key — never its admittees",
         )
+        // The kept admittees are untouched members.
+        for (kept in listOf("child-1", "child-2", "sibling")) {
+            assertNotNull(
+                testProxy.database.getData(DataId.StringDataId.create(testProxy.tContext, Device.ID, kept)),
+                "$kept stays a member",
+            )
+        }
         // Each revocation is master-signed over the canonical bytes at the current
         // epoch — the exact shape the P2 relay endpoint verifies before appending.
         val masterKey = syncManager.currentMasterKeyPair!!
@@ -187,6 +201,28 @@ class RevokeDeviceAdmissionRevocationTest {
         revoke("child-2")
 
         assertEquals(listOf("child-2"), relay.revocations.map { it.deviceId })
+    }
+
+    /**
+     * The removal dialog's unticked admittee (§7j.4): the VM removes it by its own `RevokeDevice`
+     * call after the admitter's — so it is FULLY removed (row gone, own key revoked), not merely
+     * stripped.
+     */
+    @Test
+    fun anUntickedAdmittee_isRemovedByItsOwnCall_withItsOwnKeyRevoked() = runTest {
+        syncManager.initialize(masterPhrase)
+        seedLineage()
+
+        revoke("device-x")
+        revoke("child-1")
+
+        assertEquals(listOf("device-x", "child-1"), relay.revocations.map { it.deviceId })
+        assertContentEquals(keyFor("child-1"), relay.revocations[1].deviceA33PublicKey)
+        assertNull(testProxy.database.getData(DataId.StringDataId.create(testProxy.tContext, Device.ID, "child-1")))
+        assertNotNull(
+            testProxy.database.getData(DataId.StringDataId.create(testProxy.tContext, Device.ID, "child-2")),
+            "child-2 (kept) stays",
+        )
     }
 
     @Test

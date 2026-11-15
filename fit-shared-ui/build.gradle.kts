@@ -122,6 +122,7 @@ kotlin {
         // dispatcher (Swing) so `viewModelScope` collectors run.
         getByName("desktopTest") {
             dependencies {
+                implementation(project(":ui-test-utils"))
                 implementation(project(":viewmodel-test-utils"))
                 implementation(project(":core-test-utils"))
                 implementation(compose.desktop.uiTestJUnit4)

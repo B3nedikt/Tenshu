@@ -60,6 +60,7 @@ const { ensureRuntime, timeline } = vi.hoisted(() => {
 
 vi.mock('./runtime', () => ({ ensureRuntime: () => ensureRuntime() }))
 vi.mock('@tenshu/sdk/timeline', () => ({ Timeline: timeline }))
+vi.mock('@tenshu/sdk/viewSettings', () => ({ DriveSettings: {}, PhotosSettings: {} }))
 
 vi.mock('@tenshu/sdk/core', () => ({ TenshuSdk: {} }))
 vi.mock('@tenshu/sdk/files', () => ({ FileSystem: {} }))

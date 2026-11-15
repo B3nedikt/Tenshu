@@ -1,5 +1,6 @@
 package app.tenshu.drive.data
 
+import org.tenshu.sync.SyncHealthStatus
 import app.tenshu.ingest.backup.BackupDataPlane
 import app.tenshu.ingest.backup.BackupUploadOutcome
 import app.tenshu.ingest.backup.StorageStatusModel
@@ -319,6 +320,13 @@ interface FilesRepository : BackupDataPlane {
     fun syncHealth(): Flow<SyncHealthStatusModel?> = flowOf(null)
 
     /**
+     * Whether Control is pulling data in — Drive's half of the "Syncing…" indicator
+     * (`suite-sync-status.md` SS-2). Uploads stay in Drive's banner; this is the pull only. Defaults
+     * to never, so fakes and the mock need not implement it.
+     */
+    fun catchingUp(): Flow<Boolean> = flowOf(false)
+
+    /**
      * Reactive **schema pull fence** signal (`core-schema-evolution.md` §7.3):
      * whether this device's declared per-service schema versions are behind the realm's
      * recorded epoch, in which case the proxy has stopped pulling because inbound blocks
@@ -435,6 +443,31 @@ interface FilesRepository : BackupDataPlane {
 data class ShareLinkPayload(
     val shareId: String,
     val urlFragment: String,
+)
+
+/**
+ * Drive's reading of one `SyncHealthStatus.connectivity` value — split out of the repository so
+ * `SuiteSyncOrderMatchesDriveTest` can drive Drive's banner through exactly the mapping production
+ * uses, beside the shared strip every other app shows (`suite-sync-status.md` SS-1).
+ */
+fun syncHealthModelOf(
+    connectivity: String,
+    isSyncing: Boolean = false,
+    pendingBlockCount: Int = 0,
+    lastSyncedAtMillis: Long = 0L,
+): SyncHealthStatusModel = SyncHealthStatusModel(
+    // ⚠ Retrying is online: the relay answers, it only fails content (§5.7).
+    isOnline = connectivity == SyncHealthStatus.CONNECTIVITY_ONLINE ||
+        connectivity == SyncHealthStatus.CONNECTIVITY_RELAY_RETRYING,
+    isSyncing = isSyncing,
+    pendingBlockCount = pendingBlockCount,
+    lastSyncedAtMillis = lastSyncedAtMillis,
+    needsAttention = connectivity == SyncHealthStatus.CONNECTIVITY_NEEDS_ATTENTION,
+    deferred = connectivity == SyncHealthStatus.CONNECTIVITY_DEFERRED,
+    locked = connectivity == SyncHealthStatus.CONNECTIVITY_LOCKED,
+    deviceUnrecognized = connectivity == SyncHealthStatus.CONNECTIVITY_DEVICE_UNRECOGNIZED,
+    storageRejected = connectivity == SyncHealthStatus.CONNECTIVITY_STORAGE_FULL,
+    relayRetrying = connectivity == SyncHealthStatus.CONNECTIVITY_RELAY_RETRYING,
 )
 
 /**

@@ -112,14 +112,15 @@ class CollectionsSnapshotTest {
         coverPath = "/anna.jpg",
         alternateIds = listOf("person:g7"),
         coverFace = SnapshotFace("/anna.jpg", 0.1f, 0.2f, 0.3f, 0.4f),
+        coverContentId = "anna",
     )
 
     private val lastTime = CollectionsSnapshot(
-        albums = listOf(SnapshotAlbum("al1", "Trip", 5L, 12, "/trip.jpg", 400, 300)),
+        albums = listOf(SnapshotAlbum("al1", "Trip", 5L, 12, "/trip.jpg", 400, 300, coverContentId = "trip")),
         favouriteCount = 3,
         people = listOf(anna),
-        years = listOf(SnapshotSection("year:2025", "2025", "900 photos", 900, "/y.jpg", 4000, 3000)),
-        places = listOf(SnapshotSection("place:p1", "Lisbon", "Portugal", 40, "/l.jpg")),
+        years = listOf(SnapshotSection("year:2025", "2025", "900 photos", 900, "/y.jpg", 4000, 3000, coverContentId = "y")),
+        places = listOf(SnapshotSection("place:p1", "Lisbon", "Portugal", 40, "/l.jpg", coverContentId = "l")),
         peopleStatus = "available",
     )
 
@@ -170,6 +171,80 @@ class CollectionsSnapshotTest {
                 .forEach { assertEquals(SectionLoad.LOADING, it) }
         } finally {
             repository.release()
+        }
+    }
+
+    // ── photos-editing.md §12.13: a cached cover never names an edited original ────────────────
+
+    /** [SilentRepository], whose answer to [PhotosRepository.editedContentIds] can be held too. */
+    private class EditsHeld(private val inner: SilentRepository, private val held: CompletableDeferred<Unit>? = null) : PhotosRepository by inner {
+        override suspend fun editedContentIds(): Set<String>? {
+            held?.let { withContext(NonCancellable) { it.await() } }
+            return inner.editedContentIds()
+        }
+    }
+
+    /**
+     * ⚠⚠ The snapshot was written before Anna's photo was edited (here, or on another device while
+     * Photos was closed): its face crop is cut from the original, which may now be redacted. It must
+     * not be drawn — while every cover that names no edited original still is.
+     */
+    @Test
+    fun aSnapshotFaceCutFromANowEditedOriginal_isNeverDrawn() = vmTest(dispatcher) { vms ->
+        val annaEdited = photo("anna").copy(renditionPath = "/Trash/.edits/anna-1-x.jpg")
+        val silent = SilentRepository(MockPhotosRepository(photos = listOf(annaEdited, photo("trip"))))
+        try {
+            val vm = vm(vms, EditsHeld(silent), storeWith(lastTime).second)
+            testScheduler.runCurrent()
+
+            val anna = vm.state.value.people.single()
+            assertEquals("Anna", anna.title, "the card is still drawn")
+            assertNull(anna.coverFace, "no face crop from the edited original")
+            assertNull(anna.coverPath, "nor the original whole (iOS's round cover)")
+            assertEquals("/trip.jpg", vm.state.value.albums.single().coverPath, "an unedited cover survives")
+            assertEquals("/l.jpg", vm.state.value.places.single().coverPath)
+        } finally {
+            silent.release()
+        }
+    }
+
+    /** ⚠ A cover written before its `contentId` was recorded cannot be checked, so it is not drawn. */
+    @Test
+    fun aSnapshotCoverWithNoContentId_isNotDrawn_butARenditionCoverIs() = vmTest(dispatcher) { vms ->
+        val silent = SilentRepository(MockPhotosRepository(photos = listOf(photo("a"))))
+        val old = lastTime.copy(
+            places = listOf(SnapshotSection("place:p1", "Lisbon", "Portugal", 40, "/l.jpg")),
+            years = listOf(SnapshotSection("year:2025", "2025", "900 photos", 900, "/Trash/.edits/y-1-x.jpg")),
+        )
+        try {
+            val vm = vm(vms, EditsHeld(silent), storeWith(old).second)
+            testScheduler.runCurrent()
+
+            assertNull(vm.state.value.places.single().coverPath, "unknown: not drawn")
+            assertEquals("/Trash/.edits/y-1-x.jpg", vm.state.value.years.single().coverPath, "the edit's own picture")
+        } finally {
+            silent.release()
+        }
+    }
+
+    /** ⚠ Fails closed: a Control too slow to say which photos are edited gets a snapshot with no covers. */
+    @Test
+    fun aSnapshotWhoseEditsCannotBeKnown_isDrawnWithNoCovers() = vmTest(dispatcher) { vms ->
+        val silent = SilentRepository(MockPhotosRepository(photos = listOf(photo("a"))))
+        val held = CompletableDeferred<Unit>()
+        try {
+            val vm = vm(vms, EditsHeld(silent, held), storeWith(lastTime).second)
+            testScheduler.advanceTimeBy(CollectionsViewModel.SNAPSHOT_EDITS_WAIT_MS + 1)
+            testScheduler.runCurrent()
+
+            val state = vm.state.value
+            assertEquals(listOf("Anna"), state.people.map { it.title }, "drawn, titles and counts and all")
+            assertNull(state.people.single().coverFace)
+            assertEquals(listOf(null), (state.people + state.places + state.years).map { it.coverPath }.distinct())
+            assertNull(state.albums.single().coverPath)
+        } finally {
+            held.complete(Unit)
+            silent.release()
         }
     }
 

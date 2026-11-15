@@ -1,5 +1,14 @@
 package app.tenshu.mia.ui
 
+import app.tenshu.ui.feedback.SyncActivityCapsule
+import app.tenshu.ui.feedback.rememberSyncActivity
+import org.tenshu.sync.client.anyCatchUpHeartbeat
+import app.tenshu.reachability.SuiteSyncProblem
+import app.tenshu.ui.feedback.SuiteSyncBanner
+import app.tenshu.ui.feedback.rememberSuiteSyncProblem
+import org.tenshu.sync.client.syncConnectivity
+import org.tenshu.sync.client.syncService
+import org.tenshu.core.common.TenshuClient
 import app.tenshu.reachability.ControlReachability
 import app.tenshu.reachability.UnreachableReason
 import app.tenshu.ui.feedback.AppControlUnavailableWall
@@ -160,10 +169,29 @@ private fun MainShell() {
         // ⚠ Inside the scaffold's content, which is where the status-bar inset has already been
         // applied (`contentWindowInsets = systemBars` above) — so the banner is inset for free.
         // A hand-rolled inset puts the banner under the clock.
+        // ⚠⚠ One strip (`suite-sync-status.md` SS-1): this device's sync health and storage. No
+        // Control verdict: this app shows Control trouble as its walls, never as a strip.
+        val tenshuClient: TenshuClient = koinInject()
+        val connectivity = remember(tenshuClient) { tenshuClient.syncService.syncConnectivity() }
+        val syncProblem = rememberSuiteSyncProblem(
+            reason = null,
+            storage = rememberRealmStorageState(),
+            connectivity = connectivity,
+        )
+        // SS-2 (`suite-sync-status.md`): "Syncing…" while Control pulls, through its heartbeat so a
+        // killed Control's stale flag never sticks.
+        val catchingUp = remember(tenshuClient) { tenshuClient.syncService.anyCatchUpHeartbeat() }
+        val syncActivity = rememberSyncActivity(catchingUp)
         Column(Modifier.fillMaxSize()) {
-            RealmStorageBannerHost(rememberRealmStorageState())
+            SuiteSyncBanner(
+                problem = syncProblem,
+                controlBanner = {},
+                storageBanner = { RealmStorageBannerHost(it) },
+            )
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 NavContent(backStack, ::pop) { backStack.add(it) }
+                // Over the screens, never beside them; a problem strip, or a screen that is not a tab, hides it.
+                SyncActivityCapsule(activity = syncActivity, hidden = syncProblem != SuiteSyncProblem.None || current !is Destination.TopLevel || current == Destination.Chat)
             }
         }
     }

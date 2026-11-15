@@ -11,8 +11,8 @@ no slowdown, the first open slow only after a long gap unused. ⭐ **Passed** (m
 backend's footprint and a floor-class phone stay owed under D10 / D12, not under this gate (§7).
 ⭐ The heat stop at `.serious` is kept as built, with no chunking (2026-10-23, §14.19.8).
 **The retrieval gate is in the repo
-(`scripts/inference/retrieval-gate.py`) and the current export passes it (§9.6, 2026-10-06).** **PR-5 lands as five slices (§14): 5a (the binding and the readiness state), 5b (the runtime preflight and its probe), 5c (the download, §14.11, and the prepare step, §14.17) and 5d (the Models screens, Photos' own and Control's shared view model, §14.18) are built, behind a build flag that is off; 5e (the foreground pass) is two PRs, 5e-1 (the conditions, the pass and its stop) and 5e-2 (the indexing section, Mia's iOS lines and Photos' privacy manifest) both built (§14.19), and what must hold before the flag flips is §14.18.16. A load of the towers Photos does not survive is counted, and two make the phone `Unsuitable` (§14.5 item 0, D12).** **PR-7 (*Index now* continues on iOS 26+, a `BGContinuedProcessingTask`) is built behind the same flag (§15), continuing under the shared store's **task token** (§15.4, Q1 resolved 2026-11-05: `ios-shared-store-sqlite.md` B.23).** Six PRs remain (§5). Fourteen decisions (§7):
-D2–D4 are **superseded** by D1, D8 is **deferred** until after S0b-2, D13 is **decided** (its label half on 2026-10-11, `inference-service.md` §39.1), D14 is **new and open**, D10 is **reopened**.
+(`scripts/inference/retrieval-gate.py`) and the current export passes it (§9.6, 2026-10-06).** **PR-5 lands as five slices (§14): 5a (the binding and the readiness state), 5b (the runtime preflight and its probe), 5c (the download, §14.11, and the prepare step, §14.17) and 5d (the Models screens, Photos' own and Control's shared view model, §14.18) are built, behind a build flag that is off; 5e (the foreground pass) is two PRs, 5e-1 (the conditions, the pass and its stop) and 5e-2 (the indexing section, Mia's iOS lines and Photos' privacy manifest) both built (§14.19), and what must hold before the flag flips is §14.18.16. A load of the towers Photos does not survive is counted, and two make the phone `Unsuitable` (§14.5 item 0, D12).** ⭐ **2026-11-09, on the iPhone 17e with the flag on in a development build:** the download, *Preparing*, a passing preflight, consent, *Index now* over a 22-photo library and "cat" finding all 5 cats — not yet H5's ≥ 200 photos and "dog". The same day §14.18.16 items 3, 7, 10 and 11 were closed off the phone (7 with a finding: a launch passes `AwaitingVerdict` for one publication) (*Try again* is one press per key); **the flag still waits for the ordered phone list at the top of `how-to/pio7-phone-session.md`, and for D12 ⓪'s iOS 17 load, which Xcode 27.2 cannot run (no iOS 17 runtime).** **PR-7 (*Index now* continues on iOS 26+, a `BGContinuedProcessingTask`) is built behind the same flag (§15), continuing under the shared store's **task token** (§15.4, Q1 resolved 2026-11-05: `ios-shared-store-sqlite.md` B.23).** **PR-6 (the overnight processing wake, a `BGProcessingTask` on the charger) is built behind the same flag (§16, 2026-11-11); its three device nights are owed (`how-to/photos-processing-wake.md`).** **PR-6b (new arrivals indexed while Photos is in front, `inference-service.md` IN-D6a) is built behind the same flag (§17, 2026-11-11); its 📱 pass is owed.** Five PRs remain (§5). Fourteen decisions (§7):
+D2–D4 are **superseded** by D1, D8 is **built** as PR-6 (§16; its S0b-2 precondition met since `ios-shared-store-sqlite.md` B.22), D13 is **decided** (its label half on 2026-10-11, `inference-service.md` §39.1), D14 is **new and open**, D10 is **reopened**.
 
 v0.4 in one list:
 - **The backend** is Kotlin/Native over `platform.CoreML`, in `inference-service-proxy` `iosMain`. No
@@ -28,7 +28,7 @@ v0.4 in one list:
 - §2's spike table and §2.1's ORT rows are kept as measurements of the route not taken.
 
 Earlier versions: v0.3 recorded D1 and PR-0b's result. v0.2 was the amendment after independent
-review: the realm stamp (owner id now, the SQLite store's `meta.epoch` after S0b-1) re-checked at four points; a fourth
+review: the realm stamp (owner id + the SQLite store's `meta.epoch`, §13.2) re-checked at four points; a fourth
 lock, so non-Photos graphs bind a store that never writes; the model index out of the Keychain; PR-5
 cancelled on background and behind a build flag, with the overnight wake deferred; the
 device-capability gate (D12).
@@ -38,9 +38,11 @@ device-capability gate (D12).
   until `ios-scheduler-lease.md` S0b (a)–(d) exist (`ios-background-scheduling.md` §4.1.1). So only the
   harness (PR-1), which needs no App Group, can run on the iPhone before then. Every later 📱 check waits
   for S0b.
-- **A background pass also waits for S0b-2** (the gate and the quiesce step). The pass reads the shared
+- **A background pass also waited for S0b-2** (the gate and the quiesce step). The pass reads the shared
   replica under its file lock, and iOS kills an app that is suspended while holding that lock
-  (`0xdead10cc`). So until S0b-2 the product is **foreground indexing**, cancelled on background (§3.3).
+  (`0xdead10cc`). ⭐ **Met:** the SQLite store is on in every build since `ios-shared-store-sqlite.md`
+  B.22 (2026-11-05, no switch), and a `BGTask` holds its **task token** (B.23). The background passes
+  are PR-7 (§15) and PR-6 (§16), both behind the AI flag.
 
 Parent: [`photos-ios.md`](photos-ios.md) §3.2 (AI-L), PIO-D9, PIO-D10, §5's PIO-7 row and §7 Q2.
 Inputs: [`inference-service.md`](inference-service.md) (IN-D2, IN-D3, IN-D5, IN-D13, §15 IN-3m, §32,
@@ -225,6 +227,30 @@ on this device yet"* (`:807-808`), and its `NO_CONSENT` line, which names Contro
 are just as wrong there: Photos may hold a full index. iOS gets its own wording for all three, pointing
 at Photos (PR-5). **Built in 5e-2** (§14.19.11): `MiaPhotoSearchHome`, a required parameter of
 `miaServiceProxyImplementationFactory`, `PHOTOS_APP` in the iOS proxy module.
+
+⚠⚠ **As built — the first device search hid every match (2026-11-09).** Photos on the maintainer's
+iPhone, flag on, Core ML fp16 towers on CPU_AND_NE, 22 photographs indexed (5 cats, 17 of Sintra):
+*"cat"* answered **no results**. A temporary diagnostic (reverted, never committed) printed each
+score: the five cats at cosine **0.080–0.084**, the best non-cat 0.021, query and image vectors unit
+norm — ranking perfect, towers fine. The floor was wrong: `SEMANTIC_RELEVANCE_FLOOR` still sat at
+cosine 0.0915, carried over from another checkpoint. It is now **cosine 0.06**, measured on the
+pinned checkpoint across Core ML, ONNX and fp32 (`inference-service.md` §35.1.1), and the device's
+22 cosines are a test (`theIphonesFiveCatsAreFoundAndNothingElse`). ⭐ The host's Core ML towers
+reproduce the phone's scores to 1.2 × 10⁻⁷, so a host measurement of the Core ML pair is a phone
+measurement.
+
+⚠ **As built — the idle line (2026-11-09).** The empty bar said *"Search by file name."* on that same
+phone. It now says *"Search by file name or by what's in a photo."* only once source 3's last answer
+was that it **ran** (`PhotoSearchCopy.idle`, `PhotoSearchUiState.semanticKnown`); every refusal, a
+failure, `NotBuiltHere` and the unasked seed keep the plain line. iOS asks when the screen opens and
+again whenever it is shown over an empty bar (`askOnOpen`, `screenShown`: on appearance and on the
+return to the foreground, one question at most in flight), so a consent switched or an index finished
+in Settings → Models reaches it untyped; the in-process proxy's own answer, refusals before any
+embedding. Android and desktop learn from their first query. ⚠ The remembered answer is the idle
+line's alone: an emptied bar resets the note's status, so a next query shows only its own refusal,
+never a stale *"switched off"*. ⚠ A query cancels an opening question in flight; the Core ML text
+tower's load is serialised by its lock anyway (`CoreMlInferenceBackend.embedText`), so the two never
+load it twice.
 
 ---
 
@@ -454,7 +480,7 @@ on the ONNX row, for two measured reasons given there.
       `instance` half are superseded, and a random `meta.epoch`, rewritten in the transaction that
       **replaces** the store (a wipe, a migration), is what now says *"this is not the store you
       opened"*. Not `meta.seq`, which moves on every write. PR-3 lands the owner-id half; the epoch
-      half **depends on S0b-1**. Until then a same-owner reset is not seen by the stamp, and since
+      half **depends on S0b-1** — ✅ built 2026-11-10 (§13.2). Until then a same-owner reset is not seen by the stamp, and since
       vectors and `EmbeddingStore.visited(path)` are path-keyed, a photo recreated at the same path
       could be skipped as already indexed.
   - **Checked at four points**, not only at install, because a reset can land while Photos is resident
@@ -517,11 +543,15 @@ maintainer settled `photos-ios.md` §7 Q2: the Models screen stays in Photos.
   today (`inference-service.md` §37: empty vocabulary, no backend claims tagging), so in practice
   nothing a model produced reaches another app yet. Face grouping does not run on iOS: no face
   backend exists there, and the feature is not offered (`OnDeviceModelsCapabilities`) [C].
+  → The plan to change that, and which face rows sync: [`ios-face-grouping.md`](ios-face-grouping.md).
   ⚠ Not verified here: which face rows (the names a user typed) are synced.
 - **(d) When a file is indexed on iOS.** Only by Photos' own pass: 5e's foreground *Index now*,
   a `BGProcessingTask` later (§14.18.1, `photos-ios.md` §3.2). Not at upload and not by Drive:
   Drive's process binds no backend (lock 2) [I]. So a file Drive or Files added is indexed when
   Photos next runs a pass [I].
+  ⚠ **Amended 2026-11-11 by `inference-service.md` IN-D6a:** that is today's behaviour, not the
+  intended one. A small batch of new arrivals is indexed while Photos is in the foreground,
+  without a press (**PR-6b**); the backlog waits for PR-6's overnight wake or *Index now*.
 - **(e) iOS only.** On Android and desktop Control holds the models and the index for every app
   (§14.18.0).
 
@@ -803,10 +833,10 @@ readiness state above.
 |---|---|---|---|
 | *Index now* (foreground) | user presses it in Photos' Models screen | `allowManualIndexing()`: not Low Power Mode, battery ≥ 20 % or charging, thermal < `.serious` | completes, **pauses for heat** (below), or is **cancelled** on `didEnterBackground` (below); the next press continues from the store |
 | *Index now* continued (iOS 26+) — **PR-7, built (§15)** | user leaves the app mid-pass | `BGContinuedProcessingTask` [C: the iPhoneOS 27.2 SDK's headers] | system UI shows progress; expiration cancels at the next photo |
-| Processing wake — ⚠ **deferred until after S0b-2** (D8) | iOS grants `app.tenshu.photos.processing` (charging + idle) | `allowIndexing()` true **only** inside the wake | the expiration handler calls `MediaIndexRunner.cancelRunningPass()`. The pass is resumable (the store is the cursor), so the next wake continues |
+| Processing wake — **PR-6, built (§16)** | iOS grants `app.tenshu.photos.processing` (charging + idle) | `allowIndexing()` true **only** inside the wake, and there not at `.serious`, in Low Power Mode or off the charger (`scheduledIndexingBlock`) | the pass's end, or the expiry: the wake's job is cancelled, which cancels the runner's scheduled pass at its next photo; the task completes once it has stopped. The pass is resumable (the store is the cursor), so the next wake continues |
 
-- ⚠⚠ **Until S0b-2, the product is foreground indexing plus continued processing** once PR-7 can land.
-  Nothing indexes overnight.
+- ⭐ **S0b-2 is met** (`ios-shared-store-sqlite.md` B.22, B.23): foreground indexing, continued
+  processing (PR-7) and the overnight wake (PR-6) are all built, behind the AI flag.
 - ⚠⚠ **Cancel on background, never suspend mid-pass.** On `didEnterBackground`, Photos opens a
   `beginBackgroundTask` window, calls `MediaIndexRunner.cancelRunningPass()` (`MediaIndexRunner.kt:148`)
   [C], and ends the window once the pass has stopped. A pass suspended mid-read of the shared replica is
@@ -828,14 +858,16 @@ readiness state above.
   - **Chunked.** §15.12.2's finding is that accumulated work, not temperature, predicts the throttle,
     and that recovery is fast [D]. So a pass rests after N photos rather than running until it is hot.
     N and the rest come from PR-1's duty-cycle run (§4.5).
-- **Shape of the wake:** a thin Kotlin entry, `PhotosLocalRuntime.runProcessingWake(deadline)`. Swift
+- **Shape of the wake:** a thin Kotlin entry, `PhotosLocalRuntime.runProcessingWake(wakeId, task)`
+  (as built, §16.3 decision 1: no `deadline`, since a `BGProcessingTask` states none). Swift
   calls it from the task's launch handler, registered in `App.init` before launch finishes
   (`ios-scheduler-lease.md` §7.2) [D]. It is shaped as S2's `run(WakeReason.PROCESSING)` handler, so S1c
   can replace the Swift driver one-for-one.
-- ⚠⚠ **It holds S0b-2's quiesce token around shared-store access.** That is why PR-6 is deferred until
-  after S0b-2.
-- **The wake reuses PR-5's backoff and chunking**, and yields on `.serious` rather than running to
-  expiry. Both models are dropped when the wake ends.
+- ⚠⚠ **It holds the shared store's task token around shared-store access** (B.23,
+  `SharedReplicaEntries.protectTask`). Built (§16.2).
+- **The wake reuses PR-5's heat stop** (there is no chunking: decided 2026-10-23, §14.19.8), and yields
+  on `.serious` rather than running to expiry: the pass stops at its next photo and the wake ends. Both
+  models are dropped when the wake ends.
 - ⚠ **A wake must be requested to happen.** The `BGProcessingTaskRequest` is submitted when Photos
   leaves the foreground with work left, and again at the start of every handler, because a grant is
   one-shot (`drive-ios/Sources/BackgroundSync.swift:27-42` is Drive's precedent) [C].
@@ -1341,14 +1373,15 @@ Each PR leaves master consistent. 📱 = maintainer's iPhone; 🖥 = this Mac; *
 | **PR-1** ✅ **built (§9); 📱 the measurement is still owed: a partial run only (§9.7, 2026-10-07; one short pass per row, 554 files by the 562's recipe).** ⭐ **IN-3m-iOS on Core ML** (the 562-photo corpus, decode timing, the compile step) | `scripts/inference/export-coreml-towers.py` (the two fp16 archives, the export manifest with the upstream revision, the self-check against fp32; §3.4); `inference-service-proxy`: a new `iosMain` with `CoreMlSession` (`.cpuAndNeuralEngine`, the shape guard, predict), `CoreMlModelCache` (unpack, `compileModel`, the `ready` marker) and `IosImageDecoder`; a `TarReader` in `commonMain`; new `:inference-harness-ios` (+ `settings.gradle.kts`); `inference-harness-ios/` xcodegen app; `scripts/regenerate-xcode-projects.sh`. ⚠ No catalog entry yet: the archives are side-loaded (§4.4) | iOS lane; `./gradlew iosKotlinCheck`; iOS tests; ⚠ `scripts/ios-smoke.sh --build-only` **all ten**: the umbrella's Kotlin now references `CoreML` and `ImageIO`, and whether every app's link line already has them is [I]; a harness build; **📱 the measurement** (§4.1, §4.4), pasted into `inference-service.md` §15 beside Android and into `models.md`. ⚠ `TarReader` is `commonMain`, so the JVM gate and `:control:mergeLibDexDebug` run too. No DI, no schema ⇒ no HR 9 | `commonTest`: the tar reader round-trips a package, refuses `..`, an absolute path and a truncated archive. `:inference-service-proxy` `iosTest` (simulator): the decoder upright on an EXIF-6 JPEG made in-test; squash, not crop; `size²` output; `null` on non-image bytes; the cache writes its marker last and a missing marker reads as not ready; the session's shape guard against a tiny fixture ML Program written by the export script's `--fixture` mode (⚠ whether a K/N test can read a fixture file by path is [I]; if not, the case skips with a printed reason); the harness's simulator refusal | nothing. The maintainer gets the numbers |
 | **PR-2** ✅ **built (§10).** The iOS backend. ⚠ **Starts after the pad-id fix merges** (the tokenizer's pad id) | `CoreMlInferenceBackend` (vision + text) over PR-1's session and cache; the guards extracted to `commonMain` and called from `onnxMain` too; the tokenizer + vocabulary reader to `commonMain`, with `expect fun nfkc`; the tokenizer goldens to `commonTest`; `COREML_RUNTIMES` in `iosMain` | **smoke** (the `onnxMain`/`androidMain` compile set changes); `:control:mergeLibDexDebug` (a commonMain change has broken D8 with the gate green before); iOS lane; iOS tests; the JVM gate; the vocabulary map's footprint on the simulator, as a first reading (§3.2) | existing `OnnxInferenceBackendTest` unchanged against the extracted halves; `SiglipTextTokenizerTest`'s goldens (as the pad-id fix leaves them, pad = `</s>`) green on JVM **and** iOS; an NFKC parity table on JVM and iOS; the iOS backend with a fake `CoreMlSessionPort`: latching, `Unreadable` vs `Failed`, one session per path, text off the lane, no text without a vocabulary, **`supports` false until the marker exists** | nothing (not bound) |
 | **PR-2b** The catalog entry ✅ **built 2026-10-07 (§12); signed and published by the maintainer 2026-10-11** (reported verified against the pinned key from outside; this plan's own evidence is the artifacts' headers, §14.12) | `deploy/models/models.json` (the `coreml` entry + `source`, §3.4); `:model-signer`: refuse a duplicate `(id, runtime)`, carry `source`; `SignedCatalogRoundTripTest`; `docs/how-to/models-pipeline.md`; `docs/models.md`. Then the **maintainer signs and publishes** (the key is in their Keychain): archives first, catalog last | the JVM gate (`:model-signer`, `:inference-service-proxy` jvmTest). No client code ⇒ no smoke. ⚠ Publishing is safe for shipped builds: none contributes `coreml` (§3.4). ⚠ It must precede PR-5's 📱 pass, and it follows PR-1's measurement **and the retrieval gate re-run on the final archives** (§3.4), so a bad conversion is never published | the round trip with two entries under one id; the signer refusing a duplicate pair; `DRY_RUN=1 scripts/models-publish.sh` listing the three paths | nothing |
-| **PR-3** ✅ **built (§13), owner-id half.** Photos-owned stores (PIO-D10 built). ⚠ The `meta.epoch` half of the stamp **depends on S0b-1** and follows it | `named("inferenceFileDatabase")` in the common `ProxyModule` (default = shared); Photos override → private, backup-excluded `IosFileDatabase`; the **fourth lock**: an empty, non-writing `EmbeddingStore` / `FaceTemplateStore` in every other route-1 graph (§3.1); the model index + garbage list moved from the Keychain into the private `FileDatabase` (§3.1); the realm stamp (owner id; `meta.epoch` **after S0b-1**) checked at install, on foreground, at pass start and before `photosLike`, clearing vectors and templates (never models) and written only after the clears; the runtime-fingerprint sidecar (§3.2: archive digests, compute units, OS build); `deprovision()` clears; `registerMediaIndexSchedule()` out of the iOS `PlatformProxyModule`; ⚠ `photos-ios.md` §3.3 / lease doc §3.2 footnote ² updated | **smoke** (Control DI) + `mergeLibDexDebug`; iOS lane; `ios-smoke.sh --build-only` all; threat-model note (A5/C4e: inference stores leave the App Group, narrowing; A40 for when faces follow) per HR 2 | `:tenshu-sdk-ios` iosTest: Drive's, Control's and Calendar's assembled runtimes resolve **no** backend, `Never`, empty runtimes and the App Group store path; Photos' resolves the private path; the other graphs' stores open no file, scrub nothing and clear nothing; a stamp mismatch clears vectors and templates before anything binds and leaves the model store; a clear that throws leaves the backend unbound and the old stamp; a mismatch while resident cancels the pass and clears before the next `photosLike`; a reinstall with bytes gone reports no model installed; a changed vision digest clears the vectors, and so does a changed OS build until §3.2's threshold is measured; deprovision clears. ⚠ Each guard deleted once and seen red (`test-the-guard-not-the-shape`) | nothing |
+| **PR-3** ✅ **built (§13), both halves** (the `meta.epoch` half 2026-11-10, §13.2). Photos-owned stores (PIO-D10 built) | `named("inferenceFileDatabase")` in the common `ProxyModule` (default = shared); Photos override → private, backup-excluded `IosFileDatabase`; the **fourth lock**: an empty, non-writing `EmbeddingStore` / `FaceTemplateStore` in every other route-1 graph (§3.1); the model index + garbage list moved from the Keychain into the private `FileDatabase` (§3.1); the realm stamp (owner id + the shared store's `meta.epoch`, §13.2) checked at install, on foreground, at pass start and before `photosLike`, clearing vectors and templates (never models) and written only after the clears; the runtime-fingerprint sidecar (§3.2: archive digests, compute units, OS build); `deprovision()` clears; `registerMediaIndexSchedule()` out of the iOS `PlatformProxyModule`; ⚠ `photos-ios.md` §3.3 / lease doc §3.2 footnote ² updated | **smoke** (Control DI) + `mergeLibDexDebug`; iOS lane; `ios-smoke.sh --build-only` all; threat-model note (A5/C4e: inference stores leave the App Group, narrowing; A40 for when faces follow) per HR 2 | `:tenshu-sdk-ios` iosTest: Drive's, Control's and Calendar's assembled runtimes resolve **no** backend, `Never`, empty runtimes and the App Group store path; Photos' resolves the private path; the other graphs' stores open no file, scrub nothing and clear nothing; a stamp mismatch clears vectors and templates before anything binds and leaves the model store; a clear that throws leaves the backend unbound and the old stamp; a mismatch while resident cancels the pass and clears before the next `photosLike`; a reinstall with bytes gone reports no model installed; a changed vision digest clears the vectors, and so does a changed OS build until §3.2's threshold is measured; deprovision clears. ⚠ Each guard deleted once and seen red (`test-the-guard-not-the-shape`) | nothing |
 | **PR-4** ✅ **built (§11).** Models VM to a Compose-free module | `ModelsViewModel` + `ModelsRepository` from `:control-shared` → `:control-shared-logic` (already exported, iOS-capable); the two holders behind small interfaces; Compose `ModelsScreen` unchanged | **smoke** (`:control`); desktopTest; iOS lane; `scripts/check-objc-clashes.py` (parity doc D12: new exported names) | `ModelsViewModelTest`, `IndexNowButtonTest`, `ModelsSnapshotTest` move with it, green | nothing |
 | **PR-5** ⚠ **Lands as five slices, 5a–5e (§14). 5a–5d are built (§14.2, §14.6, §14.11, §14.17, §14.18); 5e and the flag flip are open (§14.18.16); the flag is off.** **Photos binds AI-L** (foreground), ⚠ **behind a build flag** | Photos `appOverrides`: `CoreMlInferenceBackend` bound **once, at assembly**, on a phone that clears the static gates (iOS 17+, the D12 `physicalMemory` threshold, the build flag), and never rebound; `AiReadiness` (§3.2), the live state the backend consults on every call, with its persisted verdict and its four writers; `IosIndexingConditions` (scheduled = false outside a wake; manual per §3.3, thermal included); `supportedModelRuntimes = COREML_RUNTIMES`; ⚠ **no change to `photos-ios/project.yml`'s link settings** beyond what PR-1 found; SwiftUI Models screen in Settings (catalog, download size **and on-disk size**, download bar, *Preparing*, the two switches, *Index now*, coverage line); the prepare step after the download (§3.4) and the launch warm-up (§3.2), both off the main thread; `PhotosSurface.search` → `AskThisDevice` on a phone that clears the static gates, `NotBuilt` otherwise; the search view model's `noBackend` mapping from the readiness state (§3.2; ⚠ a defaulted seam in `photos-shared-logic` `commonMain`, so Android compiles it); copy names Photos' Settings; Mia's three iOS refusal lines point at Photos (§1.8); cancel-on-background inside a `beginBackgroundTask` window (§3.3); ⚠ **thermal backoff and chunking for the foreground pass** (§3.3; §2.2 reached `serious`); the model download on a **background `URLSession`** from the start (Drive's precedent: `drive-ios/Sources/BackgroundUpload.swift:32`, relaunch via `handleEventsForBackgroundURLSession`, `DriveIosApp.swift:299`), ⚠⚠ **with a durable download journal**: today the verified catalog entry, the per-artifact SHA accumulator, the completed-artifact map and the in-flight state live only in memory (`ModelDownloader.kt:132-176,182-208`) [C], so a transfer that finishes after Photos was terminated could deliver bytes nobody can verify and the model would stay staged forever. Drive's precedent works because it journals each upload *before* handing it to `URLSession`; PR-5 does the same for ~709 MB in three artifacts — in the private `FileDatabase` (§3.1), journal the catalog entry, each artifact's expected digest and task identifier before submitting, and on relaunch re-hash the delivered file **from disk** (no in-memory accumulator) before `commitStaged`, discarding a mismatch; a free-space check before the download, with PR-1's measured figures (§3.4: **2.58 GB** additional for a first install and, until the deletion experiment credits the old compiled directory, for an update too, plus the check's own margin); `PrivacyInfo.xcprivacy` for Photos (the repo-wide gap is `tech-debt.md`'s) | iOS lane; iOS tests; **smoke** + `:control:mergeLibDexDebug` (the `photos-shared-logic` seam is `commonMain`); `ios-smoke.sh --build-only` all + `--build photos`; Swift; `PhotosIosUITests`; a load of both towers on an **iOS 17 simulator runtime** (D12 ⓪); **📱 H5**: download over Wi-Fi, *Preparing*, consent, *Index now* over ≥ 200 photos, "dog" finds dogs; ⚠⚠ **device pass blocked until the App Group build is installable (S0b a–d)**, which is why the flag: the code lands, the flag stays off until H5 passes on the phone. App Store: §6 item 12. No new entitlement | Swift UI tests on a fixture backend: consent order, *"Couldn't save that on this device yet"*, the four refusal sentences (§34.2), search's off-vs-none; Kotlin: `IosIndexingConditions` truth table with fake probes, every unknown a no, thermal ≥ `.serious` a no for both bars; the D12 gate below and above the threshold and below iOS 17 (no download offered), and the preflight failing on a slow fake vision session, on a slow or unloadable fake text session and on an unreadable vocabulary, on a session returning NaN, zeros, or a mis-ranked probe pair (never `Ready`; and the backend refuses a non-finite vector on the indexing path), after each of which `supports` is false, `photosLike` refuses `NO_BACKEND` and search shows the *"isn't available on this iPhone"* line; ⚠ **readiness flips in both directions with no relaunch and one graph**: on the *same* assembled runtime and the *same* search view model, a passing verdict makes the next query run, and a failing one makes the next query refuse; **the update case**: a phone with a prior pass installs a replacement — not ready from the commit, then a failing preflight leaves it unsuitable, and a passing one clears the vectors **before** the first vector of the new artifact is written; **the indexer while unready**: `StartMediaIndexPass` refuses `NO_BACKEND`, a pass started directly skips with `skippedNoBackend`, and a pass running when the state flips is cancelled and remembers nothing against its photos; **sessions**: after an artifact change the old sessions are closed and the next call opens the new path, with no prediction served from the old model; `noBackend` maps to *"there isn't one yet"* with no model or while preparing, and to the `NotBuiltHere` line when unsuitable; ⚠ each guard deleted once and seen red; a prepare interrupted before the marker is redone and the backend claims nothing meanwhile; a `.mlmodelc` that fails to load is recompiled once, then `Failed`; ⚠ **a terminated-app relaunch**: a fake background session delivers every artifact to a fresh runtime with no in-memory download state, which verifies from the journal and installs, and a corrupted delivered file is discarded, not committed; deleting the model removes the archives **and** the compiled directory, and a launch sweep removes a compiled directory no install record names; an update deletes the old compiled directory before compiling and leaves the old archives to the store's next-process sweep, and a download is refused up front when free space is below the case's **additional** need (§3.4's measured budgets: a first install and an update are each refused below 2.58 GB free and accepted above it; an update is not held to its ~5.16 GB total peak); the preflight under a hot or pressured phone, or with a load error, stays `AwaitingVerdict` and is retried, and only repeated slow probes at an acceptable thermal state persist `Unsuitable`; the request built for a default download refuses cellular and expensive networks and the one built after "Use cellular data" allows them (the Wi-Fi-to-cellular transition itself is 📱); a background notification mid-pass cancels at the next photo and the next press resumes; a pass that meets `.serious` stops at the next photo and says why | ⭐ **Search by description on the iPhone**, after a download and two switches |
-| **PR-6** The processing wake — ⚠⚠ **deferred until after S0b-2** (D8) | `UIBackgroundModes: [processing]`, `BGTaskSchedulerPermittedIdentifiers: [app.tenshu.photos.processing]` in `project.yml`; `PhotosLocalRuntime.runProcessingWake(deadline)`; ⚠⚠ the handler holds the shared store's **task token** (`SharedReplicaEntries.protectTask`, `ios-shared-store-sqlite.md` B.23), ended before `setTaskCompleted`, never an entry's `withProtection`; Swift registration in `App.init`; ⚠ **the request is submitted, and re-armed**: a `BGProcessingTaskRequest` is submitted when Photos leaves the foreground with consent on and photos left to index, and again at the start of every handler, because a grant is one-shot (Drive's precedent: `drive-ios/Sources/BackgroundSync.swift:27-42`) [C]; PR-5's thermal backoff and chunking, reused; both models dropped when the wake ends; ⚠⚠ **an exactly-once completion bridge**: the handler calls `setTaskCompleted(success:)` from the runner's terminal outcome — true when the wake's chunk ends normally, false on a failure and on the expiration path after the cancel has stopped the pass — because a task left uncompleted stays active until its allocation expires and the system may kill the app [D: Apple, `BGTask.setTaskCompleted`]. Drive's handler completes on both paths (`drive-ios/Sources/BackgroundSync.swift:41-52`) [C]; `MediaIndexRunner.start()` returns at once, so this needs the runner's terminal outcome (scoped with PR-7's bridge; whichever of the two lands first adds it), guarded so expiry and a normal finish racing cannot complete twice | **Needs S0b-2 merged; not started before.** iOS lane; `ios-smoke.sh`; Swift; **📱**: the debugger's `_simulateLaunchForTaskWithIdentifier:` + `_simulateExpirationForTaskWithIdentifier:`, then **three real nights** logging wakes granted, minutes per wake and photos per wake. ⚠ A forced launch passes without a submitted request; only the real nights show the request is armed. App Review: a `processing` background mode, justified as "index photos on device while charging" | runner/expiry: an expiration mid-pass cancels at the next photo and the store resumes; no wake ⇒ `allowIndexing()` false; the handler re-arms before it works; the task is completed exactly once on a normal finish, a failure, an expiration, and an expiration racing a finish | the library finishes indexing overnight on the charger |
-| **PR-7** ✅ **built (§15), behind the flag; 📱 owed (§15.6).** *Index now* continues (iOS 26+). ⚠ The identifier's base is `app.tenshu.photos.ios.indexnow.*` (§15.3 decision 2), and it carries the pass under the store's task token (§15.4, B.23) | `BGContinuedProcessingTask` around a user-started pass, `#available`-gated. ⚠ It needs its **own wildcard identifier**: `BGTaskSchedulerPermittedIdentifiers` gains `app.tenshu.photos.indexnow.*` (a continued-processing request's base must end in `.*`, and each job submits a unique suffix, e.g. `app.tenshu.photos.indexnow.<uuid>`) [D: Apple]; ⚠ the wildcard is only the plist entry: the **fully composed** identifier, suffix included, is what is both registered and submitted, so *Index now* registers the handler for the generated identifier immediately before submitting the request with it (continued-task handlers may be registered when the user expresses intent, unlike launch-registered `BGProcessingTask`s) [D: Apple, WWDC25 session 227]. PR-6's fixed `app.tenshu.photos.processing` cannot serve it. ⚠ **`.fail`, never the default `.queue`**: a queued request may not launch its handler when the user presses *Index now*, so either the button would start nothing, or the foreground pass would start alone and be cancelled on leaving the app while the task is still queued. The request is submitted with `strategy = .fail` [D: Apple, *Choose a processing strategy*]; on acceptance the handler owns the pass, and on rejection *Index now* runs PR-5's ordinary foreground pass, which cancels on background as before. The press always starts work at once. ⚠⚠ **A progress and completion bridge**: `MediaIndexRunner.start()` returns at once, so wrapping the call exposes neither. ⚠ `IndexProgressHolder` cannot carry the outcome: it publishes the same terminal `null` for success, refusal, pause, cancellation and failure (`IndexProgressHolder.kt:64-66`), `MediaIndexRunner.start()` discards its `Deferred`, and `onPassFinished` is not reached from the exception path (`MediaIndexRunner.kt:176-196`) [C]. So PR-7 adds a **terminal outcome** to the runner — an awaitable result per started pass (completed, refused, cancelled, failed), set in the same `finally` that clears the bar — and PR-6's bridge uses it too. The handler observes `IndexProgressHolder` for progress only, maps done/total onto the task's `progress` (a task that reports none is expired by the system [D: Apple, WWDC25 session 227]), and calls `setTaskCompleted(success:)` from the terminal outcome: true on completion, false on a failure, a refusal or the expiration cancel | **Needs S0b-2 merged**: a continued pass reads the shared replica in the background. 📱 on iOS 26; Swift | leave-app-mid-pass continues with system progress; a rejected submission still starts the pass at once as a foreground pass that cancels on background; the bridge on a fake runner: progress advances with the holder, a finished pass completes the task with success, a **throwing** pass and an expired one with failure (the runner's outcome distinguishes them where the holder cannot), and none is left uncompleted; with a live continued task the background hook does **not** cancel, and without one it still does (§3.3); expiry stops at the next photo | *Index now* survives leaving the app |
+| **PR-6** ✅ **built (§16, 2026-11-11), behind the AI flag; 📱 the three nights owed (`how-to/photos-processing-wake.md`).** The processing wake. ⚠ As built: no `deadline` parameter, no chunking (none exists, §14.19.8), and the identifier stays `app.tenshu.photos.processing` (a processing task's need not begin with the bundle id) | `UIBackgroundModes: [processing]`, `BGTaskSchedulerPermittedIdentifiers: [app.tenshu.photos.processing]` in `project.yml`; `PhotosLocalRuntime.runProcessingWake(deadline)`; ⚠⚠ the handler holds the shared store's **task token** (`SharedReplicaEntries.protectTask`, `ios-shared-store-sqlite.md` B.23), ended before `setTaskCompleted`, never an entry's `withProtection`; Swift registration in `App.init`; ⚠ **the request is submitted, and re-armed**: a `BGProcessingTaskRequest` is submitted when Photos leaves the foreground with consent on and photos left to index, and again at the start of every handler, because a grant is one-shot (Drive's precedent: `drive-ios/Sources/BackgroundSync.swift:27-42`) [C]; PR-5's thermal backoff and chunking, reused; both models dropped when the wake ends; ⚠⚠ **an exactly-once completion bridge**: the handler calls `setTaskCompleted(success:)` from the runner's terminal outcome — true when the wake's chunk ends normally, false on a failure and on the expiration path after the cancel has stopped the pass — because a task left uncompleted stays active until its allocation expires and the system may kill the app [D: Apple, `BGTask.setTaskCompleted`]. Drive's handler completes on both paths (`drive-ios/Sources/BackgroundSync.swift:41-52`) [C]; `MediaIndexRunner.start()` returns at once, so this needs the runner's terminal outcome (scoped with PR-7's bridge; whichever of the two lands first adds it), guarded so expiry and a normal finish racing cannot complete twice | ~~Needs S0b-2 merged~~ (met: `ios-shared-store-sqlite.md` B.22). iOS lane; `ios-smoke.sh`; Swift; **📱**: the debugger's `_simulateLaunchForTaskWithIdentifier:` + `_simulateExpirationForTaskWithIdentifier:`, then **three real nights** logging wakes granted, minutes per wake and photos per wake. ⚠ A forced launch passes without a submitted request; only the real nights show the request is armed. App Review: a `processing` background mode, justified as "index photos on device while charging" | runner/expiry: an expiration mid-pass cancels at the next photo and the store resumes; no wake ⇒ `allowIndexing()` false; the handler re-arms before it works; the task is completed exactly once on a normal finish, a failure, an expiration, and an expiration racing a finish | the library finishes indexing overnight on the charger |
+| **PR-6b** ✅ **built (§17, 2026-11-11), behind the AI flag; 📱 owed (§17.6).** New arrivals while Photos is open (IN-D6a, decided 2026-11-11). ⚠⚠ As built: the batch is over the **arrived paths alone**, read from the file service's modification log — never a walk (§17.3 decision 1); a batch **yields** to a running wake rather than replacing it, and an unknown battery is a no (decisions 2 and 4) | A trigger in Photos' runtime: when the library watch reports new photos and Photos is in the foreground, start a pass through `MediaIndexRunner` capped at the IN-D6a batch (50 to start), only for capabilities whose consent is on and whose model serves; debounced so a burst of arrivals is one pass; `ForegroundIndexingConditions` as for *Index now*; cancelled on leaving the foreground (it never asks for continued processing — that is *Index now*'s); progress on *Index now*'s surface. ⚠ A batch that finds more than the cap indexes the cap and leaves the rest to PR-6 or *Index now*, never chaining. ⚠⚠ People must re-read after the pass (the iOS refresh fix found in the F8 device pass), or the batch runs and nothing shows | iOS lane; `ios-smoke.sh`; Swift if the trigger lives there; 📱 upload one photo in Drive, open Photos, see it in search and People without a press | runner single-flight with *Index now*; no trigger in the background; cap honoured; no consent or no model ⇒ no pass; a burst debounced to one pass | a new photo is searchable and grouped moments after Photos opens |
+| **PR-7** ✅ **built (§15), behind the flag; 📱 owed (§15.6).** *Index now* continues (iOS 26+). ⚠ The identifier's base is `app.tenshu.photos.ios.indexnow.*` (§15.3 decision 2), and it carries the pass under the store's task token (§15.4, B.23) | `BGContinuedProcessingTask` around a user-started pass, `#available`-gated. ⚠ It needs its **own wildcard identifier**: `BGTaskSchedulerPermittedIdentifiers` gains `app.tenshu.photos.indexnow.*` (a continued-processing request's base must end in `.*`, and each job submits a unique suffix, e.g. `app.tenshu.photos.indexnow.<uuid>`) [D: Apple]; ⚠ the wildcard is only the plist entry: the **fully composed** identifier, suffix included, is what is both registered and submitted, so *Index now* registers the handler for the generated identifier immediately before submitting the request with it (continued-task handlers may be registered when the user expresses intent, unlike launch-registered `BGProcessingTask`s) [D: Apple, WWDC25 session 227]. PR-6's fixed `app.tenshu.photos.processing` cannot serve it. ⚠ **`.fail`, never the default `.queue`**: a queued request may not launch its handler when the user presses *Index now*, so either the button would start nothing, or the foreground pass would start alone and be cancelled on leaving the app while the task is still queued. The request is submitted with `strategy = .fail` [D: Apple, *Choose a processing strategy*]; on acceptance the handler owns the pass, and on rejection *Index now* runs PR-5's ordinary foreground pass, which cancels on background as before. The press always starts work at once. ⚠⚠ **A progress and completion bridge**: `MediaIndexRunner.start()` returns at once, so wrapping the call exposes neither. ⚠ `IndexProgressHolder` cannot carry the outcome: it publishes the same terminal `null` for success, refusal, pause, cancellation and failure (`IndexProgressHolder.kt:64-66`), `MediaIndexRunner.start()` discards its `Deferred`, and `onPassFinished` is not reached from the exception path (`MediaIndexRunner.kt:176-196`) [C]. So PR-7 adds a **terminal outcome** to the runner — an awaitable result per started pass (completed, refused, cancelled, failed), set in the same `finally` that clears the bar — and PR-6's bridge uses it too. The handler observes `IndexProgressHolder` for progress only, maps done/total onto the task's `progress` (a task that reports none is expired by the system [D: Apple, WWDC25 session 227]), and calls `setTaskCompleted(success:)` from the terminal outcome: true on completion, false on a failure, a refusal or the expiration cancel | ~~**Needs S0b-2 merged**~~ (met, B.22): a continued pass reads the shared replica in the background. 📱 on iOS 26; Swift | leave-app-mid-pass continues with system progress; a rejected submission still starts the pass at once as a foreground pass that cancels on background; the bridge on a fake runner: progress advances with the holder, a finished pass completes the task with success, a **throwing** pass and an expired one with failure (the runner's outcome distinguishes them where the holder cannot), and none is left uncompleted; with a live continued task the background hook does **not** cancel, and without one it still does (§3.3); expiry stops at the next photo | *Index now* survives leaving the app |
 
 **Order and why.**
-PR-0 ✅ → PR-0b ✅ → PR-1 → (PR-2 ∥ PR-2b ∥ PR-4) → PR-3 → PR-5 (flag off) → *S0b-2* → PR-7, PR-6.
+PR-0 ✅ → PR-0b ✅ → PR-1 → (PR-2 ∥ PR-2b ∥ PR-4) → PR-3 → PR-5 (flag off) → *S0b-2* ✅ → PR-7 ✅, PR-6 ✅ → PR-6b.
 - **PR-0 and PR-0b are done.** PR-0 was a GO (§2.1); PR-0b passed and made Core ML the route (§2.2).
 - **PR-1 next:** everything after it assumes its numbers: decode time, compile time, disk, heat. It
   needs no App Group, so it runs on the phone today. Its product-graph change is `iosMain` and
@@ -1361,8 +1394,16 @@ PR-0 ✅ → PR-0b ✅ → PR-1 → (PR-2 ∥ PR-2b ∥ PR-4) → PR-3 → PR-5 
 - PR-3 before PR-5, because a backend must never be bound while the stores are still shared. PR-3's
   `meta.epoch` half follows S0b-1.
 - PR-5's flag stays off until its 📱 pass, which waits for S0b (a)–(d) and for PR-2b's publish.
-- PR-7 and PR-6 both wait for S0b-2. PR-7 comes first: it is the user-started route, and PR-6 (D8) is
-  deferred.
+- PR-7 and PR-6 both waited for S0b-2, which is met (`ios-shared-store-sqlite.md` B.22: the SQLite store
+  is on in every build, no switch). PR-7 came first, the user-started route; PR-6 is built (§16). Both
+  stay behind the AI flag, and both owe their 📱 passes.
+- PR-6b (IN-D6a) follows PR-6: PR-6 takes the backlog, so the small foreground batch can stop at its
+  cap. ⚠ PR-6b's trigger goes through `MediaIndexRunner` (its capped batch, `runArrivalsBatch`).
+  ~~A wake running when it fires is replaced by it~~ — **amended as built (§17.3 decision 2):** the
+  batch is the runner's *automatic* kind, so it **yields** to any running pass, a wake's included, and
+  is tried once that pass ends; a wake that starts while a batch runs replaces the batch. ⚠ A batch
+  that completes the library also makes the next leave arm no wake (§16.3 decision 4); a batch that
+  stopped at its cap does not (§17.3 decision 5). Android's half of IN-D6a is its own change in Control (`inference-service.md` IN-D6a).
 - **Faces (AI-F, PIO-8)** reuse every piece here. They add Vision for detection (§7 Q5 of the parent),
   a Core ML export of the face embedder, and the A40 work. Not in this plan.
 
@@ -1375,17 +1416,18 @@ PR-0 ✅ → PR-0b ✅ → PR-1 → (PR-2 ∥ PR-2b ∥ PR-4) → PR-3 → PR-5 
    - **Mitigation:** PR-3's four locks plus the realm stamp, re-checked at four points (§3.1).
    - **Residual:** a Photos-private store goes stale if Photos never runs after a reset. It is cleared at
      the next Photos launch, before any read, so nothing is served from it.
-   - **Residual until S0b-1:** the stamp is the owner id alone, so a reset that keeps the owner id is not
-     seen. The `meta.epoch` half closes it; W18's fence, unbuilt, is the full answer for a resident process.
+   - ~~**Residual until S0b-1:** the stamp is the owner id alone, so a reset that keeps the owner id is not
+     seen.~~ ✅ Closed 2026-11-10: the `meta.epoch` half is built (§13.2); a resident graph that met the
+     wipe reads no epoch and its checks refuse until it is rebuilt.
    - **Residual from v0.4:** lock 1 is no longer enforced by the linker (§3.1). PR-3's test is the guard.
 2. **⚠⚠ Background execution on a phone** (High).
    - The App Group build is not installable yet (S0b a–d).
-   - A background pass needs S0b-2's quiesce step.
+   - ~~A background pass needs S0b-2's quiesce step.~~ Met (B.22, B.23); PR-6 is built (§16).
    - `BGProcessingTask` scheduling is opaque: when, how often and how long are all the OS's [I]. It may
      grant one window a night or none. Only PR-6's three-night log answers it.
    - Until then *Index now* is the honest route. How long a 5 000-photo library takes on iOS is **not
      known**: on camera originals predict is ~13 ms and decode ~20 ms, ~37 ms a photo wall clock [M: one ~20 s pass, §9.7], so ~3 minutes by extrapolation [I]; nothing longer than that pass was run. Leaving the app cancels it (§3.3).
-   - **Mitigation:** PR-6 (D8) is deferred until after S0b-2; PR-5 lands behind a build flag.
+   - **Mitigation:** PR-6 (D8) and PR-5 land behind a build flag; PR-6's three nights are the measurement.
 3. **⚠⚠ Disk** (High). 743 MB to download (~709 MiB) and **~2.58 GB** on disk after the prepare step
    with the archive kept, against ~383 MB on Android (§3.4; measured on the iPhone 17e, with the
    first-open space counted as not returned). An update is budgeted at the same ~2.58 GB more and peaks at ~5.16 GB, until the deletion experiment allows less.
@@ -1471,7 +1513,7 @@ Kotlin backend is KBs [I]); the CoreML execution provider.
 | **D5** | Does iOS index on battery? | **Scheduled: never** (`requiresExternalPower`, and in-use is always true in the foreground). ***Index now*: yes**, unless Low Power Mode, below 20 % and not charging, or thermal ≥ `.serious`; revisit with the harness's battery run. ⚠ **Thermal backoff applies on the charger too**: §2.2 reached `serious` plugged in. ⚠ **IN-3m-iOS (§9.7, completed 2026-10-23) changes neither half**: the battery run triggered nothing (one 20 s pass at 100 % cannot test the 20 % line), and on the charger `.serious` came after ~4 700 photos with no slowdown, which bears on the backoff (§14.19.8), not on D5 | A user on battery must press the button; a large library will not finish on battery; a warm phone pauses a pass the user started |
 | **D6** | Model download over cellular | **Wi-Fi only by default**; the screen states the size first (IN-D10: ~709 MB, and the on-disk estimate, first-open allowance included, §3.4) and offers "Use cellular data" per download. ⚠ **Enforced in the transport, not only in the copy**: the background `URLSession` request sets `allowsCellularAccess = false` (and `allowsExpensiveNetworkAccess = false`) unless that download's choice allows cellular — the default allows it [D: Apple] — so a download started on Wi-Fi **waits** when the phone moves to cellular rather than spending ~709 MB of data, and resumes on Wi-Fi | A small preference and a sentence; ⚠ a device-local preference row, not a schema change |
 | **D7** | Store location | **Photos-private Application Support, excluded from backup** (§3.1) — not the App Group with a cross-process lock — **with the model index moved beside the bytes**, out of the Keychain. The compiled models live under the same root (§3.4). ⚠ `Library/Caches` is rejected harder than in v0.1: a purge deletes the bytes and leaves a Keychain index that still names them, and `pathOf` never checks (`DefaultModelStore.kt:283-285`) [C] | A realm stamp to keep honest, checked at four points (§3.1); an index port over `FileDatabase` in PR-3; the alternative is a multi-writer redesign of two logs |
-| **D8** ⚠ **deferred** | Background driver | **Deferred until after S0b-2.** Until then the product is foreground indexing plus continued processing (PR-7, itself after S0b-2). When it is taken up: a thin Photos-only processing wake, shaped as S2's handler, rather than waiting for S1/S2 | No overnight indexing until then; later, a Swift driver that S1c deletes (as it will delete Drive's, Fit's and Control's) |
+| **D8** ✅ **built as PR-6 (§16, 2026-11-11)** | Background driver | ~~Deferred until after S0b-2~~ (met, `ios-shared-store-sqlite.md` B.22). Built as written: a thin Photos-only processing wake, shaped as S2's handler, rather than waiting for S1/S2 | No overnight indexing until then; later, a Swift driver that S1c deletes (as it will delete Drive's, Fit's and Control's) |
 | **D9** | The harness: in the app or separate? | **Separate harness app + its own XCFramework module** (§4.2). Still needed after D1, for a different reason: the umbrella exports no inference module, so Swift cannot reach the shipped backend through `TenshuSdk` | A tenth xcodegen project and a module; nothing of it ships. Simpler than v0.3's: no shim, no fetched binary |
 | **D10** ⚠ **open (was: No)** | `increased-memory-limit` entitlement | **Open since 2026-10-07.** It was *No*, on the two models taking 19 MB and 13 MB under `.cpuAndNeuralEngine` (§2.2) [M], to be reopened *if PR-1's corpus run says otherwise*. The partial run (§9.7) neither confirms nor overturns that, so the *No* does not stand on it: ① the harness ran **one tower per process**, and Photos holds the vision and the text session together, beside the app itself; ② a pass peaked at 171–190 MB in the harness, a path that reuses no buffer and is not `CoreMlInferenceBackend`'s; ③ only the iPhone 17e was measured, and it is not the floor (D12). **What closes it:** `phys_footprint` of **Photos itself**, both sessions open through `CoreMlInferenceBackend`, over a pass of camera originals with a `photosLike` query during it, read against the foreground memory limit of the phone it ran on; on the iPhone 17e, and on a phone at D12's intended floor. That is the both-sessions footprint D12's preflight ② needs too. ⚠ A product build of Photos on a phone waits for S0b, so until then the nearest reading is a harness row that opens both towers and drives the backend | Until it closes, PR-5 does not assume the entitlement is unnecessary, and claims none either |
 | **D11** | Retire the iOS `mediaIndexPass` registry row | **Yes** (§3.1): Photos drives its passes directly | `ios-scheduler-lease.md` §3.2's table loses a row; S1's planner never has to classify it |
@@ -2552,13 +2594,63 @@ points run:
     handed the fingerprint half only; a change to the rest voids a verdict and clears nothing.
 - `iosRuntimeFingerprint(installed)` for the custody; `iosPreflightKey(installed)` for readiness.
 
-### 13.2 ⚠⚠ The `meta.epoch` seam
+### 13.2 ⚠⚠ The `meta.epoch` half — ✅ built (2026-11-10)
 
-`InferenceRealm.storeEpoch` is half of the stamp and is compared today; nothing supplies it. The
-one place that will is the `currentRealm` lambda in `ownedInferenceStoresModule`, which passes
-`storeEpoch = null` under a marked comment. After S0b-1 it reads the shared store's `meta.epoch`.
-The first check after that finds a stamp with no epoch, which is a mismatch, and clears once.
-Until then §3.1's residual stands: a reset that keeps the owner id is not seen.
+`InferenceRealm.storeEpoch` is the shared store's `meta.epoch`, as text. The `currentRealm` lambda
+in `ownedInferenceStoresModule` supplies it; §3.1's same-owner residual is closed.
+
+- **The seam.** `ReplicaEpochSource.currentEpoch()` (`core-common` iosMain) on the graph's own
+  `ObjectStore`, read through `OwnedInferenceStores.replicaEpochOf`. `SharedReplicaStore`
+  implements it as **one empty access**: the epoch is compared under the write lock as every
+  access does (`ios-shared-store-sqlite.md` §3.1), so a sibling's wipe or migration fences the
+  handle *there* and answers `null`. ⚠ Never the `epoch` field: that is what the open read, and a
+  wipe since is seen only at the handle's next access. Nothing reaches into SQLite from Photos.
+  The test replica (`TestReplicas`) implements the same contract (a random epoch per name, moved by
+  a wipe, `null` to a handle made before it), so every Photos test runs the production reader.
+- **A changed epoch** is a mismatch like an owner change: the pass is stopped, vectors and
+  templates are cleared, then the stamp is written. ⚠ A **migration** moves the epoch too (its
+  Start and its Finish), so a schema migration of the shared store re-indexes. Accepted: a wipe
+  and a migration leave no trace that tells them apart afterwards, and a migration followed by a
+  wipe before Photos runs would hide the wipe from any rule that kept vectors across one.
+- **An unknown epoch** (the not-ready stand-in, a fenced handle, a refused or deferred access, a
+  closed graph) is `RealmReading.CannotTell(owner)`: the third answer, beside a realm and none.
+  - **Same owner as the stamp:** that check answers `false` **to its caller only** and changes
+    nothing: no state, no cancelled pass, no clear, no stamp written. A query is refused; a pass at
+    its start is deferred and indexes and writes nothing (the deferral path every refusing gate
+    takes; `ForegroundIndexing` resumes it once, then the next foreground or *Index now* does).
+  - **Another owner, or no stamp:** a change that needs no epoch to see: the pass is stopped, both
+    stores cleared, and the stamp **erased** (there is no epoch to write); the next check that
+    reads one stamps.
+  - ⚠⚠ Never "unchanged": that would serve an old generation's vectors over a replaced store. ⚠⚠
+    Never "no realm" either, which is what the first cut of this did: `NoRealm` cancels a running
+    pass, and a blind read is frequent and transient (a sibling's `-wal` reset, a deferred
+    admission in protected background time, protected data; every wipe passes through it twice,
+    §5.1), so a search could stop indexing with nothing to restart it.
+  - ⚠ **Accepted, as before:** a pass already running goes on under the answer it started with,
+    which is the gap every check has between the check and the reads after it. The pass has no
+    per-image custody gate; the backend's per-call `usable()` is the custody's last answer, which a
+    blind read does not move. A store really replaced fences the graph's handle, and the graph's
+    stop ends the pass (`ios-shared-store-sqlite.md` B.16 (241)); its rebuild reads the new epoch
+    and clears.
+  - ⚠ **Known, not bounded:** the check holds the custody's `Mutex` across the epoch read, one
+    SQLite access, and an access whose gate is closed waits for admission with no deadline. A
+    query or pass waiting there would wait on the store anyway; the one caller with a budget,
+    `relinquish`, waits for the `Mutex` cancellably and falls back to erasing by path.
+- **A legacy stamp** (`{"ownerId":…}`, written while `storeEpoch` was `null`) decodes with `null`,
+  so the first epoch-bearing check is a mismatch and **clears once**; the next launch on the same
+  epoch keeps. Adopting it was rejected: an un-recorded generation is exactly the same-owner reset
+  the half exists to catch, and the cost is one re-index on a build whose flag is off.
+- **The stamp's format is unchanged** (the same JSON, the field already existed). It is device-local
+  and not schema DSL, so House Rule 9 does not apply: no version, no `SchemaMigration`.
+- ⚠ `runtimeServes` still compares the owner only: a graph whose handle is fenced never passes a
+  check, because its epoch reads `null`.
+- **Guards, each removed once and seen red** (§13.5's rule): a blind read for the same owner
+  changing nothing (`aBlindReadForTheSameOwnerRefusesTheAskerAndStopsNoPassClearsNothing`,
+  `aMomentaryBlindReadWhileResident…`); a blind read for another owner still clearing
+  (`aBlindReadForAnotherOwner…`); the blind answer refusing at all
+  (`anEpochThatCannotBeToldAtLaunch…`); the seam's `null` not falling back to the graph's store; the per-access read rather than the open's field
+  (`aSiblingsWipeIsUnknownToTheOldHandleAndANewEpochToTheNextOpen`); the epoch in the stamp at all
+  (`aWipeOfTheSharedStoreThatKeepsTheOwnerIsClearedAtTheNextLaunch`).
 
 ### 13.3 How the launch path is bounded
 
@@ -2789,7 +2881,7 @@ write that is then unlinked leaves none; it now counts writes.
 ### 13.6 Still owed
 
 - **Smoke** (`scripts/android-smoke.sh`): Control's common DI changed. The orchestrator's.
-- **The epoch half**, after S0b-1 (§13.2).
+- ~~**The epoch half**, after S0b-1 (§13.2).~~ ✅ Built 2026-11-10 (§13.2).
 - **PR-5** wires `usable()` into readiness and binds the backend. Not before this is merged.
 - **A model store that refuses in the other graphs** (deviation 2), if lock 1 alone is judged too
   weak: a third `ModelStoreRefusal`, with a sentence for a screen no other iOS app has.
@@ -2995,6 +3087,15 @@ phone at the intended floor. Neither reading exists (D10 and D12 are open).
   `inference-service.md` §15.14.7).
 
 **Readiness, as built.**
+- ⭐ **Per model since IN-6 F4 (2026-11-10; `ios-face-grouping.md` FD7, §14).** `AiReadiness` takes
+  a `ReadinessSlot` — its verdict file, scene file and serving-open roles — and `PreparedModel` is a
+  map of catalog role → path. SigLIP's slot is `ReadinessSlot.SIGLIP`, the default, with exactly the
+  paths below (`/inference/preflight.verdict`, `.scene`, `.open.vision` / `.open.text`), so no phone's
+  verdict moves. The face pair gets `ReadinessSlot.FACES` and its own key, counts and *Try again*;
+  `Preflight` keeps the whole protocol and takes the model's probe as a `PreflightProber`
+  (SigLIP's is `SiglipPreflightProber`, moved, not changed). `RuntimeFingerprint` gained
+  `detectorRevision`, `null` for SigLIP and so never encoded: every fingerprint and verdict on disk
+  decodes equal. Everything below is still SigLIP's, unchanged; nothing binds the face slot yet (F5).
 - **Derived, never set.** Each writer re-reads the install record, the two ready markers and the
   verdict file, and moves to what they say. The verdict is `{key, passed}` and counts only when
   its key equals the one this build would make **now** (`iosPreflightKey(store.installed())`).
@@ -3026,7 +3127,7 @@ phone at the intended floor. Neither reading exists (D10 and D12 are open).
     | The compiled cache's directory | no | Its tag is a prefix of the archive digest, which is in the key. A marker for another digest is not this archive's marker, and with no marker the state is `Preparing` whatever the verdict says |
     | The marker's own OS build | no | The key holds the OS build that is running. A model compiled under an older OS and never recompiled is probed again because the key moved; whether it must be recompiled is §3.4's failure-driven rule (5c) |
     | The code a pass vouches for: tokenizer, `nfkc`, the vocabulary reader, `TowerGuards` and where the backend applies them, the session's layout and names, the preflight itself (probe image, captions, margin, latency rows, retry rule) | **yes** (`PREFLIGHT_REVISION`, hand-bumped; 1 in 5a, 2 since 5b built the preflight) | ⚠⚠ **This is the mechanism.** An app update can change any of it with every digest unchanged. ⚠ Not the image transform: `IOS_PREPROCESSING_REVISION` covers that, in the fingerprint, because it also decides whether vectors stay. One constant per question. ⚠ A hand-bumped constant decays: `PreflightRevisionPinTest` pins the token ids of nine fixed queries and the guards' answers on five vectors beside the number, on the JVM and the simulator, and its failure says to bump. It pins behaviour, not source. Since 5b it also pins the judge's answer on either side of every line it draws, the retry rule's numbers and the shipped probe's rows and margin (§14.9). It does not reach the session's layout or the order of the preflight's steps on a phone, which nothing in `commonTest` can observe |
-    | The app build | yes (`CFBundleShortVersionString (CFBundleVersion)`) | ⚠⚠ **Constant today: it vouches for nothing**. `photos-ios/project.yml` sets no version, so every build reads `1.0 (1)`; `ios-drive-parity.md` records the same static `1` for Drive. It stays in the key because it costs nothing and starts to bite once shipped builds carry distinct numbers. Release numbering is the ship work's, not this PR's |
+    | The app build | yes (`CFBundleShortVersionString (CFBundleVersion)`) | ⚠⚠ **Distinct per archived build, constant per development build** (2026-11-09, §14.18.16 item 3). `scripts/ios-archive.sh` numbers every archive (the UTC minute), so a TestFlight or App Store update is a new key; a development build reads `ios-release/release.yml`'s `1`. *(As first written: every build read `1.0 (1)`, before the archive script numbered builds.)* |
     | Thermal state, memory pressure | no | They are what the phone was doing, not what it is (D12). A probe under them writes no verdict at all |
     | `physicalMemory`, the iOS floor | no | Static gates: below either, no readiness exists to hold a verdict |
 
@@ -3395,8 +3496,11 @@ building). Every red above is a named assertion read from the result XML, not a 
     *"Photos stopped trying after it closed twice while loading the model on this iPhone."*
     (placeholder copy, M11) with **Try again** (`Action.Kind.LOAD_AGAIN` → `AiReadiness.loadAgain`):
     the fail is withdrawn and the count set one below the bound, so the next interrupted load
-    marks it again. Three slow probes keep D12's rule and the old sentence. The other exit is
-    real app build numbers (§14.18.16 item 3), not built here.
+    marks it again. Three slow probes keep D12's rule and the old sentence. ⚠⚠ **One press per
+    key** (2026-11-09, §14.18.16 item 10): `PreflightAttempts.loadedAgain`, written before the load;
+    a second stop is D12's plain `Unsuitable`, with no *Try again*. The other exit is a new key:
+    every archived build carries its own build number (§14.18.16 item 3), so an app update starts
+    the counts again.
   - ⚠⚠ *No download the key would answer at once.* For a model that is not installed the row
     asks the verdict's file about the key the catalog entry would have once installed
     (`iosPreflightKeyOf`: its digests and this OS build; equal to the installed key, pinned by
@@ -3431,10 +3535,11 @@ building). Every red above is a named assertion read from the result XML, not a 
   `:photos-shared-logic`, which Android compiles, and it gained a defaulted constructor parameter.
   `:control:mergeLibDexDebug` ran here and passed. The orchestrator's, before merge.
 - **Slices 5c-2–5e** (§14.1). Writer 1's caller is 5c-2's, built (§14.17). Writer 2's caller is 5b's (§14.6). Writer 3's two callers, the commit and the removal, are 5c-1's (§14.11).
-- ⚠⚠ **Before the flag moves (with H5, §14.1's 5e row):** every shipped build carries a distinct
-  `CFBundleVersion` (TestFlight requires one per upload), **or** it is written down that
-  `PREFLIGHT_REVISION` is the only thing standing between a code change and a stale pass. Today
-  it is the only thing. The numbering scheme itself belongs to the ship work (PIO-9 / P7).
+- ✅ ~~**Before the flag moves (with H5, §14.1's 5e row):** every shipped build carries a distinct
+  `CFBundleVersion`, **or** it is written down that `PREFLIGHT_REVISION` is the only thing standing
+  between a code change and a stale pass.~~ **Both, 2026-11-09** (§14.18.16 item 3): every archive
+  is numbered by `scripts/ios-archive.sh` (the UTC minute), and for development builds, which read
+  `1`, `PREFLIGHT_REVISION` is written down as the only guard.
 - ⚠ **The threshold** (§14.2): D10 and D12 ①. The iPhone 17e's `physicalMemory` is read: 7.53 GiB,
   above the placeholder (2026-10-22, `inference-service.md` §15.14.7).
 - ⚠ **Nothing on a phone.** Every case ran on the simulator. `iosAiDevice()` is asserted only to
@@ -8090,39 +8195,140 @@ track, each with a case that fails without it:
 
 #### 14.18.16 Before the flag flips
 
-The phone-only items below, with IN-3m-iOS and the lists of §14.16, §14.17.6, §14.18.7 and §14.19.9, run as one session: [`../how-to/pio7-phone-session.md`](../how-to/pio7-phone-session.md).
+⚠⚠ **A second flag sits beside this one (2026-11-10):** `TENSHU_PHOTOS_FACES` → Info.plist
+`TenshuPhotosFaces`, read by `PhotosLocalRuntime.facesBuildFlag` ([`ios-face-grouping.md`](ios-face-grouping.md)
+FD10, §15). It binds the face backend, `coreml+vision` and the face pair's own readiness and
+custody into the graph this flag admits, and **only** there: alone it binds nothing, and it needs
+this flag's static gates too (`PhotosOnDeviceAi.facesAdmitted`). So flipping
+`TENSHU_PHOTOS_ON_DEVICE_AI` binds search alone, exactly as below; faces flip after it, at face
+grouping's F8. Both are `NO` in `project.yml` (`PhotosBuildFlagsDeclaredTest`).
+
+⚠ **The Models screens are two-model where faces are bound** (`ios-face-grouping.md` §16, F6): the source
+is a `CombinedModelSource` of SigLIP's `JoinedModelSource` and the face model's; `PhotosModelsScreen`
+carries `features` (one row per switch; `feature` is the first, search's); a feature screen's device may
+carry a `question` asked before its press (face grouping's *off*); and `ModelsUiState.serves` says which
+model serves which feature. With faces off every one of these is what it was.
+
+The phone-only items below, with IN-3m-iOS and the lists of §14.16, §14.17.6, §14.18.7 and §14.19.9, run as one session: [`../how-to/pio7-phone-session.md`](../how-to/pio7-phone-session.md). ⭐ **What is left for the phone is the ordered list at the top of that file**, each line with its pass signal; the items below say which of them are closed, and where.
+
+⭐ **Shown on the maintainer's iPhone 17e (iOS 26.6.1), 2026-11-09**, with the flag on in a
+development build: the model downloaded over Wi-Fi and finished *Preparing*; the preflight passed
+(`preflight.verdict` passed, attempts 0); consent was given; *Index now* indexed the 22-photo
+library; "cat" finds all 5 cats (after the relevance-floor fix, `inference-service.md`); the idle
+hint and the iOS 26 indexing copy are right (item 15). ⚠ **That is not H5 as written**: H5 asks for
+≥ 200 photos and "dog". A 22-photo library and "cat" were shown, not ≥ 200 and not "dog".
 
 Beyond 5e itself (5e-1 and 5e-2 built, §14.19, §14.19.11):
 1. ⚠⚠ **A phone where loading the towers kills Photos** — built (§14.5 item 0), and only a phone
    shows that jetsam or Core ML kills at the moments the record brackets; with it, the memory
-   threshold ① from a measurement (D10/D12), not the placeholder.
+   threshold ① from a measurement (D10/D12), not the placeholder. **Owed, 📱** (phone list).
 2. An iOS 17 simulator load test of both towers (D12 ⓪), ~~IN-3m-iOS~~ (**passed 2026-10-23**,
    `inference-service.md` §15.14), and H5 on the phone.
-3. Distinct app builds (`CFBundleVersion`), or the written decision that `PREFLIGHT_REVISION`
-   alone stands between a code change and a stale pass (§14.5); every iOS update empties the
-   index until a 5e foreground pass (the fingerprint holds the OS build).
+   - ⚠ **D12 ⓪: still owed, and not runnable on the build Mac (checked 2026-11-09).** Xcode 27.2
+     offers no iOS 17 simulator runtime: `xcodebuild -downloadPlatform iOS -buildVersion 17.5`
+     (also 17.0, 17.2, 17.4, and 18.6) answers *"is not available for download"*, while 26.5 is
+     offered. The Mac holds iOS 26.5 and 27.2 only. The load needs an older Xcode beside this one,
+     or a phone on iOS 17. The case to run there is `CoreMlRealArtifactTest` (both real towers,
+     then the shipped probe through `CoreMlPreflightTowers`), with `-Dtenshu.inference.coremlExport`
+     and `-Dtenshu.inference.tokenizer` (its KDoc), on an iOS 17 simulator device.
+     ⚠ Read, not run: every Core ML symbol the iOS backend calls (`MLModel.compileModelAtURL`,
+     `modelWithContentsOfURL:configuration:`, `predictionFromFeatures`, `MLModelConfiguration.computeUnits`,
+     `MLComputeUnitsCPUAndNeuralEngine`, `MLMultiArray`, `MLDictionaryFeatureProvider`) is iOS 16 or
+     older in the iOS 27.2 SDK's headers. That rules out a missing symbol, not an ML Program the
+     iOS 17 compiler refuses, which is the question.
+   - **H5: partly shown (2026-11-09, above), owed as written** (≥ 200 photos, "dog"; phone list).
+3. ✅ **Closed (2026-11-09) by the written decision, for development builds; shipped builds are
+   distinct already.** ⭐ **The maintainer's decision, 2026-11-09:** a distinct `CFBundleVersion`
+   for archives only; development builds stay at `1`. Every archived build — TestFlight and the App Store, the only builds a
+   user installs — carries its own, growing `CFBundleVersion`: `scripts/ios-archive.sh` passes
+   `CURRENT_PROJECT_VERSION` = the UTC minute (`YYYYMMDDHHMM`) and checks the product's plist reads
+   it (`ios-testflight.md`). So an app update is a new key: its preflight re-runs (seconds), and a
+   key's counts — a fail of interrupted loads, a spent *Try again* (item 10) — start again.
+   **Written down here: between two development builds** (Xcode, or `xcodebuild` as in
+   `pio7-phone-session.md` B0), which read `ios-release/release.yml`'s constant `1`,
+   **`PREFLIGHT_REVISION` alone stands between a code change and a stale pass.** ⚠ Not built: a
+   per-build number for development builds. The archive script sets the number itself and
+   asserts it on the product, so a build phase that rewrote the plist would fight it; and a
+   development install is the maintainer's own phone, whose re-probe is one bump of
+   `PREFLIGHT_REVISION` away. Every iOS update still empties the index until a 5e foreground pass
+   (the fingerprint holds the OS build).
 4. ~~Mia's three iOS lines~~ — **built in 5e-2** (§14.19.11). Still a phone's to show: that Mia's
-   own process answers `NO_BACKEND` there, which is the line its user meets.
+   own process answers `NO_BACKEND` there, which is the line its user meets. **Owed, 📱.**
 5. `ModelDownload.drain` and the Swift relaunch path, never run.
+   **Simulator, closed as far as Kotlin reaches (2026-11-09):** the drain in the order
+   `PhotosIosApp.init` and `ModelDownload.drain` run it — a build that offers nothing, finding an
+   enabled build's leftovers, names every live task for cancelling, lets none speak, deletes what
+   was delivered and keeps the journal, and the next enabled build resumes from that journal and
+   fetches again exactly what the drain took, Wi-Fi only
+   (`aFlagOffBuildDrainsWhatAnEnabledOneLeftAndTheNextEnabledBuildResumesFromTheJournal`). The
+   relaunch's Kotlin half was already run there: a relaunch installs from the journal, a corrupted
+   delivery is discarded, a lost transfer is started again, nothing settles in the background
+   (`PhotosModelDownloadTest`). **Owed, 📱:** the Swift around it, with a real `nsurlsessiond` —
+   that a flag-off build's `getAllTasks` lists an enabled build's tasks, that cancelling them ends
+   the relaunches, and `handleEventsForBackgroundURLSession` with a terminated Photos. The
+   simulator runs a background session's transfers but neither suspends nor relaunches for them
+   (`ModelDownload.swift`'s header), and the photos project has no Swift unit-test target.
 6. The first real downloads on a phone: the disk budget (§14.17.5) and an update's row (§14.11)
-   as a user meets them; §14.18.7's phone list, items 21–24 included.
-7. Whether a launch re-probes a ready model through `Checking` (the feature question at every
-   launch while consent is off).
+   as a user meets them; §14.18.7's phone list, items 21–24 included. ⭐ One Wi-Fi download through
+   *Preparing* shown 2026-11-09. **Owed, 📱:** the interruptions, the disk figures, items 21–24.
+   An update's row needs a second published catalog entry; none exists.
+7. ✅ **Answered (2026-11-09): it re-probes nothing; it does pass through `AwaitingVerdict` for one
+   publication.** A launch over a model that passed loads no tower and runs no probe while consent
+   is off (Photos' own graph on the simulator,
+   `aLaunchOverAPassWithConsentOffProbesNothingAndLoadsNoTower`; `aPassOutlivesTheProcessAndIsNotProbedAgain`).
+   ⚠ **Found by that case:** readiness publishes `NoModel → AwaitingVerdict → Ready` at each process
+   launch, because the fingerprint is applied before the model is served
+   (`aPassOutlivesTheProcessAndIsEnteredInOrder`, which pinned the order but not what it publishes).
+   The join draws `AwaitingVerdict` as `Checking` (`ModelSetupJoin`), and the view model asks the
+   feature question when it sees `Checking → Ready` (`theFeatureQuestionIsAskedWhenAModelIsSeenToBecomeUsable…`,
+   *"a screen opened while it was being checked"*). So a Models screen **collecting during the
+   launch check** would flash *Checking* and, with consent off, ask the question again. ⚠ Read as
+   not reachable, not changed: the check runs at the runtime's install, before any screen can be
+   pushed; a screen opened afterwards reads `NotReadYet → Ready`, which asks nothing (the join's
+   `aRelaunchOverAReadyModelIsNeverShownAsPreparing…`, the repository's relaunch case); a return to
+   the foreground in the same process does not hop (`reconcile` stays at `Ready`); and a sign-out with
+   the screen open rebuilds the screen over the new runtime (§14.18.7 item 23). If the phone (row 2 of
+   the list) ever shows *Checking* at a launch, the fix is the join's — a `Ready` once seen for a key
+   is not left for an `AwaitingVerdict` with no probe running — not readiness's order. A launch
+   **does** re-probe after an app update, an OS update or a new model: a new key, by design (seconds).
 8. The maintainer's calls in §14.5 item 0, settled 2026-10-14: the bound stays two; a load the
    scene left under is transient; the compile is bracketed; a fail of interrupted loads alone has
    one user-started way out. Still the phone's to show: that the scene's write lands before iOS
-   suspends Photos.
+   suspends Photos. **Owed, 📱.**
 9. ~~The backend's own tower opens after `Ready` are not bracketed~~ — **built in 5e-1**
    (§14.19.3): each tower's open is recorded in its own file, outside readiness's lock. Still the
-   phone's to show, as for every record: that jetsam kills at the moment it brackets.
-10. ⚠ **Open, the maintainer's** (hardening round 2): *Try again* has no cap on presses, and each is
-    one more user-started load. Whether that is "one *Try again*" is undecided; nothing caps it.
-11. ⚠ `iosPreflightKeyOf` equals the installed key only while the store records each artifact's
-    sha256 verbatim; pinned against `InMemoryModelStore` alone, not the private `FileDatabase`
-    store a phone runs.
+   phone's to show, as for every record: that jetsam kills at the moment it brackets. **Owed, 📱.**
+10. ✅ **Closed (2026-11-09): one *Try again* per key, counted on disk.** `PreflightPolicy.LOAD_AGAIN_PRESSES`
+    = 1; `PreflightAttempts.loadedAgain` counts the presses and `AiReadiness.loadAgain` writes it
+    before the load it allows. Past it, `stoppedByInterruptedLoads` is false: the fail of a phone
+    whose own retry also killed Photos is D12's plain `Unsuitable` — *"This iPhone couldn't run the
+    model well enough, so search by description stays off."*, and no download offered for that key (§14.5 item 0, *No download the key
+    would answer at once*). ⚠ **Not per foreground**, as first recommended: every kill is a new
+    process and a new foreground, so a per-foreground cap bounds nothing, and *remove, then
+    download again* reaches no load for that key either. This is the round-2 call as written
+    (*"`Standing.StoppedLoading` with one *Try again*"*, §14.18.15), made exact. What starts the
+    count again is a new key: an app update (item 3), an OS update, a new model. A pass keeps the
+    spent press. Not a `PREFLIGHT_REVISION` bump: no pass and no fail changes, only the way out.
+    ⭐ **The maintainer's decision, 2026-11-09:** one *Try again* per key, kept on disk, with no
+    reset on a foreground or a removal — accepted over the per-foreground recommendation it
+    replaced. ⚠⚠ **A pass resets `interrupted`** (`PreflightAttempts.afterPass`; the kills of
+    served tower opens are counted there too), and keeps `loadedAgain` spent. The bound counts kills
+    with **no pass between them**: without the reset, two kills, *Try again* and a pass left
+    `interrupted` at 1, and one kill weeks later (a jetsam at a peak, a crash, a battery that died)
+    made a key that had passed `Unsuitable` for good (PR review, 2026-11-09). A load that kills
+    Photos every time still cannot loop: a press needs a fail, and the fail after it needs two kills
+    in a row. Tests: `aRetryThatAlsoKilledPhotosIsAPlainFailWithNoSecondTryAgain`,
+    `aRetryThatPassesKeepsItsSpentPressForTheKey`, `aKillLongAfterARetryPassedIsCountedFromZero`
+    (red with the reset deleted); the copy was already per state.
+11. ✅ **Closed (2026-11-09).** `iosPreflightKeyOf` equals the installed key over the store a phone
+    runs: `DefaultModelStore` with its index in `FileModelIndexStorage` over the real
+    `IosFileDatabase`, artifacts arriving as the background download delivers them (`adoptStaged`,
+    `commitStaged`), the key read back by a new store over the same disk
+    (`theKeyOfAnEntryAsItWouldBeInstalledIsTheKeyThePhonesFileStoreReadsBack`, beside the
+    `InMemoryModelStore` pin).
 12. 5e-1's own phone list (§14.19.9): real thermal, power and battery transitions; the cancel's
     landing against the background window on a large library; memory over a full pass; that
-    `applicationWillTerminate` arrives for a swipe-away of a running Photos.
+    `applicationWillTerminate` arrives for a swipe-away of a running Photos. **Owed, 📱.**
 13. ~~The rest after heat (`REST_AFTER_HEAT_MS`, 60 s) and the absent chunking, from PR-1's
     duty-cycle run (§4.5)~~ — **decided 2026-10-23: kept as built, no chunking** (§14.19.8).
 14. ~~A kept `Pressed.Refused` is dropped only while the Models list is collected~~ — **fixed in
@@ -8130,9 +8336,20 @@ Beyond 5e itself (5e-1 and 5e-2 built, §14.19, §14.19.11):
     until it names the model or the refusal is gone (`forgetRefusalOnceJournalled`). ⚠ Only the
     journal's half: a refusal kept over a row that became *held with no update* while no screen
     was open is still dropped by the next screen's first emission, not before it.
-15. ⚠⚠ **PR-7's copy (§15.7 Q2), a precondition of the flip** (PR-7 review round 1): the indexing
-    section's running line *"Keep Photos open. Indexing stops when you leave."* is false on iOS 26
-    while a continued task carries the pass. It must follow the claim before the flag is turned on.
+15. ✅ **Done (2026-11-09) — PR-7's copy (§15.7 Q2), a precondition of the flip** (PR-7 review
+    round 1): the indexing section's running line *"Keep Photos open. Indexing stops when you
+    leave."* was false on iOS 26 while a continued task carries the pass. **As built:** it follows
+    the claim. `ContinuedIndexing.standings` → `ForegroundIndexSource.continued` (`LIVE` alone) →
+    `ModelsUiState.indexContinued` → `PhotosModelsCopy.runningDetail`, which says *"You can leave
+    Photos. Indexing goes on, and iOS shows how far it has got."* while a launched task carries the
+    pass, and the old line otherwise: below iOS 26 (no scheduler, the claim stays `NONE`), a request
+    refused, and a request submitted but not yet launched (a leave then still stops it, §15.2). The
+    press's *"Indexing started. …"* message follows the same rule, drawn from the state.
+    ⚠ *"Preparing… Keep Photos open. About ten seconds."* stays: the prepare step is never
+    continued, and nothing is compiled in the background (`PhotosLocalRuntime.modelTransfersSettleNow`).
+    Android and desktop do not draw this section's copy. Tests: `theRunningLineFollowsTheContinuedTask`,
+    `continuedIsTrueOnlyWhileALaunchedTaskCarriesThePass`,
+    `theStandingsFollowTheClaimAcceptedRefusedAndWithNoScheduler`; each guard removed once and seen red.
 
 **After 5e-2** (§14.19.11): the indexing section is on (`capabilities.indexing = true` where the graph
 binds a pass). The flag flip still owes the phone list, the App Store privacy label (the manifest
@@ -8192,7 +8409,7 @@ Photos' graph alone as `named("indexingConditions")`; every other route-1 graph 
 | Low Power Mode | `isLowPowerModeEnabled`; `NSProcessInfoPowerStateDidChange` | `LOW_POWER_MODE`: stops; starts again when it is switched off |
 | battery | `UIDevice.batteryLevel` < 20 % and not charging (`batteryState`), monitoring switched on once; the two battery notifications | `BATTERY_LOW`: stops; starts again on a charger or above 20 %. ⚠ A level the phone does not report (−1: a simulator, monitoring off) is **allowed**, as on Android: §34's *Index now keeps only battery-not-low* reads a refusal on a missing signal as one that never clears |
 | memory | `UIApplicationDidReceiveMemoryWarning` | the pass is cancelled and **both towers closed** (`closeSessions`); nothing restarts it but a press |
-| the scheduled bar | — | **always no**: a scheduled pass runs only inside a processing wake, and none exists (`BGProcessingTask` waits for S0b-2, §3.3, D8; not 5e's) |
+| the scheduled bar | — | **no outside a processing wake**; inside one, no at `.serious`, in Low Power Mode or off the charger (PR-6, §16; `scheduledIndexingBlock`) |
 
 Read at four places: the op (*Index now*), the runner **before the walk** (new, below), the
 indexer per image (as on every platform), and the driver when the phone moves. ⚠ The reasons are
@@ -8362,8 +8579,10 @@ its own `NOT_READY` constant — self-consistent on the JVM, wrong against the r
   a pause lasts:** the time from `.serious` back to `.fair`. That cool-down, not the 60 s, is most
   of each pause, and it is not measured (the phone read 0 again within ~50 min; it was not checked
   sooner).
-- **`BGProcessingTask`** (§1.4, §3.3): after S0b-2 (D8). **`BGContinuedProcessingTask`**: PR-7, built (§15).
-- **D12 ⓪'s load of both towers on an iOS 17 simulator runtime**: this Mac has 18.1–27.0 only.
+- **`BGProcessingTask`** (§1.4, §3.3): PR-6, built (§16). **`BGContinuedProcessingTask`**: PR-7, built (§15).
+- **D12 ⓪'s load of both towers on an iOS 17 simulator runtime**: this Mac has iOS 26.5 and 27.2
+  only, and Xcode 27.2 offers no iOS 17 (or 18) runtime for download (checked 2026-11-09,
+  §14.18.16 item 2).
 - ~~5e-2's list (§14.19.6)~~ — built (§14.19.11).
 
 #### 14.19.9 Not proved, and only a phone can show
@@ -8713,9 +8932,9 @@ graph are completed at once with `false`; a graph torn down under a live task co
    the total). Whether the system reads an indeterminate progress over a long walk as a stall is 📱
    (§15.6).
 7. **Copy placeholders (M11):** the request's title *"Indexing your photos"* and subtitle *"So you can
-   search them by what's in them"* (`PhotosIndexNowTask`). The section's running line still says
-   *"Keep Photos open. Indexing stops when you leave."*, which is now wrong on iOS 26 when a task was
-   accepted: Q2.
+   search them by what's in them"* (`PhotosIndexNowTask`). The section's running line said
+   *"Keep Photos open. Indexing stops when you leave."*, which was wrong on iOS 26 when a task was
+   accepted: Q2, ✅ done (§14.18.16 item 15).
 8. **No `UIBackgroundModes` entry.** Nothing in the SDK's headers ties a continued-processing request
    to a background mode [I]; if the phone's submission answers `NotPermitted` for want of one, that
    is Q3.
@@ -8739,7 +8958,7 @@ A continued pass reads and writes the shared replica in the background, and sinc
   goes live, and ⚠⚠ **the token ends before `setTaskCompleted`**, in both paths: the completion
   `ContinuedIndexing` makes is wrapped so the token is released (or, after the expiry handler,
   expired) first. The decline is gone.
-- **PR-6** is not built; its `BGProcessingTask` handler takes the same token when it is (B.23.3).
+- **PR-6** (§16) takes the same token in its `BGProcessingTask` handler, before the wake does anything.
 - 📱 owed: B.23.5 (progress continues in the background; no `0xdead10cc` after an expiry; ⚠⚠ and, a hard gate, how long iOS lets the `expirationHandler` block: under a task the 2 s drain is the whole margin, B.23 (441)).
 
 ### 15.5 Guards, each removed once and seen red (JVM, fresh results; restored, the file compared after)
@@ -8822,11 +9041,455 @@ Also new: `aRefusalAfterReturningToTheForegroundEndsTheHeldWindowAndStopsNothing
 
 - **Q1** — ✅ **resolved 2026-11-05** (`ios-shared-store-sqlite.md` B.23, §15.4): the task's token
   is built and PR-7 takes it. Until then PR-7 declined, on every build once B.22 turned the store on.
-- **Q2** — ⚠⚠ **a precondition of the flag flip** (§14.18.16 item 15). The indexing section's *"Keep Photos open. Indexing stops when you leave."* is wrong while a
-  task is live. ⭐ Recommendation: a line that follows the claim (*"You can leave Photos; indexing
-  goes on."*), which needs `ContinuedIndexing`'s claim in `OnDeviceIndexSource`; a 5e-2-sized change
-  to shared UI state (and its Swift), left out of PR-7 to keep this PR the mechanism.
+- **Q2** — ✅ **resolved 2026-11-09** (§14.18.16 item 15). The indexing section's *"Keep Photos open.
+  Indexing stops when you leave."* was wrong while a task is live. Built as recommended: the line
+  follows the claim through `OnDeviceIndexSource.continued`, and says *"You can leave Photos.
+  Indexing goes on, and iOS shows how far it has got."* only while a **launched** task carries the
+  pass — submitted-not-launched and refused keep the old line, because a leave then still stops it.
+  No Swift change: Swift draws `PhotosModelsScreen`'s strings.
 - **Q3** — whether `UIBackgroundModes` needs an entry. ⭐ Recommendation: none until the phone says
-  `NotPermitted`; then `processing`, which PR-6 adds anyway.
+  `NotPermitted`; then `processing`, which PR-6 adds anyway. ⭐ PR-6 has added it (§16), so PR-7's 📱
+  pass now runs with it declared and cannot answer this question by itself.
 - **Q4** — `LAUNCH_GRACE_MS` (10 s) is a placeholder. ⭐ Recommendation: keep until the phone shows how
   long a launch takes after `submit`; it only bounds a launch that never comes.
+
+---
+
+## 16. As built — PR-6: the overnight processing wake (2026-11-11)
+
+Marks as above. **Behind the build flag, which is off** (`TENSHU_PHOTOS_ON_DEVICE_AI = NO`); faces ride
+the same pass behind `TENSHU_PHOTOS_FACES`, as for every pass. With the flag off the handler is still
+registered (it must be, at launch) but nothing is ever submitted, a wake that comes anyway is completed
+at once, and a launch withdraws any request an enabled build left. No schema'd type and no wire shape
+moves (HR 9): every new value is in-process. ⚠ Written and run on the simulator, which never launches a
+`BGProcessingTask` and refuses every submission; **nothing of it has run on a phone** (§16.6).
+
+### 16.1 What it does
+
+When Photos leaves the foreground with something asked of it and photos left, it submits a
+`BGProcessingTaskRequest` for `app.tenshu.photos.processing` (`requiresExternalPower = true`,
+`requiresNetworkConnectivity = false`). When iOS grants it (charging and idle), Photos' runtime takes the
+shared store's task token, re-arms the request, and runs the runner's **scheduled** pass, which the
+scheduled bar allows only inside the wake. The task is completed once, from the pass's terminal outcome.
+
+| Piece | What it does | Where |
+|---|---|---|
+| The scheduled bar | `ForegroundIndexingConditions.allowIndexing()` = inside a wake **and** `scheduledIndexingBlock` (not `.serious`, not Low Power Mode, not off the charger; an unknown charging state is the grant's word). ⚠ Outside a wake it is `false`, as before | `ForegroundIndexing.kt` (commonMain) |
+| The bridge | `ProcessingWake`: arms on a leave (`leftForeground`), carries a launched wake (`launched`: prepare, ask, re-arm, pass, withdraw when current, release, complete once), stops it on `expired`, and answers `carriesPass()` for the bar and the leave | `ProcessingWake.kt` (commonMain) |
+| What is asked | `PhotosOnDeviceAi.wakeWork`: not paused, and a half of `MEDIA_INDEX_CAPABILITIES` both permitted (two switches, absence is NO) and served; then `workLeft` over the runner's standing | `PhotosOnDeviceAi.kt` (iosMain) |
+| The pass | `runWakePassOver` (via `PhotosOnDeviceAi.runWakePass`): a pass the **user** started running now is left alone (`REFUSED`, no join); otherwise `MediaIndexRunner.runToCompletion(manual = false)` → `wakeOutcomeOf`. The expiry's stop is `cancelRunningScheduledPass`, which never ends a manual pass. ⚠ **Never the `MediaIndexPass` op**, which on iOS is the old schedule row's retirement (§13.4 item 8) | `PhotosOnDeviceAi.kt` |
+| The driver's half | `ForegroundIndexing`'s `wakeCarriesPass`: a leave inside a wake cancels nothing and closes nothing | `ForegroundIndexing.kt` |
+| The runtime | `installProcessingWake`, `runProcessingWake(wakeId, task)`, `onProcessingWakeExpired(wakeId)`, `processingWakeIdentifier()`; the token; the journal | `PhotosLocalRuntime.kt`, `ProcessingWakeBridge.kt`, `ProcessingWakeJournal.kt` |
+| The identifier | `PhotosProcessingWakeTask`: identifier and the two requirements, kept in step with `project.yml` by `PhotosProcessingWakeTaskDeclaredTest` | `PhotosProcessingWakeTask.kt` (control-shared-proxy commonMain) |
+| Swift | `ProcessingWakeDriver`: registers in `PhotosIosApp.init` (every build), sets the `expirationHandler` first, installs the runtime on the main thread, hands the task to Kotlin off main; submits off main with Kotlin's requirements; withdraws | `photos-ios/Sources/ProcessingWakeDriver.swift` |
+| The plist | `UIBackgroundModes: [processing]`, and `app.tenshu.photos.processing` beside PR-7's wildcard | `photos-ios/project.yml` |
+
+### 16.2 The lifecycle
+
+1. **Leave.** `sceneChanged(false)` → the driver's leave (as before) and `ProcessingWake.leftForeground()`:
+   with a scheduler installed and no wake running, inside a background window and off the main thread,
+   `wakeWork` is read; `LEFT` submits.
+2. **Launch.** Swift's handler completes a wake at once in a build that offers no model (and
+   withdraws the request), installing nothing. Otherwise it calls `onProcessingWakeBegan` (the wake's
+   place, so an early expiry is kept and a late one leaves nothing), sets the `expirationHandler`, then
+   on main installs the runtime if provisioned (a background launch builds no view, so nothing else
+   would), then off main calls `runProcessingWake`. Kotlin completes at once with `false` if no admitted graph is installed, if the
+   wake already expired, or if no token can be had. Otherwise it takes
+   `SharedReplicaEntries.protectTask("photos-processing-wake")` and `begin()`s it (B.23.3), journals
+   `launched`, and hands the wake to `ProcessingWake.launched` with `prepare` = the launch's store check
+   (`Assembly.checking`: until it ends, no backend serves and nothing would be asked; journalled
+   `checked ms=…`). ⚠⚠ The wake's entry holds its `ProcessingWake`, and the entry's `expired` is read
+   **again after the launch**: an expiry between the token and the launch (the journal's write) found
+   no wake current and ended the token, so without that read the wake ran past its own expiry, parked
+   at the closed gate, and was never completed (fix round 1, HIGH).
+3. **Ask, re-arm, pass.** `NOT_ASKED` completes with `true` and re-arms nothing. `NONE_LEFT` withdraws and
+   completes with `true`. `LEFT` **submits first** (a grant is one-shot, and this wake may be expired or
+   killed), then runs the pass.
+4. **End.** The outcome is read; `COMPLETED` withdraws the request (the library is current). The wake
+   lets go (`carriesPass()` false), `released()` is told — Photos not in front ⇒ the leave's stop: the
+   pass cancelled (it has ended already) and **both models closed**, inside a background window — and
+   then the task: the token ends (`finish`), **then** `setTaskCompleted(success)`.
+5. **Expiry.** `onProcessingWakeExpired`: `hold.expire()`; `ProcessingWake.expired()` — the bar says no at
+   once, the wake's job is cancelled, which cancels the runner's scheduled pass at its next photo; then
+   `hold.endToken()` (B.15.3's interrupt and its 2 s drain) before the handler returns. The wake's own
+   `finally` waits for the pass to stop, at most `EXPIRY_STOP_MS` (3 s), then completes with `false`; a
+   backstop 1 s later completes it if the wake's coroutine is held where its cancel cannot reach (a thread
+   parked at the store's closed gate). Each task is completed once (`OnceWakeTask`).
+
+### 16.3 Decisions taken in this PR, each with its alternative
+
+1. **No `deadline` parameter** (the row wrote `runProcessingWake(deadline)`). A `BGProcessingTask` states
+   no remaining time; it runs until iOS calls the `expirationHandler`, and the store already reads a task
+   as "no deadline" (B.23 (441)). The entry takes a wake id instead, which pairs an expiry that comes
+   before the run with its run. *Rejected:* a fixed budget, a number nothing on the platform states.
+2. **The identifier stays `app.tenshu.photos.processing`.** PR-7's bundle-id rule is the
+   continued-processing request's own header; a processing task's identifier only has to be listed
+   (Drive's is `app.tenshu.drive.refresh` under bundle `app.tenshu.drive.ios.smoke`) [D: the SDK's
+   headers name no prefix rule for `BGProcessingTaskRequest`].
+3. **No chunking; the heat stop is the backoff** (the row said "PR-5's thermal backoff and chunking"):
+   chunking was decided against on 2026-10-23 (§14.19.8). Inside a wake, `.serious` makes the bar say no;
+   the pass stops at its next photo (`REFUSED`) and the wake ends with `false`, its request still armed
+   for the next window. *Rejected:* resting inside the wake and starting again — a wake is the OS's
+   window, and waiting in it for the phone to cool spends it.
+4. ⚠ **"Photos left" is unknown unless this runner's last pass was a library walk that ran to its end**
+   (`workLeft`, `IndexPassResult.libraryWalk`; a PR-6b batch over arrived paths never counts). A completed
+   pass withdraws the request it re-armed, and the next leave arms nothing. So **arrivals after a
+   completed pass wait** for the next foreground's PR-6b batch, a press, or a pass that does not
+   complete. A fresh process does not know, so it arms once. *Rejected:* re-arming whenever something is
+   asked (a library walk every night for ever); counting unindexed photos at each leave (a whole library
+   walk at every leave, on the main thread's way out).
+5. **`true` on `COMPLETED`, and when nothing was asked or left; `false` otherwise** — a refusal (heat, the
+   charger gone) included, as PR-7. Whether a `false` changes how often iOS grants the wake is 📱 (§16.6).
+6. **A press during a wake supersedes it.** The runner's rule (a manual start replaces a scheduled pass)
+   is unchanged: the wake's pass ends `CANCELLED`, the wake completes with `false`, and the press's pass
+   is a foreground pass from then on. ~~PR-6b's trigger, which goes through the runner as a press does,
+   inherits this.~~ PR-6b's batch is the runner's automatic kind, not a press: it yields to a wake, and
+   a wake replaces it (§17.3 decision 2).
+7. **Registered in every build, submitted behind the flag.** A `BGProcessingTask` handler must be
+   registered before launch finishes, and a request an enabled build armed can still launch a disabled
+   one; the disabled launch withdraws the request, and a wake that comes anyway is completed at once.
+8. **Swift installs the runtime on the main thread** before Kotlin is called: `PhotosRootView.adopt()` is
+   the other writer of the installed graph, and two installs racing are two graphs.
+9. **The expiry waits for the stop, bounded** (3 s, then a 1 s backstop), and stops only a **scheduled**
+   pass (`cancelRunningScheduledPass`): a wake that meets a pass the user started (iOS 26's continued
+   *Index now*, under its own task) does not join it, and its expiry never ends it (fix round 1). PR-7 completes at once on an
+   expiry; the row asked for the completion "after the cancel has stopped the pass". The bound is a
+   placeholder [I] (§16.7 Q1).
+10. **What is asked is the op's check minus the manual bar**: not paused, and a half both permitted and
+    served (`permittedInference` ∩ `MEDIA_INDEX_CAPABILITIES`, the list now shared with
+    `StartMediaIndexPass`). Per half (IN-D3): faces alone, switched on, is enough.
+11. **A journal on disk** (`ProcessingWakeJournal`, `photos-private/processing-wakes.log`): stdout goes
+    nowhere overnight, and the three nights need wakes, minutes and photos (§16.6).
+
+12. ⚠ **The runtime is installed before the token** (fix round 1, item 3 — not fixable from here, and
+    owed to the phone). `FirstPartyLocalRuntime.assembleBase` installs the SQLite binding and resolves
+    the graph's `ObjectStore` on the main thread, so the store may be opened there before any task
+    token exists — the token needs that binding (`SharedReplicaEntries.protectTask` is a pass-through
+    without one). With the gate closed in the background, the main thread's admission takes an
+    **implicit token** (`ReplicaProtection.awaitAdmission` → `protect()`, a `beginBackgroundTask`
+    assertion), which a process iOS launched for a task should be granted [I]; only if it is refused
+    does main sleep `MAIN_THREAD_RETRY_MS` and ask again. Drive's refresh wake installs the same way
+    (`DriveLocalRuntime.runBackgroundRefresh`). *Rejected:* installing off main — `PhotosRootView.adopt()`
+    installs on main too, and two installs racing are two graphs. 📱 §16.6 item 7 reads it: the
+    journal's `launched` → `checked ms=…` gap, and no `[gate]` main-thread retry lines.
+13. **The journal says what the submission got**, from Swift's own answer (`armed`, or `submit refused:
+    …` — Background App Refresh off, the simulator), never from the request being asked for.
+
+### 16.4 The shared store
+
+The handler takes the task token exactly as PR-7's launch (B.23.3): before the wake does anything,
+never an entry's `withProtection` (a `beginBackgroundTask` iOS ends within seconds), ended inside the
+completion before `setTaskCompleted`, and expired from the `expirationHandler` with `endToken` as the
+backstop before it returns. ⚠ The wake's completion after an expiry may come after the handler returned
+(decision 9); the token has ended by then whichever order, because `endToken` returns only once it has.
+
+### 16.5 Guards, each removed once and seen red
+
+JVM (`ProcessingWakeTest`, fresh results with `--rerun`; restored from a copy, the file compared after):
+
+| Removed | Red |
+|---|---|
+| the scheduled bar reading the wake (`inWake() &&`) | `noWakeMeansTheScheduledBarSaysNo`, `withNoWakeTheScheduledPassWalksNothing` |
+| the charger in the scheduled bar (`charging == false`) | `noWakeMeansTheScheduledBarSaysNo` |
+| the re-arm before the pass (moved after it) | `theWakeReArmsBeforeItWorksAndACompletedPassWithdrawsTheRequest` |
+| no re-arm with nothing asked (a submit added there) | `aWakeWithNothingAskedRunsNoPassAndIsNotReArmed` |
+| the leave's arm asking what is asked (`if (true)`) | `aLeaveArmsTheWakeOnlyWithSomethingAskedAndPhotosLeft`, `aWorkReadThatThrowsArmsNothing` |
+| the once-only guard (`OnceWakeTask`) | `anExpiryRacingAFinishCompletesTheTaskOnce` and four expiry cases |
+| the expiry waiting for the stop | `anExpiryCompletesTheTaskWithFailureOnlyOnceThePassHasStopped` |
+| the backstop | `anExpiredWakeHeldWhereTheCancelCannotReachIsCompletedByTheBackstop` |
+| the expiry's cancel | `anExpiryCompletesTheTaskWithFailureOnlyOnceThePassHasStopped`, `anExpiryMidPassStopsAtTheNextPhotoAndTheNextWakeResumesFromTheStore` |
+| `carriesPass` reading the expiry | ⚠ survived first (Unconfined ended the wake before the read); the case now holds the pass past the cancel: `theWakeCarriesThePassWhileItRunsAndNotFromItsExpiry` |
+| the driver's leave guard (`wakeCarriesPass`) | `aLeaveInsideAWakeCancelsNothingAndOutsideOneItStillDoes` |
+| the withdrawal after a completed pass | `eachOutcomeCompletesTheTaskOnce`, `theWakeReArms…AndACompletedPassWithdrawsTheRequest` |
+| success only on `COMPLETED` (always `true`) | `aFailingPassCompletesTheTaskOnceWithFailure`, `eachOutcomeCompletesTheTaskOnce` |
+| `released()` told at the end | the three no-pass / completed cases |
+| the catch that keeps a throw in the coroutine | ⚠ survived first (an inner catch duplicated it, now removed); the case now asserts the scope is not failed: `aFailingPassCompletesTheTaskOnceWithFailure` |
+| an expiry before the job was known cancelling it once known | ⚠ survived first (the backstop hid it); new: `anExpiryBeforeTheJobIsKnownStillStopsTheWakeAtOnce` |
+
+Desktop (`PhotosProcessingWakeTaskDeclaredTest`): the identifier out of `project.yml` → `theIdentifierIsPermittedBesideIndexNowsWildcard`; `processing` → `fetch` → `theProcessingBackgroundModeIsDeclared`; `REQUIRES_EXTERNAL_POWER = false` → `theRequestAsksForExternalPowerAndNoNetwork`.
+
+Simulator (`PhotosOnDeviceAiTest`, Photos' own graph and the Swift-facing calls; one mutation per run, restored after):
+
+| Removed | Red |
+|---|---|
+| the wake taking the store's token (`hold.begin()`) | `aWakeIndexesInPhotosOwnGraphUnderTheTasksTokenAndLetsGoAfter`, `anExpiredWakeExpiresTheTokenStopsThePassAndIsCompletedOnce`, `withNoConsentAWakeDoesNothingAndNothingIsArmed` |
+| the expiry marking the token (`hold.expire()`) | `anExpiredWakeExpiresTheTokenStopsThePassAndIsCompletedOnce` |
+| the scheduled bar wired to the wake in Photos' graph | `aWakeIndexes…`, `anExpiredWake…` |
+| the arm on leaving the foreground (`sceneChanged`) | `aWakeIndexes…` |
+| the consent read (`permittedInference`) | `withNoConsentAWakeDoesNothingAndNothingIsArmed` |
+| the driver's leave told of the wake | `aWakeIndexes…` |
+| ⚠ the entry's check for an expiry before the run (`expiredFirst`) | **survived**: the second read, after the token is registered (`expiredMeanwhile`), catches the same expiry. Kept as a belt; recorded as unproved |
+
+**Fix round 1 (the independent review)** — removed once each, seen red (fresh results):
+
+| Removed | Red |
+|---|---|
+| *(simulator)* the entry's `expired` read again after the launch | `anExpiryJustBeforeTheLaunchIsNotLost` |
+| *(simulator)* an expiry finding the entry only (made `getOrPut` again) | `aWakeWithNoRuntimeOrAlreadyExpiredIsCompletedAtOnceWithFailure` (a place left behind), `anExpiryJustBeforeTheLaunchIsNotLost` |
+| a pass the user started left alone by the wake (`runWakePassOver`'s check) | `aWakeLeavesAPassTheUserStartedAlone` |
+| the expiry's stop for a scheduled pass only (`cancelRunningScheduledPass`'s `!manual`) | `anExpiryNeverStopsAPassTheUserStarted` |
+
+### 16.6 Not proved, and only a phone can show (📱)
+
+The steps are [`how-to/photos-processing-wake.md`](../how-to/photos-processing-wake.md).
+
+1. The debugger's `_simulateLaunchForTaskWithIdentifier:` runs the wake: launched, re-armed, a pass,
+   ended `COMPLETED`, no `0xdead10cc`. ⚠ A forced launch runs without a submitted request: it proves the
+   handler, not the arming.
+2. `_simulateExpirationForTaskWithIdentifier:` mid-pass: the pass stops at its next photo, the token's
+   expiry interrupt is logged, the task completes with `false` within ~3 s, once; the next *Index now*
+   continues from the store. ⚠ How long the `expirationHandler` may block is B.23.5 item 3's hard gate:
+   Kotlin blocks it for the store's drain (up to ~2 s). Which thread iOS calls a `BGTask`'s
+   `expirationHandler` on is not documented [I]; the store's end moves a release off the main thread
+   (`SharedReplicaTaskProtection.finish`), an expiry is ended on whatever thread calls it.
+3. **Three real nights**, from the journal:
+
+   | Night | Wakes granted | Minutes per wake | Photos per wake | How each ended | Armed again |
+   |---|---|---|---|---|---|
+   | 1 | — | — | — | — | — |
+   | 2 | — | — | — | — | — |
+   | 3 | — | — | — | — | — |
+
+4. Whether heat ends wakes on the charger overnight (`outcome=REFUSED`), and whether a `false` completion
+   makes iOS grant fewer windows.
+5. Faces in a wake (`TENSHU_PHOTOS_FACES=YES`): People refreshes after a night (the runner's
+   `faceChanges` moves for a wake's pass like any pass).
+6. App Review accepts the `processing` mode for "index photos on device while charging".
+7. A cold background launch's install before the token (decision 12): the journal's `launched` →
+   `checked ms=…` gap stays short, and the device log has no `[gate]` main-thread retries around it.
+
+### 16.7 Open questions
+
+- **Q1** — `EXPIRY_STOP_MS` (3 s) and its 1 s backstop are placeholders. ⭐ Recommendation: keep until
+  §16.6 item 2 shows how long the stop takes after an expiry; lower it if iOS allows less.
+- **Q2** — decision 4's gap: arrivals after a completed pass, with Photos never opened, wait. ⭐
+  Recommendation: leave it to PR-6b; if the nights show phones that never open Photos, arm the wake from
+  the library watch's revision moving (no walk). ⭐ PR-6b is built (§17): arrivals now wait only for Photos' next foreground.
+- **Q3** — Background App Refresh off makes iOS refuse every wake, silently to the user. ⭐
+  Recommendation: none until the nights show it matters; then a line in the indexing section.
+
+---
+
+## 17. As built — PR-6b: new arrivals while Photos is in front (2026-11-11)
+
+Marks as above. **Behind the build flag, which is off** (`TENSHU_PHOTOS_ON_DEVICE_AI = NO`); faces ride the
+batch behind `TENSHU_PHOTOS_FACES`, as for every pass. With the flag off nothing is bound
+(`assertNothingIsBound` checks it) and the scene hooks reach no graph. No schema'd type and no wire shape
+moves (HR 9): every new value is in-process, and the start operation is not touched (an optional parameter
+there would be a reshape). The decision is `inference-service.md` IN-D6a; Android's half is its own change
+in Control. ⚠ Written and run on the JVM and the simulator; **nothing of it has run on a phone** (§17.6).
+
+### 17.1 What it does
+
+When the library watch moves while Photos is in front — or Photos comes to the front with a look owed —
+a short debounce later Photos' runtime reads **which photographs arrived** from the newest rows of the file
+service's modification log into the device's **arrivals queue**, and runs **one capped batch over the
+queued paths alone**: no tree walk, no whole-library reconcile. At most `NEW_ARRIVALS_BATCH_CAP` (50)
+photos are processed; what the batch did not reach stays queued. Consent and the model are checked by the runner before anything is read; the bar
+is *Index now*'s. Leaving the foreground stops it.
+
+| Piece | What it does | Where |
+|---|---|---|
+| Which arrived | `ArrivedPhotoPaths.read`: the log's member hashes (no rows), then only the rows **past the persisted cursor** (`ArrivalsLogCursor`: the hashes of the last 32 rows read and the newest one's index, at `/inference/arrivals.cursor` beside the queue), at most `ARRIVALS_LOG_WINDOW` (500) of the newest; a `Created`, `Moved` or `Renamed` modification for an image outside the trash (`isArrivingImagePath`, Android's test). ⚠ Reading resumes past the **newest remembered row still there** — a move re-keys a file's history (old rows reaped from the middle, new ones appended) and a trim drops a file's oldest, so the very last row may be gone. ⚠⚠ None of its rows left, or no cursor (another realm, a long gap, a first look): the end becomes the cursor, **nothing is queued**, the look reports `missed`. The survivor further down than it was (a peer's rows merged ahead of it) or a burst past the window: the new rows are read and the look reports `missed`. `markEndIfUnmarked` (hashes only) sets a first cursor when no half may run. ⚠ Not Android's `NewArrivalsObserver`: on iOS the save ran in another app's process over the shared store, so Photos cannot observe it | `ArrivedPhotoPaths.kt` (control-shared-proxy commonMain) |
+| The queue | `ArrivalQueue` (the common `ProxyModule`'s single, over the graph's inference `FileDatabase` — on iOS Photos' private store, so it outlives the process): de-duplicated, arrival order, at most 500 (oldest out first); `settle` drops done paths, keeps unreached ones, and drops an unavailable one (no bytes, a half that failed or was latched off, or no live row yet) after its third batch; `clear` with the realm's other derived stores (`wipeDerivedInferenceState` from `onLocalStoreWiped`, and `InferenceStoreCustody`'s realm change, relinquish and `eraseAtRest` of `INFERENCE_ARRIVALS_PATH`). ⚠ Flushing is the caller's: on iOS every change is flushed when made (the look, then the batch's settle), so a leave never loses one | `ArrivalQueue.kt` (commonMain, Android's half) |
+| The batch | `MediaIndexRunner.runArrivalsBatch(context, queue)` → `runPathsBatch(context, paths, cap)`: `null` if any pass runs (never joined, never replacing); nothing read when no half may run (`MediaIndexer.anyHalfMayRun`: not paused, a half's two switches on and its backend serving — absence is NO) or the arrivals bar says no; ⚠⚠ **each refusal deletes what a consent withdrawal owes** (`withdrawalDeleted`, which also moves `faceChanges`); otherwise one pass over `MediaSource.mediaAt(paths)` (a partial list, so no reconcile) reporting each path's `PathOutcome` (done, or `UNAVAILABLE` — a missing path too, retried; none = not reached), with `libraryWalk = false`, so neither the Models screen's coverage nor `workLeft` reads it as the library. Automatic (`manual = false`): a press or a wake replaces it, and a wake's expiry (`cancelRunningScheduledPass`) spares it — on iOS it never runs inside a wake anyway, since the leave cancels it | `MediaIndexRunner.kt` (commonMain) |
+| The cap | ⚠⚠ Counts photos **processed** — bytes or a preview in hand — never one already current, never one not on this device | `MediaIndexer.kt` |
+| By path | `MediaSource.mediaAt`; Control's source answers the live images among the paths with one chunked point read (`fileLivePaths`). ⚠ Its default walks and filters — correct, and the cost a batch exists to avoid; every production source overrides it | `MediaIndexPassImplementation.kt`, `MediaLibrarySeams.kt` |
+| The bar | `ForegroundIndexingConditions.allowArrivalIndexing()` = `arrivalIndexingAllowed`: the manual bar (in front, not `.serious`, not Low Power Mode, battery not low) **and a known battery** | `ForegroundIndexing.kt` |
+| The trigger | `ForegroundArrivals`: one event queue; a debounce restarted by every change; a look only in front, and no pass when the queue is empty; a leave cancels the waiting and the running batch; a capped batch ends batching for that foreground; a busy runner is waited out once, on its `Idle` | `ForegroundArrivals.kt` (inference-service-proxy commonMain, iOS-only in use) |
+| Photos' graph | `ArrivedPhotoPaths` (its cursor in the inference store, erased at rest with the queue), `ArrivalsMissed`, and `ForegroundArrivals` bound beside the driver on the indexing scope (cancelled with the graph); `lookForArrivals` (the log into the queue, flushed) and `runArrivalsBatch` over the graph's session, queue and runner, with a `[photos-arrivals]` line; `sceneChanged` tells it both edges; `workLeft` reads any batch (capped or not), and any `missed` look not yet followed by a walk, as photos left; `arrivalsMayRun` (`MediaIndexer.anyHalfMayRun`) asked before the look; the batch holds an `AppBackgroundWindow` | `PhotosOnDeviceAi.kt` (iosMain) |
+| The watch | `PhotosLocalRuntime.install` hands the repository's `LibraryWatch` to it: `revision` (its first value dropped) as the cue, `watching` as whether it vouches, and the latest store check (`Assembly.checking`) awaited before a batch asks anything | `PhotosLocalRuntime.kt` |
+
+No Swift change: the scene phase already reaches Kotlin (`modelTransfersSettleNow` → `sceneChanged`).
+
+⚠ **Shared with Android's half of IN-D6a**, built at the same time over the same runner: the whole
+commonMain batch API — `runPathsBatch`, `PathsBatch`/`PathOutcome`, `ArrivalQueue` and its
+`runArrivalsBatch`, `MediaSource.mediaAt`, `PassBar.ARRIVALS`, `allowArrivalIndexing`, the cap counted
+after the bytes, the refusals' withdrawal deletion — is that change's, carried here byte for byte from
+its branch (both reviews asked for the same fix). This PR adds only the iOS pieces above it:
+`ArrivedPhotoPaths`, `ForegroundArrivals`, `arrivalIndexingAllowed` and Photos' wiring. Whichever lands
+second reconciles the two.
+
+### 17.2 The lifecycle
+
+1. **Install.** `follow`: a fresh process **owes one look** (it cannot know what arrived while it was not
+   running), so the first foreground takes one — over the rows past the cursor the last process left,
+   never the log's history. The first look on a device (no cursor) queues nothing and leaves what came
+   before to the wake.
+2. **A change.** Every move of the watch's revision owes a look and, in front, restarts the debounce
+   (`ARRIVALS_DEBOUNCE_MS`, 3 s). Behind Photos it is remembered and nothing is armed.
+3. **The front.** `enteredForeground`: a new foreground clears the last one's cap; a watch that is not
+   watching vouches for nothing, so it owes a look; anything owed arms the debounce.
+4. **The look and the batch.** Read again when the debounce fires: in front, owed, not capped, none
+   running. A background window is opened for the batch's whole life (the look is a store read a leave
+   cannot interrupt: the window ends only when the job does). The store check is awaited; ⚠⚠ **no half
+   may run ⇒ no look** (the log's end is marked if unmarked — hashes only, no path) and the runner's
+   refusal still runs, deleting what a withdrawal owes. Otherwise the log read, and what it found **queued and flushed at once**
+   (a leave during the pass loses none of it). Queue empty ⇒ no pass. Otherwise the runner's batch over
+   the queue. Its progress is the runner's holder — *Index now*'s bar on the Models screen.
+5. **The end.** The queue is settled: done and gone paths leave; unreached stay; unavailable stay until
+   their third batch. A cancelled batch settles nothing.
+   Capped ⇒ no other batch this foreground. Deferred, paused or refused ⇒ everything stays queued, owed to
+   the next change or foreground (no loop). Busy ⇒ tried once when the runner next reads `Idle` — ⚠ or at once, once, if it already reads `Idle`
+   (the busy pass ended before the answer was handled; a second busy-from-`Idle` is a retired runner and
+   waits for the next change). A throw ⇒
+   logged and ⚠ owed again, not armed: the next change or foreground retries it, never a loop (Codex,
+   2026-11-12: a vouching watch with no further change never asked again). Otherwise a change during the batch arms one more.
+6. **The leave.** `leftForeground`: the debounce and any wait for the runner cancelled; a running batch
+   cancelled (the runner cancels its pass, which ends at its next photo) and owed again.
+   `ForegroundIndexing`'s leave does its usual stop besides (the pass cancelled, both models closed, in a
+   background window). ⚠ It never asks for continued processing.
+7. **People.** The batch is a runner pass like any: `MediaIndexRunner.faceChanges` moves in its `finally`
+   when it wrote face records, and Collections re-reads People through `faceChangingPasses` (§17.5).
+
+### 17.3 Decisions taken in this PR, each with its alternative
+
+1. **⚠⚠ The batch indexes the arrived paths, never the library** (review of the Android half, 2026-11-11:
+   a capped pass over the walk read the whole tree every batch, spent its 50 on the first backlog photos in
+   tree order, and could leave the arrival unindexed for good). The watch says *that* something changed;
+   the modification log says *which paths* — a local upload and a file synced in from another device are
+   both a row there. *Rejected:* the watch's revision alone driving a walk-based pass (the bug above);
+   diffing Collections' feed (a UI walk, and no baseline in a fresh process); `File.CreatedAt` as a
+   high-water mark (it is seeded from the source's time, so an old photo uploaded today is not "new").
+2. **⚠ The batch yields to a running wake; it does not replace it** (the order note said "replaced by
+   it", from §16.3 decision 6's press rule). The batch is the runner's automatic kind, shared with
+   Android, where a short job that joined or replaced an hours-long pass would end it at its time limit.
+   Here, replacing a whole-library wake with a 50-photo batch would throw away the wake's night and end
+   its task with `false`; yielding loses nothing, because the queue is kept and tried once the wake's pass
+   ends. A wake that starts while a batch runs replaces the batch (the runner's rule). *Rejected:* a
+   manual-kind batch (it would be joined by a press and hand the press a capped report).
+3. **The cap counts photos processed**, and a photo whose bytes and preview are both absent is not one
+   (Codex, on the Android half: it burned the budget every batch). It stays queued for
+   `ARRIVAL_MAX_UNAVAILABLE` (3) batches — a synced-in photo whose bytes are still on their way — then is
+   the wake's.
+4. **⚠ An unknown battery is a no** (the row said "as for *Index now*", which allows it): nobody asked,
+   so the shared `PassBar.ARRIVALS` rule holds. A phone reads its battery (`IosIndexingSignals` switches
+   monitoring on); only the simulator does not — which is why every existing simulator case, whose
+   phone reports none, runs no batch.
+5. **A batch leaves photos for the wake.** The runner reads it `COMPLETED` (it returned); ⚠⚠
+   `PhotosOnDeviceAi.workLeft` says *none left* only after a **library walk** that completed
+   (`libraryWalk`), so after any batch — capped or not — the next leave arms PR-6's wake. A batch over
+   its arrived paths says nothing about a backlog behind them; reading an uncapped one as "current" (the
+   first build) left that backlog to a press. The cost is a wake that may find the library current.
+6. **A fresh process owes one look**, and so does a foreground the watch cannot vouch for. The look is a
+   bounded log read and runs no pass when nothing arrived. ⚠⚠ **It starts at a persisted cursor** (review
+   of this PR, 2026-11-12): the first build re-offered the whole 500-row window at every cold start, so
+   unindexed photos in it were queued ahead of the upload and the batch, taking the queue oldest first, 50
+   at a time, reached the upload ~10 foregrounds later; re-offered paths could also push unreached ones out
+   of a full queue. Where the cursor cannot say (none yet, its row moved, a burst past the window), nothing
+   older is guessed at: the look reports `missed` and `workLeft` arms the wake until a walk started after
+   it completes. *Rejected:* taking path batches newest first — it would change the shared queue's order,
+   which Android's half settles by. *Rejected:* a length-only log accessor — the member hashes are read
+   anyway to find the cursor, and no rows are deserialised but the new ones.
+7. **Never chained, per foreground.** After a capped batch nothing more is batched until Photos comes to
+   the front again; what the cap left stays queued for that next batch. *Rejected:* no batch until the
+   wake has run — a user who opens Photos twice after a large sync would see nothing new indexed.
+8. **No retry on the bar.** A batch the heat, Low Power Mode or the battery refused waits for the next
+   change or foreground; the phone's own changes do not re-arm it. *Rejected:* following
+   `PhotosIndexingSignals.changes` — unasked work that re-arms itself on every thermal tick.
+9. **The debounce is 3 s and the log window 500 rows — placeholders** (§17.7 Q1); the queue's bounds are
+   Android's half's.
+10. **⚠⚠ Consent before the look** (review of this PR): with the flag on but consent never given, every
+   foreground read the log and wrote up to 500 of the realm's paths into the queue file, which nothing
+   cleared (no withdrawal had happened). `arrivalsMayRun` is asked first; with no half that may run the log
+   is not read (only its end marked, so the first look after consent starts there).
+11. **⚠⚠ A background window over the batch** (review of this PR): `Left` cancels the batch's job, but the
+   look is a synchronous store read under the shared replica's lock that a cancellation cannot interrupt;
+   a leave mid-look whose own window ended first was `0xdead10cc`. The batch opens its own window when it
+   starts, in front, and ends it when its job ends.
+
+### 17.4 The shared store
+
+The batch runs only in front, under the same per-photo bar, so it reads the shared replica only while
+Photos is active; a leave cancels it and `ForegroundIndexing`'s leave holds a background window until the
+pass has stopped and both models are closed (§3.3). It takes no task token and asks for no task. The look
+reads one window of one array.
+
+### 17.5 Guards, each removed once and seen red
+
+One mutation per run, fresh results (`--rerun` on the JVM and desktop), the file restored from a copy after.
+
+JVM (`ForegroundArrivalsTest`: the trigger on fakes, and over the real runner and indexer):
+
+| Removed | Red |
+|---|---|
+| ⚠⚠ the batch reading its paths (`mediaAt`), made the walk again | `anArrivalBehindABacklogIsIndexedAndNothingElseIsRead`, `aBatchIndexesTheCapAndIsNeverChained` |
+| ⚠⚠ the cap spent after the bytes (moved back before them) | `unavailablePhotosDoNotSpendTheCapAndAreTriedABoundedNumberOfTimes` |
+| the queue's limit for an unavailable photo | the same |
+| the queue settling done paths | `anArrivalBehindABacklog…`, `aBatchIndexesTheCap…`, `unavailablePhotos…` |
+| ⚠⚠ a refusal's withdrawal deletion (no half may run) | `aRefusedBatchStillDeletesWhatAWithdrawalOwes` |
+| no pass when the queue is empty | `aLookThatFindsNoArrivalRunsNoPass` |
+| the runner's consent-and-model check before anything is read (`anyHalfMayRun`) | `noConsentOrNoModelMeansNoPassAndNoWalk` |
+| the runner's "a pass runs ⇒ `null`" | `aBatchAndIndexNowAreOnePassAtATime`, `aBatchYieldsToAWakeAndAWakeReplacesABatch` |
+| the debounce (`delay(debounceMs)`) | `aBurstOfArrivalsIsOneBatch`, `noBatchStartsInTheBackground` |
+| the foreground read when the debounce fires | `noBatchStartsInTheBackground` (the scene says "behind" before its leave is handled) |
+| ⚠ the foreground read when arming | **survived**: the read at the fire catches the same case. Kept as a belt (no timer behind Photos); recorded as unproved. Both removed together: `noBatchStartsInTheBackground` |
+| the leave cancelling the running batch | `leavingTheForegroundStopsTheBatchAtItsNextPhoto` |
+| a capped batch ending batching (`capped = true`) | `aBatchIndexesTheCapAndIsNeverChained`, `aCappedBatchIsNeverChained` |
+| the busy runner waited out (`RunnerIdle` never sent) | `aBusyRunnerIsWaitedOutAndTheBatchTriedOnce`, `aBatchAndIndexNowAreOnePassAtATime`, `aBatchYieldsToAWakeAndAWakeReplacesABatch` |
+| a fresh process owing a look (`owed = false`) | fifteen cases, `aFreshProcessOwesOneBatchAndAQuietVouchingWatchNoneAfter` first |
+| a watch that does not vouch owing one | `aFreshProcessOwesOneBatchAndAQuietVouchingWatchNoneAfter` |
+| the unknown battery a no | `theArrivalsBarIsIndexNowsWithAnUnknownBatteryANo` |
+| the runner's face-change count | `peopleIsToldToReReadAfterABatch` |
+
+Desktop (`ArrivedPhotoPathsTest`, the real file service and Control's production media source):
+
+| Removed | Red |
+|---|---|
+| the keys the last read saw (each arrival once) | `theLogSaysWhichPhotographsArrivedAndEachOnce`, `aBatchOverTheArrivalsIndexesTheUploadAloneWithNoWalk` |
+| the arriving kinds (`Created` / `Moved` / `Renamed`) | `theLogSaysWhichPhotographsArrivedAndEachOnce` (an overwrite in place) |
+| images only | the same (a `.txt` upload) |
+| `mediaAt`'s live filter | `aBatchOverTheArrivalsIndexesTheUploadAloneWithNoWalk` (a path with no file) |
+
+Simulator (`PhotosOnDeviceAiTest`, Photos' own graph over the shared SQLite store):
+
+| Removed | Red |
+|---|---|
+| the graph's look at the log (nothing queued from it) | `anUploadIsIndexedInPhotosOwnGraphInFrontAndNeverBehind` |
+| `install` following the watch (`followArrivals`) | the same |
+| `sceneChanged(now = true)` telling the trigger | the same |
+| `workLeft` asking for a library walk (`libraryWalk`) | `aCappedBatchLeavesPhotosForTheWake` (an uncapped batch read as a current library) |
+| the graph binding ONE queue the custody clears | `theArrivalsQueueIsTheOneTheCustodyClears` |
+| `workLeft` asking for a walk after a `missed` look | `aCappedBatchLeavesPhotosForTheWake` |
+| `notAsked` marking the log's end before consent | `anUploadIsIndexedInPhotosOwnGraphInFrontAndNeverBehind` |
+| ⚠ the trigger's foreground read in Photos' graph (`inForeground = { true }`) | **survived** in the simulator: the case now counts the trigger, not the standing, but the library watch emits nothing behind Photos, so nothing is armed there either way. The read itself is pinned by `noBatchStartsInTheBackground` (JVM) |
+
+Review round (2026-11-12), each removed once and seen red:
+
+| Removed | Red |
+|---|---|
+| the persisted cursor (a fresh reader offering the history) | `aColdStartQueuesOnlyWhatArrivedPastThePersistedCursor` |
+| the newest surviving row (only the very last one) | `theLogSaysWhichPhotographsArrivedAndEachOnce` (a move) |
+| `missed` on a burst / on rows merged ahead | `aBurstPastTheWindowOrAMovedCursorIsTheWakes` |
+| `markEndIfUnmarked` | `aColdStartQueuesOnlyWhatArrivedPastThePersistedCursor` |
+| an empty log's cursor ("from its start") | the same, and `anUploadIsIndexedInPhotosOwnGraphInFrontAndNeverBehind` (caught by it in this round) |
+| consent before the look (`mayRun`) | `noHalfThatMayRunMeansTheLogIsNeverRead` |
+| the batch's background window | `aLeaveMidLookHoldsTheWindowUntilTheLookEnds` |
+| the busy-from-`Idle` retry; its once-only flag | `aBusyAnswerFromAnIdleRunnerIsRetriedOnceAndNeverLooped` (both halves; the loop case on bounded time, its scope cancelled, so a loop reads as a count and not a hang) |
+| a throw owed again (`Ending.Failed -> owed = true`) | `aThrowingBatchIsRetriedAtTheNextForegroundAndNotAtOnce` |
+| a leave during the look stopping before the pass (`ensureActive`) | `aLeaveMidLookHoldsTheWindowUntilTheLookEnds` |
+| an empty log's cursor | `aColdStartQueuesOnlyWhatArrivedPastThePersistedCursor` |
+| ⚠ recording `missed` into `ArrivalsMissed` (`lookForArrivals`) | **not pinned**: `lookForArrivals` is internal to `:control-shared-proxy`'s iOS graph and no simulator case can call it; `workLeft`'s use of it is |
+
+`assertNothingIsBound` now also asserts no `ForegroundArrivals` in a graph the flag or a static gate refused.
+
+### 17.6 Not proved, and only a phone can show (📱)
+
+1. **The row's check:** upload one photo in Drive, open Photos: within seconds it is found by search and,
+   with faces on, grouped in People — without a press. The device log shows `[photos-arrivals]` with
+   `asked=1 … embedded=1`. ⚠ The simulator case uploads through Photos' own client; Drive's process
+   writing the shared store is the phone's to show.
+2. A photo synced in from another device while Photos is open: its `Created` row arrives with it and the
+   batch takes it. A sync burst of more than 500 new rows between two looks leaves the oldest to the wake.
+3. A leave mid-batch: no `0xdead10cc`, the pass stopped, and the next foreground continues from the queue.
+4. The bar on a warm phone or in Low Power Mode: `deferred=true`, nothing read.
+5. ⚠ The log array's order on the phone's SQLite store [I]: the reader takes the newest rows as the last
+   ones; the simulator case holds for one upload, a busy realm is the phone's to show.
+
+### 17.7 Open questions
+
+- **Q1** — `ARRIVALS_DEBOUNCE_MS` (3 s), `NEW_ARRIVALS_BATCH_CAP` (50) and `ARRIVALS_LOG_WINDOW` (500)
+  are placeholders. ⭐ Recommendation: keep until §17.6 items 1 and 2 are measured.
+- **Q2** — the log reader's "seen" keys are in memory, so a fresh process re-offers its whole window: up
+  to 500 paths queued, most of them `DONE` at a store read each. ⭐ Recommendation: none until the phone's
+  first-foreground batch time shows it matters; then persist the last key beside the queue.

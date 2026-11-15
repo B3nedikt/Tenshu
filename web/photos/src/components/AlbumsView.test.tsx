@@ -1,4 +1,4 @@
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { album, photo, proxy, resetProxy, streams } from '../test/proxyMock'
@@ -87,7 +87,7 @@ describe('Albums', () => {
     expect(screen.getByLabelText('Album name')).toBeInTheDocument()
   })
 
-  it('multi-select removes photographs from the album', async () => {
+  it('the selection removes photographs from the album', async () => {
     const trip = album({ name: 'Trip', photoCount: 2 })
     const a = photo({ name: 'a.jpg' })
     const b = photo({ name: 'b.jpg' })
@@ -96,9 +96,9 @@ describe('Albums', () => {
     renderWithProviders(<AlbumsView />)
     await userEvent.click(await screen.findByText('Trip'))
     await screen.findByRole('button', { name: /a\.jpg/ })
-    await userEvent.click(screen.getByRole('button', { name: 'Select' }))
-    await userEvent.click(screen.getByRole('button', { name: /a\.jpg/ }))
-    await userEvent.click(screen.getByRole('button', { name: /b\.jpg/ }))
+    // A click selects, Shift-click extends the range.
+    await userEvent.click(screen.getByRole('button', { name: /^Photo a\.jpg/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Photo b\.jpg/ }), { shiftKey: true })
     expect(screen.getByText('2 selected')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Remove from album' }))
     await waitFor(() => expect(proxy.removeFromAlbum).toHaveBeenCalledTimes(2))
