@@ -19,6 +19,9 @@ class WindowsCloudFilesTest {
 
     private val windows = System.getProperty("os.name").orEmpty().startsWith("Windows", ignoreCase = true)
 
+    /** `HRESULT_FROM_WIN32(ERROR_INVALID_FUNCTION)`. */
+    private val INVALID_FUNCTION = 0x80070001.toInt()
+
     @Test
     fun availableExactlyOnWindows() {
         assertEquals(windows, WindowsCloudFiles.isAvailable())
@@ -36,10 +39,13 @@ class WindowsCloudFilesTest {
         try {
             val result = assertNotNull(WindowsCloudFiles.syncRootFileId(dir))
             val failure = result.exceptionOrNull() as? CloudFilesException
-            assertEquals(
-                CloudFilesHResult.NOT_UNDER_SYNC_ROOT,
-                failure?.hresult,
-                "expected NOT_UNDER_SYNC_ROOT, got ${result.getOrNull() ?: failure?.message}",
+            // ⚠ Two right answers. Where the Cloud Files filter (cldflt) is attached to the volume: NOT_UNDER_SYNC_ROOT.
+            // Where it is not — a GitHub Windows runner's D:, which holds the checkout and %TEMP% — the query never
+            // reaches a filter and answers ERROR_INVALID_FUNCTION (measured in CI, 2026-11-15). Either way the folder
+            // is not reported as a sync root, which is what this test is for.
+            assertTrue(
+                failure?.hresult == CloudFilesHResult.NOT_UNDER_SYNC_ROOT || failure?.hresult == INVALID_FUNCTION,
+                "expected NOT_UNDER_SYNC_ROOT (or INVALID_FUNCTION without the filter), got ${result.getOrNull() ?: failure?.message}",
             )
             val attributes = assertNotNull(WindowsCloudFiles.fileAttributes(dir))
             assertTrue(attributes and WindowsCloudFiles.FILE_ATTRIBUTE_DIRECTORY != 0)

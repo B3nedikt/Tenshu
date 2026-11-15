@@ -217,7 +217,8 @@ class SocketDirectoryTest {
      */
     @Test
     fun inspect_warnsButDoesNotRefuseTheRealRootOwnedTmp() {
-        val tmp = Path.of("/tmp").toRealPath()
+        // On Windows `/tmp` is `<drive>:\tmp`, which need not exist (a CI runner's D: has none): nothing to test.
+        val tmp = runCatching { Path.of("/tmp").toRealPath() }.getOrNull() ?: return
         val rootOwned = runCatching { Files.getAttribute(tmp, "unix:uid") as Int == 0 }.getOrDefault(false)
         if (!rootOwned || !isSticky(tmp) || System.getProperty("user.name") == "root") return
 

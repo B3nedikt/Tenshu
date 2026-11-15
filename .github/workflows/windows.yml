@@ -29,6 +29,13 @@ jobs:
   windows-desktop:
     runs-on: windows-latest
     steps:
+      # ⚠ Before checkout: the runner's git converts to CRLF (core.autocrlf=true), and several suites compare
+      # committed files byte for byte or with `\n` regexes (a signed catalog, the web basemap style,
+      # photos-ios/project.yml) — red here and on any CRLF checkout, green on the LF lanes. The repo's own LF is
+      # what every other lane tests.
+      - name: Check out with the repository's line endings
+        run: git config --global core.autocrlf false
+
       - uses: actions/checkout@v4
 
       # Same two-JDK pin as android.yml's `test` job — read its comment before changing either.
