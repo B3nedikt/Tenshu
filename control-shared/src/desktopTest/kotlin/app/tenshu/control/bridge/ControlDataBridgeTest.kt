@@ -72,6 +72,31 @@ class ControlDataBridgeTest {
     }
 
     /**
+     * The trays' unverified marker reads `verifiedHere`, so it must cross the hop separately from
+     * the realm-wide `verified` — folded together, one device that can never attest marks every
+     * other machine's copy for good.
+     */
+    @Test
+    fun appsResultCarriesThisDevicesVerificationApartFromTheAggregate() {
+        val apps = listOf(
+            InstalledApp(
+                "a.here", "Here", "drive", "1.0.0", "x", 100L,
+                verified = false, deviceCount = 2, verifiedOnThisDevice = true,
+            ),
+            InstalledApp(
+                "a.bad", "Bad", "fit", "1.0.0", "x", 100L,
+                verified = false, deviceCount = 1, verifiedOnThisDevice = false,
+            ),
+        )
+        @Suppress("UNCHECKED_CAST")
+        val rows = appsResult(apps, catalogue = emptyList())["apps"] as List<Map<String, Any?>>
+        val here = rows.first { it["appId"] == "a.here" }
+        assertEquals(false, here["verified"])
+        assertEquals(true, here["verifiedHere"])
+        assertEquals(false, rows.first { it["appId"] == "a.bad" }["verifiedHere"])
+    }
+
+    /**
      * An app that is installed but was never opened has no registration, so the tray can only
      * offer it if the daemon names it as a candidate. Pins all three edges of that list: a
      * never-connected macOS app is appended, a registered one is not duplicated (whichever
@@ -102,6 +127,7 @@ class ControlDataBridgeTest {
         assertEquals(fit.name, rows[1]["name"])
         assertEquals(false, rows[1]["installedOnThisDevice"])
         assertEquals(false, rows[1]["verified"])
+        assertEquals(null, rows[1]["verifiedHere"], "a candidate was never attested here, nor failed to be")
     }
 
     @Test

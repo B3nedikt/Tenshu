@@ -64,7 +64,9 @@ fun appRegistrationTrigger(
  *
  * ⚠ `TenshuAppRegistry` aggregates the per-device rows with `all { it.verified }`, so a single
  * device that cannot attest keeps the whole app unverified. That conservatism is deliberate:
- * "verified" should mean *everywhere*, not *somewhere*.
+ * "verified" should mean *everywhere*, not *somewhere*. ⚠ It is also why the desktop trays read
+ * `InstalledApp.verifiedOnThisDevice` instead: they launch this machine's copy, and an iOS route-1
+ * row (no peer to attest) or a retired device id would otherwise mark it unverified forever.
  */
 fun interface PeerAttestationProbe {
     fun isAttested(clientId: String): Boolean

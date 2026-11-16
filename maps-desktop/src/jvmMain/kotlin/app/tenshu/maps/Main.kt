@@ -11,8 +11,6 @@ import app.tenshu.maps.di.mapsClientModule
 import app.tenshu.maps.di.mapsModules
 import app.tenshu.maps.di.platformClientModule
 import app.tenshu.maps.ui.App
-import app.tenshu.ui.layout.LocalNavRailPreference
-import app.tenshu.ui.layout.filePersistedNavRailPreference
 import app.tenshu.ui.layout.TenshuWindowIcon
 import app.tenshu.ui.layout.rememberPersistedWindowState
 import app.tenshu.ui.theme.TenshuTheme
@@ -48,16 +46,10 @@ fun main() {
             TenshuWindowIcon()
             val viewModelStoreOwner = remember { DesktopViewModelStoreOwner() }
             val savedStateRegistryOwner = remember { DesktopSavedStateRegistryOwner() }
-            // ⚠ `remember`ed: AdaptiveNavScaffold reads the stored value keyed on this instance.
-            val navRailPreference = remember {
-                filePersistedNavRailPreference(key = "maps", storageDir = DesktopAppPaths.root())
-            }
-
             CompositionLocalProvider(
                 LocalViewModelStoreOwner provides viewModelStoreOwner,
                 LocalSavedStateRegistryOwner provides savedStateRegistryOwner,
                 LocalLifecycleOwner provides savedStateRegistryOwner,
-                LocalNavRailPreference provides navRailPreference,
             ) {
                 TenshuTheme {
                     App()

@@ -42,7 +42,9 @@ internal static class AppLauncher
                 appId,
                 name,
                 Registered: TrayState.Bool(row, "registered", fallback: true),
-                Verified: TrayState.Bool(row, "verified"),
+                // This PC's own registration, not the realm-wide `verified`: another device that can never attest would
+                // otherwise mark this copy for good. Absent or null (no registration here) ⇒ nothing to warn about.
+                VerifiedHere: TrayState.Bool(row, "verifiedHere", fallback: true),
                 Aumid: aumid));
         }
         return rows;

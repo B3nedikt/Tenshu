@@ -21,6 +21,7 @@ import org.tenshu.core.common.app.appService
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
@@ -89,6 +90,41 @@ class AppRegistryIntegrationTest {
             apps.first { it.appId == otherAppId }.installedOnThisDevice,
             "an app registered only elsewhere must not be offered to the tray launcher",
         )
+    }
+
+    /**
+     * The tray marks a copy unverified from its *own* device's row, while the Apps list keeps the
+     * realm-wide aggregate. All three values matter: a flag folded back into the aggregate passes
+     * the "attested here, unattested elsewhere" case only by failing it, a flag that ignored the
+     * local row would never warn, and an app with no row here must carry no claim either way.
+     */
+    @Test
+    fun verifiedOnThisDevice_readsOnlyThisDevicesRow() = runBlocking {
+        val client = startAppIntegrationKoin()
+        val thisDevice = client.syncService.getSyncStatus().getOrNull()?.deviceId?.get()
+        assertNotNull(thisDevice, "the harness must have an active realm for this to mean anything")
+
+        // Drive: attested here, unattested on a device that can never attest (iOS route-1).
+        client.appService.registerApp(appId, deviceId = thisDevice, verified = true)
+        client.appService.registerApp(appId, deviceId = "iphone-route-1", verified = false)
+        // Fit: unattested here.
+        client.appService.registerApp(otherAppId, deviceId = thisDevice, verified = false)
+        // Notes: registered only elsewhere.
+        client.appService.registerApp("dev.example.notes", deviceId = "device-elsewhere", verified = false)
+        val registry = TenshuAppRegistry(client, BundledAppManifestSource())
+
+        val apps = withTimeout(10.seconds) {
+            registry.installedApps().first { list ->
+                list.firstOrNull { it.appId == appId }?.deviceCount == 2 &&
+                    list.any { it.appId == otherAppId } && list.any { it.appId == "dev.example.notes" }
+            }
+        }
+
+        val drive = apps.first { it.appId == appId }
+        assertFalse(drive.verified, "the Apps list's aggregate still counts every device")
+        assertEquals(true, drive.verifiedOnThisDevice, "another device's row must not mark this copy")
+        assertEquals(false, apps.first { it.appId == otherAppId }.verifiedOnThisDevice)
+        assertNull(apps.first { it.appId == "dev.example.notes" }.verifiedOnThisDevice)
     }
 
     /**

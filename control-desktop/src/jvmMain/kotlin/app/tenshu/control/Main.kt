@@ -50,8 +50,6 @@ import app.tenshu.control.lifecycle.TrayLiveness
 import app.tenshu.control.lifecycle.WindowController
 import app.tenshu.control.ui.App
 import app.tenshu.control.ui.LocalWindowVisible
-import app.tenshu.ui.layout.LocalNavRailPreference
-import app.tenshu.ui.layout.filePersistedNavRailPreference
 import app.tenshu.ui.layout.TenshuWindowIcon
 import app.tenshu.ui.layout.rememberPersistedWindowState
 import app.tenshu.ui.theme.TenshuTheme
@@ -475,17 +473,10 @@ fun main() {
 
             val viewModelStoreOwner = remember { DesktopViewModelStoreOwner() }
             val savedStateRegistryOwner = remember { DesktopSavedStateRegistryOwner() }
-            // ⚠ `remember`ed: AdaptiveNavScaffold reads the stored value keyed on this
-            // instance, so a new one per recomposition would re-read the file every frame.
-            val navRailPreference = remember {
-                filePersistedNavRailPreference(key = "control", storageDir = DesktopAppPaths.root())
-            }
-
             CompositionLocalProvider(
                 LocalViewModelStoreOwner provides viewModelStoreOwner,
                 LocalSavedStateRegistryOwner provides savedStateRegistryOwner,
                 LocalLifecycleOwner provides savedStateRegistryOwner,
-                LocalNavRailPreference provides navRailPreference,
                 // The window stays composed while hidden (close-to-tray /
                 // autostarted-hidden daemon); pass visibility through so
                 // visibility-sensitive effects — the Locked screen's biometric

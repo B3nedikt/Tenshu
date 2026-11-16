@@ -7,8 +7,6 @@ import androidx.compose.ui.window.FrameWindowScope
 import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
-import app.tenshu.ui.layout.LocalNavRailPreference
-import app.tenshu.ui.layout.filePersistedNavRailPreference
 import app.tenshu.ui.layout.TenshuWindowIcon
 import app.tenshu.ui.layout.rememberPersistedWindowState
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -74,17 +72,10 @@ fun main() {
 
             val viewModelStoreOwner = remember { DesktopViewModelStoreOwner() }
             val savedStateRegistryOwner = remember { DesktopSavedStateRegistryOwner() }
-            // ⚠ `remember`ed: AdaptiveNavScaffold reads the stored value keyed on this
-            // instance, so a new one per recomposition would re-read the file every frame.
-            val navRailPreference = remember {
-                filePersistedNavRailPreference(key = "fit", storageDir = DesktopAppPaths.root())
-            }
-
             CompositionLocalProvider(
                 LocalViewModelStoreOwner provides viewModelStoreOwner,
                 LocalSavedStateRegistryOwner provides savedStateRegistryOwner,
                 LocalLifecycleOwner provides savedStateRegistryOwner,
-                LocalNavRailPreference provides navRailPreference,
             ) {
                 TenshuTheme {
                     App()

@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.navigationBars
@@ -21,46 +20,29 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.MenuOpen
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TooltipAnchorPosition
-import androidx.compose.material3.TooltipBox
-import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.WideNavigationRail
 import androidx.compose.material3.WideNavigationRailItem
-import androidx.compose.material3.WideNavigationRailValue
-import androidx.compose.material3.rememberTooltipState
-import androidx.compose.material3.rememberWideNavigationRailState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import app.tenshu.ui.preview.PreviewBox
 import androidx.compose.ui.tooling.preview.Preview
-import kotlinx.coroutines.launch
 
 /**
  * A single top-level navigation destination as exposed by
@@ -123,63 +105,6 @@ internal fun NavItemIcon(item: AdaptiveNavItem) {
 }
 
 /**
- * The rail's expand/collapse control, drawn in the `WideNavigationRail` header.
- *
- * Modelled on AOSP's own `WideNavigationRailResponsiveSample`, which is the reference for this
- * pattern. Details of it that are load-bearing and were all missing when this first shipped (a
- * fourth, its `start` padding, is called out at the `IconButton` below):
- *
- * - **The icon reports direction.** `Menu` when collapsed, `MenuOpen` when expanded — otherwise a
- *   static hamburger gives no clue which way the next click goes. ⚠ `AutoMirrored`, because
- *   `MenuOpen` points at the content and must flip in RTL; `Menu` is symmetric and does not.
- * - **A tooltip names it.** This is the one control in the whole chrome with no visible label —
- *   every `WideNavigationRailItem` draws its own text in both rail states — so without a tooltip
- *   a sighted user has only the glyph.
- * - ⚠⚠ **`stateDescription` carries the state; the content description carries the action.** They
- *   are not interchangeable. A screen reader announces the name as the thing it will do
- *   ("Expand navigation") and the state separately as what the rail *is* — flipping only the name,
- *   as this did before, renames the button between announcements and never reports a state at all.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun NavRailToggle(expanded: Boolean, onToggle: () -> Unit) {
-    val action = if (expanded) "Collapse navigation" else "Expand navigation"
-    TooltipBox(
-        // ⚠ `TooltipAnchorPosition.End`, not the sample's `TooltipAnchorPosition.Above`. The
-        // sample anchors above because its rail is not at a window corner; ours is — the header
-        // is the top-left-most control in the app, so "above" is off-screen and the tooltip
-        // renders clipped against both edges (it did, in an earlier `AdaptiveNavRenderTest` PNG).
-        // `End` opens it into the body pane, which is the one direction with room, and mirrors
-        // correctly in RTL where the rail moves right.
-        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
-            TooltipAnchorPosition.End,
-        ),
-        tooltip = { PlainTooltip { Text(action) } },
-        state = rememberTooltipState(),
-    ) {
-        IconButton(
-            onClick = onToggle,
-            // ⚠ 24dp, from the same sample, and it is alignment rather than decoration: the
-            // header is laid out flush to the rail's leading edge while every item's icon is
-            // centred at 48dp. Without it the button hangs off the edge on its own — visible
-            // in `AdaptiveNavRenderTest`'s 05/06 PNGs, and invisible to every measurement in
-            // `AdaptiveNavMetricsTest`, which reads the body pane and never the header.
-            // `start`, not `left`, so it follows the layout direction like `MenuOpen` does.
-            modifier = Modifier
-                .padding(start = 24.dp)
-                .semantics {
-                    stateDescription = if (expanded) "Expanded" else "Collapsed"
-                },
-        ) {
-            Icon(
-                if (expanded) Icons.AutoMirrored.Filled.MenuOpen else Icons.Default.Menu,
-                contentDescription = action,
-            )
-        }
-    }
-}
-
-/**
  * Adaptive navigation scaffold shared across Tenshu apps (Drive, Control).
  *
  * ### What it does
@@ -188,38 +113,25 @@ private fun NavRailToggle(expanded: Boolean, onToggle: () -> Unit) {
  * [WindowWidthSizeClass]:
  *
  * - [WindowWidthSizeClass.Compact] — [NavigationBar] at the bottom.
- * - [WindowWidthSizeClass.Medium] / [WindowWidthSizeClass.Expanded] —
- *   [WideNavigationRail] leading, **collapsed** (96dp).
- * - [WindowWidthSizeClass.Large] / [WindowWidthSizeClass.ExtraLarge] —
- *   the same rail, **expanded**: width-ranged 220–360dp, sized to its
- *   widest item.
+ * - Every wider class — [WideNavigationRail] leading, **always collapsed**
+ *   (96dp), with no expand/collapse control.
  *
- * From [WindowWidthSizeClass.Large] up — and only there — a leading menu
- * button toggles between the two; the size class chooses the default.
- * Supply a [LocalNavRailPreference] to make that choice survive a restart.
+ * ### ⚠⚠ Why there is no expand toggle — at any width
  *
- * ### Why the toggle stops at Large
+ * A [WideNavigationRailItem] *"always displays labels (if they exist) when
+ * selected and unselected"*: collapsed merely stacks the label under the icon
+ * instead of beside it, which is why the collapsed wide rail is 96dp and not
+ * the classic rail's 80dp. Expanding therefore hides nothing and reveals
+ * nothing — it re-flows identical text sideways for 124–264dp of body width.
  *
- * ⚠⚠ It used to be offered from [WindowWidthSizeClass.Expanded], on the
- * stated grounds that the default 1024dp desktop window would otherwise be
- * *"icon-only with no way to reach labels at all"*. **That premise was
- * false.** A [WideNavigationRailItem] *"always displays labels (if they
- * exist) when selected and unselected"* — collapsed merely stacks the label
- * under the icon instead of beside it, which is exactly why the collapsed
- * wide rail is 96dp and not the classic rail's 80dp. Nothing was hidden, so
- * nothing needed reaching.
- *
- * What the button actually bought, then, was a re-flow of identical content
- * in exchange for 124–235dp of body width — which is what "expanding shows
- * me nothing" felt like from the outside. Material's expanded rail earns its
- * width by *revealing secondary destinations the collapsed rail hides* and
- * by hosting a header FAB or logo; every app here passes one flat list of
- * 2–5 destinations to both states, all inside the three-to-seven range where
- * M3 says the collapsed rail is the right component. Until an app has
- * secondary destinations to reveal, the honest control is no control.
- *
- * At Large and up the choice is a real one — spend 220dp+ on wider labels
- * or don't — so the toggle stays there.
+ * Material's expanded rail earns its width by *revealing secondary
+ * destinations the collapsed rail hides* and by hosting a header FAB or logo.
+ * Every app here passes one flat list of 2–5 destinations, inside the
+ * three-to-seven range where M3 says the collapsed rail is the right
+ * component. The toggle was offered first from Expanded, then from Large, and
+ * at both it was a control with an empty payload. Don't bring it back — or an
+ * expanded default — until an app has secondary destinations or header
+ * content to show (`ui-adaptive-navigation.md` §7.4 / §10, N7).
  *
  * The body pane carries the Material window margin (see
  * [Modifier.appWindowMargin]); the rail stays flush to the leading edge,
@@ -272,9 +184,8 @@ private fun NavRailToggle(expanded: Boolean, onToggle: () -> Unit) {
  *
  * Each [AdaptiveNavItem.label] is set both as visible text *and* as the
  * icon content description in every size class, so the destination is
- * announced identically across compact/medium/expanded. The permanent
- * drawer is always visible on expanded, so Tab navigation reaches it
- * before the content area.
+ * announced identically in every size class. The rail is always visible
+ * beside the content, so Tab navigation reaches it before the content area.
  *
  * @param navItems              ordered list of top-level destinations.
  * @param showNav               when false, chrome is hidden and only
@@ -344,7 +255,7 @@ fun AdaptiveNavScaffold(
                 // time by the pill's own `windowInsetsPadding`.
                 .then(if (floating) Modifier.consumeWindowInsets(innerPadding) else Modifier),
         ) {
-            if (showRail) NavRail(navItems, sizeClass)
+            if (showRail) NavRail(navItems)
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -379,102 +290,23 @@ fun AdaptiveNavScaffold(
 }
 
 /**
- * The leading navigation rail — every non-compact size class renders this same component and
- * differs only in whether it starts expanded. That is deliberate: it is one rail that grows, not
- * three chrome variants, so a window dragged across a breakpoint animates instead of swapping
- * components.
- *
- * Extracted from [AdaptiveNavScaffold] so the rail's own state lives and dies with the rail,
- * leaving the scaffold body a single unconditional path down to `content()`.
+ * The leading navigation rail — every non-compact size class renders this same collapsed rail.
+ * See [AdaptiveNavScaffold]'s KDoc for why it never expands.
  */
 @Composable
-private fun RowScope.NavRail(
-    navItems: List<AdaptiveNavItem>,
-    sizeClass: WindowWidthSizeClass,
-) {
-    val preference = LocalNavRailPreference.current
-    // Read once per preference instance: this is the stored *user* choice, and it
-    // must not be re-read on every recomposition or it would fight the live state.
-    val storedExpanded = remember(preference) { preference?.read() }
-    val honoursStored = storedExpanded != null &&
-        sizeClass >= WindowWidthSizeClass.Large
-
-    val railState = rememberWideNavigationRailState(
-        initialValue = if (honoursStored) {
-            if (storedExpanded == true) {
-                WideNavigationRailValue.Expanded
-            } else {
-                WideNavigationRailValue.Collapsed
-            }
-        } else {
-            railValueFor(sizeClass)
-        },
-    )
-    val scope = rememberCoroutineScope()
-
-    // Re-apply the size-class default when the window crosses a breakpoint.
-    // ⚠ Keyed on the size class, which also fires on first composition — so the
-    // first pass is skipped when a stored choice was honoured above, or the
-    // restored preference would be overwritten before it was ever visible.
-    var firstPass by remember { mutableStateOf(true) }
-    LaunchedEffect(sizeClass) {
-        val skip = firstPass && honoursStored
-        firstPass = false
-        if (!skip) railState.snapTo(railValueFor(sizeClass))
-    }
-
-    val expanded = railState.targetValue == WideNavigationRailValue.Expanded
-
-    WideNavigationRail(
-        state = railState,
-        // The toggle exists only where expanding is the *default* — Large and
-        // up. Below that the size class is the whole rule and the rail is
-        // always collapsed. See [AdaptiveNavScaffold]'s KDoc for why offering it at
-        // Expanded was a net negative.
-        header = if (sizeClass >= WindowWidthSizeClass.Large) {
-            {
-                NavRailToggle(
-                    expanded = expanded,
-                    onToggle = {
-                        scope.launch { railState.toggle() }
-                        // Only an explicit toggle is persisted. A window
-                        // resize changes the rail too, but that is the
-                        // size class talking, not the user.
-                        preference?.write(!expanded)
-                    },
-                )
-            }
-        } else {
-            null
-        },
-    ) {
+private fun NavRail(navItems: List<AdaptiveNavItem>) {
+    WideNavigationRail {
         navItems.forEach { item ->
             WideNavigationRailItem(
                 icon = { NavItemIcon(item) },
                 label = { Text(item.label) },
                 selected = item.selected,
                 onClick = item.onClick,
-                railExpanded = expanded,
+                railExpanded = false,
             )
         }
     }
 }
-
-/**
- * The rail's *default* state for a window size class — collapsed up to
- * [WindowWidthSizeClass.Expanded], expanded from [WindowWidthSizeClass.Large] on.
- *
- * Matches the Material 3 breakpoint guidance: bar (compact), collapsed rail (medium and
- * expanded), expanded rail (large and extra-large). A stored [NavRailPreference] overrides
- * it from [WindowWidthSizeClass.Large] up, where the toggle exists — and nowhere else, or a
- * stored "expanded" would take 220dp of an 840dp window with no control left to undo it.
- */
-private fun railValueFor(sizeClass: WindowWidthSizeClass): WideNavigationRailValue =
-    if (sizeClass >= WindowWidthSizeClass.Large) {
-        WideNavigationRailValue.Expanded
-    } else {
-        WideNavigationRailValue.Collapsed
-    }
 
 private fun sampleNavItems(selectedKey: String) = listOf(
     AdaptiveNavItem(
@@ -551,7 +383,7 @@ private fun AdaptiveNavScaffoldLargePreview() = PreviewBox(
     padding = PaddingValues(0.dp),
 ) {
     AdaptiveNavScaffold(navItems = sampleNavItems(selectedKey = "settings")) {
-        SampleContent("Large — expanded rail + menu toggle, sized to content")
+        SampleContent("Large — collapsed rail, no toggle")
     }
 }
 

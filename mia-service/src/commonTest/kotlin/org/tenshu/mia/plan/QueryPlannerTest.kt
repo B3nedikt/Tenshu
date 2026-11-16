@@ -254,8 +254,54 @@ class QueryPlannerTest {
         // ⚠⚠ The characteristic keyword-router failure is confidently answering a
         // DIFFERENT question. "weather" is not a file name, and a plan that searched for
         // it would look like an answer.
-        assertIs<QueryPlan.FindFilesNamed>(plan)
-        assertEquals("weather like", plan.text)
+        // ⚠ This asserted `FindFilesNamed("weather like")` under the comment above until §22.
+        assertIs<QueryPlan.NoMatch>(plan)
+        assertTrue(plan.explanation.contains("photos"), plan.explanation)
+    }
+
+    // ---- §22: the catch-all searches file names only for a lookup ----------------
+
+    @Test
+    fun anOffTopicQuestionIsANoMatch_neverAFileSearch() {
+        // ⚠⚠ §21.1 measured 22 of 24 off-topic questions ending in a file search. Each of
+        // these ended there, or (with a time word) would reach the window arm next.
+        listOf(
+            "what's the weather tomorrow",
+            "what is the weather like in berlin",
+            "tell me a joke",
+            "who won the game yesterday",
+            "how are you",
+            "why is the sky blue",
+            "can you recommend a good book",
+            "is it going to rain",
+            "play some jazz",
+            "translate good morning into french",
+            "hey mia",
+            "thanks a lot",
+        ).forEach { utterance ->
+            assertIs<QueryPlan.NoMatch>(plan(utterance), utterance)
+        }
+    }
+
+    @Test
+    fun aLookupStillSearchesFileNames() {
+        // ⚠ The other half: narrowing must not cost a search anyone meant. A lookup word
+        // anywhere, or a bare phrase, is still a name search — and still `viaCatchAll`, so the
+        // model seam may still second-guess it (§16.3).
+        mapOf(
+            "find the invoice" to "invoice",
+            "invoice" to "invoice",
+            "tax return" to "tax return",
+            "kayaking last week" to "kayaking",
+            "where is my passport scan" to "passport scan",
+            "can you find the lease agreement" to "lease agreement",
+            "notes from the workshop with anna" to "notes workshop anna",
+        ).forEach { (utterance, expected) ->
+            val plan = plan(utterance)
+            assertIs<QueryPlan.FindFilesNamed>(plan, utterance)
+            assertEquals(expected, plan.text, utterance)
+            assertTrue(plan.viaCatchAll, utterance)
+        }
     }
 
     @Test
@@ -285,6 +331,23 @@ class QueryPlannerTest {
     fun aOneCharacterLeftoverIsNoiseNotASearchTerm() {
         // Searching for "x" would match half the realm and read as broken.
         assertIs<QueryPlan.NoMatch>(plan("find x"))
+    }
+
+    @Test
+    fun aFileWordIsAPositiveSignal_evenInAQuestion() {
+        // ⚠⚠ Codex review: "which files are named invoice" opens with a rejected word and has
+        // no lookup word, so the §22 guard alone refused it. A file word is the user saying
+        // "files" outright — a name search, and one a model may not overrule (§16.3).
+        listOf(
+            "which files are named invoice",
+            "what documents are named invoice",
+            "do i have a file called invoice",
+        ).forEach { utterance ->
+            val plan = plan(utterance)
+            assertIs<QueryPlan.FindFilesNamed>(plan, utterance)
+            assertEquals("invoice", plan.text, utterance)
+            assertTrue(!plan.viaCatchAll, "$utterance reached the search through a file word")
+        }
     }
 
     // ---- §14.4: a plural is a workout, not a place -----------------------------

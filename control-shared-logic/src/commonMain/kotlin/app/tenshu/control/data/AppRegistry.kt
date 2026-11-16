@@ -107,6 +107,17 @@ data class InstalledApp(
      * rather than the bundled table (§3b, once that exists).
      */
     val recognised: Boolean = true,
+    /**
+     * Whether **this device's own** registration was attested; `null` when it has none.
+     *
+     * [verified] is the realm-wide aggregate, so one device that can never attest — iOS route-1,
+     * which runs its own proxy and so has no peer to check — or a retired device id that never
+     * reconnects keeps it `false` for good. That is the right answer for Control's Apps list and
+     * the wrong one for the tray, which launches the copy *on this machine*: there it presented
+     * as a warning on a copy that had just passed the code-signature gate, which no reinstall
+     * could clear.
+     */
+    val verifiedOnThisDevice: Boolean? = null,
 )
 
 /**

@@ -1,14 +1,14 @@
 # Adaptive navigation — the sidebar is 300 dp wide whatever you put in it
 
-**Status:** v0.5 — sweep + design (2026-08-11), toggle correction (2026-08-12). **N1–N5 SHIPPED.**
-The permanent drawer is gone;
-every non-compact class renders one `WideNavigationRail` (96 dp collapsed, 220–360 dp content-sized
-expanded), the expand/collapse choice persists per desktop app, and the body pane finally carries
-the Material 24 dp window margin. As-built in §2. ⚠⚠ **§7 revises N3/N4:** the menu toggle moved
-from Expanded to **Large and above**, because N3's stated reason for lowering it was based on a
-false premise about the collapsed rail (it does show labels). Read §7 before touching the header.
+**Status:** v0.6 — sweep + design (2026-08-11), toggle correction (2026-08-12), **toggle and
+expanded rail removed (2026-11-16, §10)**. **N1–N5 SHIPPED.** The permanent drawer is gone; every
+non-compact class renders one **always-collapsed** 96 dp `WideNavigationRail` with no menu toggle,
+and the body pane carries the Material 24 dp window margin. ⚠⚠ **§10 supersedes §7's "toggle at
+Large" and N4's persisted preference:** the expanded rail re-flowed labels the collapsed rail
+already shows, at every width — `NavRailPreference` is deleted. §1–§7 below describe the
+expanded/toggle design as it was; read §10 before reintroducing either.
 Remaining: **N7** (§7.4, secondary destinations + a header FAB — the prerequisite for ever
-lowering the toggle again) and open question **Q2** (the compact margin, still unverified).
+offering an expanded rail again) and open question **Q2** (the compact margin, still unverified).
 **N6 SHIPPED** as its own doc — [`ios-adaptive-navigation.md`](ios-adaptive-navigation.md). §9: the opt-in floating compact bar (Photos).
 Proposed replacing the permanent
 navigation drawer in `AdaptiveNavScaffold` with the collapsed/expanded navigation rail that
@@ -103,8 +103,8 @@ Medium, which is why their rail has never looked wrong.
 
 > ⚠ **Superseded 2026-09-16:** every desktop app now uses `rememberPersistedWindowState`, and a first
 > launch opens centred at a screen-relative size (80 % × 90 % of the usable area, clamped to
-> 1024 × 768 … 1680 × 1050) — 1382 × 884 on a 16" MacBook, which is **Large**, so the rail starts
-> expanded there. The rule lives in `ui-core/ui-agent.md` §8.
+> 1024 × 768 … 1680 × 1050) — 1382 × 884 on a 16" MacBook, which is **Large** — where the rail started
+> expanded until §10 removed the expanded state. The rule lives in `ui-core/ui-agent.md` §8.
 
 **Widths**, from the M3 design tokens in AOSP (the spec site is JS-rendered and unfetchable; the
 tokens are the authoritative implementation):
@@ -707,3 +707,33 @@ keeps the docked bar, and every non-compact class still gets the rail.
 
 Tests: `FloatingNavBarTest` (clearance reported, docked bar reports none, ignored above compact) and
 its PNGs in `build/reports/adaptive-nav/` (`10`/`11`/`12`).
+
+---
+
+## 10. No expanded rail at any width (2026-11-16)
+
+**Trigger:** maintainer observation that the desktop rail's expand "does not feel useful", and the
+question whether the toggle should exist on desktop at all.
+
+§7 had already established the reason — a `WideNavigationRailItem` always draws its label, so
+expanding re-flows text rather than revealing it — and then applied it only below Large. The same
+fact holds at Large and ExtraLarge: every app still passes one flat list of 2–5 destinations and
+the header held nothing but the toggle itself. So at the widths where most desktop windows open
+(a first launch lands in Large, §0.3's note), the rail *defaulted* to spending 220 dp on the same
+labels, and offered a button whose only effect was to undo that. §7's "at Large the choice is a
+real one" was a choice between two layouts of identical content.
+
+| | Before | After |
+|---|---|---|
+| Rail at Medium / Expanded | collapsed, no toggle | collapsed, no toggle |
+| Rail at Large / ExtraLarge | **expanded** (220–360 dp), menu toggle | **collapsed** (96 dp), no toggle |
+| `NavRailPreference` / `filePersistedNavRailPreference` | persisted the toggle per desktop app | **deleted**, with its wiring in eight desktop `Main.kt`s |
+
+Existing `<key>.navrail.properties` files in users' data directories are now simply unread —
+harmless, so no cleanup step was added.
+
+⚠⚠ **The rule this leaves:** the expanded rail comes back only *with content the collapsed rail
+cannot show* — secondary destinations or a header FAB/logo (N7, §7.4). Bringing back the toggle
+or an expanded default on its own repeats N3 and §7. `AdaptiveNavMetricsTest`'s
+`railOffersNoExpandToggleAtAnyWidth` and `everyWiderClass_railIsCollapsedAt96dp` pin this.
+

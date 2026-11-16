@@ -5,10 +5,13 @@
   "taglines": {"de-DE": "Deine verschl\u00fcsselte Mediathek"},
   "screenshots": {
     "manifest": [
-      "android/phonelanding/en/01-library",
-      "android/phonelanding/en/02-album",
-      "android/phonelanding/en/03-viewer"
+      "android/phoneframed/en/01-library",
+      "android/phoneframed/en/04-viewer",
+      "android/phoneframed/en/06-edit",
+      "android/phoneframed/en/03-album",
+      "android/phoneframed/en/05-months",
+      "android/phoneframed/en/07-duplicates"
     ]
   },
-  "localeScreenshots": {"de-DE": "en-US"}
+  "localeScreenshots": {"de-DE": {"manifest": ["android/phoneframed/de/01-library", "android/phoneframed/de/04-viewer", "android/phoneframed/de/06-edit", "android/phoneframed/de/03-album", "android/phoneframed/de/05-months", "android/phoneframed/de/07-duplicates"]}}
 }

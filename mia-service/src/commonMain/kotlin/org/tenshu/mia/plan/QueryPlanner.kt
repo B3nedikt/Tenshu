@@ -198,6 +198,46 @@ object QueryPlanner {
         return !TimeGrammar.isTimeWord(next)
     }
 
+    /**
+     * Words that ask to **look something up**. Any one of them lets the catch-all search file
+     * names, whatever else the sentence says (§22).
+     */
+    private val LOOKUP_WORDS = setOf(
+        "find", "search", "look", "locate", "open", "show", "get", "fetch",
+        "where", "where's", "wheres",
+    )
+
+    /**
+     * First words that make a sentence a **question or a request to Mia**, not a name (§22).
+     *
+     * ⚠ Checked on the first word only. "notes from the meeting with anna" must stay a name
+     * search, and a word list matched anywhere would catch the "with" or "i" inside a file name.
+     * ⚠ Not a vocabulary of off-topic subjects: that set is open-ended and the weather would
+     * be followed by sport, recipes and jokes. A sentence's opener is a closed class.
+     */
+    private val NOT_A_LOOKUP_OPENERS = setOf(
+        // questions
+        "what", "what's", "whats", "who", "who's", "whos", "whose", "why", "how", "how's",
+        "hows", "which", "is", "are", "am", "was", "were", "do", "does", "did", "can", "could",
+        "would", "will", "should", "shall",
+        // requests that are not a lookup
+        // ⚠ Not "call", "text" or "set": each is as often the first word of a file name.
+        "tell", "explain", "define", "translate", "play", "send", "write", "make", "give", "help",
+        // conversation
+        "i", "i'm", "im", "you", "you're", "it", "it's", "hey", "hi", "hello", "thanks",
+        "thank", "ok", "okay", "yes", "no",
+    )
+
+    /**
+     * Whether the leftover text of [words] may be read as a file name (§22).
+     *
+     * ⭐ A lookup word anywhere says yes ("can you find the invoice"). Without one, a bare phrase
+     * ("invoice", "kayaking last week") still says yes, because a name typed on its own is how
+     * people search. A sentence that opens as a question or a request to Mia says no.
+     */
+    private fun readsAsALookup(words: List<String>): Boolean =
+        words.any { it in LOOKUP_WORDS } || words.first() !in NOT_A_LOOKUP_OPENERS
+
     /** Words that name a *place* rather than a file. */
     private val PLACE_WORDS = setOf(
         "place", "places", "cafe", "café", "cafes", "restaurant", "restaurants", "bar",
@@ -217,6 +257,9 @@ object QueryPlanner {
         // route the intent — `wantsRecall` reads the raw utterance — they just do not survive
         // into the text being searched for.
         "when", "trip", "trips",
+        // ⚠ A lookup addressed to Mia: "can you find the lease agreement" is a search for
+        // "lease agreement", not for "can you lease agreement" (§22).
+        "can", "could", "you",
     ) + PHOTO_WORDS + FILE_WORDS
 
     /**
@@ -504,7 +547,16 @@ object QueryPlanner {
             // grammar into a confident answer about something else (§14.5).
             words.any { it in CALENDAR_READ_WORDS } -> queryCalendar(words, nowMs, zone)
 
-            text != null -> findFilesNamed(text, viaCatchAll = true)
+            // ⚠⚠ Leftover text is a file name only when the sentence reads as a LOOKUP (§22).
+            // Otherwise it is a question about something Mia has no source for — "what's the
+            // weather tomorrow", "tell me a joke" — and the answer is the no-match, never a file
+            // search and never the window arm below ("what you did tomorrow").
+            // ⚠⚠ A file word is a positive signal on its own: "which files are named invoice"
+            // opens as a question and is still a name search. And a search reached that way is
+            // not the catch-all, so a model may not overrule it (§16.3).
+            text != null && wantsFiles -> findFilesNamed(text)
+            text != null ->
+                if (readsAsALookup(words)) findFilesNamed(text, viaCatchAll = true) else noMatch()
 
             // ⭐ A time window with no other signal is the "what did I do then" question.
             // It reads as a fallback and is in fact the most natural phrasing there is —

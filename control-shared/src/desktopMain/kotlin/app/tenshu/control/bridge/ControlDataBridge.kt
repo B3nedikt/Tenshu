@@ -130,6 +130,9 @@ internal fun appsResult(apps: List<InstalledApp>, catalogue: List<FirstPartyApp>
             // app in the realm. Sent rather than filtered here so the daemon stays the
             // authority on the *fact* and the tray owns the presentation.
             "installedOnThisDevice" to app.installedOnThisDevice,
+            // The trays' unverified marker keys on this, not on the realm-wide `verified`: they
+            // launch the copy on this machine, and another device's row says nothing about it.
+            "verifiedHere" to app.verifiedOnThisDevice,
             "registered" to true,
             "windowsPackage" to windowsPackages[app.appId],
         )
@@ -155,6 +158,7 @@ internal fun appsResult(apps: List<InstalledApp>, catalogue: List<FirstPartyApp>
                 "deviceCount" to 0,
                 "installedAt" to 0L,
                 "installedOnThisDevice" to false,
+                "verifiedHere" to null,
                 "registered" to false,
                 "windowsPackage" to windowsPackages[app.appId],
             )

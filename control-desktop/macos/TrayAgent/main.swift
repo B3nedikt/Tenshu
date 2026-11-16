@@ -72,6 +72,10 @@ final class TrayModel: ObservableObject {
         /// Has a registration anywhere in the realm. False for the daemon's never-connected
         /// candidates, whose `verified` says nothing because nothing was ever attested.
         let registered: Bool
+        /// This Mac's own registration was attested; nil when it has none. The unverified
+        /// marker keys on this, not on the realm-wide [verified] — another device that can never
+        /// attest (iOS route-1, a retired device id) would otherwise mark this copy for good.
+        let verifiedHere: Bool?
     }
 
     /// Fires after each successful `pendingRequests` poll so the AppDelegate can
@@ -506,7 +510,8 @@ final class TrayModel: ObservableObject {
             name: name,
             verified: (row["verified"] as? Bool) ?? false,
             installedHere: (row["installedOnThisDevice"] as? Bool) ?? true,
-            registered: (row["registered"] as? Bool) ?? true
+            registered: (row["registered"] as? Bool) ?? true,
+            verifiedHere: row["verifiedHere"] as? Bool
         )
     }
 
@@ -624,7 +629,7 @@ struct PopoverView: View {
                         Button { model.launch(appId: app.id) } label: {
                             HStack {
                                 Text(app.name)
-                                if app.registered && !app.verified {
+                                if app.verifiedHere == false {
                                     Image(systemName: "exclamationmark.triangle.fill")
                                         .foregroundColor(.orange).font(.caption2)
                                 }

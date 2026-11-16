@@ -2,8 +2,8 @@
  * Contact-invite redeem-on-open route (`drive-web-mode-b-sharing.md` §3, MB-1).
  *
  * The joiner opened `https://tenshu.app/i#v1.<base64url(inviteId ‖ K_link ‖
- * a13Pub)>`. The fragment is captured once on mount and scrubbed from the URL
- * (so `K_link` never lingers in history / the referrer), then handed to
+ * a13Pub)>`. The fragment is captured once and scrubbed from the URL after commit
+ * (so `K_link` never lingers in history / the referrer; `useSecretFragment`), then handed to
  * `Contacts.redeemInvite(...)` — the apex runs the same sealed-box redemption
  * the natives do; `K_link` never reaches the relay.
  *
@@ -14,11 +14,12 @@
  * Route-level note: this is a top-level route (not under ControlShell), so the
  * shell's session guard doesn't bounce it — the gating here is bespoke.
  */
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import { Contacts } from '@tenshu/sdk/contact'
 import { Session, type SessionState } from '@tenshu/sdk/onboarding'
 import { signupOpen } from '../../lib/signupGate'
+import { useSecretFragment } from '../../lib/secretFragment'
 
 type Phase =
   | { kind: 'detecting' }
@@ -31,17 +32,9 @@ type Phase =
   | { kind: 'error'; reason: 'alreadyUsed' | 'gone' | 'failed' | 'noLink' }
 
 export default function ContactRedeemRoute() {
-  // Capture the full invite URL once, synchronously, then scrub the fragment
-  // (replaceState keeps the page but drops `#v1...` from history + referrer).
-  const link = useMemo(() => {
-    if (typeof window === 'undefined') return null
-    const href = window.location.href
-    const hadFragment = window.location.hash.length > 0
-    if (hadFragment) {
-      window.history.replaceState(null, '', window.location.pathname + window.location.search)
-    }
-    return hadFragment ? href : null
-  }, [])
+  // The full invite URL as opened; the fragment is scrubbed from the address bar after commit.
+  const opened = useSecretFragment()
+  const link = opened.hash.length > 0 ? opened.href : null
 
   const [phase, setPhase] = useState<Phase>({ kind: 'detecting' })
   const [name, setName] = useState('')
