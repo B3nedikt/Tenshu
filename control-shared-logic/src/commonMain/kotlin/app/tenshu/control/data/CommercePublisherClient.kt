@@ -492,11 +492,13 @@ class CommercePublisherClient(
          * share-link names. `2026-11-04`: Stripe also for Android apps from the website, Cloudflare
          * also serves those downloads (android-direct-apk-distribution.md).
          * `2026-11-05`: iOS device backups — the data store is excluded (ios-shared-store-sqlite.md
-         * D3/D3b), and what still is backed up is listed. ⚠ A build
+         * D3/D3b), and what still is backed up is listed. `2026-11-16`: hosting moved to OVHcloud
+         * in Gravelines (OVH SAS a new processor); Scaleway keeps sign-in mail and, until deleted,
+         * the pre-move data (docs/how-to/move-to-ovh.md). ⚠ A build
          * released before a bump keeps sending the older date while its link opens the live page; the
          * superseded texts are in git history only.
          */
-        const val PRIVACY_VERSION: String = "2026-11-05"
+        const val PRIVACY_VERSION: String = "2026-11-16"
 
         /** SecureStorageDelegate key for the persisted commerce session record (email + token). */
         const val STORAGE_KEY: String = "commerce_session"

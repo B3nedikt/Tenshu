@@ -143,10 +143,24 @@ class SharedRealmBootstrapper(
         // storage/sync. The membership is Syncable(Eager) on the personal realm ⇒ it
         // propagates to the user's other devices, where the auto-join observer (using
         // their pairing-delivered A13) registers the realm there.
+        val wrappedMasterKey = cryptoManager.wrapKeyForIdentity(masterKey, myEncKeyPair.publicKey)
+        // ⚠⚠ T-GR-02: the first key gets its generation row too (generation 0, nobody revoked), BEFORE the
+        // membership. Every key then has one, so a missing row always means "not here yet — revocations unknown"
+        // (`KeyHandOutPolicy`), never "this is the first key"; a device without its current key's row neither hands
+        // that key out nor rotates away from it.
+        @OptIn(ExperimentalStdlibApi::class)
+        val firstKeyId = org.tenshu.core.common.util.sha256(wrappedMasterKey).toHexString()
+        executionContext.saveData(
+            org.tenshu.identity.RealmKeyGeneration.create(
+                executionContext.context, sharedOwnerId, firstKeyId,
+                generation = 0L,
+                revokedMembers = emptySet(),
+            ),
+        )
         val membership = SharedRealmMembership.create(
             context = executionContext.context,
             sharedRealmId = sharedOwnerId,
-            wrappedMasterKey = cryptoManager.wrapKeyForIdentity(masterKey, myEncKeyPair.publicKey),
+            wrappedMasterKey = wrappedMasterKey,
             role = SharedRealmMembership.Role.OWNER,
         )
         executionContext.saveData(membership)

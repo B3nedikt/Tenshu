@@ -1,4 +1,3 @@
-import { reloadAfterPurge } from '../lib/reloadAfterPurge'
 // §3 Locked unlock flow. Shown when Session.detect returns
 // `{ kind: 'locked' }` — i.e. the apex has IDB state but no valid
 // session token. The user is prompted for a passkey assertion; on
@@ -22,6 +21,7 @@ import type {
   UnlockError,
 } from '@tenshu/sdk/onboarding'
 import { useOnboardingSdk } from '../lib/useOnboardingSdk'
+import { DisconnectBrowserPanel } from '../components/DisconnectBrowserPanel'
 import { BIP39_WORDSET } from '../lib/bip39'
 import {
   getPasskeyAssertion,
@@ -91,7 +91,10 @@ export function LockedFlow() {
 
   async function onUnlock() {
     setStep('unlocking')
-    const assertionResult = await getPasskeyAssertion()
+    // Narrow the browser's picker to the passkey this browser registered. A failed lookup
+    // must not block unlock — fall back to the discoverable picker.
+    const credentialId = await sdk.Session.passkeyCredentialId().catch(() => null)
+    const assertionResult = await getPasskeyAssertion(credentialId)
     if (!assertionResult.ok) {
       setStep({ failure: mapFailure(assertionResult.error) })
       return
@@ -105,18 +108,6 @@ export function LockedFlow() {
     navigate(destination, { replace: true })
   }
 
-  // Escape hatch for a device that can't unlock (e.g. a browser whose
-  // passkey ceremony is wedged, or a user who's done with this browser).
-  // Purges this browser's local realm state → next detect reads firstTime
-  // and the landing shows "Get started". This is a LOCAL purge only: from
-  // the locked state the master key isn't in memory, so we can't sign a
-  // RevokeDevice tombstone — the device is reaped from other devices'
-  // lists by revoking it there (the synced device-management path).
-  async function onDisconnect() {
-    await sdk.Session.clear({ purgeRealm: true })
-    reloadAfterPurge('/')
-  }
-
   return (
     <OnboardingShell>
       {step === 'welcome' && (
@@ -127,12 +118,18 @@ export function LockedFlow() {
           onDisconnect={() => setStep('confirm-disconnect')}
         />
       )}
+      {/* Escape hatch for a browser that can't unlock, or a user done with it. Removes this
+          browser from its realm and wipes it (`DisconnectBrowserPanel`, `lib/disconnectBrowser.ts`):
+          the device's own A4 key signs the removal, so no master key is needed here. */}
       {step === 'confirm-disconnect' && (
-        <ConfirmDisconnectCard
-          deviceName={deviceName}
-          onConfirm={() => void onDisconnect()}
-          onCancel={() => setStep('welcome')}
-        />
+        <OnboardingCard>
+          <DisconnectBrowserPanel
+            deviceName={deviceName}
+            session={sdk.Session}
+            onCancel={() => setStep('welcome')}
+            renderTitle={text => <OnboardingTitle>{text}</OnboardingTitle>}
+          />
+        </OnboardingCard>
       )}
       {step === 'unlocking' && (
         <OnboardingCard>
@@ -270,31 +267,6 @@ function UnlockFailedCard({
         <LinkButton onClick={onUsePhrase}>{t('locked.failed.usePhrase')}</LinkButton>
         <LinkButton onClick={onWelcome}>{t('locked.failed.back')}</LinkButton>
         <LinkButton onClick={onDisconnect}>{t('locked.failed.disconnect')}</LinkButton>
-      </OnboardingActions>
-    </OnboardingCard>
-  )
-}
-
-function ConfirmDisconnectCard({
-  deviceName,
-  onConfirm,
-  onCancel,
-}: {
-  readonly deviceName: string
-  readonly onConfirm: () => void
-  readonly onCancel: () => void
-}) {
-  const { t } = useTranslation('onboarding')
-  return (
-    <OnboardingCard>
-      <OnboardingTitle>{t('locked.disconnect.title')}</OnboardingTitle>
-      <OnboardingProse>
-        <p>{t('locked.disconnect.body1', { deviceName })}</p>
-        <p>{t('locked.disconnect.body2')}</p>
-      </OnboardingProse>
-      <OnboardingActions>
-        <PrimaryButton onClick={onConfirm}>{t('locked.disconnect.confirm')}</PrimaryButton>
-        <LinkButton onClick={onCancel}>{t('locked.disconnect.cancel')}</LinkButton>
       </OnboardingActions>
     </OnboardingCard>
   )

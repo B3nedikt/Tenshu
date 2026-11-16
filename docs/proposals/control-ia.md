@@ -229,7 +229,7 @@ places. This is internally consistent and avoids a separate top-level just for d
 
 The security-flavoured operations (revoke, fingerprint, browser-sync handling on web)
 live in the device detail panel. High-frequency security actions like *Lock now* and
-*Sign out everywhere* are surfaced from the chrome (per the platform-specific renderings)
+*Disconnect this browser* (web; formerly *Sign out everywhere*) are surfaced from the chrome (per the platform-specific renderings)
 so they're not buried inside Data.
 
 The pair-new-device flow lives at the top of the Devices list view, not in chrome —

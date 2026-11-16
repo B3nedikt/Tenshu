@@ -687,6 +687,10 @@ active-session exit, not that detail page (B.3).
   **active-session** `DeviceMenu` "Sign out everywhere"; the locked-flow
   disconnect stays a local-only purge (no master key in memory there to
   sign the tombstone). `SignedInBanner` keeps its Lock-only affordance.
+  ⚠ **Superseded (2026-11-16):** since W13 both purges run `ForgetThisDevice`, which retires the
+  row with the device's own key — so the locked flow self-revokes too. The two entry points are now
+  one flow named "Disconnect this browser"; B.2's warn-first fork became an after-the-fact
+  "unconfirmed" outcome. See `docs/proposals/web-control-plane.md` §3.2.
 - ✅ B.4 Threat-model — **no new amendment needed.** Self-revoke reuses the
   device-revocation broadcast already covered by
   [ADR 0007](../adr/0007-sync-device-management.md) + synced

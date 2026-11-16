@@ -35,7 +35,10 @@ describe('AppEmbed', () => {
     renderHosted('drive', '/drive')
     const frame = screen.getByTitle('Drive')
     expect(frame).toHaveAttribute('src', 'http://localhost:5174')
-    expect(frame).toHaveAttribute('allow', 'clipboard-read; clipboard-write; publickey-credentials-get *')
+    expect(frame).toHaveAttribute(
+      'allow',
+      'clipboard-read; clipboard-write; publickey-credentials-get *; camera',
+    )
   })
 
   it('Contacts frames its own dev origin', () => {

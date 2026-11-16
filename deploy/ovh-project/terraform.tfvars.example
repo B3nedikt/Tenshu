@@ -1,0 +1,5 @@
+# Copy to terraform.tfvars (git-ignored). Credentials are env vars (README.md).
+service_name   = "0123456789abcdef0123456789abcdef"
+ssh_public_key = "ssh-ed25519 AAAA... you@laptop"
+# bucket_region = "GRA"
+# bucket_prefix = "tenshu-ovh"   # ⚠ global namespace; pick another if taken

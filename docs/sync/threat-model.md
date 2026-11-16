@@ -6,6 +6,7 @@ app surface, the Rei trust chain (publications / issues / evaluations), shared r
 desktop deployment (Control as a system-tray daemon + IPC peer-credential checks + the macOS
 native-bridge surface backing the Drive File Provider).
 **A4-lifecycle sub-amendment (2026-11-12, [`admission-revocation-names-the-capability.md`](../proposals/admission-revocation-names-the-capability.md) §7i.5):** amends **A4** — Forget this device replaces the A4 pair in the running process (new key ⇒ new id, old pair dropped and zeroed), persists the new key before using it (a failed persist is reported, never held in memory alone), and tears down the pairing sessions and shared-realm runtimes of the forgotten identity. No relay, wire or stored-shape change (House Rule #1).
+**Web-disconnect sub-amendment (2026-11-16, [`web-control-plane.md`](../proposals/web-control-plane.md) §3.2):** amends **A1/A4** on web — a disconnect persists a purge marker first and clears the session record last; an interrupted disconnect is resumed at the next boot, and a failed resume keeps the marker and reads `locked`. No relay, wire or stored-shape change.
 **v0.3 amendment ([`tenshu-rei.md`](../proposals/tenshu-rei.md)):** introduces six new assets
 (A11–A16) and three new threat groups — desktop client (T-C-11–13), Rei trust chain (§8.8),
 and shared realms (§8.9). Threats sized at proposal-level granularity; per House Rule #2,
@@ -863,6 +864,24 @@ Explicitly not trusted:
   per call from one `currentDeviceIdentity()` snapshot, so a token never pairs one identity's id with
   the other's key. No relay, wire or stored-shape change (House Rule #1); iOS rebuilds
   its graph after Forget and was not affected.
+  *Amendment (web disconnect is resumable, 2026-11-16, [`web-control-plane.md`](../proposals/web-control-plane.md) §3.2):*
+  On web, "Disconnect this browser" (`Session.clear({ purgeRealm: true })`) runs the same Forget,
+  then wipes the browser-only stores — including A4 custody and the PRF-wrapped A1 blob
+  (`tenshu-sdk-master-keys`) — and **only then** clears the session record. A `purgePending` marker
+  is persisted before any of it and removed only by that final clear. ⚠⚠ This closes a half-state
+  that was reachable by an ordinary reload: the session record used to go first, so a reload during
+  Forget's bounded relay wait (up to 8 s) rendered the browser as never-onboarded while A4, the
+  wrapped A1 blob, the recovery phrase slot and all A5 rows were still at rest — and that browser
+  kept presenting the identity the user had meant to remove. Now the next `Session.detect` that
+  finds the marker **resumes the purge at boot** (single-flight across concurrent callers), then
+  reloads so no runtime keeps the destroyed identity in memory. The resume is the user's own
+  completed decision, not a new trigger: only the confirmed disconnect writes the marker. If the
+  resumed purge fails part-way, the marker **stays** and the browser reads `locked`, never
+  `firstTime` — clearing it on failure would orphan whatever A1/A4 material the wipe had not reached,
+  with nothing left to retry — and there is no reload, so a persistent failure cannot loop; every
+  later load and the lock screen's Disconnect retry it. The disconnect also asks the passkey provider
+  to drop the dead credential (`signalUnknownCredential`, best-effort; it cannot reach a hardware
+  key). No relay, wire or stored-shape change (House Rule #1).
 - **A5. User Data.** Stored encrypted both at rest on the relay and at rest on devices.
   *Amendment (synced thumbnails, [`drive-synced-thumbnails.md`](../proposals/drive-synced-thumbnails.md)):*
   a file's `File.Thumbnail` is a **low-resolution derivative of A5** — a small
@@ -6992,6 +7011,43 @@ realm's stream. Nothing readable leaked (only the A13 holder unwraps), but membe
 theirs. Keyed `"$realmId/$keyId"` now — personal-realm state, as the type always claimed. Identity is still the contacts layer's job; this is **authority** — who may change this realm's
 key — which only the realm master can grant. Pinned by `aForgedReKeyAtTheOwnersAddress_isRefused`. No relay change
 (House Rule #1).
+
+⚠⚠ **Amendment (2026-11-15) — the revocation window is closed.** A removal writes the realm's revocation record
+into the **shared** stream and the rotation's rows (new membership, key generation, deliveries) into the owner's
+**personal** stream, and nothing ordered the two: an owner device could hold the new key without the revocation,
+and answer the removed member's key request — or catch them up, since a local delete of their `Member` row and
+roster emits no tombstone — with the new `Kr`, undoing the rotation. Now `MembershipRecords.saveRevocation` also
+saves the same signed bytes as the owner's **personal copy** (`MembershipRecord.personalKeyOf`, keyed `"$realmId/…"`
+so it does not route into the realm), before the rotation's rows. Within one stream the relay serves blocks in push
+order, so any owner device holds the revocation before the key it would hand out. The copy verifies exactly as the
+realm's record does (master signature bound to the realm id; the key bound to its content), and only revocations
+take the personal form. No new type, message or relay change (House Rule #1). Pinned by
+`aRemovalsRevocation_precedesItsRotation_inTheOwnersPersonalStream`.
+⚠⚠ *Corrected 2026-11-16 (review of the PR that landed it): push order did not close it.* The copy and the
+rotation's rows are separate blocks, and a push pass stops only on a 401/402: after a network or 5xx failure on the
+copy's block it goes on and pushes the new key's. So the copy alone narrowed the window, never closed it. What
+closes it is **atomicity, not order**: the new key's `RealmKeyGeneration` row now carries `revokedMembers` (the members
+revoked as of that key, from the rotating device's records, carried forward from the replaced key's row). A device
+needs that row to hand the key out at all, since its generation is signed into every re-key. Every owner-side hand-out
+(rotation re-grant, catch-up, key-request answer, acceptance re-key) goes through one gate, `KeyHandOutPolicy` in
+`SharedRealmGrantManager.dropRekey`: nothing to a member the records revoke or the row names, and nothing at all for a
+key this device holds no row for. ⚠ That gate is on the **sender** on purpose: a member's refusal of an unsigned
+generation protects only an honest member, and a removed member's own client would unwrap whatever it is sent.
+⚠ Fail closed, not "unless the realm never rotated": that signal (a retired-key row) is one more personal block that
+can be missing for the same reason; a never-rotated realm owes no re-key anyway. A generation row written before
+`revokedMembers` existed (a four-field row on a dev store) reads the set as **unknown** and fails closed the same
+way; it is never read as empty (`RealmKeyGenerationLegacyRowTest`).
+⚠⚠ **And a rotation needs the current key's row too.** A rotation carries the current key's revoked set into the
+new key's row, so an owner device without that row (the row's push failed along with the records') must not rotate:
+it would write a row that silently omits the member removed before, and the re-grant would send them the next key
+from their stale rows. So every key has a row (realm creation writes generation 0 for the first one), a missing row
+always means "not here yet", and `removeMember` refuses until the row arrives — before anything is signed. The
+abandoned-rotation recovery waits for it the same way, up to its existing time valve, which goes ahead with a WARN
+(the same residual that valve already accepts). Pinned by
+`anOwnerDeviceWithoutTheCurrentKeysGenerationRow_refusesToRotate`. The personal copy stays, as the
+owner devices' ordered view of the removal. Pinned by `KeyHandOutPolicyTest` and
+`theNewKeysGenerationRow_namesTheRemovedMember_onEveryOwnerDeviceHoldingTheKey` (which fails with the row's set
+emptied). ⚠ Not pinned: the race itself, since the harness cannot fail one push in a pass.
 
 ⚠ **Amendment (2026-11-11) — a retired `Kr` must never become current again.** Ingest LWW used to
 let the relay's late echo of the owner's own pre-rotation membership row overwrite the rotation's

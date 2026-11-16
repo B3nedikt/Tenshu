@@ -29,11 +29,16 @@ export interface AppEmbedProps {
   // The iframe's accessible title.
   readonly title: string
   // Permissions-Policy for the frame. Default: what a first-party app legitimately needs from
-  // inside an iframe (clipboard for share/invite links, WebAuthn for re-auth).
+  // inside an iframe (clipboard for share/invite links, WebAuthn for re-auth, the camera for
+  // Drive's "Scan an invite").
   readonly allow?: string
 }
 
-export const FIRST_PARTY_ALLOW = 'clipboard-read; clipboard-write; publickey-credentials-get *'
+// ⚠ A cross-origin frame gets no powerful feature the host doesn't delegate here: without
+// `camera`, `getUserMedia` inside the frame rejects at once with NotAllowedError and the browser
+// never shows its prompt, so no in-app "ask first" step can recover it. The bare feature name
+// delegates to the frame's own origin only, and the browser still asks the user.
+export const FIRST_PARTY_ALLOW = 'clipboard-read; clipboard-write; publickey-credentials-get *; camera'
 
 export function AppEmbed({ origin, entry = '', frameRef, title, allow = FIRST_PARTY_ALLOW }: AppEmbedProps) {
   return (

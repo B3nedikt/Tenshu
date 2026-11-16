@@ -422,6 +422,14 @@ class SharedRealmGrantManager(
                 "this realm's key is still changing on another of your devices — try again once it has synced",
             )
         }
+        // ⚠⚠ T-GR-02: a rotation carries the current key's revoked members into the new key's row. Without that row
+        // they are unknown, and rotating would write a row that silently omits them — the next key would then go to
+        // an earlier removed member whose stale rows are still here. So: no row, no removal (nothing signed yet).
+        if (!holdsCurrentKeyGeneration(realmId)) {
+            throw SharedRealmGrantException(
+                "this device has not synced this realm's key history yet — try again once it has",
+            )
+        }
 
         val roster = readGrantedMembership(memberId)
             ?: throw SharedRealmGrantException(
@@ -537,6 +545,14 @@ class SharedRealmGrantManager(
         myEnc: SyncCryptoManager.KeyPair,
         masterKeyPair: SyncCryptoManager.KeyPair,
     ): Boolean {
+        // ⚠⚠ T-GR-02 revocation window: the one gate every hand-out passes ([KeyHandOutPolicy]).
+        if (!mayReceiveKey(realmId, roster.memberId.get(), keyId)) {
+            println(
+                "SharedRealmGrantManager -> $realmId: not sending member ${roster.memberId.get()} a key — revoked, or " +
+                    "this device does not hold the key's generation row yet",
+            )
+            return false
+        }
         val grantorFingerprint = sha256(myEnc.publicKey).toHexString()
         val authorityPub = roster.memberAuthorityPublicKey.get()
         // ⚠⚠ Strictly after the last one this member was sent, by any owner device: the member orders re-keys by this
@@ -736,16 +752,39 @@ class SharedRealmGrantManager(
      */
     private fun keyGenerationOf(realmId: String): Long {
         val wrapped = readMembership(realmId)?.wrappedMasterKey?.get() ?: return 0L
-        val recorded = executionContext.database.getData(
+        // A key with no record is the realm's first (never rotated): generation 0.
+        return generationRow(realmId, sha256(wrapped).toHexString())?.generation?.toEpochMilliseconds() ?: 0L
+    }
+
+    /**
+     * Whether this device holds the generation row for its current key of [realmId], **with** a known revoked set — what a
+     * rotation needs to carry the revocations forward.
+     */
+    private fun holdsCurrentKeyGeneration(realmId: String): Boolean {
+        val wrapped = readMembership(realmId)?.wrappedMasterKey?.get() ?: return false
+        return generationRow(realmId, sha256(wrapped).toHexString())?.revokedMemberIds() != null
+    }
+
+    /** The owner's [org.tenshu.identity.RealmKeyGeneration] row for key [keyId] of [realmId], if this device holds it. */
+    private fun generationRow(realmId: String, keyId: String): org.tenshu.identity.RealmKeyGeneration? =
+        executionContext.database.getData(
             DataId.StringDataId.create(
                 executionContext.context,
                 org.tenshu.identity.RealmKeyGeneration.ID,
-                org.tenshu.identity.RealmKeyGeneration.compositeKey(realmId, sha256(wrapped).toHexString()),
+                org.tenshu.identity.RealmKeyGeneration.compositeKey(realmId, keyId),
             ),
         ) as? org.tenshu.identity.RealmKeyGeneration
-        // A key with no record is the realm's first (never rotated): generation 0.
-        return recorded?.generation?.toEpochMilliseconds() ?: 0L
-    }
+
+    /**
+     * [KeyHandOutPolicy] for [memberId] and the key [keyId] (`sha256` of this device's wrapped key). A null [keyId]
+     * (no membership to name it) is treated as a key with no generation row.
+     */
+    private fun mayReceiveKey(realmId: String, memberId: String, keyId: String?): Boolean =
+        KeyHandOutPolicy.mayReceive(
+            memberId = memberId,
+            revokedByRecords = membershipRecords.isRevoked(realmId, memberId),
+            revokedAtGeneration = keyId?.let { generationRow(realmId, it) }?.revokedMemberIds(),
+        )
 
     /** GR-7 catch-up: note that [memberId] was sent the key [keyId] ([RealmKeyDelivery]). */
     private fun recordDelivery(realmId: String, memberId: String, keyId: String, issuedAt: Long) {
@@ -869,10 +908,18 @@ class SharedRealmGrantManager(
         // so another owner device never holds the new key without its generation (it would sign generation 0, and every
         // member would refuse it). Same personal stream, earlier block.
         if (masterKeyPair != null) {
+            // ⚠⚠ T-GR-02: the members revoked as of the new key travel in its generation row, which a device needs to
+            // hand the key out — so no owner device can hold the key without them ([KeyHandOutPolicy]). Carried
+            // forward from the replaced key's row too, for a device that rotates while behind on the records.
+            // ⚠ The replaced key's row is required before a rotation ([holdsCurrentKeyGeneration], in `removeMember` and
+            // the recovery); only the recovery's time valve rotates without it, and says so.
+            val revoked = membershipRecords.revokedMembers(realmId) +
+                (generationRow(realmId, sha256(oldWrapped).toHexString())?.revokedMemberIds() ?: emptySet())
             executionContext.saveData(
                 org.tenshu.identity.RealmKeyGeneration.create(
                     executionContext.context, realmId, sha256(newWrapped).toHexString(),
                     generation = maxOf(nowMs(), keyGenerationOf(realmId) + 1),
+                    revokedMembers = revoked,
                 ),
             )
         }
@@ -1400,6 +1447,15 @@ class SharedRealmGrantManager(
                 "WARN SharedRealmGrantManager -> realm $realmId never caught up after its rotation stalled; " +
                     "finishing the rotation on time alone (a removed member may be re-keyed if its revocation " +
                     "has not arrived here)",
+            )
+        }
+        // ⚠⚠ T-GR-02: the recovery rotation carries the current key's revoked members forward too, so it waits for
+        // that key's row like a removal does — until the valve below the window, never for good.
+        if (!holdsCurrentKeyGeneration(realmId)) {
+            if (age < 2 * ABANDONED_ROTATION_AFTER_MS) return true
+            println(
+                "WARN SharedRealmGrantManager -> realm $realmId: finishing a stalled rotation without the current key's " +
+                    "generation row; a member removed before it may be missing from the new key's revoked set",
             )
         }
         realmRegistry.clearStuck(realmId)

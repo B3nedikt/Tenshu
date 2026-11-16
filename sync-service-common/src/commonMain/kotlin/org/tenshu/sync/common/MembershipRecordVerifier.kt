@@ -98,7 +98,13 @@ object MembershipRecordVerifier {
         // ⚠⚠ The row's KEY must be the one its signed content names — else a valid record (say an old
         // capability) could be planted at another record's key, and the append-only rule would then refuse the
         // genuine record (and every re-emit of it) at that key for good.
-        if (row.key.get() != org.tenshu.identity.MembershipRecord.keyOf(realmId, row.kind.get(), memberIdOf(pub), epoch, at)) return null
+        val boundKey = row.key.get() == org.tenshu.identity.MembershipRecord.keyOf(realmId, row.kind.get(), memberIdOf(pub), epoch, at) ||
+            // The owner's personal copy of a revocation (`MembershipRecord.personalKeyOf`) — revocations only.
+            (
+                row.kind.get() == org.tenshu.identity.MembershipRecord.Kind.REVOCATION &&
+                    row.key.get() == org.tenshu.identity.MembershipRecord.personalKeyOf(realmId, row.kind.get(), memberIdOf(pub), epoch, at)
+                )
+        if (!boundKey) return null
         return when (row.kind.get()) {
             org.tenshu.identity.MembershipRecord.Kind.CAPABILITY ->
                 Record.Capability(MembershipCapability(realmId, pub, epoch, at, signature), row.signerPublicKey.get(), row.authorityChain.get())

@@ -1,44 +1,33 @@
-import { reloadAfterPurge } from '../lib/reloadAfterPurge'
 // Device-name pill + lock-now icon + dropdown menu (per
 // `web-control-plane.md` §3.2). High-frequency security actions live in
 // chrome rather than buried under Data → Devices.
 //
-// Lock now: clears the apex's session token and routes to /lock. The
-// realm IDB stays intact so the next unlock works. Phase 5 PRF wrap is
-// already wired SDK-side, so the master keypair re-wraps on the next
-// session-mint cycle.
+// Lock now: drops the apex's session token and routes to /lock. The device
+// name, passkey record and realm IDB stay, so the lock screen greets this
+// browser by name and the next unlock works.
 //
-// Sign out everywhere (self-revoke, roadmap Phase B): push a
-// `RevokeDevice` tombstone for THIS browser, *then* wipe local state and
-// redirect to landing — so the browser doesn't linger as a ghost device
-// in other devices' lists. Ordering is load-bearing: the wipe destroys
-// the device signing key + relay JWT, so we must project the revocation
-// before clearing (see `Devices.revokeSelf` doc). Offline → warn-and-
-// proceed: we couldn't push the tombstone, so we tell the user this
-// browser will keep showing on their other devices until they remove it
-// there, then wipe locally anyway (the ghost is reaped by revoking from
-// another device). The locked-flow "Disconnect" stays a local-only purge
-// — no master key in memory there to sign the tombstone (Phase A).
+// Disconnect this browser: the same flow as the lock screen's
+// (`components/DisconnectBrowserPanel.tsx`) — one implementation, one name. It
+// removes this browser from the realm through the shared `ForgetThisDevice`
+// op (which pushes the removal while the device key still exists, waiting a
+// bounded 8 s), wipes local state, tells the passkey provider, and reloads. An
+// unconfirmed removal (offline, relay refused) is shown before the reload.
+//
+// ⚠ This used to be "Sign out everywhere" — a name that promised more than it
+// did (it only ever removed THIS browser) — and it removed the device twice:
+// `Devices.revokeSelf()` first, then `Session.clear({purgeRealm})`, whose
+// forget op revokes again and waits again.
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { Session } from '@tenshu/sdk/onboarding'
-import { Devices } from '@tenshu/sdk/identity'
-
-// Sign-out state machine: idle → confirming → revoking → (offline
-// warn-and-proceed). `revoking` covers both the tombstone push and the
-// subsequent wipe; `offline` is the warn-and-proceed fork when the
-// tombstone couldn't be pushed.
-type SignOutState =
-  | { readonly kind: 'idle' }
-  | { readonly kind: 'confirming' }
-  | { readonly kind: 'revoking' }
-  | { readonly kind: 'offline' }
+import { DisconnectBrowserPanel } from '../components/DisconnectBrowserPanel'
 
 export function DeviceMenu({ deviceName }: { readonly deviceName: string }) {
   const { t } = useTranslation('control')
   const [open, setOpen] = useState(false)
-  const [signOut, setSignOut] = useState<SignOutState>({ kind: 'idle' })
+  const [disconnecting, setDisconnecting] = useState(false)
   const navigate = useNavigate()
   const pillRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -74,26 +63,6 @@ export function DeviceMenu({ deviceName }: { readonly deviceName: string }) {
     setOpen(false)
     await Session.clear({})
     navigate('/lock', { replace: true })
-  }
-
-  // Local-only wipe + redirect. Used both as the success tail (after the
-  // tombstone is pushed) and as the offline warn-and-proceed outcome.
-  async function wipeAndLeave() {
-    await Session.clear({ purgeRealm: true })
-    reloadAfterPurge('/')
-  }
-
-  async function performSignOut() {
-    setSignOut({ kind: 'revoking' })
-    const result = await Devices.revokeSelf()
-    if (!result.ok) {
-      // Couldn't project the revocation (offline, or a relay error). Don't
-      // wipe yet — warn first, then let the user proceed with a local-only
-      // sign-out (B.2 warn-and-proceed).
-      setSignOut({ kind: 'offline' })
-      return
-    }
-    await wipeAndLeave()
   }
 
   return (
@@ -136,11 +105,11 @@ export function DeviceMenu({ deviceName }: { readonly deviceName: string }) {
                 role="menuitem"
                 onClick={() => {
                   setOpen(false)
-                  setSignOut({ kind: 'confirming' })
+                  setDisconnecting(true)
                 }}
                 className="block w-full rounded-md px-2 py-1.5 text-left text-sm text-danger hover:bg-danger/10"
               >
-                {t('deviceMenu.signOutEverywhere')}
+                {t('deviceMenu.disconnect')}
               </button>
             </div>
           </div>
@@ -155,13 +124,8 @@ export function DeviceMenu({ deviceName }: { readonly deviceName: string }) {
       >
         <LockIcon />
       </button>
-      {signOut.kind !== 'idle' && (
-        <SignOutConfirmModal
-          state={signOut}
-          onCancel={() => setSignOut({ kind: 'idle' })}
-          onConfirm={() => void performSignOut()}
-          onProceedOffline={() => void wipeAndLeave()}
-        />
+      {disconnecting && (
+        <DisconnectModal deviceName={deviceName} onClose={() => setDisconnecting(false)} />
       )}
     </div>
   )
@@ -185,70 +149,49 @@ function LockIcon() {
   )
 }
 
-function SignOutConfirmModal({
-  state,
-  onCancel,
-  onConfirm,
-  onProceedOffline,
+function DisconnectModal({
+  deviceName,
+  onClose,
 }: {
-  readonly state: SignOutState
-  readonly onCancel: () => void
-  readonly onConfirm: () => void
-  readonly onProceedOffline: () => void
+  readonly deviceName: string
+  readonly onClose: () => void
 }) {
-  const { t } = useTranslation('control')
-  const offline = state.kind === 'offline'
-  const inFlight = state.kind === 'revoking'
-  // While the tombstone is being pushed, swallow backdrop/cancel so the
-  // ordering-sensitive revoke→wipe sequence isn't interrupted mid-flight.
-  const dismiss = inFlight ? () => {} : onCancel
-  return (
+  // Once the purge starts there is no going back to the app: the runtime holds a destroyed
+  // identity until the reload, so backdrop and Escape stop dismissing.
+  const [locked, setLocked] = useState(false)
+  useEffect(() => {
+    function onKey(e: globalThis.KeyboardEvent) {
+      if (e.key === 'Escape' && !locked) onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [locked, onClose])
+  // Portalled to <body>: rendered in place, an ancestor in the top bar acted as the containing
+  // block for this `fixed` overlay, pinning it to the bar and leaving the page undimmed.
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
-      aria-labelledby="signout-title"
+      aria-labelledby="disconnect-title"
       className="fixed inset-0 z-40 grid place-items-center bg-black/40 p-4"
       onClick={e => {
-        if (e.target === e.currentTarget) dismiss()
+        if (e.target === e.currentTarget && !locked) onClose()
       }}
     >
       <div className="w-full max-w-md rounded-lg border border-line bg-surface p-6 shadow-xl">
-        <h2 id="signout-title" className="text-lg font-semibold">
-          {offline ? t('deviceMenu.confirm.offline.title') : t('deviceMenu.confirm.title')}
-        </h2>
-        <div className="mt-3 space-y-3 text-sm text-text-2">
-          {offline ? (
-            <p>{t('deviceMenu.confirm.offline.body')}</p>
-          ) : (
-            <>
-              <p>{t('deviceMenu.confirm.body1')}</p>
-              <p>{t('deviceMenu.confirm.body2')}</p>
-            </>
+        <DisconnectBrowserPanel
+          deviceName={deviceName}
+          session={Session}
+          onCancel={onClose}
+          onBusyChange={setLocked}
+          renderTitle={text => (
+            <h2 id="disconnect-title" className="text-lg font-semibold">
+              {text}
+            </h2>
           )}
-        </div>
-        <div className="mt-6 flex flex-wrap justify-end gap-3">
-          <button
-            type="button"
-            disabled={inFlight}
-            onClick={onCancel}
-            className="rounded-md border border-line bg-surface px-4 py-2 text-sm font-medium text-text-2 hover:bg-surface disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {offline ? t('deviceMenu.confirm.offline.cancel') : t('deviceMenu.confirm.cancel')}
-          </button>
-          <button
-            type="button"
-            disabled={inFlight}
-            onClick={offline ? onProceedOffline : onConfirm}
-            className="rounded-md bg-danger px-4 py-2 text-sm font-medium text-white hover:bg-danger/90 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {inFlight
-              ? t('deviceMenu.confirm.revoking')
-              : offline
-                ? t('deviceMenu.confirm.offline.proceed')
-                : t('deviceMenu.confirm.confirm')}
-          </button>
-        </div>
+        />
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

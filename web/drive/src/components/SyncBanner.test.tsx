@@ -102,32 +102,21 @@ describe('SyncBanner', () => {
     expect(screen.getByRole('button', { name: /reload/i })).toBeInTheDocument()
   })
 
-  // W8 (§1.2b). On web the app window IS the proxy: a backgrounded tab is frozen by the
-  // browser, so it stops syncing entirely and `online` stays true the whole time. Without
-  // this the UI is indistinguishable from one that is syncing fine, which is the single most
-  // misread failure on web.
-  it('says how long it has been when a healthy tab has not synced recently', async () => {
-    syncHealth.mockResolvedValue(row('online', Date.now() - 12 * 60_000))
-    renderBanner()
-    expect(await screen.findByText(/last synced 12 minutes ago/i)).toBeInTheDocument()
-    // The cause, in the user's terms — otherwise "12 minutes ago" reads as a fault.
-    expect(screen.getByText(/only syncs while this tab is in front/i)).toBeInTheDocument()
+  // 2026-11-16: freshness moved to the top bar's sync dot, which reads the same row. A healthy row
+  // shows NOTHING here, whatever its last sync — never synced included — and so nothing flickers.
+  it.each([
+    ['moments ago', () => Date.now() - 5_000],
+    ['twelve minutes ago', () => Date.now() - 12 * 60_000],
+    ['never', () => 0],
+  ])('a healthy row last synced %s shows no banner', async (_label, at) => {
+    syncHealth.mockResolvedValue(row('online', at()))
+    const { container } = renderBanner()
+    await waitFor(() => expect(syncHealth).toHaveBeenCalled())
+    expect(container.querySelector('[role="status"]')).toBeNull()
   })
 
-  it('distinguishes never-synced from stale', async () => {
-    syncHealth.mockResolvedValue(row('online', 0))
-    renderBanner()
-    expect(await screen.findByText(/not synced yet/i)).toBeInTheDocument()
-    // ⚠⚠ And does not explain it with the backgrounded-tab cause, which did not happen here.
-    // A confident wrong reason is worse than none; caught on a device pass, not by a test.
-    expect(screen.getByText(/has not synced with your other devices yet/i)).toBeInTheDocument()
-    expect(screen.queryByText(/only syncs while this tab is in front/i)).toBeNull()
-  })
-
-  // ⚠ The counterpart to the silence test above: freshness must not become a fourth banner
-  // that shows during normal operation.
-  it('stays silent when a healthy tab synced moments ago', async () => {
-    syncHealth.mockResolvedValue(row('online', Date.now() - 5_000))
+  it('stays silent while syncing too (the row flips isSyncing every tick)', async () => {
+    syncHealth.mockResolvedValue({ ...row('online', 0), isSyncing: true })
     const { container } = renderBanner()
     await waitFor(() => expect(syncHealth).toHaveBeenCalled())
     expect(container.querySelector('[role="status"]')).toBeNull()

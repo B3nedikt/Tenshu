@@ -23,7 +23,7 @@ export { PRODUCT_BASIC, PRODUCT_FREE, PRODUCT_PREMIUM } from './plans'
  * hand because the web does not compile the Kotlin client.
  */
 export const TOS_VERSION = '2026-10-28'
-export const PRIVACY_VERSION = '2026-11-05'
+export const PRIVACY_VERSION = '2026-11-16'
 
 export type RegisterResult =
   | { readonly kind: 'otpSent' }

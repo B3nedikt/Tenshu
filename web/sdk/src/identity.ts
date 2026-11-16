@@ -47,9 +47,11 @@ export interface DevicesApi {
   // device signing key + relay JWT, so a wipe-first path could never
   // project the revocation — the browser would linger as a permanent
   // ghost device. Offline → `network` error: the tombstone could not be
-  // pushed; the caller decides whether to wipe locally anyway (the web
-  // "sign out everywhere" flow warns-and-proceeds, leaving the ghost to
-  // be reaped by revoking from another device).
+  // pushed; the caller decides whether to wipe locally anyway.
+  //
+  // ⚠ The apex no longer calls this before a disconnect: `Session.clear({ purgeRealm: true })`
+  // runs the shared `ForgetThisDevice` op, which retires this device itself, with the right
+  // ordering. Calling both removed the device twice and waited twice.
   revokeSelf(): Promise<TResult<void, DeviceRevokeError>>
 }
 

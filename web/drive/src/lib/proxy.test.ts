@@ -151,11 +151,22 @@ describe('drive proxy surface', () => {
 
   // MB-1 contact handshake wrappers (drive-web-mode-b-sharing.md).
   it('createContactInvite dispatches contact.createInvite with empty intent by default', async () => {
+    call.mockResolvedValueOnce({ ok: true, link: 'https://tenshu.app/i#v1.abc' })
     await createContactInvite()
     expect(call).toHaveBeenCalledWith(ProxyMethod.ContactCreateInvite, {
       intentKind: '',
       intentLabel: '',
     })
+  })
+
+  it('createContactInvite resolves the link out of the SDK result, not the result object', async () => {
+    call.mockResolvedValueOnce({ ok: true, link: 'https://tenshu.app/i#v1.abc' })
+    await expect(createContactInvite()).resolves.toBe('https://tenshu.app/i#v1.abc')
+  })
+
+  it('createContactInvite rejects on an SDK failure', async () => {
+    call.mockResolvedValueOnce({ ok: false, error: { kind: 'invite', message: 'realm locked' } })
+    await expect(createContactInvite()).rejects.toThrow('realm locked')
   })
 
   it('revokeContactInvite dispatches contact.revokeInvite with the inviteId', async () => {

@@ -4,61 +4,61 @@
     {
       "name": "@",
       "type": "A",
-      "content": "212.47.241.176",
+      "content": "51.255.22.186",
       "ttl": 300
     },
     {
       "name": "calendar",
       "type": "A",
-      "content": "212.47.241.176",
+      "content": "51.255.22.186",
       "ttl": 300
     },
     {
       "name": "contacts",
       "type": "A",
-      "content": "212.47.241.176",
+      "content": "51.255.22.186",
       "ttl": 300
     },
     {
       "name": "drive",
       "type": "A",
-      "content": "212.47.241.176",
+      "content": "51.255.22.186",
       "ttl": 300
     },
     {
       "name": "fit",
       "type": "A",
-      "content": "212.47.241.176",
+      "content": "51.255.22.186",
       "ttl": 300
     },
     {
       "name": "home",
       "type": "A",
-      "content": "212.47.241.176",
+      "content": "51.255.22.186",
       "ttl": 300
     },
     {
       "name": "maps",
       "type": "A",
-      "content": "212.47.241.176",
+      "content": "51.255.22.186",
       "ttl": 300
     },
     {
       "name": "mia",
       "type": "A",
-      "content": "212.47.241.176",
+      "content": "51.255.22.186",
       "ttl": 300
     },
     {
       "name": "photos",
       "type": "A",
-      "content": "212.47.241.176",
+      "content": "51.255.22.186",
       "ttl": 300
     },
     {
       "name": "timeline",
       "type": "A",
-      "content": "212.47.241.176",
+      "content": "51.255.22.186",
       "ttl": 300
     },
     {
@@ -109,13 +109,13 @@
     {
       "name": "commerce.service",
       "type": "A",
-      "content": "51.15.229.94",
+      "content": "141.94.175.130",
       "ttl": 300
     },
     {
       "name": "relay",
       "type": "A",
-      "content": "51.15.143.24",
+      "content": "91.134.52.26",
       "ttl": 300
     }
   ]

@@ -113,10 +113,10 @@ canonical handoff section, and everything before it is architectural context.
 below, always.
 
 ⚠⚠ **The `./gradlew` line under it compiles no iOS and no JS — `run-gate.sh` closes that itself.**
-Since 2026-09-01 the script also runs the two lanes (`compileTestKotlinJs`,
-`compileTestKotlinIosSimulatorArm64`), because a gate covering three of five targets is the same
-class of lie as an UP-TO-DATE test. Each lane had shipped broken to master behind a green gate — an
-`iosMain` import (2026-08-13) and five JS/iOS breaks at once (2026-09-01).
+It RUNS every `jsTest` (minus `scripts/js-test-exclusions.txt`) and compiles both lanes
+(`compileTestKotlinJs`, `compileTestKotlinIosSimulatorArm64`): a gate covering three of five
+targets is the same lie as an UP-TO-DATE test. Each lane had shipped broken to master behind a
+green gate (2026-08-13, 2026-09-01). ⚠ iOS tests only compile (`iosTestCheck` below).
 
 ⚠⚠⚠ **Still uncovered: Swift** (only `scripts/ios-smoke.sh` compiles any), **and the iOS lane off
 macOS** — K/N cannot cross-compile an Apple target, so the script prints *"iOS lane NOT VERIFIED"*
@@ -127,7 +127,7 @@ the `:tenshu-sdk-ios-*` modules + `:ui-core` reach (`tech-debt.md` *"The JS and 
 # All tests — the JVM/desktop/Android gate. `test` alone silently skips every KMP module.
 # ⚠⚠ RE-running this reports BUILD SUCCESSFUL having executed ZERO test tasks (all UP-TO-DATE).
 # Use the script when a green must mean something — it clears results and asserts tasks ran.
-scripts/run-gate.sh          # `desktopTest jvmTest test testAndroidHostTest` + the JS/iOS lanes
+scripts/run-gate.sh          # `desktopTest jvmTest test testAndroidHostTest`, `jsTest`, both lanes
                              # ⚠⚠ `testAndroidHostTest` is NOT reachable from `test` — omitting it
                              # hid 219 test classes and let a widened AIDL break master.
 scripts/run-gate.sh --quick  # changed modules + dependents; ⚠ full before shared merges/syncs

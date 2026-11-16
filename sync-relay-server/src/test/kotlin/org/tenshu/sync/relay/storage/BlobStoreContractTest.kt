@@ -138,16 +138,17 @@ abstract class BlobStoreContractTest {
     @Test
     open fun deleteAll_spansMoreThanOneBatch() {
         // ⚠ S3's DeleteObjects rejects more than 1,000 keys per request outright, so a backend that
-        // batches must split. 1,500 crosses that boundary; a backend that forgot would fail here
-        // rather than in production on the first large reclaim.
-        val keys = (1..1_500).map { "alice/blob-$it" }
+        // batches must split. One key past that limit crosses the boundary; a backend that forgot
+        // would fail here rather than in production on the first large reclaim. The key in the
+        // second batch is the one that proves the split happened.
+        val keys = (1..S3_DELETE_OBJECTS_LIMIT + 1).map { "alice/blob-$it" }
         keys.forEach { store.put(it, byteArrayOf(1)) }
 
         store.deleteAll(keys)
 
         assertNull(store.get("alice/blob-1"))
-        assertNull(store.get("alice/blob-1500"))
-        assertFalse(store.exists("alice/blob-750"))
+        assertNull(store.get(keys.last()), "the key past the first batch survived")
+        assertFalse(store.exists("alice/blob-${S3_DELETE_OBJECTS_LIMIT / 2}"))
     }
 
     @Test
@@ -219,6 +220,9 @@ abstract class BlobStoreContractTest {
  * reason [BlobStore.probe] is a write. `S3BlobStore` will subclass the same contract — but note
  * that passing it does **not** transfer the health story: see `hosting-provider-economics.md` D10.
  */
+/** S3's `DeleteObjects` hard limit, a protocol fact every batching backend must respect. */
+private const val S3_DELETE_OBJECTS_LIMIT = 1_000
+
 class FileBlobStoreContractTest : BlobStoreContractTest() {
 
     private lateinit var root: File

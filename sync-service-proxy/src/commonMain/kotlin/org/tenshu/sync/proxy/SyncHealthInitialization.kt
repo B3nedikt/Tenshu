@@ -38,6 +38,13 @@ fun ExecutionContext.initSyncHealth(
         type = SyncHealthStatus.ID,
         keyValue = SyncHealthStatus.SINGLETON_KEY,
     )
+    // ⚠ The row is persisted; the figures are not. Carry the last successful sync across the process
+    // restart BEFORE the first emission, or the derivation's first write replaces it with 0 and every
+    // surface reads "never synced" until this process's first pull (`SyncHealthHolder.seedLastSynced`).
+    // A read that fails is not a reason to stop the derivation: the figure then starts at 0, as before.
+    runCatching {
+        (database.getArrayData(ref)?.firstOrNull() as? SyncHealthStatus)?.lastSyncedAtMillis?.get()
+    }.getOrNull()?.let(holder::seedLastSynced)
     scope.launch {
         holder.observe().collect { figures ->
           guardDerivedViewTick(SyncService.Relations.SYNC_HEALTH) {

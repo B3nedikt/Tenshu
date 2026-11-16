@@ -347,11 +347,15 @@ interface SessionInstance {
   persist(token: NativeSessionToken): Promise<void>
   // The Kotlin side accepts `null`/`undefined` here too — apex may pass
   // either when no options are needed.
-  clear(options: { readonly purgeRealm?: boolean } | null): Promise<void>
+  clear(options: { readonly purgeRealm?: boolean } | null): Promise<{
+    readonly removal: 'confirmed' | 'unconfirmed' | null
+    readonly passkeyCredentialId: Int8Array | null
+  }>
   registerPasskey(registration: unknown): Promise<
     | { readonly ok: true; readonly value: void }
     | { readonly ok: false; readonly error: string }
   >
+  passkeyCredentialId(): Promise<Int8Array | null>
   unlock(assertion: unknown): Promise<
     | { readonly ok: true; readonly value: NativeSessionToken }
     | { readonly ok: false; readonly error: unknown }

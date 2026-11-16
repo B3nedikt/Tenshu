@@ -97,13 +97,17 @@ class ReapRemovalOutboxTest {
 
     @Test
     fun aLargeSubtreeGoesOutInBatchesOfAtMostOneThousand() = runTest {
+        // One reap past a batch: the smallest subtree that must split, and every removal still lands.
         val r = rig()
-        (1..2_500).forEach { r.components.tombstoneRegistry.recordReap(r.fileAt("/big/$it.jpg"), r.hlc(1_000)) }
+        val reaps = ContentBlobStore.MAX_REAP_BATCH + 1
+        (1..reaps).forEach { r.components.tombstoneRegistry.recordReap(r.fileAt("/big/$it.jpg"), r.hlc(1_000)) }
 
         r.components.scheduler.drainReapRemovals()
 
-        assertTrue(r.sink.reapedRemovals.all { it.size <= ContentBlobStore.MAX_REAP_BATCH }, "${r.sink.reapedRemovals.map { it.size }}")
-        assertEquals(2_500, r.sink.reapedRemovals.flatten().map { it.holder }.toSet().size)
+        val sizes = r.sink.reapedRemovals.map { it.size }
+        assertTrue(sizes.all { it <= ContentBlobStore.MAX_REAP_BATCH }, "$sizes")
+        assertEquals(2, sizes.size, "one past a batch is two requests: $sizes")
+        assertEquals(reaps, r.sink.reapedRemovals.flatten().map { it.holder }.toSet().size)
         assertTrue(r.outbox.pending().isEmpty())
     }
 

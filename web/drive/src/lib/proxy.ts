@@ -358,15 +358,16 @@ export async function syncNow(): Promise<boolean> {
 // inviter watches `listInvites` for a fresh REDEEMED row then
 // `completeHandshake`s. `connectedContacts` is the read MB-2's grant picker
 // consumes.
-export async function createContactInvite(
-  intentKind = '',
-  intentLabel = '',
-): Promise<string | null> {
+// The SDK resolves `{ ok: true, link }` or a `ProxyFailure`, never a bare string: unwrap it here so
+// callers get the link, and throw the failure so a query lands in its error state.
+export async function createContactInvite(intentKind = '', intentLabel = ''): Promise<string> {
   const client = await apexProxy()
-  return client.call<string | null>(ProxyMethod.ContactCreateInvite, {
-    intentKind,
-    intentLabel,
-  })
+  const r = await client.call<{ ok: true; link: string } | ProxyFailure>(
+    ProxyMethod.ContactCreateInvite,
+    { intentKind, intentLabel },
+  )
+  if (!r.ok) throw new Error(r.error.message ?? r.error.kind)
+  return r.link
 }
 
 export async function revokeContactInvite(inviteId: string): Promise<boolean> {

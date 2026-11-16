@@ -195,6 +195,230 @@ class SharedRealmMembershipRecordsSystemTest {
         }
     }
 
+    /**
+     * ⚠⚠ T-GR-02 revocation window: a removal's rotation travels in the owner's PERSONAL stream, the realm's
+     * revocation record in the SHARED one — so an owner device could hold the new key without knowing whom it was
+     * rotated away from, and hand it to the removed member (a key request, or catch-up: the removed member's row is
+     * still there, since a local delete emits no tombstone). Closed by a personal copy of the revocation saved before
+     * the rotation's rows: in the personal stream as the relay serves it, it comes first, so any owner device pulling
+     * that stream in order holds it before the new key.
+     */
+    @Test
+    fun aRemovalsRevocation_precedesItsRotation_inTheOwnersPersonalStream(): Unit = runBlocking {
+        val system = TestSystem.builder().build()
+        try {
+            val alice = system.client("alice", TestClientRole.RealmHost)
+            val aliceTablet = system.client("alice-tablet", TestClientRole.JoiningDevice)
+            val bob = system.client("bob", TestClientRole.RealmHost)
+            alice.bootstrapAsHost(deviceName = "Alice Laptop")
+            bob.bootstrapAsHost(deviceName = "Bob Phone")
+            pair(system, host = alice, joiner = aliceTablet)
+            completeHandshake(system, alice, bob, otherName = "Bob")
+
+            val realmId = (alice.tenshuClient.syncService.createSharedRealm().successValue() as TString).get()
+            val bobAuthHex = alice.tenshuClient.syncService
+                .grantSharedRealmMembership(realmId, alice.personIdFor(bob.ownFingerprint()), label = "Trip")
+                .successValue().get()
+            bob.tenshuClient.syncService.pollPendingGrants()
+            bob.tenshuClient.syncService.acceptSharedRealmGrant(alice.ownFingerprint()).successValue()
+            system.advanceUntil(timeout = 25.seconds) {
+                alice.tenshuClient.syncService.pollPendingGrants()
+                alice.tenshuClient.identityService.getRealmMembers(realmId).successValue().toList().size >= 2
+            }
+            val bobMemberId = sha256(bobAuthHex.hexToByteArray()).toHexString()
+            assertTrue(alice.tenshuClient.syncService.removeSharedRealmMember(realmId, bobMemberId) is TResult.Success)
+
+            val personalOwner = checkNotNull(alice.syncManager.currentOwnerId)
+            val wireIds = org.tenshu.sync.proxy.WireIdResolver(alice.syncManager)
+            val personalCopy = alice.readRelation(IdentityService.Relations.MEMBERSHIP_RECORDS, MembershipRecord.ID)
+                .mapNotNull { it as? MembershipRecord }
+                .single { it.kind.get() == MembershipRecord.Kind.REVOCATION && it.key.get().startsWith("$realmId/") }
+            val copyWire = wireIds.of(
+                org.tenshu.core.entity.DataId.StringDataId.create(alice.executionContext.context, MembershipRecord.ID, personalCopy.key.get()),
+            )
+            val membershipWire = wireIds.of(
+                org.tenshu.core.entity.DataId.StringDataId.create(
+                    alice.executionContext.context, org.tenshu.identity.SharedRealmMembership.ID, realmId,
+                ),
+            )
+            // The order any owner device pulls Alice's personal stream in.
+            fun stream() = system.syncMailbox.getChanges(personalOwner, 0L, Int.MAX_VALUE).blocks.map { it.targetEntityIdHash?.get() }
+            system.advanceUntil(timeout = 25.seconds) { copyWire in stream() && stream().count { it == membershipWire } >= 2 }
+            val order = stream()
+            assertTrue(
+                order.indexOf(copyWire) < order.lastIndexOf(membershipWire),
+                "the revocation's personal copy must reach the relay before the membership that moves to the new key",
+            )
+
+            // And the tablet, once it holds the new key, knows whom it was rotated away from.
+            system.advanceUntil(timeout = 30.seconds) { aliceTablet.runtimeKeys(realmId) == alice.runtimeKeys(realmId) }
+            assertTrue(bobMemberId in aliceTablet.verifiedRevocations(realmId), "an owner device with the new key holds the revocation")
+        } finally {
+            system.shutdown()
+        }
+    }
+
+    /**
+     * ⚠⚠ T-GR-02 revocation window, push order NOT assumed. The revocation records and the rotation's rows are separate
+     * blocks, and a push pass keeps going after a transient (network, 5xx) failure — so another owner device can hold
+     * the new key without either record. What closes it is that the new key's
+     * [org.tenshu.identity.RealmKeyGeneration] row — which a device must hold to hand the key out at all
+     * (`KeyHandOutPolicy`) — names the removed member itself. So: once the tablet holds the new key, the row it holds
+     * for that key names Bob, and that holds even with both revocation records taken off the tablet.
+     */
+    @Test
+    fun theNewKeysGenerationRow_namesTheRemovedMember_onEveryOwnerDeviceHoldingTheKey(): Unit = runBlocking {
+        val system = TestSystem.builder().build()
+        try {
+            val alice = system.client("alice", TestClientRole.RealmHost)
+            val aliceTablet = system.client("alice-tablet", TestClientRole.JoiningDevice)
+            val bob = system.client("bob", TestClientRole.RealmHost)
+            alice.bootstrapAsHost(deviceName = "Alice Laptop")
+            bob.bootstrapAsHost(deviceName = "Bob Phone")
+            pair(system, host = alice, joiner = aliceTablet)
+            completeHandshake(system, alice, bob, otherName = "Bob")
+
+            val realmId = (alice.tenshuClient.syncService.createSharedRealm().successValue() as TString).get()
+            val bobAuthHex = alice.tenshuClient.syncService
+                .grantSharedRealmMembership(realmId, alice.personIdFor(bob.ownFingerprint()), label = "Trip")
+                .successValue().get()
+            bob.tenshuClient.syncService.pollPendingGrants()
+            bob.tenshuClient.syncService.acceptSharedRealmGrant(alice.ownFingerprint()).successValue()
+            system.advanceUntil(timeout = 25.seconds) {
+                alice.tenshuClient.syncService.pollPendingGrants()
+                alice.tenshuClient.identityService.getRealmMembers(realmId).successValue().toList().size >= 2
+            }
+            val bobMemberId = sha256(bobAuthHex.hexToByteArray()).toHexString()
+            assertTrue(alice.tenshuClient.syncService.removeSharedRealmMember(realmId, bobMemberId) is TResult.Success)
+            system.advanceUntil(timeout = 30.seconds) { aliceTablet.runtimeKeys(realmId) == alice.runtimeKeys(realmId) }
+
+            // Take both revocation records off the tablet: the state a failed revocation push would leave.
+            aliceTablet.readRelation(IdentityService.Relations.MEMBERSHIP_RECORDS, MembershipRecord.ID)
+                .mapNotNull { it as? MembershipRecord }
+                .filter { it.kind.get() == MembershipRecord.Kind.REVOCATION }
+                .forEach { record ->
+                    aliceTablet.executionContext.database.deleteData(
+                        DataId.StringDataId.create(aliceTablet.executionContext.context, MembershipRecord.ID, record.key.get()),
+                    )
+                }
+            assertTrue(bobMemberId !in aliceTablet.verifiedRevocations(realmId), "precondition: the tablet holds no revocation record")
+
+            // The generation row for the key the tablet now holds still names Bob.
+            system.advanceUntil(timeout = 30.seconds) { aliceTablet.generationRowForCurrentKey(realmId) != null }
+            val row = checkNotNull(aliceTablet.generationRowForCurrentKey(realmId))
+            assertTrue(
+                row.revokedMemberIds()?.contains(bobMemberId) == true,
+                "the new key's generation row must name the member it was rotated away from",
+            )
+        } finally {
+            system.shutdown()
+        }
+    }
+
+    /**
+     * ⚠⚠ T-GR-02, second removal. An owner device holding the new key but neither its generation row nor the
+     * revocation records (their pushes failed) must not rotate: the new key's row would carry forward an empty set,
+     * omit the member removed before, and the re-grant would send them the next key from their stale rows. So it
+     * refuses the removal outright, and the same removal goes through once the row is here. Also pins that a new
+     * realm's first key gets its row, so a missing row always means "not here yet".
+     */
+    @Test
+    fun anOwnerDeviceWithoutTheCurrentKeysGenerationRow_refusesToRotate(): Unit = runBlocking {
+        val system = TestSystem.builder().build()
+        try {
+            val alice = system.client("alice", TestClientRole.RealmHost)
+            val aliceTablet = system.client("alice-tablet", TestClientRole.JoiningDevice)
+            val bob = system.client("bob", TestClientRole.RealmHost)
+            val charlie = system.client("charlie", TestClientRole.RealmHost)
+            alice.bootstrapAsHost(deviceName = "Alice Laptop")
+            bob.bootstrapAsHost(deviceName = "Bob Phone")
+            charlie.bootstrapAsHost(deviceName = "Charlie Tablet")
+            pair(system, host = alice, joiner = aliceTablet)
+            completeHandshake(system, alice, bob, otherName = "Bob")
+            completeHandshake(system, alice, charlie, otherName = "Charlie")
+
+            val realmId = (alice.tenshuClient.syncService.createSharedRealm().successValue() as TString).get()
+            val firstRow = checkNotNull(alice.generationRowForCurrentKey(realmId)) { "a new realm's first key has its generation row" }
+            assertTrue(firstRow.revokedMemberIds() == emptySet<String>(), "nobody is revoked as of the first key")
+
+            val bobAuthHex = alice.tenshuClient.syncService
+                .grantSharedRealmMembership(realmId, alice.personIdFor(bob.ownFingerprint()), label = "Trip").successValue().get()
+            val charlieAuthHex = alice.tenshuClient.syncService
+                .grantSharedRealmMembership(realmId, alice.personIdFor(charlie.ownFingerprint()), label = "Trip").successValue().get()
+            bob.tenshuClient.syncService.pollPendingGrants()
+            charlie.tenshuClient.syncService.pollPendingGrants()
+            bob.tenshuClient.syncService.acceptSharedRealmGrant(alice.ownFingerprint()).successValue()
+            charlie.tenshuClient.syncService.acceptSharedRealmGrant(alice.ownFingerprint()).successValue()
+            system.advanceUntil(timeout = 25.seconds) {
+                alice.tenshuClient.syncService.pollPendingGrants()
+                alice.tenshuClient.identityService.getRealmMembers(realmId).successValue().toList().size >= 3
+            }
+            val bobMemberId = sha256(bobAuthHex.hexToByteArray()).toHexString()
+            val charlieMemberId = sha256(charlieAuthHex.hexToByteArray()).toHexString()
+            // The tablet must be able to remove Charlie at all, or the refusal below would prove nothing.
+            system.advanceUntil(timeout = 30.seconds) {
+                aliceTablet.executionContext.database.getData(
+                    DataId.StringDataId.create(aliceTablet.executionContext.context, org.tenshu.identity.GrantedMembership.ID, charlieMemberId),
+                ) != null
+            }
+
+            assertTrue(alice.tenshuClient.syncService.removeSharedRealmMember(realmId, bobMemberId) is TResult.Success)
+            system.advanceUntil(timeout = 30.seconds) {
+                aliceTablet.runtimeKeys(realmId) == alice.runtimeKeys(realmId) && aliceTablet.generationRowForCurrentKey(realmId) != null
+            }
+
+            // The window: the tablet holds the new key, but neither its generation row nor a revocation record.
+            val row = checkNotNull(aliceTablet.generationRowForCurrentKey(realmId))
+            val saved = Triple(row.keyId.get(), row.generation.toEpochMilliseconds(), checkNotNull(row.revokedMemberIds()))
+            aliceTablet.executionContext.database.deleteData(
+                DataId.StringDataId.create(
+                    aliceTablet.executionContext.context, org.tenshu.identity.RealmKeyGeneration.ID, row.compositeKey.get(),
+                ),
+            )
+            aliceTablet.readRelation(IdentityService.Relations.MEMBERSHIP_RECORDS, MembershipRecord.ID)
+                .mapNotNull { it as? MembershipRecord }
+                .filter { it.kind.get() == MembershipRecord.Kind.REVOCATION }
+                .forEach { record ->
+                    aliceTablet.executionContext.database.deleteData(
+                        DataId.StringDataId.create(aliceTablet.executionContext.context, MembershipRecord.ID, record.key.get()),
+                    )
+                }
+
+            assertTrue(
+                aliceTablet.tenshuClient.syncService.removeSharedRealmMember(realmId, charlieMemberId) !is TResult.Success,
+                "an owner device that cannot name the current key's revoked members must not rotate",
+            )
+            assertTrue(charlieMemberId !in aliceTablet.verifiedRevocations(realmId), "and it revoked nothing")
+
+            // With the row back, the same removal goes through, and the new key's row names both removed members.
+            aliceTablet.executionContext.saveData(
+                org.tenshu.identity.RealmKeyGeneration.create(
+                    aliceTablet.executionContext.context, realmId, saved.first, saved.second, saved.third,
+                ),
+            )
+            assertTrue(aliceTablet.tenshuClient.syncService.removeSharedRealmMember(realmId, charlieMemberId) is TResult.Success)
+            val next = checkNotNull(aliceTablet.generationRowForCurrentKey(realmId)).revokedMemberIds().orEmpty()
+            assertTrue(bobMemberId in next && charlieMemberId in next, "the next key's row names every member removed so far")
+        } finally {
+            system.shutdown()
+        }
+    }
+
+    /** This device's [org.tenshu.identity.RealmKeyGeneration] row for the key its membership of [realmId] holds. */
+    private fun TestClient.generationRowForCurrentKey(realmId: String): org.tenshu.identity.RealmKeyGeneration? {
+        val membership = executionContext.database.getData(
+            DataId.StringDataId.create(executionContext.context, org.tenshu.identity.SharedRealmMembership.ID, realmId),
+        ) as? org.tenshu.identity.SharedRealmMembership ?: return null
+        val keyId = sha256(membership.wrappedMasterKey.get()).toHexString()
+        return executionContext.database.getData(
+            DataId.StringDataId.create(
+                executionContext.context,
+                org.tenshu.identity.RealmKeyGeneration.ID,
+                org.tenshu.identity.RealmKeyGeneration.compositeKey(realmId, keyId),
+            ),
+        ) as? org.tenshu.identity.RealmKeyGeneration
+    }
+
     private fun TestClient.runtimeKeys(realmId: String): org.tenshu.core.security.SyncCryptoManager.DerivedKeys? =
         koinApp.koin.get<org.tenshu.sync.proxy.RealmRegistryHolder>().realmRegistry?.runtimeFor(realmId)?.context?.derivedKeys
 

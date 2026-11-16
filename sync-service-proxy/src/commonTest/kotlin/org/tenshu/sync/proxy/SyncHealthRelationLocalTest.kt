@@ -106,6 +106,42 @@ class SyncHealthRelationLocalTest {
     }
 
     @Test
+    fun aRestart_keepsTheLastSuccessfulSync_neverRewritesItAsZero() = runTest {
+        // Regression (2026-11-16): the row is persisted but the figures restart at 0, so the first
+        // emission after a process start wrote `lastSyncedAtMillis = 0` over the stored time — the web
+        // Drive banner said "Not synced yet" after every reload, until that session's first pull.
+        val proxy = TestProxy(schemaRegistry = createSyntheticTestRegistry())
+        proxy.schemaRegistry.registerConfig(syncServiceCommonModule)
+        proxy.schemaRegistry.registerConfig(syncServiceClientModule)
+        val service = environmentFor(proxy).getService<SyncService>(SyncService.ID)
+
+        // The first process synced at 1_700_000_000_000, then stopped.
+        val firstRun = kotlinx.coroutines.Job()
+        val before = SyncHealthHolder()
+        proxy.executionContext.initSyncHealth(kotlinx.coroutines.CoroutineScope(backgroundScope.coroutineContext + firstRun), before)
+        before.onTickComplete(online = true, pendingBlockCount = 0, lastSyncedAtMillis = 1_700_000_000_000L)
+        service.syncHealth().filterNotNull().first { it.lastSyncedAtMillis.get() == 1_700_000_000_000L }
+        firstRun.cancel()
+
+        // The next process: a fresh holder, whose figures start at 0.
+        val after = SyncHealthHolder()
+        proxy.executionContext.initSyncHealth(backgroundScope, after)
+        assertEquals(1_700_000_000_000L, after.current().lastSyncedAtMillis, "seeded from the persisted row before the first emission")
+        // And a tick with no successful pull keeps it.
+        after.onTickComplete(online = null, pendingBlockCount = 0, lastSyncedAtMillis = null)
+        assertEquals(1_700_000_000_000L, service.syncHealth().filterNotNull().first().lastSyncedAtMillis.get())
+    }
+
+    @Test
+    fun seedLastSynced_onlyRaises() {
+        val holder = SyncHealthHolder()
+        holder.seedLastSynced(500L)
+        holder.seedLastSynced(200L)
+        holder.seedLastSynced(0L)
+        assertEquals(500L, holder.current().lastSyncedAtMillis)
+    }
+
+    @Test
     fun seedLocked_falseLeavesTheOptimisticOnlineSeed() = runTest {
         // The seed must not itself become a source of wrong state: an unsealed proxy keeps the
         // documented optimistic `online` start so the banner never flashes on a healthy launch.

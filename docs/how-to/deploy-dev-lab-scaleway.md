@@ -1,5 +1,14 @@
 # Deploy the dev lab on Scaleway
 
+> ⚠⚠ **Deleted on 2026-11-12** (not needed for now): the server `tenshu-dev-lab`, both volumes (test
+> data, no snapshot) and the IP `78.232.57.53`, plus all 13 `tenshu.xyz` A records — removed FIRST,
+> so no record points at an IP Scaleway may hand to someone else. The zone stays on Cloudflare,
+> empty. A build pointed at the dev relay fails to resolve; that is this, not a bug.
+> **Rebuilding is this runbook from step 7** (`./tf.sh apply`, which starts EMPTY), then the A records
+> by hand again (step 8). ⚠ No `terraform.tfstate` for this module was found in the primary checkout
+> at deletion time, so the delete went through the Scaleway API; if a state turns up elsewhere it
+> describes resources that no longer exist — `terraform state rm` them, do not `apply` over it.
+
 An **isolated copy** of the Tenshu server plane — relay + commerce + apex — on one Scaleway
 instance, so you can break things without touching production. This is DL-1/DL-2 of
 [`../proposals/ops-dev-lab.md`](../proposals/ops-dev-lab.md); DL-3 (Android devices in redroid

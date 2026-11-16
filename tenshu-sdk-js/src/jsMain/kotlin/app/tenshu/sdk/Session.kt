@@ -6,6 +6,7 @@ import app.tenshu.sdk.internal.JsRuntime
 import app.tenshu.sdk.internal.WebAuthnVerifier
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.async
 import kotlinx.coroutines.promise
 import org.khronos.webgl.Int8Array
 import org.tenshu.core.common.security.MasterKeyUnwrapException
@@ -63,9 +64,16 @@ import kotlin.js.Promise
 @JsExport
 object Session {
 
+    // Seam for tests: a jsTest that reloads the page kills its own runner.
+    internal var reloadAfterPurge: () -> Unit = { kotlinx.browser.window.location.reload() }
+
+    // Seam for tests: the browser-only store wipe, so a test can make it fail part-way.
+    internal var purgeBrowserStores: suspend () -> Unit = { JsRuntime.purgeRealmStorage() }
+
     fun detect(): Promise<dynamic> = GlobalScope.promise {
         JsRuntime.awaitReady()
         val store = JsRuntime.sessionStore
+        if (store.isPurgePending()) return@promise finishInterruptedPurge()
         // Keep the landing page's runtime-free hint in step with the authoritative answer.
         store.refreshHint()
         val deviceName = store.getDeviceName()
@@ -90,43 +98,39 @@ object Session {
         store.flush()
     }
 
-    fun clear(options: dynamic): Promise<Unit> = GlobalScope.promise {
+    // Two different things behind one name, and the difference is the whole contract
+    // (`web/sdk/src/onboarding.ts` `SessionApi.clear`):
+    //
+    //   - **lock** (no `purgeRealm`): drop the session token, nothing else. The device name and the
+    //     passkey record stay, so the next detect reads `locked` and the passkey can unlock again.
+    //   - **disconnect** (`purgeRealm: true`): leave the realm and wipe this browser.
+    //
+    // Resolves `{ removal, passkeyCredentialId }`: `removal` is `"confirmed"` / `"unconfirmed"` for a
+    // disconnect (null for a lock), and `passkeyCredentialId` is the passkey this browser just stopped
+    // honouring, so the caller can tell the authenticator (`signalUnknownCredential`) — the SDK
+    // cannot, the WebAuthn ceremony lives on the web side.
+    //
+    // ⚠⚠ After a disconnect resolves, the caller must reload the page (`reloadAfterPurge.ts`).
+    fun clear(options: dynamic): Promise<dynamic> = GlobalScope.promise {
         JsRuntime.awaitReady()
-        val purgeRealm = options?.purgeRealm == true
         val store = JsRuntime.sessionStore
-        store.clear()
         // Mia's conversation is in memory only (`MiaBook.kt` rule 1), and a thread of answers about
-        // a realm this browser just left is not something to keep (`MiaLocalRuntime.deprovision`).
+        // a realm this browser just locked or left is not something to keep (`MiaLocalRuntime.deprovision`).
         MiaConversations.clear()
-        if (purgeRealm) {
-            // W13. The shared op FIRST, then the browser-only stores.
-            //
-            // ⚠⚠ The order inside `ForgetThisDevice` is the whole implementation, and the web
-            // used to skip all of it: retire the device row and let its tombstone leave *while
-            // the key that signs it still exists*, purge the outbound queues *before* custody
-            // goes (minting an ExecutionContext afterwards silently yields nothing — observed
-            // on iOS 2026-08-19), drop the local store *before* the identity (custody-gone-
-            // store-present is the half-state D3 forbids: a fresh device id, 401 on every push,
-            // and an app that still looks signed in to the realm it just left), and only then
-            // null the in-memory keys so the session stops signing with keys that no longer
-            // exist at rest. A `clearAll()` reproduces none of that ordering.
-            //
-            // ⚠ Best-effort by the op's own contract: "a failed retirement never blocks the
-            // wipe" — people forget a device precisely when something is broken. The outcome
-            // names what actually happened (including a store it could not drop), so a half
-            // reset is reported rather than silent.
-            val outcome = runCatching { JsRuntime.tenshuClient.syncService.forgetThisDevice() }
-            app.tenshu.diagnostics.Diagnostics.i(
-                "Session",
-                "forgetThisDevice: " + (outcome.getOrNull()?.toString() ?: "failed: ${outcome.exceptionOrNull()}"),
-            )
-
-            // ⚠ Still needed, and still AFTER: the op wipes the object store and the custody
-            // bucket, but knows nothing about the browser's other IndexedDB stores — file
-            // bytes above all. Web's at-rest coverage stays a superset (§1.2h), which is what
-            // kept it correct while it was hand-rolled.
-            JsRuntime.purgeRealmStorage()
+        if (options?.purgeRealm != true) {
+            store.clearSessionToken()
+            return@promise clearResult(removal = null, passkeyCredentialId = null)
         }
+        // Read before the wipe: the purge deletes the record that names it.
+        val passkeyCredentialId = store.getPasskey()?.credentialId
+        // ⚠⚠ Marker FIRST, session record LAST. The forget below waits up to 8 s for its removal to
+        // reach the relay, and a user watching that wait reloads. When the session record went first,
+        // that reload read `firstTime` — the landing page — while the device key, the recovery phrase
+        // and every object were still at rest (reproduced 2026-11-16). Now an interrupted purge still
+        // carries the marker, and the next detect finishes it.
+        store.markPurgePending()
+        val removal = purgeRealm()
+        clearResult(removal, passkeyCredentialId)
     }
 
     fun registerPasskey(registration: dynamic): Promise<dynamic> = GlobalScope.promise {
@@ -154,6 +158,19 @@ object Session {
             wrapMasterKeyForCurrentRealm(prfOutput)
         }
         resultOk(undef())
+    }
+
+    // The credential ID `unlock` will accept, or `null` when none is registered. The apex passes
+    // it as `allowCredentials` so the browser offers only this passkey: without it the picker
+    // lists every passkey the user's password manager holds for the RP — stale ones from an
+    // earlier setup or a Disconnect included, all under the same device name — and any of
+    // those fails `unlock` with `wrongCredential`. A copy, so a caller can't mutate the store.
+    fun passkeyCredentialId(): Promise<Int8Array?> = GlobalScope.promise {
+        JsRuntime.awaitReady()
+        val id = JsRuntime.sessionStore.getPasskey()?.credentialId ?: return@promise null
+        val copy = Int8Array(id.length)
+        copy.asDynamic().set(id, 0)
+        copy
     }
 
     fun unlock(assertion: dynamic): Promise<dynamic> = GlobalScope.promise {
@@ -409,6 +426,82 @@ private fun randomBytes(size: Int): Int8Array {
     val bytes = Int8Array(size)
     js("crypto.getRandomValues(new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength))")
     return bytes
+}
+
+// W13. The shared op FIRST, then the browser-only stores, then — last — the session record and with
+// it the purge marker. Returns "confirmed" or "unconfirmed" for the device's removal from its realm.
+//
+// ⚠⚠ The order inside `ForgetThisDevice` is the whole implementation, and the web used to skip all
+// of it: retire the device row and let its tombstone leave *while the key that signs it still
+// exists*, purge the outbound queues *before* custody goes, drop the local store *before* the
+// identity, and only then null the in-memory keys. A `clearAll()` reproduces none of that ordering.
+//
+// ⚠ Best-effort by the op's own contract: "a failed retirement never blocks the wipe" — people
+// forget a device precisely when something is broken. Every outcome that is not a clean removal
+// leads with ⚠ (`ForgetThisDeviceImplementation`'s constants), which is what "unconfirmed" reads.
+// ⚠⚠ Single-flight. At boot several components call `Session.detect` at once, and each saw the
+// marker and started its own purge (observed 2026-11-16): two `ForgetThisDevice` runs raced, the
+// second wiping the key the first was still waiting to push its removal with, and the first then
+// reported the row as left behind. Every caller of a purge already in flight awaits that one.
+private var purgeInFlight: kotlinx.coroutines.Deferred<String>? = null
+
+private suspend fun purgeRealm(): String {
+    purgeInFlight?.let { return it.await() }
+    val run = GlobalScope.async(start = kotlinx.coroutines.CoroutineStart.LAZY) { purgeRealmOnce() }
+    purgeInFlight = run
+    try {
+        return run.await()
+    } finally {
+        purgeInFlight = null
+    }
+}
+
+private suspend fun purgeRealmOnce(): String {
+    val outcome = runCatching { JsRuntime.tenshuClient.syncService.forgetThisDevice() }
+    val text = (outcome.getOrNull() as? org.tenshu.core.TResult.Success<*>)
+        ?.value
+        ?.let { (it as? org.tenshu.core.TString)?.get() }
+    app.tenshu.diagnostics.Diagnostics.i(
+        "Session",
+        "forgetThisDevice: " + (outcome.getOrNull()?.toString() ?: "failed: ${outcome.exceptionOrNull()}"),
+    )
+
+    // ⚠ Still needed, and still AFTER: the op wipes the object store and the custody bucket, but
+    // knows nothing about the browser's other IndexedDB stores — file bytes above all. Web's at-rest
+    // coverage stays a superset (§1.2h).
+    Session.purgeBrowserStores()
+    // Only once every store is gone: this also removes the purge marker, and a marker removed
+    // after a partial wipe would orphan what is left (see [finishInterruptedPurge]).
+    JsRuntime.sessionStore.clear()
+    return if (text != null && !text.contains("⚠")) "confirmed" else "unconfirmed"
+}
+
+// A disconnect the last page load did not finish (reload, closed tab, crash). Finish it, then reload:
+// the purge leaves this runtime holding the identity it just destroyed (`reloadAfterPurge.ts`).
+//
+// ⚠⚠ If finishing it FAILS, the marker stays and the page does NOT reload. Clearing the marker on
+// failure would orphan the stores the wipe never reached — the device key, the master-key blob —
+// behind a page that reads `firstTime`, with nothing left to trigger another attempt. Not reloading
+// is what keeps that from looping. The browser reads `locked` instead: the lock screen's "Disconnect
+// this browser" retries the purge (and says so if it fails again), and every later load retries too.
+private suspend fun finishInterruptedPurge(): dynamic {
+    val first = purgeInFlight == null
+    if (first) app.tenshu.diagnostics.Diagnostics.w("Session", "finishing a disconnect the last page load did not complete")
+    return try {
+        purgeRealm()
+        if (first) Session.reloadAfterPurge()
+        firstTimeState()
+    } catch (failure: Throwable) {
+        if (first) app.tenshu.diagnostics.Diagnostics.w("Session", "interrupted disconnect could not be finished, will retry: $failure")
+        lockedState(JsRuntime.sessionStore.getDeviceName() ?: "This browser")
+    }
+}
+
+private fun clearResult(removal: String?, passkeyCredentialId: Int8Array?): dynamic {
+    val r: dynamic = js("({})")
+    r.removal = removal
+    r.passkeyCredentialId = passkeyCredentialId
+    return r
 }
 
 private fun firstTimeState(): dynamic {

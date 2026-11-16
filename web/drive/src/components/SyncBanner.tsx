@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { schemaFence, subscribeSyncHealth, syncHealth, syncNow } from '../lib/proxy'
 import { queryKeys } from '../lib/queryKeys'
@@ -11,41 +11,17 @@ import { queryKeys } from '../lib/queryKeys'
 // silent — `deferred` is the Wi-Fi-only policy working as configured, and a banner for normal
 // operation trains people to ignore banners.
 //
-// ⚠ Still the cadence for the SCHEMA FENCE query and the freshness clock below — the fence has
+// ⚠ Still the cadence for the SCHEMA FENCE query — the fence has
 // no reactive read yet. Sync health no longer polls: W12 landed the push channel and this is its
 // first consumer, so a connectivity change now arrives when it happens rather than up to 15s
 // later. That latency mattered: `device_unrecognized` is the state a browser sat in for hours.
 const POLL_MS = 15_000
 
-// W8 (§1.2b). How long without a successful sync before we say so out loud. The cold tick is
-// 30s, so a visible, healthy tab should never reach this; a tab that has just come back from
-// the background routinely will, which is exactly the case worth explaining. ⚠ Not a warning
-// tone — most of the time this is the browser behaving normally, and treating it as a fault
-// would train people to ignore the banner that sits directly above it.
-const STALE_AFTER_MS = 120_000
-
-// Coarse on purpose — this answers "is it stuck?", not "exactly when?".
-function relativeAge(ms: number): string {
-  const seconds = Math.max(0, Math.round(ms / 1000))
-  if (seconds < 90) return `${seconds} seconds ago`
-  const minutes = Math.round(seconds / 60)
-  if (minutes < 90) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`
-  const hours = Math.round(minutes / 60)
-  return `${hours} hour${hours === 1 ? '' : 's'} ago`
-}
-
-// ⚠⚠ Its own clock, deliberately. React Query does structural sharing, so a poll that returns
-// an unchanged `lastSyncedAtMillis` keeps the same object reference and does NOT re-render —
-// the age would freeze at whatever it said when sync stopped, which is the one situation this
-// exists to report. The whole point is that it keeps counting up while nothing happens.
-function useNow(intervalMs: number): number {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), intervalMs)
-    return () => clearInterval(id)
-  }, [intervalMs])
-  return now
-}
+// ⚠ No "last synced" / "not synced yet" banner any more (2026-11-16). It read the same health row
+// as the apex's sync dot, which already says when this browser last synced, so it said the same thing
+// twice — and it flickered: the row's last-sync time restarted at 0 with every runtime start (fixed in
+// `initSyncHealth`), and while it was 0 its second line changed on every tick. This banner is for
+// states the user can act on; the freshness answer lives in the top bar.
 
 type Tone = 'warn' | 'error'
 
@@ -96,11 +72,9 @@ export function SyncBanner() {
     refetchInterval: POLL_MS,
   })
   const kick = useMutation({ mutationFn: syncNow })
-  // ⚠ Above every early return — hooks cannot live behind the fence branch below.
-  const now = useNow(POLL_MS)
 
-  // W12. Pushed updates land in the query cache, so everything downstream — including the
-  // freshness branch — keeps reading one source of truth rather than two.
+  // W12. Pushed updates land in the query cache, so everything downstream keeps reading one source
+  // of truth rather than two.
   useEffect(
     () =>
       subscribeSyncHealth((row) => {
@@ -136,35 +110,8 @@ export function SyncBanner() {
 
   const state = data ? describe(data.connectivity) : null
 
-  // Connectivity says nothing is wrong. That is not the same as "syncing" — on web the app
-  // window IS the proxy, so a tab that was in the background has simply not been running, and
-  // `online` is a truthful answer to a question the user is not asking. Say when it last worked.
-  if (!state) {
-    if (!data) return null
-    const sinceMs = data.lastSyncedAtMillis > 0 ? now - data.lastSyncedAtMillis : -1
-    if (sinceMs >= 0 && sinceMs < STALE_AFTER_MS) return null
-    return (
-      <div
-        role="status"
-        className="mb-3 rounded-lg border border-line bg-surface-2 px-4 py-3 text-sm text-text-2"
-      >
-        <p className="font-medium text-text">
-          {sinceMs < 0 ? 'Not synced yet' : `Last synced ${relativeAge(sinceMs)}`}
-        </p>
-        <p className="mt-1">
-          {data.isSyncing
-            ? 'Catching up now.'
-            : sinceMs < 0
-              // ⚠ Found on a device pass: a browser that has NEVER synced was being told its
-              // quiet is "normal after it has been in the background", which is a confident
-              // explanation of something that did not happen. A fresh or local-only realm hits
-              // this, and the wrong cause is worse than no cause.
-              ? 'This browser has not synced with your other devices yet.'
-              : 'Tenshu only syncs while this tab is in front, so this is normal after it has been in the background. It should catch up within a few seconds.'}
-        </p>
-      </div>
-    )
-  }
+  // Connectivity says nothing is wrong: nothing to act on, so nothing to show (see the note above).
+  if (!state) return null
 
   const colour =
     state.tone === 'error'

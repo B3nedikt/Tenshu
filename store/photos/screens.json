@@ -26,15 +26,15 @@
     }
   },
   "landing": {
-    "about": "Keyed android/phonelanding/<lang>/[dark/]NN-screen (landing_shot calls in the walk).",
+    "about": "Keyed android/phonelanding/<lang>/[dark/]NN-screen (landing_shot calls in the walk). The published Android set (2026-11-16) was captured by hand on an emulator paired into the maintainer's own realm, not by the scripted walk (docs/how-to/store-screenshots.md §9).",
     "script": "scripts/lib/android_shots.py",
     "device": "phonelanding",
     "captured": {
       "01-library": {
-        "shows": "The library: the default mosaic of the landing set's stock photos, grouped by day"
+        "shows": "The library: the default mosaic, grouped by day"
       },
       "02-album": {
-        "shows": "The Autumn walks album, made through Collections → New album and filled from the viewer"
+        "shows": "An album, made through Collections → New album and filled from the viewer's Add to"
       },
       "03-viewer": {
         "shows": "One photo full screen in the viewer, with its date and actions"

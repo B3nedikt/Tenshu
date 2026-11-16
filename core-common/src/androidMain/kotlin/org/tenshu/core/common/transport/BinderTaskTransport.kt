@@ -28,6 +28,7 @@ import org.tenshu.core.common.app.LaunchTicketInbox
 import org.tenshu.core.common.util.toBinaryCacheKey
 import org.tenshu.files.util.ParcelFileDescriptorCache
 import org.tenshu.files.util.SharedMemoryCache
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Run a Binder transaction, translating a **remote-side death** into the same
@@ -81,24 +82,36 @@ internal inline fun <T> asNotConnected(block: () -> T): T =
  * failed before the bind landed.
  *
  * ⚠ A first connect nobody was turned away from stays silent: there is nothing to replay and
- * nobody waiting. ⚠ `@Volatile`: written on the Binder main-thread callbacks and from IPC coroutines.
+ * nobody waiting.
+ *
+ * ⚠⚠ Atomic, not `@Volatile`: [landed] runs on main in `onServiceConnected` while [turnedAway] arrives
+ * from IPC coroutines (`awaitConnected`), `Dispatchers.IO` (`refusedByControl`) and [bind]'s callers.
+ * A read-then-clear erased a `turnedAway()` landing between the two, and that caller's parked retry
+ * was never announced to — the R7 dead observer again. [landed] is one `getAndSet`, so a concurrent
+ * debt is either paid by this landing or kept for the next. `ReconnectEdgeTest` forces the window.
  */
 internal class ReconnectEdge {
-    @Volatile
-    private var owed = false
+    private val owed = AtomicBoolean(false)
 
     fun lost() {
-        owed = true
+        owed.set(true)
     }
 
     fun turnedAway() {
-        owed = true
+        owed.set(true)
     }
+
+    /**
+     * Test seam: runs inside [landed], right after it takes the debt — the window a concurrent
+     * [turnedAway] must not be lost in. `null` in production. Set and read on the landing thread
+     * only, so it needs no `@Volatile`.
+     */
+    internal var afterRead: (() -> Unit)? = null
 
     /** The connection landed. True when it must be announced; the debt is then paid. */
     fun landed(): Boolean {
-        val announce = owed
-        owed = false
+        val announce = owed.getAndSet(false)
+        afterRead?.invoke()
         return announce
     }
 }
@@ -138,13 +151,25 @@ class BinderTaskTransport internal constructor(
         FirstPartySigning.isFirstParty(context.packageManager, CONTROL_PACKAGE, context.packageName)
     }
 
+    /**
+     * `@Volatile`: written on the Binder main-thread callbacks (and [refusedByControl] on IO), read by
+     * every IPC call from a coroutine on another thread. Without it a call could run against a
+     * stale binder, or read `null` after the connection landed.
+     */
+    @Volatile
     private var proxyService: IProxyInterface? = null
 
     /**
      * ⚠ The custom setter is load-bearing: this is assigned from five places (connect, disconnect,
      * binding-died, null-binding, unbind) and the R4 notification has to cover all of them, so it
      * hangs off the write rather than off each call site.
+     *
+     * ⚠ `@Volatile`, and load-bearing for R7 too: [awaitConnected] reads it, records a
+     * `turnedAway()`, then reads it **again** for its answer, while `onServiceConnected` writes it
+     * *before* [ReconnectEdge.landed]. With both ordered, a caller either sees the connection or is
+     * owed its announcement — never told "not connected" by a landing that already paid out.
      */
+    @Volatile
     override var isConnected: Boolean = false
         private set(value) {
             val changed = field != value

@@ -83,8 +83,12 @@
 //     traffic; application logs without IPs, e-mail at most as its domain, accounts as a short id
 //     prefix, docker json-file 50m × 5 per service. Effective once deployed: hence "with our
 //     standard configuration".
-//   - backups: deploy/scaleway-{relay,commerce}-backups, 30-day lifecycle applied out of band by
-//     set-lifecycle.py (hence "with our standard configuration")
+//   - hosting: OVHcloud GRA11 / bucket region GRA (Gravelines, France) since 2026-11-12
+//     (docs/how-to/move-to-ovh.md "As run"); Scaleway keeps TEM and, until the teardown there, the
+//     powered-off pre-move boxes' volumes and buckets — hence the "before the move" sentence
+//   - backups: deploy/ovh-project, 30-day expiry by the bucket lifecycle rule
+//     (ovh_cloud_project_storage_object_bucket_lifecycle_configuration.backups; hence "with our
+//     standard configuration"). ⚠ The blob mirror has no expiry and no pruning (MIRROR_PRUNE off)
 //   - device egress: PlaceGeocodingEgress (opt-in) → Photon; Android's Geocoder (Google);
 //     iOS CLGeocoder (Apple, IosReverseGeocoder / EpcTimelineClient); KtorIcsSubscriptionFetcher;
 //     ios-apple-maps-option.md; tiles/models on Cloudflare R2
@@ -139,7 +143,7 @@
 import type { LegalPage } from './imprint.ts'
 
 /** The date this version took effect, ISO. Shown at the top of every language. */
-export const PRIVACY_POLICY_DATE = '2026-11-05'
+export const PRIVACY_POLICY_DATE = '2026-11-16'
 
 const PRIVACY_MAIL = '<a href="mailto:privacy@tenshu.app">privacy@tenshu.app</a>'
 export const SUPPORT_MAIL = '<a href="mailto:support@tenshu.app">support@tenshu.app</a>'
@@ -154,7 +158,7 @@ const de: LegalPage = {
   description: 'Wie Tenshu mit deinen Daten umgeht: was wir verarbeiten, was wir wegen der Ende-zu-Ende-Verschlüsselung nicht lesen können, und deine Rechte.',
   reviewed: true,
   html: [
-    `<p><strong>Stand: 5. November 2026</strong> (Version ${PRIVACY_POLICY_DATE})</p>`,
+    `<p><strong>Stand: 16. November 2026</strong> (Version ${PRIVACY_POLICY_DATE})</p>`,
     '<p>Diese Erklärung gilt für die Tenshu-Apps (Control, Drive, Photos, Fit, Timeline, Maps, Calendar, Contacts, Home, Mia) auf Android, iOS, macOS, Windows, Linux und im Browser, für die Website tenshu.app und für die Server, mit denen diese Apps arbeiten. Wir schreiben sie so konkret wie möglich.</p>',
 
     '<h2 id="summary">Das Wichtigste in Kürze</h2>',
@@ -176,7 +180,7 @@ const de: LegalPage = {
     '<p>Ende-zu-Ende-Verschlüsselung schützt die Inhalte, nicht jede Begleitinformation. Was der Server trotzdem sieht, zählen wir in den folgenden Abschnitten einzeln auf.</p>',
 
     '<h2 id="website">Website</h2>',
-    '<p>Die Website tenshu.app und die Web-App, die unter derselben Adresse läuft, liegen auf unserem eigenen Server bei Scaleway in Paris (Frankreich). Bei jedem Aufruf verarbeitet der Webserver technisch notwendige Daten, um die Seite auszuliefern: deine IP-Adresse, Datum und Uhrzeit, die aufgerufene Adresse sowie die Angaben, die dein Browser mitschickt. Rechtsgrundlage ist unser berechtigtes Interesse an einer sicheren, funktionierenden Website (Art. 6 Abs. 1 lit. f DSGVO).</p>',
+    '<p>Die Website tenshu.app und die Web-App, die unter derselben Adresse läuft, liegen auf unserem eigenen Server bei OVHcloud in Gravelines (Frankreich). Bei jedem Aufruf verarbeitet der Webserver technisch notwendige Daten, um die Seite auszuliefern: deine IP-Adresse, Datum und Uhrzeit, die aufgerufene Adresse sowie die Angaben, die dein Browser mitschickt. Rechtsgrundlage ist unser berechtigtes Interesse an einer sicheren, funktionierenden Website (Art. 6 Abs. 1 lit. f DSGVO).</p>',
     '<p><strong>Protokolle.</strong> Unsere Server führen technische Protokolle, um den Dienst zu betreiben und abzusichern. Sie enthalten nicht deine E-Mail-Adresse (höchstens deren Domain), keine Bestätigungscodes, keine Tokens, nicht den Abfrageteil von Webadressen und keine Browser- oder Gerätekennungen wie den User-Agent; Konten erscheinen nur als kurzer Anfang einer zufälligen Kennung. Unsere Webserver führen zwei Protokolle: ein Zugriffsprotokoll der Anfragen und ein Fehlerprotokoll fehlgeschlagener Anfragen. Beide speichern deine IP-Adresse nur auf ihr Netz gekürzt (bei IPv4 fällt der letzte Teil weg, bei IPv6 bleiben nur die ersten 48 Bit), und beide werden auf Servern, die laufend Anfragen erhalten, höchstens etwa eine Woche aufbewahrt (normalerweise 5 bis 6 Tage). Anwendungsprotokolle enthalten keine IP-Adressen und werden innerhalb einer festen Größengrenze aufbewahrt (5 Dateien zu je 50 MB pro Dienst), was bei normalem Aufkommen einige Tage abdeckt. Fehlermeldungen von Softwarekomponenten können gelegentlich technische Kennungen enthalten. All das gilt mit unserer Standardkonfiguration. Wir werten die Protokolle nicht für Statistiken aus und führen sie nicht mit anderen Daten zusammen.</p>',
     '<p>Die Website setzt <strong>keine Cookies</strong>, nutzt keine Analyse- oder Tracking-Dienste und lädt keine Schriften oder Skripte von fremden Servern. Bildschirmfotos der Apps lädt sie von assets.tenshu.app; diese Adresse wird von Cloudflare betrieben (siehe „Empfänger“), das dabei deine IP-Adresse verarbeitet. Lädst du eine Android-App von der Website herunter, kommt die Datei ebenfalls von Cloudflare, das dabei deine IP-Adresse und die angeforderte Datei verarbeitet. Links zu GitHub oder LinkedIn sind gewöhnliche Links: Erst wenn du sie anklickst, verbindet sich dein Browser mit diesen Diensten.</p>',
     '<p>Die Web-App (Control und Drive im Browser) verbindet sich direkt mit unserem Relay und unserem Konto-Server; für sie gilt alles, was unten zu Konto und Synchronisation steht.</p>',
@@ -206,7 +210,7 @@ const de: LegalPage = {
     '<p>Weil dein Konto mit der Kennung deines Datenbestands verknüpft ist, können wir einer E-Mail-Adresse zuordnen, wie viel verschlüsselter Speicher zu ihr gehört, wie viele Geräte daran beteiligt sind und wann synchronisiert wird. Den Inhalt sehen wir weiterhin nicht. Konto-Server und Relay sind getrennte Dienste mit getrennten Datenbanken.</p>',
 
     '<h2 id="sync">Synchronisation über das Relay</h2>',
-    '<p>Das Relay läuft auf unseren Servern bei Scaleway in Paris (Frankreich); verschlüsselte Dateiinhalte liegen im Objektspeicher von Scaleway in derselben Region. Es verarbeitet:</p>',
+    '<p>Das Relay läuft auf unseren Servern bei OVHcloud in Gravelines (Frankreich); verschlüsselte Dateiinhalte liegen im Objektspeicher von OVHcloud in derselben Region. Es verarbeitet:</p>',
     '<ul>',
     '<li><strong>Verschlüsselte Inhalte</strong>, die wir nicht lesen können: Dateien und ihre Namen, Ordner, Fotos und Alben, Termine, Kontakte, Gesundheits- und Trainingsdaten, Standortverläufe, Einstellungen, außerdem eine verschlüsselte Sicherung für die Wiederherstellung, die nur mit deiner Wiederherstellungsphrase zu öffnen ist.</li>',
     '<li><strong>Kennungen:</strong> eine zufällige Kennung deines Datenbestands, die Kennungen und öffentlichen Schlüssel deiner Geräte und einen öffentlichen Schlüssel deines Datenbestands. Diese Kennungen erzeugt Tenshu selbst; es sind keine Hardware- oder Werbekennungen.</li>',
@@ -260,7 +264,8 @@ const de: LegalPage = {
     '<h2 id="recipients">Empfänger und Auftragsverarbeiter</h2>',
     '<p>Wir geben personenbezogene Daten nur an die folgenden Stellen weiter:</p>',
     '<ul>',
-    '<li><strong>Scaleway SAS</strong> (Paris, Frankreich) – Server, Datenbanken, Objektspeicher und Sicherungskopien für Relay, Konto-Server und Website, sowie der Versand der Anmeldecodes. Auftragsverarbeiter; alle Daten liegen in der Region Paris.</li>',
+    '<li><strong>OVH SAS</strong> (Roubaix, Frankreich) – Server, Datenbanken, Objektspeicher und Sicherungskopien für Relay, Konto-Server und Website. Auftragsverarbeiter; alle Daten liegen im Rechenzentrum Gravelines (Frankreich).</li>',
+    '<li><strong>Scaleway SAS</strong> (Paris, Frankreich) – Versand der Anmeldecodes. Auftragsverarbeiter. Bis November 2026 lagen Relay, Konto-Server und Website bei Scaleway in Paris; die Daten aus der Zeit vor dem Umzug (verschlüsselte Inhalte, Datenbanken und Sicherungskopien) liegen dort noch, bis wir sie nach dem Umzug löschen.</li>',
     '<li><strong>Cloudflare, Inc.</strong> (San Francisco, USA) – Namensauflösung (DNS) für tenshu.app, Annahme und Weiterleitung eingehender E-Mails sowie Speicher und Auslieferung von Bildschirmfotos, Kartenmaterial, Modelldateien und der Android-Apps, die du von unserer Website herunterlädst. Auftragsverarbeiter. Die Website und unsere Server selbst laufen nicht über Cloudflare.</li>',
     '<li><strong>Unser E-Mail-Anbieter</strong> – das Postfach, in dem wir E-Mails an uns lesen und beantworten. Auftragsverarbeiter.</li>',
     '<li><strong>Stripe</strong> (Stripe Payments Europe, Ltd., Dublin, Irland, mit Stripe, Inc., USA) – Zahlungen über Stripe, wie oben beschrieben; teils Auftragsverarbeiter, teils eigener Verantwortlicher.</li>',
@@ -271,7 +276,7 @@ const de: LegalPage = {
     '<p>Über Anbieter, die dein Gerät auf deinen Wunsch direkt anspricht, siehe „Direkte Verbindungen deines Geräts zu Dritten“.</p>',
 
     '<h2 id="transfers">Übermittlung in Drittländer</h2>',
-    '<p>Server, Datenbanken und Sicherungen liegen in der EU (Paris). In die USA können Daten gelangen, wenn Cloudflare, Stripe, Google oder Apple sie verarbeiten. Diese Unternehmen sind nach unserem Kenntnisstand unter dem EU-US Data Privacy Framework zertifiziert, auf dessen Grundlage die EU-Kommission ein angemessenes Datenschutzniveau festgestellt hat (Art. 45 DSGVO); ergänzend schließen ihre Verträge die Standardvertragsklauseln der EU-Kommission ein (Art. 46 Abs. 2 lit. c DSGVO). Herausgeber abonnierter Kalender können überall auf der Welt sitzen; diese Verbindung baut dein Gerät auf deinen Wunsch auf.</p>',
+    '<p>Server, Datenbanken und Sicherungen liegen in der EU (Frankreich). In die USA können Daten gelangen, wenn Cloudflare, Stripe, Google oder Apple sie verarbeiten. Diese Unternehmen sind nach unserem Kenntnisstand unter dem EU-US Data Privacy Framework zertifiziert, auf dessen Grundlage die EU-Kommission ein angemessenes Datenschutzniveau festgestellt hat (Art. 45 DSGVO); ergänzend schließen ihre Verträge die Standardvertragsklauseln der EU-Kommission ein (Art. 46 Abs. 2 lit. c DSGVO). Herausgeber abonnierter Kalender können überall auf der Welt sitzen; diese Verbindung baut dein Gerät auf deinen Wunsch auf.</p>',
 
     '<h2 id="retention">Speicherdauer</h2>',
     '<ul>',
@@ -286,7 +291,7 @@ const de: LegalPage = {
     '<li><strong>Freigabe-Links:</strong> bis 30 Tage nach Ablauf oder Widerruf. Ein Link ohne Ablaufdatum bleibt, bis du ihn widerrufst. <strong>Einladungen:</strong> bis 72 Stunden nach der Antwort oder bis zum Ablauf. <strong>Freigaben gemeinsamer Ordner:</strong> höchstens 30 Tage. <strong>Kopplungsnachrichten:</strong> Die Anfrage eines neuen Geräts wird höchstens sieben Minuten lang ausgeliefert, die Antwort darauf, bis das neue Gerät ihren Empfang bestätigt. Beide liegen nur im Arbeitsspeicher und sind spätestens nach dem nächsten Neustart des Servers gelöscht, meist viel früher. Bei den anderen Kopplungswegen löscht der Server die Nachrichten nach höchstens 26 Stunden; so lange bleibt auch der Vermerk, dass eine Kopplung schon verwendet wurde.</li>',
     '<li><strong>Entfernte Freigabe-Links:</strong> Entfernen wir einen Freigabe-Link nach einer Meldung, bewahren wir einen Vermerk darüber auf: die Kennung des Links, die Kennung deines Datenbestands, den Zeitpunkt, den Grund und unsere Notiz zum Vorgang – keine Inhalte. Der Vermerk bleibt auch nach der Schließung deines Kontos erhalten und wird drei Jahre nach der Entfernung gelöscht. Die Kennung des Links bleibt danach gesperrt, damit der Link nicht erneut veröffentlicht werden kann.</li>',
     '<li><strong>Sicherungskopien</strong> der Datenbanken: mit unserer Standardkonfiguration 30 Tage, dann automatisch gelöscht.</li>',
-    '<li><strong>Sicherungskopie der verschlüsselten Inhalte:</strong> Um Inhalte vor versehentlichem Verlust zu schützen, kopieren wir die verschlüsselten Dateiinhalte wöchentlich in einen zweiten Speicher bei Scaleway. <strong>Aus dieser Kopie wird derzeit nichts gelöscht</strong>: Was einmal dort liegt, bleibt dort auf unbestimmte Zeit, auch wenn du die Datei löschst oder dein Konto geschlossen wird. Wie alles auf unseren Servern ist diese Kopie verschlüsselt und für uns nicht lesbar. Das Löschen aus dieser Kopie ist vorbereitet, aber noch nicht eingeschaltet; wir passen diese Erklärung an, sobald es gilt.</li>',
+    '<li><strong>Sicherungskopie der verschlüsselten Inhalte:</strong> Um Inhalte vor versehentlichem Verlust zu schützen, kopieren wir die verschlüsselten Dateiinhalte wöchentlich in einen zweiten Speicher bei OVHcloud. <strong>Aus dieser Kopie wird derzeit nichts gelöscht</strong>: Was einmal dort liegt, bleibt dort auf unbestimmte Zeit, auch wenn du die Datei löschst oder dein Konto geschlossen wird. Wie alles auf unseren Servern ist diese Kopie verschlüsselt und für uns nicht lesbar. Das Löschen aus dieser Kopie ist vorbereitet, aber noch nicht eingeschaltet; wir passen diese Erklärung an, sobald es gilt.</li>',
     '<li><strong>Support-Nachrichten:</strong> bis das Anliegen erledigt ist, länger nur, soweit eine gesetzliche Aufbewahrungspflicht besteht (etwa sechs Jahre für Handelsbriefe).</li>',
     '</ul>',
     '<h3>Konto schließen</h3>',
@@ -329,7 +334,7 @@ const en: LegalPage = {
   translationNotice: 'This is a translation; the German version is legally binding.',
   reviewed: false,
   html: [
-    `<p><strong>Effective: 5 November 2026</strong> (version ${PRIVACY_POLICY_DATE})</p>`,
+    `<p><strong>Effective: 16 November 2026</strong> (version ${PRIVACY_POLICY_DATE})</p>`,
     '<p>This policy covers the Tenshu apps (Control, Drive, Photos, Fit, Timeline, Maps, Calendar, Contacts, Home, Mia) on Android, iOS, macOS, Windows, Linux and in the browser, the website tenshu.app, and the servers those apps work with. We have tried to be as specific as possible.</p>',
 
     '<h2 id="summary">The short version</h2>',
@@ -351,7 +356,7 @@ const en: LegalPage = {
     '<p>End-to-end encryption protects the content, not every piece of information around it. We list what the server does see in the sections below.</p>',
 
     '<h2 id="website">Website</h2>',
-    '<p>The website tenshu.app and the web app, which runs at the same address, are hosted on our own server at Scaleway in Paris (France). On every visit the web server processes technically necessary data in order to deliver the page: your IP address, date and time, the address requested, and the information your browser sends. The legal basis is our legitimate interest in a secure, working website (Art. 6(1)(f) GDPR).</p>',
+    '<p>The website tenshu.app and the web app, which runs at the same address, are hosted on our own server at OVHcloud in Gravelines (France). On every visit the web server processes technically necessary data in order to deliver the page: your IP address, date and time, the address requested, and the information your browser sends. The legal basis is our legitimate interest in a secure, working website (Art. 6(1)(f) GDPR).</p>',
     '<p><strong>Logs.</strong> Our servers keep technical logs to operate and secure the service. They do not contain your email address (at most its domain), verification codes, tokens, the query part of web addresses, or browser or device identifiers such as the User-Agent; accounts appear only as a short prefix of a random identifier. Our web servers keep two logs: an access log of requests and an error log of failed requests. Both record your IP address shortened to its network (for IPv4 the last part is removed; for IPv6 only the first 48 bits are kept), and both are kept for at most about a week (normally 5–6 days) on servers that keep receiving traffic. Application logs contain no IP addresses and are kept within a fixed size limit (5 files of 50 MB per service), which at normal traffic covers a few days. Error messages from software components can occasionally contain technical identifiers. All of this applies with our standard configuration. We do not use the logs for statistics and do not combine them with other data.</p>',
     '<p>The website sets <strong>no cookies</strong>, uses no analytics or tracking services, and loads no fonts or scripts from other servers. It loads app screenshots from assets.tenshu.app; that address is operated by Cloudflare (see “Recipients”), which processes your IP address when it serves them. If you download an Android app from the website, the file also comes from Cloudflare, which processes your IP address and the file requested. Links to GitHub or LinkedIn are ordinary links: your browser connects to those services only if you click them.</p>',
     '<p>The web app (Control and Drive in the browser) connects directly to our relay and our account server; everything below about accounts and sync applies to it.</p>',
@@ -381,7 +386,7 @@ const en: LegalPage = {
     '<p>Because your account is linked to the identifier of your data store, we can tell for an email address how much encrypted storage belongs to it, how many devices take part and when they sync. We still cannot see the content. The account server and the relay are separate services with separate databases.</p>',
 
     '<h2 id="sync">Sync through the relay</h2>',
-    '<p>The relay runs on our servers at Scaleway in Paris (France); encrypted file content is kept in Scaleway’s object storage in the same region. It processes:</p>',
+    '<p>The relay runs on our servers at OVHcloud in Gravelines (France); encrypted file content is kept in OVHcloud’s object storage in the same region. It processes:</p>',
     '<ul>',
     '<li><strong>Encrypted content</strong> we cannot read: files and their names, folders, photos and albums, events, contacts, health and workout data, location history, settings, and an encrypted recovery backup that only your recovery phrase can open.</li>',
     '<li><strong>Identifiers:</strong> a random identifier for your data store, the identifiers and public keys of your devices, and a public key of your data store. Tenshu creates these identifiers itself; they are not hardware or advertising identifiers.</li>',
@@ -435,7 +440,8 @@ const en: LegalPage = {
     '<h2 id="recipients">Recipients and processors</h2>',
     '<p>We pass personal data only to the following:</p>',
     '<ul>',
-    '<li><strong>Scaleway SAS</strong> (Paris, France) – servers, databases, object storage and backups for the relay, the account server and the website, and delivery of sign-in codes. Processor; all data stays in the Paris region.</li>',
+    '<li><strong>OVH SAS</strong> (Roubaix, France) – servers, databases, object storage and backups for the relay, the account server and the website. Processor; all data stays in the Gravelines data centre (France).</li>',
+    '<li><strong>Scaleway SAS</strong> (Paris, France) – delivery of sign-in codes. Processor. Until November 2026 the relay, the account server and the website ran at Scaleway in Paris; the data from before the move (encrypted content, databases and backups) remains there until we delete it after the move.</li>',
     '<li><strong>Cloudflare, Inc.</strong> (San Francisco, USA) – name resolution (DNS) for tenshu.app, receiving and forwarding incoming email, and storing and delivering screenshots, map data, model files and the Android apps you download from our website. Processor. The website and our servers themselves do not run through Cloudflare.</li>',
     '<li><strong>Our email provider</strong> – the mailbox in which we read and answer email sent to us. Processor.</li>',
     '<li><strong>Stripe</strong> (Stripe Payments Europe, Ltd., Dublin, Ireland, with Stripe, Inc., USA) – payments through Stripe, as described above; partly processor, partly controller in its own right.</li>',
@@ -446,7 +452,7 @@ const en: LegalPage = {
     '<p>For providers your device contacts directly at your request, see “Direct connections from your device to third parties”.</p>',
 
     '<h2 id="transfers">Transfers to third countries</h2>',
-    '<p>Servers, databases and backups are in the EU (Paris). Data may reach the USA when Cloudflare, Stripe, Google or Apple process it. To our knowledge these companies are certified under the EU-US Data Privacy Framework, for which the European Commission has found an adequate level of protection (Art. 45 GDPR); in addition, their contracts include the Commission’s standard contractual clauses (Art. 46(2)(c) GDPR). Publishers of subscribed calendars may be anywhere in the world; your device makes that connection at your request.</p>',
+    '<p>Servers, databases and backups are in the EU (France). Data may reach the USA when Cloudflare, Stripe, Google or Apple process it. To our knowledge these companies are certified under the EU-US Data Privacy Framework, for which the European Commission has found an adequate level of protection (Art. 45 GDPR); in addition, their contracts include the Commission’s standard contractual clauses (Art. 46(2)(c) GDPR). Publishers of subscribed calendars may be anywhere in the world; your device makes that connection at your request.</p>',
 
     '<h2 id="retention">How long we keep data</h2>',
     '<ul>',
@@ -461,7 +467,7 @@ const en: LegalPage = {
     '<li><strong>Share links:</strong> until 30 days after they expire or are revoked. A link with no expiry date stays until you revoke it. <strong>Invitations:</strong> until 72 hours after the answer, or until they expire. <strong>Shared-folder access grants:</strong> at most 30 days. <strong>Pairing messages:</strong> a new device’s request is served for at most seven minutes, and the reply to it until the new device confirms receipt. Both are held in memory only and are gone at the latest after the server’s next restart, usually much sooner. For the other ways of pairing, the server deletes the messages after 26 hours at most; the marker that a pairing has already been used is kept for as long.</li>',
     '<li><strong>Removed share links:</strong> when we remove a share link after a report, we keep a record of it: the link’s identifier, your data store’s identifier, the time, the reason and our note on the case – no content. The record survives the closure of your account and is deleted three years after the removal. The link’s identifier stays blocked afterwards, so that the link cannot be published again.</li>',
     '<li><strong>Database backups:</strong> with our standard configuration, 30 days, then deleted automatically.</li>',
-    '<li><strong>Backup copy of encrypted content:</strong> to protect content against accidental loss, we copy the encrypted file content weekly to a second store at Scaleway. <strong>Nothing is currently deleted from this copy</strong>: whatever is there stays there indefinitely, even after you delete the file or your account is closed. Like everything on our servers, this copy is encrypted and unreadable to us. Deletion from this copy has been prepared but is not switched on yet; we will update this policy once it applies.</li>',
+    '<li><strong>Backup copy of encrypted content:</strong> to protect content against accidental loss, we copy the encrypted file content weekly to a second store at OVHcloud. <strong>Nothing is currently deleted from this copy</strong>: whatever is there stays there indefinitely, even after you delete the file or your account is closed. Like everything on our servers, this copy is encrypted and unreadable to us. Deletion from this copy has been prepared but is not switched on yet; we will update this policy once it applies.</li>',
     '<li><strong>Support messages:</strong> until the matter is resolved; longer only where a statutory retention duty applies (for example six years for commercial correspondence).</li>',
     '</ul>',
     '<h3>Closing your account</h3>',
@@ -504,7 +510,7 @@ const fr: LegalPage = {
   translationNotice: 'Ceci est une traduction ; seule la version allemande fait foi.',
   reviewed: false,
   html: [
-    `<p><strong>En vigueur : 5 novembre 2026</strong> (version ${PRIVACY_POLICY_DATE})</p>`,
+    `<p><strong>En vigueur : 16 novembre 2026</strong> (version ${PRIVACY_POLICY_DATE})</p>`,
     '<p>Cette politique couvre les applications Tenshu (Control, Drive, Photos, Fit, Timeline, Maps, Calendar, Contacts, Home, Mia) sur Android, iOS, macOS, Windows, Linux et dans le navigateur, le site tenshu.app et les serveurs avec lesquels ces applications fonctionnent. Nous l’avons voulue aussi précise que possible.</p>',
 
     '<h2 id="summary">L’essentiel</h2>',
@@ -526,7 +532,7 @@ const fr: LegalPage = {
     '<p>Le chiffrement de bout en bout protège les contenus, pas chaque information qui les entoure. Nous détaillons ci-dessous ce que le serveur voit malgré tout.</p>',
 
     '<h2 id="website">Site web</h2>',
-    '<p>Le site tenshu.app et l’application web, qui fonctionne à la même adresse, sont hébergés sur notre propre serveur chez Scaleway à Paris (France). À chaque visite, le serveur web traite des données techniquement nécessaires pour fournir la page : votre adresse IP, la date et l’heure, l’adresse demandée et les informations envoyées par votre navigateur. La base juridique est notre intérêt légitime à un site sûr et fonctionnel (art. 6, par. 1, point f) RGPD).</p>',
+    '<p>Le site tenshu.app et l’application web, qui fonctionne à la même adresse, sont hébergés sur notre propre serveur chez OVHcloud à Gravelines (France). À chaque visite, le serveur web traite des données techniquement nécessaires pour fournir la page : votre adresse IP, la date et l’heure, l’adresse demandée et les informations envoyées par votre navigateur. La base juridique est notre intérêt légitime à un site sûr et fonctionnel (art. 6, par. 1, point f) RGPD).</p>',
     '<p><strong>Journaux.</strong> Nos serveurs tiennent des journaux techniques pour exploiter et sécuriser le service. Ils ne contiennent ni votre adresse e-mail (tout au plus son domaine), ni codes de vérification, ni jetons, ni la partie requête des adresses web, ni identifiants de navigateur ou d’appareil comme le User-Agent ; les comptes n’y apparaissent que sous la forme d’un court préfixe d’un identifiant aléatoire. Nos serveurs web tiennent deux journaux : un journal d’accès des requêtes et un journal d’erreurs des requêtes ayant échoué. Tous deux enregistrent votre adresse IP réduite à son réseau (en IPv4, la dernière partie est supprimée ; en IPv6, seuls les 48 premiers bits sont conservés), et tous deux sont conservés au plus une semaine environ (normalement 5 à 6 jours) sur les serveurs qui reçoivent du trafic en continu. Les journaux applicatifs ne contiennent aucune adresse IP et sont conservés dans une limite de taille fixe (5 fichiers de 50 Mo par service), ce qui couvre quelques jours en trafic normal. Les messages d’erreur de composants logiciels peuvent occasionnellement contenir des identifiants techniques. Tout cela vaut avec notre configuration standard. Nous n’utilisons pas ces journaux à des fins statistiques et ne les croisons avec aucune autre donnée.</p>',
     '<p>Le site ne dépose <strong>aucun cookie</strong>, n’utilise aucun service d’analyse ou de pistage et ne charge ni polices ni scripts depuis d’autres serveurs. Il charge les captures d’écran des applications depuis assets.tenshu.app ; cette adresse est exploitée par Cloudflare (voir « Destinataires »), qui traite alors votre adresse IP. Si vous téléchargez une application Android depuis le site, le fichier provient lui aussi de Cloudflare, qui traite alors votre adresse IP et le fichier demandé. Les liens vers GitHub ou LinkedIn sont de simples liens : votre navigateur ne se connecte à ces services que si vous cliquez dessus.</p>',
     '<p>L’application web (Control et Drive dans le navigateur) se connecte directement à notre relais et à notre serveur de comptes ; tout ce qui suit sur le compte et la synchronisation s’y applique.</p>',
@@ -556,7 +562,7 @@ const fr: LegalPage = {
     '<p>Votre compte étant lié à l’identifiant de votre espace de données, nous pouvons associer à une adresse e-mail le volume de stockage chiffré qui lui revient, le nombre d’appareils concernés et les moments de synchronisation. Nous ne voyons toujours pas le contenu. Le serveur de comptes et le relais sont des services distincts, avec des bases de données distinctes.</p>',
 
     '<h2 id="sync">Synchronisation via le relais</h2>',
-    '<p>Le relais fonctionne sur nos serveurs chez Scaleway à Paris (France) ; les contenus de fichiers chiffrés sont conservés dans le stockage objet de Scaleway dans la même région. Il traite :</p>',
+    '<p>Le relais fonctionne sur nos serveurs chez OVHcloud à Gravelines (France) ; les contenus de fichiers chiffrés sont conservés dans le stockage objet d’OVHcloud dans la même région. Il traite :</p>',
     '<ul>',
     '<li><strong>Des contenus chiffrés</strong> que nous ne pouvons pas lire : fichiers et leurs noms, dossiers, photos et albums, événements, contacts, données de santé et d’entraînement, historiques de localisation, réglages, ainsi qu’une sauvegarde de récupération chiffrée que seule votre phrase de récupération permet d’ouvrir.</li>',
     '<li><strong>Des identifiants :</strong> un identifiant aléatoire de votre espace de données, les identifiants et clés publiques de vos appareils, et une clé publique de votre espace de données. Tenshu crée lui-même ces identifiants ; ce ne sont ni des identifiants matériels ni des identifiants publicitaires.</li>',
@@ -610,7 +616,8 @@ const fr: LegalPage = {
     '<h2 id="recipients">Destinataires et sous-traitants</h2>',
     '<p>Nous ne communiquons des données personnelles qu’aux destinataires suivants :</p>',
     '<ul>',
-    '<li><strong>Scaleway SAS</strong> (Paris, France) – serveurs, bases de données, stockage objet et sauvegardes pour le relais, le serveur de comptes et le site, ainsi que l’envoi des codes de connexion. Sous-traitant ; toutes les données restent dans la région de Paris.</li>',
+    '<li><strong>OVH SAS</strong> (Roubaix, France) – serveurs, bases de données, stockage objet et sauvegardes pour le relais, le serveur de comptes et le site. Sous-traitant ; toutes les données restent dans le centre de données de Gravelines (France).</li>',
+    '<li><strong>Scaleway SAS</strong> (Paris, France) – envoi des codes de connexion. Sous-traitant. Jusqu’en novembre 2026, le relais, le serveur de comptes et le site fonctionnaient chez Scaleway à Paris ; les données antérieures au déménagement (contenus chiffrés, bases de données et sauvegardes) y restent jusqu’à ce que nous les supprimions après le déménagement.</li>',
     '<li><strong>Cloudflare, Inc.</strong> (San Francisco, États-Unis) – résolution de noms (DNS) pour tenshu.app, réception et transfert des e-mails entrants, stockage et diffusion des captures d’écran, des données cartographiques, des fichiers de modèles et des applications Android que vous téléchargez depuis notre site. Sous-traitant. Le site et nos serveurs eux-mêmes ne passent pas par Cloudflare.</li>',
     '<li><strong>Notre fournisseur de messagerie</strong> – la boîte aux lettres dans laquelle nous lisons les e-mails qui nous sont adressés et y répondons. Sous-traitant.</li>',
     '<li><strong>Stripe</strong> (Stripe Payments Europe, Ltd., Dublin, Irlande, avec Stripe, Inc., États-Unis) – paiements via Stripe, comme décrit plus haut ; en partie sous-traitant, en partie responsable de traitement à part entière.</li>',
@@ -621,7 +628,7 @@ const fr: LegalPage = {
     '<p>Pour les prestataires que votre appareil contacte directement à votre demande, voir « Connexions directes de votre appareil vers des tiers ».</p>',
 
     '<h2 id="transfers">Transferts vers des pays tiers</h2>',
-    '<p>Les serveurs, bases de données et sauvegardes se trouvent dans l’UE (Paris). Des données peuvent parvenir aux États-Unis lorsque Cloudflare, Stripe, Google ou Apple les traitent. À notre connaissance, ces entreprises sont certifiées au titre du cadre de protection des données UE–États-Unis (Data Privacy Framework), pour lequel la Commission européenne a constaté un niveau de protection adéquat (art. 45 RGPD) ; en outre, leurs contrats intègrent les clauses contractuelles types de la Commission (art. 46, par. 2, point c) RGPD). Les éditeurs de calendriers abonnés peuvent se trouver partout dans le monde ; c’est votre appareil qui établit cette connexion, à votre demande.</p>',
+    '<p>Les serveurs, bases de données et sauvegardes se trouvent dans l’UE (France). Des données peuvent parvenir aux États-Unis lorsque Cloudflare, Stripe, Google ou Apple les traitent. À notre connaissance, ces entreprises sont certifiées au titre du cadre de protection des données UE–États-Unis (Data Privacy Framework), pour lequel la Commission européenne a constaté un niveau de protection adéquat (art. 45 RGPD) ; en outre, leurs contrats intègrent les clauses contractuelles types de la Commission (art. 46, par. 2, point c) RGPD). Les éditeurs de calendriers abonnés peuvent se trouver partout dans le monde ; c’est votre appareil qui établit cette connexion, à votre demande.</p>',
 
     '<h2 id="retention">Durées de conservation</h2>',
     '<ul>',
@@ -636,7 +643,7 @@ const fr: LegalPage = {
     '<li><strong>Liens de partage :</strong> jusqu’à 30 jours après leur expiration ou leur révocation. Un lien sans date d’expiration reste jusqu’à ce que vous le révoquiez. <strong>Invitations :</strong> jusqu’à 72 heures après la réponse, ou jusqu’à leur expiration. <strong>Accès aux dossiers partagés :</strong> 30 jours au plus. <strong>Messages d’appairage :</strong> la demande d’un nouvel appareil est servie sept minutes au plus, et la réponse jusqu’à ce que le nouvel appareil en confirme la réception. Toutes deux ne sont conservées qu’en mémoire vive et disparaissent au plus tard au prochain redémarrage du serveur, généralement bien avant. Pour les autres modes d’appairage, le serveur supprime les messages au bout de 26 heures au plus ; la marque indiquant qu’un appairage a déjà été utilisé est conservée aussi longtemps.</li>',
     '<li><strong>Liens de partage retirés :</strong> lorsque nous retirons un lien de partage à la suite d’un signalement, nous conservons une trace de ce retrait : l’identifiant du lien, l’identifiant de votre espace de données, la date, le motif et notre note sur le dossier – aucun contenu. Cette trace survit à la clôture de votre compte et est supprimée trois ans après le retrait. L’identifiant du lien reste ensuite bloqué, afin que le lien ne puisse pas être publié à nouveau.</li>',
     '<li><strong>Sauvegardes des bases de données :</strong> avec notre configuration standard, 30 jours, puis supprimées automatiquement.</li>',
-    '<li><strong>Copie de sauvegarde des contenus chiffrés :</strong> pour protéger les contenus d’une perte accidentelle, nous copions chaque semaine les contenus de fichiers chiffrés vers un second espace chez Scaleway. <strong>Rien n’est actuellement supprimé de cette copie</strong> : ce qui s’y trouve y reste pour une durée indéterminée, même après la suppression du fichier ou la clôture de votre compte. Comme tout ce qui se trouve sur nos serveurs, cette copie est chiffrée et illisible pour nous. La suppression dans cette copie est préparée mais pas encore activée ; nous mettrons cette politique à jour dès qu’elle s’appliquera.</li>',
+    '<li><strong>Copie de sauvegarde des contenus chiffrés :</strong> pour protéger les contenus d’une perte accidentelle, nous copions chaque semaine les contenus de fichiers chiffrés vers un second espace chez OVHcloud. <strong>Rien n’est actuellement supprimé de cette copie</strong> : ce qui s’y trouve y reste pour une durée indéterminée, même après la suppression du fichier ou la clôture de votre compte. Comme tout ce qui se trouve sur nos serveurs, cette copie est chiffrée et illisible pour nous. La suppression dans cette copie est préparée mais pas encore activée ; nous mettrons cette politique à jour dès qu’elle s’appliquera.</li>',
     '<li><strong>Messages d’assistance :</strong> jusqu’au règlement de la demande ; plus longtemps uniquement si une obligation légale de conservation s’applique (par exemple six ans pour la correspondance commerciale).</li>',
     '</ul>',
     '<h3>Clôturer votre compte</h3>',

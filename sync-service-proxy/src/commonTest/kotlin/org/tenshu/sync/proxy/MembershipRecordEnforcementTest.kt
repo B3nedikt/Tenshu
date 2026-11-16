@@ -130,6 +130,30 @@ class MembershipRecordEnforcementTest {
 
     private fun bobRowId() = DataId.StringDataId.create(testProxy.tContext, Member.ID, Member.compositeKey(realmId, bobId))
 
+    /**
+     * T-GR-02 revocation window: the owner's personal copy of a revocation (`MembershipRecord.personalKeyOf`) is a
+     * record like the realm's own — it revokes. ⚠ Revocations only: a capability at a personal key binds to nothing.
+     */
+    @Test
+    fun aPersonalCopyOfARevocation_revokes_butAPersonalCapabilityIsNoRecord() = syncTest {
+        ingest(capability())
+        val sig = crypto.signEd25519(master.privateKey, MembershipRevocation.message(realmId, bob, 0L, 2_000L))
+        testProxy.executionContext.saveData(
+            MembershipRecord.create(
+                testProxy.tContext, realmId, MembershipRecord.Kind.REVOCATION, bobId, bob, 0L, 2_000L, master.publicKey, sig,
+                personal = true,
+            ),
+        )
+        assertTrue(records().isRevoked(realmId, bobId), "the personal copy revokes")
+
+        val capSig = crypto.signEd25519(master.privateKey, MembershipCapability.message(realmId, bob, 0L, 3_000L))
+        val personalCapability = MembershipRecord.create(
+            testProxy.tContext, realmId, MembershipRecord.Kind.CAPABILITY, bobId, bob, 0L, 3_000L, master.publicKey, capSig,
+            personal = true,
+        )
+        assertEquals(null, MembershipRecordVerifier.fromRow(personalCapability), "a capability never binds to a personal key")
+    }
+
     @Test
     fun aValidRecord_isStored() = syncTest {
         ingest(capability())

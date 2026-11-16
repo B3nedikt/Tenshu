@@ -240,6 +240,9 @@ internal class ForgetThisDeviceImplementation(
         return LEFTOVER_ROW
     }
 
+    // ⚠⚠ Every outcome that is not a clean removal contains "⚠" — the web's `Session.clear` reads
+    // exactly that to tell the user "could not confirm" (`tenshu-sdk-js` `Session.kt` `purgeRealm`).
+    // A new warning outcome must keep the mark, or a browser will report a removal that did not happen.
     private companion object {
         /** Long enough for a wake + one relay round trip; short enough that an offline device is
          *  not held hostage, which is the state a user forgetting a device is most likely in. */

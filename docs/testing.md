@@ -197,6 +197,30 @@ followed, so a change to shared code (`:core`, `:core-common`, `:core-client`, `
 quick gate never writes the module-loss ledger (`build/gate-modules.txt`): it runs a subset by
 design, and writing that subset would blind the next full run's comparison.
 
+### 7a.1 The iOS CI lane selects the same way — `scripts/ci/ios-select.py`
+
+macOS runners are what the public CI runs short of: the account gets five macOS jobs at once, and a
+full `ios.yml` run (three test shards, two app halves) is all five. So every push and PR first runs
+a Linux job, `select`, which walks the same graph with `affected_modules.classify` and keeps only:
+
+- the iOS-test modules the change reaches, on one to three shards (one per 16 modules);
+- the apps whose `:tenshu-sdk-ios-<app>` is reached, whose `<app>-ios/` changed, or whose
+  `project.yml` includes a shared Swift folder that changed (`ios-shell/`, `ios-basemap/`, …).
+
+A change that reaches neither takes no macOS runner. It runs **everything** when the build changes
+(the quick gate's rule), when the lane's own files change (`ios.yml`, `scripts/ci/`,
+`ios-smoke.sh`, `ios-build-sdk.sh`), for a file it cannot place, and at 03:17 UTC every night.
+
+⚠⚠ **A PR is compared with its base, a master push with the commit before it.** So a push whose
+run never finished (a runner GitHub never handed out, a cancel) leaves that push's change untested
+until the nightly run, and the next push does not pick it up. Re-run it instead. That is also why
+only PR runs are cancelled when a newer push arrives, never master's. For the same reason a red
+master run is followed by green ones for unrelated pushes: master's latest tick is not master's
+state — the nightly run is.
+
+A full run hands the shards no module list, so each Mac shard takes every module its own graph
+lists — a module the Linux-built graph were ever to miss is still tested there.
+
 ## 7. Keeping a gate run — `scripts/gate-run.sh`
 
 `./gradlew desktopTest jvmTest test` tells you whether *this* run was green and then destroys

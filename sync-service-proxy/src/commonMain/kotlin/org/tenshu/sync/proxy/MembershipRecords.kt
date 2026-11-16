@@ -38,8 +38,23 @@ internal class MembershipRecords(
         )
     }
 
-    /** Record a revocation the owner just signed — the same bytes it posted to `/sync/realm-member/revoke`. */
+    /**
+     * Record a revocation the owner just signed — the same bytes it posted to `/sync/realm-member/revoke`. ⚠⚠ Twice:
+     * first as the owner's personal copy, then as the realm's record. The personal copy is saved before the rotation
+     * that follows, in the same personal stream, so no owner device can hold the new key without it
+     * ([MembershipRecord.personalKeyOf]).
+     */
     fun saveRevocation(revocation: MembershipRevocation, masterPublicKey: ByteArray) {
+        save(
+            realmId = revocation.realmId,
+            kind = MembershipRecord.Kind.REVOCATION,
+            authorityPub = revocation.memberAuthorityPublicKey,
+            epoch = revocation.epoch,
+            at = revocation.revokedAt,
+            masterPublicKey = masterPublicKey,
+            signature = revocation.signature,
+            personal = true,
+        )
         save(
             realmId = revocation.realmId,
             kind = MembershipRecord.Kind.REVOCATION,
@@ -100,6 +115,7 @@ internal class MembershipRecords(
         at: Long,
         masterPublicKey: ByteArray,
         signature: ByteArray,
+        personal: Boolean = false,
     ) {
         executionContext.saveData(
             MembershipRecord.create(
@@ -112,6 +128,7 @@ internal class MembershipRecords(
                 at = at,
                 signerPublicKey = masterPublicKey,
                 signature = signature,
+                personal = personal,
             ),
         )
     }

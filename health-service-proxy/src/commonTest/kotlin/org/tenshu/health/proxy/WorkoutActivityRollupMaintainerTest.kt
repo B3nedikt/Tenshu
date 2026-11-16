@@ -242,25 +242,35 @@ class WorkoutActivityRollupMaintainerTest {
     }
 
     /**
-     * The upgrade path at realistic scale. The backfill runs once at proxy init, so its cost is
-     * paid on the first launch after this ships — on a store holding a full imported history
-     * (~10k workouts is one Health-Connect import). Guards correctness at that size; the elapsed
-     * time is printed rather than asserted, because a wall-clock bound would be flaky in CI.
+     * The upgrade path over a mixed history: every activity type, and every workout's attribution.
+     *
+     * ⚠ Was `backfillOverALargeHistoryStaysCorrect`, 10,000 workouts saved through the **live**
+     * maintainer on a proxy whose init backfill had already run over an empty store — so it never
+     * reached the scan it was named for (the trap [backfillScansAPreRollupStoreAndDerivesEveryCount]
+     * describes). [clearRollups] gives the scan the pre-rollup store. N is not the subject: the
+     * scan reads the whole array once and counts into a map, with no window, page or batch to
+     * cross, so a few workouts per type say what 10,000 would.
      */
     @Test
-    fun backfillOverALargeHistoryStaysCorrect() = runTest {
+    fun backfillOverAMixedHistoryCountsAndAttributesEveryWorkout() = runTest {
         val proxy = createHealthProxy(this)
         val ctx = proxy.executionContext
 
         val types = listOf("Running", "Cycling", "Swimming", "Walking")
-        repeat(10_000) { i -> ctx.saveWorkout("w$i", types[i % types.size]) }
+        val perType = 3
+        val workouts = types.size * perType
+        repeat(workouts) { i -> ctx.saveWorkout("w$i", types[i % types.size]) }
+        ctx.clearRollups(types, workoutIds = List(workouts) { "w$it" })
+        types.forEach { assertNull(ctx.rollupCount(it), "precondition: the store looks pre-rollup") }
 
-        types.forEach { assertEquals(2_500L, ctx.rollupCount(it)) }
+        ctx.backfillWorkoutActivityRollups()
+
+        types.forEach { assertEquals(perType.toLong(), ctx.rollupCount(it), "count for $it") }
 
         // ⚠ The counts being right is not enough: every counted workout must also carry its
         // attribution, or a later re-save of an unattributed one increments a second time.
         // Counts and attributions must not be able to drift apart.
-        repeat(10_000) { i ->
+        repeat(workouts) { i ->
             assertEquals(
                 types[i % types.size],
                 ctx.attributionOf("w$i"),

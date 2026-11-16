@@ -29,20 +29,102 @@ on:
     branches: [ "master" ]
   pull_request:
     branches: [ "master" ]
+  # The full run. Pushes and PRs run only what their change can break (the `select` job), and that
+  # follows the code graph alone — so once a night everything runs, whatever changed.
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+# ⚠⚠ macOS runners are the scarce resource: the account runs at most five macOS jobs at once, and
+# one full run is exactly five. A PR's newer push supersedes its older run, so that one is
+# cancelled. Every other run gets a group of its own (`run_id`): a master push's run tests only
+# what that push changed, and a shared group would cancel it — GitHub keeps one PENDING run per
+# group and drops the older whatever `cancel-in-progress` says.
+concurrency:
+  group: ios-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Nothing here writes through the token: artifacts and caches use the Actions runtime token.
 permissions:
   contents: read
 
 jobs:
+  # What this change can break, decided on a Linux runner so a change that touches no iOS code
+  # takes no macOS runner at all (`scripts/ci/ios-select.py`: the same graph walk as
+  # `run-gate.sh --quick`, plus each app's Swift folders). ⚠ A Linux runner's graph is the same
+  # as a Mac's, iOS tasks included — Kotlin registers the Apple targets' tasks on every host and
+  # only disables them off macOS. The script refuses a graph with none rather than select nothing.
+  select:
+    name: select iOS jobs
+    # The nightly full run belongs to the public repository; the internal one has no macOS budget.
+    if: github.event_name != 'schedule' || github.repository == 'B3nedikt/Tenshu'
+    runs-on: ubuntu-latest
+    outputs:
+      reason: ${{ steps.select.outputs.reason }}
+      test_modules: ${{ steps.select.outputs.test_modules }}
+      shards: ${{ steps.select.outputs.shards }}
+      shard_count: ${{ steps.select.outputs.shard_count }}
+      app_halves: ${{ steps.select.outputs.app_halves }}
+    steps:
+      # Full history (blobs on demand): the change is a diff against an older commit.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      # Configuration resolves the desktop modules' JDK 25 launcher eagerly — the same pin and
+      # registration as the jobs below.
+      - name: Set up JDK 25 + JDK 17
+        uses: actions/setup-java@v5
+        with:
+          java-version: |
+            25
+            17
+          distribution: 'temurin'
+
+      - name: Set up Gradle (dependency cache)
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Register both JDKs with Gradle toolchain detection
+        run: |
+          mkdir -p ~/.gradle
+          echo "org.gradle.java.installations.fromEnv=JAVA_HOME_25_X64,JAVA_HOME_25_ARM64,JAVA_HOME_17_X64,JAVA_HOME_17_ARM64" >> ~/.gradle/gradle.properties
+
+      - name: Test the selector
+        run: python3 scripts/test_ios_select.py
+
+      # ⚠ A master push is compared with the commit before it, a PR with its base. A push whose
+      # `before` is unknown (a new branch, a force-push past it) runs everything.
+      - name: Select
+        id: select
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          BEFORE: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          # ⚠ Or a refusal from ios-select.py vanishes into `tee` and the step is green.
+          set -o pipefail
+          chmod +x gradlew
+          ./gradlew help -q --no-configuration-cache -Ptenshu.projectGraph=build/project-graph.json
+          case "$EVENT" in
+            pull_request) args="$PR_BASE $HEAD_SHA" ;;
+            push) if git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then args="$BEFORE $HEAD_SHA"; else args="--full"; fi ;;
+            *) args="--full" ;;
+          esac
+          python3 scripts/ci/ios-select.py build/project-graph.json $args | tee -a "$GITHUB_OUTPUT"
+
   # The simulator tests, split over runners. ⚠⚠ Two things made one job 95 minutes AND red: every
   # module's Kotlin/Native test binary linked one after another on one 3-core runner, and the
   # simulator ran tests WHILE other modules linked beside it — starved, so real-time waits that
   # take milliseconds on a Mac ran out (10–30 s). Each shard now links first, then tests with one
   # worker, so nothing competes with the simulator. The shards are disjoint and together cover
-  # every module with iOS tests (`scripts/ci/ios-test-shard.py`, from the build's own graph).
+  # every module `select` chose (`scripts/ci/ios-test-shard.py`, from the build's own graph).
   ios-tests:
-    name: ios tests (shard ${{ matrix.shard }}/3)
+    name: ios tests (shard ${{ matrix.shard }}/${{ needs.select.outputs.shard_count }})
+    needs: select
+    # One to three shards, by how many modules the change reaches (`ios-select.py`).
+    if: needs.select.outputs.shards != '[]'
     runs-on: macos-latest
     # ⚠ Generous: macOS arm64 runners slow down under GitHub's capacity limits, and a shard cut off
     # mid-link reports nothing about its tests.
@@ -50,7 +132,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: ${{ fromJSON(needs.select.outputs.shards) }}
     steps:
       - uses: actions/checkout@v5
 
@@ -124,10 +206,16 @@ jobs:
         run: chmod +x gradlew
 
       - name: Pick this shard's modules
+        env:
+          IOS_TEST_MODULES: ${{ needs.select.outputs.test_modules }}
+          SHARDS: ${{ needs.select.outputs.shard_count }}
+          # ⚠ Through env, never `${{ }}` in the script: the reason can name a changed file's path.
+          REASON: ${{ needs.select.outputs.reason }}
         run: |
+          echo "selected: $REASON"
           ./gradlew help -q --no-configuration-cache -Ptenshu.projectGraph=build/project-graph.json
-          echo "LINK_TASKS=$(python3 scripts/ci/ios-test-shard.py build/project-graph.json $(( ${{ matrix.shard }} - 1 )) 3 link)" >> "$GITHUB_ENV"
-          echo "TEST_TASKS=$(python3 scripts/ci/ios-test-shard.py build/project-graph.json $(( ${{ matrix.shard }} - 1 )) 3 test)" >> "$GITHUB_ENV"
+          echo "LINK_TASKS=$(python3 scripts/ci/ios-test-shard.py build/project-graph.json $(( ${{ matrix.shard }} - 1 )) "$SHARDS" link)" >> "$GITHUB_ENV"
+          echo "TEST_TASKS=$(python3 scripts/ci/ios-test-shard.py build/project-graph.json $(( ${{ matrix.shard }} - 1 )) "$SHARDS" test)" >> "$GITHUB_ENV"
 
       # Every test binary of the shard, in parallel. Compiles only: nothing runs on the simulator yet.
       - name: Link the shard's iOS test binaries
@@ -141,7 +229,7 @@ jobs:
         run: ./gradlew $TEST_TASKS --continue --stacktrace --max-workers=1
 
       - name: Save Kotlin/Native (~/.konan)
-        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master'
+        if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
         uses: actions/cache/save@v5
         with:
           path: ~/.konan
@@ -159,15 +247,18 @@ jobs:
   # took ~43 min of framework links plus ~4 min per Swift shell, past any sane timeout. Drive and
   # Photos (the slowest shells) sit in different halves. ⚠⚠ Together the halves must be exactly
   # `ios-smoke.sh --build-only`'s default list; the first step checks that, so an app added to
-  # the script cannot silently go uncompiled here.
+  # the script cannot silently go uncompiled here. The halves live in `scripts/ci/ios-select.py`.
   ios-apps:
     name: ios apps (${{ matrix.apps }})
+    needs: select
+    # Each half cut to the apps the change reaches; a half with none is not run.
+    if: needs.select.outputs.app_halves != '[]'
     runs-on: macos-latest
     timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
-        apps: ["control drive fit timeline maps", "photos contacts home mia calendar"]
+        apps: ${{ fromJSON(needs.select.outputs.app_halves) }}
     steps:
       - uses: actions/checkout@v5
 
@@ -247,7 +338,7 @@ jobs:
       - name: The two halves are exactly ios-smoke's app list
         run: |
           script="$(sed -n 's/^    APPS=(\(control drive .*timeline.*\))$/\1/p' scripts/ios-smoke.sh | tr ' ' '\n' | sort | xargs)"
-          halves="$(echo "control drive fit timeline maps photos contacts home mia calendar" | tr ' ' '\n' | sort | xargs)"
+          halves="$(python3 scripts/ci/ios-select.py --halves | tr ' ' '\n' | sort | xargs)"
           echo "ios-smoke --build-only: $script"
           echo "the two halves:         $halves"
           [ -n "$script" ] && [ "$script" = "$halves" ] || { echo "::error::ios.yml's ios-apps halves do not match scripts/ios-smoke.sh's --build-only list"; exit 1; }
@@ -278,7 +369,7 @@ jobs:
         run: scripts/ios-smoke.sh --build-only ${{ matrix.apps }}
 
       - name: Save Kotlin/Native (~/.konan)
-        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master'
+        if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
         uses: actions/cache/save@v5
         with:
           path: ~/.konan
