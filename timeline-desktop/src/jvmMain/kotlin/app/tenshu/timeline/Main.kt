@@ -16,8 +16,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
-import app.tenshu.ui.layout.LocalNavRailPreference
-import app.tenshu.ui.layout.filePersistedNavRailPreference
 import app.tenshu.ui.layout.TenshuWindowIcon
 import app.tenshu.ui.layout.rememberPersistedWindowState
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -108,15 +106,6 @@ fun main() {
                 }
             }
 
-            // ⚠ `remember`ed: AdaptiveNavScaffold reads the stored value keyed on this
-            // instance, so a new one per recomposition would re-read the file every frame.
-            val navRailPreference = remember {
-                filePersistedNavRailPreference(
-                    key = "timeline",
-                    storageDir = DesktopAppPaths.root(),
-                )
-            }
-
             // B2: the Settings row picks through the same dialog the guide does.
             LaunchedEffect(koin, awtWindow) {
                 koin.get<DesktopTimelineImportControl>().attach { chooseExportFile(awtWindow) }
@@ -126,7 +115,6 @@ fun main() {
                 LocalViewModelStoreOwner provides viewModelStoreOwner,
                 LocalSavedStateRegistryOwner provides savedStateRegistryOwner,
                 LocalLifecycleOwner provides savedStateRegistryOwner,
-                LocalNavRailPreference provides navRailPreference,
             ) {
                 TenshuTheme {
                     // ⚠⚠ See the Android shell: the inbox was resolved and never handed over, so

@@ -195,6 +195,10 @@ class TenshuAppRegistry(
             // the user has, and hiding it would be the worst option for a control plane. What
             // changes is that the surface can now *say* so instead of showing a bare id (C3).
             recognised = manifest != null,
+            verifiedOnThisDevice = thisDevice?.let { device ->
+                rows.filter { it.deviceId.get() == device }.takeIf { it.isNotEmpty() }
+                    ?.all { it.verified.get() }
+            },
         )
     }
 

@@ -177,30 +177,18 @@ to disagree; see `docs/tech-debt.md`, *"CMP Version Pin"*.
   compiles fine and simply stops firing when a wider class is added above it — which is how
   `appContentWidth` nearly lost its cap on the widest windows. Do not reorder the constants.
 * **`AdaptiveNavScaffold`** — canonical navigation chrome: bottom `NavigationBar` (Compact), then
-  one `WideNavigationRail` for every wider class — collapsed at 96 dp (Medium / Expanded), expanded
-  and content-sized within 220–360 dp (Large / ExtraLarge). **From Large up — and only there** — a
-  leading menu button toggles the two; the size class picks the default. Use `showNav = false` for
-  edge-to-edge screens (login, onboarding).
-  ⚠⚠ **Don't add the toggle at Expanded** on the grounds that 1024 dp would otherwise be
-  icon-only. It would not: a `WideNavigationRailItem` *always* draws its label, and the collapsed
-  wide rail is 96 dp rather than the classic rail's 80 dp precisely because it stacks that label
-  under the icon. Expanding there hides nothing and reveals nothing — it re-flows the same text
-  sideways for 124 dp of body width. M3's expanded rail
-  earns its width by revealing **secondary destinations** the collapsed rail hides and by hosting
-  a header FAB or logo; give it those first, then the control means something. Every app here
-  still passes one flat 2–5 item list, inside the three-to-seven range where M3 says the
-  collapsed rail is correct.
+  one **always-collapsed** 96 dp `WideNavigationRail` for every wider class, with **no**
+  expand/collapse toggle. Use `showNav = false` for edge-to-edge screens (login, onboarding).
+  ⚠⚠ **Don't add an expand toggle or an expanded default — at any width** — until an app has
+  something the expanded rail would reveal. A `WideNavigationRailItem` *always* draws its label;
+  the collapsed wide rail is 96 dp rather than the classic 80 dp precisely because it stacks that
+  label under the icon. Expanding hides nothing and reveals nothing — it re-flows the same text
+  sideways for 124+ dp of body width. M3's expanded rail earns its width by revealing **secondary
+  destinations** and hosting a header FAB or logo; give it those first (N7). The toggle was tried
+  from Expanded, then from Large, and removed at both (`ui-adaptive-navigation.md` §7, §10).
   ⚠ **There is no navigation drawer** — Material 3 deprecated it in favour of the expanded rail, and
   a `PermanentNavigationDrawer` renders a fixed 300 dp at every window width and every label set.
-  Don't introduce one.
-  Widths are pinned by `AdaptiveNavMetricsTest`; ⚠ note the expanded rail is width-*ranged*, not
-  width-*fitting*, so labels shorter than the 220 dp floor do **not** shrink it.
-* **`NavRailPreference`** — the port that makes the user's expand/collapse choice survive a
-  restart. Provide `LocalNavRailPreference` at the app entry point; desktop has
-  `filePersistedNavRailPreference(key, storageDir)`. ⚠ `remember` the instance — the scaffold reads
-  it keyed on identity, so a fresh object per recomposition re-reads the file every frame. ⚠ Only
-  an **explicit toggle** is persisted; a size-class change is not the user talking. Default is
-  `null` = session-only, which is right for Android/iOS.
+  Don't introduce one. Widths are pinned by `AdaptiveNavMetricsTest`.
 * **`rememberPersistedWindowState(key, storageDir = DesktopAppPaths.root())`** (desktop) — **every**
   Tenshu desktop app's window, and the one rule for its size: a first launch opens **centred at 80 %
   of the usable screen width × 90 % of its height**, never below 1024 × 768 (unless the screen is

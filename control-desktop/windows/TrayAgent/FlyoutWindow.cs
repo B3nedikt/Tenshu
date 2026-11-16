@@ -190,8 +190,8 @@ internal sealed class FlyoutWindow
     private Button AppButton(AppRow app)
     {
         var parts = new List<UIElement> { new TextBlock { Text = app.Name, TextTrimming = TextTrimming.CharacterEllipsis } };
-        // Only a registered row can be unverified: a never-connected candidate was never attested — nor failed to be.
-        if (app.Registered && !app.Verified)
+        // Only this PC's own registration can mark the copy it launches; a never-connected candidate sends none.
+        if (!app.VerifiedHere)
         {
             var warning = Glyph("", Caution());
             ToolTipService.SetToolTip(warning, S.Unverified);

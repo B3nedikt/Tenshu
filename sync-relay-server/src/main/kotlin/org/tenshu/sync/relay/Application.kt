@@ -459,6 +459,10 @@ fun Application.module(
         // ⚠ The web runtime uploads content with `PUT /sync/content/{ref}`; without PUT here the
         // browser's preflight fails and every web upload is blocked before it reaches the route.
         allowMethod(HttpMethod.Put)
+        // ⚠ Same for revocation: the web runtime cancels an invite with `DELETE /sync/invite/{id}` and
+        // a share link with `DELETE /share/{id}`; without DELETE the preflight is refused (403) and
+        // both fail before reaching their routes.
+        allowMethod(HttpMethod.Delete)
         allowHeader(HttpHeaders.ContentType)
         allowHeader(HttpHeaders.Authorization)
         // ⚠ No `X-Dev-Owner`: no browser client sends it (the dev-mode bypass is a test fixture), so a

@@ -2,6 +2,7 @@
 // come only from the sealed metadata `ShareViewer` opened, and every failure — a wrong key
 // (`decrypt`), a share without readable metadata (`meta`), or an "ok" result that somehow lacks
 // them — renders a visible error, never a download under a placeholder name.
+import { Suspense, type ReactNode } from 'react'
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
@@ -29,14 +30,35 @@ function result(overrides: Partial<ShareFetchResult>): ShareFetchResult {
   }
 }
 
-function renderAt(hash: string) {
+// Suspends the first time it renders, so React discards that whole attempt, the viewer's first
+// render included, and retries.
+let suspended = false
+function SuspendOnce(): ReactNode {
+  if (!suspended) {
+    suspended = true
+    throw new Promise<void>((resolve) => setTimeout(resolve, 0))
+  }
+  return null
+}
+
+function renderAt(hash: string, discardFirstRender = false) {
   window.history.replaceState(null, '', `/s/share-1${hash}`)
-  return render(
+  const tree = (
     <MemoryRouter initialEntries={['/s/share-1']}>
       <Routes>
         <Route path="s/:shareId" element={<ShareViewerRoute />} />
       </Routes>
-    </MemoryRouter>,
+    </MemoryRouter>
+  )
+  return render(
+    discardFirstRender ? (
+      <Suspense fallback={null}>
+        {tree}
+        <SuspendOnce />
+      </Suspense>
+    ) : (
+      tree
+    ),
   )
 }
 
@@ -79,6 +101,19 @@ describe('ShareViewerRoute', () => {
     expect(link).toHaveAttribute('download', 'report.zip')
     expect(fetchMock).toHaveBeenCalledWith('share-1', 'secret-key', expect.any(String))
     expect(window.location.hash).toBe('')
+  })
+
+  // The key used to be scrubbed from the URL DURING render, so when React discarded that render
+  // and retried, the retry found it gone and showed the no-key error.
+  it('keeps the key through a render React discards (a suspending sibling)', async () => {
+    suspended = false
+    fetchMock.mockResolvedValue(
+      result({ ok: true, bytes: new Int8Array([1]), fileName: 'a.zip', mimeType: 'application/zip' }),
+    )
+    renderAt('#k=secret-key', true)
+
+    expect(await screen.findByRole('link', { name: 'Download a.zip' })).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledWith('share-1', 'secret-key', expect.any(String))
   })
 
   it('shows the decrypt error for a wrong key, with no file name', async () => {

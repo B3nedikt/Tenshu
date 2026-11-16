@@ -1285,6 +1285,17 @@ store/<app>/screenshots/android/phonelanding/en/dark/NN-<screen>.png   dark
   using `android_shots.landing_shot` for the status bar. A scripted `--set landing` run replaces it
   with the stock set again. Such an emulator stays listed under Realm devices after it stops; remove
   it there, since a listed-but-gone device blocks reclamation.
+- **The Photos Play set** (2026-11-16, `store/photos/screens.json` `play`): six captures keyed
+  `android/phone/en/NN-screen` (library, album, viewer, months, the editor's Filters tab, Duplicates),
+  framed with `scripts/store-frame render photos --device phone` and the captions in
+  `store/photos/play/<locale>/captions.txt`. Also by hand, on the same kind of emulator: the stock set
+  went into the maintainer's realm through Drive's Folder upload as one folder, *Store stock photos*
+  (with a *Copies* folder of four exact copies so Duplicates is not one lonely row), and the
+  maintainer's own newer photos were moved to Photos' trash for the library and month captures, then
+  restored. ⚠ Restore by counting: the Trash screen restores on a tap and lists the user's older
+  trash too, so a loop that taps until the grid is empty restores photos the user had thrown away.
+  Compare the year count before and after instead. The German framed set is German captions over the
+  English captures.
 - **iOS** (2026-10-17): `scripts/store-screenshots.sh --set landing --appearance both` — the same recipe
   seeded through Drive's `-seedFixture` launch (§2), then `DriveLandingScreenshots` (`01-files`,
   `02-photos` as Icons, `03-preview` of `IMG_5102.jpg`) and `PhotosLandingScreenshots` (`01-library`,
@@ -1338,7 +1349,7 @@ the tree into the emulator's Documents, and picking a folder of that name picks 
   author (the rest); and the Android Drive capture's file sizes for *Dolomites 2026* agree with the
   new bytes to ~0.1 KB, a re-encode, not a new photo. Again on 2026-10-31: 18 of the 48, checked the
   same way (each against its page slug on a contact sheet; the four *Dolomites 2026* ones also against
-  the sizes the published grid capture shows). Again on 2026-11-07: 14 of the 48. ⚠ So expect it:
+  the sizes the published grid capture shows). Again on 2026-11-07: 14 of the 48. Again on 2026-11-16: 15 of the 48. ⚠ So expect it:
   any landing run more than a few days after the last pin will usually stop here first. Unsplash's
   photo pages sit behind a bot wall, so the licence check is the image still being on
   `images.unsplash.com`, not `plus.unsplash.com`.

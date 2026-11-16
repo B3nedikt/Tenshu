@@ -581,7 +581,9 @@ describe('the landing roster', () => {
 
   it('skips a screen that is not published instead of showing a broken image', () => {
     expect(landingShots('drive', ['01-files', '99-not-a-screen'], 'en', 'Tenshu Drive')).toHaveLength(1)
-    expect(landingShots('photos', ['01-library'], 'en', 'Tenshu Photos')).toEqual([])
+    // An app with no published manifest at all. Passed explicitly: pinning a real app here broke the
+    // day that app's screenshots were published.
+    expect(landingShots('photos', ['01-library'], 'en', 'Tenshu Photos', {})).toEqual([])
   })
 })
 

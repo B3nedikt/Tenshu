@@ -20,11 +20,12 @@
  * Route-level allowlist: the apex's session-gating must NOT redirect `/s/*`
  * (this route) to `/lock` — a recipient has no session.
  */
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { ShareViewer } from '@tenshu/sdk/share'
 import { RELAY_URL } from '../../lib/relayUrl'
+import { useSecretFragment } from '../../lib/secretFragment'
 import { blobType, previewKind } from './inlineSafety'
 
 type ErrorKind = 'gone' | 'network' | 'decrypt' | 'meta' | 'no-key'
@@ -40,20 +41,9 @@ export default function ShareViewerRoute() {
   const { t } = useTranslation()
   const { shareId } = useParams<{ shareId: string }>()
 
-  // Capture K_share once, synchronously, then scrub the fragment from the URL
-  // (replaceState keeps the page but drops `#k=...` from history + referrer).
-  const kShare = useMemo(() => {
-    if (typeof window === 'undefined') return null
-    const k = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('k')
-    if (window.location.hash) {
-      window.history.replaceState(
-        null,
-        '',
-        window.location.pathname + window.location.search,
-      )
-    }
-    return k
-  }, [])
+  // K_share from the URL as opened; the fragment is scrubbed from the address bar after commit.
+  const { hash } = useSecretFragment()
+  const kShare = new URLSearchParams(hash.replace(/^#/, '')).get('k')
 
   const [state, setState] = useState<ViewState>({ phase: 'loading' })
   // Hold the live object URL so the cleanup effect can revoke exactly it.

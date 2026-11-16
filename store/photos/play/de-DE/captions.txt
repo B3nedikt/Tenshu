@@ -1,0 +1,12 @@
+# One caption per screen for the framed Google Play screenshots (scripts/store-frame render photos --device phone).
+# `NN-screen: text` — the screen name from ../../screens.json (play.captured). Only the screens listed
+# here are framed, in this order of names. Plain, short, no superlatives (D6); words a non-technical user
+# knows (no "keys", no "realm"). Lines reused from the website's copy say so.
+# The website's Photos tagline, first half (web/apex/locales/en/landing.json, German in locales/de block7.apps.photos.tagline).
+01-library: Deine Fotos und Videos in einer Mediathek
+# The same tagline, second half.
+04-viewer: Verschlüsselt, bevor sie dein Handy verlassen
+06-edit: Foto bearbeiten, das Original bleibt
+03-album: Alben auf jedem deiner Geräte
+05-months: Nach Tag, Monat oder Jahr stöbern
+07-duplicates: Duplikate finden, eine Kopie behalten

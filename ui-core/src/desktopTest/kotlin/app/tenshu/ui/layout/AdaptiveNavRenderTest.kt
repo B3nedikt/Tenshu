@@ -17,10 +17,7 @@ import androidx.compose.ui.graphics.toAwtImage
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.captureToImage
-import androidx.compose.ui.test.isRoot
-import androidx.compose.ui.test.onFirst
-import androidx.compose.ui.test.onNodeWithContentDescription
-import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.v2.runDesktopComposeUiTest
 import androidx.compose.ui.unit.dp
 import app.tenshu.ui.theme.TenshuTheme
@@ -69,7 +66,7 @@ class AdaptiveNavRenderTest {
             )
         }
 
-    private fun render(name: String, width: Int, height: Int = 720, collapseRail: Boolean = false) {
+    private fun render(name: String, width: Int, height: Int = 720) {
         val outDir = File("build/reports/adaptive-nav").apply { mkdirs() }
         runDesktopComposeUiTest(width = width, height = height, effectContext = NoMotion) {
             setContent {
@@ -90,20 +87,9 @@ class AdaptiveNavRenderTest {
                 }
             }
             waitForIdle()
-            if (collapseRail) {
-                onNodeWithContentDescription("Collapse navigation").performClick()
-                waitForIdle()
-                // Let the collapse animation settle before capturing.
-                repeat(20) { mainClock.advanceTimeBy(50) }
-                waitForIdle()
-            }
             val file = File(outDir, "$name.png")
-            // ⚠ `onRoot()` is not usable here: clicking the toggle also hovers it, the header's
-            // `PlainTooltip` opens in its own `Popup`, and a popup is a second semantics root —
-            // so `onRoot()` fails with "found 2 nodes" rather than anything about rendering.
-            // Roots come in creation order, so the scene is index 0 and the popup follows it.
             ImageIO.write(
-                onAllNodes(isRoot()).onFirst().captureToImage().toAwtImage(),
+                onRoot().captureToImage().toAwtImage(),
                 "png",
                 file,
             )
@@ -115,12 +101,9 @@ class AdaptiveNavRenderTest {
     fun rendersEverySizeClass() {
         render("01-compact-599", 599)
         render("02-medium-800", 800)
-        render("03-expanded-1024-default", 1024)
-        // The toggle now exists only from Large up, so the toggled render moved with it. 1024
-        // has no menu button to click — and the point of looking at 03 and 05 side by side is
-        // that 03 is not missing anything: the collapsed rail already draws every label.
-        render("04-large-1280-toggled-closed", 1280, collapseRail = true)
-        render("05-large-1280", 1280)
-        render("06-extralarge-1700", 1700)
+        render("03-expanded-1024", 1024)
+        // Large and up render the same collapsed rail as 1024 — there is no expanded state.
+        render("04-large-1280", 1280)
+        render("05-extralarge-1700", 1700)
     }
 }

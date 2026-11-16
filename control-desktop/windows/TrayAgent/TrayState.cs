@@ -120,4 +120,4 @@ internal sealed record TrayState(
 }
 
 /// <summary>One launchable app. <c>Aumid</c> is the installed package's app-list id, resolved by <see cref="AppLauncher"/>.</summary>
-internal sealed record AppRow(string AppId, string Name, bool Registered, bool Verified, string Aumid);
+internal sealed record AppRow(string AppId, string Name, bool Registered, bool VerifiedHere, string Aumid);

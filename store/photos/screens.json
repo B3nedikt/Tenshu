@@ -59,5 +59,29 @@
       }
     }
   },
-  "planned": {}
+  "planned": {},
+  "play": {
+    "about": "The Google Play set (2026-11-16), keyed android/phone/en/NN-screen and framed by scripts/store-frame render photos --device phone into android/phoneframed/<lang>/ with the captions in play/<locale>/captions.txt. Captured by hand, not by a walk: a 1080x2400 emulator paired into the maintainer's realm, the landing stock set uploaded through Drive's Folder upload into one folder (plus four exact copies for Duplicates), and the maintainer's own newer photos moved to Photos' trash for the library and month captures, then restored (docs/how-to/store-screenshots.md §9). The names follow the iOS list where the screen is the same; 06 and 07 are new. The German framed set puts German captions over these English captures: there is no android/phone/de capture.",
+    "device": "phone",
+    "captured": {
+      "01-library": {
+        "shows": "The library: the default mosaic of the stock set, grouped by day"
+      },
+      "03-album": {
+        "shows": "The Autumn album, made through Collections → New album and filled from a library selection"
+      },
+      "04-viewer": {
+        "shows": "One photo full screen in the viewer, with its date and actions"
+      },
+      "05-months": {
+        "shows": "The library grouped by month, through its grouping button"
+      },
+      "06-edit": {
+        "shows": "The photo editor's Filters tab, the Ember filter on one photo (not saved)"
+      },
+      "07-duplicates": {
+        "shows": "Duplicates: four sets of exact copies, each with the one to keep"
+      }
+    }
+  }
 }

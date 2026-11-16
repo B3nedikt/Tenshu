@@ -1259,11 +1259,9 @@ hard to find by filename, or when the doc supersedes something a reader would ot
   internal `fillMaxWidth()`. Material 3 has since **deprecated the navigation
   drawer** in favour of the collapsed/expanded navigation rail, and the breakpoint
   model grew from three classes to five. Now one `WideNavigationRail` for every
-  non-compact class: 96 dp collapsed (Medium/Expanded), 220–360 dp content-sized
-  (Large/ExtraLarge), menu-toggle from Expanded up whose choice persists per
-  desktop app, and the body pane finally carries the Material 24 dp window margin.
-  ⚠⚠ The rail is width-*ranged*, not width-*fitting* — labels shorter than the
-  220 dp floor do not shrink it. ⚠ Compact margin stays 0: the 16 dp figure
+  non-compact class, **always collapsed at 96 dp with no expand toggle** (§10 —
+  expanding only re-flowed labels the collapsed rail already shows), and the body
+  pane finally carries the Material 24 dp window margin. ⚠ Compact margin stays 0: the 16 dp figure
   everyone quotes is **unverified** (Q2). Remaining: N6 iOS `NavigationSplitView`.
   ⚠ `NavigationSuiteScaffold` **never auto-selects the expanded rail**, so its
   default would trade one wrong fixed width for another. Owes an amendment to

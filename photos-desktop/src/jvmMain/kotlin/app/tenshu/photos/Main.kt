@@ -11,8 +11,6 @@ import app.tenshu.photos.di.photosClientModule
 import app.tenshu.photos.di.photosModules
 import app.tenshu.photos.di.platformClientModule
 import app.tenshu.photos.ui.App
-import app.tenshu.ui.layout.LocalNavRailPreference
-import app.tenshu.ui.layout.filePersistedNavRailPreference
 import app.tenshu.ui.layout.TenshuWindowIcon
 import app.tenshu.ui.layout.rememberPersistedWindowState
 import app.tenshu.ui.theme.TenshuTheme
@@ -51,17 +49,10 @@ fun main() {
             TenshuWindowIcon()
             val viewModelStoreOwner = remember { DesktopViewModelStoreOwner() }
             val savedStateRegistryOwner = remember { DesktopSavedStateRegistryOwner() }
-            // ⚠ `remember`ed: AdaptiveNavScaffold reads the stored value keyed on this instance, so
-            // a new one per recomposition would re-read the file every frame.
-            val navRailPreference = remember {
-                filePersistedNavRailPreference(key = "photos", storageDir = DesktopAppPaths.root())
-            }
-
             CompositionLocalProvider(
                 LocalViewModelStoreOwner provides viewModelStoreOwner,
                 LocalSavedStateRegistryOwner provides savedStateRegistryOwner,
                 LocalLifecycleOwner provides savedStateRegistryOwner,
-                LocalNavRailPreference provides navRailPreference,
             ) {
                 TenshuTheme {
                     App()

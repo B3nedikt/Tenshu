@@ -19,8 +19,6 @@ import app.tenshu.drive.data.BackupFolderGrants
 import app.tenshu.drive.data.BackupFolderPickResult
 import app.tenshu.ingest.backup.BackupPreferences
 import app.tenshu.ingest.backup.SyncedFolderController
-import app.tenshu.ui.layout.LocalNavRailPreference
-import app.tenshu.ui.layout.filePersistedNavRailPreference
 import app.tenshu.ui.layout.TenshuWindowIcon
 import app.tenshu.ui.layout.rememberPersistedWindowState
 import app.tenshu.ui.theme.TenshuTheme
@@ -82,17 +80,10 @@ fun main(args: Array<String>) {
             val viewModelStoreOwner = remember { DesktopViewModelStoreOwner() }
             val savedStateRegistryOwner = remember { DesktopSavedStateRegistryOwner() }
             val scope = rememberCoroutineScope()
-            // ⚠ `remember`ed: AdaptiveNavScaffold reads the stored value keyed on this
-            // instance, so a new one per recomposition would re-read the file every frame.
-            val navRailPreference = remember {
-                filePersistedNavRailPreference(key = "drive", storageDir = DesktopAppPaths.root())
-            }
-
             CompositionLocalProvider(
                 LocalViewModelStoreOwner provides viewModelStoreOwner,
                 LocalSavedStateRegistryOwner provides savedStateRegistryOwner,
                 LocalLifecycleOwner provides savedStateRegistryOwner,
-                LocalNavRailPreference provides navRailPreference
             ) {
                 val addFileActionsViewModel: AddFileActionsViewModel = koinViewModel()
 

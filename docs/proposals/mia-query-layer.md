@@ -1,6 +1,6 @@
 # Mia Query Layer — Turning an Utterance into Grounded Realm Data
 
-**Status:** v0.9 — ⭐ §21 (2026-11-09) measures the photo-search text tower as `ClassifyIntent`'s backend. v0.8 — **Mia on the web runs the same planner in the tab, read-only** (§20). v0.7 — **Mia on iPhone is real and read-only** (§19): a route-1 runtime in place of the mock, and a proxy that offers no action there. ⚠⚠ No question has been asked on a real device yet (§19.4).
+**Status:** v0.10 — §22 (2026-11-16) narrows the catch-all: leftover text is a file name only when the sentence reads as a lookup. v0.9 — ⭐ §21 (2026-11-09) measures the photo-search text tower as `ClassifyIntent`'s backend. v0.8 — **Mia on the web runs the same planner in the tab, read-only** (§20). v0.7 — **Mia on iPhone is real and read-only** (§19): a route-1 runtime in place of the mock, and a proxy that offers no action there. ⚠⚠ No question has been asked on a real device yet (§19.4).
 **v0.6** — **§15.1's 200-series cap is closed** (§17). `queryOccurrences` moves the scan inside `:calendar-service` and bounds **occurrences in the window** instead of **series scanned** — the one quantity there was no safe order to truncate. ⚠⚠ Saturation is now a fact rather than a guess. ⚠ `CalendarService` → v5.
 **v0.5 — MQ-1 … MQ-4 SHIPPED** 2026-08-11/14 (as-built: §7–§11, §13), plus Track A
 slice A1 (§12), **`QueryCalendar` (§15)** — which completes MQ-D4a and every named read intent —
@@ -2133,4 +2133,61 @@ better picker does nothing for German until MQ-D4's per-language slot grammar ex
   (the Kotlin `SiglipTextTokenizer` and the runtime, not PyTorch/ONNX on a Mac) and on the Core ML
   export; an off-topic class.
 - Independent of any model: 22 of the 24 off-topic questions that reach the model becoming file searches is §16.3's
-  catch-all doing its job too broadly. That is a grammar question.
+  catch-all doing its job too broadly. That is a grammar question. ✅ Narrowed in §22.
+
+## 22. As built — the catch-all searches file names only for a lookup (2026-11-16)
+
+§21.1's grammar finding, fixed without a model. The last-resort arm used to turn any leftover text
+into a file-name search, so "what's the weather tomorrow" answered *"Searched your files for names
+containing …"*. That explanation reads as though Mia understood.
+
+### 22.1 The rule
+
+A **file word** (`file`, `document`, …) settles it first: "which files are named invoice" opens as a
+question and is still a name search. ⚠ That search is `viaCatchAll = false`, so a model may not
+overrule it. §16.3 and `FindFilesNamed`'s KDoc always said so, but until §22 the code set `true`
+for every leftover-text search, file word or not.
+
+Without a file word, leftover text becomes `FindFilesNamed(viaCatchAll = true)` only when
+`readsAsALookup` holds:
+
+- **a lookup word anywhere** (`find`, `search`, `look`, `locate`, `open`, `show`, `get`, `fetch`,
+  `where`) — "can you find the lease agreement" still searches; or
+- **a bare phrase**: the first word is not a question word, an auxiliary, a non-lookup request
+  verb (`tell`, `play`, `translate`, …) or a greeting. "invoice" and "kayaking last week" still
+  search, because typing a name on its own is how people search.
+
+Otherwise the plan is the ordinary `NoMatch`, which lists what Mia can be asked.
+
+⚠⚠ **The refusal is decided ahead of the window arm, not by falling through to it.** Skipping the
+file search for "what's the weather tomorrow" would otherwise reach `recallMoments(tomorrow)`,
+"Looked at what you did tomorrow", which is a worse wrong answer than the one removed.
+
+⚠ **The opener is checked on the first word only.** Words matched anywhere would catch the "with"
+inside "notes from the workshop with anna". And the list is of *openers*, a closed class, not of
+off-topic *subjects*, which are open-ended. `call`, `text` and `set` are left out because each
+starts file names as often as requests.
+
+⚠ `can`, `could` and `you` joined `STOP_WORDS`: before this, "can you find the lease agreement"
+searched for `"can you lease agreement"`.
+
+### 22.2 What it does not change
+
+- **The model seam (§16.3).** `NoMatch` is second-guessable exactly as the catch-all is, so every
+  sentence the model saw before, it still sees. Only the fallback when it has no opinion changes:
+  "I can find …" in place of a file search.
+- Every arm above the catch-all, and a quoted phrase, which never reached it.
+- ⚠ `planForIntent(FIND_FILES_NAMED)` still accepts any leftover text: a model that picks the file
+  search for "tell me a joke" gets one. §21.3's margin cut is the guard there.
+- ⚠ The no-match still never says "I don't know that". §21.3's off-topic class is still owed, and
+  `CAPABILITIES` does not mention the calendar.
+
+### 22.3 What is proven
+
+`QueryPlannerTest`: `anOffTopicQuestionIsANoMatch_neverAFileSearch` (12 off-topic questions),
+`aLookupStillSearchesFileNames` (7 lookups, each still `viaCatchAll`) and
+`aFileWordIsAPositiveSignal_evenInAQuestion` (3 questions, none `viaCatchAll`; a Codex review
+found the gap). Replacing the guard with `true` fails two tests; removing the file-word arm fails
+the third. `anUnrecognisedUtteranceSaysSo…` had asserted `FindFilesNamed("weather
+like")` under a comment saying it must not; it now asserts `NoMatch`. ⚠ §21's corpus is not in the
+tree, so the 22-of-24 figure was not re-measured. The test set is a new one by the same author.
