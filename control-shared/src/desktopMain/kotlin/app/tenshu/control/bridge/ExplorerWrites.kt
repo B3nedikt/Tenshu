@@ -71,8 +71,9 @@ internal object ExplorerWrites {
         val rows = ExplorerMirror.shown(remote).mapValues { it.value.second }
         val byPath = remote.associateBy { it.path }
         val out = ArrayList<Candidate>()
+        val excluded = excludedIn(local)
         for (entry in local) {
-            if (ignored(entry)) continue
+            if (excluded(entry)) continue
             val settle = if (entry.isFolder) folderSettleMillis else settleMillis
             if (nowMillis - entry.modifiedAtMillis < settle) continue
             val key = key(entry.relative)
@@ -98,8 +99,9 @@ internal object ExplorerWrites {
      * pass scheduled for when it has settled, an edit waited for the 60 s repair tick (measured).
      */
     fun untilSettled(local: List<ExplorerMirror.Local>, nowMillis: Long): Long? =
-        local.asSequence()
-            .filter { !ignored(it) && !(it.ours && it.isPlaceholder) }
+        excludedIn(local).let { excluded ->
+            local.asSequence().filter { !excluded(it) && !(it.ours && it.isPlaceholder) }
+        }
             .map { (if (it.isFolder) FOLDER_SETTLE_MILLIS else FILE_SETTLE_MILLIS) - (nowMillis - it.modifiedAtMillis) }
             .filter { it > 0 }
             .minOrNull()
@@ -145,6 +147,18 @@ internal object ExplorerWrites {
     }
 
     /** Never uploaded: hidden or system entries, and the temp and lock files editors and browsers leave about. */
+    /**
+     * What of [local] is never uploaded: whatever is [ignored] itself, ⚠⚠ and everything below an ignored folder.
+     * The scan walks the whole tree, so without the second half a hidden or system folder was skipped while its ordinary
+     * contents were uploaded one by one — the folder's exclusion silently ignored.
+     */
+    fun excludedIn(local: List<ExplorerMirror.Local>): (ExplorerMirror.Local) -> Boolean {
+        val ignoredFolders = local.filter { it.isFolder && ignored(it) }.map { key(it.relative) }
+        return { entry ->
+            ignored(entry) || key(entry.relative).let { k -> ignoredFolders.any { k.startsWith("$it/") } }
+        }
+    }
+
     fun ignored(entry: ExplorerMirror.Local): Boolean {
         if (entry.hidden) return true
         val name = entry.relative.substringAfterLast('/').lowercase(Locale.ROOT)

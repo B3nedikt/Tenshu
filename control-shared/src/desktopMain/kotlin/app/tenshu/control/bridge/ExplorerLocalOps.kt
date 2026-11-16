@@ -53,7 +53,11 @@ internal object ExplorerLocalOps {
 
     fun plan(ops: List<Op>, remote: List<ExplorerMirror.Remote>, local: List<ExplorerMirror.Local>, now: Long): Plan {
         val localByKey = local.associateBy { key(it.relative) }
-        val remoteByKey = remote.associateBy { key(it.path.trim('/')) }
+        // ⚠⚠ A notice's row is the one its placeholder's identity names — exactly. Of realm rows differing only in case
+        // the folder shows one (ExplorerMirror.shown); a case-insensitive lookup could hand back its hidden twin, and the
+        // rename or delete would then move or trash a file the user never saw. Case-insensitive matching is only for
+        // what NTFS sees: whether anything already stands at a target.
+        val remoteByPath = remote.associateBy { it.path }
         val steps = ArrayList<Step>()
         val waiting = ArrayList<Op>()
         val dropped = ArrayList<Op>()
@@ -72,7 +76,7 @@ internal object ExplorerLocalOps {
                 continue
             }
             val identityKey = key(op.identityPath.trim('/'))
-            val row = remoteByKey[identityKey]
+            val row = remoteByPath[op.identityPath]
             if (row == null || row.isFolder != op.isFolder) {
                 dropped += op // gone from the realm already, or something else is there now
                 continue
@@ -111,8 +115,9 @@ internal object ExplorerLocalOps {
                     continue
                 }
                 val to = canonical(target, remote)
-                val occupant = remoteByKey[key(to.trim('/'))]
-                if (occupant != null && key(occupant.path) != key(row.path)) {
+                // Anything else at the target as NTFS matches names — a hidden case twin included; the row itself is not
+                // in the way (a case-only rename).
+                if (remote.any { key(it.path.trim('/')) == key(to.trim('/')) && it.path != row.path }) {
                     dropped += op // the realm has something there: the mirror puts both back as they are
                     continue
                 }

@@ -34,6 +34,23 @@ class ExplorerLocalOpsTest {
     }
 
     @Test
+    fun aNoticeActsOnTheExactRowItsIdentityNames_neverItsHiddenCaseTwin() {
+        // Codex's case: /A.txt is shown, /a.txt is its hidden twin, same content version.
+        val remote = listOf(row("/A.txt"), row("/a.txt"))
+        val renamed = ExplorerLocalOps.plan(
+            listOf(rename("A.txt", "B.txt", identity = "/A.txt")), remote, listOf(placeholder("B.txt")), now,
+        )
+        assertEquals("/A.txt", (renamed.steps.single() as Step.Move).from)
+        val deleted = ExplorerLocalOps.plan(listOf(delete("A.txt", identity = "/A.txt")), remote, emptyList(), now)
+        assertEquals("/A.txt", (deleted.steps.single() as Step.Trash).realmPath)
+        // A case-only rename onto the hidden twin's name is blocked: NTFS would see them as one.
+        val ontoTwin = ExplorerLocalOps.plan(
+            listOf(rename("A.txt", "a.txt", identity = "/A.txt")), remote, listOf(placeholder("a.txt")), now,
+        )
+        assertTrue(ontoTwin.steps.isEmpty())
+    }
+
+    @Test
     fun twoNoticesOfOneDelete_trashItOnce() {
         // Measured: the Recycle Bin sends two notices for one file.
         val ops = listOf(rename("a.txt", "ignored", at = settled).copy(target = null), delete("a.txt", at = settled + 5))
