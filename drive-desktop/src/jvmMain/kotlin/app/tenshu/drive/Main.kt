@@ -21,6 +21,7 @@ import app.tenshu.ingest.backup.BackupPreferences
 import app.tenshu.ingest.backup.SyncedFolderController
 import app.tenshu.ui.layout.LocalNavRailPreference
 import app.tenshu.ui.layout.filePersistedNavRailPreference
+import app.tenshu.ui.layout.TenshuWindowIcon
 import app.tenshu.ui.layout.rememberPersistedWindowState
 import app.tenshu.ui.theme.TenshuTheme
 import kotlinx.coroutines.Dispatchers
@@ -77,6 +78,7 @@ fun main(args: Array<String>) {
             title = "Tenshu Drive",
             state = windowState
         ) {
+            TenshuWindowIcon()
             val viewModelStoreOwner = remember { DesktopViewModelStoreOwner() }
             val savedStateRegistryOwner = remember { DesktopSavedStateRegistryOwner() }
             val scope = rememberCoroutineScope()

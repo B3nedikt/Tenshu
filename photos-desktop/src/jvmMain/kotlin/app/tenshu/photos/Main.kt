@@ -13,6 +13,7 @@ import app.tenshu.photos.di.platformClientModule
 import app.tenshu.photos.ui.App
 import app.tenshu.ui.layout.LocalNavRailPreference
 import app.tenshu.ui.layout.filePersistedNavRailPreference
+import app.tenshu.ui.layout.TenshuWindowIcon
 import app.tenshu.ui.layout.rememberPersistedWindowState
 import app.tenshu.ui.theme.TenshuTheme
 import org.koin.core.context.startKoin
@@ -47,6 +48,7 @@ fun main() {
             title = "Tenshu Photos",
             state = windowState,
         ) {
+            TenshuWindowIcon()
             val viewModelStoreOwner = remember { DesktopViewModelStoreOwner() }
             val savedStateRegistryOwner = remember { DesktopSavedStateRegistryOwner() }
             // ⚠ `remember`ed: AdaptiveNavScaffold reads the stored value keyed on this instance, so

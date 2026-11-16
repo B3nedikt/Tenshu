@@ -1,9 +1,11 @@
 package app.tenshu.control.bridge
 
 import kotlinx.coroutines.runBlocking
+import org.junit.Assume.assumeTrue
 import org.tenshu.core.common.proxy.BridgeException
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.nio.file.FileSystems
 import java.nio.file.Files
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -30,6 +32,24 @@ class FileProviderStagingTest {
         ages[file.name] = millisAgo
     }
 
+    private val posix = "posix" in FileSystems.getDefault().supportedFileAttributeViews()
+
+    /**
+     * Skips a case that needs staging to be AVAILABLE, on a host without POSIX permissions
+     * (Windows). There staging cannot make its directory owner-only, so it fails closed —
+     * [stagingFailsClosedWithoutPosixPermissions] pins that instead. Staging is the macOS File
+     * Provider's hand-off; the Windows design needs none (`desktop-windows-port.md` §7.2).
+     */
+    private fun posixOnly() = assumeTrue("staging needs POSIX permissions", posix)
+
+    @Test
+    fun stagingFailsClosedWithoutPosixPermissions() {
+        org.junit.Assume.assumeFalse("this host has POSIX permissions", posix)
+        val staging = FileProviderStaging(dir)
+        assertEquals("unavailable", assertFailsWith<BridgeException> { staging.validate("abcdefgh") }.code)
+        assertEquals("unavailable", assertFailsWith<BridgeException> { staging.createDownload("abcdefgh") }.code)
+    }
+
     private fun agedStaging(directory: File = dir) = FileProviderStaging(directory) { path ->
         val real = inodeChangeMillis(path) ?: return@FileProviderStaging null
         real - (ages[path.fileName.toString()] ?: 0L)
@@ -37,6 +57,7 @@ class FileProviderStagingTest {
 
     @Test
     fun aNameIsATokenAndNeverAPath() {
+        posixOnly()
         val staging = FileProviderStaging(dir)
         staging.validate("3f2c9a10-aaaa-bbbb-cccc-000000000001")
         for (hostile in listOf("../escape", "a/b-c-d-e-f", "..", "", "short", "name.with.dots", "/etc/passwd", "x".repeat(65))) {
@@ -54,6 +75,7 @@ class FileProviderStagingTest {
 
     @Test
     fun theDirectoryIsPrivateToTheUser() {
+        posixOnly()
         FileProviderStaging(dir)
         val permissions = Files.getPosixFilePermissions(dir.toPath()).map { it.name }.toSet()
         assertEquals(setOf("OWNER_READ", "OWNER_WRITE", "OWNER_EXECUTE"), permissions)
@@ -61,6 +83,7 @@ class FileProviderStagingTest {
 
     @Test
     fun discardRemovesTheFile_andSettledLeavesIt() {
+        posixOnly()
         val staging = FileProviderStaging(dir)
         val kept = File(dir, "kept-0001").apply { writeText("plaintext") }
         val dropped = File(dir, "dropped-0001").apply { writeText("plaintext") }
@@ -74,6 +97,7 @@ class FileProviderStagingTest {
 
     @Test
     fun sweepRemovesOnlyWhatACrashLeftLongAgo() {
+        posixOnly()
         val staging = agedStaging()
         val stale = File(dir, "stale-0001").apply { writeText("x") }
         val fresh = File(dir, "fresh-0001").apply { writeText("x") }
@@ -87,6 +111,7 @@ class FileProviderStagingTest {
 
     @Test
     fun anOldDocumentStagedJustNowIsNotStale() {
+        posixOnly()
         // The REAL age source, no seam. A staged upload is a clone of the user's file and keeps
         // its dates — setting an old modification time drags the creation time back with it on
         // APFS — so by either date this file is a year stale the moment it arrives.
@@ -104,6 +129,7 @@ class FileProviderStagingTest {
 
     @Test
     fun aSymlinkNamedLikeAnUploadIsNotRead() {
+        posixOnly()
         // The name is a valid token; the entry behind it points out of the directory.
         val staging = FileProviderStaging(dir)
         val secret = Files.createTempFile("fp-secret", ".txt").toFile().apply { writeText("daemon-readable secret") }
@@ -124,6 +150,7 @@ class FileProviderStagingTest {
 
     @Test
     fun aDownloadNeverWritesThroughAPlantedSymlink() {
+        posixOnly()
         val staging = FileProviderStaging(dir)
         val victim = Files.createTempFile("fp-victim", ".txt").toFile().apply { writeText("do not truncate me") }
         try {
@@ -142,6 +169,7 @@ class FileProviderStagingTest {
 
     @Test
     fun aStagingPathThatIsItselfASymlinkSwitchesStagingOff() {
+        posixOnly()
         val elsewhere = Files.createTempDirectory("fp-elsewhere").toFile()
         val link = File(dir, "linked-staging")
         try {
@@ -155,6 +183,7 @@ class FileProviderStagingTest {
 
     @Test
     fun replacingTheDirectoryAfterwardsSwitchesStagingOff_ratherThanRedirectingIt() {
+        posixOnly()
         // The directory was real when staging started. Then it is moved aside and a symlink to
         // an attacker's directory is put at its path — with entries of the right names in it.
         val real = File(dir, "staging").apply { mkdirs() }
@@ -182,6 +211,8 @@ class FileProviderStagingTest {
 
     @Test
     fun aDifferentRealDirectoryAtThePathIsNotTrustedEither() {
+        // ⚠ Would pass off POSIX for the wrong reason (staging is never available there).
+        posixOnly()
         // Not a symlink this time: the directory is replaced by another real one.
         val real = File(dir, "staging").apply { mkdirs() }
         val staging = FileProviderStaging(real)
@@ -194,6 +225,7 @@ class FileProviderStagingTest {
 
     @Test
     fun aLeftoverIsSweptOnLaterUse_withoutARestart_butNeverTheEntryInUse() {
+        posixOnly()
         val staging = agedStaging()
         // Staged by an extension that then crashed: the daemon was never told about it.
         val orphan = File(dir, "orphan-0001").apply { writeText("plaintext") }

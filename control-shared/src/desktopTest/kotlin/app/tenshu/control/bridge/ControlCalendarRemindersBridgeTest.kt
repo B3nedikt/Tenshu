@@ -38,6 +38,19 @@ class ControlCalendarRemindersBridgeTest {
         assertEquals(emptyList<Any>(), result["reminders"])
     }
 
+    /**
+     * ⚠⚠ An unplanned empty schedule (a daemon that has not planned since it started) must say so: a tray that
+     * diffs against the OS's own schedule would otherwise read it as "cancel everything" after every restart.
+     */
+    @Test
+    fun the_schedule_says_whether_it_is_a_plan() {
+        val schedule = app.tenshu.notify.PendingAlertSchedule()
+        assertEquals(false, calendarRemindersResult(schedule.current(), schedule.isPlanned())["planned"])
+
+        schedule.replaceScheduled(emptyList())
+        assertEquals(true, calendarRemindersResult(schedule.current(), schedule.isPlanned())["planned"])
+    }
+
     @Test
     fun a_reminder_carries_everything_the_tray_needs_and_nothing_else() {
         val row = rows(alert("k1", "Standup", "Room A")).single()

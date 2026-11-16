@@ -100,13 +100,31 @@ val generatePeerTrustAnchor by tasks.registering {
             ?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }
             ?.let { addAll(it) }
     }
+    // Windows (desktop-windows-port.md §3.2, D1): the Store publisher ids — the 13-character half of
+    // a package family name after the `_` — that may vouch for our MSIX packages. Same rules as the
+    // Team IDs: compiled in, a set (a publisher change is additive), never read at runtime. Empty
+    // until the Partner Center account exists ⇒ no Windows peer attests and a strict Control admits
+    // only under developer mode. A locally side-loaded test package's publisher id goes here too.
+    val windowsPublisherIds = ((project.findProperty("tenshu.windowsPublisherIds") as String?)
+        ?: System.getenv("TENSHU_WINDOWS_PUBLISHER_IDS"))
+        ?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }?.toSortedSet()
+        ?: sortedSetOf()
+    // ⚠ Checked here: a typo or an uppercase id would compile into an anchor that silently admits no one, and
+    // the value is pasted into Kotlin source unescaped. 13 characters of the publisher-id alphabet.
+    windowsPublisherIds.forEach { id ->
+        require(Regex("^[0-9a-hjkmnp-tv-z]{13}$").matches(id)) {
+            "tenshu.windowsPublisherIds: '$id' is not a publisher id (13 characters of 0-9 a-z without i l o u)"
+        }
+    }
     val outputDir = layout.buildDirectory.dir("generated/peerTrust")
     outputs.dir(outputDir)
     inputs.property("teamIds", teamIds.sorted().joinToString(","))
+    inputs.property("windowsPublisherIds", windowsPublisherIds.joinToString(","))
 
     doLast {
         val pkg = outputDir.get().asFile.resolve("app/tenshu/control/ipc").apply { mkdirs() }
         val literal = teamIds.sorted().joinToString(", ") { "\"$it\"" }
+        val windowsLiteral = windowsPublisherIds.joinToString(", ") { "\"$it\"" }
         pkg.resolve("PeerTrustAnchor.kt").writeText(
             """
             package app.tenshu.control.ipc
@@ -121,6 +139,9 @@ val generatePeerTrustAnchor by tasks.registering {
              */
             internal object PeerTrustAnchor {
                 val FIRST_PARTY_TEAM_IDS: Set<String> = setOf($literal)
+
+                /** Store publisher ids for our MSIX packages (Windows); empty ⇒ no Windows peer attests. */
+                val FIRST_PARTY_WINDOWS_PUBLISHER_IDS: Set<String> = setOf($windowsLiteral)
             }
             """.trimIndent() + "\n",
         )
@@ -130,12 +151,17 @@ val generatePeerTrustAnchor by tasks.registering {
 kotlin {
     jvmToolchain(FFM_JDK)
     jvm()
+    // The window's own icon on Windows — title bar, Alt+Tab (TenshuWindowIcon; ADR 0026 §6b).
+    sourceSets.named("jvmMain") { resources.srcDir("icons/windows/window") }
 
     sourceSets {
         getByName("jvmMain") {
             kotlin.srcDir(generatePeerTrustAnchor)
             dependencies {
                 implementation(project(":macos-helpers"))
+                implementation(project(":windows-helpers"))
+                // The peer gate's decisions, kept in a file — a packaged app's stdout is lost (an MSIX has none).
+                implementation(project(":diagnostics"))
                 implementation(project(":control-shared"))
                 implementation(project(":ui-core"))
                 implementation(project(":core-common"))
@@ -178,6 +204,28 @@ kotlin {
 val qrImpl: String? = (project.findProperty("tenshu.qr.impl") as String?)?.takeIf { it.isNotBlank() }
 val desktopMarketingVersion = "1.0.1"
 
+// Windows MSIX (desktop-windows-port.md §5.2, D1): `:control-desktop:packageMsix`; the Store build is
+// docs/how-to/windows-store-submission.md. ⚠ The identity name is provisional until the Partner Center
+// reservation, and must equal FirstPartyDesktopPeers.WINDOWS_CONTROL_PACKAGES and
+// ControlServerCheck.WINDOWS_CONTROL_PACKAGE, or no app can reach this Control (packageMsix checks the pins).
+extra["tenshu.msix.identityName"] = "Tenshu.Control"
+// ⚠⚠ false until the name above IS Partner Center's Package/Identity/Name; a Store build refuses until then.
+extra["tenshu.msix.identityReserved"] = false
+extra["tenshu.msix.identityPins"] = listOf(
+    "control-shared-logic/src/desktopMain/kotlin/app/tenshu/control/data/FirstPartyDesktopPeers.kt",
+    "ui-core/src/desktopMain/kotlin/app/tenshu/ui/ipc/ControlServerCheck.kt",
+)
+extra["tenshu.msix.displayName"] = "Tenshu Control"
+extra["tenshu.msix.appId"] = "Control"
+extra["tenshu.msix.executable"] = "TenshuControl"
+extra["tenshu.msix.version"] = desktopMarketingVersion
+// The native Windows tray agent ships inside Control's package (desktop-windows-port.md §3.9, D5).
+extra["tenshu.msix.trayAgentProject"] = "windows/TrayAgent/TrayAgent.csproj"
+// ⚠ The agent is framework-dependent on the Windows App SDK; this must match the version its csproj pins
+// (Microsoft.WindowsAppSDK 1.8.260921001 → runtime 8000.994.2142.0, from WindowsAppSDK-VersionInfo.h).
+extra["tenshu.msix.windowsAppRuntime"] = "Microsoft.WindowsAppRuntime.1.8|8000.994.2142.0"
+apply(from = rootProject.file("gradle/desktop-msix.gradle.kts"))
+
 // Flags the desktop IPC peer-credential gate needs (desktop-ipc-client-identity.md §6).
 // `PeerAuditToken` recovers the peer's file descriptor by reflecting into
 // `sun.nio.ch.SocketChannelImpl` — the JDK exposes no public route — and that is a hard
@@ -192,18 +240,26 @@ val PEER_GATE_JVM_ARGS = listOf(
 tasks.withType<JavaExec> {
     if (name == "run" || name == "jvmRun") {
         mainClass.set("app.tenshu.control.MainKt")
-        // Fix for Skiko UnsatisfiedLinkError on macOS
-        jvmArgs("-Dskiko.renderApi=METAL")
-        qrImpl?.let { jvmArgs("-Dtenshu.qr.impl=$it") }
-        // Desktop IPC peer-credential gate (desktop-ipc-client-identity.md §6).
-        // ⚠ Must stay in step with the `nativeDistributions` jvmArgs below — the packaged
-        // app is a different JVM invocation, and a flag set only here yields a verifier that
-        // works under `:run` and throws in the shipped bundle.
-        jvmArgs(PEER_GATE_JVM_ARGS)
-        // Dev run is NOT a release build: keep the dev-seed entitlement minter so storage works
-        // without a commerce service standing (the dev-key release guard, §9.3, defaults
-        // release-safe for packaged builds). Override with -Dtenshu.release=true to exercise it.
-        jvmArgs("-Dtenshu.release=false")
+        // ⚠⚠ The dev-run flags go in `doFirst`, not here. Compose's `configureRunTask` calls
+        // `setJvmArgs(app.jvmArgs)` AFTER this block and REPLACES the list, so anything set at
+        // configuration time never reached the JVM — developer mode was always off on a dev run
+        // (tech-debt.md "`:control-desktop:run` drops its own JVM flags"). `doFirst` runs after
+        // Compose has configured the task. ⚠ Never move them onto
+        // `compose.desktop.application.jvmArgs`: that also feeds the packaged app, which must never
+        // carry `tenshu.release=false`. (`PEER_GATE_JVM_ARGS` and `-Dtenshu.qr.impl` already reach
+        // both JVMs through that list, below.)
+        val devArgs = buildList {
+            // Dev run is NOT a release build: the dev-seed entitlement minter stays on so storage
+            // works without a commerce service, and developer mode (A16) admits unsigned or
+            // unpackaged local peers — a dev Drive, or the standalone Windows tray agent.
+            // Override with -Dtenshu.release=true to exercise the release posture.
+            add("-Dtenshu.release=false")
+            // A Skiko UnsatisfiedLinkError fix on macOS only: METAL is not a Windows/Linux renderer.
+            if (System.getProperty("os.name").orEmpty().startsWith("Mac", ignoreCase = true)) {
+                add("-Dskiko.renderApi=METAL")
+            }
+        }
+        doFirst { (this as JavaExec).jvmArgs(devArgs) }
     }
 }
 
@@ -224,11 +280,19 @@ tasks.withType<JavaExec> {
 // JDK 25, and nothing can be packaged without first being compiled. So a missing 25 still
 // fails any packaging build — at `compileKotlinJvm`, naming the toolchain, instead of taking
 // the whole build's configuration down with it.
-val ffmRuntime: String? = runCatching {
-    javaToolchains
-        .launcherFor { languageVersion.set(JavaLanguageVersion.of(FFM_JDK)) }
-        .get().metadata.installationPath.asFile.absolutePath
-}.getOrNull()
+//
+// ⚠ `-Ptenshu.jpackageJavaHome=<a full JDK 25>` (or `TENSHU_JPACKAGE_JAVA_HOME`) overrides the toolchain
+// pick, for a machine whose only JDK 25 is Android Studio's bundled JBR: toolchain detection finds it, and
+// the JBR ships WITHOUT `jpackage`, so `checkRuntime` fails (desktop-windows-port.md §5.2). Opt-in, so CI
+// and the macOS release builds keep embedding exactly what they did.
+val ffmRuntime: String? =
+    ((project.findProperty("tenshu.jpackageJavaHome") as String?) ?: System.getenv("TENSHU_JPACKAGE_JAVA_HOME"))
+        ?.takeIf { it.isNotBlank() }
+        ?: runCatching {
+            javaToolchains
+                .launcherFor { languageVersion.set(JavaLanguageVersion.of(FFM_JDK)) }
+                .get().metadata.installationPath.asFile.absolutePath
+        }.getOrNull()
 
 compose.desktop {
     application {
@@ -241,6 +305,8 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg, TargetFormat.Pkg)
             packageName = "TenshuControl"
             packageVersion = desktopMarketingVersion
+            // Windows: the launcher .exe's icon (ADR 0026 §6b; scripts/windows-app-icons.py).
+            windows { iconFile.set(project.file("icons/windows/control.ico")) }
             macOS {
                 // Reuse Control's iOS bundle ID so this macOS target can share one
                 // App Store Connect record and remain eligible for Universal Purchase.

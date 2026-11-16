@@ -8,12 +8,13 @@ import app.tenshu.macos.MacPowerProbe
  *
  * ⚠⚠ **Not the Synced Folders stance.** `DesktopBackupEnvironment` treats a desktop as always wired,
  * which is fine for an upload that finishes in seconds; a first index is hours of every core on a
- * laptop someone is typing on. So this reads the machine: IOKit for power, the HID idle timer for
- * use (`MacPowerProbe`).
+ * laptop someone is typing on. So this reads the machine through a [Probe]: by default IOKit for
+ * power and the HID idle timer for use (`MacPowerProbe`); Control's desktop DI supplies the Windows
+ * probe (`GetSystemPowerStatus` + `GetLastInputInfo`, `:windows-helpers`) on Windows.
  *
- * ⚠⚠ **macOS only, and every other desktop never indexes.** Windows and Linux have no probe here, and
- * unknown reads as no — a platform that cannot tell whether someone is at the keyboard does not
- * start a multi-hour job under their hands.
+ * ⚠⚠ **A desktop with no probe never indexes on a schedule** (Linux today): unknown reads as no — a
+ * platform that cannot tell whether someone is at the keyboard does not start a multi-hour job
+ * under their hands.
  */
 class DesktopIndexingConditions(
     private val idleSeconds: Double = DEFAULT_IDLE_SECONDS,
@@ -34,7 +35,7 @@ class DesktopIndexingConditions(
 
     /**
      * ⚠ Neither AC power nor idleness is required — the user asked, at the keyboard. ⚠⚠ A laptop on
-     * a low battery is still refused, and an unreadable machine (Windows, Linux) is **allowed**: for
+     * a low battery is still refused, and an unreadable machine (Linux) is **allowed**: for
      * a manual run, "I cannot tell" must not be the same answer as "no".
      */
     override fun allowManualIndexing(): Boolean = probe.batteryLow() != true

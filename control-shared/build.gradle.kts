@@ -209,6 +209,8 @@ kotlin {
                 // In-process SMAppService calls for the MAS login item. The helper app
                 // remains only the launch target; registration belongs to Control.app.
                 implementation(project(":macos-helpers"))
+                // Drive in File Explorer: the Cloud Files sync root Control hosts (desktop-windows-port.md §7.8).
+                implementation(project(":windows-helpers"))
                 implementation(libs.savedstate.compose)
                 api(project(":file-service-common"))
                 api(project(":file-service-client"))

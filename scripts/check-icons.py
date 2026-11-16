@@ -101,7 +101,7 @@ def ios_projects():
 
 # ------------------------------------------------------- vector drawable -> svg
 def vd_to_svg(path):
-    s = re.sub(r"<!--.*?-->", "", Path(path).read_text(), flags=re.S)   # comments can contain <group>
+    s = re.sub(r"<!--.*?-->", "", Path(path).read_text(encoding="utf-8"), flags=re.S)   # comments can contain <group>
     xf = []
     for a in re.findall(r"<group\b(.*?)>", s, re.S):
         g = lambda k, d: float(m.group(1)) if (m := re.search(k+r'="([-\d.]+)"', a)) else d
@@ -163,11 +163,34 @@ def check_coverage():
         else: seen[h] = mod; ok("android", f"{mod} glyph is unique")
 
     for mod, ident in desktop_modules():
-        gradle = (ROOT/mod/"build.gradle.kts").read_text()
-        m = re.search(r'iconFile\.set\(project\.file\("([^"]+)"\)', gradle)
+        gradle = (ROOT/mod/"build.gradle.kts").read_text(encoding="utf-8")
+        # ⚠ Anchored on `.icns`: the `windows { iconFile.set(… .ico) }` line sits above the macOS block, and an
+        # unanchored search would match it and pass a module whose macOS icon is gone.
+        m = re.search(r'iconFile\.set\(project\.file\("([^"]+\.icns)"\)', gradle)
         if not m: fail(f"desktop/{mod}", "no iconFile in the macOS block — jpackage falls back to the Java icon")
         elif not (ROOT/mod/m.group(1)).exists(): fail(f"desktop/{mod}", f"iconFile points at missing {m.group(1)}")
         else: ok(f"desktop/{mod}", m.group(1))
+        # Windows (ADR §6b): the .exe's .ico, the window's own icon on the classpath, and the MSIX logos. Without
+        # them a Windows build shows the JVM's icon.
+        win = ROOT/mod/"icons/windows"
+        mw = re.search(r'windows \{ iconFile\.set\(project\.file\("([^"]+)"\)\) \}', gradle)
+        if not mw: fail(f"desktop/{mod}", "no iconFile in a windows { } block — the .exe gets the JVM's icon")
+        elif not (ROOT/mod/mw.group(1)).exists(): fail(f"desktop/{mod}", f"windows iconFile points at missing {mw.group(1)}")
+        else: ok(f"desktop/{mod}", mw.group(1))
+        if 'resources.srcDir("icons/windows/window")' not in gradle:
+            fail(f"desktop/{mod}", "icons/windows/window is not on the jvmMain classpath — TenshuWindowIcon finds nothing")
+        elif not (win/"window/tenshu-app-icon/32.png").exists():
+            fail(f"desktop/{mod}", "no window icon PNGs — run scripts/windows-app-icons.py")
+        else: ok(f"desktop/{mod}", "window icon")
+        main_kt = next((ROOT/mod).glob("src/*/kotlin/**/Main.kt"), None)
+        if main_kt is None:
+            fail(f"desktop/{mod}", "no Main.kt found — cannot check that the window calls TenshuWindowIcon()")
+        elif "TenshuWindowIcon()" not in main_kt.read_text(encoding="utf-8"):
+            fail(f"desktop/{mod}", f"{main_kt.relative_to(ROOT)} never calls TenshuWindowIcon() — the window keeps the JVM's icon")
+        else: ok(f"desktop/{mod}", "TenshuWindowIcon()")
+        for logo in ("Square44x44Logo.targetsize-24_altform-unplated.png", "Square150x150Logo.scale-100.png", "StoreLogo.scale-100.png"):
+            if not (win/"msix"/logo).exists(): fail(f"desktop/{mod}", f"missing icons/windows/msix/{logo} — run scripts/windows-app-icons.py")
+            else: ok(f"desktop/{mod}", logo)
 
     for proj, ident in ios_projects():
         yml = (ROOT/proj/"project.yml").read_text()

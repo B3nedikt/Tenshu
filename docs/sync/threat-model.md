@@ -44,6 +44,12 @@ Phase 1 items 3/4/9):** adds assets **A43** (the side-channel signing key, a tru
 custody) and **A44** (the release bucket, its publish key and the committed release manifest — an
 **macOS direct-release sub-amendment (2026-11-06, [`desktop-macos-distribution.md`](../proposals/desktop-macos-distribution.md) §2.7):** widens **A44** to the notarized Developer ID `.dmg` of the ten desktop apps and the committed `store/macos-release.json`, in the same bucket under the same publish key, widens attack surface #20, and adds threat group §8.24 (T-MD-01–02). No asset (A1–A4 / A9), relay surface or sync-protocol change: public installers on Cloudflare R2, nothing user-owned (House Rule #1).
 **Client-side gate sub-amendment (2026-11-06, [`desktop-ipc-client-identity.md`](../proposals/desktop-ipc-client-identity.md) §11):** amends **A14** — the binding now runs in both directions: every desktop app attests the process serving `ipc.sock` as Tenshu Control (`app.tenshu.control.ios`, a compiled-in team) before writing to it. **T-MD-01**'s residual drops to Medium. No asset (A1–A4 / A9), relay surface or sync-protocol change; device-local only (House Rule #1).
+**Windows Explorer sub-amendment (2026-11-10, [`desktop-windows-port.md`](../proposals/desktop-windows-port.md) §7.8, X1):**
+adds **T-C-21** and a Windows paragraph to **T-C-16**. With the (off-by-default) *Show Drive in File Explorer*
+switch on, Control hosts a Cloud Files sync root: the OS asks Control to decrypt and serve a file whenever **any**
+same-user process opens its placeholder — a path that does not pass the A14 gate — and downloaded files stay
+plaintext in an ordinary NTFS folder until freed. No asset (A1–A4 / A9), relay surface or sync-protocol change; the
+bytes come through the same file-service path as every other read (House Rule #1).
 **install trust root** for a fresh install), attack surface #20 (app distribution outside Play) and
 threat group §8.23 (T-DA-01–05), and qualifies **TA4** for copies downloaded from tenshu.app. A41/A42
 are left to `sync-push-wake.md`, whose draft appendix holds them. No asset (A1–A4 / A9), relay surface
@@ -1737,13 +1743,20 @@ Explicitly not trusted:
   The trust anchor (accepted Team IDs) is **compiled into the binary**, deliberately not read
   from a property, environment variable or config file at runtime: the very adversary this
   asset defends against (AD3, a same-user process) could otherwise add its own team.
+  On **Windows** the anchor is the set of **Store publisher ids** our MSIX packages carry
+  (`FIRST_PARTY_WINDOWS_PUBLISHER_IDS`, compiled in by the same rule), and the attested identity is
+  the package name of the process holding the socket — see T-C-11's Windows paragraph.
   Compromise (subverted `Security.framework` verification, a stolen signing key, or a
   developer-mode A16 flip) defeats per-process authentication on the IPC channel.
 - **A15. Desktop Master-Key At-Rest Storage.** Container that persists A1 across Control
   sessions on desktop. Choice depends on platform + environment per
   [`tenshu-rei.md`](../proposals/tenshu-rei.md) §3.6:
   - **macOS:** native Keychain (TA2). Required — Control refuses to start without it.
-  - **Windows:** native DPAPI (TA2). Required.
+  - **Windows:** native DPAPI (TA2), user scope. Required. ⚠ As built (2026-11-10,
+    `DpapiWrappingKeyStore`): DPAPI seals A21's wrapping key into `wrap-key.dpapi`; there is no
+    Windows biometric gate yet, so this is the baseline of T-C-17 only.
+    ⚠ "Required" is not yet enforced: a Windows Control without DPAPI falls back to in-memory
+    secrets like every other desktop, rather than refusing to start.
   - **Linux + Secret Service:** gnome-keyring / KWallet via dbus (TA2). Preferred.
   - **Linux without Secret Service:** Argon2id-derived encrypted file on disk, two
     user-selected modes (`tenshu-rei.md` §5.F.50):
@@ -1857,8 +1870,11 @@ Explicitly not trusted:
   key lives in the **macOS login Keychain** (a generic-password item). This **changes the desktop
   at-rest exposure**: previously these secrets were in-memory-only and lost on restart (the device
   re-paired); now A1/A2/A9-derived material persists as ciphertext on disk so the device resumes
-  its realm. Where no OS credential store is wired (Windows/Linux today, or `security` unavailable)
-  the store falls back to in-memory and the old re-pair-on-restart behaviour. The wrapping key is
+  its realm. On **Windows** (since 2026-11-10) the wrapping key is instead sealed with **DPAPI, user
+  scope**, in `wrap-key.dpapi` beside `secrets.enc` (`DpapiWrappingKeyStore`; `WindowsDpapi` in
+  `:windows-helpers`) — DPAPI keeps no store of its own, so the sealed key is a file. Where no OS
+  credential store is wired (Linux today, DPAPI unavailable, or `security` unavailable) the store
+  falls back to in-memory and the old re-pair-on-restart behaviour. The wrapping key is
   the same indirection the biometric path reuses (A1/A2 wrappers, Phase 2). **Relay exposure is
   unchanged** — purely device-local at rest (House Rule #1 unaffected). The Android twin is
   `EncryptedSharedPreferences` (AndroidKeyStore-backed). Threats: T-C-17.
@@ -2700,7 +2716,7 @@ invariants even if it is true. It is not a subset of AD4; it is the assumed defa
 4. Client-side at-rest storage (app storage, keystore, caches, logs, OS backups).
 5. Client UI (approval prompts, screens, accessibility APIs, screenshots).
 6. Device boundaries (OS ↔ app, app ↔ keystore, app ↔ IPC, Control ↔ co-installed Tenshu
-   apps on desktop via Unix socket / named pipe, and on Android via Binder in both directions —
+   apps on desktop via a Unix-domain socket (Windows included), and on Android via Binder in both directions —
    each app's exported `IClientInterface` callback service is T-C-19, Control's exported
    `IProxyInterface` is T-C-20).
 7. Human user (social engineering, coercion, mistakes).
@@ -5145,22 +5161,61 @@ names, at which point the relation needs a per-member access gate — tracked al
 **T-C-11. Same-user malicious app connects to Control IPC (desktop).**
 Actors: AD3 — a co-installed but untrusted process running as the user. Assets: A1 (by
 extension), A14. Invariants: I1, I3.
-A non-Tenshu binary opens a connection to `~/.tenshu/ipc.sock` (or the Windows named pipe)
+A non-Tenshu binary opens a connection to `~/.tenshu/ipc.sock` (on Windows the same AF_UNIX
+socket under `%USERPROFILE%\.tenshu` — there is no named pipe, `desktop-ipc.md` §4)
 and sends a forged `Hello` block claiming to be a known Tenshu `AppId`. The
-filesystem-permission posture (`700` on `~/.tenshu/`) blocks cross-user but not same-user
+filesystem-permission posture (`700` on `~/.tenshu/`; on NTFS an owner-only DACL — user, SYSTEM,
+Administrators — checked and repaired by `SocketDirectory`) blocks cross-user but not same-user
 processes. On a signed macOS install the socket is in the App Group container instead; the
 cross-user posture is unchanged there (`~/Library/Group Containers` is `700`, and the container
 itself is `700` once `containermanagerd` owns it), and same-user reachability is unchanged too.
 Defense: peer-credential check per [
 `docs/protocol/desktop-ipc.md`](../protocol/desktop-ipc.md) §3 step 2. Control resolves
 the connecting PID's binary path via `SO_PEERCRED` (Linux), `LOCAL_PEERPID` (macOS), or
-`GetNamedPipeClientProcessId` (Windows), reads its code-signing identity, and verifies it
+`SIO_AF_UNIX_GETPEERPID` (Windows), reads its code-signing identity, and verifies it
 matches a publication held by the local Rei source. The hello `AppId` must agree with the
 peer-credential identity (A14) — discrepancy is a hard reject.
 Residual risk: **Low** with peer-credential checks enforced; **High** without them. Open
 edge cases (cache warmup before publication is observed, signature-change-on-update, the
-Windows peer-PID race where `GetNamedPipeClientProcessId` may return a PID whose process
-has exited) tracked in [`tenshu-rei.md`](../proposals/tenshu-rei.md) §5.F.49.
+Windows peer-PID race where `SIO_AF_UNIX_GETPEERPID` may return a PID whose process
+has exited) tracked in [`tenshu-rei.md`](../proposals/tenshu-rei.md) §5.F.49. ⚠ The macOS
+verifier uses the audit token, not the pid, so the race does not apply there.
+**Windows (2026-11-10, `WindowsPeerCredentialVerifier`;
+[`desktop-windows-port.md`](../proposals/desktop-windows-port.md) §3.2, D1):** the peer is identified by
+the **MSIX package identity of the process holding the socket** — its package family name must be one
+of our package names *and* one of the publisher ids compiled into the binary (empty until the Partner
+Center account exists, so today nothing attests). Not by a signature: a Store package lives in the
+OS-protected `WindowsApps` folder with integrity enforced, whereas a per-user install's jars are
+writable by the very AD3 this threat is about (§4.1 there; per-user installs are ruled out, D3).
+⚠⚠ **The family name alone is forgeable.** It hashes the publisher *string*, which is public, so AD3 can
+register a loose, unsigned manifest under our name and publisher (`Add-AppxPackage -Register`, Developer
+Mode) and receive our exact family name, with its files in a folder AD3 writes. The gate therefore also
+requires the package's **origin** (`GetStagedPackageOrigin`) to be one that needed a signature from a
+certificate the machine trusts — Store, line-of-business, or developer-signed (our local test build) — and
+refuses loose, unsigned and unreadable origins (amended 2026-11-10). Trusting a new certificate takes an
+administrator, which AD3 is not. ⚠ Developer machines carrying the local test certificate
+(`scripts/windows/msix-test-cert.ps1`, its PFX on disk, trusted machine-wide) let AD3 *there* sign a package
+that passes; the test publisher id must never be in a release anchor.
+⚠⚠ **Not covered: AD3 acting through one of our running packages.** A full-trust MSIX process runs at the
+user's integrity, not as a protected process: AD3 can inject into a running `Tenshu.Drive`, duplicate its
+attested socket handle, or plant `JAVA_TOOL_OPTIONS` (`-javaagent:…`) in the user environment before the
+next launch. The gate stops impostor *processes*; it cannot stop the user's own malware from borrowing a
+genuine one — the same limit as macOS without the hardened runtime's injection protections.
+The pid race is narrowed, not closed: the gate holds an open handle to the peer for the whole read (no
+reuse during the check) and rejects a process **created after verification began**, since the real
+peer connected before the accept. A peer that exits, and a pid recycled to a process started, inside
+the gap between its connect and the start of verification remains. ⚠ AD3 can widen that gap (queued
+connections wait in the listen backlog) and can launch our packages at will, so a recycled pid landing on
+one of ours is not a meaningful barrier; this residual folds into the borrowing limit above. The reverse direction (an app checking that the server is Control,
+T-MD-01's defence) uses the same identity on Windows: the listening process must be the `Tenshu.Control`
+package from an anchored publisher (`ControlServerCheck`). Verified end to end with side-loaded MSIX
+packages on 2026-11-10. The socket directory `%USERPROFILE%\.tenshu` is gated by its DACL on Windows (2026-11-10):
+the daemon repairs it to user + SYSTEM + Administrators and clients refuse one another principal can write to,
+which closes directory squatting by another local user on NTFS; same-user processes remain the peer gate's job.
+Residual risk on Windows: **Low** against impostor processes with a configured anchor; **Medium** against
+same-user malware borrowing a running package (above), which the gate does not address. Until an anchor
+exists a strict Control admits no one and a developer-mode run admits everyone, a dev posture since no
+Windows build ships.
 
 **T-C-12. Developer mode silently enabled by attacker.**
 Actors: AD2 / AD3 with local write access to Control's config. Assets: A16; by extension
@@ -5326,6 +5381,16 @@ large file that is seconds to minutes rather than an instant, and a crash can ex
 sweep. The obligations stay checklist items: the final materialisation must remain inside the
 sandbox container (never a world-readable global temp) and be cleaned on eviction (per-platform I8
 client-hardening checklist, §9).
+**Windows (Cloud Files, 2026-11-10, `ExplorerSyncRoot`; `desktop-windows-port.md` §7.8).** There is no extension
+and no staging hand-off: Control writes the decrypted bytes straight into the placeholder through `CfExecute`. But
+the result is **plaintext in an ordinary folder** (`%USERPROFILE%\Tenshu Drive`), readable by every same-user
+process without any gate and **persistent until the user frees it** — a deviation from I8's "only while in active
+use", accepted while the switch is on, exactly as for any synced folder (OneDrive, Dropbox). Defense: the switch is
+off by default; every file starts online-only and is downloaded only when something opens it or the user chooses
+*Always keep on this device*; *Free up space* drops the copy (`CfDehydratePlaceholder`); turning the switch off
+deletes every placeholder, downloaded copies included. Disk encryption is BitLocker's job and out of scope.
+Residual risk while the switch is on: **Medium** (same-user and offline read of whatever has been opened); none
+while it is off.
 
 **T-C-17. Desktop at-rest master-key store exposure.**
 Actors: AD1 (offline disk theft) and AD3 (same-user malware). Assets: A21 (and the A1/A2/A9
@@ -5349,8 +5414,33 @@ Three sub-threats:
   keychain item is bound to the signing identity; a signature change can orphan it, so `secrets.enc`
   becomes undecryptable. The store treats an undecryptable blob as an empty bucket → the device
   re-pairs (mirrors Android `KeyInvalidated`). No secret is disclosed.
+**Windows (DPAPI baseline, 2026-11-10).** The same three sub-threats, with these differences:
+- *Offline disk theft / another OS user (AD1):* mitigated — `wrap-key.dpapi` opens only for the same
+  Windows user on the same machine (the DPAPI master key derives from the logon credential). ⚠ A
+  domain-joined machine's DPAPI master keys are also recoverable by a domain administrator via the
+  domain backup key; that admin is outside this threat model's adversaries, and is recorded here so
+  nobody claims otherwise.
+- *Same-user malware (AD3):* exposed, as on macOS — any process running as the user can call
+  `CryptUnprotectData` on the blob. The fixed entropy (`…master-wrap-key.v1`) is in our binary and does
+  not change that; it only stops a blob being opened by code that merely calls DPAPI on files it finds.
+  No `argv` exposure: the key never leaves the process (an improvement on the macOS `security` CLI).
+  The Windows Hello gate (masterkeystore Phase 3) is not built.
+- *Orphaning:* an administrator **password reset** (not a change) discards the user's DPAPI master key,
+  and a profile copied to another user or machine cannot open the blob. `DpapiWrappingKeyStore` retries
+  briefly, then mints a new key and only once that is protected moves the old blob **aside**
+  (`wrap-key.dpapi.unreadable-<time>`, never deleted). ⚠ Only a blob DPAPI *refuses*: with DPAPI unavailable
+  (no native binding) nothing is touched and the store runs in memory until it is back; `DesktopMasterKeyStore` cannot read `secrets.enc` either and keeps it aside the same way. The outcome
+  is one re-pair, as on macOS, with both old files on disk for diagnosis or a manual restore. No secret is
+  disclosed. (Amended 2026-11-10: keeping the blob in place and running in memory meant nothing could ever
+  be saved again — a silent re-pair on every launch.)
+- ⚠ *Roaming profiles:* with a domain roaming profile both `~\.tenshu` and the DPAPI master keys
+  (`AppData\Roaming\Microsoft\Protect`) roam, so the blob **does** open on another machine of the same
+  user, and two machines would run as one device identity. Not addressed; out of scope until a Windows
+  build targets managed environments.
+
 Residual risk: **Low–Medium** at the baseline (same-user malware exposed, by design for the §3
-"saved-password" baseline), reduced to **Low** once the Phase-2 gate is active. House Rule #1 unaffected:
+"saved-password" baseline), reduced to **Low** once the Phase-2 gate is active (macOS; no Windows
+gate yet). House Rule #1 unaffected:
 the relay never sees any of this — it is device-local at rest.
 
 **Phase 2 update (the per-access gate is now built).** The biometric path (proposal §4) is
@@ -5521,6 +5611,55 @@ catalogue and the release doc. Builds installed through Play's *internal app sha
 with another key and refused. **Third-party apps (Rei) are refused** until they get their own path:
 a package the user granted in Control whose signer matches the digest in its signed Rei publication
 (`tenshu-rei.md` §3.2), never an entry in the first-party table.
+
+**T-C-21. Windows Explorer integration: hydration outside the IPC gate, and a stand-in provider.**
+Actors: AD3 (same-user process). Assets: user file plaintext; the integrity of what the folder shows as Tenshu's.
+Invariants: I1, I8. Applies only while *Show Drive in File Explorer* is on (`desktop-windows-port.md` §7.8).
+- **(a) Any same-user process can have Control decrypt any realm file.** Opening a placeholder under
+  `%USERPROFILE%\Tenshu Drive` makes Windows call Control's `FETCH_DATA`; Control reads the file through the
+  file-service and hands Windows the plaintext. This path does **not** go through the A14 peer gate that keeps a
+  same-user process off `ipc.sock` (T-C-11): `CF_PROCESS_INFO` names the opener, and Control logs it, but does not
+  check it — the opener may be any editor the user runs. So with the switch on, the realm's files are as readable
+  by same-user code as the files of any synced folder; with it off, T-C-11's Low stands.
+  Defense: off by default, opt-in from Control's Settings; only the default file system's realm is shown; the read
+  path is the same as every other (the relay sees ciphertext only).
+  *X2 (2026-11-11):* the thumbnail handler is a COM class any same-user process can create, and it answers with a
+  file's stored thumbnail (`explorer.v1.thumbnail`, served to the tray agent over the gated bridge). That is a
+  strictly smaller read than (a) already grants — a small picture of a file the process could open whole — and it
+  answers only for our placeholders under the folder (the realm path comes from the placeholder's identity).
+- **(b) While Control is not connected, another process can be the provider.** CfAPI lets **one** process connect to
+  a sync root and does not check which (measured in X0: a second process connected as soon as the first
+  disconnected) — so while Control is not running, a same-user process can connect to Tenshu's root, serve
+  arbitrary bytes into online-only files and create placeholders. It could equally write into the folder as
+  files, since it is an ordinary user folder. Defense: nothing the folder holds is uploaded — X1 is read-only.
+  ⚠ Downloaded copies are **not** re-verified: bytes a stand-in served stay in place after Control reconnects as
+  long as size, date and identity match, and read as Tenshu's (a later phase could compare content hashes).
+  ⚠⚠ **X3 (uploading from the folder) must revisit this:** a file planted or a placeholder served by a stand-in
+  would then reach the realm and every device.
+- **(c) The folder writes to the realm (X3a, 2026-11-12, `desktop-windows-port.md` §7.10).** A file created or
+  edited in the folder is uploaded to the realm, and from there to every device. So any same-user process can add
+  files to the realm, or change one, by writing into the folder — as with any synced folder — and this path does
+  not pass the A14 gate either. It also makes (b) reach the realm: a file planted while Control was not running is
+  uploaded at the next start. Defense: off by default; an upload never overwrites a realm version other than the
+  one the local file was made from (a placeholder's identity, or the journal) — otherwise the edit is uploaded
+  beside it as a conflict copy (D-X3-2), so a write cannot silently replace another device's change; every
+  decided upload is read through one unshared handle, so what reaches the realm is what was checked; editor temp
+  files, hidden and system files are never uploaded; deletes (X3b) move to `/Trash`, never destroy (D-X3-1).
+  *X3b (2026-11-12):* deletes and renames in the folder reach the realm too. Any same-user process can therefore
+  move realm files to `/Trash`, or rename and move them, by doing so in the folder — and, by deleting inside `/Trash`,
+  delete a file for good (D-X3-3, the maintainer's call: emptying a recycle bin item). So a same-user process can
+  destroy a realm file in two steps, as it could through any synced folder with a recycle bin. Defense: a delete
+  anywhere else is a move to `/Trash`, never a destruction;
+  a delete is carried only if the realm still holds the version the placeholder showed, so a version that arrived
+  from another device is never trashed unseen; every notice waits until the folder has been quiet for 3 s and is then
+  checked against the folder as it is, so an editor's save (original deleted or renamed away, new version put in its
+  place) is an edit, not a delete; Control's own deletes are recognised by process and never carried.
+  Every delete or rename the mirror makes for the realm — removing a placeholder whose row went — checks and deletes on
+  one unshared handle, and a downloaded copy whose bytes differ from its version's recorded hash is kept for upload
+  instead (an edit Windows did not flag is never deleted). Switching the integration off keeps such a copy too, as an
+  ordinary file.
+Residual risk while the switch is on: **Medium** for (a) and (c), **Medium** for (b) since X3a (it now reaches the
+realm); none while it is off.
 
 ### 8.5 Key management and revocation
 

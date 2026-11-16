@@ -207,8 +207,59 @@ Recipe, per iconset entry (`icon_{16,32,128,256,512}x…` and their `@2x` twins)
 4. Composite over the fill, keeping the mask's alpha.
 5. `iconutil -c icns build.iconset -o <app>.icns`.
 
-Every `*-desktop` module targets `Dmg` + `Pkg` only. **No `.ico` and no Linux
-`.png` are owed**; their absence is not a gap.
+No Linux `.png` is owed; its absence is not a gap. Windows is §6b.
+
+### 6b. Windows
+
+*Added 2026-11-10 with the Windows port (`docs/proposals/desktop-windows-port.md`). Until then this section
+read "no `.ico` is owed", true while every `*-desktop` module built `Dmg` + `Pkg` only — and every Windows build
+showed the JVM's icon and placeholder letter tiles.*
+
+**The pictogram and colours are the macOS icon's (§6); the shape is Windows'.** Windows 11 does not mask app icons —
+an app ships its own shape — and the first build reused the macOS master whole. Next to its taskbar neighbours the
+Apple squircle in its ~10% transparent margin read as small and foreign, so Windows gets its own body:
+
+| | Value |
+|---|---|
+| Canvas | 1024 × 1024 |
+| Body | 944 × 944, inset **40 px** |
+| Body shape | rounded square, corner radius **14%** of the body (132 px) — chosen over a softer 22% (2026-11-10) |
+| Pictogram | its macOS share of the body: the 64-grid spans 580 × 944/824 ≈ **664 px**, centred |
+| Fill | the app's tile background (sampled from the `.icns`) |
+
+⚠ Keep the background. A backplate-free white pictogram vanishes on a light taskbar, and the theme-specific
+`_altform-lightunplated` images cover only the taskbar and Start — not the `.exe`, title bar, Explorer or Settings.
+A plate-free Windows icon means a full-colour Fluent redesign of the pictograms, not a recolour.
+
+**Generated, never hand-made:** `scripts/windows-app-icons.py` (Pillow + [resvg](https://github.com/linebender/resvg)),
+`--check` for drift. It works from what git holds, because the design source is gitignored: the pictogram is the
+app's Android launcher foreground (§5's port of `foreground/<id>.svg`, turned back into SVG by `check-icons.py`'s
+`vd_to_svg`); the fill is sampled from the shipped `.icns`. Every size is its own render, body included. Before
+writing anything the script composes the same pictogram onto the `.icns`'s own body at 1024 and diffs it against the
+`.icns` — 0.02–0.05 mean channel difference across the set, i.e. antialiasing — so a pictogram, colour or placement
+that drifts from macOS fails rather than ships.
+
+Per module, `<module>/icons/windows/`, all in git:
+
+| Output | Sizes | Consumer |
+|---|---|---|
+| `<id>.ico` | 16 20 24 32 40 48 64 256 | `nativeDistributions.windows.iconFile` — the launcher `.exe` |
+| `window/tenshu-app-icon/<N>.png` | 16 … 256 | `TenshuWindowIcon()` (`:ui-core`) — title bar, Alt+Tab |
+| `msix/Square44x44Logo.targetsize-N[_altform-unplated].png` | 16 … 256 | Start, taskbar, Settings, search |
+| `msix/Square44x44Logo.scale-N.png`, `Square150x150Logo.scale-N.png`, `StoreLogo.scale-N.png` | 100/150/200/400 % | Start tile, package logo |
+
+- ⚠⚠ **The window icon is separate from the package's.** A packaged app's taskbar entry comes from its manifest
+  logos, but the title bar and Alt+Tab show whatever AWT was told — the JVM's cup by default. macOS never needed
+  `TenshuWindowIcon()` (the Dock reads the bundle), which is how ten apps shipped without it.
+- ⚠ **The plated and unplated `targetsize` files are the same pixels.** Our icon carries its own body, so it needs
+  no plate; both names exist only because Windows asks for each in different places.
+- ⚠ **`resources.pri` is what makes the qualified files visible** — `packageMsix` builds it with `makepri`.
+  Without it Windows looks only for the manifest's literal `Assets\Square44x44Logo.png`, finds nothing, and shows
+  a blank tile.
+- ⚠ Small sizes keep the full pictogram, like the `.icns` does at 16/32 — so the cat is a blob at 24 px on both
+  desktops. A per-app `favicon/` simplification (§4) is the fix for both, and needs the design source.
+- `check-icons.py` COVERAGE fails a desktop module missing any of: the `windows { iconFile }`, the window icons on
+  the classpath, the `TenshuWindowIcon()` call, or the MSIX logos.
 
 ### 7. iOS
 
@@ -404,8 +455,8 @@ The five judgement gates below cannot be automated. Run them every round.
 - **This ADR is the contract**, and it is in git. Build files and drawables cite
   *this*, never the gitignored notes.
 - **Per-platform outputs are in git** and are produced from the SVGs by the
-  recipes above: Android VectorDrawables (§5), macOS `.icns` (§6), iOS PNG sets (§7)
-  and the web assets (§8).
+  recipes above: Android VectorDrawables (§5), macOS `.icns` (§6), Windows `.ico` +
+  MSIX logos (§6b), iOS PNG sets (§7) and the web assets (§8).
 
 ## Decision log
 

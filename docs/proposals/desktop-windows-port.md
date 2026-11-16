@@ -1,0 +1,1147 @@
+# Porting Control (and the desktop suite) to Windows
+
+**Status:** v0.3, 2026-11-10. The plan (W0–W7, X0–X4) is **agreed with the maintainer**, and the
+distribution decision is taken: **Microsoft Store first** (§0, D1–D4). W0 measured on the maintainer's
+Windows 11 machine; W1 and W2 done (W2's exit gate passed with side-loaded MSIX packages; "pair, restart,
+still paired" not yet run), with the Windows CI lane in `.github/workflows/windows.yml`; W3 in progress
+(tray and probes built); W4's Store build exists, unsubmitted (§5.2). No Windows build ships.
+
+**Scope:** what it takes for a person who is not the maintainer to install Tenshu Control on Windows 11,
+pair it, and have it stay resident and safe — then the other desktop apps over it. Covers the platform
+layer (key storage, IPC gate, tray, autostart, scheduling, notifications), packaging, and the two later
+distribution channels the maintainer asked for: **winget** and the **Microsoft Store**.
+
+**Relates to:** [`desktop-ipc.md`](../protocol/desktop-ipc.md) §3/§4 (transport + peer gate);
+[`desktop-macos-integration.md`](desktop-macos-integration.md) §7 (the earlier Windows sketch);
+[`desktop-masterkeystore.md`](desktop-masterkeystore.md) Phase 3 (DPAPI);
+[`desktop-macos-distribution.md`](desktop-macos-distribution.md) (the macOS twin this mirrors — suite
+lockstep, `releases.tenshu.app`, version numbers); [`core-background-processing.md`](core-background-processing.md)
+§5.3 (the resident daemon); [`control-central-notifications.md`](control-central-notifications.md);
+[ADR 0025](../adr/0025-forward-to-control-surface.md) (install-channel detection);
+[`commerce-store-link-out.md`](commerce-store-link-out.md) (rails per store);
+[`threat-model.md`](../sync/threat-model.md) A14/A15/A16/A20/A21.
+
+**How to read the evidence.** *Measured*: observed on Windows 11 Pro 10.0.26200 on 2026-11-09.
+*Read*: taken from the cited file. *Not verified*: inference or general knowledge about Windows / Microsoft
+Store policy; each names what must be checked, and the phase that checks it.
+
+---
+
+## 0. Decisions
+
+| # | Decision | Why, in one line |
+|---|---|---|
+| D1 | ✅ **Decided 2026-11-10: the Microsoft Store (MSIX) is the first and, for now, only channel.** | One upload gives both the Store and the command line (`winget install --source msstore …`), Microsoft signs it for free, and it is the only shape that is sealed (§4.1) and carries package identity (§3.5, §3.7). |
+| D2 | ✅ **Decided: the side channel comes later** — a **per-machine** MSI, signed through **SignPath Foundation** (free for OSI-licensed projects; Tenshu is Apache-2.0), on `releases.tenshu.app` and `microsoft/winget-pkgs`. | Free, CI-native signing; per-machine is what makes a shared signer acceptable (§4.2). ⚠ SignPath's acceptance of the project is *not verified*; checked when W6 starts. |
+| D3 | ✅ **Decided: no per-user install, on any channel.** | A per-user install directory is writable by the same user, so a validly signed launcher can be handed someone else's jars — the peer gate cannot hold (§4.1). |
+| D5 | ✅ **Decided 2026-11-10: a native Windows tray agent in C# / WinUI 3** (Windows App SDK), the twin of the macOS Swift agent: a second executable in the Control MSIX, speaking the existing JSON bridge, owning the tray flyout **and** the OS notifications and scheduled reminders. Right-click is a short native menu, left-click the flyout. The Compose tray (§3.4) stays only as the fallback where the agent is absent (a dev `:run`). | A truly native look, the architecture macOS already proves, and in C# toasts and scheduled reminders are first-class APIs — which replaces W3's riskiest item (WinRT from the JVM over FFM). ⚠ Every tray feature now exists in Swift and C#: both agents are kept **thin renderers of bridge-supplied state** (`tech-debt.md` *macOS Tray — Thin the Swift Surface to a Dumb Renderer*). |
+| D4 | ✅ **Decided: no paid certificate.** Microsoft's cloud signing, OV and EV certificates were weighed and set aside. | D1 needs none; D2 is free; EV no longer buys SmartScreen reputation (*not verified*, and moot). |
+
+---
+
+## 1. The short version
+
+Control is a Compose-Desktop JVM app, so the **logic already runs**: sync, the schedule drain loop, routines,
+the sync gate and the AF_UNIX IPC transport are all in-process and portable (§2). What is missing is every
+place the desktop layer leans on macOS for *being a resident, trusted background app*: key storage, the IPC
+peer gate, the tray, autostart, OS notifications/reminders, and power/idle probes (§3). Then packaging and
+signing (§4), then the stores (§5).
+
+⚠⚠ **Two defects make a Windows build worse than "missing features" today (§3.4):** closing the window
+hides Control with no way back (no tray, and the default is close-to-tray), and the Start-at-login switch
+shows **on** while nothing will autostart.
+
+---
+
+## 2. W0 — what already works (measured 2026-11-09)
+
+- `./gradlew :control-desktop:run` builds and runs; the *Tenshu Control* window opens, the log has no
+  exceptions, and both `ipc.sock` and `bridge.sock` are bound in `%USERPROFILE%\.tenshu`. *Measured.*
+  (Needs `JAVA_HOME`; Android Studio's bundled JBR 25 works.)
+- `:core-common:desktopTest`: 1003 tests. Every `UnixSocket*` suite, `DesktopIpcIntegrationTest` and the
+  `RemoteBinaryTaskExecutor*` suites pass. *Measured.*
+
+⚠⚠ **The transport is AF_UNIX, not named pipes.** `desktop-ipc.md` §4 planned named pipes "through the same
+`java.nio` API" — the JDK has no named-pipe `SocketChannel`, but it does support
+`StandardProtocolFamily.UNIX` on Windows 10 1803+ (JEP 380). The existing `UnixSocketServer` /
+`UnixSocketTaskTransport` therefore run unchanged. Consequence for the peer gate: the Windows peer-pid
+call is `SIO_AF_UNIX_GETPEERPID` (a `WSAIoctl`), **not** `GetNamedPipeClientProcessId` as the threat
+model and `desktop-ipc.md` say.
+
+**Test portability (done 2026-11-09).** 22 failures were tests, not product: `/`-joined path expectations
+(`SocketPathResolverTest`, `DesktopAppPathsTest`), POSIX-mode cases (`SocketDirectoryTest`) and
+`#!/bin/sh` fake helpers (`AppGroupContainerClaimTest`). The first now compare through `File`; the other
+two **skip** on Windows (JUnit `Assume`) — ⚠ a skip, not a pass: the POSIX socket-directory gate has no
+Windows equivalent yet (§3.3). `SocketPathResolver`'s `~/.tenshu` fallback now joins with the host
+separator (identical output on macOS/Linux).
+
+**Four tests were red on Windows because they were real behaviour (§3.3):** `SingleInstanceLockTest` ×2 and
+`SocketFileOwnershipTest` ×2 — fixed in W1.
+
+**W1's wider run** (`:control-shared`, `:drive-shared-ui`) found two more Windows facts:
+- ⚠⚠ `File.renameTo` never replaces an existing file on Windows. `FileProviderIds`' journal compaction used it,
+  so it never compacted there and a crash-torn tail glued the next record onto the fragment. Now `Files.move`
+  with `REPLACE_EXISTING`. Any new desktop code that rewrites a file must do the same.
+- The File Provider staging directory **fails closed** without POSIX permissions (it cannot make itself
+  owner-only), so every staging call answers `unavailable` on Windows. Correct posture; §7.2's design does not
+  stage. Those tests skip off POSIX and `stagingFailsClosedWithoutPosixPermissions` pins the refusal.
+- Socket tests used `Path.of("/tmp")`, which on Windows is `\tmp` on the current drive — present on the
+  maintainer's machine, absent on a CI runner. `shortTempDirectory()` (`:core-test-utils` jvmMain) replaces it.
+
+---
+
+## 3. The platform layer
+
+### 3.1 Master key at rest — DPAPI (ship-blocking)
+
+Off macOS, `PlatformProxyModule` picks `NoWrappingKeyStore` (`control-shared-proxy/.../PlatformProxyModule.kt`,
+the `wrappingKeyStore` selection), so A1/A2/A9 secrets live in memory and **the device re-pairs after every
+restart**. Threat model A15 says Windows DPAPI is *required*.
+
+- **Work:** `DpapiWrappingKeyStore` (`CryptProtectData` / `CryptUnprotectData`, user scope, over FFM — no
+  helper binary needed) beside `KeychainWrappingKeyStore`; the `DesktopMasterKeyStore` seam is unchanged.
+- ⚠ DPAPI user scope binds to the Windows logon credential: a password *reset* (not change) by an admin
+  loses the key ⇒ re-pair. Same failure class as A21's "Keychain unavailable"; document, don't engineer.
+- Threat-model amendment: A15/A21 gain a Windows row (HR #2).
+
+> **As built (W2, 2026-11-10).** `WindowsDpapi` (new module `:windows-helpers`, the Win32-over-FFM twin of
+> `:macos-helpers`, same JDK-25-compile / JVM-17-emit split) wraps `CryptProtectData` /
+> `CryptUnprotectData`, user scope, `CRYPTPROTECT_UI_FORBIDDEN`, with a fixed app entropy; it answers
+> `null` for anything it cannot do, and wipes the native copies of key material. `DpapiWrappingKeyStore`
+> (`control-shared-proxy`) seals the 32-byte wrapping key into `wrap-key.dpapi` beside `secrets.enc`
+> (atomic replace), and `PlatformProxyModule` selects it on Windows.
+> - ⚠⚠ **A blob that will not open is never replaced** (wrong user, admin password reset, corruption):
+>   minting a fresh key would orphan `secrets.enc` while looking healthy. It falls back to in-memory
+>   secrets — a re-pair, the same outcome as an unreadable `secrets.enc` — and leaves the blob on disk.
+> - ⚠ DPAPI keeps no store, unlike the Keychain: the sealed key is a file, so "Remove Tenshu from this PC"
+>   (§4) must delete `wrap-key.dpapi` with `secrets.enc`.
+> - ⚠ A15 says DPAPI is *required*; nothing enforces that yet — without DPAPI, Windows falls back to
+>   in-memory secrets like Linux.
+> - ⚠⚠ **Every `:windows-helpers` binding must load on a JVM without `java.lang.foreign`.** The shared
+>   modules' tests run on JDK 17, and the Control DI graph builds the key store on any Windows host: a
+>   struct layout in `WindowsDpapi`'s initialiser failed class-init (`NoClassDefFoundError`) and took down
+>   all 12 Control integration suites. FFM types now live in a private `Bindings` class loaded inside
+>   `runCatching`; follow the same shape for the next binding.
+> - Tests: `WindowsDpapiTest` (real DPAPI, hard-fails if the binding does not resolve on Windows) and
+>   `DpapiWrappingKeyStoreTest` (fake DPAPI, every host). Threat model: A15, A21, T-C-17's Windows paragraph.
+
+### 3.2 IPC peer gate (ship-blocking)
+
+Off macOS every peer resolves `Unattested`; with `strict = true` a packaged build admits **no one** (Drive
+cannot connect), a dev run admits everyone (`desktop-ipc.md` §3, threat model A14/A20 carve-out (b)).
+
+- **Work:** a `WindowsPeerAttestation` behind the existing `PeerCredentialPolicy` chokepoint: peer pid via
+  `SIO_AF_UNIX_GETPEERPID` → open the process → verify the **running image's** signer, and pin it to a
+  compiled-in trust anchor (as macOS pins the Team ID).
+- ⚠⚠ **The pid race has no audit-token answer on Windows** (`tenshu-rei.md` §5.F.49). Holding a process
+  handle opened *before* the check narrows it (a held handle keeps the pid from being reused) but does not
+  bind the handle to the connecting socket. Needs a design answer and a threat-model entry, not a shrug.
+- ⚠⚠ **What the gate pins follows D1–D3 — and it is never a signer alone** (§4.1):
+  - **Store (MSIX), first:** the peer process's **package family name** (`GetPackageFamilyName` on the peer
+    process) must be one of ours. It is derived from our Partner Center publisher, not from Microsoft's
+    re-signing certificate, and the package's files sit in the OS-protected `WindowsApps` folder with
+    integrity enforced — so identity and integrity come together.
+  - **Side channel (later, D2):** the running image's Authenticode signer must be SignPath Foundation's
+    **and** the image must live under `%ProgramFiles%` (admin-writable only). ⚠⚠ The signer alone proves
+    nothing: SignPath signs many projects with the same certificate. Pin subject + issuer, never a
+    thumbprint (certificates renew).
+  - A peer that is neither is unattested. Mixed installs (a Store Control, a side-channel Drive) are allowed,
+    as on macOS (`desktop-macos-distribution.md` §2.12).
+- Per-method authorization inside the bridge (the 2026-08-21 audit item) is platform-independent and not
+  re-opened here.
+
+> **As built (W2, 2026-11-10) — the Store arm.** `WindowsPeerProcess` (`:windows-helpers`) reads the peer's
+> pid with `WSAIoctl(SIO_AF_UNIX_GETPEERPID)`, opens it and **holds the handle** while it reads creation time,
+> liveness, package family name and image path. `WindowsPeerDecision` (pure, tested on every host) attests
+> only a live process created before verification began whose family name is `<one of our package names>_<a
+> publisher id from the anchor>`. `WindowsPeerCredentialVerifier` adapts it to the existing
+> `PeerCredentialVerifier` seam; `Main.kt` selects it on Windows behind the same strict policy.
+> - Package names: `ClientBinding.WindowsPackage` in `BundledAppCatalogue` (Drive) and
+>   `FirstPartyDesktopPeers.WINDOWS_CONTROL_PACKAGES` (bridge only). ⚠⚠ Provisional — the Store assigns them
+>   at the Partner Center name reservation, and they must then be replaced.
+> - Anchor: `-Ptenshu.windowsPublisherIds=<id>[,…]` (or `TENSHU_WINDOWS_PUBLISHER_IDS`) at build time →
+>   `PeerTrustAnchor.FIRST_PARTY_WINDOWS_PUBLISHER_IDS`. **Empty by default: nothing attests**, a strict Control
+>   admits no Windows peer, and a developer-mode `run` admits everyone (as before).
+> - Verified on Windows 11: the real lookup over an AF_UNIX socket returns the peer's pid, a live process
+>   created before the accept, and no family name for an unpackaged `java.exe` — so it is refused.
+>   ✅ **The positive path is verified (2026-11-10):** a side-loaded `Tenshu.Drive_asmrhn1bb0j6y` connected to a
+>   strict side-loaded `Tenshu.Control_asmrhn1bb0j6y` and Control's `diagnostics/ipc-gate.log` recorded
+>   `peer attested: Tenshu.Drive (publisher asmrhn1bb0j6y)` — the W2 exit gate.
+> - ⚠⚠ **The gate has two halves, and W2 first built only one.** Every app also checks the *server*
+>   (`ControlServerCheck` in `:ui-core`, `desktop-ipc-client-identity.md` §11) before sending a byte, strictly,
+>   and a packaged app can never use developer mode. That check knew only macOS signatures, so a packaged
+>   Windows app refused the genuine Control. It now has a Windows arm — the listening process must be the
+>   `Tenshu.Control` package from an anchored publisher — fed by the same `tenshu.windowsPublisherIds`
+>   property (`ClientPeerTrust.FIRST_PARTY_WINDOWS_PUBLISHER_IDS`). ⚠ `Tenshu.Control` is spelled in two
+>   places (`ControlServerCheck.WINDOWS_CONTROL_PACKAGE`, `FirstPartyDesktopPeers.WINDOWS_CONTROL_PACKAGES`);
+>   they must move together.
+> - ⚠⚠ **A family name is not enough on its own** (found in review, 2026-11-10). It hashes the publisher *string*,
+>   which is public, so a same-user process can register a loose, unsigned manifest under our name and publisher
+>   (`Add-AppxPackage -Register`, Developer Mode) and get our exact family name. The gate also reads the
+>   package's origin (`GetPackageFullName` → `GetStagedPackageOrigin`, exported by `kernelbase.dll` only) and
+>   attests only **Store, LineOfBusiness and DeveloperSigned** — origins that needed a certificate the machine
+>   trusts, which takes an administrator. Measured: our side-loaded test packages report DeveloperSigned, a
+>   Store app reports Store. ⚠ That makes the local test certificate (its PFX on disk, trusted machine-wide) a
+>   key that passes the gate *on the machines that trust it*: its publisher id must never be in a release
+>   anchor. ⚠ The gate does not stop same-user malware acting *through* a running package of ours (injection,
+>   a duplicated socket, `JAVA_TOOL_OPTIONS`) — threat model A14/T-C-11.
+> - The gate's decisions are also written to `<data dir>/diagnostics/ipc-gate.log`: an MSIX has no stdout,
+>   so without it a refused app is invisible. Its own file, because `FileDiagnosticSink` rewrites its file to
+>   enforce the cap and two sinks on `control.log` would race.
+> - Tests: `WindowsPeerDecisionTest` (8), `WindowsPeerProcessTest` (real lookup), `WindowsDesktopPeersTest`,
+>   `FirstPartyPublisherPolicyTest`. Threat model: A14, T-C-11's Windows paragraph.
+> - ⚠ `:control-shared-logic` joined the Windows CI lane: its `DesktopAppLockTest` /
+>   `DesktopBiometricUnlockDelegateTest` faked macOS-only helpers with `#!/bin/sh` scripts, which Windows cannot
+>   run (9 failures, now skipped there — the same class as W1's `AppGroupContainerClaimTest`).
+
+### 3.3 Transport leftovers (small)
+
+| Item | Today on Windows | Fix |
+|---|---|---|
+| Socket-directory gate (`SocketDirectory`) | silent no-op (no POSIX modes) ⇒ nothing stops a squatter | ✅ **W2:** an NTFS arm over pure-NIO `AclFileAttributeView` (see the note below the table). ⚠ A directory owned by another account is refused, not "repaired": its owner can always change the DACL back |
+| `BoundSocketFile` | `fileKey()` is always `null` on Windows ⇒ by its own fail-safe rule the server **never** removes its socket on quit ⇒ stale `ipc.sock` | ✅ **W1:** an owner token in `<socket>.owner`, written **before** the unlink, used only where the directory reports no file key. ⚠⚠ Not creation time: NTFS *tunnels* a deleted file's creation time onto a same-named file re-created soon after — exactly the successor-rebinds case |
+| `SingleInstanceLock` after a crash | a force-killed holder's lock is still reported held immediately after (*measured*); Windows documents lock release on termination as asynchronous | ✅ **W1:** retry for up to 5 s **only while the recorded holder pid is dead**; a live holder is still answered at once, so a second launch hands off without waiting |
+| `SingleInstanceLock` holder text | `"held by null"`: Windows locks are mandatory, so the loser cannot read the locked file | ✅ **W1:** also written to an unlocked `<lock>.holder`, read when the lock file is unreadable |
+| Socket path length | ~108-byte `sun_path` | `~\.tenshu` is fine; never move sockets under a deep `%LOCALAPPDATA%\Packages\…` path |
+
+> **As built (W2, 2026-11-10) — the socket-directory DACL.** `SocketDirectory` gains an NTFS arm over pure-NIO
+> `AclFileAttributeView`. `inspect`: **Squattable** if the owner is not the user/SYSTEM/Administrators, or any ALLOW
+> entry for another principal holds WRITE_DATA, APPEND_DATA, WRITE_ACL, WRITE_OWNER, DELETE_CHILD or DELETE;
+> **Reachable** if others hold only READ_DATA/EXECUTE; DENY and INHERIT_ONLY entries ignored. SYSTEM and
+> Administrators are trusted — they can read and re-own anything, and refusing them would make every stock profile
+> squattable — so a fresh `~\.tenshu` reads Sound with no repair. `prepare` rewrites a non-Sound DACL to user +
+> SYSTEM + Administrators full control `(OI)(CI)` and logs it.
+> - ⚠ The JDK's `setAcl` cannot set `SE_DACL_PROTECTED`: a repair that drops something the parent passes down ends
+>   up protected, but a DACL equal to the parent's inheritable set stays inherited — so a later loosening of
+>   `%USERPROFILE%` propagates in until the next start (repair) or connect (refusal). Closing that needs
+>   `SetSecurityInfo(PROTECTED_DACL_SECURITY_INFORMATION)` over FFM.
+> - ⚠ Principals are resolved by name; a localised "Administrators" fails closed (stricter, still consistent).
+>   Not verified: non-English Windows, a domain-joined machine, an elevated process.
+> - Tests: `SocketDirectoryAclTest` — the decision on every host, real ACLs on Windows only.
+
+### 3.4 Window, tray and the two live defects
+
+There is **no** AWT `SystemTray`, `TrayIcon` or Compose `Tray` in the code; the macOS tray is a separate
+Swift `NSStatusItem` agent (`control-desktop/macos/TrayAgent/`) speaking the JSON bridge, and
+`ensureTrayRunning` returns early off macOS (*read*).
+
+⚠⚠ **Defect 1 — closing the window strands Control.** `onCloseRequest` hides the window when
+`closeToTray()` (`control-desktop/.../Main.kt`), which **defaults to `true`**
+(`DesktopControlSettings.closeToTray`). On Windows that leaves a resident process with no window, no tray
+icon and no taskbar entry. The only way back is a second launch handing off over `bridge.sock`
+(`ControlInstanceGuard.requestOpenWindow`) — which the strict peer gate (§3.2) refuses in a packaged build.
+**Interim fix (W1):** off macOS, `closeToTray` is unavailable and close quits, until a tray exists.
+
+⚠⚠ **Defect 2 — the Start-at-login switch lies.** Off macOS `DesktopStartAtLoginManager` falls through to
+`LaunchAgentManager.forDaemon()`, which writes a plist into `%USERPROFILE%\Library\LaunchAgents` and calls a
+missing `launchctl`; `isAutostartEnabled()` then reads *installed && !disabled* = **on**. **Interim fix
+(W1):** hide the switch off macOS until §3.5 lands.
+
+> **As built (W1, 2026-11-09).** `DesktopShellSupport` (`control-shared` lifecycle) is the one place that
+> says whether this OS has a tray and a start-at-login mechanism — both `true` on macOS only. The window
+> hides on close only when a tray exists; Settings shows each switch only where it works; and
+> `DesktopStartAtLoginManager` is inert off macOS (reports `false`, writes no plist). Pinned by
+> `DesktopShellSupportTest`. ⚠ Linux had both defects too, and gets the same fix. When W3 lands a Windows
+> tray or autostart, it flips its flag in `DesktopShellSupport.forOs`.
+
+> **As built (W3, 2026-11-10) — the tray.** Compose `Tray`, composed inside Control's own `application { }`
+> (`control-desktop/.../WindowsControlTray.kt`) — no agent, no bridge. *Open Control* (also the primary click)
+> de-minimises, shows and raises the window; *Pause/Resume sync* toggles the Koin `SyncPauseState` single,
+> persisted through `DesktopControlSettings` like the macOS tray's `setSyncPaused`; *Quit* calls `requestQuit()`,
+> and the icon leaves with the composition. The icon is painted in code (a "T" tile, grey with pause bars and a
+> tooltip while paused). `DesktopShellSupport` gains `inProcessTray` (Windows only — ⚠ never macOS, where the
+> Swift agent owns the icon), and Windows reports `trayAvailable` only when AWT `SystemTray.isSupported()` and the
+> JVM is not headless, so a tray-less host still quits on close; `forOs` stays pure, taking that answer as a
+> parameter. Close-to-tray and its Settings switch ("Close to notification area") follow automatically.
+> ⚠ **The icon's look, HiDPI quality and click behaviour are not verified** — the maintainer's checklist.
+
+⚠⚠ **Superseded by D5:** the shipped Windows tray is a native C# / WinUI 3 agent (§3.9). The in-process
+Compose tray above remains as the fallback when the agent is absent; the original reasoning follows.
+
+**The tray (W3).** Unlike macOS, Windows needs **no separate agent**: the Control process itself can own the
+notification-area icon (`Shell_NotifyIcon`), so it calls `WindowController` / `SyncPauseState` in-process
+rather than over the bridge. Recommendation: Compose `Tray` (AWT underneath) for v1 — menu-only, but enough
+for Open / Pause / Quit and a state icon; bind `Shell_NotifyIcon` over FFM only if the AWT tray's HiDPI
+icon or menu proves inadequate (*not verified* on Windows 11; check in W3). `desktop-macos-integration.md` §7
+said "bind directly, no DorkBox" — still true; the question is only AWT-vs-FFM.
+
+### 3.5 Autostart and the resident daemon
+
+The daemon contract (`core-background-processing.md` §5.3) is "one resident process"; on Windows that needs
+only *start at logon, hidden*. The docs disagree on the mechanism (`tenshu-rei.md`: Run key;
+`core-background-processing.md`: Task Scheduler).
+
+- **First (D1, Store/MSIX):** declare `windows.startupTask` in the package manifest and toggle it through
+  `StartupTask` (WinRT) — the `SMAppService` analogue: the OS owns the entry and the user sees it in
+  Settings → Startup. ⚠⚠ Not a Run value: a packaged app's HKCU writes are virtualized into the package, so
+  a Run value it writes is invisible to Explorer (*not verified*; W4 spike).
+- **Later (D2, side-channel MSI):** an `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` value launching
+  `TenshuControl.exe --hidden` (a Run value cannot set the environment). So `WindowsStartAtLoginManager`
+  grows two arms, selected by "has package identity" — the same split macOS has between `SMAppService` and
+  the LaunchAgent.
+- Task Scheduler only if a measured need appears (e.g. restart-on-failure); it costs a COM/`schtasks` surface.
+
+> **As built (2026-11-10), the MSIX arm.** The startup task (`TaskId="TenshuControl"`) is declared on Control's
+> `Application`, but its `Executable` is the **tray agent** (`tray-agent\tray-agent.exe`), not Control: at login the
+> agent puts the icon up at once, sees `ExtendedActivationKind.StartupTask`, and starts `TenshuControl.exe` as its
+> child with `TENSHU_CONTROL_START_HIDDEN=true` — the variable the macOS login item already uses, so no new flag, and
+> Control's instance guard already makes a second hidden copy exit quietly.
+> - **The switch.** `StartupTask` is WinRT, which the JVM cannot call, so Settings asks the agent:
+>   `tray-agent --startup-task status|enable|disable` prints one word (`WindowsStartupTask`); anything unrecognised
+>   reads as *unavailable*, never on. `DesktopStartAtLoginManager` gains the Windows arm, and
+>   `DesktopShellSupport.startAtLoginAvailable` is true on Windows only inside the package. ⚠ Each fresh read starts
+>   the agent as a process (~a few hundred ms), so only `isAutostartEnabled` re-reads.
+> - ⚠ **`disabledByUser`** — turned off in Settings → Apps → Startup — cannot be undone by the app. It maps to
+>   macOS's "approval required": the switch opens `ms-settings:startupapps` and says why.
+> - ⚠ **Every call starts a process**, so Settings makes them on `Dispatchers.IO` with the switch disabled
+>   meanwhile, and `runAgent` waits for the exit (15 s bound) before reading the one-word answer. A failed agent
+>   reads as *unavailable*, and a disable that ends there is reported as failed, not done.
+> - ⚠ **Login start depends on the agent.** Control is started by the agent's `OnLaunched`; an agent that cannot
+>   start at all (e.g. the Windows App Runtime missing) means no Control at login although the switch reads on.
+>   Accepted for the Store build, where the runtime is a declared dependency the Store installs; a side-channel MSI
+>   (D2) would want its own Run value for Control.
+> - ⚠ **Off by default** (`Enabled="false"`, and `ensureStartAtLoginDefault` stays macOS-only): the Store expects
+>   consent, the same call the Mac App Store build makes. A side-channel MSI (D2) may revisit it.
+> - Device-checked: status → enable → disable round-trips inside the package. Tests: `WindowsStartupTaskTest`,
+>   `DesktopShellSupportTest`.
+
+### 3.6 Scheduling, alarms and background wake
+
+**Already portable (in-process, *read*):** the desktop `PlatformScheduler` is `NoOpPlatformScheduler`; the
+real driver is `ScheduleDrainLoop` (offline keeper, thumbnail backfill, media index, contact-photo sweep,
+subscription refresh), plus `SyncPauseState` + `ConstraintSyncGate`, plus routines (a resident timer with a
+90 s catch-up after sleep, `routines-engine.md`). All of these work on Windows **as long as the process is
+alive** — which is why §3.4/§3.5 are the real scheduling work, not a Windows scheduler.
+
+**OS-specific, needs a Windows arm:**
+
+| Seam | macOS | Windows today | Windows equivalent |
+|---|---|---|---|
+| Calendar reminders | the Swift tray reads `PendingAlertSchedule` over the bridge and hands each to `UNCalendarNotificationTrigger`, so they fire with Control closed | **never delivered** — nothing reads the set | WinRT `ScheduledToastNotification` via `ToastNotifier.AddToSchedule`; ⚠ needs an AUMID (§3.7) |
+| Indexing conditions (`DesktopIndexingConditions`) | `MacPowerProbe` (IOKit battery, CG idle) | ✅ **W3:** `WindowsPowerProbe` | `GetSystemPowerStatus` + `GetLastInputInfo` over FFM |
+| Metered network (`DesktopNetworkStateProvider`) | — (always `UNMETERED`, every OS) | ✅ **W3:** `WindowsNetworkCost` | `GetNetworkConnectivityHint` (plain C, iphlpapi) — not the WinRT `GetConnectionCost` |
+| Sleep/resume | nothing wired | nothing wired | `WM_POWERBROADCAST`/`PBT_APMRESUMEAUTOMATIC`, or rely on the drain loop's own catch-up (measure first) |
+
+> **As built (W3, 2026-11-10) — indexing conditions.** `WindowsPowerProbe` (`:windows-helpers`) answers
+> `MacPowerProbe`'s three nullable facts from `GetSystemPowerStatus` and `GetLastInputInfo`/`GetTickCount` (idle =
+> unsigned 32-bit tick difference, correct across the 49.7-day wrap; a "future" stamp reads as 0 = in use).
+> Control's desktop DI hands it to `DesktopIndexingConditions` through its existing `Probe` seam
+> (`desktopIndexingConditions()`); the policy is unchanged, and Linux still never schedules. ⚠ `batteryLow` =
+> battery saver on **or** the *critical* bit (< 5 %) — **not** the `BatteryFlag` *low* bit (< 33 %), which would
+> refuse manual indexing for a third of every discharge. A battery-less desktop with AC online (or AC unknown
+> plus the no-battery bit) is on external power. Observed here: AC on, no battery, idle 0–4 s.
+>
+> **As built (W3) — metered.** `WindowsNetworkCost` reads `GetNetworkConnectivityHint` (Windows 10 2004+):
+> approaching/over the data limit, roaming, or cost Fixed/Variable → METERED; Unrestricted → UNMETERED; else
+> UNKNOWN. `DesktopNetworkStateProvider` reads it on every call (no cache, no thread); UNKNOWN and non-Windows
+> hosts keep the old UNMETERED, and it never reports `NONE` (offline is `RelayReachability`'s). Observed here:
+> Unrestricted WLAN, cross-checked against WinRT `GetConnectionCost`. ⚠ The struct's BOOLEAN offsets (8/9/10)
+> are documented but were never exercised with a true value; no real metered link was tested.
+> - Both FFM bindings live in private classes loaded inside `runCatching` (they load on JDK 17), and their
+>   real-call tests hard-assert availability on Windows.
+
+⚠ **Reminders are the one alarm that must survive a closed Control.** Everything else is "runs while
+resident". Scheduled toasts are held by the OS, which is exactly the property the macOS design chose
+(`calendar-app.md` §4.6: "the OS holds the trigger") — keep that shape, don't reintroduce a hand-rolled
+desktop alarm.
+
+### 3.7 Notifications
+
+On macOS the Swift tray polls `pendingRequests` / `pairingApproval` / `calendarReminders` and posts through
+`UNUserNotificationCenter`, because the JVM has no bundle identity (`control-central-notifications.md`).
+On Windows there is no tray and nothing posts.
+
+- **Work (W3), per D5:** the native tray agent (§3.9) polls the same bridge methods the macOS agent does
+  (`pendingRequests`, `pairingApproval`, `calendarReminders`, the schema fence) and posts through the Windows
+  App SDK's `AppNotificationManager`, with reminders as scheduled toasts. Activation raises Control through
+  `openControlWindow`. ⚠ *Superseded:* the earlier plan here was a JVM-side poller posting WinRT toasts over
+  FFM.
+- ⚠⚠ **Toasts need an AppUserModelID.** An MSIX has one by construction — one more reason for D1. The
+  later side-channel MSI must register one (a Start-menu shortcut carrying the AUMID). Without it toasts
+  silently do not show (*not verified*; W3). ⚠ So W3's toasts and reminders can only be verified from a
+  packaged MSIX, not a `:control-desktop:run` (no identity) — test through a locally side-loaded MSIX.
+  `TrayIcon.displayMessage` is the identity-free fallback but cannot schedule (reminders) or carry actions.
+
+### 3.9 The native tray agent (D5)
+
+The Windows twin of `control-desktop/macos/TrayAgent/` (≈ 1,600 lines of Swift: popover + model, bridge client,
+four notifiers). Lives in `control-desktop/windows/TrayAgent/`.
+
+- **Stack:** C# on .NET 10 (LTS), WinUI 3 (Windows App SDK). UI built **in code**, not XAML, so the build is a
+  plain `dotnet publish` with no XAML compiler step. Tray icon via `Shell_NotifyIcon` (P/Invoke) or H.NotifyIcon
+  (MIT) — the spike decides, and a third-party library lands in `docs/oss-licences.md`.
+- **Packaging:** a second executable inside the Control MSIX, started and supervised by Control (as
+  `ensureTrayRunning` + `TrayLiveness` do on macOS). ⚠ A child of a packaged full-trust process runs with the
+  **same package identity**, so the bridge gate admits it as `Tenshu.Control` (already in
+  `WINDOWS_BRIDGE_PACKAGES`) and its toasts carry the package's AUMID — *not verified* until the spike.
+- **Windows App SDK runtime:** ⚠⚠ **framework-dependent, decided by measurement (2026-11-10).** A self-contained
+  agent registers WinRT classes in its own exe manifest, which Windows ignores once the process runs in a package
+  context — and as a child of the packaged Control it always does: WinUI died at startup (`0xc000027b` in
+  `Microsoft.UI.Xaml.dll`). Control's AppxManifest now declares `Microsoft.WindowsAppRuntime.1.8 ≥ 8000.994.2142.0`
+  (`tenshu.msix.windowsAppRuntime`, matching the SDK the csproj pins); the Store installs it, a side-load needs it
+  installed (the MSIX files ship in the `microsoft.windowsappsdk.runtime` NuGet package). A standalone dev agent
+  bootstraps the runtime by hand, and only without package identity.
+
+> **As built (T0, 2026-11-10).** `publishTrayAgent` (`dotnet publish`) feeds `packageMsix`, which ships the agent
+> as `tray-agent\` beside Control's launcher. `WindowsTrayAgent` (`control-desktop`) starts it at launch with
+> `TENSHU_IPC_DIR` handed over, and again every 30 s — the agent's single-instance mutex makes that the whole
+> restart policy. Control draws no Compose tray while an agent binary exists. Measured: the agent runs **in the
+> Control package's context** (the event log's crash record named `Tenshu.Control_…_asmrhn1bb0j6y` as its package,
+> before the runtime fix), Control restarted it every 30 s, and after the fix it stays up. ⚠ The flyout's bridge
+> round trip from inside the package is the maintainer's check.
+> - A dev run uses the agent only when `TENSHU_TRAY_AGENT` names a built `tray-agent.exe`.
+- **Thin renderer:** the agent renders what the bridge returns and owns only OS glue (icon, flyout, toasts,
+  their diffing). New tray content goes into the bridge first, then into both agents.
+- **Phases:** (T0) toolchain spike — the cat in the tray, a flyout showing `getSyncState`, inside the
+  side-loaded Control MSIX; (T1) the full flyout (needs-action, recent notifications, app launcher, open/quit)
+  and the right-click menu; (T2) the four notifiers including scheduled reminders; (T3) lifecycle, tests, CI
+  (`dotnet` in `windows.yml`), and demoting the Compose tray to a fallback.
+
+> **T1 as-built (2026-11-10).** The flyout carries the macOS popover's content: the state headline (from the
+> daemon's bgproc §5.3 code, never re-derived) with the divergence detail, then *Needs action* (`pendingRequests`),
+> *Recent* (`recentNotifications`, limit 4) and *Apps* (`listApps`), each only when non-empty; Pause/Resume (only
+> when sync is enabled), Open Control, Quit. Strings are the agent's own, English and German (`Strings.cs`,
+> ADR 0016). Only `getSyncState` decides reachability; the three section calls each fall back to empty.
+> - **App launcher.** `listApps` rows now carry `windowsPackage` from the catalogue's `ClientBinding.WindowsPackage`,
+>   and never-connected candidates include apps with a Windows binding as well as a Mac one (the macOS agent
+>   already filters candidates by what LaunchServices resolves, so its menu is unchanged). The agent completes the
+>   name to a family with **its own** publisher id — so only a package by Control's publisher can ever match — and
+>   offers it iff `GetPackagesByPackageFamily` finds it installed for this user; it launches the manifest's
+>   `Application/@Id` through `IApplicationActivationManager`. ⚠ An installed package counts on its own, registered
+>   or not: MSIX has no stray-bundle problem, unlike LaunchServices. ⚠ Plain Win32 on purpose — `PackageManager`'s
+>   query methods are capability-gated in a package context. The bridge's `launchApp` stays macOS-only.
+> - An agent without package identity (a dev run) offers no apps: it has no publisher id to complete a family with.
+
+> **T2 as-built (2026-11-10).** The four macOS notifiers, in one class (`Notifier.cs`), fed by the same 10 s poll:
+> pending requests (`pendingRequests`), the pairing alert (`pairingApproval`), *Update Control* (`getSyncState.
+> schemaFenced`, tri-state, posted once per engagement) and calendar reminders (`calendarReminders`). Copy is the
+> agent's own (en/de) and as PII-free as macOS's; reminder text arrives redacted and is never enriched.
+> - **Immediate toasts** go through the Windows App SDK `AppNotificationManager`, tag + group per alert, so a re-post
+>   replaces and a withdrawal removes exactly one. A restarted agent seeds its request set from the toasts already
+>   on screen rather than re-alerting them.
+> - **Reminders** are handed to Windows' own scheduler (`ToastNotifier.AddToSchedule`), so they fire with Control
+>   and the agent both quit. ⚠⚠ Diffed against the OS's schedule, not process memory: a scheduled toast with a
+>   reused tag is *not* replaced, so a memory diff would double-arm after every agent restart. The tag is a hash of
+>   the reminder's content; ⚠ `ScheduledToastNotification.Id` cannot be set (0x803E0120).
+>   ⚠⚠ Removal only against an **authoritative** plan: the daemon plans when calendar data changes, so after a
+>   restart its list is empty until the first change while Windows still holds every armed reminder.
+>   `calendarReminders` carries `planned` (`PendingAlertSchedule.isPlanned`); until it is true the agent only adds.
+>   The desktop host also plans once at session start (`initCalendarService(planRemindersOnStart = true)`), so the
+>   window is the debounce, not "until the next calendar change". ⚠ Opt-in: on Android a plan also *posts* due
+>   reminders, and a startup run could repeat one the alarm already showed.
+>   A reminder first seen when already due is shown at once, once.
+> - **Clicks** all raise Control. The toast activator is a COM server in Control's AppxManifest
+>   (`windows.toastNotificationActivation` → `tray-agent\tray-agent.exe`), emitted only when the package ships the
+>   agent, so a click on a toast also works when the agent is not running. ⚠ Its CLSID is fixed forever: changing
+>   it orphans the toasts already in the notification center.
+> - Gated on package identity, like the Swift agent's bundle-id gate. Test: `scripts/windows/tray-toast-test.ps1`
+>   posts one toast and schedules one 30 s out from inside the installed package.
+
+> **T3 as-built (2026-11-10).** Lifecycle, tests, CI and the fallback.
+> - **Liveness.** The agent writes macOS's heartbeat (`tray-agent.state`, `<epochMillis> visible|hidden`, every 10 s,
+>   atomically) from its **UI thread**, with `visible` = the shell accepted the icon on the last add/update (an update
+>   the shell rejects re-adds it), plus the placement journal on each change. Control's `WindowsTraySupervisor`
+>   judges it every 30 s with the same `TrayLiveness` table and decision log (`tray-agent.log`) as the macOS tray:
+>   SPAWN, SKIP, or kill-and-restart. ⚠⚠ Needed on Windows precisely because of the single-instance mutex: a
+>   wedged or icon-less agent holding it would otherwise make every restart a silent no-op. Healthy rounds are not
+>   logged, only decisions that act and the first healthy one after them.
+> - **Fallback.** After `MAX_UNHEALTHY_ROUNDS` (4) consecutive rounds that had to act — two to four minutes with no
+>   healthy agent (each start of an agent that lives but never gets healthy is followed by a grace round), e.g.
+>   one that crashes at start for want of the Windows App Runtime — Control kills the agent, stops starting agents
+>   and draws its own Compose tray (`WindowsTrayAgent.fellBack`), showing Control's real icon. ⚠ It keeps
+>   watching: Windows can start the agent by itself (a toast click via the COM activator, the startup task), and a
+>   *healthy* one ends the fallback so the Compose tray steps aside — never two icons. A grace-period SKIP neither
+>   resets nor advances the count, nor ends a fallback.
+> - ⚠ **Sleep.** After a resume the agent's heartbeat is as old as the sleep until its own timer catches up; the
+>   first round after a gap longer than three intervals judges nothing (`RESUMED`), or every resume would kill a
+>   healthy agent.
+> - ⚠ **`Placed` tolerates blips.** `Shell_NotifyIcon` returns FALSE when a busy Explorer times out on a call it
+>   then applies, so the heartbeat says `hidden` only after three failures in a row.
+> - The agent bounds every bridge call (15 s), runs one refresh at a time (overlapping rounds applied snapshots out
+>   of order and could re-post a resolved request's toast), resolves installed apps only while the flyout is open,
+>   and re-renders the cat only when size or ink changes.
+> - **Tests.** `WindowsTraySupervisorTest` (JVM) pins what each verdict does and when it gives up;
+>   `windows/TrayAgent.Tests` (xUnit, plain `net10.0`, the WinUI-free files *linked* in) pins state-code mapping,
+>   the copy and its en/de placeholders, and the heartbeat line `TrayLiveness` parses.
+> - **CI.** `windows.yml` runs those xUnit tests and builds the agent itself — the only compile of the WinUI half.
+>   Icon, flyout and toasts stay device checks.
+> - Device-checked: spawn → healthy at the next round; killed agent → restarted.
+- **Estimate (2026-11-10):** ≈ 7.5–9.5 focused days, ≈ 2–4 more than the Compose flyout plus WinRT-over-FFM toasts
+  it replaces.
+
+### 3.8 Degrades gracefully — no work required to ship
+
+QR pairing falls back to the manual code; image decode and video fall back to AWT and the OS's
+default-app hand-off; the app lock (`DesktopAppLock`) is a pass-through (Windows Hello via
+`UserConsentVerifier` = masterkeystore Phase 3); `DesktopControlPresence` answers `null` (correct per ADR
+0025); launching another app (`open -b`) returns `not_found` (Windows: the Start-menu AUMID, or
+`shell:AppsFolder\<AUMID>` under MSIX). Explorer integration (Cloud Files API) is its own track — §7.
+
+---
+
+## 4. Signing and install location — why D1–D3
+
+### 4.1 The certificate is not what protects the peer gate; the install directory is
+
+On macOS `codesign` seals the **whole bundle**, and the audit-token check verifies the running code against
+it. On Windows an Authenticode signature covers **one file**. Our apps are a jpackage launcher `.exe` plus
+jars, a `.cfg` and a bundled runtime — and the launcher's signature says nothing about the jars it loads.
+
+- ⚠⚠ **Per-user install (`%LOCALAPPDATA%`): unsafe under any certificate.** The same user — AD3, the very
+  adversary the peer gate exists for — can replace the jars or the `.cfg` under a validly signed launcher.
+  Hence D3.
+- **MSIX (`WindowsApps`): sealed.** The folder is OS-protected and package integrity is enforced; the identity
+  is our package family name. The strongest posture available, and free (D1).
+- **Per-machine MSI (`%ProgramFiles%`): acceptable.** Only an administrator can write there, so "signed by the
+  expected signer **and** running from under `%ProgramFiles%`" holds against a same-user adversary — which is
+  also what makes a *shared* signer such as SignPath Foundation usable (D2).
+
+### 4.2 How each channel is signed
+
+| Channel | Signed by | Android analogue |
+|---|---|---|
+| **Microsoft Store, MSIX** (D1) | **Microsoft re-signs** the uploaded package; we hold no key. The Partner Center account is the upload credential. | Play App Signing |
+| Store CLI (`winget --source msstore`) | the same Store package — nothing extra to build or sign | — |
+| Side-channel MSI + `winget-pkgs` (D2, later) | **SignPath Foundation**, from public CI, on every `.exe`/`.dll` and the MSI (the macOS lesson "every Mach-O is re-signed" applies to the bundled runtime too) | the side-channel key |
+
+⚠ Unlike Android, a Windows certificate is **not** update continuity: an MSI upgrade follows its UpgradeCode
+and an MSIX update its package identity. Changing signer later is routine, not a key-loss event.
+
+### 4.3 Packaging common to both
+
+- **Lockstep:** the suite moves together (HR #9; `desktop-macos-distribution.md` D8/D9): one version for every
+  app. On the Store, each app is its own package; Control's update prompt and the schema-skew surface
+  (`core-schema-skew-surface.md`) cover an app the Store has not updated yet.
+- **Uninstall:** Control needs "Remove Tenshu from this PC" for what it created (`~\.tenshu`, `secrets.enc`
+  **and** `wrap-key.dpapi`, the startup entry, scheduled toasts) — the twin of macOS D13. An MSIX uninstall
+  removes only the package's own files.
+- **Side-channel MSI only:** `targetFormats(Msi)` (jpackage + WiX), **per-machine** (D3), a Start-menu
+  shortcut (the AUMID, §3.7), an UpgradeCode fixed forever per app. ⚠ The UpgradeCode is the Windows twin of
+  a bundle id: change it and the next version installs *beside* the old one.
+- Gate coverage: `.github/workflows/windows.yml` (W1; its own workflow since 2026-11-10) runs the desktop
+  suites on Windows.
+
+---
+
+## 5. Distribution — the Store first, the side channel later
+
+Order per D1/D2: **§5.2 (Store) is W4**, the first channel; **§5.1 (side-channel MSI + winget-pkgs) is W6**.
+
+### 5.1 Side channel: SignPath-signed MSI + winget-pkgs (W6 — later, D2)
+
+The Store package is already reachable from the command line (`winget install --source msstore`), so this
+channel is for people who will not, or cannot, use the Store. winget-pkgs is the Homebrew-cask analogue: a
+manifest pointing at **our** per-machine MSI by URL + SHA-256.
+
+- **Signing (D2):** SignPath Foundation, from GitHub Actions on the public repo. ⚠ Their acceptance criteria
+  (OSI licence, public CI build, active maintenance, a review of the project) are *not verified* against
+  Tenshu; apply when W6 starts. ⚠ The certificate is issued to SignPath Foundation, so the publisher users see
+  is theirs, and the peer gate must not trust the signer alone (§3.2, §4.1).
+
+- One manifest set per app (`Tenshu.Control`, `Tenshu.Drive`, …) submitted as PRs to
+  `microsoft/winget-pkgs`, which runs automated validation (installs the MSI in a sandbox, checks silent
+  install, hash, signature) and a moderator review per new package (*not verified* in detail; W6).
+- Needs: immutable versioned URLs (the content-addressed bucket already is), silent install
+  (MSI gives `/quiet` for free), the MSI's ProductCode/UpgradeCode in the manifest so `winget upgrade` works.
+- Automate the bump PR from the release script (`wingetcreate update`), as `desktop-macos-distribution.md`'s
+  H-steps do for the cask.
+- ⚠ winget-pkgs installs the **same artifact** as the direct download, so it is the same channel for ADR 0025
+  (`SameChannelAsThisApp`) and the same identity for the peer gate. Nothing new in either.
+- ⚠ Lockstep: winget upgrades packages independently (`winget upgrade Tenshu.Drive` alone is possible). A
+  `Tenshu.Suite` meta-package with dependencies, or Control's own update prompt, must cover skew — the
+  schema-skew surface (`core-schema-skew-surface.md`) is the backstop either way.
+
+### 5.2 Microsoft Store, MSIX (W4 — the first channel, D1)
+
+Two submission shapes exist (*not verified* against current Partner Center rules; W4 starts by checking).
+**D1 chose MSIX**; the MSI/EXE listing is recorded for completeness, and would reintroduce our own signing:
+
+| | MSI/EXE listing (unpackaged) | MSIX package |
+|---|---|---|
+| Artifact | our signed MSI, hosted by us, Store links it | MSIX built from the jpackage app-image (`makeappx`), uploaded |
+| Signed by | us (Authenticode) | **Microsoft re-signs** for Store distribution |
+| Identity | none — same as direct | package family name, AUMID, `StartupTask`, scheduled toasts by construction |
+| Updates | ours | Store-managed |
+| Cost | near zero once W4 exists | the second build variant |
+
+MSIX, because package identity is what §3.5 (autostart), §3.7 (toasts/reminders) and §3.2 (pin by package
+family) want anyway, and because it is the sealed shape (§4.1). Still **spike first**, mirroring macOS D11:
+package Control from the jpackage app-image, side-load it locally, then submit.
+
+- **Partner Center account:** individual registration has been free since 2024 and a company account is a
+  one-time fee (*not verified*; check the current terms when registering). Which entity publishes decides the
+  publisher name users see.
+
+> **As built (W2, 2026-11-10) — the local side-load build.** `gradle/desktop-msix.gradle.kts` adds
+> `packageMsix` to Control and Drive: the jpackage app-image plus a generated `AppxManifest.xml` (full trust,
+> `runFullTrust`) and the app's logos (since 2026-11-10 the real ones — ADR 0026 §6b, with a `makepri`-built
+> `resources.pri`; before, placeholder letter tiles), packed with `makeappx` and signed with `signtool`. It prints the
+> package family name and the **publisher id** to compile into Control (`-Ptenshu.windowsPublisherIds=…`).
+> `scripts/windows/msix-test-cert.ps1` mints the matching throwaway certificate (`CN=Tenshu Local Test`).
+> - The publisher id is derived exactly as Windows does (`MsixPublisherId`), pinned by a known answer:
+>   Microsoft's publisher gives `8wekyb3d8bbwe`. ⚠ The first attempt was one bit off in the grouping and the
+>   known answer caught it — keep that test; the Gradle script also self-checks against it before use.
+> - Prerequisites on a dev machine, none of them repo state:
+>   - ⚠⚠ **A full JDK 25 with `jpackage`.** Where Android Studio's bundled JBR is the only JDK 25, toolchain
+>     detection picks it, and the JBR has **no `jpackage`** — `checkRuntime` fails. Install one (e.g.
+>     Temurin 25) and pass `-Ptenshu.jpackageJavaHome=<it>`; the override is opt-in so CI and macOS releases
+>     embed what they did (Control and Drive only; the other eight `*-desktop` modules follow in W5).
+>   - `makeappx.exe` / `signtool.exe`: the Windows SDK, or the NuGet package `Microsoft.Windows.SDK.BuildTools`
+>     (`-Ptenshu.windowsSdkBin=<dir>`).
+>   - The test certificate trusted in `LocalMachine\TrustedPeople` — an **elevated** step, so the maintainer's.
+> - ⚠⚠ **`packageMsix` must declare the app-image as an input.** It first declared only the identity
+>   strings, so after a code change Gradle called it UP-TO-DATE and kept the old package: the side-loaded
+>   apps were not the source being debugged. Check the `.msix` timestamp before trusting a side-load test.
+> - Observed in the packaged Control: `wrap-key.dpapi` beside `secrets.enc` (§3.1 works under MSIX),
+>   `~\.tenshu` written un-virtualized by a packaged app (§5.2's assumption holds), and the instance lock's
+>   `.holder` naming `C:\Program Files\WindowsApps\Tenshu.Control_…\TenshuControl.exe`.
+> - ⚠ The MSIX identity names (`tenshu.msix.identityName` in each module) must equal the catalogue's
+>   `ClientBinding.WindowsPackage` / `WINDOWS_CONTROL_PACKAGES`; a mismatch fails closed (the package is never
+>   admitted). Since W4 `packageMsix` checks it against each module's `tenshu.msix.identityPins` files.
+
+> **As built (W4, 2026-11-10) — the Store build; nothing submitted yet.** The maintainer's runbook is
+> [`how-to/windows-store-submission.md`](../how-to/windows-store-submission.md). `packageMsix -Ptenshu.msix.store=true`
+> with Partner Center's `tenshu.msix.publisher` (`CN=<GUID>`) and `tenshu.msix.publisherDisplayName` builds
+> `build/msix/store/<exe>_<version>_x64.msix`: the side-load manifest with those values, **unsigned** (the Store
+> re-signs), a plain `.msix` (an `.msixupload` only adds native symbols a JVM app has none of). Side-load builds are
+> unchanged.
+> - ⚠⚠ **The peer gates are compiled from the same `tenshu.windowsPublisherIds` as the package's publisher**, so
+>   Store mode refuses at configuration time unless that set is **exactly** the Store publisher's id — a Store Control
+>   without it refuses the Store Drive (and the reverse), and the local test id (`asmrhn1bb0j6y`) passes the gate on
+>   every machine that trusts the test certificate. Build both apps in one invocation; one Partner Center account,
+>   one publisher (the tray agent's app launcher assumes Control's own publisher, too).
+> - It also refuses the local test publisher, a version that is not Store-valid (4 parts, first ≠ 0, last = 0;
+>   `1.0.1` → `1.0.1.0`), and a module whose identity name is still provisional (`tenshu.msix.identityReserved =
+>   false` until Partner Center's reserved Package/Identity/Name is in the module and its pin files).
+>   `-Ptenshu.msix.storeDryRun=true` builds anyway, as `…-DRYRUN.msix`, never to be uploaded.
+> - Manifest for both modes: languages `en-us` + `de-de` (the apps ship German), MinVersion 10.0.17763.0 =
+>   `TrayAgent.csproj`'s `TargetPlatformMinVersion`, the tray agent shipped without `.pdb`s.
+> - Verified: dry-run Store packages of both apps pack without `makeappx` warnings, are `NotSigned`, carry the
+>   Partner Center values, and their generated anchors hold only the Store id; the side-load build still signs.
+>   ⚠ **Not run:** the Windows App Certification Kit (not installed here — it needs the full Windows SDK, an
+>   elevated install), and nothing has run on Windows 10. Both are in the runbook.
+
+What MSIX changes, all *not verified* until the W4 spike:
+
+- ⚠⚠ **File-system and registry virtualization.** Writes to `%APPDATA%`/`%LOCALAPPDATA%` and HKCU are
+  redirected per package. Control and Drive are **separate packages**, so anything they must both see — the
+  socket directory, shared settings — must live outside the virtualized locations. `~\.tenshu` (profile
+  root) is not virtualized; keep it there and test it.
+- ⚠⚠ **Peer gate signer** — see §3.2: Store builds carry Microsoft's signature; pin by package family.
+- **AF_UNIX between two full-trust packages** — expected to work (full-trust MSIX is not an AppContainer);
+  the spike must prove Drive-MSIX ↔ Control-MSIX over `ipc.sock`.
+- **Bundled JVM** — no JIT entitlement problem as on the MAS (Windows has no equivalent), but the package
+  size and the `runFullTrust` restricted capability need review sign-off.
+- **ADR 0025 channel detection:** today Windows always answers `SameChannelAsThisApp`. A Store build can
+  tell it is one (package identity + the Store as installer source) and offer the Store link —
+  `tenshu.control.microsoftStoreUrl` beside the existing `playUrl`/`macAppStoreUrl` keys, and a new row in
+  ADR 0025 §6's table (amend the ADR in the same change).
+- ⚖️ **Commerce.** Microsoft Store policy has allowed non-game apps to use their own payment rail; if that
+  still holds, Store Control keeps Stripe (`commerce-store-link-out.md` D3 would need no Microsoft rail).
+  Check the current policy text and get counsel sign-off before the listing — same gate as the other stores.
+
+---
+
+## 6. Phases
+
+| Phase | Content | Gate to leave it |
+|---|---|---|
+| **W0** | Measure: run Control, run the suite (§2) | ✅ done 2026-11-09 |
+| **W1** | Defects §3.4 (close quits, hide autostart switch off macOS); §3.3 transport leftovers; Windows `desktopTest` CI lane; correct `desktop-ipc.md` §4 and the threat model's named-pipe wording | the four red tests green on Windows — ✅ 2026-11-09, plus the lane; socket-directory DACL moved to W2 (it is part of the peer-gate posture) |
+| **W2** | DPAPI key store (§3.1) ✅; Windows peer gate by **package family name**, both halves (§3.2) ✅; socket-directory DACL (§3.3) ✅; threat-model amendment (A14/T-C-11) ✅, ⚠ amended after review: the gate also requires a signed package origin (a loose registration can claim our family name), and states that it cannot stop same-user malware borrowing a running package; certificate decision ✅ D1–D4 | ✅ a side-loaded Drive MSIX connects to a strict side-loaded Control MSIX (2026-11-10). ⚠ "pair, restart, still paired" not yet run end to end |
+| **W3** | In-process tray (§3.4) ✅ verified by the maintainer 2026-11-10; native tray agent T0–T3 (§3.9, D5) incl. toasts + scheduled reminders (§3.7/§3.6); `StartupTask` autostart (§3.5); power/idle + metered probes (§3.6) ✅ | closed-window Control reachable from the tray; a reminder fires with Control quit — verified from a side-loaded MSIX |
+| **W4** | Microsoft Store: spike, then MSIX per app, lockstep version, ADR 0025 Store row, uninstall (§4.3, §5.2). Store-mode `packageMsix` + runbook ✅ (§5.2 as-built); Partner Center, WACK, submission owed by the maintainer; ADR 0025 row and uninstall still open | the Store build passes certification; `winget install --source msstore` installs it on a clean VM |
+| **W5** | The other desktop apps over the same pipeline | each passes the W4 check |
+| **W6** | Side channel: SignPath-signed per-machine MSI, `releases.tenshu.app`, winget-pkgs manifests + automation (§5.1); the gate's SignPath + `%ProgramFiles%` arm (§3.2) | `winget install Tenshu.Control` (winget-pkgs) on a clean VM; a per-user copy is refused by the gate |
+| **W7** | (merged into W4 — kept so phase numbers in other docs stay valid) | — |
+
+Out of scope here: Windows Hello app lock (masterkeystore Phase 3), ARM64 Windows (decide at W4, like
+macOS D2). Explorer integration is sketched in §7 and phased separately (X0–X4).
+
+---
+
+## 7. Drive in File Explorer — the Cloud Files API
+
+The Windows twin of the Finder File Provider (`desktop-macos-integration.md` §5–§6a) is the **Cloud Files
+API** (`cldapi.dll`, "CfAPI") plus `StorageProviderSyncRootManager` — the stack OneDrive, Dropbox and iCloud
+use on Windows. It gives the same user-facing result: a *Tenshu Drive* entry in Explorer's navigation pane,
+online-only placeholders that download on open, "Always keep on this device" / "Free up space", and sync
+status overlays. The **shape underneath is different**, and the differences decide the design.
+
+### 7.1 How the two models differ
+
+| | macOS File Provider (as built) | Windows Cloud Files |
+|---|---|---|
+| Who serves requests | a sandboxed `.appex` the **system** launches on demand | an ordinary process that **connects** to the sync root (`CfConnectSyncRoot`) and gets callbacks while connected; ⚠ disconnected ⇒ opening a placeholder fails ("the cloud file provider is not running") |
+| Where items live | the system's own item database; we answer "enumerate" / "changes since anchor" | a **real NTFS folder** (e.g. `%USERPROFILE%\Tenshu Drive`); we create, update and delete placeholder files in it ourselves |
+| Remote changes | pulled: the system asks, nothing pushes (§5a D2's limit) | **pushed by us**: `CfCreatePlaceholders` / `CfUpdatePlaceholder` / delete, at any time |
+| Local changes | callbacks: `createItem` / `modifyItem` / `deleteItem` | rename/delete arrive as callbacks (vetoable); ⚠⚠ **new files and content edits do not** — the provider must watch the folder (`ReadDirectoryChangesW`) and upload, then convert to a placeholder and mark in-sync |
+| Item identity | daemon-minted ids (`FileProviderIds`, §5a D1) | a per-placeholder **FileIdentity blob** we choose (≤ 4 KB) — the same minted id fits; the path is NTFS's |
+| Contents | hand-off through `fileprovider-staging/` (§5b D5) | `FETCH_DATA` callback → `CfExecute(TRANSFER_DATA)` in offset/length chunks — **ranged by design**, so it maps onto the seekable content stream with no staging file |
+| Eviction | `.allowsEvicting` | pin states + `CfDehydratePlaceholder`; Explorer's "Free up space" menu comes for free |
+| Progress / cancel | staging-file size; cancel on its own connection | `CfReportProviderProgress` (Explorer shows it); `CANCEL_FETCH_DATA` callback |
+| Thumbnails, badges, menu items | `NSFileProviderThumbnailing`, decorations | COM handlers (`IThumbnailProvider`, custom states, `IExplorerCommand`) registered for the sync root — ⚠ a native DLL, not JVM code |
+
+### 7.2 Recommendation — Control hosts the sync root, in-process
+
+On macOS the bridge and the staging directory exist because the server is a Swift extension in another
+sandbox. On Windows the CfAPI core is a **C API callable over FFM** (callbacks as upcall stubs), so the
+provider can live **inside the Control daemon** — already resident (§3.5), already holding the file-service
+and `FileProviderChangeFeed` — with no bridge on the content path at all.
+
+- ⭐ This dissolves macOS's two weakest points: remote changes appear **without** an Explorer window open
+  (D2's "nothing pushes" limit is gone, because we push), and there is no plaintext staging hand-off
+  (T-C-16's staging half).
+- It matches the standing desktop rule that the resident process is Control, not the app
+  (`milestones.md`, *Background-service story*). The sync root is still registered under Drive's name and icon;
+  Drive's UI and the Explorer view read the same realm.
+- ⚠ If Control is not running, placeholders cannot hydrate. That is the same dependency every Tenshu app
+  already has on Control, but here a third-party program (any editor opening a file) hits it — the error text
+  is Windows', not ours.
+- Rejected: hosting it in Drive (Drive is not resident, so hydration would fail whenever Drive is closed);
+  reusing the bridge for the core path (an IPC hop and a staging file that buy nothing in one process).
+
+The bridge stays the seam for the **COM handlers** only (thumbnails, later badges/menu items): a small native
+DLL that Explorer loads, which asks Control over `bridge.sock` — so §3.2's peer gate must admit it.
+*As built (X2, §7.9): not a DLL — the tray agent serves the thumbnail handler as an out-of-process COM server, and is
+already admitted by the bridge's gate.*
+
+### 7.3 What carries over unchanged
+
+- **Ids and rename safety** (§5a D1): `FileProviderIds` supplies the FileIdentity blob. A move made in
+  Explorer is a real NTFS rename we are told about; a move made on another device is still delete + create,
+  as on macOS.
+- **Thumbnails** (§5a D4): only the stored classes (`File.Thumbnail` / `ThumbnailLarge`), 256 px ceiling.
+  ⚠⚠ **Never `File.Preview`** — and on Windows the stakes are higher: without a thumbnail handler Explorer
+  **hydrates the file to draw its icon**, so a folder of online-only photos downloads itself on first view.
+  The handler is therefore part of the MVP, not polish.
+- **Upload memory ceiling** (§5b): the file-service still takes one `ByteArray`; > 2 GiB is `too_large`.
+- **Permission posture** (§6 task 2): still deferred to the rei/AppGrant track.
+- **Online-only detection when *uploading* from another provider's folder**
+  (`drive-folder-upload.md` §11): `FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS` is the Windows probe, as that doc
+  already says.
+
+### 7.4 Security posture (threat-model amendment owed, HR #2)
+
+Hydrated files are **plaintext in a normal NTFS folder** under the user's profile — the same exposure class
+as a materialised Finder file, but readable by any same-user process without going through any gate, and
+persistent until evicted. A20/T-C-16 gain a Windows row; disk encryption is BitLocker's job and out of scope.
+The FileIdentity blob and the folder's names are plaintext metadata on disk, as `fileprovider-ids.tsv` is.
+
+### 7.5 Unknowns — a spike answers them before anything is built
+
+*Answered by X0 — see §7.7 for the measurements; the list stays as the question set.*
+
+- ⚠ Whether `StorageProviderSyncRootManager.Register` (navigation-pane entry, Explorer's Cloud UI) works
+  **without package identity**, or needs MSIX / a sparse package. The C `CfRegisterSyncRoot` alone does not
+  make the navigation-pane entry (*not verified*). If identity is required, §7 moves after §5.2's
+  identity decision, or uses a sparse package beside the MSI.
+- ⚠ CfAPI callbacks as FFM upcalls: the callbacks arrive on CfAPI's own threads and must return
+  quickly; that has to be measured, not assumed.
+- ⚠ COM handler registration (thumbnails) is manifest-declared under MSIX; the unpackaged route is
+  registry-based (*not verified*).
+
+### 7.6 Phases
+
+| Phase | Content | Gate |
+|---|---|---|
+| **X0** | Spike: register a sync root from the JVM, one placeholder, hydrate it via FFM; answer §7.5 | a placeholder created by Control opens in Notepad — ✅ scripted equivalent 2026-11-10 (another process opens and hashes it, §7.7); the Explorer entry seen by eye 2026-11-10, Notepad by eye still owed |
+| **X1** | Read path: placeholders from the realm listing, hydration from the content stream, push updates from `FileProviderChangeFeed`, pin/evict | a realm browses in Explorer; open downloads, "Free up space" evicts; hashes match |
+| **X2** | Thumbnail handler DLL over the bridge (§7.3) | a folder of online-only photos shows thumbnails **and stays online-only** |
+| **X3** | Write path: folder watcher → upload, rename/delete callbacks, conflicts | create / edit / rename / delete in Explorer round-trips to another device |
+| **X4** | Polish: progress, sync-state overlays, "Remove Tenshu" unregistering the root (§4) | uninstall leaves no orphaned sync root |
+
+X0 can run any time after W1. X1 onwards needs W2 (paired, restart-stable Control) and W3 (autostart), because
+hydration needs Control resident.
+
+### 7.7 X0 findings (measured 2026-11-10, Windows 11 Pro 26300, JBR 25 x64)
+
+Bindings: `:windows-helpers` — `WindowsCloudFiles` (CfAPI over FFM, callbacks as upcall stubs),
+`WindowsSyncRootManager` (`StorageProviderSyncRootManager` by raw WinRT vtable calls — no C++/WinRT, no
+Windows SDK), `CloudFilesHResult`. Headless tests pin every struct layout (`CloudFilesLayoutsTest`) and
+the HRESULTs (`CloudFilesHResultTest`). The driver is a separate `spike` source set that nothing ships:
+
+```
+./gradlew :windows-helpers:cfapiSpike                       # measure + clean up; exit 0 = ALL PASS
+./gradlew :windows-helpers:cfapiSpike -PspikeArgs=--hold    # pauses while connected, for Explorer
+./gradlew :windows-helpers:cfapiSpike -PspikeArgs=--cleanup # only remove leftovers of a killed run
+```
+
+It registers a real root under `%TEMP%\tenshu-cfapi-spike\`, removes any earlier run's leftovers first
+(from the **registry**, see trap 1), and unregisters + verifies in `finally` and a shutdown hook.
+
+**What works, end to end, from the JVM:** `Register` → `CfConnectSyncRoot` (FETCH_DATA + CANCEL upcalls)
+→ `CfCreatePlaceholders` → another process (`powershell Get-FileHash`) opens the placeholder → FETCH_DATA
+upcall → answered later from a JVM executor thread by 4 KiB-aligned `CfExecute(TRANSFER_DATA)` chunks →
+the opener reads exactly the payload (SHA-256 matches; ~250 ms including PowerShell start-up) →
+`Unregister` leaves no HKLM key, nav-pane entry or CLSID. The OS's `CF_CALLBACK_INFO.StructSize` (152) and
+`ParamSize` (64) equal our layouts. Attributes: fresh placeholder `SPARSE|REPARSE_POINT|OFFLINE|
+RECALL_ON_DATA_ACCESS` (`0x401620`), hydrated `REPARSE_POINT` (`0x420`) — the §7.3 upload probe holds.
+
+**§7.5's questions:**
+
+- **Package identity — not required.** `StorageProviderSyncRootManager.Register` from an unpackaged
+  JVM succeeds, writes `HKLM\…\Explorer\SyncRootManager\<id>` and an HKCU
+  `Explorer\Desktop\NameSpace\{CLSID}` entry (the navigation-pane item), and does the CfAPI
+  registration itself. `CfRegisterSyncRoot` alone also works and can be connected to, but makes **no**
+  registry key and **no** nav-pane entry — so `Register` is the only call X1 needs. The id form
+  `<provider>!<SID>!<account>` is accepted. ⚠ **The packaged case is not measured**:
+  `Invoke-CommandInDesktopPackage` (Tenshu.Control's family) did *not* confer identity
+  (`GetCurrentPackageFamilyName` → none), and the spike installs nothing. MSIX virtualises a packaged
+  process's HKCU writes, which is exactly where the nav-pane entry goes — X1's first task.
+- **Which process owns the sync root — Control, confirmed (§7.2), and now for a second reason.** (a) With
+  no provider connected, opening a dehydrated placeholder fails at once — *"The cloud file provider is
+  not running"* — so the owner must be resident. (b) ⚠⚠ While a provider is connected, **only that
+  process may create placeholders**; any other gets `ERROR_CLOUD_FILE_ACCESS_DENIED`, and a second
+  `CfConnectSyncRoot` gets `ALREADY_CONNECTED`. The callbacks and every placeholder write are therefore
+  one process — the one holding the realm listing and `FileProviderChangeFeed`. Drive cannot be a
+  co-writer; it can only ask Control.
+- **When the owner is not running.** Clean disconnect → "not running", no hang. Provider killed while an
+  opener is waiting on its FETCH_DATA → the opener fails within ~50–70 ms ("exited unexpectedly" /
+  "not running"), not after the 60 s timeout; later opens say *"exited unexpectedly"* until something
+  reconnects. Already-hydrated files stay readable. ⚠ The **registration outlives the process** — a
+  crashed or uninstalled owner leaves the root in Explorer (X4).
+- **Callback threading vs the JVM.** Upcalls arrive on the OS's thread pool, attached by the JVM as
+  daemon threads named `Thread-N`, never the thread that made the CfAPI call. Sequential requests reuse
+  one thread; three concurrent requests whose callbacks each blocked 1 s ran on three threads and
+  finished in 1.3 s — blocking does not serialise at that width, but the pool is the OS's, so X1
+  returns at once and answers from its own dispatcher (measured to work: `CfExecute` from a JVM thread).
+  The upcall stubs are never freed (`Arena.global()`) because disconnect does not fence a running
+  callback. An exception escaping an upcall would abort the JVM; the dispatcher catches everything.
+
+**⚠ Traps found:**
+
+1. ⚠⚠ `GetCurrentSyncRoots` **omits a registered root whose folder is under `%TEMP%`** (same root under
+   another folder: listed). Never use it to decide that nothing is registered — sweep from the
+   `SyncRootManager` registry key.
+2. ⚠ The provider's **own process hydrates implicitly**: a read of a placeholder inside Control calls back
+   into Control. Any Control code that walks the folder (indexer, upload probe) downloads everything
+   unless X1 connects with `CF_CONNECT_FLAG_BLOCK_SELF_IMPLICIT_HYDRATION`.
+3. ⚠ A request the handler **fails** was delivered twice (the opener retried); FETCH_DATA handling must be
+   idempotent per transfer key.
+4. ⚠ HYDRATION_FULL asked for the whole file in one request (`0+13440`); X1 still has to honour arbitrary
+   ranges (4 KiB alignment except at EOF) — the spike's `serve` is the shape.
+5. ⚠ `HRESULT_FROM_WIN32(385)` sits inside the cloud-file error block but is
+   `ERROR_FILE_SYSTEM_VIRTUALIZATION_INVALID_OPERATION` — the table is pinned against `FormatMessage`.
+
+**Changes to X1–X4:**
+
+- **X1** starts with the unmeasured half: `Register` + connect from the **installed** Control MSIX (a
+  debug entry point in Control, not this spike), checking the nav-pane entry is visible to Explorer
+  despite HKCU virtualisation. If it is not, the MSIX `windows.cloudFiles` manifest extension is the
+  route (from Microsoft's CloudMirror sample — *not verified here*). Then: `Register` only (no
+  `CfRegisterSyncRoot`), the self-hydration flag, idempotent FETCH_DATA, a startup sweep of stale
+  `Tenshu…!` roots from the registry.
+- **X1 hardening the spike's bindings skip** (fine at spike scale, not for a product path): a FETCH_DATA
+  whose callback info cannot be read must still be failed from the raw keys, or the opener waits out the
+  ~60 s timeout; read `CF_CALLBACK_INFO` fields only up to the `StructSize` the OS sent (the Store floor
+  is 1809); release the COM references `register` acquires on its early-failure paths; connect once per
+  process (each `connect` leaks its upcall stubs) and cache the WinRT downcall handles.
+- **X1 threat-model amendment (HR #2)** — owed with X1's code, not with this spike. New trust boundary:
+  the OS invokes Control's FETCH_DATA **on behalf of any same-user process**, outside the IPC peer gate
+  (§3.2) — hydration is a same-user-reachable "decrypt and fetch this item" path; `CF_PROCESS_INFO`
+  names the opener but is informational. ⚠⚠ And **while Control is not connected, any same-user
+  process can `CfConnectSyncRoot` to Tenshu's root and become its provider** (measured: a second
+  process connected as soon as the first disconnected; nothing checks who) — serving arbitrary bytes
+  into files the user believes are Tenshu's, and creating placeholders. That is a provider-spoofing row
+  next to T-C-16 (A20), alongside §7.4's plaintext-at-rest row. Within TA2 like the other same-user
+  rows, but it must be written down.
+- **X4**: unregistering on uninstall needs measuring for MSIX (whether Windows removes a packaged
+  app's roots itself); the startup sweep above is the backstop either way.
+
+**For the maintainer, by eye** (`cfapiSpike -PspikeArgs=--hold`; run it from a terminal so Enter reaches
+it), then look at: (1) Explorer's navigation pane shows **Tenshu Drive (spike)** with the imageres icon;
+(2) inside it, the Status column shows `open-me.txt` and `fail.txt` as online-only and `hello.txt`,
+`self.txt`, `block-1..3.txt` as available on this device; (3) double-click `open-me.txt` → Notepad shows
+"Tenshu X0 cfapi spike - payload line 001…" and its status flips; (4) double-click `fail.txt` → an error,
+not a hang; (5) right-click shows "Always keep on this device" / "Free up space" (not wired: the spike
+has no dehydration path). After Enter, the entry must disappear from the navigation pane (an open Explorer
+window may need F5). If it stays: `cfapiSpike -PspikeArgs=--cleanup`. ✅ (1) seen by the maintainer
+2026-11-10 — the entry appears in Explorer's navigation pane; (2)–(5) not yet reported.
+
+### 7.8 X1 as built — the read path
+
+`ExplorerSyncRoot` (`:control-shared`, `bridge/`) behind `ExplorerIntegration`; the rules are
+`ExplorerMirror` (pure, `ExplorerMirrorTest`). Control's **Settings → Show Drive in File Explorer** turns it on;
+off by default while the folder is read-only. Log: `diagnostics/explorer.log`.
+
+- **Where**: `%USERPROFILE%\Tenshu Drive`, registered as `TenshuDrive!<user SID>!default` by
+  `StorageProviderSyncRootManager.Register` on every start (idempotent), then connected with
+  `BLOCK_SELF_IMPLICIT_HYDRATION` — §7.7 trap 2: our own scans never download. The SID comes from the process
+  token (`WindowsAccount`), not `whoami`.
+- **In step**: a pass lists the realm and applies `ExplorerMirror.plan` — at start, on every emission of the
+  realm listing, and every 60 s (which also restores what was deleted locally). Moves and renames made elsewhere
+  are delete + create, as on macOS (§7.3); a changed file (size, modification time or the content version in its
+  identity) is replaced, dropping its hydrated copy. ⚠ A pass that would remove more than half of the folder (and
+  more than ten placeholders) is applied only when a listing at least 30 s later says the same — a listing that is
+  empty for a moment (cold store, reset) would otherwise take every downloaded and pinned copy with it.
+- **The FileIdentity blob** is `1\n<realm path>\n<content version>`, not a `FileProviderIds` id: nothing here
+  follows a move, so an id buys nothing, and the version lets a fetch refuse a stale placeholder instead of
+  sending bytes of a different length than Windows expects.
+- **Hydration**: `FETCH_DATA` is handed off at once to four Control threads, which read the realm's content
+  stream in 1 MiB ranges and `CfExecute` each. A file with no stream yet (not synced, so its bytes are only
+  local) is read whole, once per request. Cancels are honoured between chunks.
+- ⚠⚠ **Only our placeholders are ever touched.** Until X3 nothing local is uploaded, so the user's own file in
+  the folder is the only copy: the mirror never removes or replaces one, and a realm row whose path it occupies
+  is not shown. "Ours" is decided by `CfGetPlaceholderInfo` on a handle that opens links as themselves — an entry
+  carrying a Tenshu identity — and, for a file, still **in sync**: ⚠ not `FILE_ATTRIBUTE_REPARSE_POINT`, which
+  every symlink and junction also has. A placeholder the user saved an edit into (read-only is advisory) is out of
+  sync, so it is theirs and kept. Each deletion re-checks this right before it happens. Files are created
+  `READONLY`, so editors refuse to save over them.
+- **Names**: a row Windows cannot hold (`:`, `CON`, a trailing dot…) is not shown, nor anything below it. NTFS is
+  case-insensitive: of two rows differing only in case, the first in path order is shown.
+- **Turning it off** stops serving, deletes every placeholder (never the user's files), unregisters, and removes
+  the folder if it is empty. ⚠⚠ A downloaded copy open in an app that shares no delete access cannot go yet: the
+  root then stays **registered** (unregistered, the leftover turns into an ordinary file nothing recognises as ours,
+  §7.9) and the cleanup is retried every minute, across restarts (`explorerCleanupPending`), until the folder is clean. Quitting Control only disconnects: the entry stays, and opening an online-only file
+  says the provider is not running (§7.7).
+
+- **Always keep / Free up space**: Explorer only *marks* the file (`FILE_ATTRIBUTE_PINNED` / `UNPINNED`); the
+  provider acts. A pin pass — on any change notification in the folder tree, after every mirror pass and every
+  60 s — downloads pinned files still online-only (`CfHydratePlaceholder`) whenever it sees them: "always keep" is a
+  standing order. It drops the copy of an unpinned one (`CfDehydratePlaceholder`) and then **clears the mark**
+  (`CfSetPinState(UNSPECIFIED)`): "Free up space" is a one-off request. ⚠ Left on, the mark outlives the request —
+  opening the freed file downloads it with the mark still set, the next pass would drop it half a second later, and
+  a second "Free up space" would set nothing new. A mark is cleared only once every drop it asked for succeeded (a
+  file open elsewhere fails with `ERROR_CLOUD_FILE_IN_USE`), so that file is tried again. ⚠ Except under a folder
+  marked "Always keep": there the free mark is the only thing between the file and the folder's mark, so it stays as
+  a standing exception (cleared, the file would download straight back) — and such a file, if opened, is dropped
+  again by the next pass. All of these run on
+  attribute-only handles that download nothing. A file without a mark of its own
+  follows the nearest marked folder above it (`ExplorerMirror.copies`), and finally the Tenshu Drive folder's own mark
+  ("Always keep" on the whole folder covers files that arrive later). ⚠ A mark on the folder itself is not a change
+  *inside* it, so no watch reports it: the 60 s pass picks it up (measured: all 28 photos downloaded one by one, ~1 s
+  each, then all dropped and the mark cleared). A replaced file keeps its pin
+  (`CfSetPinState`). An opened file without a mark keeps its copy until freed.
+- **Stopping** (quit, or the switch going off) waits up to 10 s for a pass in flight, so a pass still creating
+  placeholders cannot outlive their deletion. A start Windows refuses leaves the switch off.
+- **At start** Control unregisters this user's other `TenshuDrive!` roots, so Explorer never shows two.
+- **Hardened from §7.7**: a `FETCH_DATA` whose details cannot be read is failed from its keys alone (no 60 s wait);
+  `CF_CALLBACK_INFO` fields are read only up to the `StructSize` the OS sent; `register` releases every COM
+  reference on its failure paths; WinRT downcall handles are cached.
+- **Threat model**: T-C-21 and T-C-16's Windows paragraph (`threat-model.md`, the Windows Explorer sub-amendment).
+
+✅ **Device-verified 2026-11-10** (installed MSIX, Windows 11): the switch registers the root from the packaged
+Control and the navigation-pane entry appears — HKCU virtualisation does not hide it, so §7.7's open question is
+closed and the root itself needs no `windows.cloudFiles` manifest extension (X2 adds one, for the thumbnail handler
+only, §7.9); the realm's 29 rows appeared; a photo opened from
+Explorer downloaded and showed. Pin and free, by `attrib +P` / `+U` (the marks Explorer's menu sets): an
+online-only photo was downloaded within a second of `+P` and its copy dropped within a second of `+U`.
+⚠ Found only on the device: `ExtendedWatchEventModifier.FILE_TREE` is in `jdk.unsupported`, which the packaged
+runtime does not carry (`NoClassDefFoundError`) — so each folder is watched on its own.
+After the review fixes, also on the device: our placeholders are recognised by `CfGetPlaceholderInfo` (pinning
+still downloads); a freed photo opened again keeps its new copy; a junction put in the folder and a hydrated
+photo edited in place (read-only cleared, a byte appended) both survived a repair pass untouched. The free
+cycle (2026-11-11): free → copy dropped and mark cleared; reopen → copy kept; free again → dropped; free while
+another process holds the file exclusively → `ERROR_CLOUD_FILE_IN_USE`, mark kept, freed by the pass after closing.
+
+### 7.9 X2 as built — thumbnails
+
+Without a handler, Explorer downloads an online-only photo to draw its icon (seen in the log before X2: a
+`FETCH_DATA` for `explorer.exe` on a file nobody opened). The handler is **not a native DLL**, as §7.1 assumed:
+
+- **Where it runs**: the C# tray agent (`ThumbnailProvider.cs`), as an **out-of-process COM server** — the agent
+  already is one, for toast clicks. Control's AppxManifest declares it twice: a second `com:ExeServer` for the
+  agent with `--thumbnail-server`, and `desktop3:CloudFiles/ThumbnailProviderHandler` naming its CLSID. Windows applies a
+  package's cloud-files handlers to the sync roots that package registers, so it covers Tenshu Drive. ⚠ The schema
+  will not take the thumbnail handler alone: `CustomStateHandler`, `ExtendedPropertyHandler` and `BannersHandler` must
+  be present (we name the null CLSID, which COM cannot create) and `CloudFilesContextMenus` too (empty).
+- **Where the picture comes from**: the agent asks Control over the bridge, `explorer.v1.thumbnail(path, size)`.
+  Control reads the **realm path from the placeholder's identity** (never from the path's text) and answers with the
+  stored thumbnail class by Finder's rule (`storedThumbnail`): `LIST` or `LARGE`, pulled once if not on this device yet.
+  ⚠⚠ Never the file's bytes and never `File.Preview`. The agent decodes it with the OS's codecs
+  (`BitmapDecoder`: JPEG, PNG and Android's WebP) into a 32-bpp DIB, scaled to the size Explorer asked for — ⚠ up
+  as well as down: Explorer does not enlarge a smaller one, so at Large icons the 256 px class drew visibly smaller
+  than downloaded photos, which Windows draws from the full image (seen by the maintainer).
+- **When no tray is running**, Windows starts the agent itself (`tray-agent --thumbnail-server -Embedding`); it serves
+  with no icon and exits after two idle minutes. It writes its pid to `thumbnail-server.pid` in the socket directory,
+  and Control's tray supervisor passes over that process — ⚠ otherwise, found by path, it would be taken for the
+  tray (no heartbeat) and hold the real one back for the grace period.
+- ⚠ Source-generated COM (`StrategyBasedComWrappers`), not classic interop: CsWinRT installs its global ComWrappers
+  for WinUI.
+
+✅ **Device-verified 2026-11-11** with a Shell probe (`IShellItemImageFactory.GetImage`, thumbnail only — Explorer's
+pipeline): a never-downloaded photo got a 144×256 thumbnail and **stayed online-only**; with Control stopped,
+Windows started the agent as `--thumbnail-server -Embedding`, the request failed (`WTS_E_FAILEDEXTRACTION`) and the
+photo **still stayed online-only** — a failed thumbnail does not fall back to downloading. An iPhone HEIC got its
+thumbnail too (the stored class is not HEIC, so Windows' optional HEIF codec is not needed). With the thumbnail server
+alive when Control started, the real tray was up 15 s later beside it, and the server left after its idle time. ⚠ A probe of a file that
+was once downloaded proves nothing: Windows' thumbnail cache answers.
+
+**Uninstall (measured 2026-11-11, answers X4's question).** Once the package declares `windows.cloudFiles`, removing
+it **unregisters the sync root and deletes every online-only placeholder** — 37 entries became 9: the folders, the one
+downloaded photo and the user's own file stayed. So an uninstall leaves no orphaned Explorer entry, and nothing of
+the user's goes. ⚠ What survives changes kind: the folders and the downloaded copy become **ordinary** files and
+folders (no reparse point; the copy keeps `READONLY`), which Explorer then shows as **"Sync pending"** — the arrows
+of a download that never ends (seen by the maintainer). So Control **adopts** them back (`ExplorerMirror.Action.Adopt`,
+`CfConvertToPlaceholder`): ⚠⚠ a file only once its bytes hash — `wholeFileHashOf`'s 2 MiB fold — to exactly the row's
+`File.ContentHash`, on an exclusive handle; a folder at a realm folder's path on a shared one (Explorer always has a
+folder open, so an exclusive open fails). Anything that does not match is the user's and stays untouched; a
+mismatch is not hashed again until the file changes, and a failed conversion waits 10 min. Measured: all five
+leftover photos read "Available on this device" again. ⚠ *Open:* an adopted **folder** still reads "Sync pending"
+(the same folder created as a placeholder reads "Available when online"); neither `CfSetInSyncState` nor
+`CfUpdatePlaceholder(DISABLE_ON_DEMAND_POPULATION)` changed it. Cosmetic, and only after a side-load reinstall. Reinstalling is also what every side-load update does
+(`install.ps1` removes the old package first) — a Store update is an in-place upgrade and is not expected to do this
+(*not measured*).
+
+### 7.10 X3 — the write path (design, 2026-11-12)
+
+**Decided by the maintainer (2026-11-12):**
+
+- **D-X3-1 — a delete in Explorer moves the file to the realm's `/Trash`** (`TRASH_ROOT`, `/Trash/<contentId>-<name>`,
+  the convention Photos already uses), never a hard delete: bytes, `contentId` and history stay, restoring is a move
+  back. The Trash folder is a realm folder and shows in Explorer like any other.
+- **D-X3-3 (2026-11-12) — a delete inside `/Trash` is for good.** It is emptying one item of a recycle bin, which is
+  how OneDrive behaves too: its recycle bin is the end of the line, not a second Trash. The `/Trash` folder itself is
+  kept (Photos uses it). This supersedes the earlier "a delete in the Trash changes nothing".
+- **D-X3-2 — a conflict keeps both.** A file edited here while its realm copy changed elsewhere is uploaded beside it as
+  `name (conflict, <computer>).ext`; the other device's version keeps the name. Nothing is ever dropped.
+
+**Shape — state-driven, not event-driven.** Each pass compares the folder with the realm and the placeholder
+identities; an upload is followed by the *existing* adoption (§7.9) or a re-identification, so every step is
+idempotent and a crash between two of them is finished by the next pass:
+
+| Found locally | Realm row at that path | Action |
+|---|---|---|
+| ordinary file, no row | — | upload new → next pass adopts it (hash matches) |
+| ordinary folder, no row | — | create the folder → adopt |
+| ordinary file | row, same bytes | adopt (§7.9) |
+| ordinary file | row, other bytes, row still the version we last put there | upload over it (`replaceFile`) → adopt |
+| ordinary file | row, other bytes, row changed since | conflict copy (D-X3-2) |
+| our placeholder, **edited** (not in sync) | row = the identity's version | upload over it → re-identify in place |
+| our placeholder, edited | row moved on | conflict copy |
+
+"The version we last put there" is a small journal (`explorer-versions.tsv`), because editors save by writing a temp
+file and renaming it over the original: what is left is an *ordinary* file that has lost the placeholder's identity.
+⚠⚠ Every read that decides an upload, and every conversion or delete that follows one, goes through **one unshared
+handle** (§7.9's rule): what is uploaded is exactly what was checked, and a conflict's local file is replaced by the
+realm's version only after its bytes are safely in the realm, on a handle that proves they did not change since.
+Skipped: hidden or system files, editor temp files (`~$*`, `*.tmp`, `.~lock.*`, `*.crdownload`, `desktop.ini`,
+`Thumbs.db`), files modified in the last 3 s, files another process holds open, and files over the upload limit.
+
+**Slices.** X3a: uploads, edits, conflicts, writable placeholders. X3b: deletes (D-X3-1) and renames/moves, from
+CfAPI's `NOTIFY_DELETE` / `NOTIFY_RENAME`, acknowledged at once and applied by the pass after a short grace (so an
+editor's delete-then-rename save reads as an edit, not a delete). ⚠ A delete or rename by Control itself (the
+mirror) must not be propagated: the callbacks name the process, and our own pid is ignored.
+
+**X3a as built (2026-11-12)** — `ExplorerWrites` (pure rules, `ExplorerWritesTest`), `ExplorerJournal`, and the
+executor in `ExplorerSyncRoot` on its own write thread; placeholders are no longer read-only (older ones are made
+writable by the scan). ✅ Device-verified, in a test folder of the real realm: a new folder with a file in it is created
+and uploaded, then becomes ours in sync; an edit saved in place is uploaded ~5 s later and keeps its local copy; an
+editor-style save (temp file renamed over the original) is uploaded over the realm's copy through the journal.
+⚠ Found on the device: (1) an upload over a file stamps the realm's date with the moment of the upload, so the mirror
+must decide by the identity's version, never the date, or it replaces the just-uploaded copy with an online-only
+placeholder; (2) the folder watch fires inside the 3 s settle window, so a pass is scheduled for when it has
+settled, or an edit waits for the 60 s tick. *Not device-verified:* the conflict copy (needs a change from another
+device at the same time; unit-tested).
+
+**Hardened after review (X3a):**
+- ⚠⚠ **The mirror never deletes an edit Windows did not flag.** Before it removes a downloaded copy that still says
+  *in sync* (the realm deleted or replaced its row), the copy is hashed on an unshared handle against the hash the
+  journal recorded with its version. Bytes that differ mean an edit in place that kept the in-sync mark, so the copy
+  is marked not-in-sync (`CF_UPDATE_FLAG_CLEAR_IN_SYNC`) and the write path takes it: a conflict copy, or a re-upload
+  if the row was deleted. A copy made before the journal kept hashes has nothing to compare against and is removed as
+  before; an online-only one holds nothing local to lose.
+- ⚠⚠ **Such an edit is also found without a delete to trigger it, and is never lost by switching off.**
+  - The journal records each copy's size and modification time as Control left it.
+  - A downloaded in-sync copy that no longer matches is hashed on an unshared handle. If the bytes are the same, the
+    new size and time are recorded; if they differ, the copy is marked not in sync and the write path uploads it.
+    So a copy is read only when it looks changed, not every pass.
+  - ⚠ An edit that keeps both the size and the time is not found here. It stays unsynced but is never lost: every
+    delete still hashes first.
+  - Switching the integration off turns a copy holding such an edit into an ordinary file (`CfRevertPlaceholder`),
+    the user's own, instead of deleting it.
+  - **"Free up space" too:** the copy is checked and dropped on one unshared handle (`CfDehydratePlaceholder` on
+    it). Measured: the unshared handle gives the exclusivity dehydration needs, as the oplock handle did. A changed
+    copy is kept for upload, and its free mark stays until the edit is in the realm.
+
+  So every path that discards a copy's bytes — delete, cleanup, free — checks them first, on the handle that acts.
+
+  Windows normally clears in-sync on any write, so all of this is defence in depth.
+- **A conflict copy is made once.** If handing the path back fails after the copy went up, the retry finds the realm
+  sibling with the same bytes and a conflict name of this file, and only hands the path back.
+- **Writes wait out a suspect listing.** While the realm listing would remove most of the folder (the mass-removal
+  guard), nothing is written either: against a partial listing an edited file looks new or in conflict.
+- **Other fixes.** The journal is saved after every write. An upload is cancelled with the integration's scope when
+  `stop()` runs. Old read-only placeholders are made writable once when a run starts, not by every scan.
+
+**X3b as built (2026-11-12)** — `ExplorerLocalOps` (pure rules, `ExplorerLocalOpsTest`) plus `NOTIFY_DELETE` /
+`NOTIFY_RENAME` in `WindowsCloudFiles`. Each notice is **acknowledged at once**, because the delete or rename waits on
+the ack, and is only noted. The pass carries it to the realm once the notices have been quiet for 3 s, and only if
+the folder still agrees:
+- a delete only if nothing stands at the path, or at the path its identity names, and the realm still holds the
+  version the placeholder showed;
+- a rename only if the source is gone and the target is there, and the realm has nothing at the target.
+
+Meanwhile the mirror and the write path leave those paths alone, until the listing shows the step done (or for 2 min:
+`moveFile` can defer a move). The rules:
+- **A delete is a move to `/Trash/<contentId>-<name>`** (D-X3-1). A folder goes whole, structure kept. Explorer
+  deletes the contents first and the folder's own notice can come seconds later, hence "quiet for 3 s", not 3 s per
+  notice.
+- ⚠ **A delete inside `/Trash` is for good** (`deleteFile`, D-X3-3). Deleting the `/Trash` folder itself only empties
+  it: the folder stays.
+- **Deleting an online-only file shows Windows' own warning:** "permanently removed from your PC without sending it
+  to the Recycle Bin". There are no local bytes to recycle, and OneDrive gets the same dialog. Our `/Trash` is the
+  safety net in the role of OneDrive's online recycle bin. The wording is Windows', and no API changes it.
+- ⚠ Measured (maintainer, 2026-11-12): after a **side-load reinstall**, an Explorer window left open through it
+  silently did nothing on delete. No notice reached Control, so Explorer stopped before the delete began; reopening
+  Explorer fixed it. The reinstall unregisters the root and Control registers it again, so a window open through that
+  keeps the old registration. A Store update upgrades in place and is not expected to do this (*not measured*). Each
+  notice is now logged with its process and the ack's HRESULT, so a recurrence can be told apart from a Control fault.
+- **A rename or move is `moveFile`.** Afterwards the placeholders at the target, and below it for a folder, get the
+  new path in their identity (`updateIdentity`, on a shared handle, keeping their sync state), so a downloaded copy
+  stays downloaded. The journal follows. Notices planned against a folder that has just moved are rebased onto its
+  new path.
+- **A move out of the folder (the Recycle Bin) is a delete.** Control's own deletes are ignored by process id.
+
+✅ Device-verified (the test folder in the real realm):
+- a rename reached the realm and the copy stayed downloaded;
+- a folder with an uploaded file, deleted for good with `Remove-Item -Recurse`, went to `/Trash` whole;
+- a Word-style save (original renamed to `~WRL0001.tmp`, the new version renamed in, the backup deleted) trashed
+  nothing, and the journal uploaded the edit over the realm copy;
+- a Recycle Bin delete went to `/Trash` under the file's `contentId`.
+
+⚠ Measured: the Recycle Bin sends **two** notices for one file, so a second notice of a delete already planned is
+skipped. ⚠ Measured: a renamed file is left **not in sync** after the move, either by Windows or because
+`VERIFY_IN_SYNC` failed. So the write path then hashes it, finds the realm's bytes and marks it in sync again
+(`ALREADY_THERE`, about a second later): self-healing, at the cost of reading the file once. *Not device-verified:* the
+mirror's removal of a downloaded placeholder on one unshared handle (`deleteFileIfUnchanged`); it needs a change made
+on another device. ⚠ The realm's `/Trash` already held Photos' trash, so turning X3b on also shows those files in Explorer, as
+D-X3-1 intended.
+
+**Threat model (owed with X3a):** T-C-21 grows a write half — any same-user process can add or change realm files
+by writing into the folder, as with any synced folder; and T-C-21(b)'s stand-in provider becomes reachable to the
+realm: a file planted while Control was not running is uploaded at the next start.
+
+### 7.11 X4 — polish (as built, 2026-11-12)
+
+**The gate was met by X2's measurement:** an MSIX uninstall unregisters the root itself and removes every online-only
+placeholder (§7.9). Switching the integration off unregisters it too, and the cleanup retries across restarts. A
+crash leaves the registration in place, but the next start sweeps it. "Remove Tenshu from this PC" (§4) is a W-phase
+feature, not X4's: it removes keys and settings, and the Explorer root is the smallest part of it.
+
+**What X4 adds: the folder says what it is doing.** Explorer already draws the per-file states from CfAPI (online-only,
+downloaded, "sync pending" for anything not in sync) and the download progress from our `TRANSFER_DATA` chunks. What
+it cannot show is *why* a file stays pending. So the line under the Settings switch is now a status, `ExplorerStatus`,
+published after every pass (`ExplorerStatusTest`):
+- *Starting…*;
+- *Up to date*;
+- *Syncing N items…*, counting what the folder holds that the realm does not have yet, including deletes and renames
+  still in their grace;
+- *Can't read your files right now*, when the realm listing fails;
+- *Removing downloaded copies*, when switched off with a file still open;
+- ⚠ above all of these, *Can't upload ‹name›: ‹why›*. Over 2 GB, the file stays on this PC only. A failure retried after
+  2 min reads as "trying again shortly". A failure is forgotten once the file is no longer pending (fixed, moved or
+  deleted).
+
+The switch's description is corrected too: it said "read-only for now", which has been wrong since X3.
+
+**Not done, deliberately:**
+- **Upload progress per file.** `CfReportProviderProgress` needs a byte count. `uploadFile` takes the bytes whole and
+  reports nothing, so there is no number to show. Explorer's "sync pending" arrows plus the Settings count stand in.
+- **Custom state icons** (the `CustomStateHandler` the manifest declares with a null CLSID) for "can't upload". This
+  is a WinRT `StorageProviderItemProperties` call per item, worth it only if the Settings line proves too hidden.
+- ⚠ *Open, cosmetic:* an **adopted folder** still reads "Sync pending" (§7.9).
+
+✅ Device-verified by the maintainer (2026-11-12): the line reads *Syncing…* briefly after a change, then *Up to
+date*. The build also started, refilled the folder and adopted what the reinstall left.

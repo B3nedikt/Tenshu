@@ -28,9 +28,20 @@ class PendingAlertSchedule : SchedulingNotificationPresenter {
     // ⚠ Atomic because the daemon writes it from an op and the bridge reads it
     // from a socket thread — two threads, no lock between them.
     private val scheduled = AtomicReference<List<ScheduledAlert>>(emptyList())
+    private val planned = AtomicReference(false)
 
     /** What the tray should be holding, soonest first. */
     fun current(): List<ScheduledAlert> = scheduled.load()
+
+    /**
+     * Whether [current] is a plan, or merely the empty list this starts with.
+     *
+     * ⚠⚠ Not the same thing, and a tray that confuses them deletes reminders. The plan is made only when calendar
+     * data changes (`ReminderRearmObserver`), so after a restart this is empty until the first change — while the OS
+     * still holds every reminder armed before it. A tray that reconciles against its own OS schedule must treat an
+     * unplanned empty list as "unknown", never as "cancel everything".
+     */
+    fun isPlanned(): Boolean = planned.load()
 
     override fun canPost(): Boolean = false
 
@@ -40,5 +51,6 @@ class PendingAlertSchedule : SchedulingNotificationPresenter {
 
     override fun replaceScheduled(alerts: List<ScheduledAlert>) {
         scheduled.store(alerts)
+        planned.store(true)
     }
 }

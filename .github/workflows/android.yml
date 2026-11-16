@@ -122,6 +122,8 @@ jobs:
           name: unit-test-report
           path: "**/build/reports/tests/**"
 
+  # The Windows desktop lane lives in its own workflow, `.github/workflows/windows.yml`.
+
   # iOS K/N build + test now lives in its own lane (`.github/workflows/ios.yml`)
   # on a macOS runner — it compiles the shared surface, runs the simulator
   # tests, and links every app's own iOS framework.

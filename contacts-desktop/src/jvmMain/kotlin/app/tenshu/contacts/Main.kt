@@ -13,6 +13,7 @@ import app.tenshu.contacts.di.platformClientModule
 import app.tenshu.contacts.ui.App
 import app.tenshu.ui.layout.LocalNavRailPreference
 import app.tenshu.ui.layout.filePersistedNavRailPreference
+import app.tenshu.ui.layout.TenshuWindowIcon
 import app.tenshu.ui.layout.rememberPersistedWindowState
 import app.tenshu.ui.theme.TenshuTheme
 import org.koin.core.context.startKoin
@@ -43,6 +44,7 @@ fun main() {
             title = "Tenshu Contacts",
             state = windowState,
         ) {
+            TenshuWindowIcon()
             val viewModelStoreOwner = remember { DesktopViewModelStoreOwner() }
             val savedStateRegistryOwner = remember { DesktopSavedStateRegistryOwner() }
             // ⚠ `remember`ed: AdaptiveNavScaffold reads the stored value keyed on this instance.

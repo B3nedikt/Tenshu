@@ -30,7 +30,11 @@ import org.tenshu.sync.proxy.SyncHealthHolder
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.CoroutineScope
 import app.tenshu.control.bridge.SchemaFenceLog
+import app.tenshu.diagnostics.FileDiagnosticSink
+import app.tenshu.diagnostics.LogLevel
 import app.tenshu.control.bridge.registerDataMethods
+import app.tenshu.control.bridge.ExplorerIntegration
+import app.tenshu.control.bridge.registerExplorerMethods
 import app.tenshu.control.bridge.FileProviderBridgeState
 import app.tenshu.control.bridge.registerFileMethods
 import app.tenshu.control.bridge.registerFileWriteMethods
@@ -39,6 +43,7 @@ import app.tenshu.control.bridge.registerCalendarReminderMethods
 import app.tenshu.control.bridge.registerPendingRequestMethods
 import app.tenshu.control.bridge.registerWindowMethods
 import app.tenshu.control.lifecycle.DesktopControlSettings
+import app.tenshu.control.lifecycle.DesktopShellSupport
 import app.tenshu.control.lifecycle.DesktopStartAtLoginManager
 import app.tenshu.control.lifecycle.LaunchAgentManager
 import app.tenshu.control.lifecycle.TrayLiveness
@@ -47,6 +52,7 @@ import app.tenshu.control.ui.App
 import app.tenshu.control.ui.LocalWindowVisible
 import app.tenshu.ui.layout.LocalNavRailPreference
 import app.tenshu.ui.layout.filePersistedNavRailPreference
+import app.tenshu.ui.layout.TenshuWindowIcon
 import app.tenshu.ui.layout.rememberPersistedWindowState
 import app.tenshu.ui.theme.TenshuTheme
 import kotlinx.coroutines.Dispatchers
@@ -68,6 +74,8 @@ import org.tenshu.core.common.transport.UnixSocketServer
 import app.tenshu.control.ipc.AttestedPeerCredentialVerifier
 import app.tenshu.control.ipc.FirstPartyTeamPolicy
 import app.tenshu.control.ipc.PeerTrustAnchor
+import app.tenshu.control.ipc.FirstPartyPublisherPolicy
+import app.tenshu.control.ipc.WindowsPeerCredentialVerifier
 import org.tenshu.core.common.transport.SocketPathResolver
 import org.tenshu.core.common.util.DesktopSavedStateRegistryOwner
 import org.tenshu.core.common.util.DesktopViewModelStoreOwner
@@ -111,6 +119,8 @@ fun main() {
     // the icon is up in milliseconds and a slow or wedged proxy costs the user visibility of
     // Control, not Control itself.
     ensureTrayRunning()
+    // Windows: the native C# tray agent (desktop-windows-port.md §3.9, D5); a no-op without one.
+    WindowsTrayAgent.startAndSupervise(SocketPathResolver.resolveDir()) { System.err.println(it) }
 
     val koinApp = startKoin {
         modules(dataModule, platformProxyModule, proxyModule, viewModelsModule)
@@ -128,17 +138,49 @@ fun main() {
     // opens a fresh connection per call, so a per-connection log there is per-call spam. Its
     // peer is Control's own tray agent, embedded in this bundle and signed with it.
     val peerPolicy = PeerCredentialPolicy(strict = true)
-    val teamPolicy = FirstPartyTeamPolicy(PeerTrustAnchor.FIRST_PARTY_TEAM_IDS)
-    val peerVerifier = AttestedPeerCredentialVerifier(policy = teamPolicy, log = { println(it) })
+    // The gate's per-connection decision, also kept in a file: a packaged app's stdout is lost, and an
+    // MSIX has none at all — without this a refused app is invisible (desktop-windows-port.md §3.2).
+    // ⚠ Its own file, not control.log: FileDiagnosticSink rewrites its file to enforce the cap, so two
+    // sinks on one file would race.
+    val gateLog = FileDiagnosticSink(
+        File(DesktopAppPaths.dataDir(koinApp.koin.get<String>(named("platformPackageName"))), "diagnostics/ipc-gate.log"),
+    )
+    val logGate: (String) -> Unit = { line ->
+        println(line)
+        gateLog.append(if ("unattested" in line) LogLevel.WARN else LogLevel.INFO, "ipc", line, null)
+    }
+    // ⚠⚠ Windows attests by MSIX package identity, not by signature (desktop-windows-port.md §3.2,
+    // D1): a different verifier, the same strict policy and the same chokepoint.
+    val onWindows = System.getProperty("os.name").orEmpty().startsWith("Windows", ignoreCase = true)
+    val peerVerifier = if (onWindows) {
+        WindowsPeerCredentialVerifier(
+            policy = FirstPartyPublisherPolicy(PeerTrustAnchor.FIRST_PARTY_WINDOWS_PUBLISHER_IDS),
+            log = logGate,
+        )
+    } else {
+        AttestedPeerCredentialVerifier(
+            policy = FirstPartyTeamPolicy(PeerTrustAnchor.FIRST_PARTY_TEAM_IDS),
+            log = logGate,
+        )
+    }
     // ⚠ The bridge also admits Control's own identifier: a second Control refused by the instance
     // guard asks this one to show its window over the bridge. It grants nothing new; that copy
     // could already open the data root. ipc.sock does not admit it (it is not an app).
-    val bridgeVerifier = AttestedPeerCredentialVerifier(
-        policy = FirstPartyTeamPolicy(
-            PeerTrustAnchor.FIRST_PARTY_TEAM_IDS,
-            knownIdentifiers = FirstPartyDesktopPeers.BRIDGE_IDENTIFIERS,
-        ),
-    )
+    val bridgeVerifier = if (onWindows) {
+        WindowsPeerCredentialVerifier(
+            policy = FirstPartyPublisherPolicy(
+                PeerTrustAnchor.FIRST_PARTY_WINDOWS_PUBLISHER_IDS,
+                knownPackages = FirstPartyDesktopPeers.WINDOWS_BRIDGE_PACKAGES,
+            ),
+        )
+    } else {
+        AttestedPeerCredentialVerifier(
+            policy = FirstPartyTeamPolicy(
+                PeerTrustAnchor.FIRST_PARTY_TEAM_IDS,
+                knownIdentifiers = FirstPartyDesktopPeers.BRIDGE_IDENTIFIERS,
+            ),
+        )
+    }
     // A16 developer mode (D5/Q4). Sourced from the **build-type** flag the dev `run` task
     // sets, not from a runtime setting or an env var: a bypass an attacker can turn on is
     // indistinguishable from having no gate, and the packaged app never passes this flag, so
@@ -216,7 +258,23 @@ fun main() {
     // to join (HostPairingMonitor.activeRequest) so the tray can alert on the
     // close-to-tray case; tap → focus Control → the in-app approval modal. SAS-free.
     nativeBridgeServer.registerPairingApprovalMethod(koinApp.koin)
+    // Windows: Explorer's thumbnails for the Tenshu Drive folder, asked for by the tray agent (desktop-windows-port.md §7.9).
+    if (onWindows) nativeBridgeServer.registerExplorerMethods(koinApp.koin)
     nativeBridgeServer.start()
+
+    // Windows: Drive in File Explorer, when switched on (desktop-windows-port.md §7.8). Off the main thread —
+    // registering is COM work and the first pass lists the realm. Its own log file, as an MSIX has no stdout.
+    if (onWindows) {
+        val explorerLog = FileDiagnosticSink(
+            File(DesktopAppPaths.dataDir(koinApp.koin.get<String>(named("platformPackageName"))), "diagnostics/explorer.log"),
+        )
+        Thread({
+            ExplorerIntegration.install(koinApp.koin) { line ->
+                println(line)
+                explorerLog.append(LogLevel.INFO, "explorer", line, null)
+            }
+        }, "explorer-start").apply { isDaemon = true }.start()
+    }
 
     koinApp.koin.loadModules(listOf(module {
         single { unixSocketServer }
@@ -234,6 +292,7 @@ fun main() {
             )
         }
     }))
+    val syncPauseState = koinApp.koin.get<SyncPauseState>()
 
     // The schema pull fence's transitions, kept in a file — the only log line that names
     // why a fenced Control stopped pulling, which a packaged app's stdout would otherwise lose.
@@ -288,10 +347,25 @@ fun main() {
             storageDir = DesktopAppPaths.root()
         )
 
-        // Quit is explicit (tray Quit → bridge quitApp → requestQuit, or Cmd+Q):
-        // only then does application { } return and the proxy quiesce below.
+        // Quit is explicit (tray Quit → bridge quitApp / the Windows tray → requestQuit, or
+        // Cmd+Q): only then does application { } return and the proxy quiesce below.
         LaunchedEffect(Unit) {
             windowController.quitRequested.collect { exitApplication() }
+        }
+
+        // Windows without a working native agent — a plain dev run, or an agent the supervisor gave up
+        // on: the notification-area icon is this process's own (desktop-windows-port.md §3.4, §3.9 T3).
+        // ⚠ Never on macOS, where the Swift agent started by ensureTrayRunning owns it, and never
+        // alongside a live native agent (D5) — two icons for one app. Composed here, so
+        // exitApplication() takes the icon down with the window.
+        val agentFellBack by WindowsTrayAgent.fellBack.collectAsState()
+        if (DesktopShellSupport.current.inProcessTray && (WindowsTrayAgent.binary == null || agentFellBack)) {
+            WindowsControlTray(
+                windowController = windowController,
+                syncPauseState = syncPauseState,
+                // `show()` also requests the raise (WindowController.raiseRequested).
+                onOpen = { windowController.show() },
+            )
         }
 
         // Always emit the Window — never conditionally removed — so toggling
@@ -299,18 +373,38 @@ fun main() {
         // (which would make application { } exit and kill the daemon).
         Window(
             onCloseRequest = {
-                if (controlSettings.closeToTray()) windowController.hide()
-                else windowController.requestQuit()
+                // ⚠⚠ Hide only where a tray exists to bring the window back. Elsewhere a hidden
+                // window is a resident Control nobody can reach (desktop-windows-port.md §3.4).
+                if (DesktopShellSupport.current.trayAvailable && controlSettings.closeToTray()) {
+                    windowController.hide()
+                } else {
+                    windowController.requestQuit()
+                }
             },
             visible = isVisible,
             title = "Tenshu Control",
             state = windowState
         ) {
+            TenshuWindowIcon()
             // Raise + focus when (re)shown — e.g. the tray's Open Control.
             LaunchedEffect(isVisible) {
                 if (isVisible) {
                     window.toFront()
                     window.requestFocus()
+                }
+            }
+            // Every show() — the Compose tray, the bridge's openControlWindow (either native tray agent)
+            // — raises, including a window that was already visible behind others. ⚠ On Windows the
+            // foreground lock still applies: the native agent grants this process the foreground
+            // (AllowSetForegroundWindow) before it calls openControlWindow, or toFront() only flashes the
+            // taskbar button.
+            LaunchedEffect(Unit) {
+                windowController.raiseRequested.collect {
+                    windowState.isMinimized = false
+                    if (window.isVisible) {
+                        window.toFront()
+                        window.requestFocus()
+                    }
                 }
             }
 
@@ -415,6 +509,8 @@ fun main() {
     //
     // ⚠ Bounded: one loop that ignores cancellation would otherwise keep this process alive,
     // invisible, holding the instance lock — and every later launch would defer to it.
+    // Stop serving Explorer before the proxy goes: a fetch in flight reads through it.
+    ExplorerIntegration.shutdown()
     val quiesced = runBlocking {
         withTimeoutOrNull(SHUTDOWN_TIMEOUT_MS) { proxyGateway.shutdownAndJoin() } != null
     }

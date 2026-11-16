@@ -66,6 +66,8 @@ val FFM_JDK = 25
 kotlin {
     jvmToolchain(FFM_JDK)
     jvm()
+    // The window's own icon on Windows — title bar, Alt+Tab (TenshuWindowIcon; ADR 0026 §6b).
+    sourceSets.named("jvmMain") { resources.srcDir("icons/windows/window") }
 
     sourceSets {
         getByName("jvmMain") {
@@ -103,6 +105,22 @@ kotlin {
 // explicitly.
 val qrImpl: String? = (project.findProperty("tenshu.qr.impl") as String?)?.takeIf { it.isNotBlank() }
 val desktopMarketingVersion = "1.0.1"
+
+// Windows MSIX (desktop-windows-port.md §5.2, D1): `:drive-desktop:packageMsix`; the Store build is
+// docs/how-to/windows-store-submission.md. ⚠ The identity name is provisional until the Partner Center
+// reservation, and must equal Drive's ClientBinding.WindowsPackage in BundledAppCatalogue, or Control's peer
+// gate will not admit this package (packageMsix checks the pin).
+extra["tenshu.msix.identityName"] = "Tenshu.Drive"
+// ⚠⚠ false until the name above IS Partner Center's Package/Identity/Name; a Store build refuses until then.
+extra["tenshu.msix.identityReserved"] = false
+extra["tenshu.msix.identityPins"] = listOf(
+    "control-shared-logic/src/commonMain/kotlin/app/tenshu/control/data/BundledAppCatalogue.kt",
+)
+extra["tenshu.msix.displayName"] = "Tenshu Drive"
+extra["tenshu.msix.appId"] = "Drive"
+extra["tenshu.msix.executable"] = "TenshuDrive"
+extra["tenshu.msix.version"] = desktopMarketingVersion
+apply(from = rootProject.file("gradle/desktop-msix.gradle.kts"))
 // CFBundleVersion for the File Provider extension. The MAS archive script passes one UTC-minute
 // number for host and extension alike (App Store Connect rejects a mismatch); a local build uses a
 // fixed "1" so configuration never reads the clock (that would defeat the configuration cache).
@@ -123,13 +141,21 @@ val PEER_GATE_JVM_ARGS = listOf(
 tasks.withType<JavaExec> {
     if (name == "run" || name == "jvmRun") {
         mainClass.set("app.tenshu.drive.MainKt")
-        // Fix for Skiko UnsatisfiedLinkError on macOS
-        jvmArgs("-Dskiko.renderApi=METAL")
-        qrImpl?.let { jvmArgs("-Dtenshu.qr.impl=$it") }
-        // Dev run is not a release build: A16 developer mode lets it reach a dev-run Control, an unsigned
-        // `java` process (`ControlServerCheck`). A packaged app never gets this flag.
-        jvmArgs("-Dtenshu.release=false")
-        jvmArgs(PEER_GATE_JVM_ARGS)
+        // ⚠⚠ The dev-run flags go in `doFirst`, not here. Compose's `configureRunTask` calls
+        // `setJvmArgs(app.jvmArgs)` AFTER this block and REPLACES the list, so anything set at
+        // configuration time never reaches the JVM. `PEER_GATE_JVM_ARGS` and `-Dtenshu.qr.impl` reach
+        // the dev run through `compose.desktop.application.jvmArgs`, below. ⚠ Never move these flags
+        // onto that list: it also feeds the packaged app, which must never carry `tenshu.release=false`.
+        val devArgs = buildList {
+            // Dev run is not a release build: A16 developer mode lets it reach a dev-run Control, an
+            // unsigned `java` process (`ControlServerCheck`).
+            add("-Dtenshu.release=false")
+            // A Skiko UnsatisfiedLinkError fix on macOS only: METAL is not a Windows/Linux renderer.
+            if (System.getProperty("os.name").orEmpty().startsWith("Mac", ignoreCase = true)) {
+                add("-Dskiko.renderApi=METAL")
+            }
+        }
+        doFirst { (this as JavaExec).jvmArgs(devArgs) }
     }
 }
 
@@ -150,11 +176,16 @@ tasks.withType<JavaExec> {
 // JDK 25, and nothing can be packaged without first being compiled. So a missing 25 still
 // fails any packaging build — at `compileKotlinJvm`, naming the toolchain, instead of taking
 // the whole build's configuration down with it.
-val ffmRuntime: String? = runCatching {
-    javaToolchains
-        .launcherFor { languageVersion.set(JavaLanguageVersion.of(FFM_JDK)) }
-        .get().metadata.installationPath.asFile.absolutePath
-}.getOrNull()
+// ⚠ `-Ptenshu.jpackageJavaHome` overrides the pick for a machine whose only JDK 25 is the JBR, which has
+// no `jpackage` — see the same block in control-desktop/build.gradle.kts.
+val ffmRuntime: String? =
+    ((project.findProperty("tenshu.jpackageJavaHome") as String?) ?: System.getenv("TENSHU_JPACKAGE_JAVA_HOME"))
+        ?.takeIf { it.isNotBlank() }
+        ?: runCatching {
+            javaToolchains
+                .launcherFor { languageVersion.set(JavaLanguageVersion.of(FFM_JDK)) }
+                .get().metadata.installationPath.asFile.absolutePath
+        }.getOrNull()
 
 compose.desktop {
     application {
@@ -167,6 +198,8 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg, TargetFormat.Pkg)
             packageName = "TenshuDrive"
             packageVersion = desktopMarketingVersion
+            // Windows: the launcher .exe's icon (ADR 0026 §6b; scripts/windows-app-icons.py).
+            windows { iconFile.set(project.file("icons/windows/drive.ico")) }
             macOS {
                 // Reuse Drive's iOS bundle ID so this macOS target can share one
                 // App Store Connect record and remain eligible for Universal Purchase.

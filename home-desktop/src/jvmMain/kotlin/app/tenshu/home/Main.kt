@@ -14,6 +14,7 @@ import app.tenshu.home.di.homeClientModule
 import app.tenshu.home.di.homeModules
 import app.tenshu.home.di.homePlatformClientModule
 import app.tenshu.home.ui.App
+import app.tenshu.ui.layout.TenshuWindowIcon
 import app.tenshu.ui.theme.TenshuTheme
 import org.koin.core.context.startKoin
 import org.tenshu.core.common.util.DesktopSavedStateRegistryOwner
@@ -40,6 +41,7 @@ fun main() {
             title = "Tenshu Home",
             state = windowState,
         ) {
+            TenshuWindowIcon()
             val viewModelStoreOwner = remember { DesktopViewModelStoreOwner() }
             val savedStateRegistryOwner = remember { DesktopSavedStateRegistryOwner() }
 

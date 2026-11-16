@@ -25,6 +25,8 @@ val FFM_JDK = 25
 kotlin {
     jvmToolchain(FFM_JDK)
     jvm()
+    // The window's own icon on Windows — title bar, Alt+Tab (TenshuWindowIcon; ADR 0026 §6b).
+    sourceSets.named("jvmMain") { resources.srcDir("icons/windows/window") }
 
     sourceSets {
         getByName("jvmMain") {
@@ -51,13 +53,21 @@ kotlin {
 tasks.withType<JavaExec> {
     if (name == "run" || name == "jvmRun") {
         mainClass.set("app.tenshu.calendar.MainKt")
-        // Fix for Skiko UnsatisfiedLinkError on macOS.
-        jvmArgs("-Dskiko.renderApi=METAL")
-        // ⚠ In step with the packaged `jvmArgs` below.
-        jvmArgs(PEER_GATE_JVM_ARGS)
-        // Dev run is not a release build: A16 developer mode lets it reach a dev-run Control, an unsigned
-        // `java` process (`ControlServerCheck`). A packaged app never gets this flag.
-        jvmArgs("-Dtenshu.release=false")
+        // ⚠⚠ The dev-run flags go in `doFirst`, not here. Compose's `configureRunTask` calls
+        // `setJvmArgs(app.jvmArgs)` AFTER this block and REPLACES the list, so anything set at
+        // configuration time never reaches the JVM. `PEER_GATE_JVM_ARGS` reaches the dev run through
+        // `compose.desktop.application.jvmArgs`, below. ⚠ Never move these flags onto that list: it
+        // also feeds the packaged app, which must never carry `tenshu.release=false`.
+        val devArgs = buildList {
+            // Dev run is not a release build: A16 developer mode lets it reach a dev-run Control, an
+            // unsigned `java` process (`ControlServerCheck`).
+            add("-Dtenshu.release=false")
+            // A Skiko UnsatisfiedLinkError fix on macOS only: METAL is not a Windows/Linux renderer.
+            if (System.getProperty("os.name").orEmpty().startsWith("Mac", ignoreCase = true)) {
+                add("-Dskiko.renderApi=METAL")
+            }
+        }
+        doFirst { (this as JavaExec).jvmArgs(devArgs) }
     }
 }
 
@@ -105,6 +115,8 @@ compose.desktop {
             // part of the icon track, not this.
             fileAssociation("text/calendar", "ics", "iCalendar file")
 
+            // Windows: the launcher .exe's icon (ADR 0026 §6b; scripts/windows-app-icons.py).
+            windows { iconFile.set(project.file("icons/windows/calendar.ico")) }
             macOS {
                 // Pin the CFBundleIdentifier explicitly — the desktop IPC gate
                 // authenticates on the signed identifier, so it must not be left to the

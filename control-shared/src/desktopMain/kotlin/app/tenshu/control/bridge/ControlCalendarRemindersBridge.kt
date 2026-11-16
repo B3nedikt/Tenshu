@@ -32,13 +32,18 @@ import org.tenshu.core.common.proxy.NativeBridgeServer
  */
 fun NativeBridgeServer.registerCalendarReminderMethods(koin: Koin) {
     register("calendarReminders") {
-        calendarRemindersResult(koin.get<PendingAlertSchedule>().current())
+        val schedule = koin.get<PendingAlertSchedule>()
+        calendarRemindersResult(schedule.current(), planned = schedule.isPlanned())
     }
 }
 
 /**
- * `{ reminders: [{ id, title, body, deliverAtEpochMs, tapPayload }] }`, soonest
+ * `{ reminders: [{ id, title, body, deliverAtEpochMs, tapPayload }], planned }`, soonest
  * first.
+ *
+ * ⚠⚠ `planned` = false: the daemon has not planned since it started, so an empty list means "unknown", not
+ * "nothing due". A tray that diffs against the OS's own schedule (Windows) must then only add, never remove —
+ * or a restart cancels every reminder armed before it ([PendingAlertSchedule.isPlanned]).
  *
  * ⚠ `id` is the planner's stable per-occurrence key, used as the OS notification
  * identifier so a re-plan **replaces** rather than stacking, and as the tray's
@@ -47,7 +52,8 @@ fun NativeBridgeServer.registerCalendarReminderMethods(koin: Koin) {
  * ⚠ Shaped in its own function so it is unit-testable without a socket or a live
  * proxy — the `pendingRequestsResult` precedent.
  */
-internal fun calendarRemindersResult(alerts: List<ScheduledAlert>): Map<String, Any?> = mapOf(
+internal fun calendarRemindersResult(alerts: List<ScheduledAlert>, planned: Boolean = true): Map<String, Any?> = mapOf(
+    "planned" to planned,
     "reminders" to alerts.map { scheduled ->
         mapOf(
             "id" to scheduled.id,

@@ -98,9 +98,9 @@ private fun openMacOsBundle(bundleId: String): Boolean = runCatching {
 
 /**
  * `{ apps: [{ appId, name, iconName, version, verified, deviceCount, installedAt,
- * installedOnThisDevice, registered }] }`.
+ * installedOnThisDevice, registered, windowsPackage }] }`.
  *
- * Registered apps come first, then every [catalogue] app with a macOS bundle that has **no**
+ * Registered apps come first, then every [catalogue] app with a macOS bundle or a Windows package that has **no**
  * registration, marked `registered = false`. Registration fires on session establishment, so an
  * app that was installed but never opened has no row — and a launcher fed only registrations
  * could never offer the one click that would create it.
@@ -112,6 +112,11 @@ private fun openMacOsBundle(bundleId: String): Boolean = runCatching {
  */
 internal fun appsResult(apps: List<InstalledApp>, catalogue: List<FirstPartyApp>): Map<String, Any?> {
     val registeredIds = apps.mapTo(HashSet()) { it.appId }
+    // The Windows tray agent launches through the package's app-list entry, and needs the MSIX package name for
+    // that (desktop-windows-port.md §3.9). The catalogue is the authority on it; `null` = no Windows build.
+    val windowsPackages = catalogue.associate { app ->
+        app.appId to app.clients.filterIsInstance<ClientBinding.WindowsPackage>().firstOrNull()?.packageName
+    }
     val registered = apps.map { app ->
         mapOf(
             "appId" to app.appId,
@@ -126,12 +131,17 @@ internal fun appsResult(apps: List<InstalledApp>, catalogue: List<FirstPartyApp>
             // authority on the *fact* and the tray owns the presentation.
             "installedOnThisDevice" to app.installedOnThisDevice,
             "registered" to true,
+            "windowsPackage" to windowsPackages[app.appId],
         )
     }
     val neverConnected = catalogue
-        // A MacCodeSignature binding is the attested bundle id the tray can launch;
-        // it need not equal the platform-neutral appId (Drive shares its iOS id).
-        .filter { app -> app.clients.any { it is ClientBinding.MacCodeSignature } }
+        // A MacCodeSignature binding is the attested bundle id the macOS tray can launch (it need not equal
+        // the platform-neutral appId: Drive shares its iOS id); a WindowsPackage binding is what the Windows
+        // agent launches. Each tray offers only what resolves on its own OS, so a candidate the other OS can
+        // launch is never shown.
+        .filter { app ->
+            app.clients.any { it is ClientBinding.MacCodeSignature || it is ClientBinding.WindowsPackage }
+        }
         .filter { it.appId !in registeredIds }
         .map { app ->
             mapOf(
@@ -146,6 +156,7 @@ internal fun appsResult(apps: List<InstalledApp>, catalogue: List<FirstPartyApp>
                 "installedAt" to 0L,
                 "installedOnThisDevice" to false,
                 "registered" to false,
+                "windowsPackage" to windowsPackages[app.appId],
             )
         }
     return mapOf("apps" to registered + neverConnected)

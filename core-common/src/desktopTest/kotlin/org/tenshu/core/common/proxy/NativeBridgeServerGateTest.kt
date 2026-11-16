@@ -10,7 +10,6 @@ import java.net.UnixDomainSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.SocketChannel
 import java.nio.file.Files
-import java.nio.file.Path
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -25,7 +24,7 @@ import kotlin.test.assertTrue
 class NativeBridgeServerGateTest {
 
     // Short /tmp path — macOS Unix-domain sun_path caps at ~104 chars.
-    private val tempDir = Files.createTempDirectory(Path.of("/tmp"), "gate")
+    private val tempDir = org.tenshu.core.common.shortTempDirectory("gate")
     private val servers = mutableListOf<NativeBridgeServer>()
 
     @AfterTest

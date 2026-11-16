@@ -267,10 +267,11 @@ To ensure that only authorized Tenshu apps can talk to the Proxy:
        (`BundledAppCatalogue`) to be **registered**. ⚠ It does not gate *access* — any
        admitted peer can call anything; see item #5 of the same audit.
 
-  ⚠⚠ **macOS only.** `SO_PEERCRED` (Linux) and `GetNamedPipeClientProcessId` (Windows) are the
-  intended equivalents and are **not implemented**: on those platforms every peer resolves
-  unattested, so a packaged build would admit no one and a dev run admits everyone. Shipping is
-  macOS-only today (`targetFormats(Dmg, Pkg)`). See
+  ⚠⚠ **macOS and Windows.** Windows identifies the peer by its MSIX package (`SIO_AF_UNIX_GETPEERPID`
+  → package family name + a signed package origin, `WindowsPeerCredentialVerifier`;
+  [`desktop-windows-port.md`](../proposals/desktop-windows-port.md) §3.2). `SO_PEERCRED` (Linux) is
+  **not implemented**: there every peer resolves unattested, so a packaged build would admit no one
+  and a dev run admits everyone. See
   [`docs/proposals/tenshu-rei.md`](../proposals/tenshu-rei.md) §5.F.49 for the longer-term
   edge cases (dev-build bypass, signature-cache invalidation on app update, Windows peer-PID
   race window).
@@ -278,8 +279,13 @@ To ensure that only authorized Tenshu apps can talk to the Proxy:
 ## 4. Platform Compatibility
 
 * **macOS/Linux**: Uses standard Unix Domain Sockets.
-* **Windows**: Uses **Named Pipes**, which follow the same stream-based API in Java `nio`, ensuring
-  the Kotlin code remains almost identical.
+* **Windows**: ⚠ **Also Unix Domain Sockets — not named pipes.** The original plan here said named
+  pipes "follow the same stream-based API in Java `nio`"; the JDK has no named-pipe `SocketChannel`,
+  but `StandardProtocolFamily.UNIX` works on Windows 10 1803+, so `UnixSocketServer` /
+  `UnixSocketTaskTransport` run unchanged (measured 2026-11-09: Control binds both sockets and every
+  `UnixSocket*` suite passes). The Windows peer-pid call is therefore `SIO_AF_UNIX_GETPEERPID`, not
+  `GetNamedPipeClientProcessId`. Remaining Windows gaps (socket-directory ACL, socket-file identity,
+  peer gate): [`desktop-windows-port.md`](../proposals/desktop-windows-port.md) §3.2–§3.3.
 
 ## 5. Implementation Strategy (⚠ historical — this shipped)
 
@@ -412,9 +418,9 @@ mapping to the binary protocol and the permission checks.
 > its channel closed before a frame is served.
 >
 > ⚠⚠ Three carve-outs, all narrow: **developer mode (A16)** admits-with-warning, sourced from
-> a build-type flag the packaged app never passes; the verifier is **macOS-only**, so nothing
-> resolves on Linux/Windows (§4's `SO_PEERCRED` / `GetNamedPipeClientProcessId` are described,
-> not built) and a dev run there admits everyone; and an admitted peer's **identity is not
+> a build-type flag the packaged app never passes; the verifier exists for **macOS and Windows**
+> only, so nothing resolves on Linux (`SO_PEERCRED` is described, not built) and a dev run there
+> admits everyone; and an admitted peer's **identity is not
 > used for per-method authorization** here, so any admitted first-party bundle can call the
 > File Provider methods, not only the tray agent and the `.appex`. The App Group container is
 > reachability, not a boundary (§6.1). See [`threat-model.md`](../sync/threat-model.md)

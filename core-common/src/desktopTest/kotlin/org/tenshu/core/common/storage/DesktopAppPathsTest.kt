@@ -66,8 +66,11 @@ class DesktopAppPathsTest {
         System.setProperty(DesktopAppPaths.DIR_PROPERTY, dir)
 
         assertEquals(dir, DesktopAppPaths.root().path)
-        assertEquals("$dir/$PKG", DesktopAppPaths.dataDir(PKG).path)
-        assertEquals("$dir/control.settings.properties", DesktopAppPaths.sharedFile("control.settings.properties").path)
+        assertEquals(File(dir, PKG).path, DesktopAppPaths.dataDir(PKG).path)
+        assertEquals(
+            File(dir, "control.settings.properties").path,
+            DesktopAppPaths.sharedFile("control.settings.properties").path,
+        )
     }
 
     @Test
@@ -99,7 +102,9 @@ class DesktopAppPathsTest {
 
         assertEquals(container.path, DesktopAppPaths.root().path)
         assertEquals(File(container, PKG).path, DesktopAppPaths.dataDir(PKG).path)
-        assertEquals(SocketPathResolver.appGroupContainer(), DesktopAppPaths.root().path)
+        // Through `File` so the comparison holds on a Windows host simulating macOS: the resolver
+        // returns a `/`-joined string, `root()` a `File` whose path uses the host separator.
+        assertEquals(File(SocketPathResolver.appGroupContainer()!!).path, DesktopAppPaths.root().path)
         assertFalse(legacyRoot.exists(), "a packaged launch must not even create ~/.tenshu")
     }
 
