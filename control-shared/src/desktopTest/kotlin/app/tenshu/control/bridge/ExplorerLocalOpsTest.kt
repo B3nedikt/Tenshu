@@ -51,6 +51,25 @@ class ExplorerLocalOpsTest {
     }
 
     @Test
+    fun aFolderWhoseIdentityWentStale_afterACaseRenameElsewhere_isStillDeletedAndRenamed() {
+        // Codex's case: another device renamed /photos to /Photos; the local folder's identity still says /photos.
+        val remote = listOf(row("/Photos", folder = true), row("/Photos/a.jpg"))
+        val deleted = ExplorerLocalOps.plan(
+            listOf(delete("photos", identity = "/photos", folder = true)), remote, emptyList(), now,
+        )
+        assertEquals("/Photos", (deleted.steps.single() as Step.Trash).realmPath)
+        val renamed = ExplorerLocalOps.plan(
+            listOf(rename("photos", "Pictures", identity = "/photos", folder = true)), remote,
+            listOf(placeholder("Pictures", folder = true)), now,
+        )
+        assertEquals("/Photos" to "/Pictures", (renamed.steps.single() as Step.Move).let { it.from to it.to })
+        // A folder with a hidden case twin still resolves to the one the folder shows.
+        val twins = listOf(row("/Photos", folder = true), row("/photos", folder = true))
+        val shownOne = ExplorerLocalOps.plan(listOf(delete("Photos", identity = "/photos", folder = true)), twins, emptyList(), now)
+        assertEquals(ExplorerMirror.shown(twins).values.single().second.path, (shownOne.steps.single() as Step.Trash).realmPath)
+    }
+
+    @Test
     fun twoNoticesOfOneDelete_trashItOnce() {
         // Measured: the Recycle Bin sends two notices for one file.
         val ops = listOf(rename("a.txt", "ignored", at = settled).copy(target = null), delete("a.txt", at = settled + 5))

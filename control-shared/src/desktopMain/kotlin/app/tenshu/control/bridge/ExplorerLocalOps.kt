@@ -58,6 +58,11 @@ internal object ExplorerLocalOps {
         // rename or delete would then move or trash a file the user never saw. Case-insensitive matching is only for
         // what NTFS sees: whether anything already stands at a target.
         val remoteByPath = remote.associateBy { it.path }
+        // ⚠ A folder resolves to the row it DISPLAYS, not to its identity: a case-only rename made elsewhere
+        // (/photos → /Photos) leaves the local folder's identity naming the old spelling, because the mirror refreshes
+        // only file identities (a stale file is replaced; a folder is never fetched). Exact matching would drop every
+        // later delete or rename of it. The displayed row is what the user acted on, and never a hidden twin.
+        val shown = ExplorerMirror.shown(remote)
         val steps = ArrayList<Step>()
         val waiting = ArrayList<Op>()
         val dropped = ArrayList<Op>()
@@ -76,7 +81,7 @@ internal object ExplorerLocalOps {
                 continue
             }
             val identityKey = key(op.identityPath.trim('/'))
-            val row = remoteByPath[op.identityPath]
+            val row = if (op.isFolder) shown[identityKey]?.second else remoteByPath[op.identityPath]
             if (row == null || row.isFolder != op.isFolder) {
                 dropped += op // gone from the realm already, or something else is there now
                 continue
