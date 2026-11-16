@@ -25,6 +25,8 @@ import org.tenshu.sync.Schedule
 import org.tenshu.sync.GetChanges
 import org.tenshu.sync.GetPairingStatus
 import org.tenshu.sync.GetPendingPairingRequests
+import org.tenshu.sync.GetRemovedDevices
+import org.tenshu.sync.GetDeviceAccessRevocations
 import org.tenshu.sync.GetRecoveryPhrase
 import org.tenshu.sync.GetSyncStatus
 import org.tenshu.sync.GetSyncLog
@@ -83,6 +85,8 @@ import org.tenshu.sync.proxy.impl.ScheduleImplementation
 import org.tenshu.sync.proxy.impl.GetChangesImplementation
 import org.tenshu.sync.proxy.impl.GetPairingStatusImplementation
 import org.tenshu.sync.proxy.impl.GetPendingPairingRequestsImplementation
+import org.tenshu.sync.proxy.impl.GetRemovedDevicesImplementation
+import org.tenshu.sync.proxy.impl.GetDeviceAccessRevocationsImplementation
 import org.tenshu.sync.proxy.impl.GetRecoveryPhraseImplementation
 import org.tenshu.sync.proxy.impl.GetSyncStatusImplementation
 import org.tenshu.sync.proxy.impl.GetSyncLogBeforeImplementation
@@ -249,6 +253,8 @@ fun syncProxyImplementationFactory(
         ReregisterDevice.ID -> ReregisterDeviceImplementation(syncManager, cryptoManager, relay)
 
         ReadmitDevice.ID -> ReadmitDeviceImplementation(syncManager, cryptoManager, relay)
+        GetRemovedDevices.ID -> GetRemovedDevicesImplementation(syncManager, cryptoManager)
+        GetDeviceAccessRevocations.ID -> GetDeviceAccessRevocationsImplementation()
         CreateSharedRealm.ID -> realmRegistry?.let {
             CreateSharedRealmImplementation(syncManager, cryptoManager, relay, it)
         }

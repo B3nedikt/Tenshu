@@ -7,6 +7,7 @@ import org.tenshu.core.common.impl.CompositeRo
 import org.tenshu.core.schema.CompositeSchema
 import org.tenshu.core.common.module.composite
 import org.tenshu.core.common.module.operation
+import org.tenshu.core.common.module.schemaMigration
 import org.tenshu.core.common.module.service
 import org.tenshu.core.common.module.tModule
 import org.tenshu.core.common.module.trait
@@ -21,9 +22,18 @@ import org.tenshu.identity.Entitlement
 import org.tenshu.identity.EntitlementUnverifiedError
 import org.tenshu.identity.GetDevices
 import org.tenshu.identity.GetRealmMembers
+import org.tenshu.identity.GetRealmInvitations
+import org.tenshu.identity.GetPendingAcceptances
 import org.tenshu.identity.GetSharedRealmMemberships
 import org.tenshu.identity.GrantedMembership
 import org.tenshu.identity.DeviceHardware
+import org.tenshu.identity.DeviceRecord
+import org.tenshu.identity.MembershipRecord
+import org.tenshu.identity.AwaitedAcceptance
+import org.tenshu.identity.RealmKeyDelivery
+import org.tenshu.identity.RealmGrantor
+import org.tenshu.identity.RealmKeyGeneration
+import org.tenshu.identity.OutboundAcceptance
 import org.tenshu.identity.DeviceLastSeen
 import org.tenshu.identity.Member
 import org.tenshu.identity.MemberAuthorityKey
@@ -165,10 +175,198 @@ val identityServiceCommonModule = tModule {
     service(
         IdentityService.Schema
     )
+    // v1 → v2 (§5b R6, and `shared-realm-membership-records.md` MR-1 + RO D7, folded into the same
+    // unshipped bump): `DeviceRecord`, `MembershipRecord`, `AwaitedAcceptance`, `OutboundAcceptance`, `RealmKeyDelivery`, `RealmGrantor` and `RealmKeyGeneration` are new types — nothing reshaped, so the step is empty. It is
+    // registered because the chain is what the readable floor is derived from (HR #9).
+    // ⚠ MR-3 reshapes `Member` (two optional fields appended), so the step is no longer empty: it maps the
+    // frozen v1 shape onto the live one. The new fields are optional, so a v1 row arrives with them absent
+    // — and is then not listed (an unsigned row vouches for nothing; no production shares, RO D8).
+    schemaMigration(
+        org.tenshu.core.common.schema.migration.schemaMigration(IdentityService.ID, fromVersion = 1) {
+            migration(typeId = Member.ID, from = MEMBER_AT_V1, to = Member.Schema) {}
+        },
+    )
+
+    // Signed device records (§5b R6): removals and re-admissions, synced, verified by readers.
+    composite(
+        interfaceClass = DeviceRecord::class,
+        dataSchema = DeviceRecord.Schema,
+        dtoFactory = ::DeviceRecordDto,
+    )
+    trait(
+        dataSchema = DeviceRecord.Schema,
+        traitSchema = Syncable.Schema,
+        traitFactory = { _, schema ->
+            val composite = schema as Composite
+            object : Syncable, Composite by composite {
+                override val schema get() = Syncable.Schema
+                override val traitRequirements: TList<TraitRequirement> = SimpleTList(emptyList())
+            }
+        },
+    )
+    trait(
+        dataSchema = DeviceRecord.Schema,
+        traitSchema = DeviceRecord.DataIdProviderSchema,
+        traitFactory = { context, schema ->
+            StringDataIdProviderImpl(context, schema as StringDataIdProviderSchema)
+        },
+    )
+
+    // Awaited acceptances (read-only-members D7): an owner device polls these for a member's acceptance.
+    composite(
+        interfaceClass = AwaitedAcceptance::class,
+        dataSchema = AwaitedAcceptance.Schema,
+        dtoFactory = ::AwaitedAcceptanceDto,
+    )
+    trait(
+        dataSchema = AwaitedAcceptance.Schema,
+        traitSchema = Syncable.Schema,
+        traitFactory = { _, schema ->
+            val composite = schema as Composite
+            object : Syncable, Composite by composite {
+                override val schema get() = Syncable.Schema
+                override val traitRequirements: TList<TraitRequirement> = SimpleTList(emptyList())
+            }
+        },
+    )
+    trait(
+        dataSchema = AwaitedAcceptance.Schema,
+        traitSchema = AwaitedAcceptance.DataIdProviderSchema,
+        traitFactory = { context, schema ->
+            StringDataIdProviderImpl(context, schema as StringDataIdProviderSchema)
+        },
+    )
+
+    // Realm key generations (GR-7): the order members adopt an owner's keys in.
+    composite(
+        interfaceClass = RealmKeyGeneration::class,
+        dataSchema = RealmKeyGeneration.Schema,
+        dtoFactory = ::RealmKeyGenerationDto,
+    )
+    trait(
+        dataSchema = RealmKeyGeneration.Schema,
+        traitSchema = Syncable.Schema,
+        traitFactory = { _, schema ->
+            val composite = schema as Composite
+            object : Syncable, Composite by composite {
+                override val schema get() = Syncable.Schema
+                override val traitRequirements: TList<TraitRequirement> = SimpleTList(emptyList())
+            }
+        },
+    )
+    trait(
+        dataSchema = RealmKeyGeneration.Schema,
+        traitSchema = RealmKeyGeneration.DataIdProviderSchema,
+        traitFactory = { context, schema ->
+            StringDataIdProviderImpl(context, schema as StringDataIdProviderSchema)
+        },
+    )
+
+    // Realm grantors (GR-7): which contact granted a member each realm — where its re-keys arrive.
+    composite(
+        interfaceClass = RealmGrantor::class,
+        dataSchema = RealmGrantor.Schema,
+        dtoFactory = ::RealmGrantorDto,
+    )
+    trait(
+        dataSchema = RealmGrantor.Schema,
+        traitSchema = Syncable.Schema,
+        traitFactory = { _, schema ->
+            val composite = schema as Composite
+            object : Syncable, Composite by composite {
+                override val schema get() = Syncable.Schema
+                override val traitRequirements: TList<TraitRequirement> = SimpleTList(emptyList())
+            }
+        },
+    )
+    trait(
+        dataSchema = RealmGrantor.Schema,
+        traitSchema = RealmGrantor.DataIdProviderSchema,
+        traitFactory = { context, schema ->
+            StringDataIdProviderImpl(context, schema as StringDataIdProviderSchema)
+        },
+    )
+
+    // Realm key deliveries (GR-7 catch-up): which key each member was last sent.
+    composite(
+        interfaceClass = RealmKeyDelivery::class,
+        dataSchema = RealmKeyDelivery.Schema,
+        dtoFactory = ::RealmKeyDeliveryDto,
+    )
+    trait(
+        dataSchema = RealmKeyDelivery.Schema,
+        traitSchema = Syncable.Schema,
+        traitFactory = { _, schema ->
+            val composite = schema as Composite
+            object : Syncable, Composite by composite {
+                override val schema get() = Syncable.Schema
+                override val traitRequirements: TList<TraitRequirement> = SimpleTList(emptyList())
+            }
+        },
+    )
+    trait(
+        dataSchema = RealmKeyDelivery.Schema,
+        traitSchema = RealmKeyDelivery.DataIdProviderSchema,
+        traitFactory = { context, schema ->
+            StringDataIdProviderImpl(context, schema as StringDataIdProviderSchema)
+        },
+    )
+
+    // Outbound acceptances (read-only-members D7): a member's undelivered acceptance drop.
+    composite(
+        interfaceClass = OutboundAcceptance::class,
+        dataSchema = OutboundAcceptance.Schema,
+        dtoFactory = ::OutboundAcceptanceDto,
+    )
+    trait(
+        dataSchema = OutboundAcceptance.Schema,
+        traitSchema = Syncable.Schema,
+        traitFactory = { _, schema ->
+            val composite = schema as Composite
+            object : Syncable, Composite by composite {
+                override val schema get() = Syncable.Schema
+                override val traitRequirements: TList<TraitRequirement> = SimpleTList(emptyList())
+            }
+        },
+    )
+    trait(
+        dataSchema = OutboundAcceptance.Schema,
+        traitSchema = OutboundAcceptance.DataIdProviderSchema,
+        traitFactory = { context, schema ->
+            StringDataIdProviderImpl(context, schema as StringDataIdProviderSchema)
+        },
+    )
+
+    // Signed membership records (`shared-realm-membership-records.md` MR-1): who is in a shared realm.
+    composite(
+        interfaceClass = MembershipRecord::class,
+        dataSchema = MembershipRecord.Schema,
+        dtoFactory = ::MembershipRecordDto,
+    )
+    trait(
+        dataSchema = MembershipRecord.Schema,
+        traitSchema = Syncable.Schema,
+        traitFactory = { _, schema ->
+            val composite = schema as Composite
+            object : Syncable, Composite by composite {
+                override val schema get() = Syncable.Schema
+                override val traitRequirements: TList<TraitRequirement> = SimpleTList(emptyList())
+            }
+        },
+    )
+    trait(
+        dataSchema = MembershipRecord.Schema,
+        traitSchema = MembershipRecord.DataIdProviderSchema,
+        traitFactory = { context, schema ->
+            StringDataIdProviderImpl(context, schema as StringDataIdProviderSchema)
+        },
+    )
 
     operation(GetDevices.Schema)
     operation(GetSharedRealmMemberships.Schema)
     operation(GetRealmMembers.Schema)
+    operation(GetRealmInvitations.Schema)
+    operation(GetPendingAcceptances.Schema)
 
     trait(
         dataSchema = Device.Schema,

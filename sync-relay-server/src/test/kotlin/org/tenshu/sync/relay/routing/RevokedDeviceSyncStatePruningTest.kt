@@ -165,7 +165,7 @@ class RevokedDeviceSyncStatePruningTest {
         val push = client.post("/sync/push-tombstone") {
             contentType(ContentType.Application.OctetStream)
             header("Authorization", "Bearer ${jwt(admin, adminKey)}")
-            setBody(serializer.serialize(cascadedTombstone(ctx, deviceTombstone(victim))))
+            setBody(serializer.serialize(cascadedTombstone(ctx, deviceTombstone(victim), relayProtocolVersion = org.tenshu.sync.relay.TOMBSTONE_REVOKES_PROTOCOL)))
         }
         assertEquals(HttpStatusCode.OK, push.status)
 

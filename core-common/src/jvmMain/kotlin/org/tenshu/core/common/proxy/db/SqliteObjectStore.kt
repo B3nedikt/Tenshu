@@ -264,7 +264,8 @@ internal class SqliteObjectStore private constructor(
 
     // Test seam: number of point-SELECTs served by `readConn`, so tests can
     // assert both "absent probes stay off SQLite" and "a dropped row is
-    // actually re-read from disk".
+    // actually re-read from disk". Incremented inside [withReadConn], so the
+    // `++` is serialised by `readLock`; `@Volatile` is for the test's unlocked read.
     @Volatile
     internal var readThroughReads: Int = 0
 
@@ -618,8 +619,8 @@ internal class SqliteObjectStore private constructor(
     // F2). The row read here IS committed by definition — `getObject` reaches
     // this only after missing the pin — so caching it is safe.
     private fun readRow(dataIdHash: Long): DbEntry? {
-        readThroughReads++
         return withReadConn {
+            readThroughReads++
             // ⚠⚠ The statement is compiled ONCE and re-bound, never re-prepared. Under lazy
             // hydration this is the hot path for *every* row the cache misses, and
             // `SQLiteConnection.prepare` recompiles the SQL on each call — measured as the

@@ -9,6 +9,9 @@ import org.tenshu.core.common.delegate.InMemorySecureStorageDelegate
 import org.tenshu.core.common.parser.BinaryParser
 import org.tenshu.core.common.proxy.ArrayDatabaseReference
 import org.tenshu.core.common.proxy.WriteOrigin
+import org.tenshu.core.common.proxy.db.InMemoryObjectStore
+import org.tenshu.core.common.proxy.db.ObjectStore
+import org.tenshu.core.entity.getDataIdHash
 import org.tenshu.core.collection.list.toList
 import org.tenshu.core.core.dataFactory
 import org.tenshu.core.core.schemaProvider
@@ -24,6 +27,7 @@ import org.tenshu.sync.SyncBlock
 import org.tenshu.sync.SyncDelta
 import org.tenshu.sync.SyncService
 import org.tenshu.sync.common.syncServiceCommonModule
+import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -42,10 +46,32 @@ class SyncLaneTest {
     private lateinit var testProxy: TestProxy
     private lateinit var syncManager: SyncManagerImpl
     private lateinit var observer: SyncObserver
+    private lateinit var store: FailingJournalStore
+
+    /** Every exception the emit consumer swallowed during the test. */
+    private val swallowed = mutableListOf<String>()
+
+    /**
+     * A store that can fail the journal's **last** removal once: the write that would leave the
+     * journal array empty. That is the one throw that keeps every block queued and strands one row.
+     */
+    private class FailingJournalStore : InMemoryObjectStore() {
+        var journalHash: Long? = null
+        var failLastJournalRemoval = false
+
+        override fun storeObject(dbEntry: ObjectStore.DbEntry) {
+            if (failLastJournalRemoval && dbEntry.dataIdHash == journalHash && dbEntry.fields.isEmpty()) {
+                failLastJournalRemoval = false
+                throw IllegalStateException("forced: the journal's last removal failed")
+            }
+            super.storeObject(dbEntry)
+        }
+    }
 
     @BeforeTest
     fun setup() {
-        testProxy = TestProxy(schemaRegistry = createSyntheticTestRegistry())
+        store = FailingJournalStore()
+        testProxy = TestProxy(schemaRegistry = createSyntheticTestRegistry(), objectStore = store)
         testProxy.schemaRegistry.registerConfig(syncServiceCommonModule)
 
         val crypto = testProxy.tContext.syncCryptoManager()
@@ -62,7 +88,16 @@ class SyncLaneTest {
             cryptoManager = crypto,
             tombstoneRegistry = TombstoneRegistry(testProxy.executionContext, wireIdFor = WireIdResolver(syncManager)::ofOrNull),
         )
+        observer.consumerError = { what, e -> swallowed += "$what: $e" }
         testProxy.executionContext.observerRegistry.add(observer)
+        store.journalHash = arrayRef(SyncService.Collections.PENDING_LANE_DELTAS, SyncDelta.ID).arrayId.getDataIdHash()
+    }
+
+    // ⚠⚠ The consumer acknowledges a lane event even when it threw, so the state a test reads can
+    // look merely off by one. Fail on the throw itself, which names what failed.
+    @AfterTest
+    fun noSwallowedConsumerError() {
+        assertEquals(emptyList(), swallowed, "the emit consumer swallowed an exception")
     }
 
     // ---- helpers -----------------------------------------------------------
@@ -193,7 +228,32 @@ class SyncLaneTest {
         assertEquals(3, blocks.size, "N saves must collapse to ceil(N/500) batch blocks")
         val total = blocks.sumOf { decryptBatch(it).deltas.toList().size }
         assertEquals(1_200, total, "every save must be represented exactly once")
-        assertEquals(0, journalDeltas().size)
+        assertEquals(
+            emptyList(),
+            journalDeltas().map { "${it.targetEntityIdHash?.get()} @ ${it.hlc.physicalTime.get()}.${it.hlc.logicalCounter.get()}" },
+            "journal rows left behind with every batch queued",
+        )
+    }
+
+    /**
+     * The gate sighting's exact shape: three blocks, all 1 200 deltas in them, and one journal row
+     * left (*expected:<0> but was:<1>*). A checkpoint that throws on its last journal removal produces
+     * it, and so does nothing else found so far. What the throw was is no longer silent.
+     */
+    @Test
+    fun aCheckpointThatThrows_isReported() = runTest {
+        observer.openSyncLane("lane-1")
+        repeat(1_200) { save("bulk-$it", it.toLong(), laneId = "lane-1") }
+        observer.awaitEmitIdle()
+        store.failLastJournalRemoval = true
+        observer.closeSyncLane("lane-1")
+
+        assertEquals(3, pendingBlocks().size)
+        assertEquals(1, journalDeltas().size, "the sighting's shape: one row stranded")
+        val reported = swallowed.single()
+        assertTrue(reported.startsWith("a lane close: "), reported)
+        assertTrue("forced: the journal's last removal failed" in reported, reported)
+        swallowed.clear()
     }
 
     @Test

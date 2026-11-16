@@ -41,6 +41,11 @@ data class SharedScreenUiState(
     /** A friendly result of the last accept attempt (e.g. "nothing shared yet"). */
     val acceptMessage: String? = null,
     /**
+     * A folder this member accepted cannot be joined yet: the relay wants an account first (the free tier
+     * counts). Shown as "Create a free account to join this folder"; the acceptance is retried meanwhile.
+     */
+    val needsAccountToJoin: Boolean = false,
+    /**
      * GR-6: quarantined pending grants the inbound poll discovered — one card each,
      * pending the user's explicit accept/decline. Rendered above the inbound list.
      */

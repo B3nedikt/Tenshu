@@ -3,6 +3,7 @@ package app.tenshu.drive.ui.access
 import app.tenshu.drive.data.ContactInviteModel
 import app.tenshu.drive.data.ContactModel
 import app.tenshu.drive.data.MemberModel
+import app.tenshu.drive.data.InvitationModel
 import app.tenshu.drive.data.RepositoryResult
 import app.tenshu.drive.data.SharedFolderModel
 import app.tenshu.drive.ui.FakeContactsRepository
@@ -291,5 +292,48 @@ class ManageAccessViewModelTest {
             vm.uiState.value.invites.map { it.inviteId },
         )
         assertEquals(listOf("m1"), vm.uiState.value.members.map { it.memberId })
+    }
+
+    // ── The "invited" state (RO D7, shared-realm-membership-records.md §3.4) ─────────────────────
+
+    @Test
+    fun invitedGrants_areListed_andNamedFromContacts() = vmTest { vms ->
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val contacts = FakeContactsRepository(
+            connectedContactsResult = RepositoryResult.Success(listOf(ContactModel("p1", "Bob", "fp-bob", grantable = true))),
+        )
+        val membership = FakeMembershipRepository(membersResult = RepositoryResult.Success(emptyList())).also {
+            it.invitationsResult = RepositoryResult.Success(listOf(InvitationModel("m-bob", "fp-bob")))
+        }
+        val vm = vms.own(ManageAccessViewModel(backedFiles(), contacts, membership, "/Holiday"))
+        advanceUntilIdle()
+
+        assertEquals(listOf("m-bob"), vm.uiState.value.invited.map { it.memberId })
+        assertEquals("Bob", vm.uiState.value.contactNames["fp-bob"])
+    }
+
+    /** An invitation whose member already has a row is shown once — as the member. */
+    @Test
+    fun anAcceptedInvitation_isListedAsAMemberOnly() = vmTest { vms ->
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val membership = FakeMembershipRepository(
+            membersResult = RepositoryResult.Success(listOf(MemberModel("m-bob", "", "fp-bob", role = "member"))),
+        ).also { it.invitationsResult = RepositoryResult.Success(listOf(InvitationModel("m-bob", "fp-bob"))) }
+        val vm = vms.own(ManageAccessViewModel(backedFiles(), FakeContactsRepository(), membership, "/Holiday"))
+        advanceUntilIdle()
+
+        assertEquals(listOf("m-bob"), vm.uiState.value.members.map { it.memberId })
+        assertEquals(emptyList(), vm.uiState.value.invited)
+    }
+
+    /** RO D7: opening Manage access polls first, so an acceptance that just arrived is picked up. */
+    @Test
+    fun loadingTheMembers_pollsForAcceptancesFirst() = vmTest { vms ->
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val membership = FakeMembershipRepository(membersResult = RepositoryResult.Success(emptyList()))
+        vms.own(ManageAccessViewModel(backedFiles(), FakeContactsRepository(), membership, "/Holiday"))
+        advanceUntilIdle()
+
+        assertTrue(membership.pollCount >= 1)
     }
 }

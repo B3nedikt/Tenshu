@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderWithQueryClient } from '@tenshu/app-kit/testing'
 import i18n from './i18n'
-import { resetProxy } from './test/proxyMock'
+import { occurrence, resetProxy, setBook } from './test/proxyMock'
 
 vi.mock('./lib/proxy', async () => (await import('./test/proxyMock')).proxyModule)
 
@@ -87,5 +87,58 @@ describe('App', () => {
     renderWithQueryClient(<App />)
     expect(screen.getByRole('navigation', { name: 'Kalender-Bereiche' })).toBeInTheDocument()
     expect(await screen.findByRole('tab', { name: 'Monat' })).toBeInTheDocument()
+  })
+
+  // web-apex-home.md §4.11: the overview's Calendar rows link here.
+  describe('a link to an event', () => {
+    it('opens that day and the event, then drops the event from the URL (the day stays)', async () => {
+      const dentist = occurrence({ title: 'Dentist', date: '2026-11-20', from: '08:00', to: '08:30' })
+      setBook({ occurrences: [occurrence({ title: 'Other', date: '2026-11-20' }), dentist] })
+      window.history.replaceState(null, '', `/#day=2026-11-20&event=${dentist.eventId}&rid=${encodeURIComponent(dentist.recurrenceId)}`)
+      renderWithQueryClient(<App />)
+      expect(await screen.findByRole('dialog', { name: 'Edit event' })).toBeInTheDocument()
+      expect(screen.getByLabelText('Title')).toHaveValue('Dentist')
+      expect(window.location.hash).toBe('#day=2026-11-20')
+      // Closing it leaves the day, and nothing reopens it.
+      await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(screen.getByRole('grid', { name: 'Day' })).toBeInTheDocument()
+    })
+
+    it('a repeating event opens the occurrence the link names, not its neighbour in range', async () => {
+      // The day view reads a day either side, so both occurrences are in the window.
+      const first = occurrence({ title: 'Swim', date: '2026-11-20', from: '07:00', to: '08:00', isRecurring: true })
+      const second = occurrence({ title: 'Swim', date: '2026-11-21', from: '07:00', to: '08:00', isRecurring: true, eventId: first.eventId })
+      setBook({ occurrences: [first, second] })
+      window.history.replaceState(null, '', `/#day=2026-11-21&event=${first.eventId}&rid=${encodeURIComponent(second.recurrenceId)}`)
+      renderWithQueryClient(<App />)
+      await screen.findByRole('dialog', { name: 'Edit event' })
+      expect(screen.getByLabelText('Starts')).toHaveValue('2026-11-21')
+    })
+
+    it('a skipped occurrence never opens its neighbour from the day either side (read, not shown)', async () => {
+      const yesterday = occurrence({ title: 'Standup', date: '2026-11-19', from: '09:00', to: '09:15', isRecurring: true })
+      setBook({ occurrences: [yesterday, occurrence({ title: 'Other', date: '2026-11-20' })] })
+      window.history.replaceState(null, '', `/#day=2026-11-20&event=${yesterday.eventId}&rid=${encodeURIComponent('2026-11-20T09:00')}`)
+      renderWithQueryClient(<App />)
+      expect(await screen.findByText('Other')).toBeInTheDocument()
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(window.location.hash).toBe('#day=2026-11-20')
+    })
+
+    it('an event no longer there just shows the day', async () => {
+      setBook({ occurrences: [occurrence({ title: 'Other', date: '2026-11-20' })] })
+      window.history.replaceState(null, '', '/#day=2026-11-20&event=gone&rid=x')
+      renderWithQueryClient(<App />)
+      expect(await screen.findByText('Other')).toBeInTheDocument()
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(window.location.hash).toBe('#day=2026-11-20')
+    })
+
+    it('a malformed day is ignored (the month view, nothing opened)', async () => {
+      window.history.replaceState(null, '', '/#day=tomorrow&event=x')
+      renderWithQueryClient(<App />)
+      expect(await screen.findByRole('grid', { name: 'Month' })).toBeInTheDocument()
+    })
   })
 })

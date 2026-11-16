@@ -1,12 +1,14 @@
 package org.tenshu.identity
 
 import org.tenshu.core.Composite
+import org.tenshu.core.TByteArray
 import org.tenshu.core.TString
 import org.tenshu.core.core.TContext
 import org.tenshu.core.core.create
 import org.tenshu.core.entity.Entity
 import org.tenshu.core.entity.StringDataIdProviderSchema
 import org.tenshu.core.schema.CompositeSchema
+import org.tenshu.core.schema.byteArray
 import org.tenshu.core.schema.composite
 import org.tenshu.core.schema.string
 import org.tenshu.core.schema.stringDataId
@@ -76,6 +78,24 @@ interface Member : Composite {
     val joinedAt: UnixInstant
         get() = getField(Fields.JOINED_AT)
 
+    /**
+     * The key [signature] verifies under — the realm **master's** (`shared-realm-membership-records.md` MR-3):
+     * only the owner writes a `Member` row (RO D7), and signs it. Absent on a row written before MR-3.
+     */
+    val signerPublicKey: TByteArray?
+        get() = getOptionalField(Fields.SIGNER_PUBLIC_KEY)
+
+    /** The master's signature over `MemberRowAttestation.message` (`:sync-service-common`). */
+    val signature: TByteArray?
+        get() = getOptionalField(Fields.SIGNATURE)
+
+    /**
+     * When the owner signed this row — part of the signed message, so a replayed older row is recognisably older
+     * and never wins over the stored one (MR-3). Absent on an unsigned row.
+     */
+    val signedAt: UnixInstant?
+        get() = getOptionalField(Fields.SIGNED_AT)
+
     companion object {
         const val ID = "tenshu/identity/member"
 
@@ -107,6 +127,10 @@ interface Member : Composite {
                 string(Fields.CONTACT_FINGERPRINT)
                 string(Fields.ROLE)
                 timestamp(Fields.JOINED_AT)
+                // MR-3 (Identity v1 → v2): optional, so a v1 row migrates with them absent.
+                byteArray(Fields.SIGNER_PUBLIC_KEY, isOptional = true)
+                byteArray(Fields.SIGNATURE, isOptional = true)
+                timestamp(Fields.SIGNED_AT, isOptional = true)
             },
         )
 
@@ -118,6 +142,9 @@ interface Member : Composite {
             contactFingerprint: String,
             role: String,
             joinedAt: Long,
+            signerPublicKey: ByteArray? = null,
+            signature: ByteArray? = null,
+            signedAt: Long? = null,
         ): Member = context.create(
             type = ID,
             fields = listOf(
@@ -128,6 +155,9 @@ interface Member : Composite {
                 contactFingerprint,
                 role,
                 joinedAt,
+                signerPublicKey,
+                signature,
+                signedAt,
             ),
         )
     }
@@ -140,6 +170,9 @@ interface Member : Composite {
         const val CONTACT_FINGERPRINT = "$ID/contactFingerprint"
         const val ROLE = "$ID/role"
         const val JOINED_AT = "$ID/joinedAt"
+        const val SIGNER_PUBLIC_KEY = "$ID/signerPublicKey"
+        const val SIGNATURE = "$ID/signature"
+        const val SIGNED_AT = "$ID/signedAt"
     }
 
     /** Member roles. Stored as the [role] string (single-owner model, §5.C Q22). */

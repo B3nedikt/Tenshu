@@ -448,16 +448,10 @@ fun systemTestPlatformModule(
                 pollingIntervalMs = pollingIntervalMs,
                 startBackgroundLoops = startBackgroundLoops,
                 syncProcessorHolder = processorHolder,
-                // SR-3b.4c: per-shared-realm relay client (JWT scoped to the shared
-                // ownerId, same device A4 signer) against the same test relay.
-                sharedRealmRelayFactory = org.tenshu.sync.proxy.sharedRealmRelayFactory(
-                    baseUrl = get(named("syncRelayUrl")),
-                    httpClient = get(),
-                    context = context,
-                    syncManager = syncManager,
-                    cryptoManager = cryptoManager,
-                    nowEpochSec = { System.currentTimeMillis() / 1000 },
-                ),
+                // ⚠ §5b R2b: the signed device-access revocations drain over it — since protocol 2
+                // the only thing that cuts a removed device's access. Same relay as the operations.
+                personalRelay = get<SyncRelay>(),
+                // D10: a shared realm's relay is `grantedRelayFactory` (per-realm device key), below.
                 // SR-file-model 3c.1d: per-shared-realm content-plane client (sibling
                 // of the relay factory, same JWT scoping) against the same test relay,
                 // so a shared file's chunks `PUT`/`GET` against the realm's own content

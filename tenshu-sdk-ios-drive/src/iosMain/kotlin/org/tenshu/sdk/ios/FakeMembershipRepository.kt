@@ -35,6 +35,9 @@ class FakeMembershipRepository(
     override suspend fun members(realmId: String): RepositoryResult<List<MemberModel>> =
         RepositoryResult.Success(members)
 
+    override suspend fun invitations(realmId: String): RepositoryResult<List<app.tenshu.drive.data.InvitationModel>> =
+        RepositoryResult.Success(emptyList())
+
     override suspend fun remove(realmId: String, memberId: String): RepositoryResult<Unit> {
         removed += realmId to memberId
         return RepositoryResult.Success(Unit)

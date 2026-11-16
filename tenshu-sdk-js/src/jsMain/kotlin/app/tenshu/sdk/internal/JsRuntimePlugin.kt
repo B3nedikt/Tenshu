@@ -163,14 +163,10 @@ internal interface RuntimeContext {
     //    `SyncProxyComponents.realmRegistry`; read at dispatch time (the factory
     //    chain is built before init runs, same shape as [syncSchedulerHolder]).
     //  - [grantedRelayFactory] — `perRealmDeviceRelay`: a per-realm-device-key
-    //    `SyncRelay` for a *granted* (cross-user) realm (D2 unlinkability); feeds
-    //    the grant op impls + the `MemberSelfBindObserver`.
-    //  - [sharedRealmRelayFactory] — an A4-signed per-shared-realm `SyncRelay`
-    //    keyed by `ownerId`; the registry's `relayFactory`, so a member's accept
-    //    writes a `Member` row that actually syncs back to the owner.
+    //    `SyncRelay` for every shared realm, owner or member (D2/D10 unlinkability);
+    //    the registry's relay factory, the grant op impls and `MemberSelfBindObserver`.
     val realmRegistryHolder: RealmRegistryHolder
     val grantedRelayFactory: (RealmContext) -> SyncRelay?
-    val sharedRealmRelayFactory: (String) -> SyncRelay?
     val nowMs: () -> Long
 
     // Mode-B file read content plane (drive-web-mode-b-sharing.md MB-3). A
@@ -184,12 +180,12 @@ internal interface RuntimeContext {
     //    `OnDemandResolutionImpl` so a personal OnDemand fetch reuses the
     //    canonical processor (a shared-realm fetch routes via the realm registry).
     //  - [sharedRealmContentBlobStoreFactory] — a per-shared-realm
-    //    `ContentBlobStore` keyed by `ownerId`; with `fileDatabase` it lets the
+    //    `ContentBlobStore` signed as that realm's registered device (D10); with `fileDatabase` it lets the
     //    realm processor's applier decrypt + assemble the realm's file chunks.
     //    GR-7 retained-key trial-decrypt rides `RealmContext.historicalDerivedKeys`
     //    automatically once this is wired (no extra seam).
     val syncProcessorHolder: SyncProcessorHolder
-    val sharedRealmContentBlobStoreFactory: (String) -> ContentBlobStore?
+    val sharedRealmContentBlobStoreFactory: (org.tenshu.sync.common.RealmContext) -> ContentBlobStore?
 
     /**
      * The **personal** realm's content plane (`drive-web-parity.md` W1) — the seam the

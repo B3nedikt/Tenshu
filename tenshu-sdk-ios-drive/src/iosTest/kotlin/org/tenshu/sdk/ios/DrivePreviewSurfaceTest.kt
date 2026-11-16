@@ -26,7 +26,10 @@ import kotlin.test.assertTrue
 class DrivePreviewSurfaceTest {
 
     @AfterTest
-    fun restoreFakes() = DriveReadSurface.installFakes()
+    fun restoreFakes() {
+        DriveReadSurface.installFakes()
+        TestGraphs.stopAll()
+    }
 
     @Test
     fun routesByTheSharedClassifier() {

@@ -602,20 +602,6 @@ internal object JsRuntime : RuntimeContext {
         )
     }
 
-    // An A4-signed per-shared-realm relay (JWT scoped to the realm's `ownerId`),
-    // the registry's `relayFactory` — so a member's accept writes a `Member` row
-    // that actually pushes back to the owner's realm.
-    override val sharedRealmRelayFactory: (String) -> SyncRelay? by lazy {
-        org.tenshu.sync.proxy.sharedRealmRelayFactory(
-            baseUrl = configuredRelayBaseUrl,
-            httpClient = httpClient,
-            context = tContext,
-            syncManager = syncManager,
-            cryptoManager = syncCryptoManager,
-            nowEpochSec = { systemClock.nowEpochMillis() / 1000 },
-        )
-    }
-
     // MB-3 content plane: the personal processor (for personal OnDemand fetches)
     // + the per-shared-realm content store. Populated/used by the sync plugin's
     // initialize + the OnDemand resolver below.
@@ -625,7 +611,7 @@ internal object JsRuntime : RuntimeContext {
     // populates (mirrors `tombstoneEmitterHolder` / `syncSchedulerHolder`).
     override val syncBlockEmitterHolder: SyncBlockEmitterHolder by lazy { SyncBlockEmitterHolder() }
 
-    override val sharedRealmContentBlobStoreFactory: (String) -> ContentBlobStore? by lazy {
+    override val sharedRealmContentBlobStoreFactory: (org.tenshu.sync.common.RealmContext) -> ContentBlobStore? by lazy {
         org.tenshu.sync.proxy.sharedRealmContentBlobStoreFactory(
             baseUrl = configuredRelayBaseUrl,
             httpClient = httpClient,

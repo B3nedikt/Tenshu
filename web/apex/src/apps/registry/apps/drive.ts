@@ -104,6 +104,8 @@ const glance: AppGlance = {
           timeMs: f.lastModified,
           sizeBytes: f.size,
           open: { section: 'files', fragment: `view:${f.path}` },
+          // Native Drive's rows: the stored preview when there is one, else the type badge.
+          previewPath: f.path,
         }
       })
     const s = storage as StorageStatus | null

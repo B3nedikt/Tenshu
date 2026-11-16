@@ -156,7 +156,7 @@ internal class ApprovePairingRequestImplementation(
         // ⚠ A "consumed" answer that `postResponse` did not turn into success is not retried:
         // the hash was acked by a joiner holding material this pin never posted.
         if (responseResult is TResult.Failure<*> && !responseResult.isPairingResponseConsumed()) {
-            pairingAdmission.resolveMasterKeyPair()?.let { reBootstrapRealm(it) }
+            pairingAdmission.resolveMasterKeyPair()?.let { reBootstrapRealm(executionContext, it) }
             responseResult = postResponse()
             // The first post may have failed for another reason (a 5xx, a timeout, a forgotten
             // realm), so the refusal of the joiner can first appear here.
@@ -253,8 +253,12 @@ internal class ApprovePairingRequestImplementation(
      * message in [RealmRegistrar.admitDevice] — one copy each, because both must match the relay
      * byte-for-byte.
      */
-    private suspend fun reBootstrapRealm(masterKeyPair: SyncCryptoManager.KeyPair) {
-        RealmRegistrar(syncManager, cryptoManager, syncRelay).reregisterThisDevice(masterKeyPair)
+    private suspend fun reBootstrapRealm(executionContext: ExecutionContext, masterKeyPair: SyncCryptoManager.KeyPair) {
+        // §5b R6b: an A1 re-registration records its re-admission, at the stamp the relay got.
+        RealmRegistrar(syncManager, cryptoManager, syncRelay).reregisterThisDevice(
+            masterKeyPair,
+            onReadmitted = org.tenshu.sync.proxy.DeviceRecords(executionContext, syncManager, cryptoManager).readmitSelf(masterKeyPair),
+        )
     }
 }
 

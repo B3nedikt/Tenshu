@@ -92,6 +92,7 @@ class PhotosPeopleGroupingTest {
         PhotosLocalRuntime.modelTransfersSettleNow(inForeground = false)
         OwnedInferenceStores.clearPriorWritersForTests()
         Dispatchers.resetMain()
+        TestGraphs.stopAll() // ⚠ last: the hooks above may still need the graph
     }
 
     private val files = NSFileManager.defaultManager

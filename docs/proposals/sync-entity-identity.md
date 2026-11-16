@@ -714,6 +714,14 @@ re-admittable.
      ⚠ And a relay-visible discriminator would only move the problem: the block's **author** sets it,
      which is the same trap EI-4's withdrawn third tombstone value fell into.
 
+     ⚠⚠ **SUPERSEDED 2026-11-10 (maintainer, question C) — the chained roster below is NOT the design
+     any more.** It is replaced by an append-only set of self-certifying, order-free A1-signed removal
+     records (phase R6, *"The full fix, phased"* below): no linear chain, no version, no
+     compare-and-swap, no fork detection, so no fork residual. The text from here to the end of the
+     roster discussion is kept as the record of why a chain was considered; read its completeness,
+     anti-rollback and fork arguments as the trade-offs the shrunken design **accepts** (no freshness
+     guarantee: a relay can withhold records), not as requirements.
+
      ⇒ instead the realm publishes an A1-signed **revocation roster**: one document per realm, in its
      own relay table behind its own route, carrying
 
@@ -1033,6 +1041,362 @@ Removal is the end state, as its own slice, once **all four** have moved — ite
 which durability, epoch and staleness can all be satisfied while nothing reaches `revokeIfNotStale`
 and a removed device keeps a working JWT — **and once that fifth condition holds**. It is then a schema
 deletion rather than a semantics change.
+
+### ⭐ The full fix, phased (plan 2026-11-10; R1 as built)
+
+Prompted by a relay security pass: a shared-realm member device could evict any other device of the
+realm by pushing a `Device` tombstone naming it. Owner and member devices share one registry under the
+realm's ownerId, the relay cannot verify the tag (every member holds Kr, from which the tag key
+derives), and the HLC is the sender's. A relay-only stopgap narrows the tombstone path (threat model
+T-GR-08, landing separately: a member's tombstone revokes only the pusher). This is the fix it stands
+in for. Each phase ships on its own and leaves the system no worse if the next never lands.
+
+#### Maintainer decisions (2026-11-10)
+
+- ⭐⭐ **Data endpoints never mutate access control.** `/sync/push-tombstone`, `/sync/push`,
+  `/sync/changes` and `/sync/log` store and serve ciphertext. Device revocation moves entirely to the
+  explicit route (precondition 0), and the `Device`-tombstone → `revokeIfNotStale` side effect is
+  **removed** once clients use it — both paths do not coexist long-term. The cutover must never leave
+  a removed device authenticated; the relay protocol range gates it (R2/R5 below).
+- ⭐⭐ **Authorise by signature, not by realm kind.** One realm-agnostic route; no personal/shared
+  split, which would duplicate `SyncRouting` and tell the relay which realms are shared. Removing
+  **another** device needs an A1 signature; removing **yourself** needs your own device key's
+  signature. That one rule covers shared-realm members (T-GR-08) and non-owner personal devices
+  ("membership is not permission"), and a hostile relay can forge neither.
+- The T-GR-08 tombstone guard is the stopgap and goes away with the side effect (R5); the route's
+  tests cover its scenario.
+- ⭐ **Assumption: A1-holding devices are trusted — an accepted risk.** For a shared realm the
+  owner's devices are the realm's root of trust: every owner device holds the shared realm's master
+  key (wrapped to the owner's A13), and that stays. There is **no** per-device split of the shared
+  master (the personal realm's A33 has no shared-realm analogue, and none is to be designed). The
+  signature gate defends against **members and the relay**, never against an owner device. Members
+  stay trusted with content (T-GR-06).
+
+- ⭐ **No real shared realms in production yet** (2026-11-10). Shared-realm changes owe no legacy
+  compatibility or migration for existing shares, grants or member admissions; a tag or format may
+  replace its predecessor with no dual-accept window (the F4/T-GR-07 precedent). ⚠ **Personal realms
+  are not covered**: anything touching personal-realm stores, wire shapes or `SyncBlock`/`DeleteBlock`
+  still follows HR #9.
+- ⭐ **No device identity crosses a share** (read-only proposal D10). Owner devices get **per-realm
+  device keys** in shared realms, as members already do — today `SharedRealmBootstrapper.admitKnownDevices`
+  registers them with their personal A4, so their ids match, and that goes. ⇒ never assume a device
+  has the same id or key in its personal realm and a shared one; every device id in a shared realm is
+  realm-local, and members see other principals only by share name. ✅ R1 already fits: the `self`
+  form verifies against the named device's key **registered in that realm**.
+- ⭐ **One verifier and one revocation source, not one data structure** (read-only proposal Q4,
+  `shared-realm-read-only-members.md` §4.3). That proposal's shared-realm `WriterCredential`s stay
+  self-certifying, order-free records, and every credential check — writer or device — consults the
+  R6 removal/downgrade record set for revocation and supersession through **one reusable verifier**.
+  Credentials are not folded into that set. (As first relayed, Q4 assumed the chained roster; since
+  decision C below the set is itself order-free records, so there is no chain to contend on.)
+
+#### Phases
+
+| | what | gate | status |
+|---|---|---|---|
+| **R1** | Precondition 0, relay half: `POST /sync/device-access/revoke`, `authority = master` (A1) for any device or `self` (the named device's own key) for itself; `revokeIfNotStale` + `recordRemoval` + tip prune, the tombstone's staleness rule; `DeviceAccessRevocation` in `:sync-service-common` | `DeviceAccessRevokeRoutingTest`, `CrossFamilySignatureTest`, `A4SignedFamiliesTest` | ✅ **built** (below) |
+| **R2a** | Client caller + durable queue, **both paths live**: `RevokeDeviceImplementation` signs a `/sync/device-access/revoke` while the key is in hand (A1 → `master`; no A1 and this device → `self`), queues it in `PENDING_DEVICE_ACCESS_REVOCATIONS`, and stamps the `Device` tombstone with the **same** HLC (`TombstoneEmitter.emitAt`). `SyncScheduler` drains it before the tombstones — after them for a removal naming this device. `ForgetThisDevice` waits for both queues inside its existing bound. No protocol bump: the tombstone still revokes, so an A33-only admitter loses nothing until the cutover | `DeviceAccessRevocationQueueTest` | ✅ **built** (below) |
+| **R2b** | **`RELAY_PROTOCOL_VERSION` 1 → 2** (*"this client revokes through the route; its `Device` tombstones are data"*); the relay accepts `[1, 2]` and acts on a `Device` tombstone only below `RELAY_PROTOCOL_TOMBSTONE_IS_DATA_VERSION` (2). Client: `404` now **keeps** the request; a device without A1 removing another is **refused** with `RecoveryPhraseRequiredError` before anything changes (decision A) | `DeviceTombstoneIsDataTest`, `DeviceAccessRevocationQueueTest`; ⚠ relay deploys **before** any v2 client | ✅ **built** (below) |
+| **R3** | Admission stamps everywhere (precondition 3): `recovery-claim` and `/sync/realm-member/admit` gain an optional `admittedAtHlc`, `SharedRealmDeviceAdmitter` stamps `/sync/admit-device` from the realm's clock, and every registering route **clamps a future stamp** to the relay's clock | `RecoveryRoutingTest`, `MembershipGrantRoutingTest`, `SharedRealmDeviceIdentityTest` | ✅ **built** (below) |
+| **R4** | Precondition 1: the epoch's definition moves off tombstone count — decide the cardinality, make relay, client and persisted floor agree, and have the route advance it | `RealmEpochRoutingTest` + the 2026-08-18 regression | not started — ⚠ open question B |
+| **R5** | **Cutover**: raise `RELAY_PROTOCOL_MIN_SUPPORTED_VERSION` to 2 and delete the tombstone side effect and the T-GR-08 guard in the same relay change | ⚠ a v1 client is refused `426` on `/push-tombstone` rather than having its revocation silently ignored, so the fifth condition is **enforced** rather than waited on | blocked on R2b's rollout |
+| **R6a** | **Signed device records** (decision C, option 3 — 2026-11-11): `DeviceRecord` (Identity, synced, keyed `kind|deviceId|authoredAt`, append-only by key) and the reusable `DeviceRecordVerifier` (`:sync-service-common`). A removal record is the route request's own signed bytes. Clients enforce "removed" from records: an incoming `Device` row for a removed id is dropped at ingest, and an arriving record takes the row out of the store and `DEVICES`. Identity service v1 → v2, empty step | `DeviceRecordVerifierTest`, `DeviceRecordEnforcementTest` | ✅ **built** (below) |
+| **R6b** | **A1-signed re-admission records** on the two paths that can bring a removed id back (`RealmRegistrar` re-registration, `RecoveryClaimImplementation`), at the R3 stamp; the **tombstone exemption** (a verified record is applied even under a recorded tombstone, and a delete never removes one); A1 holders **re-emit** their record set on start-up (relay GC); a valid stored record is never overwritten | `DeviceRecordEnforcementTest`, `RealmRegistrarTest` | ✅ **built** (below) |
+| **R6c** | `HlcDivergenceTracker` treats a removed device as unknown; a "removed" section in Manage devices; shared-realm records through the same verifier (RO-3) | `HlcDivergenceTrackerTest`, `DeviceRecordEnforcementTest`, `SyncDashboardViewModelTest` | ◐ **personal realm built** (below); shared realms open |
+| **R7** | EI-4's discriminator removal (the end state) | all of the above + R4 | — |
+
+⚠ **Order: R1 → R2a → R2b → R5** is the access-plane fix and retires the eviction primitive. R3, R4 and R6 are
+independent of it. ⚠ R5 does **not** need R4: the relay still stores and counts `Device` tombstones
+for the epoch after R5 — it only stops *acting* on them — and v2 clients keep emitting them.
+
+⚠⚠ **Correcting §5b's "fifth condition … cannot be scheduled".** It argued no protocol floor can
+fence an established client, because `relayProtocolVersionOk` runs only on `POST /sync/realm`. That
+was true of the genesis gate; it is not true of `/sync/push-tombstone`, whose `CascadedTombstonePush`
+carries `relayProtocolVersion` **on every request** and is 426-gated per request
+(`relayProtocolSupported`, part of protocol 1). So raising the minimum to 2 does fence a v1 client at
+the exact route whose semantics change — it gets a `426`, not a silent no-op. That is what makes R5 a
+code change rather than a fleet statement. ⚠ The genesis-only argument still holds for every route
+that does **not** carry the version.
+
+#### ✅ R1 as built (2026-11-10)
+
+- **Route**: `POST /sync/device-access/revoke` (`DeviceAccessRouting.kt`), JSON
+  `{ownerId, deviceId, authoredAt, authority, signature}`, all required. `authoredAt` is
+  `HlcStamp.encode()`. No JWT on either form.
+  - `authority: "master"` — A1 over `LP("tenshu-device-access-revoke-v1") ‖ LP(ownerId) ‖ LP(deviceId)
+    ‖ LP(phys) ‖ LP(counter) ‖ LP(hlcDevice)`, verified against `realm.masterPublicKey`. Any device.
+  - `authority: "self"` — the same fields under `LP("tenshu-device-self-revoke-v1")`, verified against
+    the **named** device's registered key. ⚠⚠ So a self signature can name only its signer; there is
+    no lookup that could be wrong. Unknown or already-revoked device → `401 Unknown device`.
+  - Answer: `200 {"applied": true|false}`; `false` = stale, terminal.
+- ⚠ **Why a signature and not the JWT for self.** A first cut authorised self-removal by the device's
+  JWT. A JWT is a bearer token the relay sees on every request, so it is a statement the relay can
+  replay; a signed removal is a statement only the device makes, with its own `authoredAt` and a tag
+  nothing else uses (`A4SignedFamiliesTest` pins it apart from tips, JWS inputs and pairing messages).
+- **One implementation**: `DeviceRevocation.applyAccessRevocation` is what `applyDeviceTombstone`
+  delegates to, so the route and the tombstone cannot drift on ordering (on-record **and** queued
+  admissions), ledger or tip prune.
+- ⚠ **A self removal writes the ledger** under the realm id, as an applied self-tombstone does today.
+  For a shared-realm member that row is under the shared realm's id, which only the personal join and
+  offer flows read — so it does not fence the member's re-admission through `/sync/realm-member/admit`,
+  which must stay re-mintable.
+- **No version moves.** Additive route ⇒ no `RELAY_PROTOCOL_VERSION` bump (`RelayProtocol.kt`: an old
+  relay's `404` is "unsupported"); the bump belongs to R2, where tombstone semantics change. No stored
+  shape changed: it writes `device` and `removed_device`, which exist. No HR #9 bump.
+- **Not done here, on purpose**: no client calls it; it does not advance the realm epoch (R4); the
+  tombstone side effect is untouched (R2/R5).
+- **Docs**: `sync-relay-api.md` §3.5, `docs/protocol/relay-api.openapi.yaml`, threat model T-K-02
+  *Amended 2026-11-10*.
+
+#### ✅ R2a as built (2026-11-10)
+
+- **Authoring** (`RevokeDeviceImplementation.queueAccessRevocation`): one `hlcManager.tick()` is the
+  authored stamp for both halves. The request is **signed at enqueue** — A1 may not be resident on a
+  later tick, and a device removing itself loses its key the moment the relay applies it — so the
+  queue holds ready-to-send bytes and the drain needs no key. Authority follows the keys in hand:
+  A1 resident → `master`; no A1 and the removed device is this one → `self` with this device's
+  signing key; otherwise nothing is queued (an A33-only admitter — after R5 it can remove only itself, decision A), and the tombstone
+  ticks its own stamp as before.
+- **One stamp**: `TombstoneEmitter.emitAt` (new, defaulting to `emit` for test doubles) lets
+  `SyncObserver` stamp the `Device` tombstone at the caller's HLC instead of ticking. Pinned:
+  `anA1Holder_queuesAMasterSignedRequest_atTheTombstonesStamp`.
+- **Durable**: `PendingDeviceAccessRevocation` (`:sync-service-common`, a **new** local composite —
+  no `SyncService` version moves, the shape baseline regenerated), one row per device in
+  `SyncService.Collections.PENDING_DEVICE_ACCESS_REVOCATIONS`, via `DeviceAccessRevocationOutbox`.
+  A later removal of the same device replaces the row; a settled request deletes its row only if the
+  stamp still matches. Dropped by `purgeOutboundQueues` when the device leaves the realm.
+- **Drain** (`SyncScheduler`, inside the existing entitlement/registration gate):
+  ⚠⚠ **two passes** — removals of *other* devices **before** the tombstone drain (route first, §5b),
+  and a removal naming **this** device **after** its own `Device` tombstone has left the queue,
+  because the route cuts this device's JWT and the tombstone could never be pushed after it (§5b,
+  "except when the device is revoking ITSELF"). ⚠ The second pass waits on *that* tombstone, not on
+  an empty queue: tombstones stamped for a superseded realm stay queued on purpose.
+- **Outcomes** (`SyncRelay.DeviceAccessRevokeOutcome`; ⚠ superseded 2026-11-12, see *Refused removals
+  surfaced* below): `200` → done (`applied:false` = stale);
+  `404` → dropped (no route, or no realm); `400/401/403` → refused, dropped and logged — the same
+  bytes get the same answer; `429/5xx`/network → kept, pass stops. ⚠ A `self` request repeated after
+  it applied answers `401`, which is correctly terminal. ⚠⚠ `404 → drop` is only right while the
+  tombstone still revokes; R2b must change it.
+- **`ForgetThisDevice`** waits for both queues to empty inside the same `RETIREMENT_PUSH_TIMEOUT_MS`
+  bound; the wipe still never waits longer, and a still-queued self request is purged with it —
+  best-effort by construction (§5b).
+- **No version moves**: no relay change, no wire change on existing routes, no reshape.
+- ⚠ **A crash between the enqueue and the tombstone emit** leaves the route request without its
+  tombstone: access is still cut (the relay is authoritative for access), but peers are not told and
+  the epoch does not move until the user removes the device again. The two writes are not in one
+  transaction because `emit` wakes the scheduler and records into the tombstone registry; a joint
+  transaction is a follow-up if this window matters.
+
+#### ✅ R2b as built (2026-11-10)
+
+- **Protocol 2** (`RelayProtocol.kt`): `RELAY_PROTOCOL_VERSION = 2`, minimum still 1, and a named
+  cutover constant `RELAY_PROTOCOL_TOMBSTONE_IS_DATA_VERSION = 2`. ⚠ A route-semantics change, not an
+  envelope one: nothing changed shape, so no HR #9 bump.
+- **Relay** (`/sync/push-tombstone`): the `Device` tombstone → `applyDeviceTombstone` side effect runs
+  only when the push's `relayProtocolVersion` is below 2. ⭐ **Data endpoints no longer mutate access
+  control for a current client** — the T-GR-08 attack is structurally gone for it, whoever pushes. The
+  tombstone is still stored, served and counted by `GET /sync/realm-epoch` (the epoch's definition is
+  R4). ⚠ A push at 1 still revokes, so an old client's removal is never silently ignored. Pinned by
+  `DeviceTombstoneIsDataTest`; the legacy-path tests push at `TOMBSTONE_REVOKES_PROTOCOL` explicitly.
+- **Client**: ⚠⚠ a `404` from `/sync/device-access/revoke` now **keeps** the request and stops the pass.
+  At protocol 2 the route is the only access cut, and a v2 client in front of a not-yet-upgraded relay
+  gets exactly that `404` — dropping it would lose the revocation for good once the relay upgrades
+  (its tombstone, queued behind a `426`, then lands as data). `Refused` stays terminal.
+- **Decision A, enforced**: `RevokeDeviceImplementation` refuses removing **another** device without A1
+  — **before** deleting the row or emitting anything — with the new `RecoveryPhraseRequiredError`
+  (catalogue: *"Enter your recovery phrase to remove another device. This device can only remove
+  itself."*, en + de). Removing yourself is unaffected. ⚠ The error is new and fieldless; no version
+  moves. ⚠ No UI flow to enter the phrase on a joiner exists yet — the message names the remedy only.
+- ⚠⚠ **Deploy order**: relay first. A v2 client against a relay whose current is 1 is `426`d on every
+  versioned route.
+
+#### ✅ Refused removals surfaced (2026-11-12, maintainer decision)
+
+A removal the relay does not apply is **never shown as done**. `PendingDeviceAccessRevocation` gained
+`relayState` and `relayDetail` (new in this release, reshaped in place). The outbox keeps a row for
+every answer that did not apply, and `GetDeviceAccessRevocations` feeds Control's *Removed devices*
+rows. They say "waiting for the relay", "not confirmed" or "not removed at the relay (reason)" instead
+of a plain "removed".
+
+| Relay answer | Cause | Outbox | Shown |
+|---|---|---|---|
+| `200`, applied | — | removed | nothing extra |
+| `200`, `applied:false` | the device was **re-admitted** after this removal (correct refusal) | kept, not resent (`superseded`) | "Added back since" |
+| `404` | relay predates the route, or no longer holds the realm (**reset, data loss**) | **kept, retried** (`relay-unknown`) | "Not confirmed… may still connect" |
+| `426` | **protocol skew** mid-rollout | **kept, retried** (`needs-update`), cleared by an update | "Not confirmed: different versions" |
+| other `4xx` | **signing or encoding mismatch** between versions, or forged | kept, never resent (`refused`) | "Not removed at the relay (status reason)" |
+| `429`/`5xx`/network | transient | owed, retried | "Waiting for the relay" |
+
+⚠ A **`self`** request whose `401` body carries `RelayRefusal.DEVICE_NOT_REGISTERED` is **done**, not
+refused: the device holds no key at the relay, so it is the repeat of a removal that already applied, after
+a lost reply. ⚠⚠ Only the **token** counts — the route's other `401`, a signature that does not verify, means
+the key is still on record and the removal did **not** apply, so it stays `refused` and Forget says so. A
+`master` 401 is always `refused`.
+⚠⚠ A removal of **another** device is drained **outside** the push gates (storage bound, `402`, this device's
+own `401`): the route is credential-less and is the only access cut since protocol 2, so a lapsed subscription
+must not keep a stolen phone connected. It still goes before the `Device` tombstone. A `self` removal stays
+after its own tombstone. ⚠ `RevokeDevice` signs and queues the request **before** it touches the roster, so a
+crash between them cannot leave a device gone from both lists with its access open. ⚠ A `200` whose body
+does not parse, and a `408`, are retried — `applied` decides drop-vs-superseded, so an unread one is no answer.
+⚠ `ForgetThisDevice` purges what is still owed; when that is **another** device's removal (not its own), it
+says so (`OTHER_REMOVAL_UNCONFIRMED`) instead of the false "this device is still listed".
+
+**R6d — every device delivers a removal record (2026-11-12).** A device that ingests a valid removal
+record (`DeviceRecordObserver`, `SYNC_INGEST` only) queues the record's own signed bytes in its own outbox
+(`DeviceRecords.oweDeliveryOf`) — once per stamp: a row already there for that stamp, owed or answered, is
+left alone. So a request the author never sent (purged by Forget, device lost, relay down then) is still
+delivered, and every device's *Removed* list shows its own relay answer rather than a bare "Removed".
+⚠⚠ Idempotent by the relay's rule, so safe from any sender, hostile included: a repeat is a no-op, and a
+removal older than the admission on record is refused, so a replay can never undo a re-admission.
+⚠ The record must have synced: a removal whose blocks never left its author reaches no one this way. ⚠ A status is shown only
+against the removal it answered (the same signed stamp, `sameRemoval`), so an old refused row never
+labels a later removal made elsewhere. `ForgetThisDevice` reports *"the relay did not apply this
+device's removal"* when its own removal was refused, rather than "removed from your realm".
+⚠ `426` was previously `Refused`, so dropped: an update would never have delivered it. Only resendable
+rows count as owed, so `ForgetThisDevice` never waits on a refused one. Removing the device again signs
+afresh and replaces the row. Device-local: the outbox is not synced. Tests:
+`DeviceAccessRevocationQueueTest`, `DeviceAccessRevokeClassificationTest` and `RemovedDeviceItemTest`.
+Threat model: T-K-02 amendment of 2026-11-12.
+
+#### ✅ R3 as built (2026-11-10)
+
+- **Stamped**: `RecoveryClaimImplementation` sends `syncManager.admissionStamp()`; member admission
+  (`SharedRealmGrantManager.accept`, `MemberSelfBindObserver`) and an owner device's self-admission
+  (`OwnerRealmDevice.admitSelf` → `SharedRealmDeviceAdmitter`) send `RealmRegistry.admissionStampFor`
+  — a tick of **that realm's** clock, so the stamp names the realm-local device id (T-GR-05). With the
+  four routes stamped before, every admitting route now carries one; `null` means a pre-R3 client.
+- **Wire**: optional `admittedAtHlc` on `POST /sync/recovery-claim` (map body) and
+  `POST /sync/realm-member/admit` (`AdmitMemberRequest`); `SyncRelay.recoveryClaim` gained a stamped
+  overload (defaulting to the stampless call, so the many test fakes are untouched) and `admitMember`
+  an optional parameter. ⚠ The relay's JSON decoder rejects unknown keys, so a **pre-R3 relay `400`s a
+  stamped member admission** — relay first, as for R2b. No `RELAY_PROTOCOL_VERSION` move: optional
+  fields, and the deploy order already makes the relay newer. No stored shape changed (`device`'s
+  `admitted_hlc_*` columns exist since relay migration 13).
+- ⚠⚠ **The clamp** (`routing/AdmissionStamp.kt`, applied at all six registering sites). The stamp is
+  client-asserted, and a revocation authored before it is stale — so a far-future stamp made an
+  admission unrevokable. T-K-02's 2026-08-18 claim that a device "cannot make itself harder to revoke"
+  was false, and R3 would have widened it: on member admit the **member** writes its own stamp. A
+  stamp later than the relay's clock is now clamped to that clock (not refused, so a fast client clock
+  still registers). Understating stays possible and only makes a device easier to revoke.
+- ⚠ **Not done here**: the client plane's `admittedAtHlc` on the `Device` row, carried in the pairing
+  blob and signed admission material (§5b *"it must be the SAME stamp the relay registered"*). That is
+  R6's, where peers start comparing against it.
+
+#### ✅ R6a as built (2026-11-11) — option 3
+
+⭐ **Decision (2026-11-11): supersession is by an A1-signed re-admission record** ("option 3"), not by an
+`admittedAtHlc` on the `Device` row. A row stamp is forgeable by anyone holding the realm key — a
+compromised device can pre-plant a far-future stamp while still admitted, and in a shared realm any
+member could un-remove another — which would also gut RO-3, whose revocation source this is. A signed
+stamp in the admission material closes that but needs a relay protocol change and admission-chain
+verification on peers. Option 3 is as strong and small, because **only A1 paths can bring a removed id
+back**: the relay's removal ledger refuses it on every pairing flow (`403 DEVICE_REMOVED`), leaving
+`/admit-device` and `/sync/recovery-claim`, both A1 by construction. ⚠ Fail-safe residual: a hostile
+relay that let a removed id back through pairing (against its own ledger) leaves it shown as removed.
+
+- **`DeviceRecord`** (`identity-service`, `Syncable(Eager)`, relation `DEVICE_RECORDS`, not
+  chain-readable): kind (`removal` / `readmission`), device id, authority (`master` / `self`), authored
+  stamp, the signer's public key, signature. Keyed `kind|deviceId|authoredAt`, so each record is its own
+  row — append-only by key, never overwritten.
+- **`DeviceRecordVerifier`** (`:sync-service-common`, reusable — RO-3 adds a downgrade kind): a record is
+  valid iff its key is bound by construction — **A1**: `ownerIdForMasterPublicKey(key) == ownerId` (so it
+  works for a shared realm's own random master too); **self**: `deviceIdForPublicKey(key) == deviceId`,
+  removal only — and the signature verifies. Per device, the newest valid record decides; a removal wins
+  a tie. Order-free: no chain, no version, nothing to fork. ⚠ No stored key needed.
+- **One signature, two planes**: a removal record's signed message is exactly the
+  `/sync/device-access/revoke` request's (`DeviceAccessRevocation.message`), so the relay's access cut and
+  the peers' roster cannot disagree about the stamp. `RevokeDeviceImplementation` saves the record beside
+  the queued request. Re-admission has its own tag, `tenshu-device-readmit-v1` (verifier-ready; R6b writes
+  it).
+- **Enforcement at the store, so no reader changes**: `SyncProcessor` drops an incoming `Device` row for a
+  removed id (the personal processor only; beside the T-K-02 epoch check) — ⭐ this ends the
+  **resurrection**: a removed device that pushed a rename before its cut no longer reappears through LWW.
+  `DeviceRecordObserver` takes the row out of the store and `DEVICES` when a record that removes it
+  arrives. Every reader — Control's device list, `GetDevices`, roster sources — agrees for free.
+- **Identity service v1 → v2** with an empty `schemaMigration` step: a new synced type peers read, so an
+  older peer is **fenced** rather than silently dropping records its cursor would never re-fetch (the
+  `DeviceSchemaVersion` precedent). ⚠ Clients move in lockstep across it — fine with the single client
+  deploy. No `Device` reshape. Baseline regenerated (version bumps + the new type only).
+- `Device` tombstones still delete rows (protocol-1 clients remove only that way) until R5.
+
+#### As built — R6b (2026-11-11)
+
+- **Re-admission records at the R3 stamp.** `RealmRegistrar.reregisterThisDevice` takes one stamp for
+  both attempts (genesis, then `/admit-device`) and hands it to `onReadmitted` on success; all four
+  callers (both pairing-approve self-heals, `ReregisterDevice`, the scheduler's 401 recovery) pass
+  `DeviceRecords.readmitSelf`, which signs `tenshu-device-readmit-v1` with A1. `RecoveryClaim` does the
+  same with the stamp it sent. ⚠ A re-admission is written for every A1 re-registration, removed or
+  not — harmless (the newest record is then an admission) and it keeps the paths free of a lookup.
+- **Append-only, enforced at ingest** (`SyncProcessor`, personal processor): a tombstone never deletes
+  a `DeviceRecord` and a recorded tombstone never keeps one out — validity is the signature, not the
+  store's history. ⚠⚠ And LWW is off for records: an incoming row is stored only if it verifies **and**
+  no valid row already sits at its key. Without that second half a realm-key holder could push a
+  same-key row with a garbage signature and un-remove the device by last-writer-wins.
+- **Re-emit**: `SyncProxyInitialization` has an A1 holder re-save every *valid* record once per start
+  (`DeviceRecords.reEmitAll`), so relay body GC cannot leave a later joiner unaware of a removal. ⚠ The
+  record's meaning is its signed `authoredAt`, so the fresh block HLC changes nothing.
+- ⚠ Not covered: a shared realm's records (R6c / RO-3) — the guards above are the personal processor's.
+
+#### As built — R6c, personal realm (2026-11-11)
+
+- **Divergence tracker**: `HlcDivergenceTracker` takes a required `isRemoved` (wired to
+  `DeviceRecords.isRemoved`). A removed device's tips are ignored and its floor forgotten, and a
+  standing warning about it clears on the next observation of any tip. ⚠ Its `Device` row is gone, so
+  the signature check was already skipped; the **regression** check was not, and a removed device's last
+  tip served out of order raised a tray warning about a device the user had removed. ⚠ The relay prunes
+  a removed device's tip, so its own tips cannot be relied on to clear a warning — hence "any tip".
+- **Manage devices → "Removed devices"**: `GetRemovedDevices` (sync op, personal realm) returns the
+  deciding removal row per removed device (`DeviceRecords.removals`, over
+  `DeviceRecordVerifier.decidingRecords`); a re-admitted device is absent. `SyncRepository.removedDevices`
+  maps it to `RemovedDevice(deviceId, removedAtMillis, removedItself)`, read best-effort with the roster
+  (a removal is what changes the roster, so the same emission re-runs the read). Compose renders it
+  read-only: hardware model if that row survives, else a short id; age in whole days; "It removed itself"
+  or "Removed with the recovery phrase". ⚠ No undo button — a removed id comes back only by pairing.
+- ⚠ **Not built**: the SwiftUI roster (`control-ios/Sources/SyncDashboardView.swift`) and the web SDK
+  do not show the section yet; the iOS repositories return an empty list, like `deviceLastSeen`.
+- ⚠ **Shared realms: designed, not built** — option D (the master-signed capability/revocation as synced
+  records; display-only, owner-signed `Member` rows), in [`shared-realm-membership-records.md`](shared-realm-membership-records.md).
+  Their roster is per **member** (A26 authority), not per device (D10). ⚠ Found while designing it: a
+  removed member's row is deleted **on the removing device only** — no tombstone is emitted.
+
+#### Maintainer answers to the open questions (2026-11-10)
+
+- **A. Removing another device needs A1 (the recovery phrase) — no queue.** A queue would not remove
+  anything sooner: A1 is resident only where the phrase was entered, so a lost device keeps access
+  until someone enters the phrase either way, and a queue only remembers the request. After R5 an
+  A33-only device cannot remove another device, and its UI says so plainly: *"Enter your recovery
+  phrase to remove another device."* Self-removal stays. The route keeps no A33 form, and a realm
+  with no A1 holder recovers through the phrase. ⇒ §5b's option (b) is withdrawn; R2b proceeds.
+- **B. Epoch cardinality: deferred** — needed only for R7.
+- **C. R6 shrinks** to the append-only record set in the phase table. Dropped: the linear, versioned,
+  compare-and-swap roster chain, its anchor digests, retained intermediate versions and fork gossip.
+  ⚠ **Accepted trade-off**: no freshness guarantee — a relay can withhold records, which it could
+  largely do with the chain too. ⚠ Not folded with writer credentials (Q4 above): the record set is
+  their revocation **source**, through the shared verifier, not their container.
+
+#### ⚠⚠ Where this section and the code disagree (found 2026-11-10)
+
+1. **`ReclamationBarrier` and `RealmConvergence.admittedDeviceIds` do not exist.** CR-2 B6 removed the
+   device-side reclamation sweeps (`ReclamationSources`: *"No device frees relay content any more"*),
+   and no class by either name remains. Much of the roster design above is justified by *"the revoked
+   device stays in `ReclamationBarrier`'s peer set for ever"* — that stall has no code to happen in
+   today. What still reads the client roster is UI (the device list, `DeviceIdentityDuplicates`) and
+   `HlcDivergenceTracker`; the relay's tombstone-GC quorum reads the **relay** registry, which R1
+   maintains. ⇒ R6 is less urgent than this section implies — and was shrunk accordingly (decision C); its *security* arguments (A1 only,
+   records outrank tombstones) still hold for any future consumer that treats the roster as membership.
+2. **The stampless admission routes are three, not two.** T-K-02's 2026-08-18 amendment names
+   `recovery-claim` and the membership grant; `DeviceRegistry.register`'s KDoc also names
+   `SharedRealmDeviceAdmitter` on `/sync/admit-device`. R3 covers all three.
+3. **The fifth condition is enforceable** — see the correction above the R1 notes.
+4. **Stale line references**: *"`SyncRouting` line 349 and `SyncMailbox` line 364"* — the
+   `== Device.ID` check is now in `/push-tombstone` near line 510. The claim (both are exactly that
+   comparison) is still true.
+5. **Shared realms are only implicit here.** The section is written for personal realms. For a shared
+   realm "A1" is the shared realm's master (`realm.masterPublicKey`, held by every owner device),
+   members hold A26 only, and shared-realm clients never pull `/sync/tombstones`
+   (`SyncScheduler.pullSharedRealms` reads `/sync/changes`), so a `Device` tombstone there is inert
+   client-side and acts only on the relay. R1's two forms fit that without a special case; R6's roster
+   has not been designed for it.
 
 ---
 

@@ -109,7 +109,10 @@ class MemberSelfBindObserver(
         // the guard so the next synced save retries.
         coroutineScope.launch {
             try {
-                realmRelay?.admitMember(realmId, capability, binding)
+                realmRelay?.admitMember(
+                    realmId, capability, binding,
+                    admittedAtHlc = realmRegistry.admissionStampFor(realmId, executionContext.context),
+                )
             } catch (_: Exception) {
                 boundRealms.remove(realmId)
             }

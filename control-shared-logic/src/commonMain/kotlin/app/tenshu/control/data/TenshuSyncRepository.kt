@@ -1,5 +1,7 @@
 package app.tenshu.control.data
 
+import org.tenshu.core.common.util.toStamp
+
 import org.tenshu.core.collection.list.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.Flow
@@ -63,6 +65,8 @@ import org.tenshu.sync.getRecoveryPhrase
 import org.tenshu.sync.getSyncStatus
 import org.tenshu.sync.initiatePairing
 import org.tenshu.sync.recoveryClaim
+import org.tenshu.sync.getRemovedDevices
+import org.tenshu.sync.getDeviceAccessRevocations
 import org.tenshu.sync.readmitDevice
 import org.tenshu.sync.reregisterDevice
 import org.tenshu.sync.revokeDevice
@@ -88,6 +92,32 @@ class TenshuSyncRepository(
             ?.toList()
             ?.associate { it.deviceId.get() to it.lastSeenMs.get() }
             .orEmpty()
+
+    override suspend fun removedDevices(): List<RemovedDevice> {
+        // The relay's answer to each removal this device signed, keyed by device. Best-effort like the records.
+        val atRelay = client.syncService.getDeviceAccessRevocations()
+            .getOrNull()
+            ?.toList()
+            ?.mapNotNull { it as? org.tenshu.sync.common.PendingDeviceAccessRevocation }
+            ?.associateBy { it.deviceId.get() }
+            .orEmpty()
+        return client.syncService.getRemovedDevices()
+            .getOrNull()
+            ?.toList()
+            ?.map { record ->
+                val relay = atRelay[record.deviceId.get()]?.takeIf {
+                    sameRemoval(record.authoredAt.get(), it.authoredAt.toStamp().encode())
+                }
+                RemovedDevice(
+                    deviceId = record.deviceId.get(),
+                    removedAtMillis = org.tenshu.core.common.util.decodeHlcStamp(record.authoredAt.get())?.physicalTime ?: 0L,
+                    removedItself = record.authority.get() == org.tenshu.sync.common.DeviceAccessRevocation.Authority.SELF.wire,
+                    relayState = relay?.relayState?.get(),
+                    relayDetail = relay?.relayDetail?.get().orEmpty(),
+                )
+            }
+            .orEmpty()
+    }
 
     // The relation's live flow, like [devices]; unprojected for the same reason as [deviceLastSeen].
     // A failed read maps to "no models known", never to an error — the roster renders names alone.
@@ -239,3 +269,12 @@ class TenshuSyncRepository(
     override suspend fun deviceSyncPolicy(deviceId: String): SyncPolicy? =
         client.preferenceService.fileSyncDefaultPolicyOrNull(deviceId)
 }
+
+/**
+ * Whether an outbox row describes **this** removal record: the same signed stamp. ⚠⚠ By device id alone, an old
+ * refused row of this device would be shown against a newer removal made elsewhere (and applied), saying "the device
+ * can still connect" when it cannot. The record and the request share one stamp by construction (§5b R6a).
+ */
+internal fun sameRemoval(recordAuthoredAt: String, rowAuthoredAt: String): Boolean =
+    org.tenshu.core.common.util.decodeHlcStamp(recordAuthoredAt) != null &&
+        org.tenshu.core.common.util.decodeHlcStamp(recordAuthoredAt) == org.tenshu.core.common.util.decodeHlcStamp(rowAuthoredAt)

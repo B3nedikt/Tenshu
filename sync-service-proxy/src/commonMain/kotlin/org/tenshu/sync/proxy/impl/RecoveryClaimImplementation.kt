@@ -1,5 +1,7 @@
 package org.tenshu.sync.proxy.impl
 
+import org.tenshu.sync.proxy.admissionStamp
+
 import org.tenshu.core.Data
 import org.tenshu.core.InvalidParameter
 import org.tenshu.core.TResult
@@ -134,13 +136,16 @@ internal class RecoveryClaimImplementation(
         val message = org.tenshu.sync.common.recoveryClaimMessage(deviceKeyPair.publicKey, deviceId, challenge)
         val signature = cryptoManager.signEd25519(masterKeyPair.privateKey, message)
 
-        // Step 3: submit the claim.
+        // Step 3: submit the claim. ⚠ One stamp for the relay and the re-admission record below.
+        val admittedAtHlc = syncManager.admissionStamp()
         val result = relay.recoveryClaim(
             masterPublicKey = masterKeyPair.publicKey,
             newDevicePublicKey = deviceKeyPair.publicKey,
             newDeviceId = deviceId,
             challenge = challenge,
-            masterSignature = signature
+            masterSignature = signature,
+            // §5b R3: so a removal authored before this recovery cannot undo it.
+            admittedAtHlc = admittedAtHlc,
         )
 
         // Step 4: per §2.3 step 5, push the recovering device's own Device entity into
@@ -191,6 +196,13 @@ internal class RecoveryClaimImplementation(
                 // F5b: carry our own A33 key, if we hold one — see PairingKeyInstaller.
                 admissionPublicKey = syncManager.getAdmissionKeyPair()?.publicKey ?: ByteArray(0),
             )
+            // §5b R6b: recovery is an A1 path that can bring a removed id back; record it, so peers
+            // holding the old removal stop listing this device as removed. ⚠⚠ BEFORE the Device row: a
+            // peer still holding the removal drops an incoming row for that id at ingest
+            // (`SyncProcessor.isRemovedDeviceBlock`) and never replays it, so the row must travel after
+            // the record that lifts the removal.
+            org.tenshu.sync.proxy.DeviceRecords(executionContext, syncManager, cryptoManager)
+                .saveReadmission(deviceId, admittedAtHlc, masterKeyPair)
             // Saving is sufficient: `initIdentityService` registers a DataObserver
             // that maintains `IdentityService.Relations.DEVICES` automatically.
             executionContext.saveData(ownDevice)

@@ -20,6 +20,7 @@ import org.tenshu.routine.common.program.Trigger
 import org.tenshu.viewmodel.test.OwnedViewModels
 import platform.Foundation.NSTemporaryDirectory
 import kotlin.random.Random
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -34,6 +35,10 @@ import kotlin.test.assertTrue
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeLocalRuntimeTest {
+
+    /** Stops the graphs this class assembled (`TestGraphs`, `docs/testing-flakes.md`). */
+    @AfterTest
+    fun stopTestGraphs() = TestGraphs.stopAll()
 
     private fun assemble() = HomeLocalRuntime.assemble(
         replicaDirectory = NSTemporaryDirectory() + "home-local-runtime-test-" + Random.nextLong().toString(16),

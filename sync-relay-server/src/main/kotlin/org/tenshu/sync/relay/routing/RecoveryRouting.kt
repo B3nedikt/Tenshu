@@ -52,6 +52,7 @@ fun Route.configureRecoveryRouting(
     knownDevices: DeviceRegistry,
     ed25519: Ed25519Backend,
     challengeRateLimiter: ClientRateLimiter? = null,
+    nowEpochMillis: () -> Long = { System.currentTimeMillis() },
 ) {
     route("/sync") {
 
@@ -175,7 +176,15 @@ fun Route.configureRecoveryRouting(
 
             // Admission successful: register the new device's public key. Subsequent JWT-
             // authenticated requests from this device will verify against this entry.
-            knownDevices.register(ownerId, newDeviceId, newDevicePublicKey)
+            // §5b R3: record WHEN this admission was authored, so a removal authored before the recovery
+            // and delivered after it cannot undo it (`DeviceRegistry.revokeIfNotStale`). ⚠ Optional:
+            // absent ⇒ null ⇒ "unknown", the pre-R3 behaviour. Clamped if from the future.
+            knownDevices.register(
+                ownerId,
+                newDeviceId,
+                newDevicePublicKey,
+                admittedAt = admissionStamp(body["admittedAtHlc"], nowEpochMillis()),
+            )
 
             call.respond(HttpStatusCode.OK, mapOf("status" to "admitted"))
         }

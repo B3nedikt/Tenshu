@@ -197,10 +197,19 @@ class ManageAccessViewModel(
     private fun loadMembers() {
         val realmId = _uiState.value.sharedRealmId ?: return
         viewModelScope.launch {
+            // RO D7: a member appears once an owner device picks up their acceptance — poll first, so an
+            // acceptance that arrived since the last poll moves its row from "invited" to the members now.
+            // Best-effort: a failed poll still shows the last-known state.
+            membershipRepository.pollPendingGrants()
             val result = membershipRepository.members(realmId)
             if (result is RepositoryResult.Success) {
                 members = result.value.filterNot { it.isOwner }
                 _uiState.update { it.copy(members = members, invites = displayedInvites()) }
+            }
+            val invitations = membershipRepository.invitations(realmId)
+            if (invitations is RepositoryResult.Success) {
+                val memberIds = members.map { it.memberId }.toSet()
+                _uiState.update { it.copy(invited = invitations.value.filterNot { inv -> inv.memberId in memberIds }) }
             }
         }
     }
@@ -209,7 +218,12 @@ class ManageAccessViewModel(
         viewModelScope.launch {
             val result = contactsRepository.connectedContacts()
             if (result is RepositoryResult.Success) {
-                _uiState.update { it.copy(grantableContacts = result.value.filter { c -> c.grantable }) }
+                _uiState.update {
+                    it.copy(
+                        grantableContacts = result.value.filter { c -> c.grantable },
+                        contactNames = result.value.associate { c -> c.fingerprint to c.displayName },
+                    )
+                }
             }
         }
     }

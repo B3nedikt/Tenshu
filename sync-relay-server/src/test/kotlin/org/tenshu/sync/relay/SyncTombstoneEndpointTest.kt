@@ -167,7 +167,7 @@ class SyncTombstoneEndpointTest {
         val response = client.post("/sync/push-tombstone") {
             contentType(ContentType.Application.OctetStream)
             header("Authorization", "Bearer $token")
-            setBody(serializer.serialize(cascadedTombstone(ctx, makeDeviceTombstone(ctx, "alice-stale", "victim-device", physicalTime = 1_000))))
+            setBody(serializer.serialize(cascadedTombstone(ctx, makeDeviceTombstone(ctx, "alice-stale", "victim-device", physicalTime = 1_000), relayProtocolVersion = TOMBSTONE_REVOKES_PROTOCOL)))
         }
 
         assertEquals(HttpStatusCode.OK, response.status, "the tombstone is still stored for peers")
@@ -200,7 +200,7 @@ class SyncTombstoneEndpointTest {
         val response = client.post("/sync/push-tombstone") {
             contentType(ContentType.Application.OctetStream)
             header("Authorization", "Bearer $token")
-            setBody(serializer.serialize(cascadedTombstone(ctx, makeDeviceTombstone(ctx, "alice-fresh", "victim-device", physicalTime = 9_000))))
+            setBody(serializer.serialize(cascadedTombstone(ctx, makeDeviceTombstone(ctx, "alice-fresh", "victim-device", physicalTime = 9_000), relayProtocolVersion = TOMBSTONE_REVOKES_PROTOCOL)))
         }
 
         assertEquals(HttpStatusCode.OK, response.status)

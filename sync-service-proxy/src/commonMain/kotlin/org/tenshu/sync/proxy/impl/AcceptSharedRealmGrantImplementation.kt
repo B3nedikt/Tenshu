@@ -1,5 +1,7 @@
 package org.tenshu.sync.proxy.impl
 
+import kotlinx.coroutines.sync.withLock
+
 import org.tenshu.core.Data
 import org.tenshu.core.TString
 import org.tenshu.core.common.proxy.ExecutionContext
@@ -40,15 +42,17 @@ internal class AcceptSharedRealmGrantImplementation(
             (params?.get(AcceptSharedRealmGrant.Params.GRANTOR_FINGERPRINT) as? TString)?.get()
                 ?: error("AcceptSharedRealmGrant requires grantorFingerprint")
 
-        val realmId = SharedRealmGrantManager(
-            executionContext = executionContext,
-            syncManager = syncManager,
-            cryptoManager = cryptoManager,
-            relay = relay,
-            realmRegistry = realmRegistry,
-            grantedRelayFactory = grantedRelayFactory,
-            nowMs = nowMs,
-        ).accept(grantorFingerprint)
+        val realmId = realmRegistry.grantOps.withLock {
+            SharedRealmGrantManager(
+                executionContext = executionContext,
+                syncManager = syncManager,
+                cryptoManager = cryptoManager,
+                relay = relay,
+                realmRegistry = realmRegistry,
+                grantedRelayFactory = grantedRelayFactory,
+                nowMs = nowMs,
+            ).accept(grantorFingerprint)
+        }
 
         return realmId.toTString(executionContext.context) as T
     }

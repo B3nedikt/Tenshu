@@ -1539,6 +1539,9 @@ internal class FakeSyncRepository(
         lastSeenReads++
         return emptyMap()
     }
+    /** What `removedDevices` reports (§5b R6c). */
+    var removed: List<app.tenshu.control.data.RemovedDevice> = emptyList()
+    override suspend fun removedDevices(): List<app.tenshu.control.data.RemovedDevice> = removed
 
     override suspend fun cancelPairing(pairingSecret: String): TResult<TBoolean> {
         cancelPairingCalls += 1

@@ -53,7 +53,8 @@ class RecoveryRoutingTest {
         challenge: ByteArray,
         signatureKey: ByteArray = masterPrivateKey,
         devicePublicKey: ByteArray = newDevicePublicKey,
-        deviceId: String = newDeviceId
+        deviceId: String = newDeviceId,
+        admittedAtHlc: String? = null,
     ): String {
         val message = MasterDelegationVerifier.recoveryClaimMessage(
             newDevicePublicKey = devicePublicKey,
@@ -67,9 +68,60 @@ class RecoveryRoutingTest {
                 "newDevicePublicKey": "${b64(devicePublicKey)}",
                 "newDeviceId": "$deviceId",
                 "challenge": "${b64(challenge)}",
-                "masterSignature": "${b64(signature)}"
+                "masterSignature": "${b64(signature)}"${admittedAtHlc?.let { ",\n                \"admittedAtHlc\": \"$it\"" } ?: ""}
             }
         """.trimIndent()
+    }
+
+    /** One full claim against a fresh relay; returns the registry it wrote to. */
+    private fun claimWithStamp(admittedAtHlc: String?, check: (KnownDevicesStore, String) -> Unit) =
+        testApplication {
+            val realmStore = RealmStore()
+            val knownDevices = KnownDevicesStore()
+            application {
+                testModule(
+                    config = RelayConfig(devMode = false, bindHost = "127.0.0.1", port = 8080),
+                    knownDevices = knownDevices,
+                    realmStore = realmStore,
+                    challengeStore = RecoveryChallengeStore(),
+                )
+            }
+            val ownerId = seedRealm(realmStore)
+            val challengeB64 = Regex("\"challenge\"\\s*:\\s*\"([^\"]+)\"")
+                .find(client.get("/sync/recovery-challenge").bodyAsText())!!.groupValues[1]
+            val response = client.post("/sync/recovery-claim") {
+                contentType(ContentType.Application.Json)
+                setBody(claimBody(masterPublicKey, decodeB64(challengeB64), admittedAtHlc = admittedAtHlc))
+            }
+            assertEquals(HttpStatusCode.OK, response.status)
+            check(knownDevices, ownerId)
+        }
+
+    /**
+     * §5b R3: a recovery records its admission stamp, so a removal authored before the recovery and
+     * delivered after it is stale — it used to apply unconditionally ("absent stamp means unknown").
+     */
+    @Test
+    fun aStampedRecovery_makesAnEarlierRemovalStale() = claimWithStamp("5000:0:$newDeviceId") { devices, ownerId ->
+        assertEquals(org.tenshu.core.common.util.HlcStamp(5_000L, 0L, newDeviceId), devices.admittedAt(ownerId, newDeviceId))
+        val applied = devices.revokeIfNotStale(ownerId, newDeviceId, org.tenshu.core.common.util.HlcStamp(4_000L, 0L, "owner"))
+        assertEquals(false, applied, "a removal authored before the recovery must not undo it")
+        assertNotNull(devices.getPublicKey(ownerId, newDeviceId))
+    }
+
+    @Test
+    fun aStamplessRecovery_isStillAccepted_asUnknown() = claimWithStamp(null) { devices, ownerId ->
+        assertEquals(null, devices.admittedAt(ownerId, newDeviceId), "a pre-R3 client's claim still works")
+    }
+
+    /** ⚠ A stamp from the future is clamped, or it would make every honest later removal stale. */
+    @Test
+    fun aFutureStamp_isClampedToTheRelaysClock() = claimWithStamp("${Long.MAX_VALUE / 2}:0:$newDeviceId") { devices, ownerId ->
+        val recorded = assertNotNull(devices.admittedAt(ownerId, newDeviceId))
+        // wall-clock: the relay clamps a future stamp to its own clock, so the real clock is the subject
+        assertTrue(recorded.physicalTime <= System.currentTimeMillis(), "clamped to now, got $recorded")
+        val later = org.tenshu.core.common.util.HlcStamp(System.currentTimeMillis() + 1_000, 0L, "owner")
+        assertTrue(devices.revokeIfNotStale(ownerId, newDeviceId, later), "an honest later removal applies")
     }
 
     @Test

@@ -7,6 +7,7 @@ import app.tenshu.timeline.data.capture.restoreOngoingMove
 import app.tenshu.timeline.data.capture.stopParkedLocationMonitoring
 import org.tenshu.core.common.TenshuClient
 import org.tenshu.core.core.TContext
+import platform.Foundation.NSRecursiveLock
 
 /**
  * The Swift-facing **live-capture runtime** (M4, `docs/proposals/timeline-movement-capture.md` §6):
@@ -23,6 +24,19 @@ import org.tenshu.core.core.TContext
  *
  * A denied/restricted authorization resets the opt-in flag (Android parity: the platform reflects
  * a denied permission back), so the toggle honestly shows capture as off.
+ *
+ * ⚠⚠ **Threads.** [startIfEnabled] and [stopCapture] run on main (the toggle, the launch, the
+ * authorization callback); [detachIfOver] runs on the shared-replica host's stop, off main (its
+ * fence collector). Each transition is one read-modify-write of the pair [active]/[activeClient],
+ * so all three hold [lock] for the whole of it. Without it the host's detach could read the old
+ * capture, the user turn capture off and on again on main, and the detach's late `active = null`
+ * then drop the **new** capture's only reference: its manager keeps monitoring, with its delegate,
+ * where no later [stopCapture] reaches it (B.16 (238), a privacy matter;
+ * `TimelineCaptureRuntimeRaceTest`). Under the lock, [IosLocationCapture]'s `start`/`stop`/`detach`
+ * only enqueue their manager work onto the main queue, and nothing under it waits on main or on
+ * the host, so the collector holds it for microseconds and main can never deadlock on it. The
+ * manager work itself was already ordered: it runs on main in enqueue order, and a detach's
+ * `park` finds no manager once the same capture's `stop` block has run.
  */
 object TimelineCaptureRuntime {
 
@@ -50,11 +64,22 @@ object TimelineCaptureRuntime {
     /** Builds the capture over an assembly. A test seam; production is [IosLocationCapture]. */
     internal var factory: (TimelineLocalRuntime.Assembly) -> Capture = ::liveCapture
 
-    @kotlin.concurrent.Volatile
+    /** Serialises every transition of [active]/[activeClient] (see the class KDoc). Recursive: a denial's [stopCapture] may run inside one. */
+    private val lock = NSRecursiveLock()
+
+    private inline fun <T> transition(block: () -> T): T {
+        lock.lock()
+        try {
+            return block()
+        } finally {
+            lock.unlock()
+        }
+    }
+
+    /** Guarded by [lock]. */
     private var active: Capture? = null
 
-    /** The client [active] writes through: what [detachIfOver] compares (B.16 (228)). */
-    @kotlin.concurrent.Volatile
+    /** The client [active] writes through: what [detachIfOver] compares (B.16 (228)). Guarded by [lock]. */
     private var activeClient: TenshuClient? = null
 
     /** Whether capture can run at all — the route-1 live runtime is installed. Gates the toggle. */
@@ -74,17 +99,17 @@ object TimelineCaptureRuntime {
      * the Settings toggle both call it. First start on a fresh grant requests Always authorization
      * (the toggle tap is the consent moment).
      */
-    fun startIfEnabled() {
+    fun startIfEnabled(): Unit = transition {
         if (!enabled()) {
             // ⚠⚠ (B.16 (238)) Off means off: a manager a detached capture parked is stopped too.
             releaseParked()
-            return
+            return@transition
         }
-        val assembly = currentAssembly() ?: return
+        val assembly = currentAssembly() ?: return@transition
         // ⚠ A capture over another graph than the installed one is
         // stale whatever stopped it, or failed to: it is detached and replaced, never kept.
         val running = active
-        if (running != null && activeClient === assembly.client.tenshuClient) return
+        if (running != null && activeClient === assembly.client.tenshuClient) return@transition
         running?.detach()
         active = factory(assembly).also { it.start() }
         activeClient = assembly.client.tenshuClient
@@ -98,9 +123,9 @@ object TimelineCaptureRuntime {
      * new graph, or until nothing will ([abandonParked], [stopCapture]: (238)). A capture over
      * another graph is left alone.
      */
-    internal fun detachIfOver(client: TenshuClient) {
-        val current = active ?: return
-        if (activeClient !== client) return
+    internal fun detachIfOver(client: TenshuClient): Unit = transition {
+        val current = active ?: return@transition
+        if (activeClient !== client) return@transition
         current.detach()
         active = null
         activeClient = null
@@ -133,7 +158,7 @@ object TimelineCaptureRuntime {
     }
 
     /** Stop monitoring and flush the open movement tail. */
-    fun stopCapture() {
+    fun stopCapture(): Unit = transition {
         active?.stop()
         active = null
         activeClient = null

@@ -238,5 +238,13 @@ interface SyncService : Service {
          * Holds wire names (HMACs) and HLCs only.
          */
         const val PENDING_REAP_REMOVALS = "tenshu/sync/collections/pendingReapRemovals"
+
+        /**
+         * Device-local: the signed `POST /sync/device-access/revoke` requests this device owes the
+         * relay (`PendingDeviceAccessRevocation` in `:sync-service-common`), one per revoked device,
+         * until a terminal answer (`sync-entity-identity.md` §5b R2a). Holds device ids, an HLC and a
+         * signature only.
+         */
+        const val PENDING_DEVICE_ACCESS_REVOCATIONS = "tenshu/sync/collections/pendingDeviceAccessRevocations"
     }
 }

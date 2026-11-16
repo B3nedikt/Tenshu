@@ -5,6 +5,7 @@ import kotlinx.coroutines.runBlocking
 import org.tenshu.core.common.delegate.InMemorySecureStorageDelegate
 import platform.Foundation.NSTemporaryDirectory
 import kotlin.random.Random
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -16,6 +17,10 @@ import kotlin.test.assertTrue
  * the rows the screenshot walk captures.
  */
 class TimelineStoreFixtureImportTest {
+
+    /** Stops the graphs this class assembled (`TestGraphs`, `docs/testing-flakes.md`). */
+    @AfterTest
+    fun stopTestGraphs() = TestGraphs.stopAll()
 
     @Test
     fun aLegacyExportLandsAsNamedPlacesAndAMovement() = runBlocking {

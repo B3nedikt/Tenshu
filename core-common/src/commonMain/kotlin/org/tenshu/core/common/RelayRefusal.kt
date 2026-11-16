@@ -53,6 +53,14 @@ object RelayRefusal {
     const val DEVICE_ID_NOT_KEY_DERIVED: String = "device-id-not-key-derived"
 
     /**
+     * The `401` of a `self` `POST /sync/device-access/revoke` when the named device holds **no registered
+     * key** — already revoked (a lost reply, then a retry), or never registered here. The other `401` of
+     * that route, a signature that does not verify, carries no token: the key is still on record there,
+     * so the removal definitely did not apply and must be surfaced, never read as done.
+     */
+    const val DEVICE_NOT_REGISTERED: String = "device-not-registered"
+
+    /**
      * Body text for a refusal: the machine token, then the sentence a human reading a log needs.
      * ⚠ The token must stay **first** — consumers match a prefix so a later sentence edit (or a
      * localisation of it, which is where this is heading) cannot break the match.

@@ -44,6 +44,7 @@ class TimelineCaptureRebuildTest {
         TimelineCaptureRuntime.currentAssembly = savedAssembly
         TimelineCaptureRuntime.factory = savedFactory
         TimelineCaptureRuntime.releaseParked = savedReleaseParked
+        TestGraphs.stopAll() // ⚠ last: the hooks above may still need the graph
     }
 
     @Test

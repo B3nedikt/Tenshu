@@ -41,6 +41,7 @@ import org.tenshu.preference.client.preferenceService
 import org.tenshu.sync.client.syncService
 import org.tenshu.sync.common.SyncManager
 import org.tenshu.sync.getSyncStatus
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * The headless Hub runtime (hub proposal §13 **H1**): the production proxy assembly of
@@ -95,10 +96,13 @@ class HubRuntime private constructor(
     var lastBackupPassAtEpochMs: Long = 0L
         private set
 
-    /** Completed backup passes this process — the H4 tests' exactly-once probe. */
-    @Volatile
-    var backupPassCount: Long = 0L
-        private set
+    /**
+     * Completed backup passes this process — the H4 tests' exactly-once probe. ⚠ An atomic, not a
+     * `@Volatile` `+= 1`: the backup loop and a commanded `RUN_BACKUP_NOW` can finish a pass at
+     * the same time, and a volatile increment loses one of them.
+     */
+    private val backupPasses = AtomicLong()
+    val backupPassCount: Long get() = backupPasses.get()
 
     /**
      * H4 hook: invoked after every completed backup pass (periodic or
@@ -184,7 +188,7 @@ class HubRuntime private constructor(
             .executeAsync<Data>(operationId = OfflineKeeper.ID, caller = null, params = null)
 
         lastBackupPassAtEpochMs = System.currentTimeMillis()
-        backupPassCount += 1
+        backupPasses.incrementAndGet()
         onBackupPassCompleted?.invoke()
     }
 

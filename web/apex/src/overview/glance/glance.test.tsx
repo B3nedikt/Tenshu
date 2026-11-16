@@ -96,8 +96,8 @@ describe('Drive glance', () => {
       layout: 'list',
       rows: [
         // Each opens the file in Drive's viewer, in its folder.
-        { title: 'lease.pdf', badge: 'PDF', timeMs: 2, sizeBytes: 840_000, open: { section: 'files', fragment: 'view:/Docs/lease.pdf' } },
-        { title: 'README', badge: '', timeMs: 3, sizeBytes: 10, open: { section: 'files', fragment: 'view:/README' } },
+        { title: 'lease.pdf', badge: 'PDF', timeMs: 2, sizeBytes: 840_000, open: { section: 'files', fragment: 'view:/Docs/lease.pdf' }, previewPath: '/Docs/lease.pdf' },
+        { title: 'README', badge: '', timeMs: 3, sizeBytes: 10, open: { section: 'files', fragment: 'view:/README' }, previewPath: '/README' },
       ],
       usage: { usedBytes: 5, limitBytes: 10 },
     })
@@ -197,6 +197,33 @@ describe('GlanceCard', () => {
     const row = await screen.findByRole('link', { name: /lease\.pdf/ })
     expect(row).toHaveAttribute('href', '/drive/files#view:/Taxes%202026/lease.pdf')
     expect(row.className).toContain('hover:bg-well')
+  })
+
+  it('a Drive row shows the file\'s stored preview when it has one, else its type badge (native\'s rule)', async () => {
+    const { call, calls } = fakeGateway({
+      'fs.recentFiles': () => [
+        { path: '/cat.jpg', size: 1, lastModified: 2, isFolder: false },
+        { path: '/notes.txt', size: 1, lastModified: 1, isFolder: false },
+      ],
+      'fs.getPreview': (params) =>
+        ({ ok: true, bytes: (params as { path: string }).path === '/cat.jpg' ? new Int8Array([1, 2, 3]) : null }),
+    })
+    renderCard(drive, call)
+    await waitFor(() => expect(screen.getAllByTestId('row-preview')).toHaveLength(1))
+    // The text file has no preview: its badge stays.
+    expect(screen.getByText('TXT')).toBeInTheDocument()
+    expect(screen.queryByText('JPG')).toBeNull()
+    expect(calls.filter(m => m === 'fs.getPreview')).toHaveLength(2)
+  })
+
+  it('a failed preview read leaves the badge (a row icon is never an error)', async () => {
+    const { call } = fakeGateway({
+      'fs.recentFiles': () => [{ path: '/cat.jpg', size: 1, lastModified: 2, isFolder: false }],
+      'fs.getPreview': () => Promise.reject(new Error('offline')),
+    })
+    renderCard(drive, call)
+    expect(await screen.findByText('JPG')).toBeInTheDocument()
+    expect(screen.queryByTestId('row-preview')).toBeNull()
   })
 
   it('a video tile is clickable over its duration badge, and says it is a video', async () => {
@@ -337,13 +364,20 @@ describe('Fit glance', () => {
     })
   })
 
-  // 0 steps is a real figure, not "no data"; the goal and workout are garnish.
+  // A day row with 0 steps is a real figure; the goal and workout are garnish.
   it('shows 0 steps, and drops the bar and the line when goal and workouts fail', async () => {
     const { call } = fakeGateway({
+      'fit.dailyAggregates': () => ({ ok: true, days: [{ steps: 0 }] }),
       'fit.goals': () => Promise.reject(new Error('x')),
       'fit.workoutsPage': () => ({ ok: false, error: { kind: 'y' } }),
     })
     expect(await fit.glance!.load(scopedCall(fit, call))).toMatchObject({ value: 0, progress: null, footnote: null })
+  })
+
+  // ⚠⚠ NO row is not 0 steps: Fit answers a day without data with no row.
+  it('no row for today is "nothing synced", never a 0', async () => {
+    const { call } = fakeGateway({ 'fit.dailyAggregates': () => ({ ok: true, days: [] }) })
+    expect(await fit.glance!.load(scopedCall(fit, call))).toMatchObject({ value: null, progress: null, footnote: null })
   })
 
   it('throws when today\'s figure cannot be read', async () => {
@@ -451,6 +485,22 @@ describe('agenda and stat cards', () => {
     renderCard(fit, call)
     expect(await screen.findByText('2,500')).toBeInTheDocument()
     expect(screen.getByRole('meter', { name: 'Progress towards your goal' })).toHaveAttribute('aria-valuenow', '25')
+  })
+
+  it('no day row: says nothing has synced for today, keeps the last workout, never draws 0', async () => {
+    const { call } = fakeGateway({
+      'fit.workoutsPage': () => ({ ok: true, nextCursor: null, workouts: [{ title: 'Morning run', activityType: 'Running', startLocal: '2000-01-03T07:00' }] }),
+    })
+    renderCard(fit, call)
+    expect(await screen.findByText('Nothing synced for today yet.')).toBeInTheDocument()
+    expect(screen.getByText(/^Last workout · Morning run · /)).toBeInTheDocument()
+    expect(screen.queryByText('0')).toBeNull()
+    expect(screen.queryByRole('meter')).toBeNull()
+  })
+
+  it('no steps today and no workouts says so, and where they come from', async () => {
+    renderCard(fit, fakeGateway().call)
+    expect(await screen.findByText(/No steps for today and no workouts on this browser yet/)).toBeInTheDocument()
   })
 
   it('an empty agenda says so, per app', async () => {

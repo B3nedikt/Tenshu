@@ -565,6 +565,57 @@ class RestSyncRelay(
         }
     }
 
+    override suspend fun revokeDeviceAccess(
+        ownerId: String,
+        deviceId: String,
+        authoredAt: String,
+        authority: org.tenshu.sync.common.DeviceAccessRevocation.Authority,
+        signature: ByteArray,
+    ): SyncRelay.DeviceAccessRevokeOutcome {
+        // Unauthenticated — the signature is the authorisation (sync-entity-identity.md §5b R1).
+        return try {
+            val response: HttpResponse = httpClient.post("$baseUrl/sync/device-access/revoke") {
+                contentType(ContentType.Application.Json)
+                setBody(
+                    RevokeDeviceAccessBody(
+                        ownerId = ownerId,
+                        deviceId = deviceId,
+                        authoredAt = authoredAt,
+                        authority = authority.wire,
+                        signature = Base64.encode(signature),
+                    )
+                )
+            }
+            val status = response.status.value
+            when {
+                // ⚠ `applied` decides whether the outbox drops the entry (applied) or keeps it as superseded, so a
+                // `200` whose body cannot be read (an intermediary's page) is no answer at all: retried, never done.
+                response.status.isSuccess() ->
+                    runCatchingCancellable { response.body<RevokeDeviceAccessReply>().applied }.getOrNull()
+                        ?.let { SyncRelay.DeviceAccessRevokeOutcome.Done(applied = it) }
+                        ?: SyncRelay.DeviceAccessRevokeOutcome.Retry("200 with an unreadable body")
+                status == HttpStatusCode.NotFound.value -> SyncRelay.DeviceAccessRevokeOutcome.Unsupported
+                status == HttpStatusCode.UpgradeRequired.value ->
+                    SyncRelay.DeviceAccessRevokeOutcome.UpgradeRequired(response.statusWithReason())
+                // `408` is the network's, not the relay's verdict on these bytes: transient, like a 5xx.
+                status == HttpStatusCode.TooManyRequests.value || status == HttpStatusCode.RequestTimeout.value ||
+                    status >= 500 ->
+                    SyncRelay.DeviceAccessRevokeOutcome.Retry(response.statusWithReason())
+                // ⚠ Keyed on the body token, never the reason text: the route's other 401 (a bad signature)
+                // means the removal did NOT apply, and only the token tells them apart.
+                status == HttpStatusCode.Unauthorized.value && RelayRefusal.matches(
+                    runCatchingCancellable { response.bodyAsText() }.getOrNull(),
+                    RelayRefusal.DEVICE_NOT_REGISTERED,
+                ) -> SyncRelay.DeviceAccessRevokeOutcome.NotRegistered(response.statusWithReason())
+                else -> SyncRelay.DeviceAccessRevokeOutcome.Refused(status, response.statusWithReason())
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            SyncRelay.DeviceAccessRevokeOutcome.Retry(e.message ?: "Network error")
+        }
+    }
+
     override suspend fun ackPairingResponse(pairingSecretHash: String): TResult<Data?> {
         // The secret's hash is the capability — no JWT.
         return try {
@@ -899,6 +950,13 @@ class RestSyncRelay(
             }
             if (response.status.isSuccess()) {
                 TResult.Success.create(context, null)
+            } else if (response.status == HttpStatusCode.PaymentRequired) {
+                // `ENTITLEMENT_ENFORCE`: the drop needs an entitlement (the free tier counts). Tagged, so a
+                // member's queued acceptance can say "create an account" rather than fail anonymously.
+                TResult.Failure.create(
+                    context,
+                    GenericError.create(context, "$ENTITLEMENT_REJECTION_MARKER: grant drop refused (${response.statusWithReason()})"),
+                )
             } else {
                 TResult.Failure.create(
                     context,
@@ -934,6 +992,7 @@ class RestSyncRelay(
         realmId: String,
         capability: MembershipCapability,
         binding: MemberDeviceBinding,
+        admittedAtHlc: String?,
     ): TResult<Data?> {
         // Unauthenticated by JWT — the capability chain in the body is the credential.
         return try {
@@ -954,6 +1013,7 @@ class RestSyncRelay(
                             boundAt = binding.boundAt,
                             signature = Base64.encode(binding.signature),
                         ),
+                        admittedAtHlc = admittedAtHlc,
                     )
                 )
             }
@@ -1038,6 +1098,15 @@ class RestSyncRelay(
         newDeviceId: String,
         challenge: ByteArray,
         masterSignature: ByteArray
+    ): TResult<Data?> = recoveryClaim(masterPublicKey, newDevicePublicKey, newDeviceId, challenge, masterSignature, null)
+
+    override suspend fun recoveryClaim(
+        masterPublicKey: ByteArray,
+        newDevicePublicKey: ByteArray,
+        newDeviceId: String,
+        challenge: ByteArray,
+        masterSignature: ByteArray,
+        admittedAtHlc: String?,
     ): TResult<Data?> {
         return try {
             val response: HttpResponse = httpClient.post("$baseUrl/sync/recovery-claim") {
@@ -1049,7 +1118,7 @@ class RestSyncRelay(
                         "newDeviceId" to newDeviceId,
                         "challenge" to Base64.encode(challenge),
                         "masterSignature" to Base64.encode(masterSignature)
-                    )
+                    ) + listOfNotNull(admittedAtHlc?.let { "admittedAtHlc" to it }).toMap()
                 )
             }
             if (response.status.isSuccess()) {
@@ -1175,6 +1244,8 @@ private data class AdmitMemberBody(
     val realmId: String,
     val capability: CapabilityBody,
     val deviceBinding: DeviceBindingBody,
+    /** §5b R3; omitted when null (a relay before R3 rejects unknown keys). */
+    val admittedAtHlc: String? = null,
 )
 
 @kotlinx.serialization.Serializable
@@ -1187,6 +1258,18 @@ private data class RevokeAdmissionBody(
     /** F1′ — base64 A33 capability key. Required since F5b. */
     val deviceA33PublicKey: String,
 )
+
+@kotlinx.serialization.Serializable
+private data class RevokeDeviceAccessBody(
+    val ownerId: String,
+    val deviceId: String,
+    val authoredAt: String,
+    val authority: String,
+    val signature: String,
+)
+
+@kotlinx.serialization.Serializable
+private data class RevokeDeviceAccessReply(val applied: Boolean)
 
 @kotlinx.serialization.Serializable
 private data class RevokeMemberBody(

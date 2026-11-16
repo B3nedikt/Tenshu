@@ -1066,14 +1066,6 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
                 // relay + content-plane client (JWT scoped to the realm's ownerId, signed
                 // by the device's A4 key) against the same relay — so a shared folder
                 // pushes/pulls its block stream + file content.
-                sharedRealmRelayFactory = org.tenshu.sync.proxy.sharedRealmRelayFactory(
-                    baseUrl = get(named("syncRelayUrl")),
-                    httpClient = get(),
-                    context = context,
-                    syncManager = syncManager,
-                    cryptoManager = cryptoManager,
-                    nowEpochSec = { System.currentTimeMillis() / 1000 },
-                ),
                 sharedRealmContentBlobStoreFactory = org.tenshu.sync.proxy.sharedRealmContentBlobStoreFactory(
                     baseUrl = get(named("syncRelayUrl")),
                     httpClient = get(),

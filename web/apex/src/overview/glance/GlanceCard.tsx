@@ -21,6 +21,7 @@ import { formatStorageBytes as formatBytes } from '../../lib/format'
 import { glanceHref } from '../../apps/appNav'
 import { AgendaBody, StatBody } from './AgendaStatBodies'
 import { GridBody } from './GridBody'
+import { usePreviewUrl } from './previewUrl'
 
 const REFRESH_MS = 30_000
 
@@ -141,11 +142,11 @@ function Body({ data, call, app }: { readonly data: GlanceData; readonly call: G
     case 'grid':
       return <GridBody tiles={data.tiles} call={call} app={app} />
     case 'agenda':
-      return <AgendaBody rows={data.rows} />
+      return <AgendaBody rows={data.rows} app={app} />
     case 'stat':
       return <StatBody data={data} />
     case 'list':
-      return <ListBody rows={data.rows} usage={data.usage} app={app} />
+      return <ListBody rows={data.rows} usage={data.usage} app={app} call={call} />
   }
 }
 
@@ -154,7 +155,8 @@ function isEmpty(data: GlanceData): boolean {
     case 'grid':
       return data.tiles.length === 0
     case 'stat':
-      return data.value === null
+      // Nothing today but a last workout is still something to show (StatBody words the gap).
+      return data.value === null && data.footnote === null
     case 'list':
     case 'agenda':
       return data.rows.length === 0
@@ -165,10 +167,12 @@ function ListBody({
   rows,
   usage,
   app,
+  call,
 }: {
   readonly rows: Extract<GlanceData, { layout: 'list' }>['rows']
   readonly usage: Extract<GlanceData, { layout: 'list' }>['usage']
   readonly app: HostedApp
+  readonly call: GlanceCall
 }) {
   const { t, i18n } = useTranslation('control')
   const when = (ms: number) =>
@@ -179,9 +183,7 @@ function ListBody({
         {rows.map((row, i) => {
           const content = (
             <>
-              <span aria-hidden className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[9px] bg-well text-[9.5px] font-bold tracking-wide text-text-2">
-                {row.badge}
-              </span>
+              <RowIcon badge={row.badge} previewPath={row.previewPath ?? null} call={call} />
               <span className="min-w-0">
                 <span className="block truncate text-sm text-text">{row.title}</span>
                 <span className="block text-xs tabular-nums text-text-2">
@@ -193,7 +195,7 @@ function ListBody({
           // A clickable row (Drive: the file in its viewer) highlights as a whole, as iCloud's.
           const href = row.open ? glanceHref(app, row.open) : null
           return (
-            <li key={`${row.title}-${i}`} className="min-w-0 border-b border-well last:border-b-0 sm:[&:nth-last-child(2):nth-child(odd)]:border-b-0">
+            <li key={row.previewPath ?? `${row.title}-${i}`} className="min-w-0 border-b border-well last:border-b-0 sm:[&:nth-last-child(2):nth-child(odd)]:border-b-0">
               {href !== null ? (
                 <Link
                   to={href}
@@ -231,3 +233,20 @@ function ListBody({
     </>
   )
 }
+
+// A list row's icon: the stored preview when the file has one (native Drive's rule), else its type
+// badge — also while the preview loads, and when the read fails (a row icon is never an error).
+// 96 px: the LIST rung, at 2× the 34 px slot plus a margin.
+const ROW_PREVIEW_PX = 96
+
+function RowIcon({ badge, previewPath, call }: { readonly badge: string; readonly previewPath: string | null; readonly call: GlanceCall }) {
+  const url = usePreviewUrl(previewPath, call, ROW_PREVIEW_PX)
+  return url !== null ? (
+    <img aria-hidden src={url} alt="" data-testid="row-preview" className="h-[34px] w-[34px] shrink-0 rounded-[9px] object-cover" />
+  ) : (
+    <span aria-hidden className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[9px] bg-well text-[9.5px] font-bold tracking-wide text-text-2">
+      {badge}
+    </span>
+  )
+}
+

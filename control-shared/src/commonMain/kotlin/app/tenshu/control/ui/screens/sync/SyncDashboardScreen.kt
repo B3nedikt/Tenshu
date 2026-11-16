@@ -55,6 +55,7 @@ import app.tenshu.ui.chrome.AppTopAppBar
 import app.tenshu.ui.layout.appContentWidth
 import app.tenshu.ui.preview.PreviewBox
 import org.jetbrains.compose.resources.stringResource
+import app.tenshu.control.shared.resources.sync_dashboard_removed_header
 import androidx.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 import androidx.compose.material3.AlertDialog
@@ -285,6 +286,23 @@ fun SyncDashboardContent(
                             onApprove = { onApproveDevice(device.deviceId.get()) },
                             onReadmit = { onReadmitDevice(device.deviceId.get()) }
                         )
+                    }
+                    // §5b R6c: the realm's signed removals — the only place a removed device still shows.
+                    if (uiState.removedDevices.isNotEmpty()) {
+                        item(key = "removed-header") {
+                            Text(
+                                text = stringResource(Res.string.sync_dashboard_removed_header),
+                                style = MaterialTheme.typography.titleSmall,
+                                modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
+                            )
+                        }
+                        items(uiState.removedDevices, key = { "removed-" + it.deviceId }) { removed ->
+                            RemovedDeviceItem(
+                                removed = removed,
+                                hardwareName = uiState.deviceHardwareNames[removed.deviceId],
+                                nowMs = nowMs,
+                            )
+                        }
                     }
                 }
             }

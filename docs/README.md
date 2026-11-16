@@ -686,6 +686,10 @@ hard to find by filename, or when the doc supersedes something a reader would ot
   **Proposal, nothing built.** Members are view-only by default and editing is opt-in per
   member; enforced by the relay (role in the master-signed capability) and by clients (authored,
   credential-checked blocks). Lifts GR's "no write tiers" v1 non-goal.
+- [`proposals/shared-realm-membership-records.md`](proposals/shared-realm-membership-records.md) —
+  MR-1–MR-3, RO D7 and the "invited" state built (signed records and rows, owner-written members). A signed member list: the master-signed capability/revocation bytes, synced as
+  records, decide who is in and with which role. The revocation source the read-only-members
+  proposal's §4.3 names; `Member` rows become display-only and owner-signed.
 
 - [`proposals/admission-revocation-names-the-capability.md`](proposals/admission-revocation-names-the-capability.md)
   — **v0.3 — decided (F), first slice shipped.** A revocation names a *device at an epoch*, not the

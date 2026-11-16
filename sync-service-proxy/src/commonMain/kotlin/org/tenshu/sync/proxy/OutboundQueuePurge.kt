@@ -92,6 +92,12 @@ internal val OUTBOUND_QUEUES: List<Pair<String, String>> = listOf(
     DeleteBlock.ID to SyncService.Collections.PENDING_TOMBSTONES,
     // CR-2 B3d: reaps owed to the relay of the realm being left — addressed outward, like a tombstone.
     org.tenshu.sync.common.PendingReapRemoval.ID to SyncService.Collections.PENDING_REAP_REMOVALS,
+    // §5b R2a: device-access revocations owed to the relay of the realm being left. ⚠⚠ A device
+    // forgetting ITSELF loses its own pending self-removal here if `ForgetThisDevice`'s bounded wait
+    // expired (offline) — and since protocol 2 its `Device` tombstone no longer revokes either, so its
+    // relay registration outlives the forget. Harmless for access (its key is discarded with the
+    // identity), but it stays in the relay's device set until an A1 holder removes it from Manage devices.
+    org.tenshu.sync.common.PendingDeviceAccessRevocation.ID to SyncService.Collections.PENDING_DEVICE_ACCESS_REVOCATIONS,
     SyncDelta.ID to SyncService.Collections.PENDING_LANE_DELTAS,
     PendingContentEmit.ID to SyncService.Collections.PENDING_CONTENT_EMITS,
 )

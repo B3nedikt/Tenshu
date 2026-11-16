@@ -82,6 +82,7 @@ class MembershipGrantRoutingTest {
         bindingSigner: ByteArray = memberAuthority,
         epoch: Long = 0L,
         boundDeviceId: String = memberDeviceId,
+        admittedAtHlc: String? = null,
     ): String {
         val capSig = stubEd25519Signature(
             capabilitySigner,
@@ -105,7 +106,7 @@ class MembershipGrantRoutingTest {
                     "perRealmDevicePublicKey": "${b64(perRealmDevicePublicKey)}",
                     "boundAt": 2000,
                     "signature": "${b64(bindSig)}"
-                }
+                }${admittedAtHlc?.let { ",\n                \"admittedAtHlc\": \"$it\"" } ?: ""}
             }
         """.trimIndent()
     }
@@ -239,6 +240,45 @@ class MembershipGrantRoutingTest {
         val registered = knownDevices.getPublicKey(realmId, memberDeviceId)
         assertNotNull(registered, "the admitted member device's per-realm key is registered")
         assertTrue(registered.contentEquals(perRealmDevicePublicKey))
+    }
+
+    /** §5b R3: a member admission records its stamp, so an earlier-authored removal is stale. */
+    @Test
+    fun admit_recordsTheAdmissionStamp() = testApplication {
+        val knownDevices = KnownDevicesStore()
+        application { testModule(knownDevices = knownDevices, realmStore = RealmStore()) }
+        bootstrapRealm()
+
+        val response = client.post("/sync/realm-member/admit") {
+            contentType(ContentType.Application.Json); setBody(admitBody(admittedAtHlc = "5000:0:$memberDeviceId"))
+        }
+        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals(
+            org.tenshu.core.common.util.HlcStamp(5_000L, 0L, memberDeviceId),
+            knownDevices.admittedAt(realmId, memberDeviceId),
+        )
+    }
+
+    /**
+     * ⚠⚠ The member writes this stamp. A far-future one is clamped — else every honest later removal
+     * of the member's device would be stale and the owner could not cut it through the route.
+     */
+    @Test
+    fun admit_aFutureStampFromTheMember_isClamped() = testApplication {
+        val knownDevices = KnownDevicesStore()
+        application { testModule(knownDevices = knownDevices, realmStore = RealmStore()) }
+        bootstrapRealm()
+
+        client.post("/sync/realm-member/admit") {
+            contentType(ContentType.Application.Json)
+            setBody(admitBody(admittedAtHlc = "${Long.MAX_VALUE / 2}:0:$memberDeviceId"))
+        }.bodyAsText()
+
+        val recorded = assertNotNull(knownDevices.admittedAt(realmId, memberDeviceId))
+        // wall-clock: the relay clamps a future stamp to its own clock, so the real clock is the subject
+        assertTrue(recorded.physicalTime <= System.currentTimeMillis())
+        val laterRemoval = org.tenshu.core.common.util.HlcStamp(System.currentTimeMillis() + 1_000, 0L, "owner")
+        assertTrue(knownDevices.revokeIfNotStale(realmId, memberDeviceId, laterRemoval), "the owner can still remove it")
     }
 
     /**

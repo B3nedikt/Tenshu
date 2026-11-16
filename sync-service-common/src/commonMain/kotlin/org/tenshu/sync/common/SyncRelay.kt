@@ -446,6 +446,58 @@ interface SyncRelay : TComponent {
     ): TResult<Data?> = error("revokeAdmission not implemented by ${this::class.simpleName}")
 
     /**
+     * Cut one device's relay access (`POST /sync/device-access/revoke`, `sync-entity-identity.md`
+     * §5b). Unauthenticated: [signature] over `DeviceAccessRevocation.message(authority, …)` is the
+     * authorisation — A1 for [DeviceAccessRevocation.Authority.MASTER], the named device's own key for
+     * [DeviceAccessRevocation.Authority.SELF]. [authoredAt] is `HlcStamp.encode()`.
+     *
+     * Default answers [DeviceAccessRevokeOutcome.Unsupported] so fakes that never revoke keep
+     * compiling; an outbox against them keeps its entry.
+     */
+    suspend fun revokeDeviceAccess(
+        ownerId: String,
+        deviceId: String,
+        authoredAt: String,
+        authority: DeviceAccessRevocation.Authority,
+        signature: ByteArray,
+    ): DeviceAccessRevokeOutcome = DeviceAccessRevokeOutcome.Unsupported
+
+    /**
+     * What a [revokeDeviceAccess] call settled. [Retry], [Unsupported] and [UpgradeRequired] keep a queued request;
+     * [Done] and [Refused] are terminal, because repeating the same signed bytes cannot change them.
+     */
+    sealed interface DeviceAccessRevokeOutcome {
+        /** `200`. [applied] false = stale: authored before the admission on record. Done either way. */
+        data class Done(val applied: Boolean) : DeviceAccessRevokeOutcome
+
+        /**
+         * `404`: the relay predates the route, or does not hold the realm. ⚠⚠ **Not terminal** since
+         * R2b: the `Device` tombstone no longer revokes, so the request is kept and retried.
+         */
+        data object Unsupported : DeviceAccessRevokeOutcome
+
+        /** `400`/`401`/`403`: these bytes will never be accepted. [status] for the log. */
+        data class Refused(val status: Int, val reason: String) : DeviceAccessRevokeOutcome
+
+        /**
+         * `401` carrying `RelayRefusal.DEVICE_NOT_REGISTERED`: the named device holds no key at the relay. For a
+         * `self` request that is the repeat of a removal that already applied, so the outbox reads it as done; for
+         * a `master` one it stays a refusal (the `master` route never answers it — kept total for the outbox).
+         * ⚠ Distinct from a bad signature, which stays [Refused]: there the key is still on record.
+         */
+        data class NotRegistered(val reason: String) : DeviceAccessRevokeOutcome
+
+        /**
+         * `426`: protocol skew mid-rollout — one side is older than the other accepts. ⚠ **Not terminal**: an update
+         * on either side clears it, and the same bytes are then accepted, so the request is kept and retried.
+         */
+        data class UpgradeRequired(val reason: String) : DeviceAccessRevokeOutcome
+
+        /** Network failure or `5xx`/`429`: keep it and try again next tick. */
+        data class Retry(val reason: String) : DeviceAccessRevokeOutcome
+    }
+
+    /**
      * Drop a sealed membership grant onto the relay grant mailbox
      * (`POST /sync/grant/{address}`, `shared-realm-membership-grant.md` §4).
      * JWT-authed by the grantor's personal identity (this relay's own auth) — the
@@ -476,6 +528,11 @@ interface SyncRelay : TComponent {
         realmId: String,
         capability: MembershipCapability,
         binding: MemberDeviceBinding,
+        /**
+         * §5b R3: `HlcStamp.encode()` of this admission, so a removal authored before it cannot
+         * undo it. ⚠ The relay clamps a future value — the member writes this one.
+         */
+        admittedAtHlc: String? = null,
     ): TResult<Data?> = error("admitMember not implemented by ${this::class.simpleName}")
 
     /**
@@ -516,6 +573,20 @@ interface SyncRelay : TComponent {
         challenge: ByteArray,
         masterSignature: ByteArray
     ): TResult<Data?>
+
+    /**
+     * [recoveryClaim] carrying the admission stamp (§5b R3) — `HlcStamp.encode()` of the moment the
+     * recovered device was admitted, so a removal authored before the recovery and delivered after
+     * it cannot undo it. Defaults to the stampless call, which only the REST relay overrides.
+     */
+    suspend fun recoveryClaim(
+        masterPublicKey: ByteArray,
+        newDevicePublicKey: ByteArray,
+        newDeviceId: String,
+        challenge: ByteArray,
+        masterSignature: ByteArray,
+        admittedAtHlc: String?,
+    ): TResult<Data?> = recoveryClaim(masterPublicKey, newDevicePublicKey, newDeviceId, challenge, masterSignature)
 
     /**
      * Out-of-band realm-epoch fetch (`GET /sync/realm-epoch`, sync-relay-api.md §3.6).

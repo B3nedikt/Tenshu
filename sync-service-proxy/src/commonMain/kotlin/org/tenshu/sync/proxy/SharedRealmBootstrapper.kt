@@ -1,20 +1,13 @@
 package org.tenshu.sync.proxy
 
-import org.tenshu.core.collection.list.toList
-import org.tenshu.core.common.proxy.ArrayDatabaseReference
 import org.tenshu.core.common.proxy.ExecutionContext
 import org.tenshu.core.common.security.ownerIdForMasterPublicKey
-import org.tenshu.core.entity.DataId
-import org.tenshu.core.entity.Entity
 import org.tenshu.core.security.SyncCryptoManager
-import org.tenshu.identity.Device
-import org.tenshu.identity.IdentityService
 import org.tenshu.identity.OwnedRealmMaster
 import org.tenshu.identity.SharedRealmMembership
 import org.tenshu.sync.common.RealmContext
 import org.tenshu.sync.common.SyncManager
 import org.tenshu.sync.common.SyncRelay
-import org.tenshu.core.collection.list.TList
 
 /**
  * SR-3b (`sync-multi-realm-runtime.md` §3 / `tenshu-rei.md` §2.3): bootstraps a new
@@ -90,8 +83,11 @@ class SharedRealmBootstrapper(
         val sharedOwnerId = ownerIdForMasterPublicKey(realmMasterKeyPair.publicKey)
         val derivedKeys = cryptoManager.deriveSharedRealmKeys(masterKey)
 
-        val deviceKeyPair = syncManager.getDeviceSigningKeyPair() // A4 — reused across realms
-        val deviceId = syncManager.currentDeviceId
+        // ⚠⚠ D10 (`shared-realm-read-only-members.md`; threat model T-GR-05): a fresh per-realm key and
+        // the realm-local id derived from it — never the personal A4, whose id would appear in every
+        // `peerTips`, JWT and block HLC of the share and link it to this user's personal realm.
+        val deviceKeyPair = cryptoManager.generateDeviceSigningKeyPair()
+        val deviceId = org.tenshu.sync.common.deviceIdForPublicKey(deviceKeyPair.publicKey)
 
         // Canonical bootstrap message — the shared builder the relay verifies.
         val message = org.tenshu.sync.common.realmBootstrapMessage(
@@ -155,56 +151,12 @@ class SharedRealmBootstrapper(
         )
         executionContext.saveData(membership)
 
-        // 4. Admit the user's other devices to the shared realm at the relay (SR-3b.4c),
-        // so their JWTs verify on the shared stream once they auto-join. The creating
-        // device is already registered (the `createRealm` first-device step above). Each
-        // other device's A4 comes from its `Device` entity in the personal realm's
-        // `IdentityService.Relations.DEVICES`. Best-effort: a failed admission (offline,
-        // device not yet synced) is logged and retried on a future bootstrap/trigger —
-        // it must not fail realm creation.
-        admitKnownDevices(realmContext)
+        // 4. ⚠ The user's OTHER devices are not admitted from here any more (D10): admitting them meant
+        // registering their personal A4 keys under the share. Each mints its own per-realm key when the
+        // membership and `OwnedRealmMaster` reach it, and admits itself with that master
+        // (`SharedRealmJoinObserver`).
 
         return realmContext
-    }
-
-    private suspend fun admitKnownDevices(realm: RealmContext) {
-        val devicesRef = ArrayDatabaseReference(
-            arrayId = DataId.RelationDataId.create(
-                context = executionContext.context,
-                type = TList.ID,
-                relationId = IdentityService.Relations.DEVICES,
-            ),
-            isEntity = true,
-            elementSchemaId = Device.ID,
-        )
-        val devices = executionContext.database.getArrayData(devicesRef)?.toList() ?: return
-        val admitter = SharedRealmDeviceAdmitter(cryptoManager, relay)
-        for (entry in devices) {
-            val entity = entry as? Entity<*> ?: continue
-            val deviceId = runCatching {
-                entity.getFieldValue<org.tenshu.core.TString>(Device.Fields.DEVICE_ID).get()
-            }.getOrNull() ?: continue
-            if (deviceId == realm.deviceId) continue // the creating device is already registered
-            val publicKey = runCatching {
-                entity.getFieldValue<org.tenshu.core.TByteArray>(Device.Fields.PUBLIC_KEY).get()
-            }.getOrNull() ?: continue
-            // ⚠⚠ B1: the shared-realm master signs a delegation over this key, and any personal-realm
-            // device can write the row it comes from — accept only a real Ed25519 key.
-            if (publicKey.size != org.tenshu.sync.common.ED25519_PUBLIC_KEY_BYTES) {
-                println("SharedRealmBootstrapper -> skipping $deviceId: its public key is not an Ed25519 key")
-                continue
-            }
-            // Workstream B: the relay registers only a key's own id; a row pairing them otherwise is skipped.
-            if (!org.tenshu.sync.common.deviceIdMatchesKey(deviceId, publicKey)) {
-                println("SharedRealmBootstrapper -> skipping $deviceId: its id is not derived from its public key")
-                continue
-            }
-            try {
-                admitter.admit(realm, deviceId, publicKey)
-            } catch (e: Exception) {
-                println("SharedRealmBootstrapper -> failed to admit device $deviceId to ${realm.ownerId}: ${e.message}")
-            }
-        }
     }
 }
 

@@ -122,6 +122,7 @@ class PhotosModelDownloadTest {
         PhotosModelDownloads.installTransfers(null)
         PhotosLocalRuntime.modelTransfersSettleNow(inForeground = false)
         Dispatchers.resetMain()
+        TestGraphs.stopAll() // ⚠ last: the hooks above may still need the graph
     }
 
     private val manager = NSFileManager.defaultManager

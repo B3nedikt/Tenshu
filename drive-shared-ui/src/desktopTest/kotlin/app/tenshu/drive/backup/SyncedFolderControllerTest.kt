@@ -238,7 +238,7 @@ class SyncedFolderControllerTest {
     }
 
     private class FakeIngestRegistry(
-        @Volatile var enabled: Boolean = true,  // the central kill switch
+        val enabled: Boolean = true,  // the central kill switch
     ) : IngestRegistry {
         val registered = mutableListOf<Triple<String, String, String>>()  // sourceId, kind, watchedPaths
         val statuses = mutableListOf<Pair<String, Long>>()                 // status, pendingCount
@@ -1498,7 +1498,7 @@ class SyncedFolderControllerTest {
         val media = FakeMediaSource(listOf(camBucket), mapOf("cam" to listOf(item("a.jpg", 1))))
         val files = FakeFilesRepository(storageStatusResult = StorageStatusModel(true, 0, 100))
         val throwing = object : BackupEnvironment {
-            @Volatile var explode = true
+            var explode = true  // single-threaded: runTest's unconfined scope, no dispatcher hop
             override fun network(): BackupNetworkStatus {
                 if (explode) throw IllegalStateException("connectivity read failed")
                 return BackupNetworkStatus.UNMETERED

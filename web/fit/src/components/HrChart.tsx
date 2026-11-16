@@ -1,44 +1,48 @@
-// The heart-rate curve (native `HrChart` over `ChartMath.hrPolyline`): own SVG, no chart library.
+// The heart-rate curve (native `HrChart`): the line over a tinted area, the dashed average, and — for
+// a pointer — a time axis, a bpm axis and a readout at the cursor (`SeriesChart`, fit-web-parity.md
+// §2.1). The cursor is shareable so F2's charts and the map can follow one pointer.
 import { useTranslation } from 'react-i18next'
 import type { FitHrPoint } from '@tenshu/sdk/fit'
-import { hrAverageY, hrPolyline } from '../lib/chart'
+import { SeriesChart } from './SeriesChart'
 
-const W = 100
-const H = 40
-
-export function HrChart({ series, avgBpm }: { series: readonly FitHrPoint[]; avgBpm: number | null }) {
+export function HrChart({
+  series,
+  avgBpm,
+  cursor,
+  onCursor,
+  duration,
+}: {
+  series: readonly FitHrPoint[]
+  avgBpm: number | null
+  cursor?: number | null
+  onCursor?: (t: number | null) => void
+  /** The workout's duration: the shared time axis (`SeriesChart`). */
+  duration?: number
+}) {
   const { t } = useTranslation()
-  const points = hrPolyline(series)
-  const min = Math.min(...series.map((p) => p.bpm))
-  const max = Math.max(...series.map((p) => p.bpm))
-  const avgY = avgBpm !== null ? hrAverageY(series, avgBpm) : null
+  const values = series.map((p) => p.bpm)
+  const min = Math.min(...values)
+  const max = Math.max(...values)
   return (
-    <figure>
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio="none"
-        className="h-36 w-full"
-        role="img"
-        aria-label={t('detail.hrChart', { min, max })}
-        data-testid="hr-chart"
-      >
-        <polyline
-          data-testid="hr-line"
-          points={points.map((p) => `${(p.x * W).toFixed(2)},${(p.y * H).toFixed(2)}`).join(' ')}
-          fill="none"
-          strokeWidth="0.6"
-          vectorEffect="non-scaling-stroke"
-          className="stroke-danger"
-        />
-        {avgY !== null && (
-          <line data-testid="hr-average" x1="0" x2={W} y1={avgY * H} y2={avgY * H} strokeDasharray="2 1" strokeWidth="0.3" className="stroke-text-2" />
-        )}
-      </svg>
-      <figcaption className="mt-1 flex justify-between text-xs text-text-2">
+    <div>
+      <SeriesChart
+        testId="hr-chart"
+        series={series.map((p) => ({ t: p.tSec, v: p.bpm }))}
+        ariaLabel={t('detail.hrChart', { min, max })}
+        valueText={(v) => t('detail.bpm', { value: Math.round(v) })}
+        tickText={(v) => String(Math.round(v))}
+        tone="danger"
+        average={avgBpm}
+        averageLabel={avgBpm !== null ? t('detail.hrAvg', { value: avgBpm }) : undefined}
+        cursor={cursor}
+        onCursor={onCursor}
+        duration={duration}
+      />
+      <p className="mt-1 flex gap-4 text-xs text-text-2">
         <span>{t('detail.hrMin', { value: min })}</span>
         {avgBpm !== null && <span>{t('detail.hrAvg', { value: avgBpm })}</span>}
         <span>{t('detail.hrMax', { value: max })}</span>
-      </figcaption>
-    </figure>
+      </p>
+    </div>
   )
 }

@@ -53,6 +53,15 @@ class ObserverRegistry {
      */
     fun any(predicate: (DataObserver) -> Boolean): Boolean = observers.load().any(predicate)
 
+    /**
+     * The registered observers that are a [T] — e.g. the session's own sync emitter, which a caller must drain
+     * rather than a process-wide holder that names whichever session registered last.
+     */
+    inline fun <reified T> ofType(): List<T> = snapshot().filterIsInstance<T>()
+
+    /** The observers registered now (a snapshot; later [add]s are not reflected). */
+    fun snapshot(): List<DataObserver> = observers.load()
+
     fun onDataSaved(data: Data, origin: WriteOrigin) = onDataSaved(data, origin, syncLaneId = null)
 
     /**

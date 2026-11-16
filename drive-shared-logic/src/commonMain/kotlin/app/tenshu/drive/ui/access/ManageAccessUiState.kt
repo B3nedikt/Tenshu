@@ -2,6 +2,7 @@ package app.tenshu.drive.ui.access
 
 import app.tenshu.drive.data.ContactInviteModel
 import app.tenshu.drive.data.ContactModel
+import app.tenshu.drive.data.InvitationModel
 import app.tenshu.drive.data.MemberModel
 
 /**
@@ -25,6 +26,17 @@ data class ManageAccessUiState(
      * the owner is the pinned "You — Owner" row, not repeated here). GR-4.
      */
     val members: List<MemberModel> = emptyList(),
+    /**
+     * Grants of [sharedRealmId] still waiting for the member to accept — the "invited" state
+     * (`shared-realm-membership-records.md` §3.4). A row moves to [members] once the owner's poll picks up
+     * the acceptance and writes the member's row (RO D7). Owner-side only.
+     */
+    val invited: List<InvitationModel> = emptyList(),
+    /**
+     * Contact fingerprint → that contact's name, so an invited row and a member row (whose own display name
+     * is empty by default — pseudonymous, GR D5) both show who it is.
+     */
+    val contactNames: Map<String, String> = emptyMap(),
     /** Connected, grantable contacts for the grant picker (GR-4). */
     val grantableContacts: List<ContactModel> = emptyList(),
     /** Set when *Invite someone* was tapped — host renders [InviteLinkSheet]. */

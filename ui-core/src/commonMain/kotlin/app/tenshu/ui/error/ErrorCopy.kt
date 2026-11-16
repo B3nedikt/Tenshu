@@ -22,6 +22,7 @@ import app.tenshu.ui.resources.error_open_target_unavailable
 import app.tenshu.ui.resources.error_unannounced_session
 import app.tenshu.ui.resources.error_unsupported_operation
 import app.tenshu.ui.resources.error_entitlement_unverified
+import app.tenshu.ui.resources.error_recovery_phrase_required
 import app.tenshu.ui.resources.error_recovery_phrase_unreadable
 import app.tenshu.ui.resources.error_device_already_set_up
 import app.tenshu.ui.resources.error_relay_route_unsupported
@@ -111,6 +112,7 @@ internal val CATALOGUE: Map<String, StringResource> = mapOf(
     "error_unsupported_operation" to Res.string.error_unsupported_operation,
     "error_entitlement_unverified" to Res.string.error_entitlement_unverified,
     "error_relay_route_unsupported" to Res.string.error_relay_route_unsupported,
+    "error_recovery_phrase_required" to Res.string.error_recovery_phrase_required,
     "error_recovery_phrase_unreadable" to Res.string.error_recovery_phrase_unreadable,
     "error_device_already_set_up" to Res.string.error_device_already_set_up,
     "error_semantic_search_unavailable" to Res.string.error_semantic_search_unavailable,

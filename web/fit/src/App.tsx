@@ -7,8 +7,10 @@ import { Dashboard } from './components/Dashboard'
 import { HistoryView } from './components/HistoryView'
 import { ProfileView } from './components/ProfileView'
 import { WorkoutDetail } from './components/WorkoutDetail'
+import { MetricDetail } from './components/MetricDetail'
+import { metricFragment, metricRoute } from './lib/dashboard'
 import { LiveProvider } from './lib/live'
-import { TABS, type Tab } from './lib/nav'
+import { ROUTES, TABS, type Tab } from './lib/nav'
 
 // Profile holds goals, personal data and the sources — Fit's settings, so it sits at the sidebar's
 // foot (web-apps-layout.md §3.1).
@@ -33,13 +35,15 @@ export default function App() {
   // The URL is the single source of truth for the section and the open workout, so a reload, Back
   // or a shared link keeps both. `dashboard` is home (`/`); `TABS`' other ids must equal the apex
   // registry's `sections` for Fit. A section change starts with no fragment, so it closes the workout.
-  const { section: tab, fragment, navigate, open: openDetail, back } = useAppRoute(TABS, 'dashboard')
+  const { section: tab, fragment, navigate, open: openDetail, back, setFragment } = useAppRoute(ROUTES, 'dashboard')
   // The workout History opened, if any; Back returns to History where it was.
   const open = tab === 'history' ? workoutOf(fragment) : null
   // A workout detail takes over the History list, so opening it is a history entry: browser Back
   // closes it, and the detail's own Back steps the same history (web-apps-layout.md §4.2).
   const openWorkout = (workoutId: string) => openDetail(WORKOUT_PREFIX + workoutId)
   const item = (id: Tab) => ({ id, label: t(`nav.${id}`) })
+  // The metric page sits under Home: its sidebar entry stays lit.
+  const active: Tab = tab === 'metric' ? 'dashboard' : tab
 
   return (
     <LiveProvider>
@@ -47,7 +51,7 @@ export default function App() {
         navLabel={t('nav.label')}
         nav={SECTIONS.map(item)}
         navFooter={FOOTER.map(item)}
-        active={tab}
+        active={active}
         onNavigate={(id) => navigate(id)}
         // First: in a tab without the runtime, every other read fails too.
         banners={<RuntimeBanner />}
@@ -57,7 +61,18 @@ export default function App() {
           {open !== null ? (
             <WorkoutDetail workoutId={open} onBack={() => back()} />
           ) : tab === 'dashboard' ? (
-            <Dashboard />
+            <Dashboard
+              // A metric page and a workout are places: history entries, so Back returns to Home.
+              onOpenMetric={(m) => navigate('metric', metricFragment(m, 'week'))}
+              onOpenWorkout={(id) => navigate('history', WORKOUT_PREFIX + id)}
+            />
+          ) : tab === 'metric' ? (
+            <MetricDetail
+              {...metricRoute(fragment)}
+              // A range is a view of the same place: replaced, not a history entry.
+              onRange={(r) => setFragment(metricFragment(metricRoute(fragment).metric, r))}
+              onBack={() => back('', 'dashboard')}
+            />
           ) : tab === 'history' ? (
             <HistoryView onOpen={openWorkout} />
           ) : (

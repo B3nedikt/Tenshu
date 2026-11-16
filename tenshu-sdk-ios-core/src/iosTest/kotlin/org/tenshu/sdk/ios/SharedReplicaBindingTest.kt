@@ -37,6 +37,7 @@ import platform.darwin.dispatch_semaphore_signal
 import platform.darwin.dispatch_semaphore_wait
 import platform.darwin.DISPATCH_TIME_FOREVER
 import kotlin.random.Random
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -53,6 +54,10 @@ import kotlin.test.fail
  * adapter's real worker queue, and real stores in temporary directories. Every name is made up.
  */
 class SharedReplicaBindingTest {
+
+    /** Stops the graphs this class assembled (`TestGraphs`, `docs/testing-flakes.md`). */
+    @AfterTest
+    fun stopTestGraphs() = TestGraphs.stopAll()
 
     /** The slice of `UIApplication` the adapter uses; nothing runs on "main" unless the test runs it. */
     private class BindingApp : UiKitApplication {

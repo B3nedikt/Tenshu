@@ -9,6 +9,7 @@ import org.tenshu.core.mapregion.installed
 import org.tenshu.mapregion.client.mapRegionService
 import platform.Foundation.NSTemporaryDirectory
 import kotlin.random.Random
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -29,6 +30,10 @@ import kotlin.test.assertTrue
  * assembly + shared-replica read is the in-process proof here.
  */
 class MapsLocalRuntimeTest {
+
+    /** Stops the graphs this class assembled (`TestGraphs`, `docs/testing-flakes.md`). */
+    @AfterTest
+    fun stopTestGraphs() = TestGraphs.stopAll()
 
     private fun tempReplicaDir(): String =
         NSTemporaryDirectory() + "maps-local-runtime-test-" + Random.nextLong().toString(16)

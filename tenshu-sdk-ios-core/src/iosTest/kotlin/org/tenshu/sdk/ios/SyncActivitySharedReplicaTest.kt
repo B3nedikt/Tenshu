@@ -25,6 +25,7 @@ import org.tenshu.sync.proxy.SyncRuntime
 import org.tenshu.sync.proxy.SyncRuntimeHolder
 import platform.Foundation.NSTemporaryDirectory
 import kotlin.random.Random
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -44,6 +45,10 @@ import kotlin.test.assertTrue
  * B.22.9): [Process.foreground] is only the point where the tests look again.
  */
 class SyncActivitySharedReplicaTest {
+
+    /** Stops the graphs this class assembled (`TestGraphs`, `docs/testing-flakes.md`). */
+    @AfterTest
+    fun stopTestGraphs() = TestGraphs.stopAll()
 
     private class Process(val id: String, directory: String) {
         private val runtime = FirstPartyLocalRuntime(

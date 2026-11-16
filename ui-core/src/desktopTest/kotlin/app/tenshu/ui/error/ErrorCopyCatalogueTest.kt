@@ -52,6 +52,7 @@ class ErrorCopyCatalogueTest {
         "tenshu/result/error/notFound",
         "tenshu/result/error/openTargetUnavailable",
         "tenshu/result/error/relayRouteUnsupported",
+        "tenshu/sync/service/error/recoveryPhraseRequired",
         "tenshu/sync/service/error/recoveryPhraseUnreadable",
         "tenshu/sync/service/error/deviceAlreadySetUp",
         "tenshu/result/error/semanticSearchUnavailable",

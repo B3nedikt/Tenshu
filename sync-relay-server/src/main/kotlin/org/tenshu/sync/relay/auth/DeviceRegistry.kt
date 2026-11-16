@@ -23,10 +23,11 @@ interface DeviceRegistry : OwnerScopedStore {
      *
      * [admittedAt] is the HLC the *admitting* client authored this admission at, when it sent
      * one. It exists so [admittedAt] can be compared against an arriving `Device` tombstone's
-     * HLC — see [revoke]. `null` means the admitter did not say — not an older client but a
-     * current caller that carries no stamp: recovery re-admission, a shared-realm membership grant,
-     * and `SharedRealmDeviceAdmitter` on `/sync/admit-device`. It reads as "unknown" and leaves
-     * [revoke] behaving as it always has.
+     * HLC — see [revoke]. `null` means the admitter did not say — since §5b R3 every current
+     * admitting route carries one (recovery claim, membership admit and `/sync/admit-device`
+     * included), so `null` now means a pre-R3 client. It reads as "unknown" and leaves [revoke]
+     * behaving as it always has. ⚠ Routes clamp a future stamp to the relay's clock first
+     * (`routing/AdmissionStamp.kt`), or one could make its device unrevokable.
      */
     fun register(
         ownerId: String,

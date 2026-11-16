@@ -25,6 +25,12 @@ internal fun edgedPush(
     revive: List<ReviveEntry> = emptyList(),
 ): EdgedPush = EdgedPush.create(ctx, relayProtocolVersion, block, edges, revive)
 
+/**
+ * A pre-R2b client's protocol: the one at which a `Device` tombstone still revokes at the relay
+ * (`sync-entity-identity.md` §5b R2b). Tests of that legacy side effect push at this version.
+ */
+internal const val TOMBSTONE_REVOKES_PROTOCOL: Int = 1
+
 internal fun cascadedTombstone(
     ctx: TContext,
     block: DeleteBlock,

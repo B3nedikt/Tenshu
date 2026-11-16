@@ -95,6 +95,7 @@ import org.tenshu.sync.relay.routing.configureEpcRendezvousRouting
 import org.tenshu.sync.relay.routing.HealthProbe
 import org.tenshu.sync.relay.routing.configureHealthRouting
 import org.tenshu.sync.relay.routing.configureAdmissionRouting
+import org.tenshu.sync.relay.routing.configureDeviceAccessRouting
 import org.tenshu.sync.relay.routing.configureInviteRouting
 import org.tenshu.sync.relay.routing.configureMembershipGrantRouting
 import org.tenshu.sync.relay.routing.GenesisRateLimitName
@@ -564,6 +565,7 @@ fun Application.module(
             realmStore,
             knownDevices,
             ed25519,
+            membershipStore = membershipStore,
             genesisRateLimit = if (genesisRateLimited) GenesisRateLimitName else null
         )
         configureRecoveryRouting(
@@ -605,6 +607,15 @@ fun Application.module(
             admissionRevocationStore = admissionRevocationStore,
             realmStore = realmStore,
             ed25519 = ed25519
+        )
+        // Device-access revocation without a tombstone (sync-entity-identity.md §5b precondition 0):
+        // A1-signed for any device, or signed by the device's own key for itself. Same registry, ledger and
+        // staleness rule as an applied Device tombstone.
+        configureDeviceAccessRouting(
+            realmStore = realmStore,
+            knownDevices = knownDevices,
+            deviceRevocation = deviceRevocation,
+            ed25519 = ed25519,
         )
         // Content plane (docs/adr/0017-file-content-two-plane-channel.md P3 / sync-relay-api.md §3.7):
         // PUT/GET opaque ciphertext chunk blobs by ref, JWT-authed + per-owner

@@ -10,8 +10,11 @@ import org.tenshu.sync.common.SyncRelay
 /**
  * A shared-realm [SyncRelay] whose JWT is signed with **the realm's own
  * `RealmContext` device key + device id** — not the device's personal A4
- * ([sharedRealmRelayFactory] signs with the personal key, correct for the owner
- * and same-user joiners whose `RealmContext` already carries the personal key).
+ * (the personal-key shared-realm relay this replaced is gone: it named the personal device in a share).
+ *
+ * ⭐ Since D10 (`shared-realm-read-only-members.md`; threat model T-GR-05) **owner devices use this
+ * too**: they join a share under a per-realm key, like members, so no personal device id appears in
+ * it. `OwnerRealmDevice` registers them with this relay.
  *
  * A **cross-user member** (`shared-realm-membership-grant.md` D2) is admitted with
  * a *fresh per-realm device key* + a *realm-local device id* so the relay cannot

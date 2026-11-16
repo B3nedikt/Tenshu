@@ -94,7 +94,8 @@
       "drive": "No files yet. Uploads show up here.",
       "photos": "No photos yet.",
       "calendar": "Nothing coming up this week.",
-      "timeline": "Nothing recorded today yet."
+      "timeline": "Nothing recorded today yet.",
+      "fit": "No steps for today and no workouts on this browser yet. They come from your phone."
     },
     "unit": {
       "steps": "steps"
@@ -132,7 +133,8 @@
       "other": "Moment"
     },
     "openPhoto": "Open {name}",
-    "openVideo": "Open video {name} {duration}"
+    "openVideo": "Open video {name} {duration}",
+    "noneToday": "Nothing synced for today yet."
   },
   "bell": {
     "ariaLabel": "Notifications",

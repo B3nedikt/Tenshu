@@ -14,6 +14,7 @@ import kotlinx.coroutines.withTimeout
 import org.tenshu.core.common.delegate.InMemorySecureStorageDelegate
 import platform.Foundation.NSTemporaryDirectory
 import kotlin.random.Random
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
@@ -28,6 +29,10 @@ import kotlin.test.assertTrue
  * `Dispatchers.Default` scopes and the executor initialises lazily on the first op.
  */
 class FitLocalRuntimeTest {
+
+    /** Stops the graphs this class assembled (`TestGraphs`, `docs/testing-flakes.md`). */
+    @AfterTest
+    fun stopTestGraphs() = TestGraphs.stopAll()
 
     private fun tempReplicaDir(): String =
         NSTemporaryDirectory() + "fit-local-runtime-test-" + Random.nextLong().toString(16)

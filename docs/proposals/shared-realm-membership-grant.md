@@ -634,6 +634,74 @@ live in-process relay, real crypto).
 
 ### 14.3 Known limits / follow-ups
 
+⭐ **Catch-up re-keys (2026-11-14).** A rotation re-keys only the members its device knows, and a drop is
+best-effort — so a member whose `Member` row had not synced to the rotating owner device, or whose drop
+failed, stayed joined but unable to read anything new, and nothing resent it. `RealmKeyDelivery` (identity, a
+new synced type, one row per realm + member) records which key each member was last sent — by `sha256` of the
+owner's own wrapped `Kr`, identical on every owner device. Every `pollPendingGrants` on an owner device sends
+the current key to each accepted, unrevoked member whose row names another (`catchUpRekeys`). ⚠ Never while
+this device waits on a rotation (`mustWaitForRotation`), and never to a member whose invitation is still open —
+a re-key would overwrite it in the one-slot grant mailbox; acceptance handles those. Pinned by
+`aMemberARotationDidNotKnow_isSentTheCurrentKeyOnceTheirRowArrives`.
+
+⚠⚠ **Re-keys are per realm, ordered, and recorded with the key sent (2026-11-14, review).**
+- **Per-realm address** (`deriveRekeyAddress`, info `tenshu/grant/rekey/v1`): the contact-wide grant address is
+  one last-write-wins slot, so two realms' re-keys to one contact destroyed the first while both were recorded
+  as delivered. The member polls one address per realm, from the contact in `RealmGrantor` (all contacts for a
+  membership without one).
+- **Ordered by key generation, not send time** (`RealmRekey` `-v2`, corrected 2026-11-15): the owner device that
+  creates a key records its generation, strictly after the one it replaced (`RealmKeyGeneration`, saved before the
+  membership so no owner device holds a key without it); members refuse an older generation and a different key
+  of the one they hold (`RealmGrantor.lastKeyGeneration`). Ordering by `issuedAt` let a lagging owner device
+  answer with the old key at a fresh time. ⚠ Not derived from `retiredAt`: a recovery keeps the first `retiredAt`,
+  which would give the new key the old one's generation. Closes the skipped-key replay (threat model T-GR-02).
+- **The delivery records the key the caller wrapped**, captured with it — never re-read after the drop, when a
+  rotation synced in meanwhile would mark the member current on a key nobody sent.
+- ⭐ **Key requests close the lost-delivery gap (2026-11-15).** "Delivered" is still the drop's success, not the
+  member's pickup, so a re-key that expired in the mailbox (30-day TTL) while the member was offline, or that
+  was otherwise lost, was never resent. Now the member notices: a shared-realm block that opens under no key it
+  holds marks the realm *behind* (`SyncProcessor.onUnopenableBlock`), and its next poll sends the granting
+  contact a `KeyRequestPayload` — one per contact naming every behind realm, each entry signed by that realm's
+  A26 (`RealmKeyRequest`, `tenshu-realm-key-request-v1`) — at `deriveKeyRequestAddress` (per contact, member
+  first, its own `info`). The owner answers an entry only for a realm it owns, signed by the A26 it granted
+  that member, from the contact the member row names, for a member neither revoked nor still invited — with
+  its ordinary signed, ordered re-key. ⚠⚠ The trigger is forgeable (a block carries no key id; a relay can
+  inject any bytes): it buys an attacker one request and one re-key per member per realm per 6 h
+  (`KeyRequestTracker`), which they can neither read nor steer — and a relay can deny service more cheaply by
+  withholding blocks. ⚠ A realm stays behind until a re-key is adopted (a lost request or answer is retried after
+  the interval), every request names all outstanding realms for that contact (the address keeps one), only blocks
+  newer than the current key's generation count (each pull from 0 meets blocks from before the member joined), the
+  owner records an answer only once it went out, and ignores entries older than 12 h. ⚠ Only a key that actually
+  changed clears *behind* (a lagging owner repeating the member's own key does not), so a forged trigger keeps a
+  member asking once per interval; and the "newer than the current key" test has no skew allowance, which would
+  otherwise hide a second rotation within it. Pinned by
+  `aMemberWhoseReKeyWasLost_asksForTheKey_andReadsWhatFollowed` and `KeyRequestTrackerTest`.
+- ⚠ Follow-up — **revocation window:** an owner device that has synced a rotation but not yet a member's
+  revocation could answer that removed member's key request (or catch it up) with the new key. Needs an ordering
+  between the personal and the shared stream, or a removal marker in the personal one.
+- ⚠ Follow-up — **lower priority (review):** Forget's message for removals it forwarded for other devices; no
+  backoff on the ungated revocation drain; a peer-queued removal is not cancelled by a later re-admission;
+  `RealmRegistry.runtimes` is not synchronised.
+- ⚠ Follow-up — **rotation forks:** a member can refuse the owners' converged key as retired, and a key request
+  then fetches the same key again (rate-limited, so no loop). The fix is a deterministic rule in this layer that
+  owners and members apply alike (e.g. highest `issuedAt` wins, then key id) — not a user decision: neither key
+  is "better", so there is nothing for a person or an app to judge.
+- ⚠ Follow-up — **owner-side scheduling:** the grant poll (and so catch-up and answering requests) runs only
+  while a sharing screen is open. Calling it from the in-process sync tick covers a running app; waking a
+  sleeping device is platform scheduling (WorkManager/FCM on Android, background tasks on iOS) — out of scope.
+- ⚠ The member's `Member` row is signed at `max(now, stored signedAt + 1)`, so a slow owner clock cannot sign an
+  edit every peer refuses as older.
+- ⚠ `catchUpRekeys` calls `mustWaitForRotation` on every owner poll, so its recovery can now run from a poll
+  rather than only from the next grant, removal or acceptance.
+
+⚠⚠ **A re-key needs the realm master's signature (2026-11-14).** The poll applied any drop for a realm the device
+already belonged to as a re-key, trusting the contact channel — but a grant drop is an anonymous sealed box at a
+relay-served address, so a removed member colluding with the relay could switch a member onto a key of their
+choosing (threat model T-GR-02, same-day amendment). Every grant now carries the master public key and its
+signature over `RealmRekey.message(realmId, A26pub, wrappedRealmKey, issuedAt)`; [`applyRekey`] adopts nothing
+else, and never a key already retired here (a re-served older genuine drop). ⚠ Signed on **every** grant, not
+only re-keys: a re-grant to someone already in the realm is read as a re-key too.
+
 ⚠ **Verification status.** GR-7 is green on `desktopTest` + the system tests named in §14;
 Android compiles. The **on-device manual pass is still outstanding** — §12 records it for the
 GR-4 UI, and no later phase has claimed one either, so treat it as owed for the track rather
@@ -653,14 +721,102 @@ than for any single phase.
   card and falls through to the pickup, so the re-key is collected and silently applied. A genuine
   unaccepted pending (realm not joined) still blocks as before; no relay/wire/threat-model change.
   The deeper synced-row create→delete resurrection remains a separate, broader concern.
-- **Cross-device re-key propagation:** a member's *second* device that already has the realm
-  registered won't re-register on a synced re-key within a session (the join/self-bind observers
-  short-circuit on `isRegistered`). The keyring + new membership do sync, so the next registration
-  (restart / first-time this session) picks up `Kr′` + the retired key — the same class as the
-  pre-existing "shared realms aren't re-registered mid-session" note. Not blocking the cutoff
-  (only *remaining* members ever get `Kr′`).
-- **A member granted but not yet accepted at rotation time** holds a pending *original* grant
-  carrying the stale `Kr`; they get `Kr′` only on the next re-key. Out of scope for v1.
+- **An echo of the owner's own pre-rotation row reinstated the retired `Kr` (fixed 2026-11-11).**
+  Ingest LWW compares an incoming block only against the last *ingested* version of the row, never the
+  newer local write. So the relay's late echo of the owner's own pre-rotation `SharedRealmMembership`
+  could land over `adoptNewRealmKey`'s swap and make the retired `Kr` current again until the newer
+  echo arrived. Anything reading the row in that window used the retired key: the D7 re-key
+  (`dropRekey`) shipped it to a member, who then stayed on it. That was the intermittent
+  `SharedRealmKrRotationSystemTest` timeout. And a re-registration in the window (a restart) would
+  have written new content under a key the removed member holds. **Fix:** `SyncProcessor`
+  refuses a `SharedRealmMembership` whose wrapped key already has a `RetainedRealmKey` row
+  (`isRetiredRealmKeyMembership`; pinned by `RetiredRealmKeyIngestTest`). A rotation always mints a
+  fresh key, and with real crypto a re-wrap never yields the same bytes (`sealToIdentity` uses a fresh
+  ephemeral key each time). ⚠ The guard refuses only when a membership row is already stored, so it
+  stops a revert but can never leave a device with *no* membership. That case arises when a rotation is
+  cut short between its two saves.
+  ⚠⚠ **The same retired key leaks out from a second direction.** Another owner device can be *behind*
+  rather than reverted: it has synced the `RetainedRealmKey` row but not yet the new membership.
+  Handing out its key then (the D7 re-key, or a fresh `grant`) gives a member the retired `Kr`.
+  `mustWaitForRotation` therefore holds both: an acceptance waits in the mailbox (checked *before* the
+  destructive pickup), and a grant is refused with "still changing on another device".
+  ⚠ The D7 re-key after an acceptance fires only if **the key the grant carried has been retired**:
+  `AwaitedAcceptance.grantedKeyId` (`sha256(wrapped Kr)` at grant time) against the content-addressed
+  `RetainedRealmKey` rows. Two earlier rules were wrong:
+  - comparing `retiredAt` with the grant time fails because `retiredAt` is a synced LWW row, and a late
+    echo can restore an older one (the `SharedRealmKrRotationSystemTest` flake);
+  - re-keying whenever the realm has ever rotated sends needless re-keys, and the grant mailbox has
+    **one slot per contact, not per realm**, so a needless re-key overwrites an unread invitation to
+    another realm.
+  ⚠ A *necessary* re-key, here or in a rotation, can still overwrite an unread invitation to another
+  realm in that slot (open, pre-existing).
+  ⚠ "Behind" cannot be told apart from a rotation **cut short** between its two saves, where the new
+  membership never comes. Saving the two rows atomically is not available: the SQLite store commits
+  whatever batch it has drained, not per transaction, and a delta batch is applied delta by delta. So a
+  retirement older than 24 h (`ABANDONED_ROTATION_AFTER_MS`) counts as abandoned, and the device
+  finishes it with a fresh key (`anOwnerDeviceHoldingARetiredKey_waitsWhileBehind_andFinishesAnAbandonedRotation`).
+  ⚠ The recovery is **lazy**: it runs on the next grant, removal or waiting acceptance, and nothing
+  schedules it. A removal is also refused while the device is behind, because a second rotation would
+  fork the key.
+  ⚠⚠ **It never re-keys a revoked member.** The recovery fires exactly when the device is behind, so its
+  `Member` rows may still list someone removed elsewhere. Every rotation therefore skips members the
+  realm's signed records revoke (`anAbandonedRotationRecovery_neverReKeysARevokedMember`).
+  ⚠⚠ **And only once caught up.** Time alone cannot tell "abandoned" from "offline for a day and still
+  behind". So the recovery also requires a *complete* pull of the shared realm (its revocation records)
+  and of the personal realm (where a newer membership would arrive), each **started after** this device
+  first found the realm stuck. That is `RealmRegistry.caughtUpSinceStuck`, which counts pulls
+  (`PullProgress`, locked: the scheduler writes it while grant operations read it) and reads no
+  clocks. A pull that leaves more behind clears it. It resets with the runtime on a re-register, as
+  the in-memory cursor does. For the personal realm, "complete" also needs the backward walk finished
+  wherever one runs. On the two-lane fallback (no `/sync/log`) there is no walk, and the forward lanes
+  alone are the whole stream (`PullProgressWiringTest`).
+  ⚠⚠ **Never a permanent stall.** A stream can fail to complete indefinitely: a schema fence, a
+  backward walk that will not descend, a registration backoff, a realm with no relay. While it does,
+  the owner can neither grant nor *remove* anyone, which is worse than the risk the gate exists for.
+  So past **twice** the window (48 h) the recovery goes ahead on time alone, with a WARN. It also needs
+  this device to have watched the realm stuck for an hour by **its own** clock
+  (`VALVE_LOCAL_OBSERVATION_MS`, `RealmRegistry.stuckForMillis`). `retiredAt` is the rotating device's
+  stamp, so without this a device back from days offline would skip the gate on its first look, before
+  any pull. ⚠ The observation is in memory, so a restart starts the hour again.
+  The grant operations (grant, accept, remove, poll) run one at a time (`RealmRegistry.grantOps`). A
+  rotation suspends while the emitter drains, and two interleaving operations could otherwise let a stale
+  re-key overwrite a fresh one in a contact's grant mailbox, or let two recoveries both pass their check.
+  **Residual (Low):** "caught up" means only that the relay *says* nothing more is waiting. A relay that
+  withholds the revocation still passes; so does one that garbage-collected the record's old-key copy,
+  whose re-send under the new key this device cannot read. Either way the removed member is cut off at
+  the relay, and could use the key only with a relay that serves them anyway (T-GR-02). The stronger
+  fix, carrying the revoked member's key on the personal-realm `RetainedRealmKey`, is a reshape (HR 9)
+  and is not built. The general LWW gap is `tech-debt.md` *"Ingest LWW ignores newer local writes"*.
+- **A rotation could seal the revocation under the new key (fixed 2026-11-12).** Blocks are sealed when
+  the emitter reaches them, under the realm's key *at that moment*. So `removeMember`'s revocation
+  record, saved just before `rotateAndRegrant`, could go out under `Kr′`. An owner device that cannot
+  re-register mid-session (above) and a member yet to collect the re-key then never learn of the
+  removal: `SharedRealmMembershipRecordsSystemTest` under load. `rotateAndRegrant` now drains **this
+  session's own** emitters first (`drainOwnEmitters`, found on the operation's execution context, not
+  the process-wide holder, which names whichever client session registered last). The drain is bounded
+  (30 s, then a WARN) so a dead consumer cannot hang a removal. It is statistically tested only: no
+  deterministic ordering test yet.
+- **Two concurrent rotations fork the key (open, pre-existing).** Two owner devices rotating at once
+  (removals on both, or a device offline over 24 h that finishes a rotation it took as abandoned) each
+  mint their own key. Membership LWW then picks one, so on the losing device the other key is never
+  retired into its keyring, and the members re-keyed by the losing side hold a key the realm no longer
+  writes under. Recovery today is another removal or a manual re-grant.
+- ~~**Cross-device re-key propagation:** a device that already has the realm registered won't re-register on a
+  synced re-key within a session. "Not blocking the cutoff (only *remaining* members ever get `Kr′`)".~~ ✅
+  *Closed 2026-11-12.* ⚠⚠ The note was wrong about the stakes: it covered reads only. The stale runtime also
+  **sealed** every new write under the retired key — the one the removed member holds — so under relay collusion
+  that member read the owner's other device's new content (T-GR-02). `SharedRealmJoinObserver` now re-registers a
+  realm whose stored membership unwraps to a different key than its runtime runs on, keeping the per-realm device
+  key, the master and (since the same day) the realm clock. A rotation on the device itself finds the keys equal
+  and changes nothing. Pinned by `aRotationOnOneOwnerDevice_movesTheOthersRuntimeOntoTheNewKey`.
+  ⚠ A recovery that re-retires an already-retired key keeps the first `retiredAt`; a fresh one would restart every
+  other stuck device's 24 h wait.
+- ~~**A member granted but not yet accepted at rotation time** holds a pending *original* grant
+  carrying the stale `Kr`; they get `Kr′` only on the next re-key. Out of scope for v1.~~ ✅ *Closed
+  2026-11-11 by RO D7* (`shared-realm-membership-records.md` §10): when the owner processes an acceptance
+  for a realm that rotated since the grant, it drops the member a re-key with the current `Kr`; and
+  `removeMember` processes waiting acceptances before rotating, so an accepted-but-unprocessed member is
+  re-keyed with everyone else.
 - File-content trial-decrypt relies on production AEAD throwing on a wrong key (it does); the
   stub-crypto edge isn't representative, so it's covered by the system test (real crypto), not the
   unit test.

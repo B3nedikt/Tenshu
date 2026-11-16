@@ -115,6 +115,7 @@ class PhotosOwnedInferenceStoresTest {
     fun restoreMain() {
         Dispatchers.resetMain()
         OwnedInferenceStores.clearPriorWritersForTests()
+        TestGraphs.stopAll() // ⚠ last: the hooks above may still need the graph
     }
 
     private val files = NSFileManager.defaultManager

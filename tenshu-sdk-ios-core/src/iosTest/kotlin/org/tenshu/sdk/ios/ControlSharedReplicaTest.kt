@@ -40,6 +40,7 @@ import platform.darwin.dispatch_semaphore_signal
 import platform.darwin.dispatch_semaphore_wait
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.random.Random
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -58,6 +59,10 @@ import kotlin.test.fail
  * real stores in temporary directories. Every name is made up.
  */
 class ControlSharedReplicaTest {
+
+    /** Stops the graphs this class assembled (`TestGraphs`, `docs/testing-flakes.md`). */
+    @AfterTest
+    fun stopTestGraphs() = TestGraphs.stopAll()
 
     private class FakeApp : UiKitApplication {
         private val main: NSThread = NSThread.currentThread

@@ -147,3 +147,37 @@ export function dayText(locale: string, date: string, style: 'short' | 'long' = 
 export function numberText(locale: string, value: number): string {
   return new Intl.NumberFormat(locale).format(value)
 }
+
+/** A civil date in a chart's own words: a weekday ("Tue"), a day of the month ("11"), or both. */
+export function dateLabel(locale: string, date: string, form: 'weekday' | 'day' | 'readout'): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date)
+  if (!match) return date
+  const at = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12)
+  const options: Intl.DateTimeFormatOptions =
+    form === 'weekday'
+      ? { weekday: 'short', timeZone: 'UTC' }
+      : form === 'day'
+        ? { day: 'numeric', timeZone: 'UTC' }
+        : { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }
+  return new Intl.DateTimeFormat(locale, options).format(at)
+}
+
+/** A `YYYY-MM` month as a chart says it: its initial on the axis, "March 2026" in a readout. */
+export function monthLabel(locale: string, month: string, form: 'narrow' | 'long'): string {
+  const match = /^(\d{4})-(\d{2})$/.exec(month)
+  if (!match) return month
+  const at = Date.UTC(Number(match[1]), Number(match[2]) - 1, 15)
+  const options: Intl.DateTimeFormatOptions =
+    form === 'narrow' ? { month: 'narrow', timeZone: 'UTC' } : { month: 'long', year: 'numeric', timeZone: 'UTC' }
+  return new Intl.DateTimeFormat(locale, options).format(at)
+}
+
+/** A count on an axis: "8K", "12K" — the readout keeps the full figure. */
+export function compactText(locale: string, value: number): string {
+  return new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(value)
+}
+
+/** An altitude or a climb: metres, or feet in imperial. */
+export function elevationText(t: TFunction, metres: number, units: MeasurementSystem): string {
+  return units === 'imperial' ? t('elevation.ft', { value: Math.round(metres / 0.3048) }) : t('elevation.m', { value: Math.round(metres) })
+}
