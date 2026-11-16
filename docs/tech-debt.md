@@ -8,28 +8,15 @@ architectural conventions — they are things that should be fixed or revisited 
 
 ## Platform / client wiring
 
-### ⚠ One lost-update race the `@Volatile` audit found, not fixed in it (2026-11-15)
+### Benign check-then-acts the `@Volatile` audit left (2026-11-15)
 
 A repo-wide audit of all 179 `@Volatile` / `@kotlin.concurrent.Volatile` annotations fixed two broken
-counters (`HubRuntime.backupPassCount`, `SqliteObjectStore.readThroughReads`) and dropped five
-provably redundant annotations. It found three races; one needs a smoke gate, so it is here:
+counters (`HubRuntime.backupPassCount`, `SqliteObjectStore.readThroughReads`), dropped five provably
+redundant annotations, and found three lost-update races, all since fixed: `ClientCallbackGuard`'s cached
+Control UID (T-C-19), `TimelineCaptureRuntime`'s transitions (B.16 (238) in `ios-shared-store-sqlite.md`),
+and `BinderTaskTransport.ReconnectEdge.owed` (`ReconnectEdgeTest`).
 
-- **⚠ `BinderTaskTransport.ReconnectEdge.owed` (`core-common` `androidMain`).** `landed()` reads `owed`
-  and then clears it in two steps, on the main thread in `onServiceConnected`. A `turnedAway()` from an
-  IPC coroutine (`awaitConnected`) or IO (`refusedByControl`) landing between them is erased, so
-  `onReconnected` never fires for that caller and `Stream.changes`' parked retry stays parked: the R7
-  dead observer (`core-client-resubscription.md`). Fix: `AtomicBoolean.getAndSet(false)`, plus a forced-
-  interleaving test. In the same file, `isConnected` and `proxyService` are plain `var`s written on main
-  and read from IPC coroutines. Owes `scripts/android-smoke.sh` (House Rule 8).
-
-The other two are fixed. `ClientCallbackGuard`'s cached Control UID: a forget now beats an in-flight
-lookup (T-C-19). `TimelineCaptureRuntime.active` / `activeClient` (`tenshu-sdk-ios-timeline`) was
-reachable: the host's `detachIfOver` (off main) could drop a capture an off/on on main had just started,
-leaving its manager monitoring past the opt-out. The three transitions now share one lock; the class
-KDoc has why, and `TimelineCaptureRuntimeRaceTest` forces the interleaving (B.16 (238) in
-`ios-shared-store-sqlite.md`).
-
-Also benign check-then-acts the audit noted and left (a duplicate log line, an idempotent cache, or a
+The benign check-then-acts it noted and left (a duplicate log line, an idempotent cache, or a
 duplicate sweep): `OwnedInferenceStores.NotExcludedFromBackup.remaining`, `SharedReplicaLocation`'s
 `appLocalFallbackReported`, `IosConnectedWifi.loggedUnavailable`, `HubManagementAgent.lastPublished`
 (self-heals within one tick), `MacCameraSession.closed` (one closer today; a second would double-release).
@@ -2701,7 +2688,7 @@ intermittently billing-blocked (entry above), so the local gate is the gate.
 | `MultiProxySyncIntegrationTest` (reporter shape) | `:drive-shared-ui` | swept (P3) but never tied to a named leaker; watch |
 | `PairingVmFlowSystemTest > offerFlow_…` | `:system-test-utils` | seen once; its swallowing poll is now `OfferPairingMonitor` and its teardown joins every scope (P0) |
 | `DelegatedAdmissionSystemTest > delegatedAdmission_fullLifecycle_admitThenSubtreeRevoke` | `:system-test-utils` | once under load (*"removal must master-sign revocations for B AND its lineage subtree"*), green on rerun and alone; interleaving never forced. ⚠ That assertion no longer exists (§7j.10 retired the subtree strip; the case is now `…_admitThenRemoveTheAdmitter_keptAdmitteeStillAdmits`), and since 2026-11-14 the class runs stepped (`docs/testing.md` §12), so a recurrence of its successor is a fixed sequence of ticks |
-| `SyncCursorStoreDesyncSystemTest` | `:system-test-utils` | 60 s `advanceUntil` timeout on waits that take 0.5–2 s — a **hang**, not slowness. Joiner polls at 100 ms, so a lost wake cannot explain it; a probe on `SyncScheduler`'s loop saw it never stall, throw or die across six gates |
+| `SyncCursorStoreDesyncSystemTest` | `:system-test-utils` | 60 s `advanceUntil` timeout on waits that take 0.5–2 s — a **hang**, not slowness. Joiner polls at 100 ms, so a lost wake cannot explain it; a probe on `SyncScheduler`'s loop saw it never stall, throw or die across six gates. **Watch** since 2026-11-16: 0 in 440 polled runs (400 under CPU load); now **stepped** (`docs/testing.md` §12), so a recurrence fails after 25 rounds naming the state it never reached. ⚠ Its step 3 does not pin A1 (a stale cursor written back inside the wipe still back-fills); step 2's assertion does |
 | `SyncMetadataOperationTest > testSavingSyncableEntityGeneratesBlock` | `:sync-service-proxy` | **watch**. Once, no message kept. Its fixture rides one `TestScope` with no real dispatcher (a probe: the only push is the test's own drain, on the test thread), so the interleaving is fixed. The red was then either the read-after-dequeue `Entry not found` its push stub already fixes, or another class's leak reported here. 2026-11-15: built with `startBackgroundLoops = false`, so its drain is the only one |
 
 Also open, found by this work: `UnixSocketTaskTransport.openConnection` swallows a failed *first*

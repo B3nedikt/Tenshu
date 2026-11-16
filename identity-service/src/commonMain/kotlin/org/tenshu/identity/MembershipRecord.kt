@@ -103,6 +103,20 @@ interface MembershipRecord : Composite {
         fun keyOf(realmId: String, kind: String, memberId: String, epoch: Long, at: Long): String =
             "$realmId$NAMESPACE_SEP$kind|$memberId|$epoch|$at"
 
+        /**
+         * The **owner's personal copy** of a revocation: the same signed bytes, keyed `"$realmId/…"` so the row stays
+         * in the owner's personal realm instead of routing into the shared one. ⚠⚠ It closes the revocation window:
+         * a rotation's rows travel in the personal stream and the realm's revocation record in the shared one, so an
+         * owner device could hold the new key without knowing whom it was rotated away from — and hand it to the
+         * removed member's key request (threat model T-GR-02). Saved before the rotation's rows, it reaches every owner
+         * device no later than they do. Revocations only: nothing else needs an owner-side ordering.
+         */
+        fun personalKeyOf(realmId: String, kind: String, memberId: String, epoch: Long, at: Long): String =
+            "$realmId$PERSONAL_SEP$kind|$memberId|$epoch|$at"
+
+        /** ⚠ Never [NAMESPACE_SEP]: a `"$realmId::…"` key routes the row into the shared realm. */
+        private const val PERSONAL_SEP = "/"
+
         fun create(
             context: TContext,
             realmId: String,
@@ -114,10 +128,13 @@ interface MembershipRecord : Composite {
             signerPublicKey: ByteArray,
             signature: ByteArray,
             authorityChain: ByteArray = ByteArray(0),
+            /** The owner's personal copy ([personalKeyOf]) rather than the realm's record. */
+            personal: Boolean = false,
         ): MembershipRecord = context.create(
             type = ID,
             fields = listOf(
-                keyOf(realmId, kind, memberId, epoch, at).toTString(context),
+                (if (personal) personalKeyOf(realmId, kind, memberId, epoch, at) else keyOf(realmId, kind, memberId, epoch, at))
+                    .toTString(context),
                 realmId.toTString(context),
                 kind.toTString(context),
                 memberAuthorityPublicKey.toTByteArray(context),

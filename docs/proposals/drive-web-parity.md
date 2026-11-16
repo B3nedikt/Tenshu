@@ -684,6 +684,16 @@ What shipped:
     its **own clock** — React Query's structural sharing means an unchanged
     `lastSyncedAtMillis` does not re-render, so the age would otherwise freeze at exactly the
     moment it started mattering.
+  - ⚠ **Retired 2026-11-16 (maintainer).** The freshness banner read the same health row as the
+    apex's sync dot (web-apex-home.md §3.4), whose popup already says when this browser last
+    synced — the same answer twice. And it flickered: the row's `lastSyncedAtMillis` restarted at 0
+    with every runtime start (the figures are in memory; the row is persisted), so "Not synced
+    yet" showed after every reload, and while it was 0 its second line changed with `isSyncing` on
+    every tick. Both fixed: `SyncBanner` now shows only states the user can act on (fence, locked,
+    offline, no storage, unrecognised), and `initSyncHealth` seeds the figure from the persisted
+    row (`SyncHealthHolder.seedLastSynced`, raise-only), so the sync dot's popup keeps the last
+    sync across a reload. (No native screen shows the figure today — `FilesRepository.SyncHealth`
+    carries it, nothing draws it — so the fix is visible on web only.)
 
 ⚠⚠ **"So a hidden tab still drains" cannot be built, and nobody should try again.** A frozen tab
 runs *no code* — no timer, no coroutine, not even the `visibilitychange` handler. This is not a
@@ -780,7 +790,8 @@ pushing into nothing.
 
 ⭐ **First consumer migrated: `SyncBanner`** (2026-08-31). It polled `sync.health` every 15 s;
 it now takes one snapshot to paint and receives every later change by push, writing them into the
-query cache so the freshness branch keeps reading one source of truth. The latency mattered —
+query cache so the banner keeps reading one source of truth (its freshness branch was retired
+2026-11-16, W8). The latency mattered —
 `device_unrecognized` is the state a browser sat in for hours while rendering a normal file list.
 
 ⭐⭐ **And the reactive source was never missing.** `SyncService.syncHealth()` has always returned
@@ -900,7 +911,7 @@ verify and finish inside one session, or skip passkey setup and treat the browse
 
 ### Device pass, 2026-08-31 — what a browser found that the suites could not
 
-⭐ **W8's freshness banner verified live.** Wiping the origin and reloading rendered
+⭐ **W8's freshness banner verified live** *(retired 2026-11-16, see W8)*. Wiping the origin and reloading rendered
 "Not synced yet" exactly as designed, and the earlier foreground/background run logged
 `backgrounded …` → `foreground after 6034ms hidden — waking the sync loop` against an injected
 6-second gap.

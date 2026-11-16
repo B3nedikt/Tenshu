@@ -215,7 +215,7 @@ class S3BlobStore(
          * S3's `DeleteObjects` hard limit is 1,000 keys per request; a larger batch is rejected
          * outright rather than truncated, so this is a protocol ceiling, not a tuning knob.
          */
-        private const val BATCH_SIZE = 1_000
+        internal const val BATCH_SIZE = 1_000
 
         /** Enough failed keys to diagnose a pattern, few enough not to log a 1,000-line error. */
         private const val ERROR_SAMPLE = 5

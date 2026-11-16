@@ -97,6 +97,7 @@ Always-relevant guidance for writing platform-shaped code.
 - [`how-to/take-down-a-share-link.md`](how-to/take-down-a-share-link.md) — notice-and-action: taking one share link down by `shareId` (`deploy/share-takedown.sh`), verifying it, the audit row, telling the owner.
 - [`../deploy/scaleway-commerce/README.md`](../deploy/scaleway-commerce/README.md) — **the production commerce issuer** (Scaleway, Terraform).
 - [`how-to/move-commerce-to-scaleway.md`](how-to/move-commerce-to-scaleway.md) — commerce's provider move, incl. the one correct `docker compose` invocation.
+- [`how-to/move-to-ovh.md`](how-to/move-to-ovh.md) — Scaleway → OVHcloud for relay, commerce and apex by copying the running boxes (`deploy/ovh-*`), a short window, DNS on Cloudflare; ⚠ the OVH free credit lasts 90 days.
 - [`how-to/back-up-the-commerce-database.md`](how-to/back-up-the-commerce-database.md) — commerce's nightly Postgres backup and restore.
 - [`how-to/box-health.md`](how-to/box-health.md) — disk checks and backup pings to a healthchecks.io dead man's switch on the three production boxes (`deploy/box-health/install.sh`); why: a full disk silently stopped commerce's backups for 23 days.
 - [`how-to/deploy-apex-digitalocean.md`](how-to/deploy-apex-digitalocean.md) — deploying the apex web frontend (Terraform); production until [`how-to/move-apex-to-scaleway.md`](how-to/move-apex-to-scaleway.md) runs.

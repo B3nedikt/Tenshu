@@ -29,14 +29,16 @@ import type { WebAuthnFailure, WebAuthnResult } from '../lib/webauthn'
 import { OnboardingSdkContext } from '../lib/onboardingSdkContext'
 import type { OnboardingSdk } from '../lib/mockOnboarding'
 
-const getPasskeyAssertionMock = vi.fn<() => Promise<WebAuthnResult<WebAuthnAssertion>>>()
+const getPasskeyAssertionMock =
+  vi.fn<(allowCredentialId?: Int8Array | null) => Promise<WebAuthnResult<WebAuthnAssertion>>>()
 const isWebAuthnSupportedMock = vi.fn<() => boolean>(() => true)
 
 vi.mock('../lib/webauthn', async () => {
   const actual = await vi.importActual<typeof import('../lib/webauthn')>('../lib/webauthn')
   return {
     ...actual,
-    getPasskeyAssertion: () => getPasskeyAssertionMock(),
+    getPasskeyAssertion: (allowCredentialId?: Int8Array | null) =>
+      getPasskeyAssertionMock(allowCredentialId),
     isWebAuthnSupported: () => isWebAuthnSupportedMock(),
   }
 })
@@ -46,6 +48,7 @@ import { LockedFlow } from './LockedFlow'
 interface SessionStubs {
   readonly detect?: SessionState | Promise<SessionState>
   readonly unlock?: TResult<SessionToken, UnlockError>
+  readonly passkeyCredentialId?: () => Promise<Int8Array | null>
 }
 
 function stubSdk(overrides: SessionStubs = {}): {
@@ -56,13 +59,14 @@ function stubSdk(overrides: SessionStubs = {}): {
 } {
   const persist = vi.fn(async () => undefined)
   const unlock = vi.fn(async () => overrides.unlock ?? defaultUnlockOk())
-  const clear = vi.fn(async () => undefined)
+  const clear = vi.fn(async () => ({ removal: 'confirmed' as const, passkeyCredentialId: null }))
   const session: Partial<SessionApi> = {
     detect: () =>
       Promise.resolve(
         overrides.detect ?? { kind: 'locked', deviceName: 'Pixel 9' },
       ),
     unlock: unlock as SessionApi['unlock'],
+    passkeyCredentialId: overrides.passkeyCredentialId ?? (() => Promise.resolve(null)),
     persist: persist as SessionApi['persist'],
     clear: clear as SessionApi['clear'],
   }
@@ -140,6 +144,29 @@ describe('LockedFlow', () => {
     expect(persist).toHaveBeenCalledTimes(1)
   })
 
+  it("asks the browser for this browser's registered passkey only", async () => {
+    const user = userEvent.setup()
+    const registered = new Int8Array([1, 2, 3, 4])
+    getPasskeyAssertionMock.mockResolvedValueOnce({ ok: true, value: {} as WebAuthnAssertion })
+    const { sdk, unlock } = stubSdk({ passkeyCredentialId: () => Promise.resolve(registered) })
+    renderFlow(sdk)
+    await user.click(await screen.findByRole('button', { name: 'Unlock with passkey' }))
+    await waitFor(() => expect(unlock).toHaveBeenCalledTimes(1))
+    expect(getPasskeyAssertionMock).toHaveBeenLastCalledWith(registered)
+  })
+
+  it('falls back to the discoverable picker when the credential lookup fails', async () => {
+    const user = userEvent.setup()
+    getPasskeyAssertionMock.mockResolvedValueOnce({ ok: true, value: {} as WebAuthnAssertion })
+    const { sdk, unlock } = stubSdk({
+      passkeyCredentialId: () => Promise.reject(new Error('idb gone')),
+    })
+    renderFlow(sdk)
+    await user.click(await screen.findByRole('button', { name: 'Unlock with passkey' }))
+    await waitFor(() => expect(unlock).toHaveBeenCalledTimes(1))
+    expect(getPasskeyAssertionMock).toHaveBeenLastCalledWith(null)
+  })
+
   it('shows the wrongCredential failure card when Session.unlock rejects the credential', async () => {
     const user = userEvent.setup()
     getPasskeyAssertionMock.mockResolvedValueOnce({
@@ -170,16 +197,18 @@ describe('LockedFlow', () => {
     expect(unlock).not.toHaveBeenCalled()
   })
 
-  it('disconnects from the welcome card: confirm purges the realm and routes to /', async () => {
+  it('disconnects from the welcome card: acknowledge + confirm purges the realm and reloads to /', async () => {
     const user = userEvent.setup()
     const { sdk, clear } = stubSdk()
     renderFlow(sdk)
     await user.click(
       await screen.findByRole('button', { name: 'Not you? Disconnect this browser' }),
     )
-    // Confirmation card — destructive action is gated behind it.
+    // Confirmation card — destructive action is gated behind it AND an acknowledgement.
     expect(await screen.findByText('Disconnect this browser?')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Disconnect this browser' })).toBeDisabled()
     expect(clear).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('checkbox'))
     await user.click(screen.getByRole('button', { name: 'Disconnect this browser' }))
     expect(clear).toHaveBeenCalledWith({ purgeRealm: true })
     // ⚠ NOT a router transition. A purge is only half-done without a real page load —

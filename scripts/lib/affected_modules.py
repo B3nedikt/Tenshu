@@ -67,22 +67,19 @@ def test_free(path):
     return path.startswith("scripts/") and not named_by_a_build_file(path)
 
 
-def main():
-    graph = json.load(open(sys.argv[1]))
-    files = changed_files(sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else None)
-    by_path = {p["path"]: p for p in graph}
+def classify(graph, files):
+    """What [files] changing means for [graph]: `mode` (full | none | quick), `reason`, the
+    `touched` modules, the `affected` ones (touched + every dependent), and `notes`."""
     # Longest directory first, so a nested module wins over its parent.
     dirs = sorted(((p["dir"].rstrip("/") + "/", p["path"]) for p in graph), key=lambda d: -len(d[0]))
     # A source directory a project compiles from another's tree (`kotlin.srcDir("../x/…")`): a
     # change there is ALSO a change to the project compiling it.
     borrowed = [(d.rstrip("/") + "/", p["path"]) for p in graph for d in p.get("srcDirs", [])]
+    result = {"mode": "quick", "reason": "", "touched": set(), "affected": set(), "notes": []}
 
-    out = {"QUICK_MODE": "quick", "QUICK_REASON": "", "QUICK_NOTES": ""}
     full = [f for f in files if any(f == r or (r.endswith("/") and f.startswith(r)) for r in FULL_IF)]
     if full:
-        out["QUICK_MODE"] = "full"
-        out["QUICK_REASON"] = f"{full[0]} changed — it can affect every module"
-        return emit(out)
+        return {**result, "mode": "full", "reason": f"{full[0]} changed — it can affect every module"}
 
     touched, outside = set(), []
     for f in files:
@@ -93,18 +90,13 @@ def main():
         elif not test_free(f):
             outside.append(f)
     if outside:
-        out["QUICK_MODE"] = "full"
-        out["QUICK_REASON"] = f"{outside[0]} is in no module and not known to be test-free"
-        return emit(out)
+        return {**result, "mode": "full", "reason": f"{outside[0]} is in no module and not known to be test-free"}
 
     notes = []
     if any(f.startswith("web/") for f in files):
         notes.append("web/ changed: this gate runs no web tests — run that app's `pnpm test`.")
     if not touched:
-        out["QUICK_MODE"] = "none"
-        out["QUICK_REASON"] = "no Gradle module changed"
-        out["QUICK_NOTES"] = " ".join(notes)
-        return emit(out)
+        return {**result, "mode": "none", "reason": "no Gradle module changed", "notes": notes}
 
     dependents = {}
     for p in graph:
@@ -120,6 +112,19 @@ def main():
     if touched & SHARED:
         notes.append(f"touches shared code ({', '.join(sorted(touched & SHARED))}): "
                      "run the full gate once before it merges.")
+    return {**result, "touched": touched, "affected": affected, "notes": notes,
+            "reason": f"{len(touched)} changed module(s), {len(affected)} with dependents"}
+
+
+def main():
+    graph = json.load(open(sys.argv[1]))
+    files = changed_files(sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else None)
+    by_path = {p["path"]: p for p in graph}
+    c = classify(graph, files)
+    out = {"QUICK_MODE": c["mode"], "QUICK_REASON": c["reason"], "QUICK_NOTES": " ".join(c["notes"])}
+    if c["mode"] != "quick":
+        return emit(out)
+    affected = c["affected"]
 
     def tasks(*names):
         return " ".join(f"{p}:{t}" for p in sorted(affected) for t in names if t in by_path[p]["tasks"])
@@ -130,8 +135,6 @@ def main():
         QUICK_JS_TEST_TASKS=tasks("jsTest"),
         QUICK_JS_LANE=tasks("compileTestKotlinJs"),
         QUICK_IOS_LANE=tasks("compileTestKotlinIosSimulatorArm64"),
-        QUICK_REASON=f"{len(touched)} changed module(s), {len(affected)} with dependents",
-        QUICK_NOTES=" ".join(notes),
     )
     return emit(out)
 

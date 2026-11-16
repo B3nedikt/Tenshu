@@ -13,8 +13,8 @@ vi.mock('./lib/proxy', () => ({
   recentFiles: async () => [],
   listFiles: async () => [],
   listShares: async () => [],
-  // The shell mounts SyncBanner; a healthy realm renders nothing. ⚠ `lastSyncedAtMillis` must be
-  // RECENT, not 0 — since W8 the banner reads it, and 0 means "never synced", which renders.
+  // The shell mounts SyncBanner; a healthy realm renders nothing, whatever its last sync (the
+  // freshness branch was retired 2026-11-16 — the apex's sync dot says when).
   syncHealth: async () => ({
     connectivity: 'online',
     isSyncing: false,

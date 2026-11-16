@@ -37,11 +37,15 @@ export interface SessionApi {
   // succeeds or after a fresh onboarding completes.
   persist(token: SessionToken): Promise<void>
 
-  // Wipes session token + (optionally) device-local realm state. Used for
-  // explicit log-out, and as part of revocation cleanup. The `purgeRealm`
-  // flag controls whether IDB realm data is destroyed too — log-out
-  // typically keeps it (so unlock works next time), revocation wipes it.
-  clear(options?: { readonly purgeRealm?: boolean }): Promise<void>
+  // Two operations behind one name:
+  //   - no `purgeRealm` = LOCK: drops the session token only. The device name and passkey record
+  //     stay, so the next `detect` reads `locked` and the passkey unlocks again.
+  //   - `purgeRealm: true` = DISCONNECT: removes this browser from its realm (best-effort, bounded),
+  //     wipes every SDK store, and resolves with how the removal went plus the passkey credential id
+  //     it stopped honouring (so the apex can `signalUnknownCredential` it). ⚠⚠ The caller must
+  //     reload the page once it resolves. A disconnect a reload interrupts is finished by the next
+  //     `detect`, which then reloads the page itself.
+  clear(options?: { readonly purgeRealm?: boolean }): Promise<SessionClearResult>
 
   // Stores a freshly-registered passkey for this browser. The apex runs
   // `navigator.credentials.create()` (see web `webauthn.ts`) and hands the
@@ -49,6 +53,12 @@ export interface SessionApi {
   // calls have a stored credential to verify against. Single-passkey model
   // in v1: re-registering replaces any previously-stored passkey.
   registerPasskey(registration: PasskeyRegistration): Promise<TResult<void>>
+
+  // The credential ID of the passkey `unlock` will accept, or `null` when none is registered.
+  // Pass it as `allowCredentials` to `navigator.credentials.get()` so the browser offers only
+  // that passkey — otherwise it lists every passkey for the RP, including stale ones from an
+  // earlier setup on this browser, and picking one of those fails with `wrongCredential`.
+  passkeyCredentialId(): Promise<Int8Array | null>
 
   // Verifies a WebAuthn assertion against the passkey registered via
   // `registerPasskey` and mints an opaque 24h session token. The actual
@@ -73,6 +83,13 @@ export interface SessionApi {
   unlockWithPhrase(
     mnemonic: string,
   ): Promise<TResult<SessionToken, PhraseUnlockError>>
+}
+
+export interface SessionClearResult {
+  // `null` for a lock. `unconfirmed` = the wipe happened, but this browser may still be listed in
+  // the realm's device list (offline, relay refused, or the bounded wait ran out).
+  readonly removal: 'confirmed' | 'unconfirmed' | null
+  readonly passkeyCredentialId: Int8Array | null
 }
 
 export interface SessionToken {
@@ -452,8 +469,8 @@ export type TResult<T, E = string> =
 // rather than rebinding this file.
 
 // Delegates to the Kotlin `@JsExport object Session` in `:tenshu-sdk-js`.
-// Every operation (`detect`, `persist`, `clear`, `registerPasskey`, `unlock`,
-// `unlockWithPhrase`) is wired Kotlin-side; the apex's `webauthn.ts` runs the
+// Every operation (`detect`, `persist`, `clear`, `registerPasskey`, `passkeyCredentialId`,
+// `unlock`, `unlockWithPhrase`) is wired Kotlin-side; the apex's `webauthn.ts` runs the
 // `navigator.credentials.{create,get}` ceremonies and hands the results here.
 // Alongside the opaque session token, `registerPasskey` wraps the master key
 // under the WebAuthn-PRF output and `unlock` unwraps it; browsers without PRF
@@ -466,6 +483,7 @@ export const Session: SessionApi = {
   clear: (options) => sessionKotlin.clear(options ?? null),
   registerPasskey: (registration) =>
     sessionKotlin.registerPasskey(registration) as ReturnType<SessionApi['registerPasskey']>,
+  passkeyCredentialId: () => sessionKotlin.passkeyCredentialId(),
   unlock: (assertion) =>
     sessionKotlin.unlock(assertion) as ReturnType<SessionApi['unlock']>,
   unlockWithPhrase: (mnemonic) =>

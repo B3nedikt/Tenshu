@@ -27,6 +27,7 @@ import type {
   RecoveryError,
   RevealPhraseError,
   SessionApi,
+  SessionClearResult,
   SessionState,
   SessionToken,
   TResult,
@@ -164,13 +165,17 @@ const mockSession: SessionApi = {
     } satisfies PersistedToken)
   },
 
-  async clear(options?: { readonly purgeRealm?: boolean }): Promise<void> {
+  async clear(options?: { readonly purgeRealm?: boolean }): Promise<SessionClearResult> {
     await delay(60)
     setStored(TOKEN_KEY, null)
-    if (options?.purgeRealm === true) {
-      setStored(REALM_KEY, null)
-      setStored(PASSKEY_KEY, null)
-      setStored(SCENARIO_DETECT, null)
+    if (options?.purgeRealm !== true) return { removal: null, passkeyCredentialId: null }
+    const passkey = readJson<PersistedPasskey>(PASSKEY_KEY)
+    setStored(REALM_KEY, null)
+    setStored(PASSKEY_KEY, null)
+    setStored(SCENARIO_DETECT, null)
+    return {
+      removal: 'confirmed',
+      passkeyCredentialId: passkey === null ? null : hexToBytes(passkey.credentialIdHex),
     }
   },
 
@@ -190,6 +195,11 @@ const mockSession: SessionApi = {
       writeJson(REALM_KEY, { ...realm, hasPasskey: true } satisfies PersistedRealm)
     }
     return { ok: true, value: undefined }
+  },
+
+  async passkeyCredentialId(): Promise<Int8Array | null> {
+    const stored = readJson<PersistedPasskey>(PASSKEY_KEY)
+    return stored === null ? null : hexToBytes(stored.credentialIdHex)
   },
 
   async unlock(assertion: WebAuthnAssertion): Promise<TResult<SessionToken, UnlockError>> {

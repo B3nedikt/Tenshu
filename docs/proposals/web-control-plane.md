@@ -186,10 +186,32 @@ Top-right slot. The pill shows the user's current realm-device name (truncated i
 Clicking the pill opens a small menu:
 
 - *"You're signed in on {device_name}."*
-- `[Lock now]` — wraps the master key, redirects to `/lock`.
-- `[Sign out everywhere]` — full sign-out, requires re-onboarding to return. Uses the
-  device-revocation path from [`docs/sync/design.md`](../sync/design.md) §2.2 +
-  [ADR 0007](../adr/0007-sync-device-management.md). Confirmation modal required.
+- `[Lock now]` — drops the session token only and redirects to `/lock`. ⚠ The device name and
+  passkey record **stay**: dropping them (as `Session.clear({})` did until 2026-11-16) made the lock
+  screen unreachable — `/lock` read `firstTime` and bounced to onboarding with the realm still
+  stored, one click from a second realm on top of it.
+- `[Disconnect this browser]` (was *"Sign out everywhere"*, a name that promised more than it did —
+  it only ever removed this browser). The same flow as the lock screen's escape hatch, one
+  component (`web/apex/src/components/DisconnectBrowserPanel.tsx`):
+  - ⚠⚠ **Gated by an acknowledgement checkbox** ("I have my recovery phrase, or this realm is also
+    on another device"), danger-styled. The disconnect may destroy the realm's only copy, and from
+    the lock screen the phrase cannot be shown first.
+  - **One removal path:** `Session.clear({ purgeRealm: true })` runs the shared `ForgetThisDevice`
+    op, which retires the device row while its key still exists and waits a bounded 8 s. The
+    separate `Devices.revokeSelf()` the menu used to call first was a second, redundant removal.
+  - ⚠⚠ **A busy state, and the purge survives a reload.** The wait is seconds long; with no feedback
+    people reloaded, and because the session record was cleared *first*, that reload read signed
+    out while the device key, the recovery phrase and every object stayed at rest (reproduced
+    2026-11-16). Now a `purgePending` marker is written first and the session record cleared
+    last, and `Session.detect` finishes a marked purge and reloads (single-flight). A resume that
+    fails keeps the marker, reads `locked` and does not reload — threat model A4, *web disconnect is
+    resumable*.
+  - **Outcome:** a confirmed removal reloads to `/`; an unconfirmed one (every `ForgetThisDevice`
+    outcome carrying ⚠) is shown before the reload.
+  - **Passkey:** the purge returns the credential id it stopped honouring and the apex calls
+    `PublicKeyCredential.signalUnknownCredential` (Chromium 132+, Safari 26; best-effort). Without
+    it the dead passkey stays in every later unlock picker and fails as "not registered for this
+    browser". A hardware security key cannot be cleaned from the web at all.
 
 The Lock button is also surfaced as a standalone icon next to the pill for one-click
 access — same affordance as native Control's lock-now action.

@@ -304,7 +304,14 @@ export async function getDedicatedAssertion(
   }
 }
 
-export async function getPasskeyAssertion(): Promise<WebAuthnResult<WebAuthnAssertion>> {
+// `allowCredentialId` is the passkey this browser registered (`Session.passkeyCredentialId`).
+// When given, the browser offers only that passkey; without it the picker lists every passkey
+// for the RP — stale ones from an earlier setup on this browser look identical (same device
+// name) and fail `Session.unlock` with `wrongCredential`. `null` falls back to the discoverable
+// picker, which is still right when nothing is registered (unlock then reports `noPasskey`).
+export async function getPasskeyAssertion(
+  allowCredentialId: Int8Array | null = null,
+): Promise<WebAuthnResult<WebAuthnAssertion>> {
   if (!isWebAuthnSupported()) {
     return { ok: false, error: { kind: 'unsupported', message: 'WebAuthn unavailable' } }
   }
@@ -313,6 +320,13 @@ export async function getPasskeyAssertion(): Promise<WebAuthnResult<WebAuthnAsse
       publicKey: {
         challenge: randomChallenge(),
         rpId: RP_ID,
+        ...(allowCredentialId !== null && allowCredentialId.byteLength > 0
+          ? {
+              allowCredentials: [
+                { type: 'public-key' as const, id: int8ToFreshUint8(allowCredentialId) },
+              ],
+            }
+          : {}),
         userVerification: 'preferred',
         extensions: { prf: { eval: { first: PRF_SALT } } } as AuthenticationExtensionsClientInputs,
         timeout: 60_000,
@@ -337,4 +351,35 @@ export async function getPasskeyAssertion(): Promise<WebAuthnResult<WebAuthnAsse
   } catch (err) {
     return { ok: false, error: classifyError(err) }
   }
+}
+
+// Tells the passkey provider (the platform authenticator, iCloud Keychain, Google Password
+// Manager, a password-manager extension) that this browser no longer honours `credentialId`, so it
+// can hide or delete it. Called after "Disconnect this browser": without it the dead passkey keeps
+// appearing in every later unlock picker — the unlock ceremony asks for any discoverable credential
+// on the RP — and choosing it fails with "That security key isn't registered for this browser".
+//
+// ⚠ Best-effort and silent by design: the Signal API ships in Chromium 132+ and Safari 26, is absent
+// elsewhere, and a provider may ignore it. It never blocks the disconnect, and it cannot remove a
+// passkey on a hardware security key — nothing on the web can.
+export async function signalPasskeyRemoved(credentialId: Int8Array): Promise<boolean> {
+  if (!isWebAuthnSupported() || credentialId.length === 0) return false
+  const signal = (
+    window.PublicKeyCredential as unknown as {
+      signalUnknownCredential?: (options: { rpId: string; credentialId: string }) => Promise<void>
+    }
+  ).signalUnknownCredential
+  if (typeof signal !== 'function') return false
+  try {
+    await signal.call(window.PublicKeyCredential, { rpId: RP_ID, credentialId: toBase64Url(credentialId) })
+    return true
+  } catch {
+    return false
+  }
+}
+
+function toBase64Url(bytes: Int8Array): string {
+  let binary = ''
+  for (const b of new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength)) binary += String.fromCharCode(b)
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }

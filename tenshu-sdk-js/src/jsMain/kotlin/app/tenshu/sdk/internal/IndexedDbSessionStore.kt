@@ -10,7 +10,7 @@ import kotlin.coroutines.resumeWithException
 // store (`tenshu-sdk`) and the file bytes (`tenshu-sdk-files`) so wiping
 // the session record doesn't touch realm data, and vice-versa.
 //
-// Three records:
+// Records:
 //   - `deviceName: String` — written on Realm.create / Pairing.submit /
 //     Recovery.claim success. Read by Session.detect to distinguish
 //     `locked` (device known, no/expired session) from `firstTime`
@@ -22,6 +22,8 @@ import kotlin.coroutines.resumeWithException
 //     algorithm: Number }` — written by Session.registerPasskey after
 //     the apex's `navigator.credentials.create()` ceremony. Read by
 //     Session.unlock to verify a fresh assertion.
+//   - `purgePending: true` — present only while `Session.clear({purgeRealm})`
+//     runs; see [markPurgePending].
 //
 // Same cache-aside pattern as `IndexedDbObjectStore`: hydrate on `open(...)`,
 // reads are sync from the in-memory cache, writes update the cache then
@@ -88,10 +90,35 @@ internal class IndexedDbSessionStore private constructor(
         cache[KEY_PASSKEY] = obj
     }
 
+    // The lock path ("Lock now"): drop the token and nothing else. The device name is what makes the
+    // next detect read `locked` rather than `firstTime`, and the passkey record is what the unlock
+    // verifies against — dropping either turns a lock into a half-disconnect that lands on
+    // onboarding with the realm still stored, inviting a second realm on top of it.
+    suspend fun clearSessionToken() {
+        cache.remove(KEY_SESSION_TOKEN)
+        if (closed) return
+        val written = fencedWrite(db, arrayOf(OBJECT_STORE_NAME), OBJECT_STORE_NAME, fenceToken) { tx ->
+            tx.objectStore(OBJECT_STORE_NAME).delete(KEY_SESSION_TOKEN)
+        }
+        fence.report(written)
+        if (written) refreshHint()
+    }
+
+    // ⚠⚠ The disconnect marker. Written (and flushed) BEFORE a realm purge starts, removed only by the
+    // [clear] that ends it, so a purge interrupted by a reload or a closed tab is finished by the next
+    // `Session.detect` rather than leaving the identity and data behind a UI that reads signed out.
+    fun isPurgePending(): Boolean = cache[KEY_PURGE_PENDING] == true
+
+    suspend fun markPurgePending() {
+        cache[KEY_PURGE_PENDING] = true
+        flush()
+    }
+
     suspend fun clear() {
         cache.remove(KEY_DEVICE_NAME)
         cache.remove(KEY_SESSION_TOKEN)
         cache.remove(KEY_PASSKEY)
+        cache.remove(KEY_PURGE_PENDING)
         if (closed) return
         val cleared = fencedClear(db, OBJECT_STORE_NAME, fenceToken)
         fence.report(cleared)
@@ -135,6 +162,7 @@ internal class IndexedDbSessionStore private constructor(
         private const val KEY_DEVICE_NAME = "deviceName"
         private const val KEY_SESSION_TOKEN = "sessionToken"
         private const val KEY_PASSKEY = "passkey"
+        private const val KEY_PURGE_PENDING = "purgePending"
 
         suspend fun open(dbName: String, claim: Boolean = true, onFencedOut: () -> Unit = {}): IndexedDbSessionStore {
             val db = openDatabase(dbName)

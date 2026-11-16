@@ -43,4 +43,29 @@ class ReconnectEdgeTest {
         assertTrue(edge.landed())
         assertFalse(edge.landed())
     }
+
+    /**
+     * The lost update (`docs/tech-debt.md`, 2026-11-15): `landed()` runs on main in
+     * `onServiceConnected` while `turnedAway()` arrives from an IPC coroutine or `Dispatchers.IO`.
+     * Forced, not stressed: the other thread's `turnedAway()` is run to completion inside `landed()`,
+     * right after it reads the debt (`afterRead`). A read-then-clear erases it there, so the caller
+     * that was told "not connected" is never announced and its parked retry stays parked (R7).
+     */
+    @Test
+    fun aCallerTurnedAwayWhileTheConnectionLandsIsNotForgotten() {
+        val edge = ReconnectEdge()
+        edge.afterRead = {
+            edge.afterRead = null
+            val io = Thread { edge.turnedAway() }
+            io.start()
+            io.join()
+        }
+        val announcedNow = edge.landed()
+        val announcedNext = edge.landed()
+        assertTrue(
+            announcedNow || announcedNext,
+            "a turnedAway() that raced landed() was erased: nobody will ever announce to that caller",
+        )
+        assertFalse(announcedNow && announcedNext, "one debt, one announcement")
+    }
 }

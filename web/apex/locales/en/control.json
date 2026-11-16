@@ -187,20 +187,27 @@
     "signedInOnSuffix": ".",
     "lockNow": "Lock now",
     "lockNowAriaLabel": "Lock now",
-    "signOutEverywhere": "Sign out everywhere",
-    "confirm": {
-      "title": "Sign out everywhere?",
-      "body1": "This will end your session on this browser and revoke this device from your realm. You'll need to onboard again from another device — or use your recovery phrase — to return.",
-      "body2": "Your realm data on other devices keeps working normally.",
-      "cancel": "Cancel",
-      "confirm": "Sign out everywhere",
-      "revoking": "Signing out…",
-      "offline": {
-        "title": "Couldn't remove this browser remotely",
-        "body": "We couldn't reach the relay to revoke this browser, so it will keep showing in your device list on your other devices until you remove it from one of them. You can still sign out of this browser now.",
-        "proceed": "Sign out anyway",
-        "cancel": "Back"
-      }
+    "disconnect": "Disconnect this browser"
+  },
+  "disconnectBrowser": {
+    "title": "Disconnect this browser?",
+    "body1": "This removes {deviceName} from your realm and deletes all the Tenshu data stored in this browser, including its Tenshu passkey.",
+    "body2": "To use this realm here again you'll need your 24-word recovery phrase, or another of your devices to pair this browser. A passkey on its own won't be enough.",
+    "body3": "Your data on your other devices is untouched.",
+    "ack": "I have my recovery phrase, or this realm is also on another device. If neither is true, the data in this browser is gone for good.",
+    "confirm": "Disconnect this browser",
+    "cancel": "Cancel",
+    "inFlight": "Disconnecting…",
+    "inFlightNote": "Removing this browser from your realm. This can take a few seconds — keep this tab open.",
+    "unconfirmed": {
+      "title": "Disconnected, with one loose end",
+      "body": "This browser's Tenshu data is gone, but we couldn't confirm it was removed from your realm — it may have been offline. If it still shows up in the device list on one of your other devices, remove it there.",
+      "continue": "Continue"
+    },
+    "failed": {
+      "title": "Couldn't finish disconnecting",
+      "body": "Something went wrong part-way through. Try again — Tenshu also finishes the job the next time this page loads.",
+      "retry": "Try again"
     }
   },
   "home": {
@@ -326,8 +333,8 @@
       },
       "revokeSelf": {
         "title": "Revoke",
-        "description": "Remove this device from the realm. To remove the browser you're signed in on, use “Sign out everywhere”.",
-        "note": "Use “Sign out everywhere” in the device menu (top right) to sign this browser out and remove it from your realm."
+        "description": "Remove this device from the realm. To remove the browser you’re signed in on, use “Disconnect this browser”.",
+        "note": "Use “Disconnect this browser” in the device menu (top right) to remove this browser from your realm."
       },
       "revoke": {
         "title": "Revoke",

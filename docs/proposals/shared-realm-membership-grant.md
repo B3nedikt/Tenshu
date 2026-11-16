@@ -676,9 +676,15 @@ a re-key would overwrite it in the one-slot grant mailbox; acceptance handles th
   member asking once per interval; and the "newer than the current key" test has no skew allowance, which would
   otherwise hide a second rotation within it. Pinned by
   `aMemberWhoseReKeyWasLost_asksForTheKey_andReadsWhatFollowed` and `KeyRequestTrackerTest`.
-- ⚠ Follow-up — **revocation window:** an owner device that has synced a rotation but not yet a member's
-  revocation could answer that removed member's key request (or catch it up) with the new key. Needs an ordering
-  between the personal and the shared stream, or a removal marker in the personal one.
+- ✅ ~~**Revocation window:** an owner device that has synced a rotation but not yet a member's revocation could
+  answer that removed member's key request (or catch it up) with the new key.~~ *Closed 2026-11-15:* the
+  revocation's signed bytes are also saved as the owner's personal copy (`MembershipRecord.personalKeyOf`), before
+  the rotation's rows in the same personal stream, so an owner device never holds the new key without it.
+  ⚠⚠ *Corrected 2026-11-16:* order alone did not close it, since a push pass goes on after a transient failure.
+  The new key's `RealmKeyGeneration` row now names the revoked members (`revokedMembers`), and every hand-out
+  passes `KeyHandOutPolicy`: nothing for a named or revoked member, nothing at all without the key's row
+  (threat model T-GR-02).
+  ⚠ The copy is how *owner* devices learn of the removal in order; members still learn it from the realm's record.
 - ⚠ Follow-up — **lower priority (review):** Forget's message for removals it forwarded for other devices; no
   backoff on the ungated revocation drain; a peer-queued removal is not cancelled by a later re-admission;
   `RealmRegistry.runtimes` is not synchronised.

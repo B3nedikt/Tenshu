@@ -1,0 +1,25 @@
+# Never commit secrets or local state.
+# NOTE: git ignore-rules do NOT support trailing inline comments - a '#' only
+# starts a comment at the start of a line. Keep every pattern on its own line.
+# your real values (token, domain, ssh key)
+terraform.tfvars
+# ...and any hand-made copy of it. A promotion/rollback backup carries the same
+# secrets as the original, and the bare name above would not have matched it.
+terraform.tfvars.*
+!terraform.tfvars.example
+*.auto.tfvars
+# downloaded provider binaries
+.terraform/
+# !! contains every resource attribute in plaintext, incl. secrets
+*.tfstate
+*.tfstate.*
+
+# NOTE: .terraform.lock.hcl is intentionally NOT ignored - commit it. The
+# dependency lock file pins provider versions/hashes so every apply resolves the
+# same plugins (HashiCorp's recommended practice).
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json

@@ -277,6 +277,16 @@ reserved.
   invisible in *Manage access*; and `Member` rows are still unsigned, so a member can rename another
   (MR-3, with RO D7).
 
+
+⚠ **Owner's personal copy of a revocation (2026-11-15).** `saveRevocation` writes the record twice: as the
+owner's personal copy (`MembershipRecord.personalKeyOf`, `"$realmId/…"`, stays in the personal realm) and as the
+realm's record. The copy exists only to order a removal before its rotation for the owner's other devices (the
+rotation's rows are personal-stream; the realm's record is shared-stream) — threat model T-GR-02, revocation window.
+`MembershipRecordVerifier.fromRow` accepts that key form for revocations only.
+⚠⚠ *Corrected 2026-11-16:* the copy orders the removal but cannot guarantee it arrives first (a push pass goes on
+after a transient failure). The guarantee is the new key's `RealmKeyGeneration.revokedMembers`, checked by
+`KeyHandOutPolicy` before any key is sent (threat model T-GR-02).
+
 ## 10. As built — RO D7, the owner writes members' rows (2026-11-11)
 
 Built ahead of MR-3 (maintainer, 2026-11-11), so MR-3 can be master-signed only from the start: with a

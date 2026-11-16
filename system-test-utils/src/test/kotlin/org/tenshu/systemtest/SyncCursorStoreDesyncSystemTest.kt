@@ -25,7 +25,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
-import kotlin.time.Duration.Companion.seconds
 
 /**
  * Regression test for the iOS-joiner one-way-sync bug root-caused in
@@ -43,17 +42,17 @@ import kotlin.time.Duration.Companion.seconds
  * `lastSyncTimestamp` reads 0 and the joiner back-fills from scratch — the desynced
  * "cursor > 0 over an empty store" state is unrepresentable, which is why no startup self-heal
  * exists for it. The harness runs on the JVM but the guarantee is platform-agnostic.
+ *
+ * ⚠ Stepped (`docs/testing.md` §12): every wait is a count of sync rounds that fails naming the
+ * state it never reached. Polled, a gate once spent the whole 60 s `advanceUntil` on a wait that
+ * takes 0.5–2 s while the joiner's loop kept ticking, with nothing to say which state was missing.
  */
 class SyncCursorStoreDesyncSystemTest {
 
     @Test fun cursorSharesStoreLifecycle_soDesyncCannotOccur() = runBlocking {
-        val system = TestSystem.builder().build()
+        val system = TestSystem.builder().stepped().build()
         try {
-            val host = system.client(
-                deviceId = "host",
-                role = TestClientRole.RealmHost,
-                pollingIntervalMs = 1_000
-            )
+            val host = system.client(deviceId = "host", role = TestClientRole.RealmHost)
             host.bootstrapAsHost(deviceName = "Host Tablet")
 
             val folderPath = "/Documents"
@@ -69,23 +68,17 @@ class SyncCursorStoreDesyncSystemTest {
                     is TResult.Success
             )
 
-            val joiner = system.client(
-                deviceId = "joiner",
-                role = TestClientRole.JoiningDevice,
-                pollingIntervalMs = 100
-            )
+            val joiner = system.client(deviceId = "joiner", role = TestClientRole.JoiningDevice)
             pair(system, host, joiner)
 
             // 1. Joiner converges normally: it sees the host's folder + file, cursor advances.
-            system.advanceUntil(timeout = 60.seconds) {
+            //    ⚠ The cursor is read on a tick boundary, which a stepped round always ends on. A tick
+            //    applies a page and only then persists the cursor that page earned, so polled, the
+            //    rows were visible first: captured 2026-10-10 with the cursor at 0 and the first-pull
+            //    marker at STARTED, 11 ms before the same tick wrote 13 and COMPLETED.
+            system.syncUntil("the joiner holds the host's folder and file") {
                 joiner.executionContext.rootFilePaths().containsAll(setOf(folderPath, filePath))
             }
-            //    ⚠ Read on a tick boundary, not at the first sight of the rows. A tick applies a
-            //    page and only then persists the cursor that page earned, so the rows are visible
-            //    first — captured 2026-10-10 with the cursor at 0 and the first-pull marker at
-            //    STARTED, 11 ms before the same tick wrote 13 and COMPLETED. `drainNow` cannot
-            //    return while that tick is in flight.
-            joiner.syncScheduler.drainNow()
             assertTrue(
                 joiner.syncManager.lastSyncTimestamp > 0L,
                 "joiner cursor should have advanced past the host's blocks"
@@ -115,7 +108,10 @@ class SyncCursorStoreDesyncSystemTest {
 
             // 3. With the cursor reset by the wipe (since=0), the joiner back-fills the whole realm
             //    on its own — no self-heal needed; the desync simply cannot occur.
-            system.advanceUntil(timeout = 60.seconds) {
+            //    ⚠⚠ This step does not pin A1; step 2's `lastSyncTimestamp == 0` does. Measured
+            //    2026-11-16: with the old cursor written back inside the wipe (the pre-A1 state), the
+            //    joiner still back-fills here, so a regression of A1 passes this step.
+            system.syncUntil("the wiped joiner back-filled the folder and file") {
                 joiner.executionContext.rootFilePaths().containsAll(setOf(folderPath, filePath))
             }
             val backFilled = joiner.executionContext.rootFilePaths()
@@ -138,7 +134,7 @@ class SyncCursorStoreDesyncSystemTest {
         val request = host.tenshuClient.syncService.getPendingPairingRequests()
             .let { it.valueOrFail("getPendingPairingRequests")!!.toList().single() }
         host.tenshuClient.syncService.approvePairingRequest(request.deviceId.get())
-        system.advanceUntil(timeout = 60.seconds) {
+        system.syncUntil("the joiner is paired", devices = listOf(host, joiner)) {
             val status = joiner.tenshuClient.syncService.getPairingStatus(
                 pairingSecret = parsed.secret,
                 otherDevicePublicKey = parsed.hostPairingPublicKey

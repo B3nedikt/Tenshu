@@ -1,25 +1,23 @@
-// DeviceMenu — self-revoke "sign out everywhere" (roadmap Phase B).
-// Covers the load-bearing ordering (RevokeDevice tombstone pushed BEFORE
-// the local wipe), the offline warn-and-proceed fork (B.2), the cancel
-// path, and that "Lock now" stays a tombstone-free local clear.
+// DeviceMenu — "Lock now" and "Disconnect this browser". The disconnect's own guards (the
+// acknowledgement, the busy state, the outcomes) are pinned in `DisconnectBrowserPanel.test.tsx`;
+// this suite pins what the menu adds: the name, a single removal path, and a lock that stays a lock.
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { reloadAfterPurge } from '../lib/reloadAfterPurge'
 vi.mock('../lib/reloadAfterPurge', () => ({ reloadAfterPurge: vi.fn() }))
+vi.mock('../lib/webauthn', () => ({ signalPasskeyRemoved: vi.fn(async () => false) }))
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
-import type { DevicesApi } from '@tenshu/sdk/identity'
 import type { SessionApi } from '@tenshu/sdk/onboarding'
 
-const revokeSelfMock = vi.fn<DevicesApi['revokeSelf']>()
 const clearMock = vi.fn<SessionApi['clear']>()
-
-vi.mock('@tenshu/sdk/identity', () => ({
-  Devices: { revokeSelf: () => revokeSelfMock() },
-}))
+const revokeSelfMock = vi.fn()
 
 vi.mock('@tenshu/sdk/onboarding', () => ({
   Session: { clear: (opts?: { purgeRealm?: boolean }) => clearMock(opts) },
+}))
+vi.mock('@tenshu/sdk/identity', () => ({
+  Devices: { revokeSelf: () => revokeSelfMock() },
 }))
 
 import { DeviceMenu } from './DeviceMenu'
@@ -40,77 +38,59 @@ function renderMenu() {
   )
 }
 
-async function openSignOutConfirm(user: ReturnType<typeof userEvent.setup>) {
+async function openDisconnect(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: 'Work laptop' }))
-  await user.click(screen.getByRole('menuitem', { name: 'Sign out everywhere' }))
-  // The confirm dialog's primary button shares the "Sign out everywhere"
-  // label; scope to the dialog to disambiguate from the (now-closed) menu.
+  await user.click(screen.getByRole('menuitem', { name: 'Disconnect this browser' }))
   return screen.getByRole('dialog')
 }
 
-describe('DeviceMenu sign out everywhere', () => {
+describe('DeviceMenu', () => {
   beforeEach(() => {
-    revokeSelfMock.mockReset()
     clearMock.mockReset()
-    clearMock.mockResolvedValue(undefined)
+    revokeSelfMock.mockReset()
+    vi.mocked(reloadAfterPurge).mockClear()
   })
 
-  it('pushes the RevokeDevice tombstone BEFORE wiping, then lands on /', async () => {
+  it('disconnects through ONE removal path: the purge, never a separate revokeSelf first', async () => {
     const user = userEvent.setup()
-    revokeSelfMock.mockResolvedValue({ ok: true, value: undefined })
+    clearMock.mockResolvedValue({ removal: 'confirmed', passkeyCredentialId: null })
     renderMenu()
-
-    const dialog = await openSignOutConfirm(user)
-    await user.click(within(dialog).getByRole('button', { name: 'Sign out everywhere' }))
-
-    await waitFor(() => expect(clearMock).toHaveBeenCalledWith({ purgeRealm: true }))
-    expect(revokeSelfMock).toHaveBeenCalledTimes(1)
-    // Ordering is load-bearing: revoke must run before the wipe.
-    const revokeOrder = revokeSelfMock.mock.invocationCallOrder[0]
-    const clearOrder = clearMock.mock.invocationCallOrder[0]
-    expect(revokeOrder).toBeDefined()
-    expect(clearOrder).toBeDefined()
-    expect(revokeOrder!).toBeLessThan(clearOrder!)
-    // ⚠ A purge needs a real page load, not a router transition — see reloadAfterPurge.
+    const dialog = await openDisconnect(user)
+    await user.click(within(dialog).getByRole('checkbox'))
+    await user.click(within(dialog).getByRole('button', { name: 'Disconnect this browser' }))
     await waitFor(() => expect(reloadAfterPurge).toHaveBeenCalledWith('/'))
-  })
-
-  it('offline: warns and does NOT wipe until the user proceeds', async () => {
-    const user = userEvent.setup()
-    revokeSelfMock.mockResolvedValue({ ok: false, error: { kind: 'network' } })
-    renderMenu()
-
-    const dialog = await openSignOutConfirm(user)
-    await user.click(within(dialog).getByRole('button', { name: 'Sign out everywhere' }))
-
-    // Revoke attempted; wipe withheld pending the warn-and-proceed choice.
-    await waitFor(() => expect(revokeSelfMock).toHaveBeenCalledTimes(1))
-    expect(clearMock).not.toHaveBeenCalled()
-    expect(
-      await screen.findByText(/keep showing in your device list/i),
-    ).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'Sign out anyway' }))
-    await waitFor(() => expect(clearMock).toHaveBeenCalledWith({ purgeRealm: true }))
-    // ⚠ A purge needs a real page load, not a router transition — see reloadAfterPurge.
-    await waitFor(() => expect(reloadAfterPurge).toHaveBeenCalledWith('/'))
-  })
-
-  it('cancelling the confirm dialog revokes nothing and wipes nothing', async () => {
-    const user = userEvent.setup()
-    renderMenu()
-    const dialog = await openSignOutConfirm(user)
-    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(clearMock).toHaveBeenCalledTimes(1)
+    expect(clearMock).toHaveBeenCalledWith({ purgeRealm: true })
     expect(revokeSelfMock).not.toHaveBeenCalled()
-    expect(clearMock).not.toHaveBeenCalled()
   })
 
-  it('Lock now is a local clear with no tombstone, routing to /lock', async () => {
+  it('the dialog cannot be dismissed while the purge runs', async () => {
     const user = userEvent.setup()
+    clearMock.mockReturnValue(new Promise(() => {}))
+    renderMenu()
+    const dialog = await openDisconnect(user)
+    await user.click(within(dialog).getByRole('checkbox'))
+    await user.click(within(dialog).getByRole('button', { name: 'Disconnect this browser' }))
+    await user.keyboard('{Escape}')
+    await user.click(dialog)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('cancelling wipes nothing', async () => {
+    const user = userEvent.setup()
+    renderMenu()
+    const dialog = await openDisconnect(user)
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(clearMock).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('Lock now is a plain lock — no purge — routing to /lock', async () => {
+    const user = userEvent.setup()
+    clearMock.mockResolvedValue({ removal: null, passkeyCredentialId: null })
     renderMenu()
     await user.click(screen.getByRole('button', { name: 'Lock now' }))
     await waitFor(() => expect(clearMock).toHaveBeenCalledWith({}))
-    expect(revokeSelfMock).not.toHaveBeenCalled()
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/lock'))
   })
 })

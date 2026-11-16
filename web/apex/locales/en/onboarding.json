@@ -254,13 +254,6 @@
       "title": "Waiting for your passkey…",
       "body": "Follow the prompt in your browser to authenticate."
     },
-    "disconnect": {
-      "title": "Disconnect this browser?",
-      "body1": "This removes the Tenshu data stored on {deviceName} and returns you to the start. You'll need your passkey or 24-word recovery phrase to sign back in here.",
-      "body2": "Your data on your other devices is untouched. This browser may still appear in their device list until you remove it from there.",
-      "confirm": "Disconnect this browser",
-      "cancel": "Cancel"
-    },
     "failed": {
       "title": "Couldn't verify",
       "retry": "Try again",

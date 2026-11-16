@@ -1,0 +1,166 @@
+#cloud-config
+# First-boot bootstrap for a Tenshu box on OVHcloud Public Cloud (relay, commerce or apex).
+#
+# ⚠⚠ This prepares the HOST only. It installs Docker, mounts the data volume, and stops there. It
+# writes no deploy.env, clones no repo and starts no stack. The stack arrives by COPY from the box
+# it replaces (deploy/ovh-migrate/), which brings /opt/tenshu, the exact running images, Caddy's
+# certificates and the systemd timers with it. That is the point: the production env files are
+# hand-maintained and have drifted from what any Terraform module would write, so a copy carries the
+# truth and a render would carry a guess.
+#
+# ⚠ It also holds NO secrets. On OVH `user_data` is write-only, lives only in Terraform state, and
+# CHANGING it reinstalls the instance (root disk wiped). Keeping it secret-free and stable is what
+# lets the host module ignore it after creation.
+
+# All tooling (scripts, runbooks, memory notes) reaches the boxes as root@. OVH's Ubuntu images
+# disable root login by default, so the project SSH key is installed for root as well.
+disable_root: false
+
+package_update: true
+package_upgrade: false
+
+packages:
+  - git
+  - curl
+  - ca-certificates
+  - gnupg
+  - rsync
+  - jq
+  # ⚠ The relay's nightly backup shells out to sqlite3 (VACUUM INTO, integrity_check), and the
+  #   migration verifies row counts with it. Not preinstalled on the image.
+  - sqlite3
+  # The backup and blob-mirror scripts upload with boto3; the migration's bucket copy uses it too.
+  - python3-boto3
+  - nftables
+
+write_files:
+  # ---- Host firewall -------------------------------------------------------
+  # ⚠⚠ Always on, and the ONLY firewall when the module runs with security_group = false (the
+  # project's `default` group then lets everything in). Same rules as the security group: SSH from
+  # the allow-list, 80 + 443 from anywhere, nothing else.
+  #
+  # Two hooks, because Docker splits the traffic:
+  #  - INPUT: sshd, and Docker's userland proxy (docker-proxy), which is what answers on [::]:80/443
+  #    when IPv6 NAT is off.
+  #  - FORWARD: a published IPv4 port is DNATed to the container and never touches INPUT, which is
+  #    why a plain `ufw` does not cover Docker. The rule drops any DNATed connection whose ORIGINAL
+  #    destination port is not 80/443, so a stray `ports: "5432:5432"` stays unreachable.
+  # ⚠ No `flush ruleset` (Ubuntu's stock file has one): restarting nftables.service would then wipe
+  #   Docker's own tables and cut every container off until Docker restarts. Only our table is
+  #   replaced. Separate tables on the same hook all have to accept, so Docker's accept never
+  #   overrides our drop.
+  - path: /etc/nftables.conf
+    permissions: "0644"
+    content: |
+      #!/usr/sbin/nft -f
+      table inet tenshu_host
+      delete table inet tenshu_host
+      table inet tenshu_host {
+        chain input {
+          type filter hook input priority filter; policy drop;
+          ct state established,related accept
+          ct state invalid drop
+          iif "lo" accept
+          meta l4proto icmp accept
+          meta l4proto ipv6-icmp accept
+          udp dport { 68, 546 } accept
+%{ if ssh_v4 != "" ~}
+          ip saddr { ${ssh_v4} } tcp dport 22 accept
+%{ endif ~}
+%{ if ssh_v6 != "" ~}
+          ip6 saddr { ${ssh_v6} } tcp dport 22 accept
+%{ endif ~}
+          tcp dport { 80, 443 } accept
+          udp dport 443 accept
+        }
+        chain forward {
+          type filter hook forward priority filter; policy accept;
+          ct state established,related accept
+          ct status dnat meta l4proto tcp ct original proto-dst { 80, 443 } accept
+          ct status dnat meta l4proto udp ct original proto-dst 443 accept
+          ct status dnat drop
+        }
+      }
+
+
+  - path: /opt/tenshu-host/bootstrap.sh
+    permissions: "0755"
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      exec > >(tee -a /var/log/tenshu-bootstrap.log) 2>&1
+      echo "=== tenshu ${role} host bootstrap $(date -u) ==="
+
+      # --- 0. host firewall first (rules in /etc/nftables.conf above) ---
+      # ⚠ Fail loudly: with security_group = false this is the only firewall the box has.
+      nft -c -f /etc/nftables.conf
+      systemctl enable nftables
+      systemctl restart nftables
+      nft list table inet tenshu_host >/dev/null
+
+      # --- 1. swap, a capped journal, rotated container logs ---
+      # ⚠ The swapfile lives on the ROOT disk. A fixed 4G one filled commerce's 8.9G root disk in
+      #   October 2026 and stopped its nightly backup for 23 days (docs/how-to/box-health.md).
+      if [ ! -f /swapfile ] && [ "${swapfile_size_gb}" -gt 0 ]; then
+        fallocate -l ${swapfile_size_gb}G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=$(( ${swapfile_size_gb} * 1024 ))
+        chmod 600 /swapfile
+        mkswap /swapfile
+        swapon /swapfile
+        echo '/swapfile none swap sw 0 0' >> /etc/fstab
+      fi
+      mkdir -p /etc/systemd/journald.conf.d
+      printf '[Journal]\nSystemMaxUse=200M\n' > /etc/systemd/journald.conf.d/tenshu-size.conf
+      systemctl restart systemd-journald || true
+      mkdir -p /etc/docker
+      [ -f /etc/docker/daemon.json ] || printf '{ "log-driver": "json-file", "log-opts": { "max-size": "20m", "max-file": "3" } }\n' > /etc/docker/daemon.json
+
+      # --- 2. Docker Engine + compose plugin ---
+      if ! command -v docker >/dev/null 2>&1; then
+        install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+        chmod a+r /etc/apt/keyrings/docker.gpg
+        . /etc/os-release
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $${VERSION_CODENAME} stable" \
+          > /etc/apt/sources.list.d/docker.list
+        apt-get update -y
+        apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+        systemctl enable --now docker
+      fi
+
+      # --- 3. the durable data volume ---
+      DATA_MOUNT="${data_mount}"
+      if [ -n "$${DATA_MOUNT}" ]; then
+        # Same provider-neutral detection as the Scaleway modules: derive the ROOT disk, take the
+        # first other disk. ⚠⚠ Plus a WAIT, which Scaleway never needed: OVH attaches `volume_ids`
+        # after the instance is created, and cloud-init can run before the disk appears. Without
+        # the wait the box would quietly put production data on the root disk.
+        ROOT_SRC="$(findmnt -no SOURCE /)"
+        ROOT_DISK="$(lsblk -dpno PKNAME "$${ROOT_SRC}" 2>/dev/null || true)"
+        [ -n "$${ROOT_DISK}" ] || ROOT_DISK="$${ROOT_SRC}"
+        VOL_DEV=""
+        for _ in $(seq 1 60); do
+          VOL_DEV="$(lsblk -dpno NAME,TYPE | awk '$2=="disk"{print $1}' | grep -v -x -F "$${ROOT_DISK}" | head -n1 || true)"
+          [ -n "$${VOL_DEV}" ] && break
+          sleep 5
+        done
+        if [ -z "$${VOL_DEV}" ]; then
+          # ⚠⚠ Fail LOUDLY. The marker below is what the migration checks before copying data.
+          echo "FATAL: no data volume appeared within 5 minutes; refusing to continue"
+          exit 1
+        fi
+        echo "data volume: $${VOL_DEV} (root disk is $${ROOT_DISK})"
+        mkdir -p "$${DATA_MOUNT}"
+        blkid "$${VOL_DEV}" >/dev/null 2>&1 || mkfs.ext4 -F "$${VOL_DEV}"
+        mountpoint -q "$${DATA_MOUNT}" || mount "$${VOL_DEV}" "$${DATA_MOUNT}"
+        # ⚠ By UUID, not by /dev name: OVH does not promise the same name after a reboot.
+        UUID="$(blkid -s UUID -o value "$${VOL_DEV}")"
+        grep -q " $${DATA_MOUNT} " /etc/fstab || echo "UUID=$${UUID} $${DATA_MOUNT} ext4 defaults,nofail,discard 0 2" >> /etc/fstab
+        chmod 0777 "$${DATA_MOUNT}"
+      fi
+
+      mkdir -p /opt/tenshu
+      date -u +%FT%TZ > /opt/tenshu-host/READY
+      echo "=== host ready $(date -u); the stack arrives via deploy/ovh-migrate ==="
+
+runcmd:
+  - ["bash", "/opt/tenshu-host/bootstrap.sh"]

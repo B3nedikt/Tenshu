@@ -187,20 +187,27 @@
     "signedInOnSuffix": " angemeldet.",
     "lockNow": "Jetzt sperren",
     "lockNowAriaLabel": "Jetzt sperren",
-    "signOutEverywhere": "Überall abmelden",
-    "confirm": {
-      "title": "Überall abmelden?",
-      "body1": "Damit endet deine Sitzung in diesem Browser, und dieses Gerät wird aus deinem Realm entfernt. Um zurückzukehren, musst du es erneut über ein anderes Gerät einrichten – oder deine Wiederherstellungsphrase verwenden.",
-      "body2": "Deine Realm-Daten auf anderen Geräten funktionieren weiterhin normal.",
-      "cancel": "Abbrechen",
-      "confirm": "Überall abmelden",
-      "revoking": "Wird abgemeldet…",
-      "offline": {
-        "title": "Dieser Browser konnte nicht aus der Ferne entfernt werden",
-        "body": "Wir konnten das Relay nicht erreichen, um diesen Browser zu entfernen. Er wird daher auf deinen anderen Geräten weiterhin in der Geräteliste angezeigt, bis du ihn auf einem davon entfernst. Du kannst dich trotzdem jetzt in diesem Browser abmelden.",
-        "proceed": "Trotzdem abmelden",
-        "cancel": "Zurück"
-      }
+    "disconnect": "Diesen Browser trennen"
+  },
+  "disconnectBrowser": {
+    "title": "Diesen Browser trennen?",
+    "body1": "Dadurch wird {deviceName} aus deinem Realm entfernt, und alle in diesem Browser gespeicherten Tenshu-Daten werden gelöscht – auch sein Tenshu-Passkey.",
+    "body2": "Um diesen Realm hier wieder zu nutzen, brauchst du deine 24-Wort-Wiederherstellungsphrase oder ein anderes deiner Geräte, um diesen Browser zu koppeln. Ein Passkey allein reicht nicht.",
+    "body3": "Deine Daten auf deinen anderen Geräten bleiben unberührt.",
+    "ack": "Ich habe meine Wiederherstellungsphrase, oder dieser Realm ist auch auf einem anderen Gerät. Wenn beides nicht zutrifft, sind die Daten in diesem Browser endgültig verloren.",
+    "confirm": "Diesen Browser trennen",
+    "cancel": "Abbrechen",
+    "inFlight": "Wird getrennt…",
+    "inFlightNote": "Dieser Browser wird aus deinem Realm entfernt. Das kann ein paar Sekunden dauern – lass diesen Tab geöffnet.",
+    "unconfirmed": {
+      "title": "Getrennt – mit einem offenen Punkt",
+      "body": "Die Tenshu-Daten dieses Browsers sind gelöscht, aber wir konnten nicht bestätigen, dass er aus deinem Realm entfernt wurde – vielleicht war er offline. Wenn er auf einem deiner anderen Geräte noch in der Geräteliste erscheint, entferne ihn dort.",
+      "continue": "Weiter"
+    },
+    "failed": {
+      "title": "Trennen konnte nicht abgeschlossen werden",
+      "body": "Unterwegs ist etwas schiefgegangen. Versuche es erneut – Tenshu schließt den Vorgang außerdem beim nächsten Laden dieser Seite ab.",
+      "retry": "Erneut versuchen"
     }
   },
   "home": {
@@ -326,8 +333,8 @@
       },
       "revokeSelf": {
         "title": "Entfernen",
-        "description": "Entfernt dieses Gerät aus dem Realm. Um den Browser zu entfernen, in dem du angemeldet bist, verwende „Überall abmelden“.",
-        "note": "Verwende „Überall abmelden“ im Gerätemenü (oben rechts), um diesen Browser abzumelden und aus deinem Realm zu entfernen."
+        "description": "Entfernt dieses Gerät aus dem Realm. Um den Browser zu entfernen, in dem du angemeldet bist, verwende „Diesen Browser trennen“.",
+        "note": "Verwende „Diesen Browser trennen“ im Gerätemenü (oben rechts), um diesen Browser aus deinem Realm zu entfernen."
       },
       "revoke": {
         "title": "Entfernen",

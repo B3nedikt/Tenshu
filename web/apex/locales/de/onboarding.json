@@ -254,13 +254,6 @@
       "title": "Warte auf deinen Passkey…",
       "body": "Folge der Aufforderung deines Browsers, um dich zu authentifizieren."
     },
-    "disconnect": {
-      "title": "Diesen Browser trennen?",
-      "body1": "Dadurch werden die auf {deviceName} gespeicherten Tenshu-Daten entfernt, und du kehrst zum Anfang zurück. Um dich hier wieder anzumelden, brauchst du deinen Passkey oder deine 24-Wort-Wiederherstellungsphrase.",
-      "body2": "Deine Daten auf deinen anderen Geräten bleiben unberührt. Dieser Browser erscheint dort möglicherweise weiterhin in der Geräteliste, bis du ihn dort entfernst.",
-      "confirm": "Diesen Browser trennen",
-      "cancel": "Abbrechen"
-    },
     "failed": {
       "title": "Überprüfung fehlgeschlagen",
       "retry": "Erneut versuchen",

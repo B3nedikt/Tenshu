@@ -157,8 +157,14 @@ done
 
 `content_free_queue` may show rows for an hour or so while bytes are still being deleted. The next
 sweep finishes them. Then check that the content bucket holds nothing under `<owner id>/`. Use a
-list call with the content-plane credentials, or the AWS CLI against the Scaleway endpoint with
-`--prefix '<owner id>/'`, and expect 0 keys.
+list call with the content-plane credentials, or the AWS CLI against the OVH endpoint
+(`terraform output s3_endpoint` in `deploy/ovh-project`) with `--prefix '<owner id>/'`, and expect
+0 keys.
+
+⚠ Until the Scaleway teardown (`docs/how-to/move-to-ovh.md`), Scaleway still holds the pre-move
+copies: the powered-off relay and commerce volumes and the `tenshu-relay-blobs` / backup buckets.
+The privacy notice says so. An erasure in that window does not reach them; tell the requester they
+are deleted at the teardown, and do not restore from them.
 
 Note the `erased_at` date in the request log.
 

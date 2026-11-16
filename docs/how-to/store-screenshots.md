@@ -1279,6 +1279,12 @@ store/<app>/screenshots/android/phonelanding/en/dark/NN-<screen>.png   dark
   filled with its twelve photos from the viewer's More → *Add to album*), `03-viewer` (one photo full screen). Photos reads
   every image in the realm, so the Drive walk's uploads are its library — it is walked after Drive,
   on the same realm, with nothing seeded of its own.
+  ⚠ The published **Android Photos** set is not this walk's output (2026-11-16): it was captured by
+  hand on a read-only `Pixel_8_Shots` emulator paired into the maintainer's own realm (*Enter code
+  instead* with a link from the Mac's *Show a code*), with a *Cats* album made there for `02-album`,
+  using `android_shots.landing_shot` for the status bar. A scripted `--set landing` run replaces it
+  with the stock set again. Such an emulator stays listed under Realm devices after it stops; remove
+  it there, since a listed-but-gone device blocks reclamation.
 - **iOS** (2026-10-17): `scripts/store-screenshots.sh --set landing --appearance both` — the same recipe
   seeded through Drive's `-seedFixture` launch (§2), then `DriveLandingScreenshots` (`01-files`,
   `02-photos` as Icons, `03-preview` of `IMG_5102.jpg`) and `PhotosLandingScreenshots` (`01-library`,

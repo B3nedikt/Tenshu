@@ -200,6 +200,21 @@ class SyncHealthHolder {
     }
 
     /**
+     * Seed the last successful sync from the PERSISTED row, before the first scheduler tick
+     * ([initSyncHealth] does it). ⚠ Only ever raises the figure — like [onTickComplete], which
+     * advances it and never clears it.
+     *
+     * Without it every process start rewrote the row with `lastSyncedAtMillis = 0` on the
+     * derivation's first emission, so each surface claimed "never synced" until that process's first
+     * pull: the web Drive banner said "Not synced yet" (and flickered) after every reload, and the sync
+     * dot's popup said the same, on a browser that had synced a minute before.
+     */
+    fun seedLastSynced(lastSyncedAtMillis: Long) {
+        if (lastSyncedAtMillis <= 0L) return
+        figures.update { it.copy(lastSyncedAtMillis = maxOf(it.lastSyncedAtMillis, lastSyncedAtMillis)) }
+    }
+
+    /**
      * Publish mid-pass upload progress (`drive-upload-progress.md` P2). Separate from
      * [onTickComplete] because a pass spans many files *within* one tick — the tick boundary is far
      * too coarse for a progress bar. `total == 0` ends the pass.

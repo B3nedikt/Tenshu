@@ -58,13 +58,17 @@ class S3BlobStoreContractTest : BlobStoreContractTest() {
         // round-trips inside a request handler — hours. Batched it is ~1,049. This pins the ratio,
         // not just that the keys vanish, because "it still works" is exactly what a regression back
         // to a per-key loop would also report.
+        //
+        // One key past a batch is the smallest count that tells the two apart: 2 requests, or
+        // BATCH_SIZE + 1. The keys are seeded straight into the fake's bucket, not `put` one HTTP
+        // round-trip each: this pins deleteAll's batching, and `put` has its own cases.
         val store = newStore()
-        val keys = (1..1_500).map { "alice/blob-$it" }
-        keys.forEach { store.put(it, byteArrayOf(1)) }
+        val keys = (1..S3BlobStore.BATCH_SIZE + 1).map { "alice/blob-$it" }
+        keys.forEach { objects[it] = byteArrayOf(1) }
 
         store.deleteAll(keys)
 
-        assertEquals(2, deleteObjectsCalls.get(), "1,500 keys should be 2 batches, not 1,500 requests")
+        assertEquals(2, deleteObjectsCalls.get(), "${keys.size} keys should be 2 batches, not ${keys.size} requests")
         assertTrue(objects.keys.none { it.startsWith("alice/blob-") }, "leftovers: ${objects.keys.take(5)}")
     }
 

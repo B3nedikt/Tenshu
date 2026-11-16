@@ -89,18 +89,134 @@ class SessionTest : SdkRuntimeTest() {
         )
     }
 
+    // ⚠⚠ "Lock now" is `Session.clear({})`. It used to drop the device name and the passkey record
+    // with the token, so a locked browser read `firstTime` — the onboarding screen, with the realm
+    // still stored — and the passkey it had could never unlock it again. A lock drops the token only.
     @Test
-    fun clear_purgesTokenAndDeviceName() = runTest {
+    fun clearWithoutPurge_isALock_keepsDeviceNameAndPasskey() = runTest {
         TenshuSdk.awaitReady().await()
         clear()
-
-        // Persist a token, then clear() — verify detect still says
-        // firstTime (token gone).
+        JsRuntime.sessionStore.setDeviceName("LockTest")
+        registerPasskeyRecord()
         Session.persist(sessionToken(expiresInMs = 60_000.0)).await()
-        Session.clear(null).await()
+        assertEquals("active", Session.detect().await().kind as String)
+
+        val result = Session.clear(js("({})")).await()
 
         val state = Session.detect().await()
-        assertEquals("firstTime", state.kind as String)
+        assertEquals("locked", state.kind as String, "a lock must read locked, not firstTime")
+        assertEquals("LockTest", state.deviceName as String)
+        assertNotNull(JsRuntime.sessionStore.getPasskey(), "a lock must keep the passkey it unlocks with")
+        assertNull(result.removal, "a lock removes nothing from the realm")
+    }
+
+    // The disconnect hands back the passkey it stopped honouring, read before the wipe deleted the
+    // record, so the apex can tell the authenticator (`signalUnknownCredential`).
+    @Test
+    fun clearWithPurge_returnsThePasskeyItStoppedHonouring_andReadsFirstTime() = runTest {
+        TenshuSdk.awaitReady().await()
+        clear()
+        JsRuntime.sessionStore.setDeviceName("PurgeTest")
+        val credentialId = registerPasskeyRecord()
+
+        val result = Session.clear(js("({ purgeRealm: true })")).await()
+
+        val returned = result.passkeyCredentialId.unsafeCast<Int8Array>()
+        assertEquals(credentialId.length, returned.length)
+        for (i in 0 until credentialId.length) {
+            assertEquals(credentialId.asDynamic()[i] as Byte, returned.asDynamic()[i] as Byte)
+        }
+        assertTrue((result.removal as String) in setOf("confirmed", "unconfirmed"))
+        assertEquals("firstTime", Session.detect().await().kind as String)
+        assertNull(JsRuntime.sessionStore.getPasskey())
+    }
+
+    // ⚠⚠ The bug this pins (reproduced 2026-11-16): the session record went first, the forget then
+    // waited up to 8 s, the user reloaded, and the page read signed-out while the device key, the
+    // recovery phrase and every object were still at rest. A purge the page did not finish leaves its
+    // marker; the next detect must finish it — including the identity — and reload.
+    @Test
+    fun detect_finishesAPurgeThatALoadInterrupted() = runTest {
+        TenshuSdk.awaitReady().await()
+        clear()
+        JsRuntime.sessionStore.setDeviceName("InterruptedTest")
+        assertTrue(JsRuntime.syncManager.currentDeviceId.isNotEmpty(), "an identity to destroy")
+        JsRuntime.sessionStore.markPurgePending()
+        var reloads = 0
+        val previous = Session.reloadAfterPurge
+        Session.reloadAfterPurge = { reloads++ }
+        try {
+            val state = Session.detect().await()
+
+            assertEquals("firstTime", state.kind as String)
+            assertEquals(1, reloads, "the runtime still holds the destroyed identity: the page must reload")
+            assertTrue(!JsRuntime.sessionStore.isPurgePending(), "the marker must not survive, or every load reloads")
+            assertNull(JsRuntime.sessionStore.getDeviceName())
+            assertTrue(
+                Diagnostics.recent(300).any { it.tag == "Session" && it.message.contains("forgotten —") },
+                "the finished purge must run the shared ForgetThisDevice op, identity included",
+            )
+        } finally {
+            Session.reloadAfterPurge = previous
+        }
+    }
+
+    // ⚠⚠ At boot several components call detect at once. Each used to see the marker and start its
+    // own purge; the second forget wiped the key the first was waiting to push its removal with, so
+    // the first reported the row left behind (observed 2026-11-16). One purge, one reload.
+    @Test
+    fun concurrentDetects_finishAnInterruptedPurgeOnce() = runTest {
+        TenshuSdk.awaitReady().await()
+        clear()
+        JsRuntime.sessionStore.setDeviceName("RaceTest")
+        JsRuntime.sessionStore.markPurgePending()
+        Diagnostics.clear()
+        var reloads = 0
+        val previous = Session.reloadAfterPurge
+        Session.reloadAfterPurge = { reloads++ }
+        try {
+            val states = listOf(Session.detect(), Session.detect(), Session.detect()).map { it.await() }
+
+            assertTrue(states.all { (it.kind as String) == "firstTime" })
+            assertEquals(1, reloads)
+            val forgets = Diagnostics.recent(300).count { it.tag == "Session" && it.message.startsWith("forgetThisDevice:") }
+            assertEquals(1, forgets, "concurrent detects must share one purge")
+        } finally {
+            Session.reloadAfterPurge = previous
+        }
+    }
+
+    // ⚠⚠ A resumed purge that FAILS part-way must keep its marker and must not reload. Clearing the
+    // marker on failure orphaned whatever the wipe never reached (device key, master-key blob) behind
+    // a page reading `firstTime`, with nothing left to retry it. It reads `locked`, and the next
+    // detect retries and finishes.
+    @Test
+    fun detect_keepsTheMarkerWhenFinishingAnInterruptedPurgeFails_andRetriesNextTime() = runTest {
+        TenshuSdk.awaitReady().await()
+        clear()
+        JsRuntime.sessionStore.setDeviceName("FailingTest")
+        JsRuntime.sessionStore.markPurgePending()
+        var reloads = 0
+        val previousReload = Session.reloadAfterPurge
+        val previousPurge = Session.purgeBrowserStores
+        Session.reloadAfterPurge = { reloads++ }
+        Session.purgeBrowserStores = { throw IllegalStateException("IndexedDB clear failed (test)") }
+        try {
+            val failed = Session.detect().await()
+            assertEquals("locked", failed.kind as String, "a failed resume must not read firstTime")
+            assertEquals("FailingTest", failed.deviceName as String)
+            assertTrue(JsRuntime.sessionStore.isPurgePending(), "the marker must survive a failed resume")
+            assertEquals(0, reloads, "no reload on failure, or a persistent failure becomes a reload loop")
+
+            Session.purgeBrowserStores = previousPurge
+            val finished = Session.detect().await()
+            assertEquals("firstTime", finished.kind as String)
+            assertTrue(!JsRuntime.sessionStore.isPurgePending())
+            assertEquals(1, reloads)
+        } finally {
+            Session.reloadAfterPurge = previousReload
+            Session.purgeBrowserStores = previousPurge
+        }
     }
 
     @Test
@@ -111,6 +227,27 @@ class SessionTest : SdkRuntimeTest() {
         val result = Session.unlock(fakeAssertion()).await()
         assertEquals(false, result.ok as Boolean)
         assertEquals("noPasskey", result.error.kind as String)
+    }
+
+    @Test
+    fun passkeyCredentialId_isNullBeforeRegistration_thenTheRegisteredId() = runTest {
+        TenshuSdk.awaitReady().await()
+        clear()
+        assertEquals(null, Session.passkeyCredentialId().await())
+
+        val credentialId = randomBytes(16)
+        val registration: dynamic = js("({})")
+        registration.credentialId = credentialId
+        registration.publicKey = exportSpki(generateEcdsaKeyPair().publicKey)
+        registration.algorithm = -7
+        Session.registerPasskey(registration).await()
+
+        val returned = Session.passkeyCredentialId().await()
+        assertNotNull(returned)
+        assertEquals(credentialId.length, returned.length)
+        for (i in 0 until credentialId.length) {
+            assertEquals(credentialId.asDynamic()[i], returned.asDynamic()[i], "byte $i")
+        }
     }
 
     @Test
@@ -452,6 +589,17 @@ class SessionTest : SdkRuntimeTest() {
         for (i in expected.indices) {
             assertEquals(expected[i], actual[i], "byte at index $i")
         }
+    }
+
+    private suspend fun registerPasskeyRecord(): Int8Array {
+        val keypair = generateEcdsaKeyPair()
+        val registration: dynamic = js("({})")
+        val credentialId = randomBytes(16)
+        registration.credentialId = credentialId
+        registration.publicKey = exportSpki(keypair.publicKey)
+        registration.algorithm = -7
+        assertEquals(true, Session.registerPasskey(registration).await().ok as Boolean)
+        return credentialId
     }
 
     private suspend fun clear() {

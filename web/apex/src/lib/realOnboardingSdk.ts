@@ -38,6 +38,7 @@ export function lazyOnboardingSdk(
     persist: token => sdk().then(s => s.Session.persist(token)),
     clear: options => sdk().then(s => s.Session.clear(options)),
     registerPasskey: registration => sdk().then(s => s.Session.registerPasskey(registration)),
+    passkeyCredentialId: () => sdk().then(s => s.Session.passkeyCredentialId()),
     unlock: assertion => sdk().then(s => s.Session.unlock(assertion)),
     unlockWithPhrase: mnemonic => sdk().then(s => s.Session.unlockWithPhrase(mnemonic)),
     ...(peek ? { peek } : {}),

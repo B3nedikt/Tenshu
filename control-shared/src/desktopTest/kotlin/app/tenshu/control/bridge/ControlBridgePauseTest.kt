@@ -73,19 +73,9 @@ class ControlBridgePauseTest {
         return payload.array().decodeToString()
     }
 
-    private fun connect(socketPath: String): SocketChannel {
-        val address = UnixDomainSocketAddress.of(socketPath)
-        val deadline = System.currentTimeMillis() + 2000
-        while (System.currentTimeMillis() < deadline) {
-            val ch = SocketChannel.open(StandardProtocolFamily.UNIX)
-            try {
-                ch.connect(address); return ch
-            } catch (e: Exception) {
-                ch.close(); Thread.sleep(20)
-            }
-        }
-        throw AssertionError("could not connect to bridge socket")
-    }
+    /** [NativeBridgeServer.start] binds before it returns, so the socket accepts at once: no retry. */
+    private fun connect(socketPath: String): SocketChannel =
+        SocketChannel.open(StandardProtocolFamily.UNIX).apply { connect(UnixDomainSocketAddress.of(socketPath)) }
 
     private fun readFully(ch: SocketChannel, buf: ByteBuffer) {
         while (buf.hasRemaining()) if (ch.read(buf) == -1) error("eof")
