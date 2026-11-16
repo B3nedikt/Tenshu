@@ -7,7 +7,9 @@ import org.tenshu.core.TResult
 import org.tenshu.core.TenshuException
 import org.tenshu.core.collection.list.TList
 import org.tenshu.core.common.TestProxy
+import org.tenshu.core.collection.list.toList
 import org.tenshu.core.common.createCoreTestRegistry
+import org.tenshu.core.common.relation.relationReference
 import org.tenshu.core.common.delegate.InMemorySecureStorageDelegate
 import org.tenshu.core.common.proxy.executor.OperationImplementationFactory
 import org.tenshu.core.common.security.ownerIdForMasterPublicKey
@@ -47,6 +49,8 @@ class ReregisterDeviceImplementationTest {
     fun setup() {
         testProxy = TestProxy(schemaRegistry = createCoreTestRegistry()).also {
             it.schemaRegistry.registerConfig(syncServiceCommonModule)
+            // §5b R6b: a successful re-registration saves an Identity `DeviceRecord`.
+            it.schemaRegistry.registerConfig(org.tenshu.identity.common.identityServiceCommonModule)
         }
         crypto = StubCryptoManager()
         syncManager = SyncManagerImpl(
@@ -96,6 +100,13 @@ class ReregisterDeviceImplementationTest {
             "re-bootstrap must carry an admission stamp"
         )
         assertEquals(syncManager.hlcManager.deviceId, stamp.deviceId)
+        // §5b R6b: the A1 re-admission record, at the very stamp the relay was sent.
+        val readmission = testProxy.database
+            .getArrayData(testProxy.executionContext.relationReference(org.tenshu.identity.IdentityService.Relations.DEVICE_RECORDS))
+            ?.toList().orEmpty().filterIsInstance<org.tenshu.identity.DeviceRecord>().single()
+        assertEquals(org.tenshu.identity.DeviceRecord.Kind.READMISSION, readmission.kind.get())
+        assertEquals(syncManager.currentDeviceId, readmission.deviceId.get())
+        assertEquals(relay.lastCreateRealmHlc, readmission.authoredAt.get())
     }
 
     @Test

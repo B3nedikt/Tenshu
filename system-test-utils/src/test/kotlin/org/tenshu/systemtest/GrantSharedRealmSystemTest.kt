@@ -23,6 +23,8 @@ import org.tenshu.core.entity.Entity
 import org.tenshu.identity.Member
 import org.tenshu.identity.client.identityService
 import org.tenshu.identity.getRealmMembers
+import org.tenshu.identity.getRealmInvitations
+import org.tenshu.identity.getPendingAcceptances
 import org.tenshu.sync.acceptSharedRealmGrant
 import org.tenshu.sync.client.syncService
 import org.tenshu.sync.createSharedRealm
@@ -46,12 +48,105 @@ import kotlin.time.Duration.Companion.seconds
  *   2. Alice creates a shared realm and grants Bob membership (mints A26, signs the
  *      capability, wraps Kr to Bob's A13, drops the sealed grant);
  *   3. Bob accepts (picks up + unseals, persists A26 + membership, registers the realm
- *      with a fresh per-realm device key, admits that device, writes his `Member` row);
- *   4. Bob's `Member` row syncs back into the realm — the acceptance signal Alice sees;
+ *      with a fresh per-realm device key, admits that device, and drops a sealed acceptance back);
+ *   4. Alice's poll picks the acceptance up and **she** writes Bob's `Member` row (RO D7);
  *   5. Alice removes Bob (master-signed revocation; the relay purges his device).
  */
 @OptIn(ExperimentalStdlibApi::class)
 class GrantSharedRealmSystemTest {
+
+    /**
+     * PR review (Codex): granting the same contact the same realm twice before they accept leaves two waits on one
+     * acceptance address. The acceptance must reach the grant it names, and Bob must end up a member — not stuck
+     * "invited" because the older wait picked up and discarded the newer grant's acceptance.
+     */
+    @Test
+    fun aDoubleGrant_beforeAcceptance_stillEndsWithOneMemberAndNoInvitation(): Unit = runBlocking {
+        val system = TestSystem.builder().build()
+        try {
+            val alice = system.client("alice", TestClientRole.RealmHost)
+            val bob = system.client("bob", TestClientRole.RealmHost)
+            alice.bootstrapAsHost(deviceName = "Alice Laptop")
+            bob.bootstrapAsHost(deviceName = "Bob Phone")
+            completeHandshake(system, alice, bob)
+            val bobFingerprint = alice.identityRows().single().first
+            val aliceFingerprint = bob.identityRows().single().first
+            val bobPersonId = alice.identityRow(bobFingerprint)!!.stringField(TenshuIdentity.Field.PERSON_ID)!!
+            val realmId = ((alice.tenshuClient.syncService.createSharedRealm() as TResult.Success).value as TString).get()
+
+            alice.tenshuClient.syncService.grantSharedRealmMembership(realmId, bobPersonId, label = "Trip")
+            val secondAuthorityHex = ((alice.tenshuClient.syncService
+                .grantSharedRealmMembership(realmId, bobPersonId, label = "Trip") as TResult.Success).value!!).get()
+            assertEquals(2, alice.invitationIds(realmId).size, "both grants wait")
+
+            bob.tenshuClient.syncService.pollPendingGrants()
+            bob.tenshuClient.syncService.acceptSharedRealmGrant(aliceFingerprint).let { assertTrue(it is TResult.Success, "$it") }
+
+            val acceptedMemberId = sha256(secondAuthorityHex.hexToByteArray()).toHexString()
+            system.advanceUntil(timeout = 25.seconds) {
+                alice.tenshuClient.syncService.pollPendingGrants()
+                alice.memberRow(realmId, acceptedMemberId) != null
+            }
+            assertNotNull(alice.memberRow(realmId, acceptedMemberId), "Bob is a member under the grant he accepted")
+            assertEquals(emptyList(), alice.invitationIds(realmId), "and no invitation is left waiting")
+        } finally {
+            system.shutdown()
+        }
+    }
+
+    /**
+     * `ENTITLEMENT_ENFORCE` gates the acceptance drop (maintainer decision 2026-11-12: kept, no exemption). A
+     * member with no account accepts; the relay refuses the drop (`402`); the acceptance stays queued, marked
+     * `needsAccount` so the app can say "create a free account" — never dropped, never silent. Once the member
+     * holds an entitlement, the next poll delivers it, and the owner writes their row.
+     */
+    @Test
+    fun anAcceptanceRefusedForWantOfAnAccount_staysQueued_andGoesThroughOnceThereIsOne(): Unit = runBlocking {
+        val enforcing = org.tenshu.sync.relay.RelayConfig(
+            devMode = false,
+            bindHost = "127.0.0.1",
+            port = 0,
+            entitlementIssuerPublicKeyB64 = kotlin.io.encoding.Base64.Default.encode(org.tenshu.identity.EntitlementSignature.DEV_PUBLIC_KEY),
+            entitlementEnforce = true,
+        )
+        val system = TestSystem.builder().relayConfig(enforcing).build()
+        try {
+            val alice = system.client("alice", TestClientRole.RealmHost)
+            val bob = system.client("bob", TestClientRole.RealmHost)
+            alice.bootstrapAsHost(deviceName = "Alice Laptop")
+            bob.bootstrapAsHost(deviceName = "Bob Phone")
+            alice.seedDevEntitlement() // the owner has an account; Bob, not yet
+            completeHandshake(system, alice, bob)
+            val bobFingerprint = alice.identityRows().single().first
+            val aliceFingerprint = bob.identityRows().single().first
+            val bobPersonId = alice.identityRow(bobFingerprint)!!.stringField(TenshuIdentity.Field.PERSON_ID)!!
+            val realmId = ((alice.tenshuClient.syncService.createSharedRealm() as TResult.Success).value as TString).get()
+            val authorityHex = ((alice.tenshuClient.syncService
+                .grantSharedRealmMembership(realmId, bobPersonId, label = "Trip") as TResult.Success).value!!).get()
+            val bobMemberId = sha256(authorityHex.hexToByteArray()).toHexString()
+
+            bob.tenshuClient.syncService.pollPendingGrants()
+            bob.tenshuClient.syncService.acceptSharedRealmGrant(aliceFingerprint).let { assertTrue(it is TResult.Success, "$it") }
+            val queued = bob.pendingAcceptances()
+            assertEquals(listOf(realmId to true), queued, "refused for want of an account: kept, and marked so")
+
+            alice.tenshuClient.syncService.pollPendingGrants()
+            assertEquals(listOf(bobMemberId), alice.invitationIds(realmId), "the owner still waits for Bob")
+
+            bob.seedDevEntitlement() // Bob creates an account
+            system.advanceUntil(timeout = 25.seconds) {
+                bob.tenshuClient.syncService.pollPendingGrants() // the queued acceptance is retried
+                bob.pendingAcceptances().isEmpty()
+            }
+            system.advanceUntil(timeout = 25.seconds) {
+                alice.tenshuClient.syncService.pollPendingGrants()
+                alice.memberRow(realmId, bobMemberId) != null
+            }
+            assertEquals(emptyList(), alice.invitationIds(realmId), "and is no longer invited")
+        } finally {
+            system.shutdown()
+        }
+    }
 
     @Test
     fun grantAcceptSyncRemove_overLiveRelay_withRealCrypto(): Unit = runBlocking {
@@ -77,6 +172,9 @@ class GrantSharedRealmSystemTest {
                 .grantSharedRealmMembership(realmId, bobPersonId, label = "Holiday photos")
             val authorityPublicKeyHex = ((grantResult as TResult.Success).value!!).get()
             assertTrue(authorityPublicKeyHex.isNotEmpty(), "grant returns the minted A26 public key")
+            // The "invited" state (RO D7): until Bob accepts, the owner lists him as an invitation.
+            val invitedMemberId = sha256(authorityPublicKeyHex.hexToByteArray()).toHexString()
+            assertEquals(listOf(invitedMemberId), alice.invitationIds(realmId), "Bob is invited, not yet a member")
 
             // 3. Bob polls (GR-6) — the inbound poll discovers + quarantines the grant
             // as a PendingGrant before he accepts it (D4 explicit-accept).
@@ -88,12 +186,14 @@ class GrantSharedRealmSystemTest {
             val acceptResult = bob.tenshuClient.syncService.acceptSharedRealmGrant(aliceFingerprint)
             assertEquals(realmId, ((acceptResult as TResult.Success).value!!).get(), "Bob joins the granted realm")
 
-            // 4. Bob's Member row syncs back into the realm — Alice sees him as a member.
+            // 4. RO D7: Alice's poll picks up Bob's acceptance, and she writes his Member row.
             val bobMemberId = sha256(authorityPublicKeyHex.hexToByteArray()).toHexString()
             system.advanceUntil(timeout = 25.seconds) {
+                alice.tenshuClient.syncService.pollPendingGrants()
                 alice.memberRow(realmId, bobMemberId) != null
             }
-            assertNotNull(alice.memberRow(realmId, bobMemberId), "Bob's Member record synced to the owner")
+            assertNotNull(alice.memberRow(realmId, bobMemberId), "the owner wrote Bob's Member record from his acceptance")
+            assertEquals(emptyList(), alice.invitationIds(realmId), "once accepted, Bob is no longer an invitation")
             assertEquals(
                 Member.Role.MEMBER,
                 alice.memberRow(realmId, bobMemberId)!!.stringField(Member.Fields.ROLE),
@@ -193,5 +293,39 @@ class GrantSharedRealmSystemTest {
         is Entity<*> -> runCatching { getFieldValue<TString>(fieldId).get() }.getOrNull()
         is Composite -> runCatching { getField<TString>(fieldId).get() }.getOrNull()
         else -> null
+    }
+
+    private suspend fun TestClient.invitationIds(realmId: String): List<String> =
+        (tenshuClient.identityService.getRealmInvitations(realmId) as TResult.Success).value!!.toList().map { it.memberId.get() }
+
+    private suspend fun TestClient.pendingAcceptances(): List<Pair<String, Boolean>> =
+        (tenshuClient.identityService.getPendingAcceptances() as TResult.Success).value!!.toList()
+            .map { it.realmId.get() to it.needsAccount.get() }
+
+    /** This client's own signed dev-issuer `Entitlement` — what the relay accepts as an account (free tier). */
+    private fun TestClient.seedDevEntitlement() {
+        val ownerId = syncManager.currentOwnerId!!
+        val now = System.currentTimeMillis()
+        val unsigned = org.tenshu.identity.EntitlementSignature.SignedEntitlement(
+            ownerId = ownerId,
+            publisherId = org.tenshu.identity.EntitlementSignature.DEV_PUBLISHER_ID,
+            productId = "tenshu.drive.free",
+            validFrom = now - 60_000,
+            validUntil = now + 3_600_000,
+            signature = ByteArray(0),
+        )
+        val signature = org.tenshu.core.common.security.BouncyCastleEd25519Backend()
+            .sign(org.tenshu.identity.EntitlementSignature.DEV_SEED, unsigned.message())
+        executionContext.saveData(
+            org.tenshu.identity.Entitlement.create(
+                context = executionContext.context,
+                ownerId = unsigned.ownerId,
+                publisherId = unsigned.publisherId,
+                productId = unsigned.productId,
+                validFrom = unsigned.validFrom,
+                validUntil = unsigned.validUntil,
+                publisherSignature = signature,
+            ),
+        )
     }
 }

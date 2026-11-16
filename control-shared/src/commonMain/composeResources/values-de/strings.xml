@@ -263,6 +263,13 @@
     <string name="device_item_policy_online_only">Dateien bleiben nur online</string>
     <string name="device_item_approve">Gerät bestätigen</string>
     <string name="device_item_revoke">Gerät entfernen</string>
+    <string name="sync_dashboard_removed_header">Entfernte Geräte</string>
+    <string name="removed_device_unnamed">Gerät %1$s</string>
+    <string name="removed_device_today">Heute entfernt</string>
+    <string name="removed_device_yesterday">Gestern entfernt</string>
+    <string name="removed_device_days_ago">Vor %1$d Tagen entfernt</string>
+    <string name="removed_device_by_itself">Hat sich selbst entfernt</string>
+    <string name="removed_device_by_phrase">Mit der Wiederherstellungsphrase entfernt</string>
     <string name="device_item_added_by">Hinzugefügt von %1$s</string>
     <string name="device_item_readmit">Zugriff wiederherstellen</string>
     <string name="device_item_previous_identity">Frühere Identität dieses Geräts</string>
@@ -626,4 +633,11 @@
     <string name="account_deletion_error_unavailable">Das Löschen des Kontos ist in diesem Build nicht verfügbar. Du kannst dein Konto unter tenshu.app/account/delete löschen.</string>
     <string name="account_deletion_web_hint">Du kannst dein Konto auch ohne die App löschen, unter tenshu.app/account/delete.</string>
     <string name="account_deletion_error_signed_out">Dieses Gerät ist abgemeldet. Falls du gerade dein Konto gelöscht hast, wurde die Löschung durchgeführt.</string>
+    <!-- What the relay has done with a removal this device made (GetDeviceAccessRevocations): never shown as
+         plainly "removed" while the relay has not applied it (maintainer decision 2026-11-12). -->
+    <string name="removed_device_relay_owed">Warte darauf, dass das Relay das Entfernen bestätigt.</string>
+    <string name="removed_device_relay_unknown">Nicht bestätigt: Das Relay kennt dieses Konto nicht (es wurde evtl. zurückgesetzt oder ist noch nicht aktualisiert). Wird erneut versucht – bis dahin kann sich das Gerät noch verbinden.</string>
+    <string name="removed_device_relay_needs_update">Nicht bestätigt: Diese App und das Relay haben verschiedene Versionen. Nach einem Update geht es durch – bis dahin kann sich das Gerät noch verbinden.</string>
+    <string name="removed_device_relay_refused">Am Relay nicht entfernt – es hat die Anfrage abgelehnt (%1$s). Das Gerät kann sich weiter verbinden. Aktualisiere Tenshu auf deinen Geräten – eine neuere Version wird evtl. angenommen.</string>
+    <string name="removed_device_relay_superseded">Seitdem wieder hinzugefügt: Das Relay hat eine spätere Aufnahme dieses Geräts, daher gilt dieses Entfernen nicht mehr.</string>
 </resources>

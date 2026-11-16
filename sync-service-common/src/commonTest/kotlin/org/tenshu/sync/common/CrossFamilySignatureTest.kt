@@ -6,6 +6,7 @@ import org.tenshu.core.common.TestProxy
 import org.tenshu.core.common.createCoreTestRegistry
 import org.tenshu.core.common.security.cryptoBackendsModule
 import org.tenshu.core.time.HybridLogicalClock
+import org.tenshu.core.common.util.HlcStamp
 import org.tenshu.core.common.util.toByteArray
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -52,6 +53,10 @@ class CrossFamilySignatureTest {
         "recovery-claim" to recoveryClaimMessage(k, "device-a", 7L.toByteArray()),
         "offer-response" to offerResponseMessage("approved", "owner", k, 7L.toByteArray()),
         "hlc-tip" to tip(),
+        "device-access-revoke" to DeviceAccessRevocation.message(
+            DeviceAccessRevocation.Authority.MASTER, "owner", "device-a", HlcStamp(7L, 9L, "device-b"),
+        ),
+        "device-readmit" to DeviceReadmission.message("owner", "device-a", HlcStamp(7L, 9L, "device-b")),
     )
 
     @Test
@@ -86,6 +91,8 @@ class CrossFamilySignatureTest {
             "recovery-claim" to RECOVERY_CLAIM_TAG,
             "offer-response" to OFFER_RESPONSE_TAG,
             "hlc-tip" to HLC_TIP_TAG,
+            "device-access-revoke" to DeviceAccessRevocation.MASTER_DOMAIN_TAG,
+            "device-readmit" to DeviceReadmission.DOMAIN_TAG,
         )
         for ((name, message) in everyFamily()) {
             val tag = tags.getValue(name).encodeToByteArray()

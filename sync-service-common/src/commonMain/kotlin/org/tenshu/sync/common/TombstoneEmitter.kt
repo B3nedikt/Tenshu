@@ -84,6 +84,22 @@ interface TombstoneEmitter {
     ): String?
 
     /**
+     * [emit], stamped at [authoredAt] instead of a fresh tick — for a removal whose HLC another plane
+     * must share (`sync-entity-identity.md` §5b R2a: the `Device` tombstone and the
+     * `/sync/device-access/revoke` request carry ONE authored stamp, so the relay's two staleness checks
+     * cannot reach opposite verdicts). [authoredAt] must come from this realm's HLC manager.
+     *
+     * ⚠ The default ignores [authoredAt] and ticks, which only test doubles inherit; the production
+     * emitter overrides it.
+     */
+    fun emitAt(
+        targetEntityId: org.tenshu.core.entity.DataId,
+        targetEntityType: String,
+        revokedDeviceId: String?,
+        authoredAt: org.tenshu.core.time.HybridLogicalClock,
+    ): String? = emit(targetEntityId, targetEntityType, revokedDeviceId)
+
+    /**
      * Emit a whole batch (a realm-data reset deleting every row of a type).
      *
      * ⚠ Not sugar: [emit] appends its block to the durable pending-tombstones

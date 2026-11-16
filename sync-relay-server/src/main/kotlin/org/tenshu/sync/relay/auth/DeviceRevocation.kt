@@ -48,14 +48,27 @@ class DeviceRevocation(
      * forget the device's tip. A stale tombstone (authored before the admission on record)
      * revokes nothing, so it must prune nothing — the device is still in the realm.
      */
-    fun applyDeviceTombstone(ownerId: String, deviceId: String, tombstoneHlc: HlcStamp?): Boolean {
+    fun applyDeviceTombstone(ownerId: String, deviceId: String, tombstoneHlc: HlcStamp?): Boolean =
+        applyAccessRevocation(ownerId, deviceId, tombstoneHlc)
+
+    /**
+     * Cut [deviceId]'s relay access — key removal, the permanent removal ledger, the tip — unless
+     * [authoredAt] predates its admission (on record or still queued for delivery). Returns true
+     * when it applied.
+     *
+     * The one implementation behind both triggers: an applied `Device` tombstone
+     * ([applyDeviceTombstone]) and `POST /sync/device-access/revoke` (`sync-entity-identity.md`
+     * §5b precondition 0). ⚠⚠ The caller has already decided the request is **authorised** — an A1
+     * signature, or the device naming itself. Nothing here checks who asked.
+     */
+    fun applyAccessRevocation(ownerId: String, deviceId: String, authoredAt: HlcStamp?): Boolean {
         // The same ordering rule as [DeviceRegistry.revokeIfNotStale], against a queued admission:
         // strictly newer survives; an absent stamp on either side lets the revocation apply.
         val pending = pendingAdmittedAt(ownerId, deviceId)
-        if (tombstoneHlc != null && pending != null && tombstoneHlc < pending) return false
+        if (authoredAt != null && pending != null && authoredAt < pending) return false
         var applied = false
         transaction {
-            applied = knownDevices.revokeIfNotStale(ownerId, deviceId, tombstoneHlc)
+            applied = knownDevices.revokeIfNotStale(ownerId, deviceId, authoredAt)
             if (applied) forget(ownerId, deviceId)
         }
         return applied

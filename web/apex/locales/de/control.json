@@ -94,7 +94,8 @@
       "drive": "Noch keine Dateien. Hochgeladenes erscheint hier.",
       "photos": "Noch keine Fotos.",
       "calendar": "Diese Woche steht nichts an.",
-      "timeline": "Heute ist noch nichts aufgezeichnet."
+      "timeline": "Heute ist noch nichts aufgezeichnet.",
+      "fit": "Für heute keine Schritte und noch keine Trainings in diesem Browser. Sie kommen von deinem Telefon."
     },
     "unit": {
       "steps": "Schritte"
@@ -132,7 +133,8 @@
       "other": "Moment"
     },
     "openPhoto": "{name} öffnen",
-    "openVideo": "Video {name} öffnen {duration}"
+    "openVideo": "Video {name} öffnen {duration}",
+    "noneToday": "Für heute ist noch nichts synchronisiert."
   },
   "bell": {
     "ariaLabel": "Benachrichtigungen",

@@ -1049,14 +1049,6 @@ val platformProxyModule = module {
                 realmRegistrar = realmRegistrar,
                 // Shared-realm sync in the real proxy runtime (mirrors SystemTestPlatformModule +
                 // the desktop wiring).
-                sharedRealmRelayFactory = org.tenshu.sync.proxy.sharedRealmRelayFactory(
-                    baseUrl = get(named("syncRelayUrl")),
-                    httpClient = get(),
-                    context = context,
-                    syncManager = syncManager,
-                    cryptoManager = cryptoManager,
-                    nowEpochSec = { System.currentTimeMillis() / 1000 },
-                ),
                 sharedRealmContentBlobStoreFactory = org.tenshu.sync.proxy.sharedRealmContentBlobStoreFactory(
                     baseUrl = get(named("syncRelayUrl")),
                     httpClient = get(),

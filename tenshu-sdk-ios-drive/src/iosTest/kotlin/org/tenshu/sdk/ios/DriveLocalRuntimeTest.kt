@@ -63,7 +63,10 @@ class DriveLocalRuntimeTest {
     fun redirectMain() = Dispatchers.setMain(Dispatchers.Default)
 
     @AfterTest
-    fun restoreMain() = Dispatchers.resetMain()
+    fun restoreMain() {
+        Dispatchers.resetMain()
+        TestGraphs.stopAll()
+    }
 
     private fun tempReplicaDir(): String =
         NSTemporaryDirectory() + "drive-local-runtime-test-" + Random.nextLong().toString(16)

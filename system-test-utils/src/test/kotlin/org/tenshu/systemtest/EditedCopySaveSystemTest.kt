@@ -10,6 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import org.tenshu.core.TResult
@@ -37,12 +38,12 @@ import org.tenshu.sync.startPairing
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import javax.imageio.ImageIO
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -57,12 +58,15 @@ class EditedCopySaveSystemTest {
 
     @Test fun aSaveReturnsWhileTheContentPushIsHeld_andTheCopySyncsOnceTheRelayAnswers() = runBlocking {
         val system = TestSystem.builder().build()
-        val relayAnswers = CompletableDeferred<Unit>().apply { complete(Unit) }
-        var gate = relayAnswers
+        // ⚠ Atomic, not a captured `var`: the interceptor runs on the HTTP client's threads, and a
+        // stale read of the open gate would let a content PUT through unheld. Every PUT
+        // that starts after `gate.set(held)` is held, so none of the copy's can be answered early.
+        val gate = AtomicReference(CompletableDeferred<Unit>().apply { complete(Unit) })
         val heldPuts = AtomicInteger()
         system.relayHttpClient.plugin(HttpSend).intercept { request ->
-            val current = gate
-            if (request.method == HttpMethod.Put && "/sync/content/" in request.url.buildString() && !current.isCompleted) {
+            val current = gate.get()
+            val isContentPut = request.method == HttpMethod.Put && "/sync/content/" in request.url.buildString()
+            if (isContentPut && !current.isCompleted) {
                 heldPuts.incrementAndGet()
                 try { current.await() } finally { heldPuts.decrementAndGet() }
             }
@@ -77,7 +81,7 @@ class EditedCopySaveSystemTest {
                 .valueOrFail("host uploadFile($original)")
 
             val held = CompletableDeferred<Unit>()
-            gate = held
+            gate.set(held)
             val photos = TenshuPhotosRepository(host.tenshuClient, reachability = null /* test */, copyUploadScope = uploadScope)
             val rendered = jpegBytes(480, 480)
             val copy = withTimeoutOrNull(20.seconds) {
@@ -87,8 +91,12 @@ class EditedCopySaveSystemTest {
             assertNotNull(copy, "The save must return while the relay holds the copy's content push")
             assertEquals("/photo-edited.jpg", copy.path)
             assertEquals(CAPTURED_AT, copy.capturedAtMs, "The copy keeps the original's capture time")
-            assertTrue(heldPuts.get() > 0, "Precondition: the save returned with a content PUT still held")
             assertContentEquals(rendered, photos.originalBytes(copy.path), "The copy reads back on this device at once")
+            // ⚠⚠ Awaited, not asserted at once: the save returns when the copy's row is readable, and
+            // the op reaches its PUT after that on its own schedule — under a loaded gate, later than
+            // the save. What this pins is that the push is really on its way and still held.
+            val pushHeld = withTimeoutOrNull(20.seconds) { while (heldPuts.get() == 0) delay(50) }
+            assertNotNull(pushHeld, "Precondition: the copy's content PUT reaches the relay and is held")
 
             held.complete(Unit)
             var joinerBytes: ByteArray? = null
@@ -107,7 +115,7 @@ class EditedCopySaveSystemTest {
             }
             assertContentEquals(rendered, joinerBytes, "Once the relay answers, the paired device gets the copy's bytes")
         } finally {
-            gate.complete(Unit)
+            gate.get().complete(Unit)
             uploadScope.cancel()
             system.shutdown()
         }

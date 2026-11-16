@@ -517,6 +517,7 @@ paths:
         '400': { description: 'Malformed JSON, a missing field, bad base64, a non-integer epoch, or a `newDevicePublicKey` that is not 32 bytes / a malformed `newDeviceId` (registration input rules).' }
         '401': { description: '`Invalid master delegation`.' }
         '404': { description: '`Realm not found`.' }
+        '409': { description: '`Device is bound to a member of this realm` — `newDeviceId` was bound by a shared-realm member (T-GR-08). Revoking that member clears it.' }
 
   /sync/recovery-challenge:
     get:
@@ -557,6 +558,7 @@ paths:
                 newDeviceId: { type: string }
                 challenge: { $ref: '#/components/schemas/Base64' }
                 masterSignature: { $ref: '#/components/schemas/Base64' }
+                admittedAtHlc: { type: string, description: 'Optional (§5b R3). HlcStamp.encode() of the admission; a future value is clamped to the relay clock.' }
       responses:
         '200': { description: 'Admitted.', content: { application/json: { schema: { type: object, properties: { status: { const: admitted } } } } } }
         '400': { description: 'Malformed JSON, a missing field, bad base64, or a `newDevicePublicKey` that is not 32 bytes / a malformed `newDeviceId` (registration input rules; checked before the challenge is consumed).' }
@@ -839,6 +841,49 @@ paths:
         '401': { description: '`Invalid revocation signature`.' }
         '404': { description: '`Realm not found`.' }
 
+  /sync/device-access/revoke:
+    post:
+      tags: [membership]
+      summary: Cut one device's relay access (key removal + permanent removal ledger), without a Device tombstone.
+      description: |
+        `sync-entity-identity.md` §5b precondition 0. No JWT; the authority is a signature, and the
+        same for every realm kind. `master`: A1 (realm master), may name any device. `self`: the named
+        device's own registered key, so it may name only itself — a device without A1 (a shared-realm
+        member, a non-owner personal device) can remove only itself. Applies only if `authoredAt` is
+        not older than the device's admission on record (the Device-tombstone rule); a stale request
+        answers `200 {"applied": false}` and is not retryable. A repeated `self` request answers 401,
+        because its key is the one it removed.
+      x-auth-capability: A master signature (`master`), or the named device's own signature (`self`).
+      x-signed-message: |
+        master: LP("tenshu-device-access-revoke-v1") ‖ LP(ownerId) ‖ LP(deviceId) ‖ LP(authoredAt.physicalTime) ‖ LP(authoredAt.logicalCounter) ‖ LP(authoredAt.deviceId)
+        self:   LP("tenshu-device-self-revoke-v1")   ‖ the same fields
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ownerId, deviceId, authoredAt, authority, signature]
+              properties:
+                ownerId: { type: string }
+                deviceId: { type: string, description: '1–256 characters from [A-Za-z0-9_-].' }
+                authoredAt: { type: string, description: 'HlcStamp.encode(): `physical:counter:deviceId`.' }
+                authority: { type: string, enum: [master, self] }
+                signature: { $ref: '#/components/schemas/Base64' }
+      responses:
+        '200':
+          description: 'Processed. `applied: false` means stale (authored before the admission on record); nothing changed.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [applied]
+                properties:
+                  applied: { type: boolean }
+        '400': { description: 'Malformed JSON, empty `ownerId`, malformed `deviceId`, missing/malformed `authoredAt`, unknown `authority`, or bad base64.' }
+        '401': { description: '`Invalid revocation signature`, or `Unknown device` (self form naming an unregistered or already-revoked device).' }
+        '404': { description: '`Realm not found` (master form).' }
+
   /sync/realm-member/admit:
     post:
       tags: [membership]
@@ -865,6 +910,7 @@ paths:
                     epoch: { type: integer, format: int64 }
                     issuedAt: { type: integer, format: int64 }
                     signature: { $ref: '#/components/schemas/Base64' }
+                admittedAtHlc: { type: string, description: 'Optional (§5b R3), written by the member; a future value is clamped to the relay clock.' }
                 deviceBinding:
                   type: object
                   required: [deviceId, perRealmDevicePublicKey, boundAt, signature]

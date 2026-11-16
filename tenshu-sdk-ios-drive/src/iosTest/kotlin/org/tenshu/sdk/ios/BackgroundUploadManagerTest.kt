@@ -16,6 +16,7 @@ import org.tenshu.core.core.TContext
 import org.tenshu.sync.common.ContentBlobStore
 import platform.Foundation.NSTemporaryDirectory
 import kotlin.random.Random
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -32,6 +33,10 @@ import kotlin.test.assertTrue
  * live scope, so effects are polled with a timeout the way the sibling runtime tests do.
  */
 class BackgroundUploadManagerTest {
+
+    /** Stops the graphs this class assembled (`TestGraphs`, `docs/testing-flakes.md`). */
+    @AfterTest
+    fun stopTestGraphs() = TestGraphs.stopAll()
 
     private class FakeBridge : BackgroundUploadBridge {
         data class Enqueued(val ref: String, val filePath: String, val url: String, val headers: Map<String, String>)

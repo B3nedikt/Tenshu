@@ -8,6 +8,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import org.tenshu.core.common.delegate.InMemorySecureStorageDelegate
 import platform.Foundation.NSTemporaryDirectory
 import kotlin.random.Random
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertTrue
 import kotlin.test.fail
@@ -28,6 +29,10 @@ import kotlin.test.fail
  * returns names which half it is in.
  */
 class ContactsConcurrentSubscribeTest {
+
+    /** Stops the graphs this class assembled (`TestGraphs`, `docs/testing-flakes.md`). */
+    @AfterTest
+    fun stopTestGraphs() = TestGraphs.stopAll()
 
     @Test
     fun everyFreshAssemblyListsTheContactItWrote() = runBlocking {

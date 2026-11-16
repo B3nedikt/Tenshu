@@ -1,5 +1,7 @@
 package org.tenshu.sync.proxy.impl
 
+import kotlinx.coroutines.sync.withLock
+
 import org.tenshu.core.Data
 import org.tenshu.core.TString
 import org.tenshu.core.common.proxy.ExecutionContext
@@ -42,15 +44,17 @@ internal class GrantSharedRealmMembershipImplementation(
             ?: error("GrantSharedRealmMembership requires personId")
         val label = (params?.get(GrantSharedRealmMembership.Params.LABEL) as? TString)?.get() ?: ""
 
-        val authorityPublicKeyHex = SharedRealmGrantManager(
-            executionContext = executionContext,
-            syncManager = syncManager,
-            cryptoManager = cryptoManager,
-            relay = relay,
-            realmRegistry = realmRegistry,
-            grantedRelayFactory = grantedRelayFactory,
-            nowMs = nowMs,
-        ).grant(realmId, personId, label)
+        val authorityPublicKeyHex = realmRegistry.grantOps.withLock {
+            SharedRealmGrantManager(
+                executionContext = executionContext,
+                syncManager = syncManager,
+                cryptoManager = cryptoManager,
+                relay = relay,
+                realmRegistry = realmRegistry,
+                grantedRelayFactory = grantedRelayFactory,
+                nowMs = nowMs,
+            ).grant(realmId, personId, label)
+        }
 
         return authorityPublicKeyHex.toTString(executionContext.context) as T
     }

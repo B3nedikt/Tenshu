@@ -54,6 +54,7 @@ import app.tenshu.drive.shared.resources.manage_access_remove
 import app.tenshu.drive.shared.resources.manage_access_remove_error
 import app.tenshu.drive.shared.resources.manage_access_removing
 import app.tenshu.drive.shared.resources.manage_access_role_member
+import app.tenshu.drive.shared.resources.manage_access_role_invited
 import app.tenshu.drive.shared.resources.manage_access_role_owner
 import app.tenshu.drive.shared.resources.manage_access_status_accepted_confirm
 import app.tenshu.drive.shared.resources.manage_access_status_compromised
@@ -117,8 +118,19 @@ fun ManageAccessScreen(
             items(uiState.members, key = { "member:${it.memberId}" }) { member ->
                 MemberRow(
                     member = member,
+                    contactName = uiState.contactNames[member.contactFingerprint],
                     removing = uiState.removingMemberId == member.memberId,
                     onRemove = { viewModel.onRemoveMember(member.memberId) },
+                )
+            }
+
+            // The "invited" state (RO D7): granted, not yet accepted. Removing one is the same op —
+            // revoke-before-accept (GR D6).
+            items(uiState.invited, key = { "invited:${it.memberId}" }) { invitation ->
+                InvitedRow(
+                    name = uiState.contactNames[invitation.granteeFingerprint],
+                    removing = uiState.removingMemberId == invitation.memberId,
+                    onRemove = { viewModel.onRemoveMember(invitation.memberId) },
                 )
             }
 
@@ -235,6 +247,61 @@ private fun OwnerRow() {
 @Composable
 private fun MemberRow(
     member: MemberModel,
+    /** The contact's name for this member, when they are one of mine — a member's own name is usually empty. */
+    contactName: String?,
+    removing: Boolean,
+    onRemove: () -> Unit,
+) {
+    val name = member.displayName.ifEmpty { contactName.orEmpty() }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Avatar(background = MaterialTheme.colorScheme.secondaryContainer) {
+            Text(
+                text = name.firstOrNull()?.uppercase() ?: "?",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = name.ifEmpty { stringResource(Res.string.contact_prompt_unnamed) },
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            Text(
+                text = stringResource(Res.string.manage_access_role_member),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (removing) {
+            Text(
+                text = stringResource(Res.string.manage_access_removing),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            TextButton(onClick = onRemove) {
+                Text(
+                    text = stringResource(Res.string.manage_access_remove),
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * A grant still waiting for its member to accept (the "invited" state, RO D7): the contact's name, an
+ * "Invited" subtitle, and *Remove* — which revokes the grant before it is accepted (GR D6).
+ */
+@Composable
+private fun InvitedRow(
+    name: String?,
     removing: Boolean,
     onRemove: () -> Unit,
 ) {
@@ -245,20 +312,20 @@ private fun MemberRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Avatar(background = MaterialTheme.colorScheme.secondaryContainer) {
+        Avatar(background = MaterialTheme.colorScheme.surfaceVariant) {
             Text(
-                text = member.displayName.firstOrNull()?.uppercase() ?: "?",
+                text = name?.firstOrNull()?.uppercase() ?: "?",
                 style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = member.displayName.ifEmpty { stringResource(Res.string.contact_prompt_unnamed) },
+                text = name?.ifEmpty { null } ?: stringResource(Res.string.contact_prompt_unnamed),
                 style = MaterialTheme.typography.bodyLarge,
             )
             Text(
-                text = stringResource(Res.string.manage_access_role_member),
+                text = stringResource(Res.string.manage_access_role_invited),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

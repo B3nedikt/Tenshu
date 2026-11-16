@@ -391,11 +391,9 @@ internal object SyncPlugin : JsRuntimePlugin {
         // publishes the tombstone emitter back into the shared holder so the
         // file/notification/identity factories can emit tombstones through it.
         //
-        // MB-2: pass the two relay factories so (a) a registered shared realm gets
-        // an A4-signed relay and can push/pull its member roster
-        // (`sharedRealmRelayFactory`), and (b) the `MemberSelfBindObserver`
-        // registers — a member's second device self-binds with its own per-realm
-        // key (`grantedRelayFactory`). File-content factories stay null (Mode-B
+        // MB-2 / D10: `grantedRelayFactory` gives every registered shared realm a relay
+        // signed with its per-realm device key (owner or member — never the personal A4),
+        // and registers the `MemberSelfBindObserver`. File-content factories stay null (Mode-B
         // file read is MB-3); Member rows ride the block stream, not the content
         // plane.
         // MB-3: also pass the content-plane seams so a shared realm's processor
@@ -420,9 +418,11 @@ internal object SyncPlugin : JsRuntimePlugin {
             syncProcessorHolder = runtime.syncProcessorHolder,
             contentBlobStore = runtime.contentBlobStore,
             fileDatabase = runtime.fileDatabase,
-            sharedRealmRelayFactory = runtime.sharedRealmRelayFactory,
             sharedRealmContentBlobStoreFactory = runtime.sharedRealmContentBlobStoreFactory,
             grantedRelayFactory = runtime.grantedRelayFactory,
+            // ⚠ §5b R2b: the signed device-access revocations drain over it — since protocol 2 the
+            // only thing that cuts a removed device's access.
+            personalRelay = runtime.syncRelay,
             nowMs = runtime.nowMs,
             // TC-2: publish the *store's* HLC position rather than this tab's, so two tabs of one
             // origin stop overwriting the relay's single per-device tip slot with unrelated values.

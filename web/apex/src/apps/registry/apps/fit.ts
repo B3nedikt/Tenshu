@@ -70,14 +70,16 @@ const glance: AppGlance = {
       ).catch(() => null),
     ])
     if (!days.ok) throw new Error(days.error.kind)
-    const steps = days.days[0]?.steps ?? 0
+    // ⚠⚠ No row is NOT 0 steps: Fit answers a day with no data with no row (`Fit.dailyAggregates`),
+    // and a 0 drawn for it made "nothing has synced to this browser" read as "you did not walk".
+    const steps = days.days[0]?.steps ?? null
     const goal = goals !== null && goals.ok ? goals.goals.steps : 0
     const last = workouts !== null && workouts.ok ? workouts.workouts[0] : undefined
     return {
       layout: 'stat',
       value: steps,
       unit: 'steps',
-      progress: goal > 0 ? Math.min(1, steps / goal) : null,
+      progress: steps !== null && goal > 0 ? Math.min(1, steps / goal) : null,
       footnote:
         last === undefined
           ? null
@@ -111,7 +113,8 @@ export const fit: HostedApp = {
   origin: () => appOrigin(import.meta.env.VITE_FIT_ORIGIN, PROD_ORIGIN, 5180),
   methods: METHODS,
   routePath: 'fit/*',
-  sections: ['', 'history', 'profile'],
+  // `metric`: a metric's page under Home (fit-web-parity.md §2.3), not a sidebar entry.
+  sections: ['', 'history', 'profile', 'metric'],
   glance,
   // ⚠ DISPLAY data for the Apps section — what the app can actually call is `methods` above.
   manifest: {

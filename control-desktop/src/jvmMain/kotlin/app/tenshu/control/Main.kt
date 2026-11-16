@@ -541,8 +541,9 @@ private const val SHUTDOWN_TIMEOUT_MS = 10_000L
 /**
  * The single-instance lock, held for the life of the process. ⚠ A top-level field on purpose: an
  * unreachable `RandomAccessFile` is closed by its cleaner, and closing the channel drops the lock.
+ * Written and read only on the main thread in [main] (before `application { }` and after it
+ * returns), so it needs no `@Volatile`.
  */
-@Volatile
 private var instanceLock: SingleInstanceLock? = null
 
 /**

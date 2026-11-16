@@ -121,7 +121,9 @@
   "history": {
     "startOver": "Start from the top",
     "title": "Workouts",
-    "empty": "No workouts yet. Import a GPX or TCX file, or record one on your phone."
+    "empty": "No workouts yet. Import a GPX or TCX file, or record one on your phone.",
+    "weekOf": "Week of {date}",
+    "weekCount": "{count, plural, one {# workout} other {# workouts}}"
   },
   "activity": {
     "Running": "Run",
@@ -164,7 +166,20 @@
     "delete": "Delete workout",
     "deleteTitle": "Delete this workout?",
     "deleteBody": "It is removed from all your devices. This can’t be undone.",
-    "deleteConfirm": "Delete"
+    "deleteConfirm": "Delete",
+    "paceChart": "Pace",
+    "paceAria": "Pace over the workout",
+    "elevation": "Elevation",
+    "elevationAria": "Elevation, {min} to {max}",
+    "ascent": "Ascent",
+    "splits": "Splits",
+    "splitKm": "km",
+    "splitMi": "mi",
+    "splitTime": "Time",
+    "splitPace": "Pace",
+    "splitHr": "Avg HR",
+    "splitBest": "Fastest split",
+    "avgPace": "Avg {value}"
   },
   "map": {
     "map": "Map",
@@ -248,5 +263,34 @@
       "Unavailable": "Unavailable on that device",
       "Sample": "Sample data"
     }
+  },
+  "trend": {
+    "steps": "{value} steps",
+    "goal": "Goal {value}",
+    "monthReadout": "{value} a day · {month}",
+    "aria": {
+      "week": "{metric}, the last 7 days",
+      "month": "{metric}, the last 30 days",
+      "year": "{metric}, the last 12 months by month"
+    },
+    "km": "{value} km",
+    "mi": "{value} mi"
+  },
+  "elevation": {
+    "m": "{value} m",
+    "ft": "{value} ft"
+  },
+  "home": {
+    "minutes": "min",
+    "goalReached": "Goal reached",
+    "toGo": "{value} min to go",
+    "who": "The WHO recommends 150 active minutes a week.",
+    "thisWeek": "This week",
+    "weekTotal": "{value} this week",
+    "delta": "{value}% vs last week",
+    "latest": "Latest workout"
+  },
+  "metricPage": {
+    "entries": "Day by day"
   }
 }

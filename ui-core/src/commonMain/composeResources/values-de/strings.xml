@@ -23,6 +23,7 @@
     <string name="error_unsupported_operation">Diese Version unterstützt das noch nicht.</string>
     <string name="error_entitlement_unverified">Dein Plan konnte nicht überprüft werden. Bitte versuche es erneut.</string>
     <string name="error_relay_route_unsupported">Dein anderes Gerät braucht dafür ein Update.</string>
+    <string name="error_recovery_phrase_required">Gib deine Wiederherstellungsphrase ein, um ein anderes Gerät zu entfernen. Dieses Gerät kann nur sich selbst entfernen.</string>
     <string name="error_recovery_phrase_unreadable">Dieses Gerät kann seine gespeicherte Wiederherstellungsphrase nicht lesen, daher kann das Entsperren nicht gelingen. Verwende „Dieses Gerät hinzufügen“ auf einem anderen Gerät, das noch angemeldet ist.</string>
     <string name="error_device_already_set_up">Dieses Gerät ist bereits mit einem anderen Realm eingerichtet. Um hier ein anderes Realm wiederherzustellen, verwende zuerst „Dieses Gerät vergessen“ und versuche es dann erneut.</string>
     <string name="error_semantic_search_unavailable">Die intelligente Suche ist auf diesem Gerät nicht verfügbar.</string>

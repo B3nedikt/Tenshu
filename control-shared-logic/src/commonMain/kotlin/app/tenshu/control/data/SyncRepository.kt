@@ -280,6 +280,13 @@ interface SyncRepository {
     suspend fun deviceLastSeen(): Map<String, Long>
 
     /**
+     * The devices this realm has **removed**, by its signed device records (`GetRemovedDevices`,
+     * `sync-entity-identity.md` §5b R6c) — the only place a removed device still appears, since its
+     * roster row is gone. Best-effort like [deviceLastSeen]: a failed read is an empty list.
+     */
+    suspend fun removedDevices(): List<RemovedDevice>
+
+    /**
      * Each realm device's self-published hardware model (`DeviceHardware`), keyed by `deviceId` —
      * the immutable half of the roster label beside the user-chosen `Device.name`.
      *
@@ -293,3 +300,22 @@ interface SyncRepository {
     val deviceHardwareNames: Flow<Map<String, String>>
 }
 
+/**
+ * A device the realm's signed records say is removed. [removedItself] is the `self` form (the device
+ * left on its own); otherwise it was removed with the recovery phrase. [removedAtMillis] is the signed
+ * stamp's wall-clock part.
+ */
+data class RemovedDevice(
+    val deviceId: String,
+    val removedAtMillis: Long,
+    val removedItself: Boolean,
+    /**
+     * What the relay has done with this removal, when **this device** made it (`GetDeviceAccessRevocations`):
+     * a `PendingDeviceAccessRevocation.State`, or `null` when there is nothing to say — the relay applied it, or it
+     * was made on another device. ⚠⚠ A removal the relay has not applied is never shown as plainly "removed"
+     * (maintainer decision 2026-11-12): the row says it is waiting, or that the relay refused, and why.
+     */
+    val relayState: String? = null,
+    /** The relay's answer behind [relayState] (status and reason). */
+    val relayDetail: String = "",
+)

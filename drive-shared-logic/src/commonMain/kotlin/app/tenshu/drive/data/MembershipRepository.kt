@@ -14,6 +14,8 @@ import org.tenshu.identity.client.identityService
 import org.tenshu.identity.contactFingerprint
 import org.tenshu.identity.displayName
 import org.tenshu.identity.getRealmMembers
+import org.tenshu.identity.getRealmInvitations
+import org.tenshu.identity.getPendingAcceptances
 import org.tenshu.identity.memberId
 import org.tenshu.identity.role
 import org.tenshu.sync.acceptSharedRealmGrant
@@ -60,6 +62,19 @@ interface MembershipRepository {
     suspend fun members(realmId: String): RepositoryResult<List<MemberModel>>
 
     /**
+     * The grants of [realmId] still waiting for their member's acceptance (`getRealmInvitations` — the
+     * "invited" state, `shared-realm-membership-records.md` §3.4). Owner-side: empty on a member's device.
+     */
+    suspend fun invitations(realmId: String): RepositoryResult<List<InvitationModel>>
+
+    /**
+     * The realms this member accepted whose acceptance the relay refused for want of an account (`402`,
+     * `ENTITLEMENT_ENFORCE`; `getPendingAcceptances`). The acceptance stays queued and goes through once an
+     * account exists — this only lets the app say so. Member-side; empty by default.
+     */
+    suspend fun realmsAwaitingAccount(): RepositoryResult<Set<String>> = RepositoryResult.Success(emptySet())
+
+    /**
      * Remove member [memberId] from shared realm [realmId] (`removeSharedRealmMember`,
      * GR-6): revokes the member at the relay (purges their devices) and tombstones
      * their roster rows. Owner-only. Kr rotation is GR-7.
@@ -79,6 +94,15 @@ interface MembershipRepository {
      */
     suspend fun declinePendingGrant(grantorFingerprint: String): RepositoryResult<Unit>
 }
+
+/**
+ * A grant still awaiting its member's acceptance (an `AwaitedAcceptance` row, RO D7). [granteeFingerprint]
+ * is the contact it went to — how *Manage access* names the row.
+ */
+data class InvitationModel(
+    val memberId: String,
+    val granteeFingerprint: String,
+)
 
 /**
  * Data-layer projection of a [org.tenshu.identity.PendingGrant] row (GR-6) — a grant
@@ -138,6 +162,28 @@ class TenshuMembershipRepository(
                             role = entity.role.get(),
                         )
                     }
+                )
+            },
+            onFailure = { error -> RepositoryResult.Error(RepositoryError.Unknown(error.errorCopyKey())) },
+        )
+
+    override suspend fun invitations(realmId: String): RepositoryResult<List<InvitationModel>> =
+        client.identityService.getRealmInvitations(realmId).fold(
+            onSuccess = { rows ->
+                RepositoryResult.Success(
+                    (rows?.toList() ?: emptyList()).map { row ->
+                        InvitationModel(memberId = row.memberId.get(), granteeFingerprint = row.granteeFingerprint.get())
+                    },
+                )
+            },
+            onFailure = { error -> RepositoryResult.Error(RepositoryError.Unknown(error.errorCopyKey())) },
+        )
+
+    override suspend fun realmsAwaitingAccount(): RepositoryResult<Set<String>> =
+        client.identityService.getPendingAcceptances().fold(
+            onSuccess = { rows ->
+                RepositoryResult.Success(
+                    (rows?.toList() ?: emptyList()).filter { it.needsAccount.get() }.map { it.realmId.get() }.toSet(),
                 )
             },
             onFailure = { error -> RepositoryResult.Error(RepositoryError.Unknown(error.errorCopyKey())) },

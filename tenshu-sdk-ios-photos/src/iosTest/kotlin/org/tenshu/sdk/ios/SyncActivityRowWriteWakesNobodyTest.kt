@@ -15,6 +15,7 @@ import org.tenshu.sync.client.syncService
 import platform.Foundation.NSTemporaryDirectory
 import kotlin.concurrent.AtomicInt
 import kotlin.random.Random
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -33,6 +34,9 @@ import kotlin.test.assertTrue
  * no new `PagingData` has nothing to draw.
  */
 class SyncActivityRowWriteWakesNobodyTest {
+
+    @AfterTest
+    fun stopGraphs() = TestGraphs.stopAll()
 
     @Test
     fun fortyWritesOfTheStatusRow_wakeItsOwnReader_andNeitherTheFeedNorASiblingRelation() = runBlocking {

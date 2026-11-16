@@ -2,6 +2,8 @@ package app.tenshu.drive.ui.screens.shared
 
 import app.tenshu.ui.feedback.AppLoadingIndicator
 import app.tenshu.drive.shared.resources.my_shares_error_title
+import app.tenshu.drive.shared.resources.shared_with_me_needs_account
+import app.tenshu.drive.shared.resources.shared_with_me_needs_account_action
 import app.tenshu.drive.shared.resources.my_shares_error_body
 import app.tenshu.liststate.ListLoadPhase
 import androidx.compose.foundation.clickable
@@ -216,6 +218,7 @@ fun SharedScreen(
                     resumedRedemptions = uiState.resumedRedemptions,
                     pendingGrants = uiState.pendingGrants,
                     acceptInProgress = uiState.acceptInProgress,
+                    needsAccountToJoin = uiState.needsAccountToJoin,
                     onOpenSharedFolder = onOpenSharedFolder,
                     onAcceptClicked = viewModel::onAcceptFromContactClicked,
                     onAcceptPendingGrant = viewModel::onAcceptPendingGrant,
@@ -318,12 +321,16 @@ private fun SharedWithMeContent(
     resumedRedemptions: List<ResumedRedemption>,
     pendingGrants: List<PendingGrantCard>,
     acceptInProgress: Boolean,
+    needsAccountToJoin: Boolean,
     onOpenSharedFolder: (realmId: String, name: String) -> Unit,
     onAcceptClicked: () -> Unit,
     onAcceptPendingGrant: (fingerprint: String) -> Unit,
     onDeclinePendingGrant: (fingerprint: String) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
+        // An accepted folder the relay will not let this member join without an account (402): say so, and
+        // offer the way to make one. Never a silent wait — the acceptance is retried meanwhile.
+        if (needsAccountToJoin) NeedsAccountCard()
         // GR-6: discovered pending grants (the inbound poll) — a card per quarantined
         // grant with explicit Accept / Decline. Rendered above the inbound list.
         pendingGrants.forEach { card ->
@@ -600,6 +607,31 @@ private fun MyShareRowItem(
         }
         TextButton(onClick = { onRevokeClicked(row.shareId) }) {
             Text(stringResource(Res.string.my_shares_revoke))
+        }
+    }
+}
+
+/** "Create a free account to join this folder", with a way to Control, where accounts are made. */
+@Composable
+private fun NeedsAccountCard() {
+    val openControl = app.tenshu.ui.storage.rememberControlServicesLauncher()
+    Surface(
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = stringResource(Res.string.shared_with_me_needs_account),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            // ⚠ `null` = Control is not reachable from this app (desktop, not installed): the text still says what
+            // to do, so the card degrades to text alone rather than a dead button.
+            if (openControl != null) {
+                TextButton(onClick = openControl) {
+                    Text(stringResource(Res.string.shared_with_me_needs_account_action))
+                }
+            }
         }
     }
 }

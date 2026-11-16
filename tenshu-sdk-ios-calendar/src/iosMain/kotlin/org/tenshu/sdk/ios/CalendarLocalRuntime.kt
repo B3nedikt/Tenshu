@@ -112,6 +112,7 @@ object CalendarLocalRuntime {
         val base = assembleBase(replicaDirectory, secureStorage, handedOffMaterial, relayBaseUrl, presenter)
         val client = base.tenshuClient
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        base.stopsWithTestGraph(scope)
         // ⚠ This graph's own scope ends with the graph when the shared store's host stops it
         // (`ios-shared-store-sqlite.md` Appendix B.16).
         runtime.onCurrentGraphStop { scope.cancel() }

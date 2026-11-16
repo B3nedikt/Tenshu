@@ -33,6 +33,7 @@ class DriveBackupRebuildTest {
     @AfterTest
     fun detach() {
         started?.let { DriveBackupSurface.detachIfOver(it.client.tenshuClient) }
+        TestGraphs.stopAll() // ⚠ last: the hooks above may still need the graph
     }
 
     @Test

@@ -351,6 +351,11 @@ pairingSecret / encrypted-key mailbox).
     - `masterDelegation` verifies against the realm's stored `masterPublicKey` — the same
       message shape and verifier as `POST /sync/pairing/response` (`MasterDelegationVerifier
       .pairingResponseMessage`). Else **401**.
+    - `newDeviceId` is not bound to a shared-realm **member** (`MembershipRegistry.isMemberDevice`)
+      — else **409** `Device is bound to a member of this realm`. The mirror of
+      `/sync/realm-member/admit`'s already-registered check (threat model T-GR-08): a member must
+      not be able to pre-bind an owner device's id. Refused, never cleared; revoking the member
+      clears the binding.
 - **Side effects:** stores `(ownerId, newDeviceId) → newDevicePublicKey` in the known-devices
   store, so the admitted device's JWTs verify.
 - **Response:** `200`. Idempotent — re-admitting the same device re-registers the same key.
@@ -631,6 +636,34 @@ Revocation of a device ([ADR 0007](../adr/0007-sync-device-management.md)) is im
 `DeleteBlock` of the device's `Device` entity plus the existing volume-key epoch
 rotation. No special revocation-block kind. See [`docs/sync/design.md`](../sync/design.md)
 §2.6 "Revocation is a tombstone" for the full revocation flow.
+
+#### `POST /sync/device-access/revoke` — device-access revocation without a tombstone (2026-11-10)
+
+⭐ **Added** by [`sync-entity-identity.md`](sync-entity-identity.md) §5b precondition 0 (phase R1).
+Additive, so no `RELAY_PROTOCOL_VERSION` bump; an old relay answers `404`. Shape:
+`docs/protocol/relay-api.openapi.yaml`.
+
+```json
+{ "ownerId": "…", "deviceId": "…", "authoredAt": "physical:counter:deviceId",
+  "authority": "master" | "self", "signature": "<base64>" }
+```
+
+No JWT. The authority is a **signature**, never the realm kind — one route for personal and shared
+realms. Both forms sign `LP(tag) ‖ LP(ownerId) ‖ LP(deviceId) ‖ LP(phys) ‖ LP(counter) ‖ LP(hlcDevice)`
+(`DeviceAccessRevocation`, `:sync-service-common`):
+
+- **`master`** — tag `tenshu-device-access-revoke-v1`, A1, verified against `realm.masterPublicKey`.
+  May name any device.
+- **`self`** — tag `tenshu-device-self-revoke-v1`, verified against the **named** device's registered
+  key, so it can name only its signer. ⚠⚠ This is how T-GR-08's rule (a member device may only remove
+  itself) survives the move off tombstones, and the same rule binds non-owner personal devices.
+- Both run `DeviceRevocation.applyAccessRevocation`, the code an applied `Device` tombstone runs: key
+  removal, the `removed_device` ledger, the tip prune — **unless** `authoredAt` predates the admission
+  on record or queued for delivery. Then the answer is `200 {"applied": false}`, terminal.
+- ⚠ It does **not** bump the realm epoch: `GET /sync/realm-epoch` still counts `Device` tombstones.
+- ⭐ **Protocol 2 (R2b):** a `Device` tombstone pushed at protocol ≥ 2 is data — stored, served and
+  counted for the epoch, but it revokes nothing. One pushed at 1 still revokes, until the minimum is
+  raised to 2 (R5) and such a client gets `426` instead.
 
 ---
 

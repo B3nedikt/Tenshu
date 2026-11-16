@@ -16,4 +16,6 @@ export const queryKeys = defineQueryKeys({
   // Detail: a snapshot, invalidated when History's change signal moves.
   workout: (workoutId: string) => ['workout', workoutId] as const,
   workouts: () => ['workout'] as const,
+  // Home's latest-workout card: under `workout`, so History's change signal (`refetchHead`) refreshes it.
+  latestWorkout: () => ['workout', '#latest'] as const,
 })

@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
 import org.tenshu.contact.AwaitInviteAck
 import org.tenshu.contact.ContactInvite
 
@@ -131,6 +133,49 @@ class SharedScreenViewModel(
                 is RepositoryResult.Error -> Unit // leave the prior list; empty-state otherwise
             }
         }
+        refreshAwaitingAccount()
+    }
+
+    /**
+     * Whether an accepted folder is still waiting for this member to create an account (`402` on the acceptance
+     * drop). Re-read after every accept and refresh: the outbox retries on each poll, so the notice clears by
+     * itself once an account exists.
+     */
+    private fun refreshAwaitingAccount() {
+        viewModelScope.launch { readAwaitingAccount() }
+    }
+
+    private suspend fun readAwaitingAccount() {
+        when (val result = membershipRepository.realmsAwaitingAccount()) {
+            is RepositoryResult.Success -> {
+                val waiting = result.value.isNotEmpty()
+                _uiState.update { it.copy(needsAccountToJoin = waiting) }
+                if (waiting) watchAwaitingAccount()
+            }
+            is RepositoryResult.Error -> Unit
+        }
+    }
+
+    private var awaitingAccountWatch: Job? = null
+
+    /**
+     * While the notice shows, re-read every [AWAITING_ACCOUNT_RECHECK_MS]. Control's background poll can deliver the
+     * acceptance once an account exists, and nothing else tells this screen. Bounded ([AWAITING_ACCOUNT_RECHECKS]),
+     * so it never polls forever. A later accept or refresh re-reads anyway.
+     */
+    private fun watchAwaitingAccount() {
+        if (awaitingAccountWatch?.isActive == true) return
+        awaitingAccountWatch = viewModelScope.launch {
+            repeat(AWAITING_ACCOUNT_RECHECKS) {
+                delay(AWAITING_ACCOUNT_RECHECK_MS)
+                if (!_uiState.value.needsAccountToJoin) return@launch
+                val result = membershipRepository.realmsAwaitingAccount()
+                if (result is RepositoryResult.Success && result.value.isEmpty()) {
+                    _uiState.update { it.copy(needsAccountToJoin = false) }
+                    return@launch
+                }
+            }
+        }
     }
 
     /**
@@ -239,6 +284,7 @@ class SharedScreenViewModel(
                 is RepositoryResult.Success -> {
                     pendingFingerprints = result.value.map { it.grantorFingerprint }
                     recomputePendingCards()
+                    refreshAwaitingAccount() // the poll just retried any queued acceptance
                 }
                 is RepositoryResult.Error -> Unit // keep prior cards
             }
@@ -428,4 +474,9 @@ class SharedScreenViewModel(
         // tracked as P1b §9.5 step 1 follow-on).
         revoked = revoked,
     )
+
+    private companion object {
+        const val AWAITING_ACCOUNT_RECHECK_MS = 30_000L
+        const val AWAITING_ACCOUNT_RECHECKS = 20
+    }
 }

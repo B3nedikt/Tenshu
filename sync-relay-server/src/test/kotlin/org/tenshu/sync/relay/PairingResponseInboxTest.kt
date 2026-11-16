@@ -107,21 +107,34 @@ class PairingResponseInboxTest {
 
     @Test
     fun aRetryRacingTheAck_neverLeavesAConsumedHashServingARefill() {
-        // A host retry overlapping the joiner's ack: whatever the interleaving, a retired hash
-        // must not keep serving a response. Stress, not a proof: it cannot false-fail, but a pass
-        // without the post/ack lock is possible on an unlucky schedule.
-        repeat(2_000) { round ->
-            val inbox = PairingResponseInbox()
-            val hash = "e".repeat(64)
-            inbox.post(hash, byteArrayOf(1))
-            val start = java.util.concurrent.CountDownLatch(1)
-            val retry = Thread { start.await(); inbox.post(hash, byteArrayOf(2)) }
-            val ack = Thread { start.await(); inbox.ack(hash) }
-            retry.start(); ack.start(); start.countDown(); retry.join(); ack.join()
-
-            if (inbox.isConsumed(hash)) {
-                assertNull(inbox.get(hash), "round $round: consumed, yet still serving a refill")
-            }
+        // A host retry overlapping the joiner's ack: the retry has read "not consumed" and is about
+        // to insert when the ack arrives. Forced, not stressed: the ack is started inside `post`'s
+        // window between its consumed check and its insert (`afterConsumedCheck`), and must not be
+        // able to finish there. Without the post/ack lock it runs to the end inside the window, the
+        // hash is retired, and the retry's insert then serves a refill under a consumed hash.
+        val inbox = PairingResponseInbox()
+        val hash = "e".repeat(64)
+        inbox.post(hash, byteArrayOf(1))
+        var ackStateInsideTheWindow: Thread.State? = null
+        val ack = Thread { inbox.ack(hash) }
+        inbox.afterConsumedCheck = {
+            inbox.afterConsumedCheck = null
+            ack.start()
+            // ⚠ A state, not a time: the ack either parks on the transition's monitor (BLOCKED) or,
+            // with nothing to stop it, runs to the end (TERMINATED). Both are reached; neither is guessed.
+            while (ack.state != Thread.State.BLOCKED && ack.state != Thread.State.TERMINATED) Thread.onSpinWait()
+            ackStateInsideTheWindow = ack.state
         }
+        assertEquals(PairingResponseInbox.PostResult.STORED, inbox.post(hash, byteArrayOf(2)), "the retry read \"not consumed\"")
+        ack.join()
+
+        assertEquals(
+            Thread.State.BLOCKED,
+            ackStateInsideTheWindow,
+            "an ack completed between a retry's consumed check and its insert: the two are not one transition",
+        )
+        // The ack ran after the retry's insert, so it retired the refill too.
+        assertTrue(inbox.isConsumed(hash))
+        assertNull(inbox.get(hash), "consumed, yet still serving a refill")
     }
 }

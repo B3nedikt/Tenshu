@@ -1556,6 +1556,11 @@ Explicitly not trusted:
   device's single A4 now authenticates to two `ownerId` streams (personal + shared) ⇒ the relay can
   build a co-membership graph **without decrypting** — the accepted residual already tracked in
   attack-surface #10 below; per-realm device credentials are the deferred mitigation.
+  ⭐ *Amended 2026-11-10 (D10, `shared-realm-read-only-members.md`):* **closed for owner devices.** Each
+  owner device now joins a shared realm under its own fresh per-realm Ed25519 key and the realm-local
+  id derived from it — the creator at `POST /sync/realm`, the others by admitting themselves with the
+  synced realm master (`SharedRealmJoinObserver`) — so no personal A4 authenticates to a share any
+  more. Members already did this (GR D2). See T-GR-05's amendment.
 - **A13. Realm Identity Encryption Sub-key.** Per-realm X25519 keypair attached to the realm
   identity (per [`tenshu-rei.md`](../proposals/tenshu-rei.md) §2.3). Used to wrap shared-realm
   master keys (A12) for delivery to a member realm and to unwrap them on read. Shares A1's
@@ -5531,7 +5536,10 @@ service. Two sub-threats:
   `ClientCallbackGuard`). Asked about the caller, not resolved from Control up front, so a Control
   reinstalled under a new UID is admitted on its first call. A positive answer is cached for at
   most 60 s and dropped at once when the app's binding to Control dies or disconnects, because
-  below API 33 an uninstalled Control's UID can be reused by another app. A UID found not to be
+  below API 33 an uninstalled Control's UID can be reused by another app. ⚠ *Amended 2026-11-15:* "at once" holds even
+  when the forget lands during a lookup on a Binder thread — the lookup's answer is cached only if no
+  forget has run since it began (a generation check), so it cannot re-admit the forgotten UID for the
+  TTL; before, it could. A UID found not to be
   Control is refused without asking again for 10 s — **per UID**, so several UIDs (isolated
   processes) each get their own lookup, and the 64-entry table is reset when it fills — so a
   stranger's calls are not each a package-manager lookup. Anything refused gets a
@@ -5759,26 +5767,25 @@ Residual risk: **Low.** Bounded by the same custody as the registry it replaces 
 
 **T-K-02. Race between pairing and revocation.**
 Actors: AD5.
-*⚠⚠ Selected successor — NOT yet an amendment (2026-09-17).* `proposals/sync-entity-identity.md`
-§5b selects a device-revocation design that changes this entry's surfaces, recorded here so the
-contract does not read as current while the successor is chosen and unbuilt. Its new surfaces: an
-**A1-signed revocation roster** in its own relay table (encrypted payload; version, predecessor
-digest and an **outer** A1 signature in the clear so the relay can authorise a compare-and-swap it
-cannot decrypt), and an append-only **A4-signed self-removal table** whose entries carry the
-A4→device delegation. Its authorization changes: peers act on a revocation only against an **A1**
-signature (membership is not permission — an A33 admitter queues a removal an owner signs), and a
-self-removal is evidence until an owner absorbs it. Its accepted residuals — **two**, not one.
-(1) A device recovered from the phrase alone has **no continuity anchor**, so a hostile relay can
-serve it an older correctly-signed roster — it may keep devices in the roster on that basis but never
-shrink it, and the first sync with a live peer anchors it. (2) ⚠⚠ **An explicit exception to I6's
-"within bounded time"**: two owner devices can sign different successors to one roster version, and a
-relay that equivocates on **both** planes can serve one fork to one population while withholding the
-other indefinitely — so a revocation can be withheld from part of the realm with no bound. Fork
-*detection* is by client gossip of the adopted roster head, which raises the cost of equivocation
-without removing it; closing it needs an anchor outside the relay that the design does not have.
-⚠ Related: a realm whose last A1 holder is gone cannot
-change its roster at all; access is still cut, peers keep waiting, reclamation stalls. ⚠ The binding
-amendment co-lands with the implementation, per House Rule #2.
+*⚠⚠ Selected successor — NOT yet an amendment (2026-09-17; reshaped 2026-11-10).*
+`proposals/sync-entity-identity.md` §5b selects a device-revocation design that changes this entry's
+surfaces, recorded here so the contract does not read as current while it is unbuilt. ⚠ **2026-11-10,
+maintainer decision C:** the A1-signed, digest-chained, compare-and-swap **revocation roster** this note
+used to describe is **dropped**, and with it the forked-roster residual (the I6 exception). Its
+replacement is an **append-only set of A1-signed removal records** (and, for shared realms, downgrade
+records) synced in the realm: each self-certifying and order-free, so there is no chain to fork and
+no version to roll back. Clients act on device access only from those records, never from tombstones.
+Authorisation is unchanged: peers act on a revocation only against an **A1** signature (membership is
+not permission). ⚠ **Decision A**: removing **another** device needs A1 (the recovery phrase); there is
+no queued removal for an A33-only admitter, and a self-removal is signed by the device's own key. Its
+accepted residuals: (1) **no freshness guarantee** — a relay can withhold records from part of the
+realm indefinitely, so those peers keep listing a device the relay already refuses (access is still
+cut: the relay is authoritative for access). The chained design could only partly prevent this.
+(2) A device recovered from the phrase alone cannot tell a complete record set from a withheld one.
+⚠ Related: a realm whose last A1 holder is gone can neither remove another device nor publish a
+record; it recovers through the phrase. ⚠ The binding amendment co-lands with the implementation, per
+House Rule #2: phases R1 (the relay access route) and R2a (the client caller) are built — see
+*Amended 2026-11-10* below; the record set (R6) is not.
 Relay delays a revocation record so that a newly-paired device on a different branch is admitted
 under the revoked device's admission signature.
 Defense: `Device` entity blocks carry the realm epoch in `admittedAtEpoch`. A device
@@ -5863,11 +5870,129 @@ Security posture, stated deliberately:
 - **Relay data shape** (House Rule #2): three nullable columns holding a logical clock — physical
   millis, a counter, and the authoring device id, which the relay already sees on every block's
   HLC. No plaintext, no new identifier class, House Rule #1 intact.
-- ⚠ **Not yet stamped**: `recovery-claim` and the shared-realm `membership-grant` register without
-  one, so they retain today's unconditional-revocation behaviour rather than a half-guard. Tracked
-  in `docs/tech-debt.md`.
+- ✅ *Amended 2026-11-10 (`sync-entity-identity.md` §5b R3):* **every admitting route is stamped** —
+  `recovery-claim` and `/sync/realm-member/admit` gained an optional `admittedAtHlc`, and
+  `SharedRealmDeviceAdmitter` stamps `/sync/admit-device` from the realm's own clock (so the stamp
+  names the realm-local id, T-GR-05). Absent still means "unknown" (a pre-R3 client).
+  ⚠⚠ **Correcting the bullet above:** "it cannot make itself *harder* to revoke" was false. A stamp
+  from the future made every honest later revocation stale — an unrevokable admission — and on the
+  member-admit route the **member** writes its own stamp. ⇒ every registering route now clamps a
+  stamp later than the relay's clock to that clock (`routing/AdmissionStamp.kt`), so an admission is
+  never ordered after a revocation authored after it. Understating stays possible and harmless.
 Residual risk: **Low** — unchanged for forged admissions (still T-K-01 / T-RC-01), and the
 stale-revocation lost update is closed for the four routes that carry the stamp.
+
+*Amended 2026-11-10 — an explicit device-access revocation route (`sync-entity-identity.md` §5b,
+phase R1; the first built piece of the selected successor above).* `POST /sync/device-access/revoke`
+reaches `DeviceRegistry.revokeIfNotStale` — key removal plus the permanent `removed_device` ledger —
+without a `Device` tombstone. Until it, an applied tombstone was the **only** path there, authorised by
+nothing but the pusher's JWT. Its authorisation is a **signature**, never a JWT and never the realm
+kind — one realm-agnostic route:
+- **`master`**: A1 over `DeviceAccessRevocation.message` (tag `tenshu-device-access-revoke-v1`,
+  length-prefixed; `ownerId`, `deviceId` and the three fields of the authored HLC), verified against
+  `realm.masterPublicKey`. May name any device. For a shared realm that is the shared realm's master.
+- **`self`**: the same fields under tag `tenshu-device-self-revoke-v1`, verified against the **named**
+  device's registered key — so a self signature can name only its signer. ⚠⚠ A device without A1 (an
+  ordinary paired joiner, a shared-realm member) can therefore remove only itself: the rule the
+  member-device tombstone stopgap (T-GR-08) imposes on the tombstone path, here by construction rather
+  than by a membership lookup, so it holds when this route replaces the tombstone trigger. A hostile
+  relay can forge neither signature. Distinct tags keep a device-key self signature apart from
+  everything else that key signs (`A4SignedFamiliesTest`) and an A1 one apart from A1's other messages
+  (`CrossFamilySignatureTest`).
+- ⚠ **Not A33, and no queue.** A delegated admitter has no form here. Per decision A (2026-11-10)
+  removing another device needs A1 — the recovery phrase — and there is no queued removal; after the
+  cutover an A33-only device can remove only itself.
+- **Assumption (maintainer, 2026-11-10)**: A1 holders are trusted, an accepted risk. For a shared
+  realm every owner device holds the shared master (wrapped to the owner's A13) and is the realm's root
+  of trust; no per-device split of it is planned. The gate defends against members and the relay, not
+  against an owner device. Members stay trusted with content (T-GR-06).
+- **Ordering**: the same rule as the tombstone (`DeviceRevocation.applyAccessRevocation`, shared
+  code): a request authored before the admission on record, or queued for delivery, is stale and
+  changes nothing (`200 {"applied": false}`). The stamp is **required** here and inside the signature,
+  so it cannot be refreshed in transit.
+- ⚠ **Replay**: a signed request is a bearer statement once made, and the relay sees it. Replayed after
+  a *stamped* re-admission it is stale. Since R3 every current admitting route stamps, so it applies
+  only after a pre-R3 client's stampless admission — the "absent stamp means unknown" residual. A self request cannot be
+  replayed against a device re-registered under a **new** key, since it no longer verifies.
+- House Rule #1: a realm id, a device id, a logical clock and a signature the relay can verify but
+  not mint. No new table, no new identifier class; the device id is already in `device` and
+  `removed_device`.
+
+⚠⚠ **What this does NOT close yet.** The `Device` tombstone side effect is unchanged: any admitted
+device can still revoke another by pushing one (only the T-GR-08 stopgap narrows it, for shared-realm
+members). Per the maintainer's decision, *data endpoints never mutate access control*: the planned
+cutover is protocol **2** (a client that revokes through this route; the relay ignores its `Device`
+tombstones as access signals) followed by minimum **2** (the side effect and the stopgap deleted; a v1
+client's tombstone push is `426`-refused, never silently ignored, so no removed device is left
+authenticated by a revocation that quietly stopped working). ⭐ **Stage one shipped (R2b, protocol 2):**
+the relay acts on a `Device` tombstone only when it was pushed below protocol 2, so an **honest** current
+client never mutates access control through a data endpoint. ⚠⚠ *Corrected 2026-11-11 (PR review):* the
+version is the one the push **declares**, and the minimum is still 1 — so a modified client holding any
+JWT can declare protocol 1 and still evict another device (and a shared-realm member can still do it to
+itself only, by the T-GR-08 guard). The downgrade residual closes only at R5 (minimum 2). A device without
+A1 is refused (`RecoveryPhraseRequiredError`) before removing another, never half-removed. Since R2a the client signs a route request
+at removal time and queues it durably beside the tombstone, both at **one** authored HLC (the planes'
+staleness checks cannot then disagree), sent before the tombstone — after it when the device removes
+itself, since the route cuts its own JWT. Decision A ("an A33-only admitter cannot remove another
+device") is therefore enforced by the honest client until R5, not by the relay. The realm epoch still counts
+tombstones. Residual risk for T-K-02 is unchanged by this amendment; the
+route is the capability the cutover needs.
+
+*Amended 2026-11-11 — signed device records (`sync-entity-identity.md` §5b R6a).* The client's authority
+for "is this device removed" is now a synced, append-only set of **signed** `DeviceRecord`s, not the
+absence of a `Device` row. A record is valid only if its signer's key is bound by construction — A1:
+`ownerIdForMasterPublicKey(key) == ownerId`; self (removal only): `deviceIdForPublicKey(key) ==
+deviceId` — and the signature verifies; the newest valid record per device decides. A removal record's
+signed bytes are the `/sync/device-access/revoke` request's, so the two planes share one stamp. Clients
+drop an incoming `Device` row for a removed id at ingest (a removed device can no longer reappear by
+pushing a rename before its cut) and take the row out when a removal record arrives.
+- ⚠⚠ **What it does and does not protect.** Blocks are not signed per device (envelope authentication
+  is an HMAC under the realm key, T-K-05), so a record does not stop a removed device's *writes* — the
+  relay's access cut does that. Records protect the **roster**: the device list and anything that treats
+  it as membership, which is what RO-3 builds on.
+- ⚠ **Supersession** is by an **A1-signed re-admission record** only (R6b; maintainer decision
+  2026-11-11) — never by anything self-published, because anyone holding the realm key can write a
+  row. Sound because only A1 paths can re-admit a removed id (the relay ledger refuses it on pairing).
+  Residual: a hostile relay that let a removed id back through pairing leaves it shown as removed — the
+  fail-safe direction.
+- ⚠ **Append-only against a realm-key holder** (R6b, 2026-11-11): a tombstone neither deletes a record
+  nor keeps one out, and an incoming record is stored only if it verifies and no valid record already
+  holds its key — so neither a delete nor a same-key overwrite (LWW) can erase a removal. A1 holders
+  re-emit the valid set each start, so relay body GC cannot hide a removal from a later joiner.
+  Withholding by the relay stays the accepted no-freshness residual (decision C). Shared realms: R6c.
+- R6c (2026-11-11): the HLC-tip divergence check (§11.3) treats a device the records remove as unknown,
+  so a removed device's stale tip neither raises nor pins a divergence warning. Detection for every
+  admitted peer is unchanged.
+- House Rule #1: records are ordinary encrypted blocks; the relay sees ciphertext.
+
+*Amended 2026-11-12 — a removal the relay did not apply is never shown as done (maintainer decision).*
+Before this, a `/sync/device-access/revoke` the relay refused was dropped with a log line, and Control
+went on showing the device as removed while the relay still admitted it. That is the dangerous
+direction: the user believes access is cut when it is not. The client's outbox
+(`PendingDeviceAccessRevocation.relayState`) now keeps every answer that did not apply, and Control's
+*Manage devices* names it on the removed device's row (`GetDeviceAccessRevocations`). The causes are
+mostly **not** hostile, so each is handled on its own terms:
+- `404`: a relay that predates the route, or one that no longer holds the realm (reset, data loss).
+  **Kept and retried** (it is the only access cut since R2b), and shown as not confirmed.
+- `426`: protocol skew mid-rollout. **Kept and retried**; an update on either side clears it. It was
+  once filed as terminal, which would have lost the cut.
+- `200` with `applied:false`: correctly refused, because the relay holds a later admission (the device
+  was re-admitted after this removal). Kept for display only ("added back since").
+- Any other `4xx` (a bad signature, malformed bytes): a signing or encoding mismatch between versions,
+  or a forged request. Kept for display, **never resent** (the same bytes get the same answer), and
+  shown as "not removed at the relay — the device can still connect". Removing again signs afresh.
+- ~~⚠ Device-local: the outbox is not synced, so only the device that made the removal shows its state.~~
+  *Superseded the same day (§5b R6d, full-PR review):* every device that ingests a valid removal record
+  queues the record's own signed bytes in **its** outbox and delivers them, so each shows its own relay
+  answer, and a removal whose author never sent it (outbox purged by Forget, device lost, relay down) is
+  still delivered by any other device. ⚠⚠ Safe from every sender, hostile ones included: the route applies
+  a removal only when it is newer than the admission on record, so a repeat is a no-op and a replay can
+  never undo a later re-admission; the bytes are the A1/self signature the record already carries, so a
+  sender gains no authority it did not have. The removal of another device is also drained **outside**
+  the push gates (`402`, storage bound elsewhere, this device's own `401`): it is credential-less, and a
+  lapsed subscription must not keep a stolen phone connected. No relay change (House Rule #1).
+  ⚠ A hostile relay can still answer `200` and not cut access; that is T-K-02's existing relay-trust
+  residual, unchanged.
 
 **T-D-01. Relay tampers with a Device entity block.**
 Actors: AD5. Invariants: I1, I4. Assets: A4 (by extension), A6.
@@ -6830,6 +6955,62 @@ be strictly worse: rotation is triggered by someone *else's* removal, so a membe
 dialogue about an event they did not cause and cannot evaluate, and declining would silently strand
 them on a retired key. See `shared-realm-membership-grant.md` §14.2.
 
+⚠⚠ **Amendment (2026-11-14) — a re-key is adopted only when the realm master signed it.** A grant drop is
+an **anonymous** sealed box (`sealToIdentity`, ephemeral sender key) at an address the relay itself serves, so
+its `grantorFingerprint` is self-asserted and the contact channel says nothing about who sealed it. A member
+auto-applies a drop for a realm it already belongs to as a re-key, and used to check nothing more: a removed
+member colluding with the relay could drop `{realmId, wrap(Kx, victimA13)}` at the owner's address and switch
+the victim onto a key the attacker chose — every later write of the victim's then readable by the attacker.
+A master-signed *capability* would not have closed it: the removed member holds their own, with its A26 private
+key. Now every grant payload carries the realm master public key (bound by `ownerIdForMasterPublicKey == realmId`)
+and its signature over `RealmRekey.message(realmId, A26pub, wrappedRealmKey, issuedAt)` — `tenshu-realm-rekey-v1`,
+a tag of its own. The wrap is to the recipient's A13, so the signature cannot be lifted onto another member's
+payload. ~~A replayed *genuine* older drop names a key the member retired since and is refused for that.~~
+*Corrected the same day (review):* not when the member **skipped** that key — two rotations before it polled,
+the second drop overwriting the first in the slot — so the skipped key never entered its keyring, and a relay
+re-serving that genuine drop would roll the member onto it. Re-keys are now **ordered by key, not by send**
+(*corrected 2026-11-15*: ordering by the signed `issuedAt` let an owner device still on the old key answer with
+it at a fresh time — and a forged unreadable block can prompt exactly that answer). Each key carries a signed
+**generation** (`RealmRekey` `-v2`), recorded by the owner device that created it strictly after the key it
+replaced (`RealmKeyGeneration`, personal realm, synced to every owner device); a lagging owner device signs its
+old key's old generation. The member refuses an older generation, and a different key of the generation it holds
+(`RealmGrantor.lastKeyGeneration`). Re-keys travel at a **per-realm** address (`deriveRekeyAddress`), so one
+realm's re-key never overwrites another realm's or an unread invitation. Pinned by
+`aSkippedReKey_replayedLater_neverRollsAMemberBack`. *Key requests (2026-11-15):* a member that meets a block no key of its opens
+asks the granting contact for the current key, at a new per-contact mailbox address (`tenshu/grant/key-request/v1`:
+one more opaque address and sealed blob to the relay, House Rule #1). Each entry is signed by the member's A26
+(`tenshu-realm-key-request-v1`), so an owner answers only members it granted, and the answer is the same signed,
+ordered re-key as a rotation's. ⚠ The trigger is forgeable by whoever can inject stream bytes — a relay — and
+is accepted as such: it yields one request and one re-key per member per realm per 6 h, neither readable nor
+steerable by the attacker, which is less than the relay can already do by withholding blocks. ⚠ The limits are
+in memory, so a restart resets them; a request names only realms with an unopenable block newer than the
+member's current key's generation (older blocks were sealed under keys it was never given), and an owner ignores
+entries older than 12 h, so a replayed request does not buy repeated answers.
+*Also 2026-11-15:* `RetainedRealmKey` rows were keyed `"$realmId::$keyId"`, which routes a row **into** the shared
+realm (`RealmRegistry.realmForDataId`): every device's retired keys, each wrapped to its own A13, travelled in the
+realm's stream. Nothing readable leaked (only the A13 holder unwraps), but members ingested rows that were not
+theirs. Keyed `"$realmId/$keyId"` now — personal-realm state, as the type always claimed. Identity is still the contacts layer's job; this is **authority** — who may change this realm's
+key — which only the realm master can grant. Pinned by `aForgedReKeyAtTheOwnersAddress_isRefused`. No relay change
+(House Rule #1).
+
+⚠ **Amendment (2026-11-11) — a retired `Kr` must never become current again.** Ingest LWW used to
+let the relay's late echo of the owner's own pre-rotation membership row overwrite the rotation's
+swap to `Kr′`. Until the newer echo landed, anything reading the row got the retired key: a re-key
+sent to an accepting member carried it, and a re-registration in that window (a restart) would have
+encrypted new content under a key the removed member holds. The client now refuses an ingested
+`SharedRealmMembership` whose wrapped key matches a `RetainedRealmKey` (`shared-realm-membership-grant.md`
+§14.3). An owner device holding a retired key, because it is behind another device's rotation,
+neither re-keys an acceptance, grants with it, nor rotates again. Once the retirement is over 24 h
+old **and** the device has completed a pull of both the shared and the personal realm since it found
+the realm stuck, the next grant, removal or acceptance takes the rotation as cut short and finishes
+it with a fresh key. Every rotation skips members the realm's signed records revoke. **Residual
+(Low):** the caught-up check trusts the relay's "nothing more". So a removed member can still be
+re-keyed during that recovery in three cases: a relay that withholds the revocation, an honest relay
+that has garbage-collected its old-key copy, or a device whose streams never complete, which recovers on time alone after
+48 h and an hour of watching the realm stuck itself. That member is cut off at the relay either way, so the re-key buys them
+content only from a relay that serves them anyway, which is the case this threat already covers. The relay is not involved and the wire
+shape is unchanged.
+
 Residual: **Low** — the removed member is cryptographically cut off from post-rotation content; the
 only surviving exposure is pre-removal ciphertext they could already read, bounded by the
 removal-then-rotation sequence.
@@ -6872,12 +7053,70 @@ entry's "structural" defence holds for the admit/JWT path only.
 Residual: **Accepted, documented** — consistent with the A6 metadata posture and the surface #10
 co-membership residual.
 
+*Amended 2026-11-10 — the defence did not hold on the block path, and is now fixed (D10,
+`proposals/shared-realm-read-only-members.md`).* Two leaks, both of the writer's **personal** device
+id into a share, each linkable to that device's personal-realm pushes and so to its personal
+`ownerId`:
+- **The block HLC.** `SyncObserver.generateSyncBlock` (and the content-manifest emit) routed a
+  shared-realm entity to its realm but stamped it with the personal `SyncManager.hlcManager`, whose
+  node id is the personal device id. The HLC is clear on the envelope and bound into
+  `syncBlockCanonical`, so the relay and every member saw it — members on their `Member` row, owners
+  on every `SharedFile`. ⇒ **Fixed**: each registered shared realm has **one** clock,
+  `RealmRuntime.clock` = `HLCManager(realm.deviceId)`, shared by the emit side, that realm's
+  `SyncProcessor` (which used to own a separate one) and its signed tip. A shared-realm block's HLC now
+  names the realm-local id. Pinned by `SharedRealmDeviceIdentityTest`. ⭐ Side effect, a correctness
+  gain: emit now orders after the realm writes ingest has seen; the personal clock never saw them.
+- **Owner device keys.** Owners registered in a share with their personal A4
+  (`SharedRealmBootstrapper.admitKnownDevices`), so even a realm-local HLC named the personal id.
+  ⇒ **Fixed**: owner devices use per-realm keys and realm-local ids, as members do (A12 amendment).
+  The creator no longer admits the user's other devices; each admits itself with the synced
+  `OwnedRealmMaster`, and one registered before the master arrived is upgraded keeping its id.
+  Pinned end to end by `SharedRealmFileReadSystemTest` (a second owner device browses and reads a
+  shared file against a real relay).
+- **The content-plane JWT.** A shared realm's content client (`sharedRealmContentBlobStoreFactory`)
+  signed as the personal device — personal id in every chunk `PUT`/`GET` of the share. ⇒ **Fixed**:
+  it is built from the realm's `RealmContext` and signs as the device registered there.
+- Not affected: file history (`FileModification` stays in the personal realm) and the tombstone
+  plane (shared-realm tombstones are stamped for, and pushed to, the **personal** realm — a known
+  gap of its own, so they never reach the share).
+- ⚠ Still open: the owner's `Member` row carries no share name yet (D10's display half), and a
+  per-realm key lives in memory only — a re-registration mints and admits a new one, for owners and
+  members alike. No real shares exist (maintainer decision 2026-11-10), so no migration.
+Residual: **Low** — the structural defence now covers the admit/JWT path **and** the block path for
+owners and members; timing and IP remain as above.
+
 **T-GR-06. Malicious member corrupts or floods realm state.**
 Actors: a granted member (every member is read-write in v1; no permission tiers — §1 non-goal).
 Defense: writes are attributable via the Q25 `Member` records; removal is capability revocation +
 Kr rotation (Q26). Accepted v1 residual — identical to the trust placed in any write-capable
 member of a shared realm (the surface #9 model, unchanged); permission tiers are the deferred
 mitigation.
+⚠ *Amended 2026-11-11 — membership records (`proposals/shared-realm-membership-records.md` MR-1).*
+"Attributable via the `Member` records" overstated it: a `Member` row is an unsigned block under `Kr`,
+so any member can write, rename or resurrect one, and a removal deleted the row on the removing device
+only (no tombstone is emitted; shared realms apply none). MR-1 adds the realm's authority for **who is a
+member**: the master-signed capability and revocation bytes (the same the relay verifies), synced as
+append-only `MembershipRecord`s and checked by `MembershipRecordVerifier` — valid only when signed by
+the realm master, a revocation permanent per authority key, a non-empty delegation chain refused. A
+removal now reaches every device. *MR-2 (same day):* clients enforce them — a record is stored only if
+valid and never over a valid one, tombstones neither delete nor block one, a revoked member's row is
+dropped and removed, and `getRealmMembers` lists only members the records vouch for (a never-granted row
+is hidden, not dropped, so arrival order cannot lose a real one). Residual: a member can still rename
+another's row (unsigned until MR-3 / RO D7). Records never stop writes (T-GR-06's content residual
+stands until RO). HR 1: ordinary encrypted blocks.
+*RO D7 (same day):* a member no longer writes its own `Member` row. Its acceptance — signed by its A26
+under the distinct tag `tenshu-member-accept-v1`, sealed to the owner's A13 at a per-realm acceptance
+address derived from the handshake secret — rides the existing grant mailbox, and the **owner** writes the
+row after checking realm, member, the A26 it granted, the contact it granted to, and the signature. The
+relay sees one more opaque blob at one more opaque address (HR 1). *MR-3 (same day):* every `Member`
+row is master-signed (`tenshu-member-row-v2`, self-certifying), and an unsigned or forged row is dropped at
+ingest and never listed — a member can no longer rename, invent or overwrite a member row. *Amended
+2026-11-14:* "overwrite" held only against forged rows. Any realm-key holder can re-push an **older genuine**
+owner-signed row as a fresh block, and LWW would let it win — harmless while the owner wrote each row once, a
+rollback attack once rows are edited (a rename, RO D6's role changes). The signed message now carries the
+owner's `signedAt` (hence `-v2`), and ingest drops a valid row older than the valid row stored at its key.
+Pinned by `anOlderOwnerSignedRow_replayedLater_neverUndoesANewerOne`. Residual:
+T-GR-06's content residual (writes are still unattributed until RO's authored blocks).
 Residual: **Accepted, documented.**
 
 **T-GR-07. A capability signature replayed as a revocation (cross-protocol message confusion).**
@@ -6934,8 +7173,11 @@ owner device's id under its own authority, which would mute that owner device's 
 make the owner's `/revoke` of the member purge the owner's own device.
 Known residuals (all Low): `/revoke`'s snapshot-then-clear is not transactional with a concurrent
 `/admit`, so a device admitted mid-revoke can survive the purge; a refused tombstone still counts
-toward `/sync/realm-epoch`; an owner device id that is *not yet* registered can still be claimed
-by a member first.
+toward `/sync/realm-epoch`. *Closed 2026-11-11:* an owner device id that is not yet registered can
+no longer be claimed by a member first — `/sync/admit-device` refuses (409) an id
+`isMemberDevice` already holds, so the split no longer rests on owner device keys staying unknown
+(they also became per-realm and unlinkable with D10's owner keys). Refused rather than cleared; the
+owner recovers by revoking that member. Pinned by `MemberDeviceTombstoneGuardTest`.
 ⚠⚠ The client side stays safe only because shared realms do not sync tombstones: a member can
 mint a tag-valid tombstone for any entity in the realm. If shared realms ever pull
 `/sync/tombstones`, tombstone authorship must be checked first — the A1-signed roster

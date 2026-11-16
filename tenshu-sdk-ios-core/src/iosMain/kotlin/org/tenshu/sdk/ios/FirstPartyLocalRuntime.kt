@@ -4,6 +4,7 @@ package org.tenshu.sdk.ios
 
 import org.tenshu.sync.proxy.SyncHealthHolder
 import org.tenshu.sync.proxy.connectivity
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.distinctUntilChanged
 import app.tenshu.control.di.buildPlatformProxyModule
@@ -298,7 +299,17 @@ class FirstPartyLocalRuntime(private val config: Config) {
          * shared, so it holds every co-resident app's row.
          */
         val hostAppId: String,
-    )
+        /** Built over a test replica: what [stopsWithTestGraph] and [TestGraphs] key on. */
+        internal val overTestReplica: Boolean = false,
+    ) {
+        /**
+         * Test seam: [scopes], made by the app runtime outside this graph, are stopped with it by
+         * [TestGraphs.stopAll]. A no-op on a production graph.
+         */
+        fun stopsWithTestGraph(vararg scopes: CoroutineScope) {
+            if (overTestReplica) scopes.forEach { TestGraphs.track(it) }
+        }
+    }
 
     /**
      * Assemble the production proxy graph in-process over the shared replica and, when Control has
@@ -467,7 +478,9 @@ class FirstPartyLocalRuntime(private val config: Config) {
         // reads the row THIS runtime writes, and a second spelling of it would read nobody's.
         SyncActivitySurface.install(client, hostAppId = config.clientId)
         SyncActivitySurface.debugCatchUp = { koin.getOrNull<SyncRuntimeHolder>()?.runtime?.components?.catchUp }
-        return Base(koin = koin, tenshuClient = client, hostAppId = config.clientId)
+        // ⚠ A test's graph only (B.22: production never passes a replica directory).
+        if (replicaDirectory != null) TestGraphs.track(proxyGraphJob(koin).job)
+        return Base(koin = koin, tenshuClient = client, hostAppId = config.clientId, overTestReplica = replicaDirectory != null)
     }
 
     /**

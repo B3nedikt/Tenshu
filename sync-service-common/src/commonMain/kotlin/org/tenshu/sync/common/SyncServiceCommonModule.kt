@@ -88,6 +88,8 @@ import org.tenshu.sync.ReadContentRange
 import org.tenshu.sync.ListScheduled
 import org.tenshu.sync.RecoveryClaim
 import org.tenshu.sync.ReadmitDevice
+import org.tenshu.sync.GetRemovedDevices
+import org.tenshu.sync.GetDeviceAccessRevocations
 import org.tenshu.sync.ReregisterDevice
 import org.tenshu.sync.RetryPolicy
 import org.tenshu.sync.Schedule
@@ -106,6 +108,7 @@ import org.tenshu.sync.PairingDeviceRemovedError
 import org.tenshu.sync.PairingApproverRevokedError
 import org.tenshu.sync.PairingThisDeviceRemovedError
 import org.tenshu.sync.PairingFailedError
+import org.tenshu.sync.RecoveryPhraseRequiredError
 import org.tenshu.sync.RecoveryPhraseUnreadableError
 import org.tenshu.sync.DeviceAlreadySetUpError
 import org.tenshu.sync.RelayRouteUnsupportedError
@@ -530,6 +533,8 @@ val syncServiceCommonModule = tModule {
     operation(CreateRealm.Schema)
     operation(ReregisterDevice.Schema)
     operation(ReadmitDevice.Schema)
+    operation(GetRemovedDevices.Schema)
+    operation(GetDeviceAccessRevocations.Schema)
     operation(CreateSharedRealm.Schema)
     operation(GrantSharedRealmMembership.Schema)
     operation(AcceptSharedRealmGrant.Schema)
@@ -756,6 +761,12 @@ val syncServiceCommonModule = tModule {
         dataSchema = RecoveryPhraseUnreadableError.Schema,
         dtoFactory = { _ -> RecoveryPhraseUnreadableErrorDto() }
     )
+    // §5b decision A: removing another device needs A1. ⚠ A NEW error type: no version moves.
+    composite(
+        interfaceClass = RecoveryPhraseRequiredError::class,
+        dataSchema = RecoveryPhraseRequiredError.Schema,
+        dtoFactory = { _ -> RecoveryPhraseRequiredErrorDto() }
+    )
 
     composite(
         interfaceClass = DeviceAlreadySetUpError::class,
@@ -942,6 +953,21 @@ val syncServiceCommonModule = tModule {
     ) { context, _ ->
         PendingReapRemovalDataIdProviderImpl(context)
     }
+
+    // A signed `/sync/device-access/revoke` this device owes the relay (`sync-entity-identity.md` §5b
+    // R2a), durable until a terminal answer. ⚠ A NEW local composite: no version moves.
+    composite(
+        interfaceClass = PendingDeviceAccessRevocation::class,
+        dataSchema = PendingDeviceAccessRevocation.Schema,
+        dtoFactory = ::PendingDeviceAccessRevocationDto,
+    )
+    trait(
+        dataSchema = PendingDeviceAccessRevocation.Schema,
+        traitSchema = PendingDeviceAccessRevocation.DataIdProviderSchema,
+        traitFactory = { context, schema ->
+            StringDataIdProviderImpl(context, schema as StringDataIdProviderSchema)
+        },
+    )
 
     // A queued block's edges (`content-plane-cr2-b3-wire-spec.md` §5), fixed from its payload at
     // emit time and pushed with it as one `EdgedPush`. ⚠ A NEW local composite: no version moves.

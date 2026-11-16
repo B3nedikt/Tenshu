@@ -342,6 +342,7 @@
     <string name="manage_access_empty_title">Noch hat niemand sonst Zugriff</string>
     <string name="manage_access_empty_body">Lade über die Schaltfläche + jemanden ein, sich mit dir zu verbinden.</string>
     <string name="manage_access_role_member">Mitglied</string>
+    <string name="manage_access_role_invited">Eingeladen – wartet auf Annahme</string>
     <string name="manage_access_grant_action">Einem Kontakt Zugriff gewähren</string>
     <string name="manage_access_grant_picker_title">Wer soll Zugriff erhalten?</string>
     <string name="manage_access_grant_picker_empty">Noch keine verbundenen Kontakte. Lade zuerst über die Schaltfläche + jemanden ein.</string>
@@ -410,4 +411,8 @@
     <string name="invite_link_qr_description">QR-Code der Einladung</string>
     <string name="redeem_invite_scan_qr">QR-Code scannen</string>
     <string name="redeem_invite_scan_stop">Scannen beenden</string>
+    <!-- A member accepted a shared folder, but the relay wants an account first (402, entitlement enforcement).
+         The acceptance is retried meanwhile; the free tier counts. -->
+    <string name="shared_with_me_needs_account">Erstelle ein kostenloses Konto, um diesem Ordner beizutreten. Du hast angenommen; er öffnet sich, sobald du ein Konto hast.</string>
+    <string name="shared_with_me_needs_account_action">Control öffnen</string>
 </resources>

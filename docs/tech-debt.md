@@ -8,6 +8,32 @@ architectural conventions — they are things that should be fixed or revisited 
 
 ## Platform / client wiring
 
+### ⚠ One lost-update race the `@Volatile` audit found, not fixed in it (2026-11-15)
+
+A repo-wide audit of all 179 `@Volatile` / `@kotlin.concurrent.Volatile` annotations fixed two broken
+counters (`HubRuntime.backupPassCount`, `SqliteObjectStore.readThroughReads`) and dropped five
+provably redundant annotations. It found three races; one needs a smoke gate, so it is here:
+
+- **⚠ `BinderTaskTransport.ReconnectEdge.owed` (`core-common` `androidMain`).** `landed()` reads `owed`
+  and then clears it in two steps, on the main thread in `onServiceConnected`. A `turnedAway()` from an
+  IPC coroutine (`awaitConnected`) or IO (`refusedByControl`) landing between them is erased, so
+  `onReconnected` never fires for that caller and `Stream.changes`' parked retry stays parked: the R7
+  dead observer (`core-client-resubscription.md`). Fix: `AtomicBoolean.getAndSet(false)`, plus a forced-
+  interleaving test. In the same file, `isConnected` and `proxyService` are plain `var`s written on main
+  and read from IPC coroutines. Owes `scripts/android-smoke.sh` (House Rule 8).
+
+The other two are fixed. `ClientCallbackGuard`'s cached Control UID: a forget now beats an in-flight
+lookup (T-C-19). `TimelineCaptureRuntime.active` / `activeClient` (`tenshu-sdk-ios-timeline`) was
+reachable: the host's `detachIfOver` (off main) could drop a capture an off/on on main had just started,
+leaving its manager monitoring past the opt-out. The three transitions now share one lock; the class
+KDoc has why, and `TimelineCaptureRuntimeRaceTest` forces the interleaving (B.16 (238) in
+`ios-shared-store-sqlite.md`).
+
+Also benign check-then-acts the audit noted and left (a duplicate log line, an idempotent cache, or a
+duplicate sweep): `OwnedInferenceStores.NotExcludedFromBackup.remaining`, `SharedReplicaLocation`'s
+`appLocalFallbackReported`, `IosConnectedWifi.loggedUnavailable`, `HubManagementAgent.lastPublished`
+(self-heals within one tick), `MacCameraSession.closed` (one closer today; a second would double-release).
+
 ### ⚠⚠ The desktop tray's *Pause* holds file content only — metadata push and pull keep running (2026-11-13)
 
 Desktop composes `SyncPauseState` into the **policy** `syncGate` (`control-shared-proxy` desktop
@@ -2671,12 +2697,12 @@ intermittently billing-blocked (entry above), so the local gate is the gate.
 | `SharesPage.test.tsx` (~2/8) | `web/apex` | **watch**. Mechanism forced: a test body that outlives its 5 s timeout keeps acting on the next test's DOM and mocks. Trigger not reproduced (the test takes ≤ 0.6 s under load). Own entry |
 | `anAbsentThumbnailIsNotRemembered_becauseItMayArriveLater` | `:photos-shared-ui` | **watch**. A **reporter** (`UncaughtExceptionsBeforeTest`). Its leaker population is gone: the module's exit census on 2026-11-15 holds no `app.tenshu` coroutine. Never reproduced; own entry |
 | `RetiredBlockDisposalTest` / `MultiRealmPushDrainTest` (`Entry not found`, "sanity" preconditions) | `:sync-service-proxy` | watch. Both fixtures build with `startBackgroundLoops = false` (P2c); `RetiredBlockDisposalTest`'s *"sanity: queueing must have persisted the block"* reproduces 2/2 under the old shape, but `Entry not found` was reproduced in no arm. 2026-11-15: a lock-checked store under every fixture of the module recorded **no** unlocked access. § "The sweep cursor was read and written without the DatabaseLock" |
-| `SyncLaneTest > bulkSaves_collapseToCeilOfCapBlocks` | `:sync-service-proxy` | the trailing `assertEquals(0, journalDeltas().size)` (*expected:<0> but was:<1>*) after `awaitEmitIdle()` — a drain-completion assumption, not a wrong count; 1/3 gates once, mechanism unread |
+| `SyncLaneTest > bulkSaves_collapseToCeilOfCapBlocks` | `:sync-service-proxy` | the trailing `assertEquals(0, journalDeltas().size)` (*expected:<0> but was:<1>*) after `awaitEmitIdle()` — 1/3 gates once. Not a drain race: only the emit consumer touches the journal, and close is acked after its checkpoint. **Instrumented 2026-11-15**: 0 in 600 runs (under CPU load, and inside the full module). A checkpoint that throws on its last journal removal gives the exact shape (`aCheckpointThatThrows_isReported`), and the consumer used to swallow it. `SyncObserver.consumerError` now fails the class (`@AfterTest`) and the assert names the stranded delta, so a repeat says what threw |
 | `MultiProxySyncIntegrationTest` (reporter shape) | `:drive-shared-ui` | swept (P3) but never tied to a named leaker; watch |
 | `PairingVmFlowSystemTest > offerFlow_…` | `:system-test-utils` | seen once; its swallowing poll is now `OfferPairingMonitor` and its teardown joins every scope (P0) |
 | `DelegatedAdmissionSystemTest > delegatedAdmission_fullLifecycle_admitThenSubtreeRevoke` | `:system-test-utils` | once under load (*"removal must master-sign revocations for B AND its lineage subtree"*), green on rerun and alone; interleaving never forced. ⚠ That assertion no longer exists (§7j.10 retired the subtree strip; the case is now `…_admitThenRemoveTheAdmitter_keptAdmitteeStillAdmits`), and since 2026-11-14 the class runs stepped (`docs/testing.md` §12), so a recurrence of its successor is a fixed sequence of ticks |
 | `SyncCursorStoreDesyncSystemTest` | `:system-test-utils` | 60 s `advanceUntil` timeout on waits that take 0.5–2 s — a **hang**, not slowness. Joiner polls at 100 ms, so a lost wake cannot explain it; a probe on `SyncScheduler`'s loop saw it never stall, throw or die across six gates |
-| `SyncMetadataOperationTest > testSavingSyncableEntityGeneratesBlock` | `:sync-service-proxy` | once; green in three forced module reruns |
+| `SyncMetadataOperationTest > testSavingSyncableEntityGeneratesBlock` | `:sync-service-proxy` | **watch**. Once, no message kept. Its fixture rides one `TestScope` with no real dispatcher (a probe: the only push is the test's own drain, on the test thread), so the interleaving is fixed. The red was then either the read-after-dequeue `Entry not found` its push stub already fixes, or another class's leak reported here. 2026-11-15: built with `startBackgroundLoops = false`, so its drain is the only one |
 
 Also open, found by this work: `UnixSocketTaskTransport.openConnection` swallows a failed *first*
 connect, and the reconnect loop is armed only by the death of an established connection, so a
@@ -2745,6 +2771,13 @@ with it, same forcing both arms):
   testing anything. The test's comments carry the rule.
 - `UnixSocketServer.start()` blocks until bound, pinned by `UnixSocketServerBindContractTest`
   (fails 5/5 against an unbound start with no forcing).
+- `EditedCopySaveSystemTest` (*"Precondition: the save returned with a content PUT still held"*,
+  2026-11-15) — not load on the product: the precondition raced the design. `saveEditedCopy` returns
+  once the copy's **row** is readable (`photos-editing.md` §9.6), and the upload op reaches its content
+  `PUT` afterwards on its own schedule, so a loaded gate saw no `PUT` held yet. The held-`PUT` count is
+  now awaited after the save rather than read at once, and the hold's gate is an `AtomicReference`
+  (a captured `var` read from the HTTP client's threads could let a `PUT` through unheld). Forced pair:
+  every content `PUT` delayed 3 s before the gate — old test red with the gate's message, new green.
 - `S3BlobStoreContractTest` (any method; the gate saw `S3Exception: Status Code: 404, Request ID:
   null`) — not load: the fake S3 bound `0.0.0.0` while the SDK dialed `127.0.0.1`. ⚠⚠ **On macOS a
   wildcard listener and another process's loopback listener share a port** (`SO_REUSEADDR`, in either
@@ -3243,9 +3276,10 @@ Keychain). Each stamped admission records the HLC its admitting client authored 
 older `Device` tombstone. The tombstone is still stored and served, so peers converge as before, and
 an absent stamp still revokes. Threat model T-K-02.
 
-⚠ **Not closed for every route**: `recovery-claim` (`RecoveryRouting`) and the shared-realm
-`membership-grant` register the device without an admission stamp, so a stale retirement still revokes
-a device admitted through either.
+✅ **Closed for every route (2026-11-10, `sync-entity-identity.md` §5b R3)**: `recovery-claim` and the
+shared-realm `membership-grant` now carry `admittedAtHlc` too, and `SharedRealmDeviceAdmitter` stamps
+`/sync/admit-device`. Only a pre-R3 client still registers without one. ⚠ The relay clamps a future
+stamp to its own clock (`routing/AdmissionStamp.kt`), which the member-written stamp made necessary.
 
 ⚠⚠ **Do not "fix" this by ignoring `revokedDeviceId` on the relay.** That revocation is a real
 security control (T-K-02): without it a revoked device keeps posting to the mailbox until the tombstone
@@ -5713,6 +5747,10 @@ proven by forced pairs:
 
 Every hand-stepping fixture in `sync-service-proxy/src/commonTest` is on the flag;
 `git grep 'stopAndAwait()' -- sync-service-proxy/src/commonTest` matches only a comment.
+⚠ That claim was false until 2026-11-15: `SyncMetadataOperationTest` and
+`SyncDrainOrphanQuarantineTest` drained by hand with both loops started. Nothing enforces it. To
+check, list the `initSyncService(` calls in a file that also calls `drainPendingBlocks` or
+`tickOnce` and lacks the flag.
 ⚠ **What is not shown:** that either race produced `IllegalStateException: Entry not found` (the
 `MultiRealmPushDrainTest` / `RetiredBlockDisposalTest` gate sightings) — that message was reproduced
 in no arm. On `Dispatchers.Default` a drain and an enqueue overlapping inside the unsynchronised
@@ -5730,6 +5768,10 @@ A queued `Device` tombstone that could not be pushed for hours used to revoke a 
 since been legitimately re-admitted — delivery order is not authorship order. The relay now records
 the HLC an admission was authored at and refuses a *strictly older* tombstone (threat model T-K-02,
 amended 2026-08-18).
+
+✅ **RESOLVED 2026-11-10** (`sync-entity-identity.md` §5b R3) — all three unstamped callers below now stamp
+(recovery claim and member admit via a new optional `admittedAtHlc`; `SharedRealmDeviceAdmitter` from the
+realm's own clock), and every route clamps a future stamp to the relay's clock. Kept for the history.
 
 ⚠ **The guard is only as wide as the routes that carry a stamp.** Four do —
 `createRealm`, `admitDevice`, `postPairingResponse`, `postOfferResponse`. **`recovery-claim` and
@@ -7545,6 +7587,34 @@ been observed. The one case where a correct client holds an unusable token is is
 (`entitlementIssuerPublicKeyB64` + `entitlementIssuerKeyId`). Add a previous key there — do not weaken
 the gate. Client-side complement: don't present a known-expired token — refresh it through the record
 renewal path (T-CB-08) or omit it.
+
+### Ingest LWW ignores newer local writes — an own echo can briefly revert a row (2026-11-11, open)
+
+**Files**: `sync-service-proxy/.../SyncProcessor.kt` (`resolveConflictAndSave`). `isNewer` compares an
+incoming block's HLC only with the row's `SyncMetadata`, which records the last *ingested* version. A
+local write leaves it alone. So when the relay echoes back an *older* write of this device, after a
+newer local write but before that write's own echo, the echo still counts as newer and overwrites
+the row. The row stays wrong until the newer echo lands. It converges, but anything that reads the
+row in between sees the old value. The tombstone path closed the same gap for deletes with
+`max(ingested, LocalWriteMetadata)` (next entry).
+
+Where it bit: a shared realm's `Kr` rotation. The owner's pre-rotation membership row came back
+and reinstated the retired key. That one is fixed narrowly: ingest refuses a membership whose key
+has been retired (`isRetiredRealmKeyMembership`, `shared-realm-membership-grant.md` §14.3).
+
+⚠⚠ **Do not fold `LocalWriteMetadata` into `isNewer` for every processor.** `TombstoneRegistry.onDataSaved`
+ticks that stamp synchronously, during the save. The outgoing block's HLC is ticked later, on
+`SyncObserver`'s emit consumer, so the stamp is always the *earlier* of the two.
+- **Personal realm:** both come from one clock, so folding the stamp in would refuse only blocks
+  that lose LWW everywhere anyway. It would have caught the membership echo above, and it is the
+  candidate general fix. But it needs its own review, with two caveats:
+  - The stamp is also taken for `DERIVED` saves, which `SyncObserver` never emits. A peer write
+    would then lose to a local value no peer ever saw, and the devices would diverge. Stamp only
+    emitted saves first.
+  - A skewed-fast local clock fences out peer writes, as `LocalWriteMetadata`'s KDoc warns.
+- **Shared realm:** the block is stamped by the realm's clock and the local-write stamp by the
+  personal clock. That would refuse peer writes every other device accepts, and the devices would
+  diverge permanently. Scope any fix to the personal processor.
 
 ### A tombstone deleted a row this device had just written — the "ghost file" data loss (2026-08-25)
 

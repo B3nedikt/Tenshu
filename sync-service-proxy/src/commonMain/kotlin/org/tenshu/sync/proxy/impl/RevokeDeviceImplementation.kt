@@ -18,8 +18,14 @@ import org.tenshu.core.entity.getDataIdHash
 import org.tenshu.core.security.SyncCryptoManager
 import org.tenshu.identity.Device
 import org.tenshu.identity.IdentityService
+import org.tenshu.sync.RecoveryPhraseRequiredError
 import org.tenshu.sync.RevokeDevice
 import org.tenshu.sync.common.AdmissionRevocation
+import org.tenshu.sync.common.DeviceAccessRevocation
+import org.tenshu.sync.proxy.DeviceAccessRevocationOutbox
+import org.tenshu.sync.proxy.DeviceRecords
+import org.tenshu.core.common.util.toStamp
+import org.tenshu.core.time.HybridLogicalClock
 import org.tenshu.sync.common.SyncManager
 import org.tenshu.sync.common.SyncRelay
 import org.tenshu.sync.common.TombstoneEmitter
@@ -42,8 +48,9 @@ import org.tenshu.identity.DeviceHardware
  * key this replica knows it held, POSTed to `/sync/admission/revoke`. Best-effort (an
  * offline relay doesn't block the removal; the relay also refuses a removed approver by its
  * F2′ ledger and by the poster binding, `admission-revocation-names-the-capability.md`
- * §7j.9). Requires A1 — a delegated (A33-only) admitter can remove a device but cannot
- * master-sign revocations.
+ * §7j.9). Requires A1. ⚠⚠ Since R2b (`sync-entity-identity.md` §5b, decision A) a delegated
+ * (A33-only) admitter cannot remove **another** device at all — it is refused with
+ * `RecoveryPhraseRequiredError` before anything changes — and any device may remove itself.
  *
  * ⚠⚠ **Only the removed device's own keys — never its lineage subtree** (§7j.10, 2026-11-11,
  * retiring Q3's conservative subtree strip). A device is either a member (it can admit) or
@@ -94,6 +101,19 @@ internal class RevokeDeviceImplementation(
     ): T {
         val deviceId: String = params.read<TString>(RevokeDevice.Params.DEVICE_ID).get()
 
+        // ⚠⚠ §5b decision A, enforced FIRST — before the row is deleted or anything emitted. Since
+        // relay protocol 2 only a signed `/sync/device-access/revoke` cuts access; a device holding
+        // no A1 can sign one for itself only. Removing another device without A1 would delete the row
+        // and emit a tombstone the relay no longer acts on: "removed" here, still syncing there.
+        val masterKeyPair = syncManager?.let { sm ->
+            sm.currentMasterKeyPair
+                ?: sm.getRecoveryPhrase()?.let { cryptoManager?.deriveMasterKeyPair(it) }
+        }
+        val realm = syncManager?.currentRealmContext()
+        if (realm != null && masterKeyPair == null && deviceId != realm.deviceId) {
+            throw TenshuException(RecoveryPhraseRequiredError.create(executionContext.context))
+        }
+
         val deviceDataId = DataId.StringDataId.create(
             context = executionContext.context,
             type = Device.ID,
@@ -136,6 +156,21 @@ internal class RevokeDeviceImplementation(
         // captured key would be gone by the time the revocations are minted.
         val capabilityKeys: List<ByteArray> = admissionKeysOf(executionContext, deviceId)
 
+        // 2b. Retire the rows this device published ABOUT ITSELF — its hardware model and its
+        // schema-version statement. Nothing else ever deletes them (the device was their only
+        // writer), so without this every replica keeps a revoked device's descriptors for ever.
+        // ⚠ Before the `Device` tombstone, so that one stays the last block a revocation emits.
+        // ⚠⚠ Plain tombstones (no `revokedDeviceId`): only the `Device` one is the revocation the
+        // relay acts on, and the realm epoch counts `Device` tombstones alone, so these move
+        // neither. Emitted even with no local row — a peer may hold one this replica never got.
+        retireSelfPublishedRows(executionContext, deviceId)
+
+        // ⚠⚠ Signed and durably queued BEFORE the roster changes. The other way round, a crash (or a throw from
+        // the clock, the signer or the store) between the two left the device gone from Manage devices, absent
+        // from Removed, and its relay access intact — with nothing left to tap to retry. After 2b, so the
+        // `Device` tombstone's authored stamp stays the latest of this removal's blocks.
+        val authoredAt = queueAccessRevocation(executionContext, deviceId, masterKeyPair)
+
         // 1. Remove from the synced DEVICES relation array so observers see the device
         // disappear from `IdentityService.Relations.DEVICES` immediately.
         val devicesRef = ArrayDatabaseReference(
@@ -151,36 +186,38 @@ internal class RevokeDeviceImplementation(
 
         // 2. Delete the entity from the local DB. SyncObserver.onDataDeleted is a no-op
         // by design — tombstones are emitted explicitly below.
-        executionContext.deleteData(deviceDataId)
-
-        // 2b. Retire the rows this device published ABOUT ITSELF — its hardware model and its
-        // schema-version statement. Nothing else ever deletes them (the device was their only
-        // writer), so without this every replica keeps a revoked device's descriptors for ever.
-        // ⚠ Before the `Device` tombstone, so that one stays the last block a revocation emits.
-        // ⚠⚠ Plain tombstones (no `revokedDeviceId`): only the `Device` one is the revocation the
-        // relay acts on, and the realm epoch counts `Device` tombstones alone, so these move
-        // neither. Emitted even with no local row — a peer may hold one this replica never got.
-        retireSelfPublishedRows(executionContext, deviceId)
+        // ⚠ The removal record saved above has already dropped it locally (`DeviceRecordObserver`) when the
+        // record could be written; this covers the wirings without one.
+        if (executionContext.database.getData(deviceDataId) != null) executionContext.deleteData(deviceDataId)
 
         // 3. Emit a DeleteBlock so other realm devices reject any future stale
         // SyncBlocks for this entity at HLC ≤ tombstone.hlc (docs/adr/0006-sync-tombstones.md).
         // Pass deviceId via revokedDeviceId so the relay can extract it on receipt
         // and revoke the device's KnownDevicesStore registration — closes T-K-02
         // push rejection (threat-model §8.5).
-        tombstoneEmitter?.emit(
-            targetEntityId = deviceDataId,
-            targetEntityType = Device.ID,
-            revokedDeviceId = deviceId
-        )
+        //
+        // ⭐ §5b R2a: the same removal is also queued as a signed `/sync/device-access/revoke`, and
+        // both carry ONE authored stamp — see [queueAccessRevocation]. The tombstone is still the
+        // revocation an old relay acts on, and the realm epoch still counts it.
+        if (authoredAt != null) {
+            tombstoneEmitter?.emitAt(
+                targetEntityId = deviceDataId,
+                targetEntityType = Device.ID,
+                revokedDeviceId = deviceId,
+                authoredAt = authoredAt,
+            )
+        } else {
+            tombstoneEmitter?.emit(
+                targetEntityId = deviceDataId,
+                targetEntityType = Device.ID,
+                revokedDeviceId = deviceId
+            )
+        }
 
         // 4. P5: strip the removed device's own minting power on the relay — its keys only,
         // never the devices it admitted (§7j.10, class KDoc). Needs A1 (revocations are
-        // master-signed) — resolve like the approve path does; a delegated admitter simply
-        // skips. Best-effort: a failed POST never blocks the removal itself.
-        val masterKeyPair = syncManager?.let { sm ->
-            sm.currentMasterKeyPair
-                ?: sm.getRecoveryPhrase()?.let { cryptoManager?.deriveMasterKeyPair(it) }
-        }
+        // master-signed; [masterKeyPair] was resolved before anything changed). Best-effort:
+        // a failed POST never blocks the removal itself.
         val ownerId = syncManager?.currentOwnerId
         if (masterKeyPair != null && ownerId != null && cryptoManager != null && syncRelay != null) {
             val epoch = syncManager.currentRealmEpoch
@@ -217,6 +254,61 @@ internal class RevokeDeviceImplementation(
         }
 
         return null as T
+    }
+
+    /**
+     * Sign and durably queue the `/sync/device-access/revoke` for [deviceId]
+     * (`sync-entity-identity.md` §5b R2a), and return the stamp it was authored at — which the caller
+     * hands to the `Device` tombstone, so both planes carry the same HLC. `null` when nothing was
+     * queued; the caller then emits the tombstone as before.
+     *
+     * The authority follows the keys in hand, never the realm kind:
+     *  - **A1 resident** → `master`, may name anyone;
+     *  - **no A1, and [deviceId] is this device** → `self`, signed with this device's own key;
+     *  - **no A1, another device** (an A33-only delegated admitter) → [execute] has already refused
+     *    with `RecoveryPhraseRequiredError` (§5b decision A — no queue).
+     *
+     * ⚠ Queued before the tombstone, and drained before it: the access cut goes first (§5b).
+     */
+    private fun queueAccessRevocation(
+        executionContext: ExecutionContext,
+        deviceId: String,
+        masterKeyPair: SyncCryptoManager.KeyPair?,
+    ): HybridLogicalClock? {
+        val syncManager = syncManager ?: return null
+        val cryptoManager = cryptoManager ?: return null
+        val realm = syncManager.currentRealmContext() ?: return null
+        val (authority, signingKey) = when {
+            masterKeyPair != null -> DeviceAccessRevocation.Authority.MASTER to masterKeyPair.privateKey
+            deviceId == realm.deviceId -> DeviceAccessRevocation.Authority.SELF to realm.deviceSigningKeyPair.privateKey
+            // Unreachable from [execute], which refuses this case up front (decision A).
+            else -> return null
+        }
+        val authoredAt = syncManager.hlcManager.tick()
+        val signature = cryptoManager.signEd25519(
+            signingKey,
+            DeviceAccessRevocation.message(authority, realm.ownerId, deviceId, authoredAt.toStamp()),
+        )
+        DeviceAccessRevocationOutbox(executionContext).enqueue(
+            ownerId = realm.ownerId,
+            deviceId = deviceId,
+            authority = authority,
+            authoredAt = authoredAt,
+            signature = signature,
+        )
+        // ⭐ §5b R6a: the same signed bytes, synced as the realm's record of the removal — the peers'
+        // authority for "removed" (the relay never sees it as anything but ciphertext, HR #1).
+        DeviceRecords(executionContext, syncManager, cryptoManager).saveRemoval(
+            deviceId = deviceId,
+            authority = authority,
+            authoredAt = authoredAt.toStamp().encode(),
+            signerPublicKey = when (authority) {
+                DeviceAccessRevocation.Authority.MASTER -> masterKeyPair!!.publicKey
+                DeviceAccessRevocation.Authority.SELF -> realm.deviceSigningKeyPair.publicKey
+            },
+            signature = signature,
+        )
+        return authoredAt
     }
 
     private suspend fun revokeAdmissionKey(

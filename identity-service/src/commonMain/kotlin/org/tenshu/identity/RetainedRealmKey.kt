@@ -36,7 +36,7 @@ import org.tenshu.core.trait.Syncable
  * A26 [MemberAuthorityKey] private key), so the keyring propagates to every device
  * of theirs — whichever device reads old content can decrypt it.
  *
- * Keyed by `"$sharedRealmId::$keyId"` where `keyId = sha256(wrappedMasterKey)` hex:
+ * Keyed by `"$sharedRealmId/$keyId"` (⚠ never `::`, see [KEY_SEP]) where `keyId = sha256(wrappedMasterKey)` hex:
  * one row per (realm, retired key), idempotent on a re-rotation that re-retires the
  * same key. The flat [IdentityService.Relations.RETAINED_REALM_KEYS] array (derived
  * by `RetainedRealmKeyRelationMaintainer`) is the read surface; the keyring builder
@@ -46,7 +46,7 @@ interface RetainedRealmKey : Composite {
 
     override val schema: CompositeSchema get() = Schema
 
-    /** Derived key `"$sharedRealmId::$keyId"` — one row per (realm, retired key). */
+    /** Derived key `"$sharedRealmId/$keyId"` — one row per (realm, retired key). */
     val compositeKey: TString
         get() = getField(Fields.COMPOSITE_KEY)
 
@@ -65,10 +65,15 @@ interface RetainedRealmKey : Composite {
     companion object {
         const val ID = "tenshu/identity/retainedRealmKey"
 
-        /** Separator between the realm id and the per-key id in the composite key. */
-        const val KEY_SEP = "::"
+        /**
+         * Separator between the realm id and the per-key id in the composite key. ⚠⚠ Never `"::"`: a key of the form
+         * `"$realmId::…"` is how a save is routed INTO that shared realm (`RealmRegistry.realmForDataId`), so with it
+         * every retired key — wrapped to this member's own A13 — was pushed into the realm for every member to ingest,
+         * and an owner's key generation read other members' rows (and clocks). This row is personal-realm state.
+         */
+        const val KEY_SEP = "/"
 
-        /** The composite key for a (realm, retired key) pair — `"$sharedRealmId::$keyId"`. */
+        /** The composite key for a (realm, retired key) pair — `"$sharedRealmId/$keyId"`. */
         fun compositeKey(sharedRealmId: String, keyId: String): String =
             "$sharedRealmId$KEY_SEP$keyId"
 

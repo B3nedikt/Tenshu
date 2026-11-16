@@ -80,4 +80,17 @@ class RealmRegistrarTest {
         )
         assertTrue(f.syncManager.realmRelayRegistered, "and the latch is set going forward")
     }
+
+    /** §5b R6b: a successful re-registration reports the stamp it sent, once, for the re-admission record. */
+    @Test
+    fun reregisterThisDevice_reportsTheStampItSent() = runTest {
+        val f = fixture()
+        f.syncManager.initialize("mock phrase")
+        val stamps = mutableListOf<String>()
+
+        f.registrar.reregisterThisDevice(f.registrar.masterIdentity()!!, onReadmitted = { stamps += it })
+
+        assertEquals(1, stamps.size)
+        assertTrue(org.tenshu.core.common.util.decodeHlcStamp(stamps.single()) != null, "an HlcStamp encoding")
+    }
 }

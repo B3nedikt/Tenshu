@@ -1,47 +1,45 @@
-// The dashboard (native Home + the category range switcher, fit-app.md §2 screen 4): today against the
-// goals, then a selectable range of daily aggregates as bars with the goal line. The folds are the
-// SDK's (`:fit-projection`'s `dailyAggregates`); this file only lays them out, with `ChartMath`'s
-// geometry (`lib/chart.ts`).
+// Home (native `HomeScreen`, fit-web-parity.md §2.3), laid out for a wide screen: today's active
+// minutes as the hero ring ("N min to go"), the steps ring beside it; a stat strip whose cells open
+// their metric; four 7-day cards (energy, steps, active minutes, distance), each its week's total and
+// the change against the week before, opening its metric; and the latest workout.
 //
-// ⚠⚠ A failed read is a failure on screen, never zeros: the ring reading 0 is a claim about the
-// user's day. A day the SUCCESSFUL read does not name is a real zero (`windowDays`).
-import { useCallback, useState } from 'react'
+// ⚠⚠ A failed read is a failure on screen, never zeros: a ring reading 0 is a claim about the user's
+// day. One read serves the whole page: the last 14 days (the week, and the week before it).
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useLive } from '@tenshu/app-kit/live'
-import type { DailyAggregatesResult, FitDay, FitGoals } from '@tenshu/sdk/fit'
-import { barHeights, dailyAverage, deltaPercent, goalLineFraction, ringSweep, sum, windowDays } from '../lib/chart'
-import { METRICS, RANGES, windowFor, type Metric, type Range } from '../lib/dashboard'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import type { FitDay, FitGoals } from '@tenshu/sdk/fit'
+import { deltaPercent, ringSweep, sum, windowDays } from '../lib/chart'
+import { goalFor, windowFor, type Metric } from '../lib/dashboard'
+import { useDays } from '../lib/days'
+import { dateTimeText, clockText, distanceText } from '../lib/format'
+import { metricValueText } from '../lib/metricText'
 import { MAX_AGGREGATE_WINDOW_DAYS } from '../lib/bounds'
 import { useLocalToday } from '../lib/today'
-import { dayText, distanceText, energyText, minutesText, numberText } from '../lib/format'
 import { useGoals } from '../lib/live'
-import { dailyAggregates, subscribeDailyAggregates } from '../lib/proxy'
+import { subscribeWorkoutChanges, workoutsPage } from '../lib/proxy'
 import { queryKeys } from '../lib/queryKeys'
 import { useUnits } from '../lib/units'
-import { Button, Loading, ReadFailure, Section, Stat, Stopped } from './ui'
+import { workoutTitle } from '../lib/workout'
+import { Loading, ReadFailure, Section, Stopped } from './ui'
+import { MetricTrend } from './MetricTrend'
 
-export function Dashboard() {
-  const { t } = useTranslation()
-  const [range, setRange] = useState<Range>('week')
-  const [metric, setMetric] = useState<Metric>('activeMinutes')
-  // ⚠ Live: it rolls over at local midnight in a tab left open (`lib/today.ts`).
+// The week cards' order, as native Home's: energy first, distance last.
+const WEEK_CARDS: readonly Metric[] = ['activeEnergyKj', 'steps', 'activeMinutes', 'distanceM']
+// The stat strip under the rings: what the rings do not already show.
+const STRIP: readonly Metric[] = ['steps', 'distanceM', 'activeEnergyKj']
+
+export function Dashboard({ onOpenMetric, onOpenWorkout }: { onOpenMetric?: (metric: Metric) => void; onOpenWorkout?: (workoutId: string) => void } = {}) {
   const today = useLocalToday()
-  const window = windowFor(range, today, MAX_AGGREGATE_WINDOW_DAYS)
+  // ⚠ Live: it rolls over at local midnight in a tab left open (`lib/today.ts`).
+  const window = windowFor('week', today, MAX_AGGREGATE_WINDOW_DAYS)
+  const days = useDays(window.from, window.to)
   const goalsLive = useGoals()
-
-  const seed = useCallback(() => dailyAggregates(window.from, window.to), [window.from, window.to])
-  const subscribe = useCallback(
-    (onValue: (v: DailyAggregatesResult) => void, onError: (e: Error) => void) =>
-      subscribeDailyAggregates(window.from, window.to, onValue, onError),
-    [window.from, window.to],
-  )
-  const days = useLive(queryKeys.days(window.from, window.to), seed, subscribe)
 
   return (
     <div>
       <Stopped live={days} />
       <Stopped live={goalsLive} />
-
       {days.isPending ? (
         <Loading />
       ) : days.error || !days.data ? (
@@ -51,27 +49,14 @@ export function Dashboard() {
       ) : (
         <Loaded
           rows={windowDays(days.data.days, window.from, window.to)}
-          range={range}
-          windowDays={window.days}
-          withPrevious={window.withPrevious}
-          metric={metric}
-          onMetric={setMetric}
           goals={goalsLive.isPending ? 'pending' : goalsLive.data?.ok ? goalsLive.data.goals : 'failed'}
           goalsRetry={goalsLive.retry}
           goalsFailure={goalsLive.data && !goalsLive.data.ok ? goalsLive.data.error : null}
           goalsError={goalsLive.error}
+          onOpenMetric={onOpenMetric}
         />
       )}
-
-      <Section title={t('dashboard.range')}>
-        <div role="group" aria-label={t('dashboard.range')} className="flex gap-1">
-          {RANGES.map((r) => (
-            <Button key={r} size="sm" variant={r === range ? 'primary' : 'outline'} aria-pressed={r === range} onClick={() => setRange(r)}>
-              {t(`dashboard.ranges.${r}`)}
-            </Button>
-          ))}
-        </div>
-      </Section>
+      <LatestWorkout onOpen={onOpenWorkout} />
     </div>
   )
 }
@@ -80,38 +65,29 @@ type GoalsState = FitGoals | 'pending' | 'failed'
 
 function Loaded({
   rows,
-  range,
-  windowDays: count,
-  withPrevious,
-  metric,
-  onMetric,
   goals,
   goalsRetry,
   goalsFailure,
   goalsError,
+  onOpenMetric,
 }: {
   rows: FitDay[]
-  range: Range
-  windowDays: number
-  withPrevious: boolean
-  metric: Metric
-  onMetric: (m: Metric) => void
   goals: GoalsState
   goalsRetry: () => void
   goalsFailure: { kind: string; message?: string } | null
   goalsError: unknown
+  onOpenMetric?: (metric: Metric) => void
 }) {
   const { t, i18n } = useTranslation()
   const units = useUnits()
-  const current = rows.slice(-count)
-  const previous = withPrevious ? rows.slice(0, rows.length - count) : []
-  const today = current[current.length - 1]!
+  const week = rows.slice(-7)
+  const previous = rows.slice(0, rows.length - 7)
+  const today = week[week.length - 1]!
+  const goalsOk = typeof goals === 'object' ? goals : null
 
-  // Wide windows: today and the range chart side by side (web-apps-layout.md §3.1, "a wide
-  // dashboard"); `*:mt-0` drops the range Section's own top margin so both columns start level.
   return (
-    <div className="min-[1200px]:grid min-[1200px]:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] min-[1200px]:items-start min-[1200px]:gap-6 min-[1200px]:*:mt-0">
-      <section aria-labelledby="today-heading" className="rounded-lg border border-line bg-surface-2 px-4 py-4">
+    <div className="space-y-6">
+      <section aria-labelledby="today-heading" className="rounded-xl border border-line bg-surface-2 px-5 py-5">
         <h2 id="today-heading" className="text-sm font-semibold text-text">
           {t('dashboard.today')}
         </h2>
@@ -121,156 +97,206 @@ function Loaded({
           // ⚠ Never native's 30 / 8 000 defaults: progress against a goal we could not read is a guess.
           <ReadFailure failure={goalsFailure} error={goalsError} onRetry={goalsRetry} />
         ) : (
-          <div className="mt-3 flex flex-wrap items-center gap-6">
+          <div className="mt-4 flex flex-wrap items-center gap-x-10 gap-y-4">
             <Ring
+              size={148}
               label={t('dashboard.activeMinutesGoal')}
               value={today.activeMinutes}
               goal={goals.activeMinutes}
+              centre={String(today.activeMinutes)}
+              centreUnit={t('home.minutes')}
               text={t('dashboard.ofGoal', { value: today.activeMinutes, goal: goals.activeMinutes })}
+              caption={
+                today.activeMinutes >= goals.activeMinutes
+                  ? t('home.goalReached')
+                  : t('home.toGo', { value: goals.activeMinutes - today.activeMinutes })
+              }
+              note={t('home.who')}
             />
             <Ring
+              size={104}
               label={t('dashboard.stepsGoal')}
               value={today.steps}
               goal={goals.steps}
-              text={t('dashboard.ofGoal', { value: numberText(i18n.language, today.steps), goal: numberText(i18n.language, goals.steps) })}
+              centre={new Intl.NumberFormat(i18n.language, { notation: 'compact', maximumFractionDigits: 1 }).format(today.steps)}
+              centreUnit={t('metric.steps')}
+              text={t('dashboard.ofGoal', {
+                value: new Intl.NumberFormat(i18n.language).format(today.steps),
+                goal: new Intl.NumberFormat(i18n.language).format(goals.steps),
+              })}
             />
           </div>
         )}
-        <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <Stat label={t('metric.steps')} value={numberText(i18n.language, today.steps)} />
-          <Stat label={t('metric.activeMinutes')} value={minutesText(t, today.activeMinutes)} />
-          <Stat label={t('metric.distanceM')} value={distanceText(t, today.distanceM, units)} />
-          <Stat label={t('metric.activeEnergyKj')} value={energyText(t, today.activeEnergyKj)} />
+        {/* The strip: each cell opens its metric (native `StatStrip`). */}
+        <dl className="mt-5 grid grid-cols-3 gap-2" data-testid="strip">
+          {STRIP.map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => onOpenMetric?.(m)}
+              className="rounded-lg border border-line bg-surface px-3 py-2 text-left hover:bg-well focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <dt className="text-xs text-text-2">{t(`metric.${m}`)}</dt>
+              <dd className="mt-0.5 text-base font-semibold text-text">{metricValueText(t, i18n.language, m, today[m], units)}</dd>
+            </button>
+          ))}
         </dl>
       </section>
 
-      <Section title={t(`dashboard.rangeTitle.${range}`)}>
-        <div role="group" aria-label={t('dashboard.metric')} className="mb-3 flex flex-wrap gap-1">
-          {METRICS.map((m) => (
-            <Button key={m} size="sm" variant={m === metric ? 'primary' : 'ghost'} aria-pressed={m === metric} onClick={() => onMetric(m)}>
-              {t(`metric.${m}`)}
-            </Button>
+      <Section title={t('home.thisWeek')}>
+        <div className="grid gap-4 min-[900px]:grid-cols-2">
+          {WEEK_CARDS.map((m) => (
+            <WeekCard key={m} metric={m} week={week} previous={previous} goal={goalFor(m, goalsOk)} onOpen={() => onOpenMetric?.(m)} />
           ))}
         </div>
-        <Summary rows={current} previous={previous} metric={metric} goals={typeof goals === 'object' ? goals : null} />
-        <Bars rows={current} metric={metric} goals={typeof goals === 'object' ? goals : null} />
       </Section>
     </div>
   )
 }
 
-function goalFor(metric: Metric, goals: FitGoals | null): number {
-  if (!goals) return 0
-  return metric === 'steps' ? goals.steps : metric === 'activeMinutes' ? goals.activeMinutes : 0
-}
-
-function valueText(t: ReturnType<typeof useTranslation>['t'], locale: string, metric: Metric, value: number, units: ReturnType<typeof useUnits>) {
-  switch (metric) {
-    case 'steps':
-      return numberText(locale, value)
-    case 'activeMinutes':
-      return minutesText(t, value)
-    case 'distanceM':
-      return distanceText(t, value, units)
-    case 'activeEnergyKj':
-      return energyText(t, value)
-  }
-}
-
-function Summary({ rows, previous, metric, goals }: { rows: FitDay[]; previous: FitDay[]; metric: Metric; goals: FitGoals | null }) {
+function WeekCard({ metric, week, previous, goal, onOpen }: { metric: Metric; week: FitDay[]; previous: FitDay[]; goal: number; onOpen: () => void }) {
   const { t, i18n } = useTranslation()
   const units = useUnits()
-  const values = rows.map((d) => d[metric])
-  const total = sum(values)
-  // ⚠ The current period ends with today, which is still under way, against a previous period that is
-  // complete: exactly native Home's trend (`HomeViewModel`: `takeLast(7)` vs `dropLast(7).takeLast(7)`,
-  // today included), kept so web and phone show the same figure.
+  const total = sum(week.map((d) => d[metric]))
+  // ⚠ Native Home's trend: this week (today still under way) against the complete week before.
   const delta = previous.length ? deltaPercent(total, sum(previous.map((d) => d[metric]))) : null
-  const goal = goalFor(metric, goals)
-  const met = goal > 0 ? values.filter((v) => v >= goal).length : null
   return (
-    <dl className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-      <Stat label={t('dashboard.total')} value={valueText(t, i18n.language, metric, total, units)} />
-      <Stat label={t('dashboard.average')} value={valueText(t, i18n.language, metric, dailyAverage(values), units)} />
-      {delta !== null && <Stat label={t('dashboard.change')} value={t('dashboard.delta', { value: `${delta > 0 ? '+' : ''}${delta}` })} />}
-      {met !== null && <Stat label={t('dashboard.goalDays')} value={t('dashboard.goalDaysValue', { met, days: rows.length })} />}
-    </dl>
+    <article aria-labelledby={`week-${metric}`} className="rounded-xl border border-line bg-surface-2 px-4 pb-2 pt-3" data-testid={`week-${metric}`}>
+      <header className="flex items-start justify-between gap-2">
+        <div>
+          <h3 id={`week-${metric}`} className="text-sm font-semibold text-text">
+            <button type="button" onClick={onOpen} className="hover:underline focus:outline-none focus-visible:underline">
+              {t(`metric.${metric}`)}
+            </button>
+          </h3>
+          <p className="text-xs text-text-2">{t('home.weekTotal', { value: metricValueText(t, i18n.language, metric, total, units) })}</p>
+        </div>
+        {delta !== null && (
+          <span
+            data-testid="delta"
+            className={`rounded-full px-2 py-0.5 text-xs font-medium ${delta >= 0 ? 'bg-primary-soft text-text' : 'bg-well text-text-2'}`}
+          >
+            {t('home.delta', { value: `${delta > 0 ? '+' : ''}${delta}` })}
+          </span>
+        )}
+      </header>
+      <MetricTrend days={week} metric={metric} range="week" goal={goal} />
+    </article>
   )
 }
 
-const RING_R = 28
-const RING_C = 2 * Math.PI * RING_R
+const RING_STROKE = 12
 
-function Ring({ label, value, goal, text }: { label: string; value: number; goal: number; text: string }) {
+function Ring({
+  size,
+  label,
+  value,
+  goal,
+  centre,
+  centreUnit,
+  text,
+  caption,
+  note,
+}: {
+  size: number
+  label: string
+  value: number
+  goal: number
+  centre: string
+  centreUnit: string
+  text: string
+  caption?: string
+  note?: string
+}) {
+  const r = size / 2 - RING_STROKE / 2 - 2
+  const c = 2 * Math.PI * r
   const sweep = ringSweep(value, goal)
   return (
-    <figure className="flex items-center gap-3">
-      <svg
-        width="72"
-        height="72"
-        viewBox="0 0 72 72"
-        role="meter"
-        aria-label={label}
-        aria-valuemin={0}
-        aria-valuemax={goal}
-        aria-valuenow={Math.min(value, goal)}
-        aria-valuetext={text}
-      >
-        <circle cx="36" cy="36" r={RING_R} fill="none" strokeWidth="8" className="stroke-line" />
-        <circle
-          cx="36"
-          cy="36"
-          r={RING_R}
-          fill="none"
-          strokeWidth="8"
-          strokeLinecap="round"
-          className="stroke-primary"
-          strokeDasharray={`${sweep * RING_C} ${RING_C}`}
-          transform="rotate(-90 36 36)"
-        />
-      </svg>
+    <figure className="flex items-center gap-4">
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg
+          width={size}
+          height={size}
+          viewBox={`0 0 ${size} ${size}`}
+          role="meter"
+          aria-label={label}
+          aria-valuemin={0}
+          aria-valuemax={goal}
+          aria-valuenow={Math.min(value, goal)}
+          aria-valuetext={text}
+        >
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={RING_STROKE} className="stroke-well" />
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            strokeWidth={RING_STROKE}
+            strokeLinecap="round"
+            className="stroke-primary"
+            strokeDasharray={`${sweep * c} ${c}`}
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          />
+        </svg>
+        <div aria-hidden className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className={`font-semibold tabular-nums text-text ${size > 120 ? 'text-3xl' : 'text-xl'}`}>{centre}</span>
+          <span className="text-xs text-text-2">{centreUnit}</span>
+        </div>
+      </div>
       <figcaption>
         <p className="text-xs text-text-2">{label}</p>
         <p className="text-sm font-semibold text-text">{text}</p>
+        {caption && <p className="mt-1 text-sm text-text">{caption}</p>}
+        {note && <p className="mt-1 max-w-56 text-xs text-text-2">{note}</p>}
       </figcaption>
     </figure>
   )
 }
 
-function Bars({ rows, metric, goals }: { rows: FitDay[]; metric: Metric; goals: FitGoals | null }) {
+// The latest workout (native Home's card): opens it. ⚠ Under History's query keys, so its change signal
+// refreshes this too; and a change seen here re-reads it.
+function LatestWorkout({ onOpen }: { onOpen?: (workoutId: string) => void }) {
   const { t, i18n } = useTranslation()
   const units = useUnits()
-  const values = rows.map((d) => d[metric])
-  const goal = goalFor(metric, goals)
-  const heights = barHeights(values, goal)
-  const goalY = goal > 0 ? 1 - goalLineFraction(values, goal) : null
-  const width = 100 / Math.max(rows.length, 1)
+  const queryClient = useQueryClient()
+  const query = useQuery({ queryKey: queryKeys.latestWorkout(), queryFn: () => workoutsPage(null, 1) })
+  useEffect(() => {
+    let first = true
+    return subscribeWorkoutChanges(
+      () => {
+        if (first) {
+          first = false
+          return
+        }
+        void queryClient.invalidateQueries({ queryKey: queryKeys.latestWorkout() })
+      },
+      () => {},
+    )
+  }, [queryClient])
+
+  if (query.isPending) return null
+  if (query.error || !query.data) return <ReadFailure error={query.error} onRetry={() => void query.refetch()} />
+  if (!query.data.ok) return <ReadFailure failure={query.data.error} onRetry={() => void query.refetch()} />
+  const w = query.data.workouts[0]
+  if (!w) return null
   return (
-    <figure>
-      <svg viewBox="0 0 100 40" preserveAspectRatio="none" className="h-40 w-full" role="img" aria-label={t(`metric.${metric}`)}>
-        {heights.map((h, i) => (
-          <rect
-            key={rows[i]!.date}
-            data-testid="bar"
-            data-date={rows[i]!.date}
-            data-value={values[i]}
-            x={i * width + width * 0.1}
-            y={40 - h * 40}
-            width={width * 0.8}
-            height={h * 40}
-            className="fill-primary"
-          >
-            <title>{`${dayText(i18n.language, rows[i]!.date)}: ${valueText(t, i18n.language, metric, values[i]!, units)}`}</title>
-          </rect>
-        ))}
-        {goalY !== null && (
-          <line data-testid="goal-line" x1="0" x2="100" y1={goalY * 40} y2={goalY * 40} strokeDasharray="2 1" strokeWidth="0.4" className="stroke-text-2" />
-        )}
-      </svg>
-      <figcaption className="mt-1 flex justify-between text-xs text-text-2">
-        <span>{dayText(i18n.language, rows[0]!.date, 'short')}</span>
-        <span>{dayText(i18n.language, rows[rows.length - 1]!.date, 'short')}</span>
-      </figcaption>
-    </figure>
+    <Section title={t('home.latest')}>
+      <button
+        type="button"
+        onClick={() => onOpen?.(w.workoutId)}
+        data-testid="latest-workout"
+        className="flex w-full items-center justify-between gap-4 rounded-xl border border-line bg-surface-2 px-4 py-3 text-left hover:bg-well focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      >
+        <span>
+          <span className="block text-sm font-semibold text-text">{workoutTitle(t, w)}</span>
+          <span className="block text-xs text-text-2">{dateTimeText(i18n.language, w.startMs)}</span>
+        </span>
+        <span className="text-right text-sm tabular-nums text-text">
+          {clockText(w.durationSec)}
+          {w.distanceM !== null && <span className="block text-xs text-text-2">{distanceText(t, w.distanceM, units)}</span>}
+        </span>
+      </button>
+    </Section>
   )
 }
+

@@ -29,6 +29,7 @@ import platform.UIKit.UIGraphicsImageRenderer
 import platform.UIKit.UIImagePNGRepresentation
 import platform.UIKit.UIRectFill
 import kotlin.random.Random
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -44,6 +45,10 @@ import kotlin.test.assertTrue
  * at all (`docs/tech-debt.md`). Only a K/N run of the real upload path sees it.
  */
 class UploadMintsThumbnailClassesTest {
+
+    /** Stops the graphs this class assembled (`TestGraphs`, `docs/testing-flakes.md`). */
+    @AfterTest
+    fun stopTestGraphs() = TestGraphs.stopAll()
 
     @OptIn(ExperimentalForeignApi::class)
     private fun writePng(path: String) {

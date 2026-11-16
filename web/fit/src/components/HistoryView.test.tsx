@@ -7,13 +7,18 @@ vi.mock('../lib/proxy', async () => (await import('../test/proxyMock')).proxyMod
 const { proxy, resetProxy, failure, workoutRow, streams } = await import('../test/proxyMock')
 const { renderWithProviders } = await import('../test/render')
 const { HISTORY_PAGE_SIZE, forgetSeenVersion } = await import('../lib/history')
-const { ROW_HEIGHT } = await import('../lib/virtual')
+const { historyLayout, topOfWorkout } = await import('../lib/historyRows')
 const { HistoryView } = await import('./HistoryView')
 
 const T0 = Date.UTC(2026, 9, 28, 7, 0)
 
 function rows(prefix: string, n: number, from = 0) {
   return Array.from({ length: n }, (_, i) => workoutRow(`${prefix}${from + i}`, T0 - (from + i) * 3_600_000))
+}
+
+// Where the [n]th workout's row starts: headers (a week summary, a day) sit between the rows.
+function at(n: number): number {
+  return topOfWorkout(historyLayout(rows('x', n + 1)), n)
 }
 
 function loaded(): number {
@@ -69,7 +74,7 @@ describe('HistoryView paging', () => {
 
     // Scroll to the bottom of what is loaded: the next page, with the previous page's cursor.
     const scroller = screen.getByTestId('history-scroller')
-    scroller.scrollTop = (HISTORY_PAGE_SIZE - 5) * ROW_HEIGHT
+    scroller.scrollTop = at(HISTORY_PAGE_SIZE - 5)
     fireEvent.scroll(scroller)
     await waitFor(() => expect(proxy.workoutsPage).toHaveBeenCalledTimes(2))
     expect(proxy.workoutsPage.mock.calls[1]![0]).toBe(`w1.c${HISTORY_PAGE_SIZE}`)
@@ -139,11 +144,11 @@ describe('HistoryView paging', () => {
     // Scroll deep: three pages read, the window at the end of the third.
     const scroller = screen.getByTestId('history-scroller')
     for (const pages of [2, 3]) {
-      scroller.scrollTop = ((pages - 1) * HISTORY_PAGE_SIZE - 5) * ROW_HEIGHT
+      scroller.scrollTop = at((pages - 1) * HISTORY_PAGE_SIZE - 5)
       fireEvent.scroll(scroller)
       await waitFor(() => expect(loaded()).toBe(pages * HISTORY_PAGE_SIZE))
     }
-    scroller.scrollTop = (3 * HISTORY_PAGE_SIZE - 10) * ROW_HEIGHT
+    scroller.scrollTop = at(3 * HISTORY_PAGE_SIZE - 10)
     fireEvent.scroll(scroller)
     await new Promise((r) => setTimeout(r, 20))
     const before = proxy.workoutsPage.mock.calls.length
@@ -164,7 +169,7 @@ describe('HistoryView paging', () => {
     expect(loaded()).toBe(HISTORY_PAGE_SIZE)
 
     // Paging on from there asks with the NEW head's cursor, never an old one.
-    scroller.scrollTop = (HISTORY_PAGE_SIZE - 5) * ROW_HEIGHT
+    scroller.scrollTop = at(HISTORY_PAGE_SIZE - 5)
     fireEvent.scroll(scroller)
     await waitFor(() => expect(loaded()).toBe(2 * HISTORY_PAGE_SIZE))
     const after = proxy.workoutsPage.mock.calls.slice(before).map(([c]) => c)
@@ -328,3 +333,26 @@ describe('HistoryView paging', () => {
     expect(await screen.findByText(/Updates stopped/)).toBeInTheDocument()
   })
 })
+
+// fit-web-parity.md §2.4: native's week summary and day headers.
+describe('HistoryView grouping', () => {
+  it('a summary at the top of each week (workouts, distance, time) and a header per day', async () => {
+    proxy.workoutsPage.mockResolvedValue({
+      ok: true,
+      workouts: [
+        workoutRow('a', Date.UTC(2026, 10, 15, 9), { startLocal: '2026-11-15T09:00:00', distanceM: 10_000, durationSec: 3_000 }),
+        workoutRow('b', Date.UTC(2026, 10, 12, 18), { startLocal: '2026-11-12T18:00:00', distanceM: 5_000, durationSec: 1_800 }),
+        workoutRow('c', Date.UTC(2026, 10, 8, 10), { startLocal: '2026-11-08T10:00:00', distanceM: 0, durationSec: 600 }),
+      ],
+      nextCursor: null,
+    })
+    renderWithProviders(<HistoryView onOpen={() => {}} />)
+    const weeks = await screen.findAllByTestId('week-summary')
+    expect(weeks).toHaveLength(2)
+    expect(weeks[0]).toHaveTextContent('2 workouts · 15.0 km · 1:20:00')
+    // A week with no distance says none, not "0 m".
+    expect(weeks[1]).toHaveTextContent('1 workout · 10:00')
+    expect(screen.getAllByTestId('day-header')).toHaveLength(3)
+  })
+})
+

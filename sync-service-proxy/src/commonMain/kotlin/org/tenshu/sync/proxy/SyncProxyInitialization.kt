@@ -211,7 +211,10 @@ fun ExecutionContext.initSyncService(
      */
     objectStore: ObjectStore? = null,
     /**
-     * The personal relay, used only for the C1 targeted entitlement fetch (`sync-device-catch-up.md`
+     * The personal relay. ⚠⚠ Every production wiring must pass it: since relay protocol 2 it carries
+     * the signed device-access revocations (`sync-entity-identity.md` §5b R2b), the only thing that
+     * cuts a removed device's access — without it they queue and never leave. Also used for the C1
+     * targeted entitlement fetch (`sync-device-catch-up.md`
      * §5.3). Null ⇒ recovery takes the slow path; ordinary traffic goes through the operation layer.
      */
     personalRelay: SyncRelay? = null,
@@ -238,19 +241,15 @@ fun ExecutionContext.initSyncService(
      */
     realmRegistrar: RealmRegistrar? = null,
     /**
-     * SR-3b.2: a per-shared-realm [SyncRelay] (JWT scoped to that realm's `ownerId`, same A4 key).
-     * Null ⇒ shared realms queue locally but never push or pull.
-     */
-    sharedRealmRelayFactory: ((String) -> SyncRelay?)? = null,
-    /**
      * A per-shared-realm [ContentBlobStore], so a shared realm's file chunks go
      * to its own content plane. Null ⇒ shared-realm file content cannot emit.
      */
-    sharedRealmContentBlobStoreFactory: ((String) -> ContentBlobStore?)? = null,
+    sharedRealmContentBlobStoreFactory: ((RealmContext) -> ContentBlobStore?)? = null,
     /**
-     * GR-3 / D9-b: a per-realm-device-key [SyncRelay] for a granted realm, used by
-     * [MemberSelfBindObserver] so a member's second device can self-bind. Null ⇒ that observer is
-     * not registered (single-device accept only).
+     * The per-realm-device-key [SyncRelay] (`perRealmDeviceRelay`) for **every** shared realm — the
+     * registry's relay factory, for owners and members alike (D10, threat model T-GR-05; there is no
+     * personal-key shared-realm relay any more). Also gates [MemberSelfBindObserver]. Null ⇒ shared
+     * realms register with no relay, and that observer is not registered.
      */
     grantedRelayFactory: ((RealmContext) -> SyncRelay?)? = null,
     /**
@@ -438,6 +437,7 @@ fun ExecutionContext.initSyncService(
                 )
                 (executionContext.database.getData(deviceDataId) as? Device)?.publicKey?.get()
             },
+            isRemoved = DeviceRecords(executionContext, syncManager, cryptoManager)::isRemoved,
             nowMs = nowMs,
         )
         @Suppress("UNCHECKED_CAST")
@@ -490,12 +490,12 @@ fun ExecutionContext.initSyncService(
         @Suppress("UNUSED_VALUE")
         val realmRegistry = RealmRegistry(
             syncManager = syncManager,
-            processorFactory = { realm ->
+            processorFactory = { realm, realmClock ->
                 // A shared file's chunks live in the realm's own content store under the realm's keys
                 // (`drive-shared-realm-file-model.md` §6 Phase 3b.2), so this applier uses the realm's
                 // store and keys, not the personal ones. An in-memory test factory must memoise per
                 // ownerId to share the store with the emit side.
-                val realmStore = sharedRealmContentBlobStoreFactory?.invoke(realm.ownerId)
+                val realmStore = sharedRealmContentBlobStoreFactory?.invoke(realm)
                 val realmManifestApplier =
                     if (realmStore != null && fileDatabase != null) {
                         FileContentManifestApplier(
@@ -519,10 +519,16 @@ fun ExecutionContext.initSyncService(
                     manifestApplier = realmManifestApplier,
                     realmKeys = realm.derivedKeys,
                     realmRetiredKeys = realm.retiredKeys,
-                    realmHlcManager = HLCManager(realm.deviceId, executionContext.context),
+                    // ⚠⚠ The runtime's clock, the one `SyncObserver` stamps this realm's blocks with
+                    // (T-GR-05): one clock per realm, so emit sees what ingest saw.
+                    realmHlcManager = realmClock ?: HLCManager(realm.deviceId, executionContext.context),
+                    // GR-7: a block no key opens may mean a re-key never reached us — ask for the current key.
+                    onUnopenableBlock = { at -> realmRegistryRef?.keyRequests?.markBehind(realm.ownerId, at) },
                 )
             },
-            relayFactory = sharedRealmRelayFactory,
+            clockFactory = { realm -> HLCManager(realm.deviceId, executionContext.context) },
+            // ⚠ D10: the per-realm relay, for owners and members alike (no personal-key fallback).
+            relayFactory = grantedRelayFactory,
             contentBlobStoreFactory = sharedRealmContentBlobStoreFactory,
         )
         // The resolver the tombstone index closes over, once the realm registry exists.
@@ -583,6 +589,16 @@ fun ExecutionContext.initSyncService(
                 println("SyncProxy -> published this device's schema versions (E4 roster floor)")
             }
         }.onFailure { println("SyncProxy -> device schema-version publish failed (will retry next start): $it") }
+
+        // §5b R6b: an A1 holder re-emits the realm's signed device records once per session, so the
+        // relay's body GC cannot leave a later joiner unaware of a removal. A joiner skips it: A1 is what
+        // signs the records, and one holder re-emitting is enough.
+        runCatching {
+            if (syncManager.currentMasterKeyPair != null || syncManager.getRecoveryPhrase() != null) {
+                val n = DeviceRecords(this, syncManager, cryptoManager).reEmitAll()
+                if (n > 0) println("SyncProxy -> re-emitted $n signed device record(s)")
+            }
+        }.onFailure { println("SyncProxy -> device-record re-emit failed (will retry next start): $it") }
 
         // This device's hardware model, beside the user-chosen `Device.name`. After the own-row
         // self-heal: the publisher refuses without that row. Write-if-changed.
@@ -875,7 +891,18 @@ private fun ExecutionContext.registerSessionObservers(
     // SR-3b.2 auto-join: a `SharedRealmMembership` landing locally (own or synced in) registers its
     // realm. Must observe SYNC_INGEST saves — that is how a second device joins. Skips realms
     // already registered.
-    addDataObserver(SharedRealmJoinObserver(this, syncManager, cryptoManager, realmRegistry))
+    // ⚠ D10: under a per-realm key, admitting itself with the synced realm master when it owns the realm.
+    addDataObserver(
+        SharedRealmJoinObserver(
+            this, syncManager, cryptoManager, realmRegistry,
+            coroutineScope = backgroundScope,
+        ),
+    )
+
+    // §5b R6a: a verified removal record (own or ingested) takes the device out of the local roster.
+    addDataObserver(DeviceRecordObserver(this, DeviceRecords(this, syncManager, cryptoManager)))
+    // MR-2: a verified revocation takes the revoked member's row out of every replica.
+    addDataObserver(MembershipRecordObserver(this, MembershipRecords(this, cryptoManager)))
 
     // Delegated-admission migration (`delegated-device-admission-authority.md` §8): a pre-P3 joiner
     // announces a self-minted A33 key, an A1-holder answers with a depth-1 cert grant, and deep

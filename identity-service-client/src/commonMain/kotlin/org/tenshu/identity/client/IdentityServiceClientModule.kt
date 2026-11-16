@@ -11,6 +11,10 @@ import org.tenshu.identity.DeviceHardware
 import org.tenshu.identity.DeviceLastSeen
 import org.tenshu.identity.GetDevices
 import org.tenshu.identity.GetRealmMembers
+import org.tenshu.identity.GetRealmInvitations
+import org.tenshu.identity.GetPendingAcceptances
+import org.tenshu.identity.client.impl.GetPendingAcceptancesRo
+import org.tenshu.identity.client.impl.GetRealmInvitationsRo
 import org.tenshu.identity.GetSharedRealmMemberships
 import org.tenshu.identity.IdentityService
 import org.tenshu.identity.SharedRealmMembership
@@ -84,6 +88,18 @@ val identityServiceClientModule = tModule {
         interfaceClass = GetRealmMembers::class,
         protocolSchema = GetRealmMembers.Schema,
         roFactory = ::GetRealmMembersRo
+    )
+
+    operation(
+        interfaceClass = GetRealmInvitations::class,
+        protocolSchema = GetRealmInvitations.Schema,
+        roFactory = ::GetRealmInvitationsRo
+    )
+
+    operation(
+        interfaceClass = GetPendingAcceptances::class,
+        protocolSchema = GetPendingAcceptances.Schema,
+        roFactory = ::GetPendingAcceptancesRo
     )
 
     type(

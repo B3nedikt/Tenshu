@@ -46,7 +46,12 @@ interface IdentityService : Service {
         val Schema = service(
             id = ID,
             // v1 = release baseline (core-schema-evolution.md Appendix A).
-            version = 1,
+            // v2 = `DeviceRecord` (sync-entity-identity.md §5b R6): a new synced type peers read, so an
+            // older peer is fenced rather than silently dropping records it would never re-fetch.
+            // Also folded into this unshipped bump: `MembershipRecord`, `AwaitedAcceptance`,
+            // `OutboundAcceptance` (new types) and MR-3's `Member` reshape — so the step, registered in
+            // `identityServiceCommonModule`, is NOT empty: it maps the frozen v1 `Member` onto the live one.
+            version = 2,
             relations = listOf(
                 serviceDataRelation(
                     id = Relations.DEVICES,
@@ -87,6 +92,30 @@ interface IdentityService : Service {
                     type = TList.typeOf(DeviceHardware.Schema),
                     maintained = true,
                 ),
+                serviceDataRelation(
+                    id = Relations.DEVICE_RECORDS,
+                    type = TList.typeOf(DeviceRecord.Schema),
+                    maintained = true,
+                    chainReadable = false,
+                ),
+                serviceDataRelation(
+                    id = Relations.AWAITED_ACCEPTANCES,
+                    type = TList.typeOf(AwaitedAcceptance.Schema),
+                    maintained = true,
+                    chainReadable = false,
+                ),
+                serviceDataRelation(
+                    id = Relations.OUTBOUND_ACCEPTANCES,
+                    type = TList.typeOf(OutboundAcceptance.Schema),
+                    maintained = true,
+                    chainReadable = false,
+                ),
+                serviceDataRelation(
+                    id = Relations.MEMBERSHIP_RECORDS,
+                    type = TList.typeOf(MembershipRecord.Schema),
+                    maintained = true,
+                    chainReadable = false,
+                ),
             )
         )
     }
@@ -95,6 +124,8 @@ interface IdentityService : Service {
         const val GET_DEVICES = GetDevices.ID
         const val GET_SHARED_REALM_MEMBERSHIPS = GetSharedRealmMemberships.ID
         const val GET_REALM_MEMBERS = GetRealmMembers.ID
+        const val GET_REALM_INVITATIONS = GetRealmInvitations.ID
+        const val GET_PENDING_ACCEPTANCES = GetPendingAcceptances.ID
     }
 
     object Relations {
@@ -125,6 +156,25 @@ interface IdentityService : Service {
          * note describes: a relation named after its element type replaces that type's schema.
          */
         const val DEVICE_HARDWARE = "$ID/hardwareDescriptions"
+
+        /**
+         * The signed [DeviceRecord]s — removals and re-admissions (`sync-entity-identity.md` §5b R6).
+         * ⚠ Not chain-readable: a raw row is not yet a fact; readers go through the verifier.
+         * ⚠ Not `"$ID/deviceRecord"`, the element type's id (the collision [DEVICE_HARDWARE] notes).
+         */
+        const val DEVICE_RECORDS = "$ID/signedDeviceRecords"
+
+        /**
+         * Every shared realm's signed membership records (`shared-realm-membership-records.md` §3.1), in
+         * one relation — readers filter by `realmId`. Not chain-readable: the verified view is the proxy's.
+         */
+        const val MEMBERSHIP_RECORDS = "$ID/signedMembershipRecords"
+
+        /** The owner's grants still awaiting their member's acceptance (read-only-members D7). Personal realm. */
+        const val AWAITED_ACCEPTANCES = "$ID/awaitedAcceptances"
+
+        /** A member's acceptances not yet delivered to the grantor (read-only-members D7). Personal realm. */
+        const val OUTBOUND_ACCEPTANCES = "$ID/outboundAcceptances"
 
         /**
          * The member's flat collection of [SharedRealmMembership] rows — every shared

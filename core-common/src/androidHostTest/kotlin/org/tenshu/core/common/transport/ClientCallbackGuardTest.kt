@@ -17,7 +17,11 @@ class ClientCallbackGuardTest {
     private var now = 0L
     private var controlUid = CONTROL_UID
     private var lookups = 0
-    private val guard = ClientCallbackGuard(isControlUid = { lookups++; it == controlUid }, nanoTime = { now })
+    private var duringLookup: () -> Unit = {}
+    private val guard = ClientCallbackGuard(
+        isControlUid = { lookups++; duringLookup(); it == controlUid },
+        nanoTime = { now },
+    )
 
     @Test
     fun controlsUidIsAdmittedAndNoOtherIs() {
@@ -72,6 +76,35 @@ class ClientCallbackGuardTest {
         controlUid = -1
         guard.forgetControl()
         assertFalse(guard.admits(CONTROL_UID), "the binding died: the cached answer is dropped")
+    }
+
+    /**
+     * ⚠ The binding can die while a lookup is in flight on a Binder thread. The forget must win:
+     * the lookup's "yes" was taken before it and may not be cached over it, or the forgotten UID
+     * would be served from the cache for the whole TTL. Forced here by forgetting from inside the
+     * lookup, the exact interleaving.
+     */
+    @Test
+    fun aForgetDuringTheLookupIsNotOverwrittenByItsAnswer() {
+        duringLookup = { guard.forgetControl() }
+        assertTrue(guard.admits(CONTROL_UID), "the lookup itself said yes")
+        assertEquals(1, lookups)
+
+        duringLookup = {}
+        controlUid = -1 // the UID is reused once Control is gone
+        assertFalse(guard.admits(CONTROL_UID), "asked again, not answered from the cache")
+        assertEquals(2, lookups)
+    }
+
+    /** A forget before the lookup started does not stop the lookup's own answer being cached. */
+    @Test
+    fun aLookupAfterAForgetIsCachedAgain() {
+        assertTrue(guard.admits(CONTROL_UID))
+        guard.forgetControl()
+
+        assertTrue(guard.admits(CONTROL_UID))
+        repeat(10) { assertTrue(guard.admits(CONTROL_UID)) }
+        assertEquals(2, lookups)
     }
 
     @Test

@@ -163,6 +163,8 @@ It never retries: a refused write that re-enqueues is the 401-storm shape in `te
 
 ### D7. The acceptance signal moves out of the realm (decided 2026-11-10, option (a))
 
+*Built 2026-11-11, ahead of RO-1 — as-built in [`shared-realm-membership-records.md`](shared-realm-membership-records.md) §10.*
+
 A viewer cannot write its own `Member` row. The relay sees ciphertext, so it can't make an
 exception for one entity type. So acceptance travels **back through the grant mailbox**, as a
 sealed acceptance to the owner (the pairing-response shape), at a second address derived from
@@ -252,7 +254,9 @@ by a device name or a device id that links to their personal realm.
 
 ### 4.1 Versions (House Rule 9)
 
-- **Capability v3** is a relay wire change: `RELAY_PROTOCOL_VERSION` 1 → 2. Per D8 the relay
+- **Capability v3** is a relay wire change: `RELAY_PROTOCOL_VERSION` **2 → 3**. ⚠ Not 1 → 2: protocol 2 is
+  already taken, by device-access revocation (`sync-entity-identity.md` §5b R2b, where a `Device`
+  tombstone became plain data). Per D8 the relay
   stops accepting v2 capabilities, so a client still on protocol 1 cannot admit a member. That
   is acceptable while there are no shares; clients move in lockstep as usual.
 - **`AuthoredPayload`** is a new payload type, inside the ciphertext. No existing composite
@@ -324,7 +328,7 @@ Amendments, landing with the code (House Rule 2):
 | Phase | What ships | Enforcement |
 |---|---|---|
 | **RO-0** | Sign-off on D6–D8 and Q1–Q4 | — |
-| **RO-1** | D10 owner per-realm device keys + realm-local ids; capability v3 with role; `member_admission.role`; D3 relay refusals; D5 local refusal + terminal 403; D7 mailbox acceptance; Drive "Can view" default / "Can edit" toggle; relay protocol 1 → 2 | relay |
+| **RO-1** | ~~D10 owner per-realm device keys + realm-local ids~~ and ~~D7 mailbox acceptance~~ (both built ahead, with device-access revocation); capability v3 with role; `member_admission.role`; D3 relay refusals; D5 local refusal + terminal 403; Drive "Can view" default / "Can edit" toggle; relay protocol **2 → 3** | relay |
 | **RO-2** | Authored blocks emitted by every writer; `WriterCredential` publication; client verification in **count-only** mode (`EnvelopeRejections.AUTHOR`, nothing dropped) | relay (clients measure) |
 | **RO-3** | Clients **drop** unauthored or unauthorised shared-realm blocks; relay protocol min raised so every supported client emits | relay + clients |
 | **RO-4** | Role change UI (D6); D9 "edited by" on file rows and in Activity (needs RO-2's verified authors) | relay + clients |
@@ -338,7 +342,7 @@ counter, not as silently dropped edits.
 
 Each must be refused for viewers (D5) and signed for editors (D4) before RO-3 enforces:
 
-- [ ] `SharedRealmGrantManager.accept` → own `Member` row (moves to D7)
+- [x] `SharedRealmGrantManager.accept` → own `Member` row — gone: D7 is built, so the owner writes every `Member` row
 - [ ] Drive file create / rename / move / delete inside a shared folder
 - [ ] content `PUT` / `declare` / `reap` from a member (`SharedRealmContentBlobStoreFactory`)
 - [ ] derived data minted on a member device for shared files: thumbnails

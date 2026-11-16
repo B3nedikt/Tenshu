@@ -1,5 +1,7 @@
 package org.tenshu.sync.proxy.impl
 
+import kotlinx.coroutines.sync.withLock
+
 import org.tenshu.core.Data
 import org.tenshu.core.collection.list.SimpleTList
 import org.tenshu.core.common.proxy.ExecutionContext
@@ -35,15 +37,17 @@ internal class PollPendingGrantsImplementation(
         caller: Any?,
         params: Map<String, Data>?,
     ): T {
-        val pending = SharedRealmGrantManager(
-            executionContext = executionContext,
-            syncManager = syncManager,
-            cryptoManager = cryptoManager,
-            relay = relay,
-            realmRegistry = realmRegistry,
-            grantedRelayFactory = grantedRelayFactory,
-            nowMs = nowMs,
-        ).pollPendingGrants()
+        val pending = realmRegistry.grantOps.withLock {
+            SharedRealmGrantManager(
+                executionContext = executionContext,
+                syncManager = syncManager,
+                cryptoManager = cryptoManager,
+                relay = relay,
+                realmRegistry = realmRegistry,
+                grantedRelayFactory = grantedRelayFactory,
+                nowMs = nowMs,
+            ).pollPendingGrants()
+        }
 
         return SimpleTList(pending) as T
     }

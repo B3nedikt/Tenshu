@@ -169,6 +169,7 @@ class FakeControlSyncRepository : SyncRepository {
     // "Active just now" would make the DEBUG screenshot routes disagree with any real device.
     override val deviceHardwareNames: kotlinx.coroutines.flow.Flow<Map<String, String>> = kotlinx.coroutines.flow.flowOf(emptyMap())
     override suspend fun deviceLastSeen(): Map<String, Long> = emptyMap()
+    override suspend fun removedDevices(): List<app.tenshu.control.data.RemovedDevice> = emptyList()
 
     private companion object {
         /** 6-digit fake SAS; the UI renders it 3-3 split as "123 456". */

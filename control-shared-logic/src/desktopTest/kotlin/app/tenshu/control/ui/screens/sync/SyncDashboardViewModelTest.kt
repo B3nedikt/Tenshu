@@ -60,6 +60,21 @@ class SyncDashboardViewModelTest {
         createTestContext(schemaRegistry = registry)
     }
 
+    /** §5b R6c: the "Removed" section, newest removal first. */
+    @Test
+    fun removedDevices_areListed_newestFirst() = vmTest { vms ->
+        val repo = FakeSyncRepository()
+        repo.removed = listOf(
+            app.tenshu.control.data.RemovedDevice("older", removedAtMillis = 1_000L, removedItself = false),
+            app.tenshu.control.data.RemovedDevice("newer", removedAtMillis = 9_000L, removedItself = true),
+        )
+        val monitor = HostPairingMonitor(repo, scope = backgroundScope)
+        val vm = vms.own(SyncDashboardViewModel(repo, monitor))
+        runCurrent()
+
+        assertEquals(listOf("newer", "older"), vm.uiState.value.removedDevices.map { it.deviceId })
+    }
+
     @Test
     fun aFailedPairingStart_showsNoInPairingRow() = vmTest { vms ->
         // The row is a route back to a live session; a start that minted no code has none.

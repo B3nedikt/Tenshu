@@ -23,6 +23,7 @@ import org.tenshu.sync.respondToPairingOffer
 import kotlin.test.assertIs
 import org.tenshu.sync.startPairing
 import kotlin.test.Test
+import kotlin.time.Duration.Companion.seconds
 import kotlin.test.assertFalse
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -308,19 +309,20 @@ class RelayAmnesiaRepairSystemTest {
             val afterRetirement = host.syncManager.hlcManager.tick()
             val retirementFloor = afterRetirement.toStamp()
 
-            // The retirement is authored and durable, but its push is refused, so the relay has
-            // not acted on it. ⚠ This assertion is load-bearing for the whole test: if the
-            // tombstone reached the relay HERE, the re-admission below would come after the
-            // revocation and the ordering the guard exists for would never be exercised.
-            // A real tick first: the author tries to push it and the relay refuses it.
+            // The tombstone is authored and durable, but its push is refused, so the relay has not
+            // seen it. ⚠ This is load-bearing for the whole test: if the tombstone reached the relay
+            // HERE, it would arrive before the re-admission below and the ordering the guard exists
+            // for would never be exercised. A real tick first: the author tries to push it and the
+            // relay refuses it.
+            // ⚠ The signed `/sync/device-access/revoke` is NOT held back with it (§5b): the route is
+            // credential-less, so a refused author still cuts a removed device's access. That one is
+            // authored before the re-admission too, so it is applied now, and the re-admission below
+            // is what restores the joiner — which the late tombstone must then not undo.
             system.sync(host)
+            system.advanceUntil(timeout = 15.seconds) { joinerDeviceId !in system.knownDevices.deviceIds(ownerId) }
             assertTrue(
                 system.syncMailbox.getTombstones(ownerId, 0L, Int.MAX_VALUE).tombstones.isEmpty(),
-                "the refused author's retirement must not have reached the relay",
-            )
-            assertTrue(
-                joinerDeviceId in system.knownDevices.deviceIds(ownerId),
-                "the retirement must not reach the relay while its author is refused",
+                "the tombstone must not reach the relay while its author is refused",
             )
 
             // ── the target is re-admitted, later ──

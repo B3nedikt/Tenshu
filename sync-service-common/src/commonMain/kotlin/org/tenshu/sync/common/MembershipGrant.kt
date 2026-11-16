@@ -194,3 +194,167 @@ fun membershipCapabilityFromStored(
     issuedAt = stored.copyOfRange(8, 16).toLong(),
     signature = stored.copyOfRange(16, stored.size),
 )
+
+/**
+ * A grantee's acceptance of a membership (`shared-realm-read-only-members.md` D7), signed by its **member
+ * authority** (A26) and carried sealed to the grantor (`AcceptancePayload`). The owner verifies it against
+ * the A26 public key the capability bound, then writes the member's `Member` row itself.
+ *
+ * ```
+ * message = LP("tenshu-member-accept-v1") ‖ LP(realmId) ‖ LP(memberAuthorityPub) ‖ LP(displayName)
+ *         ‖ LP(contactFingerprint) ‖ LP(acceptedAt)
+ * ```
+ * ⚠ A distinct tag, as F4 requires of every membership message: A26 also signs device bindings
+ * (`tenshu-member-bind-v2`), and neither may verify as the other.
+ */
+object MembershipAcceptance {
+    /** Never reuse for another layout; a new layout gets `-v2`. */
+    const val DOMAIN_TAG = "tenshu-member-accept-v1"
+
+    fun message(
+        realmId: String,
+        memberAuthorityPublicKey: ByteArray,
+        displayName: String,
+        contactFingerprint: String,
+        acceptedAt: Long,
+    ): ByteArray = lengthPrefixedSignedMessage(
+        DOMAIN_TAG,
+        signedField(realmId),
+        memberAuthorityPublicKey,
+        signedField(displayName),
+        signedField(contactFingerprint),
+        signedField(acceptedAt),
+    )
+}
+
+/**
+ * The realm master's attestation of one `Member` row (`shared-realm-membership-records.md` MR-3): since RO
+ * D7 only the owner writes a member's row, and it signs it, so no member can rename another or invent one.
+ *
+ * ```
+ * message = LP("tenshu-member-row-v1") ‖ LP(realmId) ‖ LP(memberId) ‖ LP(displayName)
+ *         ‖ LP(contactFingerprint) ‖ LP(role) ‖ LP(joinedAt)
+ * ```
+ * A row is valid iff its signer's key binds to the realm id (`ownerIdForMasterPublicKey`) and the signature
+ * verifies — self-certifying, so it can be checked on arrival, in any order.
+ */
+object MemberRowAttestation {
+    /** Never reuse for another layout; a new layout gets `-v2`. */
+    const val DOMAIN_TAG = "tenshu-member-row-v2"
+
+    /**
+     * ⚠ [signedAt] is signed so a row can be ordered by its owner, not by the block that carried it: anyone with the
+     * realm key can re-push an older owner-signed row as a new block, which LWW would otherwise let win.
+     */
+    fun message(
+        realmId: String,
+        memberId: String,
+        displayName: String,
+        contactFingerprint: String,
+        role: String,
+        joinedAt: Long,
+        signedAt: Long,
+    ): ByteArray = lengthPrefixedSignedMessage(
+        DOMAIN_TAG,
+        signedField(realmId),
+        signedField(memberId),
+        signedField(displayName),
+        signedField(contactFingerprint),
+        signedField(role),
+        signedField(joinedAt),
+        signedField(signedAt),
+    )
+
+    /**
+     * Whether [incoming] — already [isValid] — is older than a valid [stored] row at the same key, and so a replay
+     * that must not replace it. Equal is the same signing (a re-emit of the identical row), and is let through.
+     */
+    fun isOlderThanStored(
+        incoming: org.tenshu.identity.Member,
+        stored: org.tenshu.identity.Member?,
+        verify: Ed25519SignatureVerifier,
+    ): Boolean {
+        if (stored == null || !isValid(stored, verify)) return false
+        val incomingAt = incoming.signedAt?.toEpochMilliseconds() ?: return true
+        val storedAt = stored.signedAt?.toEpochMilliseconds() ?: return false
+        return incomingAt < storedAt
+    }
+
+    /** Whether [row] carries a valid master signature for its own realm. Unsigned ⇒ false. */
+    fun isValid(row: org.tenshu.identity.Member, verify: Ed25519SignatureVerifier): Boolean {
+        val signer = row.signerPublicKey?.get()?.takeIf { it.isNotEmpty() } ?: return false
+        val signature = row.signature?.get()?.takeIf { it.isNotEmpty() } ?: return false
+        val signedAt = row.signedAt?.toEpochMilliseconds() ?: return false
+        val realmId = row.realmId.get()
+        // ⚠⚠ The row's KEY must be the one its signed content names. The key is not itself signed, so without
+        // this a member could copy its own validly signed row to `"$realmId::<victim>"` and, by last-writer-wins,
+        // hide the victim's row — or pre-claim a new member's key before the owner writes it.
+        if (row.compositeKey.get() != org.tenshu.identity.Member.compositeKey(realmId, row.memberId.get())) return false
+        if (org.tenshu.core.common.security.ownerIdForMasterPublicKey(signer) != realmId) return false
+        return verify.verify(
+            signer,
+            message(
+                realmId, row.memberId.get(), row.displayName.get(), row.contactFingerprint.get(), row.role.get(),
+                row.joinedAt.toEpochMilliseconds(), signedAt,
+            ),
+            signature,
+        )
+    }
+}
+
+/**
+ * The realm master's authorisation of a **re-key** (GR-7): "this member may switch this realm to the key
+ * wrapped here". Signed by the owner device that rotates, carried in the grant payload, checked by the member
+ * before it adopts anything.
+ *
+ * ```
+ * message = LP("tenshu-realm-rekey-v1") ‖ LP(realmId) ‖ LP(memberAuthorityPub) ‖ LP(wrappedRealmKey) ‖ LP(issuedAt)
+ * ```
+ * ⚠⚠ Why the contact channel is not enough: a grant drop is an **anonymous** sealed box at an address the relay
+ * serves, so its `grantorFingerprint` is self-asserted. A removed member colluding with the relay could otherwise
+ * drop `{realmId, wrap(Kx, victimA13)}` and switch the victim to a key the attacker chose (T-GR-02). Only the realm
+ * master can sign this, it names the member (their A26) and the exact wrapped key, so it cannot be redirected.
+ * ⚠ A replay of an older genuine re-key is refused by the member for another reason: its key is retired there.
+ */
+object RealmRekey {
+    /** Never reuse for another layout; a new layout gets `-v2`. (`-v1` carried no generation and never shipped.) */
+    const val DOMAIN_TAG = "tenshu-realm-rekey-v2"
+
+    /**
+     * ⚠⚠ [keyGeneration] orders keys, not sends: the time this key replaced the one before it (the realm's newest
+     * retirement, strictly increasing across owner devices). A member refuses a key of an older generation, so an
+     * owner device that is behind — still on the key a removed member holds — can never roll it back, however fresh
+     * the moment it answers. Ordering by when a re-key was *sent* let exactly that through.
+     */
+    fun message(
+        realmId: String,
+        memberAuthorityPublicKey: ByteArray,
+        wrappedRealmKey: ByteArray,
+        issuedAt: Long,
+        keyGeneration: Long,
+    ): ByteArray = lengthPrefixedSignedMessage(
+        DOMAIN_TAG,
+        signedField(realmId),
+        memberAuthorityPublicKey,
+        wrappedRealmKey,
+        signedField(issuedAt),
+        signedField(keyGeneration),
+    )
+}
+
+/**
+ * A member's request for a realm's **current** key (GR-7), signed by its member authority (A26), so an owner answers
+ * only a member it granted — never a stranger asking it to send re-keys at someone.
+ *
+ * ```
+ * message = LP("tenshu-realm-key-request-v1") ‖ LP(realmId) ‖ LP(memberAuthorityPub) ‖ LP(requestedAt)
+ * ```
+ * ⚠ Carries no authority over the key: the answer is the owner's ordinary signed re-key, checked like any other.
+ */
+object RealmKeyRequest {
+    /** Never reuse for another layout; a new layout gets `-v2`. */
+    const val DOMAIN_TAG = "tenshu-realm-key-request-v1"
+
+    fun message(realmId: String, memberAuthorityPublicKey: ByteArray, requestedAt: Long): ByteArray =
+        lengthPrefixedSignedMessage(DOMAIN_TAG, signedField(realmId), memberAuthorityPublicKey, signedField(requestedAt))
+}

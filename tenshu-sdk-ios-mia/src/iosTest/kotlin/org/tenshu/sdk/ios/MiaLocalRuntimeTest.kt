@@ -7,6 +7,7 @@ import kotlinx.coroutines.runBlocking
 import org.tenshu.core.common.delegate.InMemorySecureStorageDelegate
 import platform.Foundation.NSTemporaryDirectory
 import kotlin.random.Random
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -23,6 +24,10 @@ import kotlin.test.assertTrue
  * reads, so a question is answered here; and that graph offers no action.
  */
 class MiaLocalRuntimeTest {
+
+    /** Stops the graphs this class assembled (`TestGraphs`, `docs/testing-flakes.md`). */
+    @AfterTest
+    fun stopTestGraphs() = TestGraphs.stopAll()
 
     private fun tempReplicaDir(): String =
         NSTemporaryDirectory() + "mia-local-runtime-test-" + Random.nextLong().toString(16)

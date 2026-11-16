@@ -41,6 +41,8 @@ class SharedRealmDeviceAdmitter(
         deviceId: String,
         deviceA4PublicKey: ByteArray,
         epoch: Long = 0L,
+        /** §5b R3: the admission stamp; the relay records it for the staleness rule. */
+        admittedAtHlc: String? = null,
     ): TResult<Data?> {
         // Owner-only: a joiner holds no master key and cannot sign admissions. This is a
         // programmer-error path (callers must check ownership), so it throws rather than
@@ -60,6 +62,7 @@ class SharedRealmDeviceAdmitter(
             newDevicePublicKey = deviceA4PublicKey,
             masterDelegation = delegation,
             epoch = epoch,
+            admittedAtHlc = admittedAtHlc,
         )
     }
 }
