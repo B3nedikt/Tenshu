@@ -205,6 +205,9 @@ class NoBackgroundWorkInATabTest {
         val ALLOWED: Map<String, String> = mapOf(
             // ── platform (file, sync, storage) ──
             "AdmissionMigrationObserver" to "sync: admission-key announce/re-root, on synced rows",
+            "DeviceRecordObserver" to "sync: inside each DeviceRecord save, drops a verified-removed device's row " +
+                "(and, for an ingested removal, queues its delivery); starts nothing",
+            "MembershipRecordObserver" to "sync: inside each MembershipRecord save, drops a verified-revoked member's row; starts nothing",
             "DeletedFolderSubtreeReaper" to "file: reaps a deleted folder's subtree on that delete",
             "FileHistoryPolicyObserver" to "file: history policy applied inside each file save",
             "FileSyncSettingsRelationMaintainer" to "file: relation membership inside each save",

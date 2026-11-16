@@ -125,6 +125,7 @@ object TimelineLocalRuntime {
         // cold relaunch would otherwise resolve the waking dwell against an empty mirror.
         val connected = IosConnectedWifi()
         val wifiScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        base.stopsWithTestGraph(wifiScope)
         // ⚠ S0b-3 (B.16 (228)): the Wi-Fi stack's scope and the live capture are this graph's:
         // both end when the shared store's host stops it, and the rebuild starts capture anew.
         runtime.onCurrentGraphStop {

@@ -360,6 +360,13 @@
     <string name="device_item_policy_online_only">Files stay online-only</string>
     <string name="device_item_approve">Approve Device</string>
     <string name="device_item_revoke">Revoke Device</string>
+    <string name="sync_dashboard_removed_header">Removed devices</string>
+    <string name="removed_device_unnamed">Device %1$s</string>
+    <string name="removed_device_today">Removed today</string>
+    <string name="removed_device_yesterday">Removed yesterday</string>
+    <string name="removed_device_days_ago">Removed %1$d days ago</string>
+    <string name="removed_device_by_itself">It removed itself</string>
+    <string name="removed_device_by_phrase">Removed with the recovery phrase</string>
     <string name="device_item_added_by">Added by %1$s</string>
     <!-- ReadmitDevice: the exit for a peer the relay has stopped recognising. Named for what
          the user gets back, not for the mechanism — "readmit" is our word, not theirs. Bare
@@ -804,4 +811,11 @@
     <string name="account_deletion_error_unavailable">Account deletion isn't available in this build. You can delete your account at tenshu.app/account/delete.</string>
     <string name="account_deletion_web_hint">You can also delete your account without the app, at tenshu.app/account/delete.</string>
     <string name="account_deletion_error_signed_out">This device is signed out. If you just deleted your account, the deletion went through.</string>
+    <!-- What the relay has done with a removal this device made (GetDeviceAccessRevocations): never shown as
+         plainly "removed" while the relay has not applied it (maintainer decision 2026-11-12). -->
+    <string name="removed_device_relay_owed">Waiting for the relay to confirm this removal.</string>
+    <string name="removed_device_relay_unknown">Not confirmed: the relay doesn't know this account (it may have been reset, or not be updated yet). Retrying — until then the device may still connect.</string>
+    <string name="removed_device_relay_needs_update">Not confirmed: this app and the relay are on different versions. It goes through after an update — until then the device may still connect.</string>
+    <string name="removed_device_relay_refused">Not removed at the relay — it refused the request (%1$s). The device can still connect. Update Tenshu on your devices — a newer version may be accepted.</string>
+    <string name="removed_device_relay_superseded">Added back since: the relay holds a later admission of this device, so this removal no longer applies.</string>
 </resources>

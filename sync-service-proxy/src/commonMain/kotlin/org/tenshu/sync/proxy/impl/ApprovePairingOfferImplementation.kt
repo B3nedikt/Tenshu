@@ -124,7 +124,12 @@ internal class ApprovePairingOfferImplementation(
             // to re-pair a device that a self-admit would have fixed. `reregisterThisDevice` keys
             // its admit-device fallback on exactly that 409.
             RealmRegistrar(syncManager, cryptoManager, relay)
-                .reregisterThisDevice(admitted.masterKeyPair)
+                .reregisterThisDevice(
+                    admitted.masterKeyPair,
+                    // §5b R6b: an A1 re-registration records its re-admission, at the relay's stamp.
+                    onReadmitted = org.tenshu.sync.proxy.DeviceRecords(executionContext, syncManager, cryptoManager)
+                        .readmitSelf(admitted.masterKeyPair),
+                )
             result = postResponse()
             // A relay that had forgotten this device answers its 401 before the removal check,
             // so the refusal of the offerer can first appear on the retry.

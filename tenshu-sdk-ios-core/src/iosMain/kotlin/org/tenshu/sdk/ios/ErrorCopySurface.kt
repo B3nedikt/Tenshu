@@ -59,6 +59,7 @@ object ErrorCopySurface {
         "error_unsupported_operation" -> "This version does not support that yet."
         "error_entitlement_unverified" -> "Your plan could not be verified. Please try again."
         "error_relay_route_unsupported" -> "Your other device needs an update to do this."
+        "error_recovery_phrase_required" -> "Enter your recovery phrase to remove another device. This device can only remove itself."
         "error_recovery_phrase_unreadable" -> "This device can't read its saved recovery phrase, so unlocking can't succeed. Use “Add This Device” from another device that is still signed in."
         "error_device_already_set_up" -> "This device is already set up with a different realm. To recover another realm here, first use “Forget this device”, then try again."
         "error_semantic_search_unavailable" -> "Smart search is not available on this device."

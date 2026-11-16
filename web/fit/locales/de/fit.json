@@ -121,7 +121,9 @@
   "history": {
     "startOver": "Von oben beginnen",
     "title": "Trainings",
-    "empty": "Noch keine Trainings. Importiere eine GPX- oder TCX-Datei oder zeichne eines auf deinem Telefon auf."
+    "empty": "Noch keine Trainings. Importiere eine GPX- oder TCX-Datei oder zeichne eines auf deinem Telefon auf.",
+    "weekOf": "Woche ab {date}",
+    "weekCount": "{count, plural, one {# Training} other {# Trainings}}"
   },
   "activity": {
     "Running": "Lauf",
@@ -164,7 +166,20 @@
     "delete": "Training löschen",
     "deleteTitle": "Dieses Training löschen?",
     "deleteBody": "Es wird von allen deinen Geräten entfernt. Das lässt sich nicht rückgängig machen.",
-    "deleteConfirm": "Löschen"
+    "deleteConfirm": "Löschen",
+    "paceChart": "Tempo",
+    "paceAria": "Tempo über das Training",
+    "elevation": "Höhe",
+    "elevationAria": "Höhe, {min} bis {max}",
+    "ascent": "Anstieg",
+    "splits": "Abschnitte",
+    "splitKm": "km",
+    "splitMi": "mi",
+    "splitTime": "Zeit",
+    "splitPace": "Tempo",
+    "splitHr": "Ø Puls",
+    "splitBest": "Schnellster Abschnitt",
+    "avgPace": "Ø {value}"
   },
   "map": {
     "map": "Karte",
@@ -248,5 +263,34 @@
       "Unavailable": "Auf diesem Gerät nicht verfügbar",
       "Sample": "Beispieldaten"
     }
+  },
+  "trend": {
+    "steps": "{value} Schritte",
+    "goal": "Ziel {value}",
+    "monthReadout": "{value} pro Tag · {month}",
+    "aria": {
+      "week": "{metric}, die letzten 7 Tage",
+      "month": "{metric}, die letzten 30 Tage",
+      "year": "{metric}, die letzten 12 Monate nach Monat"
+    },
+    "km": "{value} km",
+    "mi": "{value} mi"
+  },
+  "elevation": {
+    "m": "{value} m",
+    "ft": "{value} ft"
+  },
+  "home": {
+    "minutes": "Min.",
+    "goalReached": "Ziel erreicht",
+    "toGo": "Noch {value} Min.",
+    "who": "Die WHO empfiehlt 150 aktive Minuten pro Woche.",
+    "thisWeek": "Diese Woche",
+    "weekTotal": "{value} diese Woche",
+    "delta": "{value} % ggü. Vorwoche",
+    "latest": "Letztes Training"
+  },
+  "metricPage": {
+    "entries": "Tag für Tag"
   }
 }

@@ -122,6 +122,14 @@ package org.tenshu.core.common
  *    *pre-baseline* build announcing protocol 1 predates F4 and EI-1 and would pass this gate, then
  *    diverge silently. Never install one against a baseline relay.
  *
+ *  - **2** — **device revocation moves off the tombstone** (`sync-entity-identity.md` §5b R2b).
+ *    A client at 2 cuts a device's access only through `POST /sync/device-access/revoke` (A1-signed,
+ *    or self-signed for itself), and its `Device` tombstones are **data**: the relay stores, serves
+ *    and counts them for the realm epoch, but no longer acts on them
+ *    ([RELAY_PROTOCOL_TOMBSTONE_IS_DATA_VERSION]). A push at 1 keeps the old side effect until the
+ *    minimum is raised (R5). ⚠ A route, not a field: no envelope changed shape. ⚠⚠ The relay
+ *    deploys first — a client at 2 is `426`d by a relay whose current is 1.
+ *
  * ### Next bump
  *
  * Add the entry here. If old clients can no longer be served, or would *diverge silently* (a value
@@ -129,7 +137,17 @@ package org.tenshu.core.common
  * [RELAY_PROTOCOL_MIN_SUPPORTED_VERSION] with it. A version range exists precisely to turn silent
  * divergence into a refusal.
  */
-const val RELAY_PROTOCOL_VERSION: Int = 1
+const val RELAY_PROTOCOL_VERSION: Int = 2
+
+/**
+ * From this protocol version on, a client's `Device` tombstone is **data only**: the relay no longer
+ * revokes the device it names (`sync-entity-identity.md` §5b R2b). Such a client revokes through
+ * `POST /sync/device-access/revoke`, which is authorised by a signature rather than by the pusher's
+ * JWT. ⚠⚠ The relay still acts on a tombstone pushed at a lower version, so an old client's removal
+ * is never silently ignored; raising [RELAY_PROTOCOL_MIN_SUPPORTED_VERSION] to this value (R5) is what
+ * retires the side effect, refusing such a client with `426` instead.
+ */
+const val RELAY_PROTOCOL_TOMBSTONE_IS_DATA_VERSION: Int = 2
 
 /**
  * The oldest relay-protocol version this build accepts. Together with

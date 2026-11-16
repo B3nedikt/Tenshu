@@ -95,14 +95,13 @@ class UnixSocketTaskTransport(
     @Volatile
     private var unbound = false
 
-    /** True once a connection has succeeded, so the *next* one is a re-connection. */
-    @Volatile
+    /** True once a connection has succeeded, so the *next* one is a re-connection — guarded by [connectLock]. */
     private var hasConnectedBefore = false
 
     /** A connect attempt failed since the last success — guarded by [connectLock]. See [openConnection]. */
     private var connectFailed = false
 
-    @Volatile
+    /** Guarded by [connectLock] (read and written only in [scheduleReconnect]'s locked block). */
     private var reconnectThread: Thread? = null
 
     /** The reconnect loop retries every few seconds; the directory's mode is not news each time. */

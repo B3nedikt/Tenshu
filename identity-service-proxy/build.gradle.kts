@@ -39,6 +39,8 @@ kotlin {
             dependencies {
                 api(project(":identity-service-common"))
                 api(project(":core-proxy"))
+                // MR-2: `GetRealmMembers` lists only members the realm's signed records vouch for.
+                implementation(project(":sync-service-common"))
                 implementation(libs.kotlinx.coroutines)
                 implementation(libs.ktorClientCore)
             }

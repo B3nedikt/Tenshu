@@ -1,5 +1,7 @@
 package org.tenshu.sync.proxy.impl
 
+import kotlinx.coroutines.sync.withLock
+
 import org.tenshu.core.Data
 import org.tenshu.core.TString
 import org.tenshu.core.common.impl.TStringDto
@@ -10,6 +12,7 @@ import org.tenshu.core.common.proxy.executor.OperationImplementationFactory
 import org.tenshu.core.common.proxy.db.StoreWipeNotFinished
 import org.tenshu.core.common.util.runCatchingCancellable
 import org.tenshu.sync.common.SyncManager
+import org.tenshu.sync.proxy.DeviceAccessRevocationOutbox
 import org.tenshu.sync.proxy.RealmRegistry
 import org.tenshu.sync.proxy.pendingTombstoneCount
 import org.tenshu.sync.proxy.purgeOutboundQueues
@@ -74,7 +77,9 @@ internal class ForgetThisDeviceImplementation(
         // ⚠⚠ No shared realm may register for the whole forget, and none survives it — see
         // [RealmRegistry.whileForgetting]. Step 2b below stops the ones already running.
         val registry = realmRegistry ?: return forget(executionContext, implementationFactory)
-        return registry.whileForgetting { forget(executionContext, implementationFactory) }
+        // ⚠ And no grant operation runs across it: an accept or rotation in flight (its emitter drain can take 30 s)
+        // would save a membership after the wipe, which the join observer re-registers under the new identity.
+        return registry.grantOps.withLock { registry.whileForgetting { forget(executionContext, implementationFactory) } }
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -212,12 +217,26 @@ internal class ForgetThisDeviceImplementation(
         // removal whatever the relay says afterwards. [UNCONFIRMED] for the reason the strip branch
         // gives: we stopped waiting, and cannot tell "the owner already retired this row" from "the
         // relay forgot us and the row is still there".
+        // ⭐ §5b R2a: and the signed self-removal (`/sync/device-access/revoke`) too, which the
+        // scheduler drains just before the tombstones. Same bound: the wipe never waits longer.
+        val accessRevocations = DeviceAccessRevocationOutbox(executionContext)
         val deadline = nowMs() + RETIREMENT_PUSH_TIMEOUT_MS
         while (nowMs() < deadline) {
-            if (executionContext.pendingTombstoneCount() == 0) return "removed from your realm"
+            if (executionContext.pendingTombstoneCount() == 0 && accessRevocations.count() == 0) {
+                // ⚠ Nothing owed is not the same as applied: the relay may have refused this device's own removal.
+                val self = syncManager.currentDeviceId
+                if (self.isNotEmpty() && accessRevocations.notApplied(self)) return SELF_REMOVAL_REFUSED
+                return "removed from your realm"
+            }
             if (relayRefusesThisDevice()) return UNCONFIRMED
             delay(RETIREMENT_POLL_MS)
         }
+        // ⚠⚠ Only THIS device's own leaving is what [LEFTOVER_ROW] claims. When that went and what is still owed is
+        // the removal of ANOTHER device, saying "this device is still listed" is false — and the true news is
+        // worse: the purge below drops that signed request, so the other device's relay access may stay open.
+        val self = syncManager.currentDeviceId
+        val selfOwed = self.isNotEmpty() && accessRevocations.pending().any { it.deviceId == self }
+        if (executionContext.pendingTombstoneCount() == 0 && !selfOwed) return OTHER_REMOVAL_UNCONFIRMED
         return LEFTOVER_ROW
     }
 
@@ -239,6 +258,14 @@ internal class ForgetThisDeviceImplementation(
         /** ⚠ Its phrase is matched by Control's Welcome notice (`FORGET_OUTCOME_KEY_NOT_SAVED`). */
         const val NEW_KEY_NOT_SAVED =
             "new device key NOT saved — quit and reopen Tenshu Control before pairing"
+
+        /** This device left, but a removal of another device it signed never reached the relay before the wipe. */
+        const val OTHER_REMOVAL_UNCONFIRMED =
+            "⚠ a device you removed earlier may still connect — sign in on another device and check Removed devices"
+
+        /** The relay refused this device's own removal (`refused`/`superseded`): its access may still be open. */
+        const val SELF_REMOVAL_REFUSED =
+            "⚠ the relay did not apply this device's removal — remove it from another device"
 
         const val UNCONFIRMED =
             "⚠ could not confirm this device left your realm — check your devices from another one"

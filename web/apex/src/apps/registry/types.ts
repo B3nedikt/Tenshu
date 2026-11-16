@@ -65,6 +65,12 @@ export interface GlanceListRow {
   readonly sizeBytes: number | null
   /** Where a click on the row goes (Drive: the file in its viewer). Omitted = not clickable. */
   readonly open?: GlanceTarget
+  /**
+   * A path the card's own `call('fs.getPreview', …)` may draw in the icon slot, the [badge] staying
+   * the fallback — native Drive's row rule: a stored preview when the file has one (an image, a
+   * video's poster, a PDF's page), else the type glyph. Omitted = the badge only.
+   */
+  readonly previewPath?: string
 }
 
 export interface GlanceAgendaRow {
@@ -81,6 +87,8 @@ export interface GlanceAgendaRow {
   readonly allDay: boolean
   /** A short second line (a place's city, a duration) — data, not copy; '' for none. */
   readonly detail: string
+  /** Where a click on the row goes (Calendar: the event). Omitted = not clickable. */
+  readonly open?: GlanceTarget
 }
 
 export interface GlanceTile {

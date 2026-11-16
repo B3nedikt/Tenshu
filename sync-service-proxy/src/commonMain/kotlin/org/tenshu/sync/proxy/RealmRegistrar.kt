@@ -127,7 +127,10 @@ class RealmRegistrar(
      * A `409` (the realm record still exists) comes back as a [TResult.Failure] **on purpose** —
      * [reregisterThisDevice] keys its admit-device fallback on exactly that.
      */
-    suspend fun reassertGenesis(masterKeyPair: SyncCryptoManager.KeyPair): TResult<Data?> {
+    suspend fun reassertGenesis(
+        masterKeyPair: SyncCryptoManager.KeyPair,
+        admittedAtHlc: String = syncManager.admissionStamp(),
+    ): TResult<Data?> {
         val deviceKeyPair = syncManager.getDeviceSigningKeyPair()
         val deviceId = syncManager.currentDeviceId
         val ownerId = ownerIdForMasterPublicKey(masterKeyPair.publicKey)
@@ -139,7 +142,7 @@ class RealmRegistrar(
             firstDevicePublicKey = deviceKeyPair.publicKey,
             firstDeviceId = deviceId,
             masterSelfSignature = signature,
-            admittedAtHlc = syncManager.admissionStamp(),
+            admittedAtHlc = admittedAtHlc,
         )
     }
 
@@ -162,10 +165,21 @@ class RealmRegistrar(
      * the [SyncScheduler] can run the same repair on a sustained sync-path 401 without going
      * through the operation layer.
      */
-    suspend fun reregisterThisDevice(masterKeyPair: SyncCryptoManager.KeyPair): TResult<Data?> {
-        val genesis = reassertGenesis(masterKeyPair)
+    suspend fun reregisterThisDevice(
+        masterKeyPair: SyncCryptoManager.KeyPair,
+        /**
+         * §5b R6b: called with the admission stamp once the relay accepted the re-registration, so
+         * the caller records an A1-signed re-admission at the SAME stamp — this is one of the two
+         * paths that can bring a removed id back, and peers otherwise keep listing it as removed.
+         */
+        onReadmitted: (admittedAtHlc: String) -> Unit = {},
+    ): TResult<Data?> {
+        // ⚠ One stamp for both attempts and the record: the relay and the peers must agree on it.
+        val stamp = syncManager.admissionStamp()
+        val genesis = reassertGenesis(masterKeyPair, stamp)
         if (genesis !is TResult.Failure<*>) {
             syncManager.realmRelayRegistered = true
+            onReadmitted(stamp)
             return genesis
         }
 
@@ -173,8 +187,10 @@ class RealmRegistrar(
             masterKeyPair = masterKeyPair,
             deviceId = syncManager.currentDeviceId,
             devicePublicKey = syncManager.getDeviceSigningKeyPair().publicKey,
+            admittedAtHlc = stamp,
         )
         if (admit !is TResult.Failure<*>) {
+            onReadmitted(stamp)
             // ⚠ Only for the SELF case. `realmRelayRegistered` is a claim about *this* device, so
             // [admitDevice] must never set it — re-admitting a peer says nothing about us.
             syncManager.realmRelayRegistered = true
@@ -203,6 +219,7 @@ class RealmRegistrar(
         masterKeyPair: SyncCryptoManager.KeyPair,
         deviceId: String,
         devicePublicKey: ByteArray,
+        admittedAtHlc: String = syncManager.admissionStamp(),
     ): TResult<Data?> {
         val ownerId = ownerIdForMasterPublicKey(masterKeyPair.publicKey)
         val epoch = syncManager.currentRealmEpoch
@@ -214,7 +231,7 @@ class RealmRegistrar(
             newDevicePublicKey = devicePublicKey,
             masterDelegation = delegation,
             epoch = epoch,
-            admittedAtHlc = syncManager.admissionStamp(),
+            admittedAtHlc = admittedAtHlc,
         )
     }
 }

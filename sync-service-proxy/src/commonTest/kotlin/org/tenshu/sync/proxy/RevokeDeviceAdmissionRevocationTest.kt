@@ -226,27 +226,28 @@ class RevokeDeviceAdmissionRevocationTest {
     }
 
     @Test
-    fun delegatedRemover_skipsTheStrip_butRemovalStillWorks() = runTest {
-        // An A1-less joiner (P3 delegated admitter or plain joiner) can remove a
-        // device but cannot master-sign revocations — the strip waits for an
-        // A1-holder rather than blocking the removal.
+    fun delegatedRemover_isRefused_beforeAnythingChanges() = runTest {
+        // ⚠⚠ Decision A (sync-entity-identity.md §5b R2b): an A1-less joiner (P3 delegated admitter
+        // or plain joiner) used to remove another device by tombstone alone. Since protocol 2 that
+        // tombstone no longer revokes at the relay, so the removal would only be local — refused
+        // instead, with the error the UI renders as "Enter your recovery phrase…".
         syncManager.initializeWithKeys(
             SyncCryptoManager.DerivedKeys(ByteArray(32) { 1 }, ByteArray(32) { 2 }),
             ownerId = "host-owner",
         )
         seedLineage()
 
-        revoke("device-x")
+        val error = kotlin.test.assertFailsWith<org.tenshu.core.TenshuException> { revoke("device-x") }
 
+        kotlin.test.assertIs<org.tenshu.sync.RecoveryPhraseRequiredError>(error.error)
         assertTrue(relay.revocations.isEmpty(), "no A1 → no master-signed revocations")
-        assertNull(
+        kotlin.test.assertNotNull(
             testProxy.database.getData(
                 DataId.StringDataId.create(testProxy.tContext, Device.ID, "device-x"),
             ),
-            "the removal itself must not be blocked",
+            "nothing was removed locally either",
         )
     }
-
 
     /**
      * F1′ end-to-end on the authoring side: the revoker must **name the captured key** so the
@@ -325,8 +326,35 @@ class RevokeDeviceAdmissionRevocationTest {
     }
 }
 
-/** Minimal relay recording `revokeAdmission` calls; everything else unused. */
-private class RecordingRevokeRelay(private val context: TContext) : SyncRelay {
+/**
+ * Minimal relay recording `revokeAdmission` and `revokeDeviceAccess` calls; everything else unused.
+ * Shared with `DeviceAccessRevocationQueueTest`.
+ */
+internal class RecordingRevokeRelay(private val context: TContext) : SyncRelay {
+    data class AccessRevocation(
+        val ownerId: String,
+        val deviceId: String,
+        val authoredAt: String,
+        val authority: org.tenshu.sync.common.DeviceAccessRevocation.Authority,
+        val signature: ByteArray,
+    )
+
+    val accessRevocations = mutableListOf<AccessRevocation>()
+
+    /** Scripted answers, in order; an empty script answers `Done(applied = true)`. */
+    val accessOutcomes = ArrayDeque<SyncRelay.DeviceAccessRevokeOutcome>()
+
+    override suspend fun revokeDeviceAccess(
+        ownerId: String,
+        deviceId: String,
+        authoredAt: String,
+        authority: org.tenshu.sync.common.DeviceAccessRevocation.Authority,
+        signature: ByteArray,
+    ): SyncRelay.DeviceAccessRevokeOutcome {
+        accessRevocations.add(AccessRevocation(ownerId, deviceId, authoredAt, authority, signature))
+        return accessOutcomes.removeFirstOrNull() ?: SyncRelay.DeviceAccessRevokeOutcome.Done(applied = true)
+    }
+
     data class Revocation(
         val ownerId: String,
         val deviceId: String,

@@ -108,6 +108,30 @@ describe('App', () => {
       expect(window.location.pathname).toBe('/history')
     })
 
+    // fit-web-parity.md §2.3: a metric's page is a place under Home.
+    it('a week card opens its metric page: /metric#m=…&r=week, Dashboard stays lit, a range replaces in place', async () => {
+      renderWithQueryClient(<App />)
+      await screen.findByRole('region', { name: 'Today' })
+      await userEvent.click(within(screen.getByTestId('week-steps')).getByRole('button', { name: 'Steps' }))
+      expect(await screen.findByRole('heading', { name: 'Steps' })).toBeInTheDocument()
+      expect(window.location.pathname).toBe('/metric')
+      expect(window.location.hash).toBe('#m=steps&r=week')
+      const nav = screen.getByRole('navigation', { name: 'Fit sections' })
+      expect(within(nav).getByRole('button', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page')
+      await userEvent.click(screen.getByRole('button', { name: '30 days' }))
+      expect(window.location.hash).toBe('#m=steps&r=month')
+      // Back (standalone, nothing pushed by the apex): to Home.
+      await userEvent.click(screen.getByRole('button', { name: /Back/ }))
+      expect(window.location.pathname).toBe('/')
+    })
+
+    it('a fresh load of a metric page opens it; an unknown metric falls back to steps', async () => {
+      window.history.replaceState(null, '', '/metric#m=distanceM&r=year')
+      renderWithQueryClient(<App />)
+      expect(await screen.findByRole('heading', { name: 'Distance' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '12 months' })).toHaveAttribute('aria-pressed', 'true')
+    })
+
     it('opens the workout a fresh load names in its fragment', async () => {
       longRun()
       window.history.replaceState(null, '', '/history#w=w-1')

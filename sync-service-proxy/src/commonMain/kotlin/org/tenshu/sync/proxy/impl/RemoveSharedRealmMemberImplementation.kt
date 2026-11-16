@@ -1,5 +1,7 @@
 package org.tenshu.sync.proxy.impl
 
+import kotlinx.coroutines.sync.withLock
+
 import org.tenshu.core.Data
 import org.tenshu.core.TString
 import org.tenshu.core.common.proxy.ExecutionContext
@@ -42,15 +44,17 @@ internal class RemoveSharedRealmMemberImplementation(
             (params?.get(RemoveSharedRealmMember.Params.MEMBER_ID) as? TString)?.get()
                 ?: error("RemoveSharedRealmMember requires memberId")
 
-        SharedRealmGrantManager(
-            executionContext = executionContext,
-            syncManager = syncManager,
-            cryptoManager = cryptoManager,
-            relay = relay,
-            realmRegistry = realmRegistry,
-            grantedRelayFactory = grantedRelayFactory,
-            nowMs = nowMs,
-        ).removeMember(realmId, memberId)
+        realmRegistry.grantOps.withLock {
+            SharedRealmGrantManager(
+                executionContext = executionContext,
+                syncManager = syncManager,
+                cryptoManager = cryptoManager,
+                relay = relay,
+                realmRegistry = realmRegistry,
+                grantedRelayFactory = grantedRelayFactory,
+                nowMs = nowMs,
+            ).removeMember(realmId, memberId)
+        }
 
         return null as T
     }

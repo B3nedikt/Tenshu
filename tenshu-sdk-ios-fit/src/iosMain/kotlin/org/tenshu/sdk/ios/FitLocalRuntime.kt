@@ -116,6 +116,7 @@ object FitLocalRuntime {
         // can fall behind its peers exactly like any other device.
         val schemaAlerts = MutableSchemaSkewSource()
         val alertScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        base.stopsWithTestGraph(alertScope)
         // ⚠ `ios-shared-store-sqlite.md` B.16 (228): this graph's own scope ends with the graph
         // when the shared store's host stops it.
         runtime.onCurrentGraphStop { alertScope.cancel() }

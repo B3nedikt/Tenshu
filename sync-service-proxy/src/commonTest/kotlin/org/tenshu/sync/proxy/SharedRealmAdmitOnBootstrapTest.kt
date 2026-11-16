@@ -23,23 +23,23 @@ import org.tenshu.core.common.proxy.OperationContext
 import org.tenshu.core.common.proxy.executor.OperationImplementationFactory
 import org.tenshu.core.common.proxy.executor.SyncOperationImplementation
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * SR-3b.4c: on shared-realm creation the bootstrapper admits the user's *other* devices to
- * the new realm at the relay (so their JWTs verify on the shared stream once they auto-join),
- * and does NOT re-admit the creating device (already registered by `createRealm`). Asserted
- * in-process by seeding the personal realm's `IdentityService.Relations.DEVICES` relation and
- * capturing what reaches the relay via [MockSyncRelay.admittedDevices].
+ * D10 (`shared-realm-read-only-members.md`; threat model T-GR-05): creating a shared realm registers
+ * the creating device under a **fresh per-realm key and realm-local id**, and admits **none** of the
+ * user's other devices from here — admitting them used to register their personal A4 keys under the
+ * share, so every id inside it was a personal device id. Each other device admits its own per-realm
+ * key when it joins (`SharedRealmJoinObserver`, pinned by `SharedRealmDeviceIdentityTest`).
  */
 class SharedRealmAdmitOnBootstrapTest {
 
     private val phrase = "personal phrase placeholder words go here now"
 
     @Test
-    fun createSharedRealm_admitsOtherDevices_butNotSelf() = runTest {
+    fun createSharedRealm_registersAPerRealmDevice_andAdmitsNoPersonalKeys() = runTest {
         val proxy = TestProxy(schemaRegistry = createSyntheticTestRegistry(), coroutineScope = this)
         proxy.schemaRegistry.registerConfig(syncServiceCommonModule)
         proxy.schemaRegistry.registerConfig(identityServiceCommonModule)
@@ -61,8 +61,7 @@ class SharedRealmAdmitOnBootstrapTest {
         )
         val relay = MockSyncRelay(proxy.tContext)
 
-        // Seed the DEVICES relation: this device + one peer (as the personal realm would
-        // hold after the peer paired and its Device entity synced in).
+        // Seed the DEVICES relation with this device and a peer, as the personal realm would hold.
         val peerPublicKey = ByteArray(32) { 0x7A }
         val peerDeviceId = org.tenshu.sync.common.deviceIdForPublicKey(peerPublicKey)
         val devicesRef = ArrayDatabaseReference(
@@ -76,12 +75,6 @@ class SharedRealmAdmitOnBootstrapTest {
         )
         proxy.executionContext.database.addToArray(devicesRef, deviceEntity(proxy, selfDeviceId, ByteArray(32) { 1 }))
         proxy.executionContext.database.addToArray(devicesRef, deviceEntity(proxy, peerDeviceId, peerPublicKey))
-        // ⚠ A self-written row claiming another id beside its own key: skipped by the client, never
-        // sent — A1 must not sign a delegation that re-keys someone else's id (workstream B).
-        proxy.executionContext.database.addToArray(
-            devicesRef,
-            deviceEntity(proxy, org.tenshu.sync.common.deviceIdForPublicKey(ByteArray(32) { 0x5D }), ByteArray(32) { 0x3C }),
-        )
 
         val realm = SharedRealmBootstrapper(
             executionContext = proxy.executionContext,
@@ -91,17 +84,17 @@ class SharedRealmAdmitOnBootstrapTest {
             realmRegistry = components.realmRegistry,
         ).createSharedRealm()
 
-        val admitted = relay.admittedDevices()
-        assertEquals(1, admitted.size, "only the non-self device is admitted")
-        val (ownerId, deviceId, pubkey) = admitted.single()
-        assertEquals(realm.ownerId, ownerId, "admitted to the shared realm")
-        assertEquals(peerDeviceId, deviceId)
-        assertContentEquals(peerPublicKey, pubkey)
-        assertTrue(admitted.none { it.second == selfDeviceId }, "the creating device is not re-admitted")
-        assertTrue(
-            relay.refusedUnderivedIds().isEmpty(),
-            "the forged row is skipped by the client, never sent for the relay to refuse",
+        val (createdOwner, firstDeviceId, firstDeviceKey) = relay.createdRealmFirstDevices().single()
+        assertEquals(realm.ownerId, createdOwner)
+        assertTrue(firstDeviceId != selfDeviceId, "⚠⚠ the share's first device must not be the personal device id")
+        assertFalse(
+            firstDeviceKey.contentEquals(syncManager.getDeviceSigningKeyPair().publicKey),
+            "nor the personal A4",
         )
+        assertEquals(org.tenshu.sync.common.deviceIdForPublicKey(firstDeviceKey), firstDeviceId, "a realm-local id derived from the per-realm key")
+        assertEquals(firstDeviceId, realm.deviceId, "the registered context carries the realm-local id")
+        assertTrue(relay.admittedDevices().isEmpty(), "no other device is admitted from here — not under its personal key, not at all")
+        assertTrue(relay.admittedDevices().none { it.second == peerDeviceId })
     }
 
     private fun deviceEntity(proxy: TestProxy, deviceId: String, publicKey: ByteArray): Entity<Device> =

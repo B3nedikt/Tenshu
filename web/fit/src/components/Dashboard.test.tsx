@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../lib/proxy', async () => (await import('../test/proxyMock')).proxyModule)
 
-const { proxy, resetProxy, failure, dayRow, PROFILE, streams } = await import('../test/proxyMock')
+const { proxy, resetProxy, failure, dayRow, PROFILE, streams, workoutRow } = await import('../test/proxyMock')
 const { renderWithProviders } = await import('../test/render')
 const { addDays, localToday } = await import('../lib/dates')
 const { Dashboard } = await import('./Dashboard')
@@ -14,10 +14,6 @@ const today = localToday()
 beforeEach(() => {
   resetProxy()
 })
-
-function bars() {
-  return screen.getAllByTestId('bar').map((b) => ({ date: b.getAttribute('data-date'), value: Number(b.getAttribute('data-value')) }))
-}
 
 describe('Dashboard', () => {
   it('reads the week plus the week before, in the browser zone, and shows today against the goals', async () => {
@@ -90,55 +86,54 @@ describe('Dashboard', () => {
     })
   })
 
-  it('a day the read does not name is a zero bar, so a week is always seven bars', async () => {
+  it('a week card is always seven bars: a day the read does not name is a zero bar', async () => {
     proxy.dailyAggregates.mockResolvedValue({ ok: true, days: [dayRow(addDays(today, -3), { activeMinutes: 40 })] })
     renderWithProviders(<Dashboard />)
     await screen.findAllByRole('meter')
-    const week = bars()
+    const card = within(screen.getByTestId('week-activeMinutes'))
+    const week = card.getAllByTestId('bar').map((b) => ({ date: b.getAttribute('data-key'), value: Number(b.getAttribute('data-value')) }))
     expect(week).toHaveLength(7)
     expect(week[0]!.date).toBe(addDays(today, -6))
     expect(week.at(-1)!.date).toBe(today)
     expect(week.map((b) => b.value)).toEqual([0, 0, 0, 40, 0, 0, 0])
-    // The goal line is drawn on the bars' axis.
-    expect(screen.getByTestId('goal-line')).toBeInTheDocument()
+    // The goal on the active-minutes and steps cards; none on energy and distance.
+    expect(card.getByTestId('goal-line')).toBeInTheDocument()
+    expect(within(screen.getByTestId('week-distanceM')).queryByTestId('goal-line')).toBeNull()
   })
 
-  it('totals, averages, the change against the week before and the days the goal was met', async () => {
+  it('native Home: the hero ring says what is left, four week cards with the change vs last week', async () => {
     proxy.dailyAggregates.mockResolvedValue({
       ok: true,
-      days: [
-        // the week before: 20 minutes in all
-        dayRow(addDays(today, -10), { activeMinutes: 20 }),
-        // this week: 30 + 45 + 15 = 90 minutes, two days at or above the 30-minute goal
-        dayRow(addDays(today, -2), { activeMinutes: 30 }),
-        dayRow(addDays(today, -1), { activeMinutes: 45 }),
-        dayRow(today, { activeMinutes: 15 }),
-      ],
+      days: [dayRow(addDays(today, -10), { activeMinutes: 20 }), dayRow(addDays(today, -1), { activeMinutes: 45 }), dayRow(today, { activeMinutes: 12 })],
     })
     renderWithProviders(<Dashboard />)
-    await screen.findAllByRole('meter')
-    expect(screen.getByText('Total').nextSibling).toHaveTextContent('1 h 30 min')
-    expect(screen.getByText('Daily average').nextSibling).toHaveTextContent('13 min')
-    expect(screen.getByText('Change vs. the period before').nextSibling).toHaveTextContent('+350%')
-    expect(screen.getByText('Goal reached').nextSibling).toHaveTextContent('2 of 7 days')
+    expect(await screen.findByText('18 min to go')).toBeInTheDocument()
+    expect(screen.getAllByTestId(/^week-/).map((c) => c.getAttribute('data-testid'))).toEqual([
+      'week-activeEnergyKj',
+      'week-steps',
+      'week-activeMinutes',
+      'week-distanceM',
+    ])
+    // 57 this week against 20 the week before.
+    expect(within(screen.getByTestId('week-activeMinutes')).getByTestId('delta')).toHaveTextContent('+185% vs last week')
+    expect(within(screen.getByTestId('week-activeMinutes')).getByText('57 min this week')).toBeInTheDocument()
   })
 
-  it('switching the metric redraws the bars from the same read', async () => {
-    proxy.dailyAggregates.mockResolvedValue({ ok: true, days: [dayRow(today, { steps: 9_000, activeMinutes: 10 })] })
-    renderWithProviders(<Dashboard />)
+  it('a week card and a strip cell open their metric; the latest workout opens it', async () => {
+    const onOpenMetric = vi.fn()
+    const onOpenWorkout = vi.fn()
+    proxy.workoutsPage.mockResolvedValue({ ok: true, workouts: [workoutRow('w9', Date.UTC(2026, 10, 14, 7), { title: 'Long run', distanceM: 12_000 })], nextCursor: null })
+    renderWithProviders(<Dashboard onOpenMetric={onOpenMetric} onOpenWorkout={onOpenWorkout} />)
     await screen.findAllByRole('meter')
-    await userEvent.click(screen.getByRole('button', { name: 'Steps' }))
-    expect(bars().at(-1)!.value).toBe(9_000)
+    await userEvent.click(within(screen.getByTestId('week-steps')).getByRole('button', { name: 'Steps' }))
+    expect(onOpenMetric).toHaveBeenLastCalledWith('steps')
+    await userEvent.click(within(screen.getByTestId('strip')).getByRole('button', { name: /Distance/ }))
+    expect(onOpenMetric).toHaveBeenLastCalledWith('distanceM')
+    await userEvent.click(await screen.findByTestId('latest-workout'))
+    expect(onOpenWorkout).toHaveBeenCalledWith('w9')
+    expect(screen.getByTestId('latest-workout')).toHaveTextContent('Long run')
+    // One read for the whole page.
     expect(proxy.dailyAggregates).toHaveBeenCalledTimes(1)
-  })
-
-  it('a year reads 365 days and shows no change figure (two years exceed the SDK window)', async () => {
-    renderWithProviders(<Dashboard />)
-    await screen.findAllByRole('meter')
-    await userEvent.click(screen.getByRole('button', { name: '12 months' }))
-    await waitFor(() => expect(proxy.dailyAggregates).toHaveBeenLastCalledWith(addDays(today, -364), today))
-    await waitFor(() => expect(bars()).toHaveLength(365))
-    expect(screen.queryByText('Change vs. the period before')).toBeNull()
   })
 
   it('a pushed change replaces what is shown', async () => {

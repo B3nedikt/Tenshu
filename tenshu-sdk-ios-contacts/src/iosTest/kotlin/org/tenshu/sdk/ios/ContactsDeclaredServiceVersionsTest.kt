@@ -32,7 +32,10 @@ class ContactsDeclaredServiceVersionsTest {
     fun redirectMain() = Dispatchers.setMain(Dispatchers.Default)
 
     @AfterTest
-    fun restoreMain() = Dispatchers.resetMain()
+    fun restoreMain() {
+        Dispatchers.resetMain()
+        TestGraphs.stopAll()
+    }
 
     @Test
     fun contactsDeclaresThePinnedServiceVersions() {

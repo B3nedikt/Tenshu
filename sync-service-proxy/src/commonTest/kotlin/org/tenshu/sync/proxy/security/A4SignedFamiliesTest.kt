@@ -1,5 +1,7 @@
 package org.tenshu.sync.proxy.security
 
+import org.tenshu.core.common.util.HlcStamp
+import org.tenshu.sync.common.DeviceAccessRevocation
 import org.koin.dsl.koinApplication
 import org.tenshu.core.common.TestProxy
 import org.tenshu.core.common.createCoreTestRegistry
@@ -43,6 +45,9 @@ class A4SignedFamiliesTest {
         "offer-response" to offerResponseMessage("approved", "owner", k, null),
         "announce" to admissionKeyAnnouncementMessage("device-a", k),
         "delegation" to pairingDelegationMessage(k, "device-a", 3L),
+        "self-revoke" to DeviceAccessRevocation.message(
+            DeviceAccessRevocation.Authority.SELF, "owner", "device-a", HlcStamp(3L, 0L, "device-a"),
+        ),
     )
 
     @Test

@@ -13,6 +13,7 @@ import org.tenshu.sync.client.syncService
 import org.tenshu.sync.isControlHosted
 import platform.Foundation.NSTemporaryDirectory
 import kotlin.random.Random
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -27,6 +28,10 @@ import kotlin.test.assertNotNull
  * last writer is then always the reader.
  */
 class RuntimeIdentitySharedReplicaTest {
+
+    /** Stops the graphs this class assembled (`TestGraphs`, `docs/testing-flakes.md`). */
+    @AfterTest
+    fun stopTestGraphs() = TestGraphs.stopAll()
 
     private class Process(clientId: String, directory: String) {
         private val runtime = FirstPartyLocalRuntime(

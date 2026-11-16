@@ -60,7 +60,11 @@ internal class ReregisterDeviceImplementation(
         // `RealmRegistrar` so the `SyncScheduler`'s sustained-401 recovery runs the *same*
         // sequence without routing through the operation layer. This op is now the
         // user/client-facing entry point to it, and owns only the A1 precondition above.
-        val result = registrar.reregisterThisDevice(masterKeyPair)
+        // §5b R6b: an A1 re-registration records its re-admission, at the stamp the relay got.
+        val result = registrar.reregisterThisDevice(
+            masterKeyPair,
+            onReadmitted = org.tenshu.sync.proxy.DeviceRecords(executionContext, syncManager, cryptoManager).readmitSelf(masterKeyPair),
+        )
         if (result is TResult.Failure<*>) throw TenshuException(result.error)
         return null as T
     }

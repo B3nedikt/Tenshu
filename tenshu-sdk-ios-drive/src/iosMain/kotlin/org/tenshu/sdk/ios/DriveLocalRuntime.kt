@@ -199,6 +199,7 @@ object DriveLocalRuntime {
             appOverrides = appOverrides,
         )
         val client = base.tenshuClient
+        base.stopsWithTestGraph(uploadScope)
         // B.16 (228): the backup loop built over this client and the upload scope end with it.
         runtime.onCurrentGraphStop {
             uploadScope.cancel()

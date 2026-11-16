@@ -63,7 +63,15 @@ class ContentPlaneWiringTest {
         )
         // MB-3 must keep working — W1 added the personal plane beside it, not instead of it.
         assertNotNull(
-            JsRuntime.sharedRealmContentBlobStoreFactory("owner-under-test"),
+            JsRuntime.sharedRealmContentBlobStoreFactory(
+                org.tenshu.sync.common.RealmContext(
+                    ownerId = "owner-under-test",
+                    deviceId = "realm-local-device",
+                    derivedKeys = org.tenshu.core.security.SyncCryptoManager.DerivedKeys(ByteArray(32), ByteArray(32)),
+                    deviceSigningKeyPair = org.tenshu.core.security.SyncCryptoManager.KeyPair(ByteArray(32), ByteArray(32)),
+                    masterKeyPair = null,
+                ),
+            ),
             "Mode-B's per-realm content store must still resolve",
         )
         // ⚠⚠ Deliberately NOT asserted here: that the personal `SyncProcessor` is published

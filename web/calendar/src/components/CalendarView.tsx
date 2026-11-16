@@ -4,7 +4,7 @@
 // ⚠⚠ Failures render, never an empty grid: a failed calendars read, a failed window and a dead
 // stream each say so. ⚠⚠ An empty BOOK (no calendar at all) is not an empty view either: it asks
 // the user to create a calendar — on the web nothing seeds a "Personal" one (W3).
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { CalendarSummary } from '@tenshu/sdk/calendar'
 import { StreamNotice } from '@tenshu/app-kit/ui'
@@ -34,7 +34,25 @@ export type ViewKind = 'month' | 'week' | 'day' | 'agenda'
 const VIEWS: readonly ViewKind[] = ['month', 'week', 'day', 'agenda']
 export const AGENDA_DAYS = 30
 
-export function CalendarView({ initialDate, initialView = 'month' }: { initialDate?: CivilDate; initialView?: ViewKind }) {
+export interface EventToOpen {
+  readonly eventId: string
+  // The occurrence's ORIGINAL start (`Occurrence.recurrenceId`); '' = whichever occurrence is shown.
+  readonly recurrenceId: string
+}
+
+export function CalendarView({
+  initialDate,
+  initialView = 'month',
+  openEvent,
+  onEventOpened,
+}: {
+  initialDate?: CivilDate
+  initialView?: ViewKind
+  // Open this event once the shown range has loaded (a link from the overview).
+  openEvent?: EventToOpen
+  // Called once it was opened — or once it proved not to be in that range (deleted, hidden).
+  onEventOpened?: () => void
+}) {
   const { t } = useTranslation()
   const calendars = useCalendars()
   const def = useDefaultCalendar()
@@ -66,7 +84,16 @@ export function CalendarView({ initialDate, initialView = 'month' }: { initialDa
     )
   }
 
-  return <Views calendars={list} defaultId={defaultId} initialDate={initialDate} initialView={initialView} />
+  return (
+    <Views
+      calendars={list}
+      defaultId={defaultId}
+      initialDate={initialDate}
+      initialView={initialView}
+      openEvent={openEvent}
+      onEventOpened={onEventOpened}
+    />
+  )
 }
 
 function Views({
@@ -74,11 +101,15 @@ function Views({
   defaultId,
   initialDate,
   initialView,
+  openEvent,
+  onEventOpened,
 }: {
   calendars: readonly CalendarSummary[]
   defaultId: string
   initialDate?: CivilDate
   initialView: ViewKind
+  openEvent?: EventToOpen
+  onEventOpened?: () => void
 }) {
   const { t, i18n } = useTranslation()
   const now = todayOf()
@@ -117,6 +148,27 @@ function Views({
     // `hiddenSet` is rebuilt per render; its content is `hidden.data`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result, hidden.data, days])
+
+  // A link's event, opened once the range is read: the exact occurrence, else one of that event's ON
+  // THE SHOWN DAY (an occurrence moved since the link was made). ⚠ Never from the whole read window:
+  // the day view reads a day either side, and a skipped daily occurrence would open yesterday's. ⚠ Once per target — the URL drops the event
+  // as it opens, and a later read must not pop the editor open again. Adjusted during render (React's
+  // pattern for state that follows props); only telling the app, which rewrites its URL, is an effect.
+  const [openedKey, setOpenedKey] = useState<string | null>(null)
+  const targetKey = openEvent ? `${openEvent.eventId}@${openEvent.recurrenceId}` : null
+  if (openEvent && targetKey !== openedKey && result?.ok) {
+    setOpenedKey(targetKey)
+    const match =
+      result.occurrences.find((o) => o.eventId === openEvent.eventId && o.recurrenceId === openEvent.recurrenceId) ??
+      (byDay.get(anchor) ?? []).map((p) => p.occurrence).find((o) => o.eventId === openEvent.eventId)
+    if (match) setEditor({ mode: 'edit', occurrence: match })
+  }
+  const reported = useRef<string | null>(null)
+  useEffect(() => {
+    if (openedKey === null || reported.current === openedKey) return
+    reported.current = openedKey
+    onEventOpened?.()
+  }, [openedKey, onEventOpened])
 
   const colours = new Map(calendars.map((c) => [c.calendarId, cssColour(c.colorArgb)]))
   const colourOf = (id: string) => colours.get(id) ?? cssColour(UNKNOWN_CALENDAR_COLOUR)

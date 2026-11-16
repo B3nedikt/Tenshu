@@ -506,6 +506,31 @@ Library goes.
 - The frame is an inset ring on a span over the image (`rounded-[inherit]`), so it follows the grid's
   outer rounded corners and never overlaps a neighbour.
 
+### 4.11 Calendar rows, Drive row previews, Fit's "nothing synced" (2026-11-15)
+
+- **Calendar's rows open the event**: `/calendar#day=<YYYY-MM-DD>&event=<id>&rid=<recurrenceId>` (ids
+  only, never a title). Calendar opens on that day's view and, once the day's range has loaded, the
+  event's editor — the exact occurrence, else any of that event's in range (moved since) — then
+  drops `event`/`rid` from its URL (a reload or Back must not reopen it); the day stays. An event no
+  longer there just shows the day. The view is keyed by the day, so a new link while Calendar is
+  open lands on its day. Timeline's agenda rows stay text (no `open`).
+  ⚠ Review: the "moved since" fallback looks only at the SHOWN day — the day view reads a day either
+  side, and a skipped daily occurrence opened yesterday's. Known: stepping days in the view does
+  not rewrite `day=`, so a reload returns to the linked day.
+- **Drive's row icons follow native's rule** (`HorizontalFileItem`): the file's stored preview when
+  it has one — an image, a video's poster, a PDF's page — else the type badge, which also stands
+  while it loads and when the read fails. Through the card's own `fs.getPreview` at 96 px (the LIST
+  rung). `GlanceListRow.previewPath`; the hook is shared with the grid (`glance/previewUrl.ts`).
+  ⚠ Review: a new path drops the old picture at once (its URL is revoked by then), and rows are
+  keyed by path — a reused row drew a broken image instead of the badge.
+- ⚠⚠ **Fit: no day row is not 0 steps.** `Fit.dailyAggregates` answers a day without data with NO
+  row, and the card drew it as "0 steps" — so "nothing has reached this browser" read as "you did
+  not walk". It now says "Nothing synced for today yet" (keeping the last workout line), and with
+  no workout either it says there are no steps today and no workouts on this browser, from the phone
+  (only today is read, so it never claims the browser has no Fit data at all). A real 0 (a row
+  with 0 steps) still draws 0. The card was connected all along: the browser runtime has carried
+  the health service since F7 (2026-10-23, `DeclaredServiceVersionsTest`).
+
 ## 5. What this supersedes in `web-control-plane.md`
 
 - §2: `/control/home` is no longer the landing destination; `/overview` is.

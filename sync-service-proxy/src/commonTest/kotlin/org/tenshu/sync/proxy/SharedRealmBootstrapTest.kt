@@ -128,6 +128,19 @@ class SharedRealmBootstrapTest {
             "the Eager membership stays in the personal realm (the auto-join channel)",
         )
 
+        // ⚠⚠ And the owner's/member's own key bookkeeping, though keyed by the realm id, stays PERSONAL: a retired key
+        // is wrapped to this user's A13 and a delivery note is the owner's — neither belongs in the realm's stream.
+        for ((type, key) in listOf(
+            org.tenshu.identity.RetainedRealmKey.ID to org.tenshu.identity.RetainedRealmKey.compositeKey(realm.ownerId, "key-id"),
+            org.tenshu.identity.RealmKeyDelivery.ID to org.tenshu.identity.RealmKeyDelivery.compositeKey(realm.ownerId, "member-id"),
+        )) {
+            assertEquals(
+                personalOwner,
+                components.realmRegistry.realmForDataId(DataId.StringDataId.create(proxy.tContext, type, key))?.ownerId,
+                "$type stays in the personal realm",
+            )
+        }
+
         // Sanity: the recovered Kr is a full 32-byte key.
         assertEquals(32, recoveredKr.size)
     }

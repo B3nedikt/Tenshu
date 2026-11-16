@@ -110,7 +110,16 @@ class SyncDrainOrphanQuarantineTest {
             )
         }
 
-        scheduler = testProxy.executionContext.initSyncService(syncManager, crypto, platformScheduler = NoOpPlatformScheduler).scheduler
+        // ⚠⚠ `startBackgroundLoops = false`: this class drains by hand, so the drain it asserts on
+        // must be the only one. Started, `SyncScheduler.start()` ticks at once and the 1 s drain
+        // loop keeps ticking — a second drain over the same queue (`docs/tech-debt.md`, the
+        // `startBackgroundLoops` entry).
+        scheduler = testProxy.executionContext.initSyncService(
+            syncManager,
+            crypto,
+            platformScheduler = NoOpPlatformScheduler,
+            startBackgroundLoops = false,
+        ).scheduler
     }
 
     /**
@@ -122,8 +131,7 @@ class SyncDrainOrphanQuarantineTest {
      * runs outside `runTest` where no such scope exists. Nor can the teardown move to
      * `@AfterTest` — this is `commonTest`, where `@AfterTest` returns `Unit` and cannot suspend,
      * and `runBlocking` does not exist. Letting `runTest` own the proxy is what cancels the
-     * `SyncScheduler` and 1-second `ScheduleDrainLoop` that `initSyncService` starts
-     * (`docs/tech-debt.md` fix-item 5). Same shape as `:maps-shared-logic`'s `vmTest`.
+     * session work `initSyncService` starts (`docs/tech-debt.md` fix-item 5). Same shape as `:maps-shared-logic`'s `vmTest`.
      */
     private fun syncTest(body: suspend TestScope.() -> Unit): TestResult = runTest {
         setup()

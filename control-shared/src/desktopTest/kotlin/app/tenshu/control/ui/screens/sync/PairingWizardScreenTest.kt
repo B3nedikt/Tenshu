@@ -141,6 +141,7 @@ class PairingWizardScreenTest {
             override suspend fun deviceSyncPolicy(deviceId: String): SyncPolicy? = null
             override val deviceHardwareNames: kotlinx.coroutines.flow.Flow<Map<String, String>> = kotlinx.coroutines.flow.flowOf(emptyMap())
             override suspend fun deviceLastSeen(): Map<String, Long> = emptyMap()
+            override suspend fun removedDevices(): List<app.tenshu.control.data.RemovedDevice> = emptyList()
 
             override suspend fun cancelPairing(pairingSecret: String): TResult<org.tenshu.core.TBoolean> =
                 ResultSuccessDto(null)

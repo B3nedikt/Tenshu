@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TenshuMapProps } from '@tenshu/map-kit'
@@ -67,11 +67,17 @@ describe('WorkoutDetail', () => {
   it('draws the HR curve from the series, with the average line', async () => {
     proxy.workout.mockResolvedValue({ ok: true, workout: detailOf(workoutRow('w1', T0, { avgHr: 135 }), { heartRate: HR }) })
     renderWithProviders(<WorkoutDetail workoutId="w1" onBack={() => {}} />)
-    const chart = await screen.findByTestId('hr-chart')
-    expect(chart).toHaveAccessibleName('Heart rate, 110 to 150 bpm')
-    // x is elapsed time; y spans 102..158 (min-8 .. max+8) with 0 at the top (ChartMath.hrPolyline).
-    expect(screen.getByTestId('hr-line').getAttribute('points')).toBe('0.00,34.29 50.00,5.71 100.00,20.00')
-    expect(screen.getByTestId('hr-average')).toBeInTheDocument()
+    await screen.findByTestId('hr-chart')
+    const chart = screen.getByRole('img', { name: 'Heart rate, 110 to 150 bpm' })
+    // x is elapsed time, left to right; the highest bpm is drawn highest.
+    const pts = screen.getByTestId('series-line').getAttribute('points')!.split(' ').map((p) => p.split(',').map(Number))
+    expect(pts).toHaveLength(3)
+    expect(pts[0]![0]).toBeLessThan(pts[1]![0]!)
+    expect(pts[1]![1]).toBeLessThan(pts[0]![1]!)
+    expect(screen.getByTestId('series-average')).toBeInTheDocument()
+    // The keyboard reads it too: bpm and elapsed time.
+    fireEvent.keyDown(chart, { key: 'End' })
+    expect(screen.getByTestId('series-readout')).toHaveTextContent('130 bpm · 10:00')
   })
 
   it('draws the route: one polyline, the camera fitted to it, start and end pins', async () => {
@@ -87,6 +93,45 @@ describe('WorkoutDetail', () => {
       { id: 'end', position: points[2], label: 'Finish' },
     ])
     expect(props.labels?.notConfigured).toBe('Maps are not set up for this site.')
+  })
+
+  // fit-web-parity.md §2.2: what the route stream holds beyond the line.
+  describe('the stream: pace, elevation, splits, ascent — one cursor for charts and map', () => {
+    // 2.6 km due north, 30 s per 111 m (≈ 4:30 /km), climbing 0 → 48 m then down to 30 m.
+    const LONG = Array.from({ length: 25 }, (_, i) => ({ tSec: i * 30, lat: 52.5 + i * 0.001, lng: 13.4, altM: i <= 12 ? i * 4 : 48 - (i - 12) * 1.5 }))
+    const LONG_HR = LONG.map((p, i) => ({ tSec: p.tSec, bpm: 120 + i }))
+
+    it('draws pace and elevation, lists per-km splits with the fastest marked, and states the climb', async () => {
+      proxy.workout.mockResolvedValue({ ok: true, workout: detailOf(workoutRow('w1', T0, { paceSecPerKm: 270 }), { route: LONG, heartRate: LONG_HR }) })
+      renderWithProviders(<WorkoutDetail workoutId="w1" onBack={() => {}} />)
+      expect(await screen.findByTestId('pace-chart')).toBeInTheDocument()
+      expect(screen.getByTestId('elevation-chart')).toBeInTheDocument()
+      const stats = within(screen.getByTestId('stats'))
+      expect(stats.getByText('Ascent').nextSibling).toHaveTextContent('48 m')
+      const rows = within(screen.getByTestId('splits')).getAllByRole('row').slice(1)
+      // Two full km and a 0.67 km part-split, marked "3·".
+      expect(rows).toHaveLength(3)
+      expect(rows[2]).toHaveTextContent(/^3·0\.67/)
+      expect(rows.filter((r) => r.hasAttribute('data-best'))).toHaveLength(1)
+    })
+
+    it('hovering one chart moves the cursor on every chart and pins the spot on the map', async () => {
+      proxy.workout.mockResolvedValue({ ok: true, workout: detailOf(workoutRow('w1', T0), { route: LONG, heartRate: LONG_HR }) })
+      renderWithProviders(<WorkoutDetail workoutId="w1" onBack={() => {}} />)
+      await screen.findByTestId('tenshu-map')
+      const hr = within(screen.getByTestId('hr-chart')).getByRole('img')
+      fireEvent.keyDown(hr, { key: 'End' })
+      // Every chart shows the same moment …
+      expect(screen.getAllByTestId('series-readout').map((r) => r.textContent!.split(' · ')[1])).toEqual(['12:00', '12:00', '12:00'])
+      // … and the map has a pin where the athlete was then.
+      await waitFor(() => expect(mapProps.at(-1)!.pins!.map((p) => p.id)).toEqual(['start', 'end', 'cursor']))
+      expect(mapProps.at(-1)!.pins![2]!.position).toEqual({ lat: LONG[24]!.lat, lng: 13.4 })
+      fireEvent.keyDown(hr, { key: 'Escape' })
+      await waitFor(() => expect(mapProps.at(-1)!.pins!.map((p) => p.id)).toEqual(['start', 'end']))
+      // The camera never changed under the pointer: still the route's bounds, the same object.
+      const cameras = new Set(mapProps.map((p) => p.camera))
+      expect(cameras.size).toBe(1)
+    })
   })
 
   it('no route, no map — and no HR series, no chart', async () => {

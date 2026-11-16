@@ -63,6 +63,16 @@ data class GrantPayload(
      * unknown fingerprint is displayed loudly as such (D4 quarantine).
      */
     val grantorFingerprint: String,
+    /**
+     * The realm master public key (`ownerIdForMasterPublicKey(this) == realmId`) and its signature
+     * over `RealmRekey.message(realmId, capability.memberAuthorityPublicKey, wrappedRealmKey, capability.issuedAt)`.
+     * ⚠⚠ The member adopts a re-key only when this verifies: the sealed box is anonymous, so nothing else in this
+     * payload says the realm's owner sent it. Set on every grant: one to a member already in the realm is read as a re-key.
+     */
+    val masterPublicKey: ByteArray = ByteArray(0),
+    val rekeySignature: ByteArray = ByteArray(0),
+    /** The [wrappedRealmKey]'s generation (`RealmRekey`): members adopt keys in this order, never by send time. */
+    val keyGeneration: Long = 0L,
 )
 
 /**
@@ -128,4 +138,114 @@ fun unsealGrant(
             info = GRANT_INFO,
             aad = grantAddress,
         ),
+    )
+
+/**
+ * A grantee's **acceptance**, sealed back to the grantor (`shared-realm-read-only-members.md` D7): what lets
+ * the **owner** write the member's `Member` row, so the realm's member list is owner-attested rather than
+ * self-asserted — and so a member who may not write into the realm (a viewer) can still join.
+ *
+ * Dropped at [deriveAcceptanceAddress][org.tenshu.core.common.util.deriveAcceptanceAddress] (per realm),
+ * sealed to the grantor's A13 with that address as AAD. [signature] is the member authority's (A26) over
+ * `MembershipAcceptance.message` in `:sync-service-common` — the owner checks it against the A26 public key
+ * it kept at grant time, so an acceptance cannot be forged by anyone but the grantee.
+ */
+@Serializable
+data class AcceptancePayload(
+    val version: Int = 1,
+    val realmId: String,
+    /** The A26 public key the grant's capability binds; `memberId = sha256(this)`. */
+    val memberAuthorityPublicKey: ByteArray,
+    /** The grantee's self-chosen name in this share (pseudonymous by default, GR D5). */
+    val displayName: String,
+    /** The grantee's A13 fingerprint — the `Member.contactFingerprint` re-grants reach them by. */
+    val contactFingerprint: String,
+    val acceptedAt: Long,
+    val signature: ByteArray,
+)
+
+/** Sealed-box HKDF/AAD domain for an acceptance — distinct from [GRANT_INFO], so neither opens as the other. */
+val ACCEPTANCE_INFO: ByteArray = "tenshu/grant/acceptance-payload/v1".encodeToByteArray()
+
+fun sealAcceptance(
+    crypto: SyncCryptoManager,
+    payload: AcceptancePayload,
+    grantorEncPublicKey: ByteArray,
+    acceptanceAddress: ByteArray,
+): ByteArray =
+    crypto.sealToIdentity(
+        plaintext = json.encodeToString(AcceptancePayload.serializer(), payload).encodeToByteArray(),
+        recipientEncPublicKey = grantorEncPublicKey,
+        info = ACCEPTANCE_INFO,
+        aad = acceptanceAddress,
+    )
+
+/** Inverse of [sealAcceptance]; throws when the key or address is not the one it was sealed under. */
+fun unsealAcceptance(
+    crypto: SyncCryptoManager,
+    sealed: ByteArray,
+    myEncPrivateKey: ByteArray,
+    acceptanceAddress: ByteArray,
+): AcceptancePayload =
+    json.decodeFromString(
+        AcceptancePayload.serializer(),
+        crypto.unsealFromIdentity(
+            sealed = sealed,
+            myEncPrivateKey = myEncPrivateKey,
+            info = ACCEPTANCE_INFO,
+            aad = acceptanceAddress,
+        ).decodeToString(),
+    )
+
+/**
+ * A member's sealed request for the current keys of the realms [entries] name (GR-7), dropped at the
+ * [deriveKeyRequestAddress][org.tenshu.core.common.util.deriveKeyRequestAddress] of the contact that granted them,
+ * sealed to that contact's A13 with the address as AAD. Each entry is signed by the member's A26 for that realm
+ * (`RealmKeyRequest.message` in `:sync-service-common`).
+ */
+@Serializable
+data class KeyRequestPayload(
+    val version: Int = 1,
+    val entries: List<KeyRequestEntry>,
+)
+
+@Serializable
+data class KeyRequestEntry(
+    val realmId: String,
+    val memberAuthorityPublicKey: ByteArray,
+    val requestedAt: Long,
+    val signature: ByteArray,
+)
+
+/** Sealed-box HKDF/AAD domain for a key request — distinct from the grant and acceptance domains. */
+val KEY_REQUEST_INFO: ByteArray = "tenshu/grant/key-request-payload/v1".encodeToByteArray()
+
+fun sealKeyRequest(
+    crypto: SyncCryptoManager,
+    payload: KeyRequestPayload,
+    ownerEncPublicKey: ByteArray,
+    requestAddress: ByteArray,
+): ByteArray =
+    crypto.sealToIdentity(
+        plaintext = json.encodeToString(KeyRequestPayload.serializer(), payload).encodeToByteArray(),
+        recipientEncPublicKey = ownerEncPublicKey,
+        info = KEY_REQUEST_INFO,
+        aad = requestAddress,
+    )
+
+/** Inverse of [sealKeyRequest]; throws when the key or address is not the one it was sealed under. */
+fun unsealKeyRequest(
+    crypto: SyncCryptoManager,
+    sealed: ByteArray,
+    myEncPrivateKey: ByteArray,
+    requestAddress: ByteArray,
+): KeyRequestPayload =
+    json.decodeFromString(
+        KeyRequestPayload.serializer(),
+        crypto.unsealFromIdentity(
+            sealed = sealed,
+            myEncPrivateKey = myEncPrivateKey,
+            info = KEY_REQUEST_INFO,
+            aad = requestAddress,
+        ).decodeToString(),
     )

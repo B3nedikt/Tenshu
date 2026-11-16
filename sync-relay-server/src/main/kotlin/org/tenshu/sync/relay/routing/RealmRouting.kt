@@ -1,6 +1,5 @@
 package org.tenshu.sync.relay.routing
 
-import org.tenshu.core.common.util.decodeHlcStamp
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.plugins.ratelimit.RateLimitName
 import io.ktor.server.plugins.ratelimit.rateLimit
@@ -148,6 +147,11 @@ fun Route.configureRealmRouting(
     realmStore: RealmRegistry,
     knownDevices: DeviceRegistry,
     ed25519: Ed25519Backend,
+    /**
+     * Shared-realm member admissions, so `/admit-device` can refuse an id a member already bound.
+     * ⚠ Required, not defaulted: a wiring that forgot it would silently drop the guard.
+     */
+    membershipStore: org.tenshu.sync.relay.mailbox.MembershipRegistry,
     nowEpochMillis: () -> Long = { System.currentTimeMillis() },
     /**
      * When non-null, the `POST /sync/realm` bootstrap is wrapped in `rateLimit(genesisRateLimit)`.
@@ -256,17 +260,28 @@ fun Route.configureRealmRouting(
                 return@post
             }
 
+            // ⚠⚠ The mirror of `/sync/realm-member/admit`'s already-registered check. Device public
+            // keys are not secret, so a member could bind a not-yet-admitted OWNER device's id under its
+            // own authority first; once the owner admitted it here, `isMemberDevice` would hold for an
+            // owner device (the T-GR-08 guard would treat it as a member, and revoking the member would
+            // purge it). Refused rather than cleared: silently re-classifying a member's binding is the
+            // relay deciding membership. The owner recovers by revoking that member, which clears it.
+            if (membershipStore.isMemberDevice(ownerId, newDeviceId)) {
+                call.respond(HttpStatusCode.Conflict, "Device is bound to a member of this realm")
+                return@post
+            }
+
             // Record WHEN the admitter authored this admission, so a `Device` tombstone that was
             // authored earlier but delivered later cannot revoke it (see DeviceRegistry.revokeIfNotStale).
-            // ⚠ Optional, and NOT a legacy fallback: the primary realm's admitters stamp every admission
-            // (`SyncManager.admissionStamp`), but `SharedRealmDeviceAdmitter` — the shared-realm owner
-            // admitting a member's device — sends none. Absent ⇒ null ⇒ the guard degrades to
-            // unconditional revocation. Requiring it would 400 every shared-realm device admission.
+            // ⚠ Optional: every current admitter stamps (`SyncManager.admissionStamp`, and since §5b R3
+            // `SharedRealmDeviceAdmitter` from the realm's own clock), but a pre-R3 client sends none.
+            // Absent ⇒ null ⇒ the guard degrades to unconditional revocation. ⚠ A future value is
+            // clamped to the relay's clock (`admissionStamp`).
             knownDevices.register(
                 ownerId,
                 newDeviceId,
                 newDevicePublicKey,
-                admittedAt = decodeHlcStamp(body["admittedAtHlc"]),
+                admittedAt = admissionStamp(body["admittedAtHlc"], nowEpochMillis()),
             )
             call.respond(HttpStatusCode.OK, "OK")
         }
@@ -396,7 +411,7 @@ private suspend fun RoutingContext.handleRealmBootstrap(
         claimedOwnerId,
         firstDeviceId,
         firstDevicePublicKey,
-        admittedAt = decodeHlcStamp(body["admittedAtHlc"]),
+        admittedAt = admissionStamp(body["admittedAtHlc"], nowEpochMillis()),
     )
 
     call.respond(

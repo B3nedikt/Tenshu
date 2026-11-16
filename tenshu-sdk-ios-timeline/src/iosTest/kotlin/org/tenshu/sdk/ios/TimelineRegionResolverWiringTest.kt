@@ -67,6 +67,7 @@ class TimelineRegionResolverWiringTest {
         tempDirs.forEach { NSFileManager.defaultManager.removeItemAtPath(it, error = null) }
         // Leave the surface on its honest default, as the other surface tests do.
         TimelineSurface.installNotConnected()
+        TestGraphs.stopAll() // ⚠ last: the hooks above may still need the graph
     }
 
     // ── 1. the surface passes the resolver through ─────────────────────────────────────────

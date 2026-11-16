@@ -146,6 +146,52 @@ class MemberDeviceTombstoneGuardTest {
         assertNull(knownDevices.getPublicKey(realmId, memberDeviceId))
     }
 
+    /** `POST /sync/admit-device` for [deviceId], master-delegated (the owner admitting its own device). */
+    private suspend fun ApplicationTestBuilder.ownerAdmitsDevice(deviceId: String, deviceKey: ByteArray): HttpStatusCode {
+        val delegation = stubEd25519Signature(
+            masterKey,
+            MasterDelegationVerifier.pairingResponseMessage(newDevicePublicKey = deviceKey, newDeviceId = deviceId, epoch = 0L),
+        )
+        return client.post("/sync/admit-device") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                """{"ownerId":"$realmId","newDeviceId":"$deviceId","newDevicePublicKey":"${b64(deviceKey)}",""" +
+                    """"masterDelegation":"${b64(delegation)}","epoch":"0"}"""
+            )
+        }.also { it.bodyAsText() }.status
+    }
+
+    /**
+     * ⚠⚠ The `/admit-device` side of the same attack: a member pre-binds a not-yet-admitted owner
+     * device's id under its own authority, then the owner admits that device. Refused, so the property
+     * does not rest on owner device keys staying unknown to members.
+     */
+    @Test
+    fun anOwnerCannotAdmitADeviceIdAMemberAlreadyBound() = testApplication {
+        val knownDevices = KnownDevicesStore()
+        val membershipStore = MembershipStore()
+        mountRelay(knownDevices, membershipStore)
+        bootstrapAndAdmitMember()
+        val laterOwnerKey = "owner-second-device-key".encodeToByteArray().copyOf(32)
+        val laterOwnerId = deviceIdForPublicKey(laterOwnerKey)
+        assertEquals(HttpStatusCode.OK, admitUnderMemberAuthority(laterOwnerId, laterOwnerKey, boundAt = 3_000L), "the pre-bind")
+
+        assertEquals(HttpStatusCode.Conflict, ownerAdmitsDevice(laterOwnerId, laterOwnerKey))
+        assertTrue(membershipStore.isMemberDevice(realmId, laterOwnerId), "still the member's binding, never re-classified")
+    }
+
+    @Test
+    fun anOwnerStillAdmitsAnUnboundDevice() = testApplication {
+        val knownDevices = KnownDevicesStore()
+        mountRelay(knownDevices)
+        bootstrapAndAdmitMember()
+        val laterOwnerKey = "owner-second-device-key".encodeToByteArray().copyOf(32)
+        val laterOwnerId = deviceIdForPublicKey(laterOwnerKey)
+
+        assertEquals(HttpStatusCode.OK, ownerAdmitsDevice(laterOwnerId, laterOwnerKey))
+        assertNotNull(knownDevices.getPublicKey(realmId, laterOwnerId))
+    }
+
     @Test
     fun aMemberDeviceMayBeReAdmitted() = testApplication {
         mountRelay(KnownDevicesStore())
@@ -177,7 +223,9 @@ class MemberDeviceTombstoneGuardTest {
         return client.post("/sync/push-tombstone") {
             contentType(ContentType.Application.OctetStream)
             header("Authorization", "Bearer $token")
-            setBody(serializer.serialize(cascadedTombstone(ctx, block)))
+            // ⚠ Protocol 1: only a legacy push still revokes through a tombstone (§5b R2b); the guard
+            // under test exists for exactly those clients until R5 deletes the side effect.
+            setBody(serializer.serialize(cascadedTombstone(ctx, block, relayProtocolVersion = org.tenshu.sync.relay.TOMBSTONE_REVOKES_PROTOCOL)))
         }.also { it.bodyAsText() }.status
     }
 

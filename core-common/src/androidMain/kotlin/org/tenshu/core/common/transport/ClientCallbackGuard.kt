@@ -1,5 +1,7 @@
 package org.tenshu.core.common.transport
 
+import java.util.concurrent.atomic.AtomicReference
+
 /**
  * Who may call this app's `IClientInterface`, and how large a region it may hand over
  * (`core-client-resubscription.md` §4.8; threat model T-C-19).
@@ -34,29 +36,40 @@ internal class ClientCallbackGuard(
     private val nanoTime: () -> Long = System::nanoTime,
 ) {
 
-    @Volatile
-    private var controlUid: Int? = null
+    /**
+     * The cached positive answer and the [forgetControl] generation it belongs to, swapped as one
+     * value so the UID and its verification time can never be read from two different answers.
+     */
+    private class Cache(val generation: Long, val uid: Int?, val verifiedAt: Long)
 
-    @Volatile
-    private var controlVerifiedAt = 0L
+    private val cache = AtomicReference(Cache(generation = 0L, uid = null, verifiedAt = 0L))
 
     /** UID → when it was last found not to be Control. Bounded; a stranger is one app. */
     private val refused = HashMap<Int, Long>()
 
+    /**
+     * ⚠ The package-manager lookup runs unlocked on a Binder thread, and [forgetControl] can land
+     * on main while it does. Its answer is therefore cached only if the generation it started under
+     * is still current: a forget during the lookup must not be overwritten by a "this UID is
+     * Control" from before it, or the forgotten UID would stay admitted for the whole TTL. The call
+     * in flight is still admitted — the lookup was true when it ran — but the next one asks again.
+     */
     fun admits(callingUid: Int): Boolean {
         val now = nanoTime()
-        if (callingUid == controlUid && now - controlVerifiedAt < CONTROL_TTL_NANOS) return true
+        val seen = cache.get()
+        if (callingUid == seen.uid && now - seen.verifiedAt < CONTROL_TTL_NANOS) return true
         synchronized(refused) {
             val at = refused[callingUid]
             if (at != null && now - at < RECHECK_INTERVAL_NANOS) return false
         }
         if (isControlUid(callingUid)) {
-            controlUid = callingUid
-            controlVerifiedAt = now
+            cacheUnlessForgotten(since = seen.generation) { Cache(it.generation, callingUid, now) }
             synchronized(refused) { refused.remove(callingUid) }
             return true
         }
-        if (controlUid == callingUid) controlUid = null
+        cacheUnlessForgotten(since = seen.generation) {
+            if (it.uid == callingUid) Cache(it.generation, uid = null, verifiedAt = 0L) else it
+        }
         synchronized(refused) {
             if (refused.size >= MAX_REFUSED) refused.clear()
             refused[callingUid] = now
@@ -66,7 +79,19 @@ internal class ClientCallbackGuard(
 
     /** The binding to Control died or disconnected: its UID is no longer known to be Control's. */
     fun forgetControl() {
-        controlUid = null
+        cache.updateAndGet { Cache(it.generation + 1, uid = null, verifiedAt = 0L) }
+    }
+
+    /**
+     * Applies [next] unless a [forgetControl] has run since generation [since]. Retries only a race
+     * with another `admits` in the same generation, so concurrent lookups both land; a forget wins.
+     */
+    private inline fun cacheUnlessForgotten(since: Long, next: (Cache) -> Cache) {
+        while (true) {
+            val current = cache.get()
+            if (current.generation != since) return
+            if (cache.compareAndSet(current, next(current))) return
+        }
     }
 
     /** Throws back to the caller, which is never Control: Control's transactions always pass. */

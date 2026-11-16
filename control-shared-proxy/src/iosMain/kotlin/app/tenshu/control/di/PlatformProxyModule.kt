@@ -790,14 +790,6 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
                     get<StorageCapacityHolder>().queuedContentBytes = bytes
                 },
                 realmRegistrar = realmRegistrar,
-                sharedRealmRelayFactory = org.tenshu.sync.proxy.sharedRealmRelayFactory(
-                    baseUrl = get(named("syncRelayUrl")),
-                    httpClient = get(),
-                    context = context,
-                    syncManager = syncManager,
-                    cryptoManager = cryptoManager,
-                    nowEpochSec = { nowEpochSeconds() },
-                ),
                 sharedRealmContentBlobStoreFactory = org.tenshu.sync.proxy.sharedRealmContentBlobStoreFactory(
                     baseUrl = get(named("syncRelayUrl")),
                     httpClient = get(),

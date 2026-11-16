@@ -39,6 +39,8 @@ import org.tenshu.sync.PushBlock
 import org.tenshu.sync.PushTombstone
 import org.tenshu.sync.RecoveryClaim
 import org.tenshu.sync.ReadmitDevice
+import org.tenshu.sync.GetRemovedDevices
+import org.tenshu.sync.GetDeviceAccessRevocations
 import org.tenshu.sync.ReregisterDevice
 import org.tenshu.sync.RespondToHubPairing
 import org.tenshu.sync.RespondToPairingOffer
@@ -64,6 +66,8 @@ import org.tenshu.sync.client.impl.RelaxToHeadlessRo
 import org.tenshu.sync.client.impl.DenyPairingOfferRo
 import org.tenshu.sync.client.impl.CreateRealmRo
 import org.tenshu.sync.client.impl.ReadmitDeviceRo
+import org.tenshu.sync.client.impl.GetRemovedDevicesRo
+import org.tenshu.sync.client.impl.GetDeviceAccessRevocationsRo
 import org.tenshu.sync.client.impl.ReregisterDeviceRo
 import org.tenshu.sync.client.impl.CreateSharedRealmRo
 import org.tenshu.sync.client.impl.SyncNowRo
@@ -349,6 +353,18 @@ val syncServiceClientModule = tModule {
         interfaceClass = ReadmitDevice::class,
         protocolSchema = ReadmitDevice.Schema,
         roFactory = ::ReadmitDeviceRo
+    )
+
+    operation(
+        interfaceClass = GetRemovedDevices::class,
+        protocolSchema = GetRemovedDevices.Schema,
+        roFactory = ::GetRemovedDevicesRo
+    )
+
+    operation(
+        interfaceClass = GetDeviceAccessRevocations::class,
+        protocolSchema = GetDeviceAccessRevocations.Schema,
+        roFactory = ::GetDeviceAccessRevocationsRo
     )
 
     operation(

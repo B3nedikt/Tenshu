@@ -48,7 +48,6 @@ import org.tenshu.sync.relay.RelayConfig
 import org.tenshu.sync.relay.MailboxStore
 import org.tenshu.sync.relay.SyncMailbox
 import org.tenshu.sync.relay.logId
-import org.tenshu.core.common.util.decodeHlcStamp
 import org.tenshu.core.common.util.toStamp
 import org.tenshu.sync.relay.auth.JwtAuthenticator
 import org.tenshu.sync.relay.auth.DeviceRegistry
@@ -527,7 +526,12 @@ fun Route.configureSyncRouting(
             // The lookup is identity-service-aware: only `Device.ID` (= "tenshu/identity/device")
             // entity tombstones trigger revocation. Other entity-type tombstones flow
             // through unchanged.
-            if (block.targetEntityType.get() == org.tenshu.identity.Device.ID) {
+            // ⚠⚠ §5b R2b: only for a client still below protocol 2. A client at 2 revokes through
+            // `/sync/device-access/revoke` (signature-authorised), and its `Device` tombstone is data —
+            // the data plane no longer mutates access control for it. R5 retires the side effect.
+            val tombstoneRevokes = push.relayProtocolVersion.get() <
+                org.tenshu.core.common.RELAY_PROTOCOL_TOMBSTONE_IS_DATA_VERSION
+            if (tombstoneRevokes && block.targetEntityType.get() == org.tenshu.identity.Device.ID) {
                 // The serializer round-trips an absent optional `TString` as an empty
                 // string rather than null (known quirk in the binary parser). Guard
                 // both: a missing field gives null OR ""; a present field gives a
@@ -954,7 +958,7 @@ fun Route.configureSyncRouting(
                     ownerId = ownerId,
                     deviceId = newDeviceId,
                     publicKey = newDevicePublicKey,
-                    admittedAt = decodeHlcStamp(params["admittedAtHlc"]),
+                    admittedAt = admissionStamp(params["admittedAtHlc"]),
                     admissionCertChain = admissionCertChain,
                 )
                 when (syncMailbox.addPairingResponse(pairingSecretHash, encryptedMasterKey, registration)) {
@@ -1214,7 +1218,7 @@ fun Route.configureSyncRouting(
                                     ownerId = ownerId,
                                     deviceId = offererDeviceId,
                                     publicKey = offererSigningKey,
-                                    admittedAt = decodeHlcStamp(params["admittedAtHlc"]),
+                                    admittedAt = admissionStamp(params["admittedAtHlc"]),
                                     admissionCertChain = admissionCertChain,
                                 )
                             }

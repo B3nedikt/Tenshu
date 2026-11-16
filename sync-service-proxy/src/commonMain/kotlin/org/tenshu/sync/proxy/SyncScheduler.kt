@@ -52,6 +52,7 @@ import org.tenshu.sync.common.ContentRefusedException
 import org.tenshu.sync.common.SyncGate
 import org.tenshu.sync.common.SyncManager
 import org.tenshu.sync.common.SyncRelay
+import org.tenshu.core.common.util.runCatchingCancellable
 import org.tenshu.sync.common.hlcTipCanonicalMessage
 import kotlin.math.max
 
@@ -512,6 +513,7 @@ class SyncScheduler(
     private val blockDrainLog = DrainFailureLog("pending-blocks push")
     private val tombstoneDrainLog = DrainFailureLog("pending-tombstones push")
     private val reapDrainLog = DrainFailureLog("pending-reap-removals push")
+    private val accessRevocationDrainLog = DrainFailureLog("pending-device-access-revocations push")
 
     /** Names each entry/exit of the metered-deferred state — see [DeferredStateLog]. */
     private val deferredLog = DeferredStateLog()
@@ -1365,6 +1367,14 @@ class SyncScheduler(
             recoverRegistration()
         }
 
+        // ⚠⚠ Removing ANOTHER device is never behind the push gates. The route is credential-less (the
+        // signature is the authorisation) and, since protocol 2, the only thing that cuts that device's
+        // access — so a lapsed subscription (`402`), storage bound elsewhere, or a `401` on THIS device's
+        // own registration must not keep a stolen phone connected. Before the block drain, so the access
+        // cut still goes ahead of the `Device` tombstone that carries the same stamp (§5b).
+        // ⚠ A removal naming THIS device stays below, after its tombstone: it cuts our own JWT.
+        drainDeviceAccessRevocations(selfRemoval = false)
+
         val pushAllowed = storageGate.shouldSync() &&
             !entitlementBackoff.isBackingOff() &&
             !registrationBackoff.isBackingOff()
@@ -1390,7 +1400,13 @@ class SyncScheduler(
             // tombstone — so peers would drop the `File` while their folder still lists it.
             // Pinned by `DrainSplitOnRejectionTest`.
             if (!entitlementBackoff.isBackingOff() && !registrationBackoff.isBackingOff()) {
+                // ⚠ Removals of other devices already went, ungated, above the block drain (§5b: the access
+                // cut before the tombstone carrying the same HLC). ⚠⚠ A removal naming THIS device inverts:
+                // the route cuts our own JWT, so our tombstone could never be pushed after it. It goes below.
                 drainPendingTombstones()
+                // ⚠ Gated on OUR revocation tombstone having left, not on an empty queue: a tombstone
+                // stamped for a superseded realm stays queued on purpose, and must not block this.
+                if (!ownRevocationTombstoneQueued()) drainDeviceAccessRevocations(selfRemoval = true)
                 // After the tombstones, so a folder's own cascade usually lands first; the
                 // relay applies both at the same T, so the order is not load-bearing.
                 drainReapRemovals()
@@ -1515,6 +1531,7 @@ class SyncScheduler(
             // two-lane path is the fallback for a relay without `/sync/log`, and is what the
             // merged path degrades to — never an error.
             raiseBeforePull()
+            val personalPullToken = realmRegistry?.personalPulls?.begin()
             val forward =
                 if (mergedLaneSupported && mergedLaneWired()) pullMergedLog()
                 else pullSeparateLanes()
@@ -1531,6 +1548,14 @@ class SyncScheduler(
             // arrives first instead of after hours of crawling through July. They stop when they
             // meet, so every seq is read by exactly one of them — the forward path is unchanged.
             val backfillRemains = backfillOnce()
+            // GR-7's caught-up gate for the personal realm: every forward lane answered with nothing more, and —
+            // where a backward walk runs at all — it has met the live tail (so no gap below it). ⚠ On the two-lane
+            // fallback there is no walk ([backfillOnce] returns at once and never sets the cursor): the forward
+            // lanes walk up from where this device left off, so they alone are the whole stream.
+            if (personalPullToken != null) {
+                val backfillDone = !(mergedLaneSupported && mergedLaneWired()) || syncManager.backfillCursor == 0L
+                realmRegistry.personalPulls.finish(personalPullToken, complete = forward.caughtUp && backfillDone)
+            }
             // Catching up on a backlog: keep ticking instead of waiting out the poll
             // interval, or a large history would drain one page per interval (a 49k-block
             // backlog at the cold cadence is hours). The loop still re-evaluates every gate
@@ -1671,7 +1696,11 @@ class SyncScheduler(
         val registrar = realmRegistrar ?: return
         val masterKeyPair = registrar.masterIdentity() ?: return
         val result = try {
-            registrar.reregisterThisDevice(masterKeyPair)
+            // §5b R6b: an A1 re-registration records its re-admission, at the stamp the relay got.
+            registrar.reregisterThisDevice(
+                masterKeyPair,
+                onReadmitted = DeviceRecords(executionContext, syncManager, cryptoManager).readmitSelf(masterKeyPair),
+            )
         } catch (e: CancellationException) {
             throw e
         } catch (t: Throwable) {
@@ -2073,6 +2102,20 @@ class SyncScheduler(
      * the realm's own [RealmRuntime.cursor]. A realm without a processor (registry
      * built without a factory) is skipped — it pushes but can't yet pull.
      */
+    private suspend fun recoverSharedRealmRegistration(
+        realm: org.tenshu.sync.common.RealmContext,
+        relay: SyncRelay,
+        registry: RealmRegistry,
+    ) {
+        if (realm.masterKeyPair == null) return
+        runCatchingCancellable {
+            OwnerRealmDevice.admitSelf(
+                cryptoManager, realm, relay,
+                admittedAtHlc = registry.admissionStampFor(realm.ownerId, executionContext.context),
+            )
+        }.onFailure { println("SyncScheduler -> shared realm ${realm.ownerId}: owner re-admission failed; will retry — $it") }
+    }
+
     internal suspend fun pullSharedRealms() {
         val registry = realmRegistry ?: return
         registry.sharedRuntimesWithRelay().forEach { runtime ->
@@ -2098,6 +2141,7 @@ class SyncScheduler(
             }
             if (backoff.isBackingOff()) return@forEach
 
+            val pullToken = runtime.pulls.begin()
             val response = when (val result = relay.getChanges(runtime.cursor, tip)) {
                 is TResult.Failure<*> -> {
                     if (TenshuException(result.error).isRelayUnauthorized()) {
@@ -2111,6 +2155,12 @@ class SyncScheduler(
                             )
                         }
                         backoff.onRejected()
+                        // An OWNER device holds the realm master and can repair its own registration — the
+                        // shared-realm twin of `recoverRegistration`. ⚠ Without it a self-admission that failed
+                        // once (offline at registration) left the device refused for the whole session: every
+                        // later registration path short-circuits on the already-registered owner context.
+                        // Bounded by the backoff above; a member device repairs through its self-bind instead.
+                        recoverSharedRealmRegistration(runtime.context, relay, registry)
                     }
                     return@forEach
                 }
@@ -2130,6 +2180,8 @@ class SyncScheduler(
                 }
             }
             runtime.cursor = response.nextCursor.get()
+            // GR-7's caught-up gate: applied, cursor moved, and nothing more waiting.
+            runtime.pulls.finish(pullToken, complete = !PullOutcome.isFullPage(blocks.size))
             // A shared realm needs no ceiling arithmetic (unlike the personal pull): it has
             // one lane, so the relay's page cap just makes this a prefix and the cursor lands
             // on the last block actually delivered. Only ask for another tick, so a large
@@ -2180,6 +2232,43 @@ class SyncScheduler(
             isEntity = false,
             elementSchemaId = SyncBlock.ID
         )
+
+    /**
+     * Sends the signed device-access revocations this device owes the relay
+     * ([DeviceAccessRevocationOutbox]; `sync-entity-identity.md` §5b R2a), one request each.
+     * [selfRemoval] picks the ones naming this device (sent after the tombstones) or the rest
+     * (sent before them).
+     *
+     * ⚠ What each answer does is [DeviceAccessRevocationOutbox.drain]'s: `Retry`, `404` and `426` stay owed and
+     * stop the pass; a refusal or a stale `200` is kept for display, never resent; only an applied `200` (or a
+     * tokened `self` 401) removes the entry.
+     * ⚠ Inert without a personal relay (test and legacy wirings): the outbox keeps its entries.
+     */
+    /** Whether a `Device` tombstone revoking THIS device is still waiting to be pushed. */
+    private fun ownRevocationTombstoneQueued(): Boolean {
+        val self = syncManager.currentRealmContext()?.deviceId ?: return false
+        return executionContext.database.getArrayData(pendingTombstonesRef)?.toList().orEmpty()
+            .filterIsInstance<DeleteBlock>()
+            .any { it.revokedDeviceId?.get() == self }
+    }
+
+    internal suspend fun drainDeviceAccessRevocations(selfRemoval: Boolean) {
+        val outbox = DeviceAccessRevocationOutbox(executionContext)
+        val queued = outbox.count()
+        if (queued == 0) return
+        val relay = personalRelay ?: run {
+            // ⚠⚠ Loud, not silent: a wiring without a personal relay can never cut a removed
+            // device's access at protocol 2 — the tombstone no longer does.
+            accessRevocationDrainLog.onTick(failedCount = 1, cause = null, queuedCount = queued)
+            return
+        }
+        val self = syncManager.currentRealmContext()?.deviceId
+        if (outbox.drain(relay) { (it.deviceId == self) == selfRemoval }) {
+            accessRevocationDrainLog.onTick(failedCount = 0, cause = null)
+        } else {
+            accessRevocationDrainLog.onTick(failedCount = 1, cause = null, queuedCount = queued)
+        }
+    }
 
     /**
      * Sends the reaps this device owes the relay (`content-plane-cr2-b3-wire-spec.md` §3.3):

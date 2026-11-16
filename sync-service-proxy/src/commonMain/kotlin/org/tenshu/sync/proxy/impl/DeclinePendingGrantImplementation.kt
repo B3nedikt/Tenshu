@@ -1,5 +1,7 @@
 package org.tenshu.sync.proxy.impl
 
+import kotlinx.coroutines.sync.withLock
+
 import org.tenshu.core.Data
 import org.tenshu.core.TString
 import org.tenshu.core.common.proxy.ExecutionContext
@@ -40,15 +42,17 @@ internal class DeclinePendingGrantImplementation(
             (params?.get(DeclinePendingGrant.Params.GRANTOR_FINGERPRINT) as? TString)?.get()
                 ?: error("DeclinePendingGrant requires grantorFingerprint")
 
-        SharedRealmGrantManager(
-            executionContext = executionContext,
-            syncManager = syncManager,
-            cryptoManager = cryptoManager,
-            relay = relay,
-            realmRegistry = realmRegistry,
-            grantedRelayFactory = grantedRelayFactory,
-            nowMs = nowMs,
-        ).declinePendingGrant(grantorFingerprint)
+        realmRegistry.grantOps.withLock {
+            SharedRealmGrantManager(
+                executionContext = executionContext,
+                syncManager = syncManager,
+                cryptoManager = cryptoManager,
+                relay = relay,
+                realmRegistry = realmRegistry,
+                grantedRelayFactory = grantedRelayFactory,
+                nowMs = nowMs,
+            ).declinePendingGrant(grantorFingerprint)
+        }
 
         return null as T
     }

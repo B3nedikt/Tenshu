@@ -418,7 +418,9 @@ the viewer at once, like any photo taken offline. Photos has no per-photo "not s
 and none was added; Control's own sync state is where pending content shows.
 
 **Tests:** `EditedCopySaveSystemTest` (real relay, real repository) holds every content `PUT` open,
-saves, asserts the save returned **with a `PUT` still held**, the copy reads back on the device,
+saves, asserts the save returned and the copy reads back on the device, then that a `PUT` reaches
+the relay and is held (⚠ awaited after the save, not asserted with it: the op reaches its `PUT` on its
+own schedule, which under load is after the save returns, `tech-debt.md`),
 then releases the relay and asserts the paired device receives the copy's bytes.
 `RealRepositoryReadTest.aSaveReturnsOnceTheCopyIsWritten_whileTheUploadOpIsStillPushing` (common,
 so every lane) uses an upload that writes the copy and never returns, and pins the name-in-use skip;

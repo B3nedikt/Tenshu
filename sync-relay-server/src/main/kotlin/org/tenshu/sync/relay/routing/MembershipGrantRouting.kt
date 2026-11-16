@@ -213,7 +213,14 @@ fun Route.configureMembershipGrantRouting(
                         return@post
                     }
                     membershipStore.recordAdmission(body.realmId, capability.memberAuthorityPublicKey, binding.deviceId)
-                    knownDevices.register(body.realmId, binding.deviceId, binding.perRealmDevicePublicKey)
+                    // §5b R3: the admission stamp. ⚠⚠ The MEMBER writes it, so a future value is clamped
+                    // (`admissionStamp`) — else a member device could make itself unremovable.
+                    knownDevices.register(
+                        body.realmId,
+                        binding.deviceId,
+                        binding.perRealmDevicePublicKey,
+                        admittedAt = admissionStamp(body.admittedAtHlc, nowEpochMillis()),
+                    )
                     call.respond(HttpStatusCode.OK, "OK")
                 }
 
@@ -342,6 +349,8 @@ internal data class AdmitMemberRequest(
     val realmId: String,
     val capability: AdmitCapabilityDto,
     val deviceBinding: AdmitDeviceBindingDto,
+    /** §5b R3: `HlcStamp.encode()` of the admission; optional. */
+    val admittedAtHlc: String? = null,
 )
 
 /** Body of `POST /sync/realm-member/revoke`; key + signature are base64. */

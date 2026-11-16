@@ -128,7 +128,7 @@ class RevokedDeviceRejectionTest {
                 "Authorization",
                 "Bearer ${jwt("admin-device", "admin-key".encodeToByteArray())}"
             )
-            setBody(serializer.serialize(org.tenshu.sync.relay.cascadedTombstone(ctx, makeDeviceTombstone(ctx, deviceId))))
+            setBody(serializer.serialize(org.tenshu.sync.relay.cascadedTombstone(ctx, makeDeviceTombstone(ctx, deviceId), relayProtocolVersion = org.tenshu.sync.relay.TOMBSTONE_REVOKES_PROTOCOL)))
         }
         assertEquals(HttpStatusCode.OK, pushResponse.status)
         pushResponse.bodyAsBytes()
@@ -205,7 +205,7 @@ class RevokedDeviceRejectionTest {
                 "Authorization",
                 "Bearer ${jwt("admin-device", "admin-key".encodeToByteArray())}"
             )
-            setBody(serializer.serialize(org.tenshu.sync.relay.cascadedTombstone(ctx, fileTombstone)))
+            setBody(serializer.serialize(org.tenshu.sync.relay.cascadedTombstone(ctx, fileTombstone, relayProtocolVersion = org.tenshu.sync.relay.TOMBSTONE_REVOKES_PROTOCOL)))
         }
         assertEquals(HttpStatusCode.OK, pushResponse.status)
         pushResponse.bodyAsBytes()
@@ -228,7 +228,7 @@ class RevokedDeviceRejectionTest {
         val response = client.post("/sync/push-tombstone") {
             contentType(ContentType.Application.OctetStream)
             header("Authorization", "Bearer ${jwt("admin-device", "admin-key".encodeToByteArray())}")
-            setBody(serializer.serialize(org.tenshu.sync.relay.cascadedTombstone(ctx, makeDeviceTombstone(ctx, deviceId))))
+            setBody(serializer.serialize(org.tenshu.sync.relay.cascadedTombstone(ctx, makeDeviceTombstone(ctx, deviceId), relayProtocolVersion = org.tenshu.sync.relay.TOMBSTONE_REVOKES_PROTOCOL)))
         }
         assertEquals(HttpStatusCode.OK, response.status)
         response.bodyAsBytes()

@@ -37,8 +37,8 @@ class SyncMetadataOperationTest {
 
     /**
      * ⚠ A `CoroutineScope` extension, not an `@BeforeTest`, so the [TestProxy] it builds rides
-     * the caller's `TestScope`. `initSyncService` below starts a `SyncScheduler` and a 1-second
-     * `ScheduleDrainLoop`; built from `@BeforeTest` there is no scope to tie them to, and a loop
+     * the caller's `TestScope`. `initSyncService` below starts session work (the emit consumer
+     * among it); built from `@BeforeTest` there is no scope to tie it to, and a coroutine
      * still ticking after this class finishes throws into the next `runTest` as
      * `UncaughtExceptionsBeforeTest` — blaming an unrelated test (`docs/tech-debt.md` fix-item 5).
      */
@@ -93,7 +93,16 @@ class SyncMetadataOperationTest {
         )
         syncManager.initialize("mock phrase")
 
-        val components = testProxy.executionContext.initSyncService(syncManager, crypto, platformScheduler = NoOpPlatformScheduler)
+        // ⚠⚠ `startBackgroundLoops = false`: this class drains by hand, so the drain it asserts on
+        // must be the only one. Started, `SyncScheduler.start()` ticks at once and the 1 s drain
+        // loop keeps ticking — a second drain over the same queue (`docs/tech-debt.md`, the
+        // `startBackgroundLoops` entry).
+        val components = testProxy.executionContext.initSyncService(
+            syncManager,
+            crypto,
+            platformScheduler = NoOpPlatformScheduler,
+            startBackgroundLoops = false,
+        )
         scheduler = components.scheduler
         syncObserver = components.syncObserver
     }
@@ -107,8 +116,7 @@ class SyncMetadataOperationTest {
      * runs outside `runTest` where no such scope exists. Nor can the teardown move to
      * `@AfterTest` — this is `commonTest`, where `@AfterTest` returns `Unit` and cannot suspend,
      * and `runBlocking` does not exist. Letting `runTest` own the proxy is what cancels the
-     * `SyncScheduler` and 1-second `ScheduleDrainLoop` that `initSyncService` starts
-     * (`docs/tech-debt.md` fix-item 5). Same shape as `:maps-shared-logic`'s `vmTest`.
+     * session work `initSyncService` starts (`docs/tech-debt.md` fix-item 5). Same shape as `:maps-shared-logic`'s `vmTest`.
      */
     private fun syncTest(body: suspend TestScope.() -> Unit): TestResult = runTest {
         setup()

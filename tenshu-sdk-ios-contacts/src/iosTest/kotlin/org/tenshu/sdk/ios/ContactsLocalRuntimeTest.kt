@@ -70,6 +70,7 @@ class ContactsLocalRuntimeTest {
         // Each closed on its own: one that throws must not leave the rest running.
         assemblies.asReversed().forEach { runCatching { it.close() }.onFailure { println("closeAssemblies: $it") } }
         assemblies.clear()
+        TestGraphs.stopAll() // ⚠ last: the hooks above may still need the graph
     }
 
     @Test

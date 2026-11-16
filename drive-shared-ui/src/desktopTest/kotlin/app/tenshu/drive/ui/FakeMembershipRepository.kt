@@ -2,6 +2,7 @@ package app.tenshu.drive.ui
 
 import app.tenshu.error.ErrorCopyKey
 
+import app.tenshu.drive.data.InvitationModel
 import app.tenshu.drive.data.MemberModel
 import app.tenshu.drive.data.MembershipRepository
 import app.tenshu.drive.data.PendingGrantModel
@@ -20,7 +21,10 @@ internal class FakeMembershipRepository(
     var removeResult: RepositoryResult<Unit> = RepositoryResult.Success(Unit),
     var pollResult: RepositoryResult<List<PendingGrantModel>> = RepositoryResult.Success(emptyList()),
     var declineResult: RepositoryResult<Unit> = RepositoryResult.Success(Unit),
+    var awaitingAccount: Set<String> = emptySet(),
 ) : MembershipRepository {
+
+    override suspend fun realmsAwaitingAccount(): RepositoryResult<Set<String>> = RepositoryResult.Success(awaitingAccount)
 
     data class GrantCall(val realmId: String, val personId: String, val label: String)
     data class RemoveCall(val realmId: String, val memberId: String)
@@ -50,6 +54,10 @@ internal class FakeMembershipRepository(
         membersCalls += realmId
         return membersResult
     }
+
+    var invitationsResult: RepositoryResult<List<InvitationModel>> = RepositoryResult.Success(emptyList())
+
+    override suspend fun invitations(realmId: String): RepositoryResult<List<InvitationModel>> = invitationsResult
 
     override suspend fun remove(realmId: String, memberId: String): RepositoryResult<Unit> {
         removeCalls += RemoveCall(realmId, memberId)

@@ -202,12 +202,19 @@ class SyncDashboardViewModel(
                 // failure here must not empty the device list, so it degrades to "no last-seen
                 // line" rather than taking the screen down with it.
                 val lastSeen = runCatchingCancellable { syncRepository.deviceLastSeen() }.getOrDefault(emptyMap())
+                // §5b R6c: read with the roster, because a removal is what changes the roster — the
+                // record arriving takes the row out, and that emission re-runs this pass. Best-effort
+                // for the same reason as `lastSeen`.
+                val removed = runCatchingCancellable { syncRepository.removedDevices() }
+                    .getOrDefault(emptyList())
+                    .sortedByDescending { it.removedAtMillis }
                 _uiState.update {
                     it.copy(
                         devices = authorized,
                         deviceSyncPolicies = policies,
                         deviceAdmittedBy = admittedBy,
                         deviceLastSeen = lastSeen,
+                        removedDevices = removed,
                         currentDeviceId = currentDeviceId,
                         isSyncEnabled = isEnabled,
                     )

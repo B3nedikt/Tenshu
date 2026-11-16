@@ -7269,6 +7269,10 @@ Numbered on from (236).
        registration runs at once;
      - Timeline registers the parked manager's release there.
      None of these writes through a graph.
+     ⚠⚠ *(2026-11-15)* `TimelineCaptureRuntime`'s `startIfEnabled`, `stopCapture` and
+     `detachIfOver` hold one lock: the last runs on the host's stop, off main, and unserialised
+     its late `active = null` could drop a capture an off/on on main had just started, whose
+     manager no opt-out would then reach (`TimelineCaptureRuntimeRaceTest`).
 239. ⚠⚠ **The background rebuild of (232) runs under a token of its own** (the re-review, P2).
      - **The problem.** In Timeline's case the detach cancels the drain whose entry met the fence,
        so that entry's token may already be released, and its release may quiesce, before the

@@ -22,4 +22,7 @@ class MemberDto(
     override val contactFingerprint: TString get() = getField(Member.Fields.CONTACT_FINGERPRINT)
     override val role: TString get() = getField(Member.Fields.ROLE)
     override val joinedAt: UnixInstant get() = getField(Member.Fields.JOINED_AT)
+    override val signerPublicKey: org.tenshu.core.TByteArray? get() = getOptionalField(Member.Fields.SIGNER_PUBLIC_KEY)
+    override val signature: org.tenshu.core.TByteArray? get() = getOptionalField(Member.Fields.SIGNATURE)
+    override val signedAt: UnixInstant? get() = getOptionalField(Member.Fields.SIGNED_AT)
 }

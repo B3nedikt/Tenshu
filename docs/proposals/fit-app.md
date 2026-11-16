@@ -4111,6 +4111,11 @@ All recommendations accepted:
   map-kit or MapLibre (`bundleSplit.test.ts`). Tiles are live since W.1; a map that
   cannot draw says why (tiles failed, no region, no WebGL). A workout without a route shows no map.
 
+### Parity pass (2026-11-15)
+
+Charts, workout detail, Home and History brought to native's level (and past it where a pointer
+helps): `fit-web-parity.md` §5 is the as-built; F5 (Browse, read-only) is proposed there.
+
 ## Version
 
 v0.55 · 2026-08-11 · **§19 — Home always read 0 steps: the record ceiling truncated the NEWEST

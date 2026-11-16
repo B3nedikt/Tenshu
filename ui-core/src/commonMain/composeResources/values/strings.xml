@@ -54,6 +54,7 @@
     <string name="error_unsupported_operation">This version does not support that yet.</string>
     <string name="error_entitlement_unverified">Your plan could not be verified. Please try again.</string>
     <string name="error_relay_route_unsupported">Your other device needs an update to do this.</string>
+    <string name="error_recovery_phrase_required">Enter your recovery phrase to remove another device. This device can only remove itself.</string>
     <string name="error_recovery_phrase_unreadable">This device can't read its saved recovery phrase, so unlocking can't succeed. Use “Add This Device” from another device that is still signed in.</string>
     <string name="error_device_already_set_up">This device is already set up with a different realm. To recover another realm here, first use “Forget this device”, then try again.</string>
     <string name="error_semantic_search_unavailable">Smart search is not available on this device.</string>

@@ -456,6 +456,7 @@
     <string name="manage_access_empty_body">Invite someone to connect with the + button.</string>
     <!-- GR-4: cross-user members + the grant-a-contact action (shared-realm-membership-grant.md GR-4). -->
     <string name="manage_access_role_member">Member</string>
+    <string name="manage_access_role_invited">Invited — waiting for them to accept</string>
     <string name="manage_access_grant_action">Grant access to a contact</string>
     <string name="manage_access_grant_picker_title">Who should have access?</string>
     <string name="manage_access_grant_picker_empty">No connected contacts yet. Invite someone with the + button first.</string>
@@ -532,4 +533,8 @@
     <string name="invite_link_qr_description">Invite QR code</string>
     <string name="redeem_invite_scan_qr">Scan QR code</string>
     <string name="redeem_invite_scan_stop">Stop scanning</string>
+    <!-- A member accepted a shared folder, but the relay wants an account first (402, entitlement enforcement).
+         The acceptance is retried meanwhile; the free tier counts. -->
+    <string name="shared_with_me_needs_account">Create a free account to join this folder. You've accepted it; it opens as soon as you have an account.</string>
+    <string name="shared_with_me_needs_account_action">Open Control</string>
 </resources>

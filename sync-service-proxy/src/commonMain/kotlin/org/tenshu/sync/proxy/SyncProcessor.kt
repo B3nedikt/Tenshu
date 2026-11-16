@@ -20,6 +20,7 @@ import org.tenshu.core.number.TInteger
 import org.tenshu.core.security.SyncCryptoManager
 import org.tenshu.core.trait.ConflictStrategy
 import org.tenshu.core.trait.Syncable
+import org.tenshu.core.common.util.sha256
 import org.tenshu.identity.Device
 import org.tenshu.identity.EntitlementSignature
 import org.tenshu.identity.EntitlementUnverifiedError
@@ -123,6 +124,13 @@ class SyncProcessor(
      * otherwise a removed member would keep authoring power for ever.
      */
     private val realmRetiredKeys: List<RetiredRealmKeys> = emptyList(),
+    /**
+     * GR-7: called when a **shared-realm** block opens under no key this processor holds — the sign this device was
+     * not sent a newer realm key (its re-key expired in the mailbox, or it was offline past the TTL). ⚠ Only a hint:
+     * a forged or corrupt block looks the same, so all it may cause is a rate-limited request for the current key,
+     * whose answer is checked like any re-key (`SharedRealmGrantManager.applyRekey`).
+     */
+    private val onUnopenableBlock: ((blockPhysicalTime: Long) -> Unit)? = null,
     /**
      * SR-M.1b-pull: the HLC this processor advances on every ingested block. A
      * shared realm keeps its own clock so a shared-realm block never bumps the
@@ -249,6 +257,11 @@ class SyncProcessor(
 
         val idHash = block.targetEntityIdHash.get()
         val dataId = tombstoneRegistry.resolveDataId(idHash) ?: return@transaction
+        // ⚠⚠ §5b R6b: the device-record set is append-only. Anyone with the realm key can author a
+        // tombstone, so honouring one here would let them erase a removal and bring the device back.
+        if (dataId.type.get() == org.tenshu.identity.DeviceRecord.ID) return@transaction
+        // MR-2: membership records are append-only for the same reason.
+        if (dataId.type.get() == org.tenshu.identity.MembershipRecord.ID) return@transaction
 
         // Order-independence (`sync-lane-cursor-split.md` L1a). The block path already
         // handles "tombstone first, newer recreate second" — [resolveConflictAndSave]'s
@@ -351,7 +364,10 @@ class SyncProcessor(
             }
             return parsed
         }
-        if (!anyOpened) EnvelopeRejections.record(EnvelopeRejections.Kind.BLOCK_ENVELOPE, block.blockId.get())
+        if (!anyOpened) {
+            EnvelopeRejections.record(EnvelopeRejections.Kind.BLOCK_ENVELOPE, block.blockId.get())
+            if (realmKeys != null) onUnopenableBlock?.invoke(block.hlc.physicalTime.get())
+        }
         return null
     }
 
@@ -755,7 +771,11 @@ class SyncProcessor(
         // drop the update — the entity is dead at this point in time. A future update with
         // hlc > tombstone.hlc is treated as a recreate and falls through to the normal path.
         val tombstoneHlc = tombstoneRegistry.tombstoneHlcFor(dataIdHash.toString())
-        if (tombstoneHlc != null && tombstoneHlc.compare(hlc) >= 0) return@transaction
+        // ⚠ §5b R6b: a device record is never dead — its validity is its signature, not the store's
+        // history — so a tombstone recorded at its key cannot keep it out (see [applyVerifiedDeleteBlock]).
+        val exemptFromTombstones = dataId.type.get() == org.tenshu.identity.DeviceRecord.ID ||
+            dataId.type.get() == org.tenshu.identity.MembershipRecord.ID
+        if (!exemptFromTombstones && tombstoneHlc != null && tombstoneHlc.compare(hlc) >= 0) return@transaction
 
         // Stale-epoch rejection (T-K-02 in `docs/sync/threat-model.md`): a `Device` entity
         // block whose `admittedAtEpoch` is older than this receiver's `currentRealmEpoch`
@@ -765,6 +785,26 @@ class SyncProcessor(
         // tombstones land — see `docs/adr/0007-sync-device-management.md` "Recovery race against
         // revocation" carve-out.
         if (isStaleDeviceBlock(incomingData, blockLabel)) return@transaction
+        if (isRemovedDeviceBlock(incomingData, blockLabel)) return@transaction
+        // MR-2: a shared realm's membership record — valid, and never over a valid one (LWW off).
+        if (incomingData is org.tenshu.identity.MembershipRecord && !membershipRecords.acceptsIncoming(incomingData)) {
+            println("SyncProcessor: dropping MembershipRecord block $blockLabel — unverifiable, or a valid record is already stored at its key")
+            return@transaction
+        }
+        // MR-2: a revoked member's `Member` row never comes back (a revocation is permanent, so this is order-safe).
+        if (isRefusedMemberRow(incomingData, blockLabel)) return@transaction
+        // GR-7: a membership row carrying a key this device already retired never becomes current again.
+        if (isRetiredRealmKeyMembership(incomingData, blockLabel)) return@transaction
+        // ⚠ Device records belong to the PERSONAL realm only (they verify against its id): a shared realm's
+        // processor drops them, so a member cannot plant rows in the relation the personal records live in.
+        if (dataId.type.get() == org.tenshu.identity.DeviceRecord.ID && realmKeys != null) {
+            println("SyncProcessor: dropping DeviceRecord block $blockLabel — device records never travel in a shared realm")
+            return@transaction
+        }
+        if (dataId.type.get() == org.tenshu.identity.DeviceRecord.ID && !deviceRecords.acceptsIncoming(incomingData)) {
+            println("SyncProcessor: dropping DeviceRecord block $blockLabel — unverifiable, or a valid record is already stored at its key")
+            return@transaction
+        }
 
         // Publisher-signature check (`entitlement-trust-anchor-distribution.md` D1): an incoming
         // `Entitlement` whose signature doesn't verify is REPORTED, not dropped — see
@@ -856,6 +896,93 @@ class SyncProcessor(
                 )
             }
         }
+    }
+
+    /**
+     * §5b R6a: drop an incoming `Device` row for a device the realm's signed records say is **removed**
+     * (`DeviceRecords`). Without it, a removed device that pushed a rename before its access was cut
+     * would reappear in every peer's device list through last-writer-wins, records or not.
+     * ⚠ Only a valid A1 (or self) record removes; a re-admission record lifts it (R6b).
+     */
+    private fun isRemovedDeviceBlock(incomingData: Data, blockLabel: String): Boolean {
+        // ⚠ The personal realm's processor only: its records verify against the personal realm's id.
+        // A shared realm's processor (own `realmKeys`) applies its own realm's records (RO-3).
+        if (realmKeys != null) return false
+        if (incomingData !is Entity<*>) return false
+        if (incomingData.type.get() != Device.ID) return false
+        val deviceId = runCatching {
+            incomingData.getFieldValue<org.tenshu.core.TString>(Device.Fields.DEVICE_ID).get()
+        }.getOrNull() ?: return false
+        if (!deviceRecords.isRemoved(deviceId)) return false
+        println("SyncProcessor: dropping Device block $blockLabel — the realm's signed records say it was removed")
+        return true
+    }
+
+    private val deviceRecords by lazy { DeviceRecords(executionContext, syncManager, cryptoManager) }
+
+    private val membershipRecords by lazy { MembershipRecords(executionContext, cryptoManager) }
+
+    private val membershipVerifier by lazy { org.tenshu.sync.common.Ed25519SignatureVerifier(cryptoManager::verifyEd25519) }
+
+    /**
+     * MR-2: drop an incoming `Member` row for a member the realm's signed records revoked. ⚠ Only revocation is
+     * enforced here, never "not yet granted": a row can arrive before its capability record (separate blocks),
+     * and dropping it then would lose it for good. Never-granted rows are hidden at read time instead
+     * (`GetRealmMembers`).
+     */
+    private fun isRefusedMemberRow(incomingData: Data, blockLabel: String): Boolean {
+        val member = incomingData as? org.tenshu.identity.Member ?: return false
+        // MR-3: only the owner writes a `Member` row (RO D7) and signs it with the realm master. The signature
+        // is self-certifying (its key binds to the realm id), so this is order-safe — and an unsigned or forged
+        // row, which any realm-key holder could push, never lands or overwrites a signed one.
+        if (!org.tenshu.sync.common.MemberRowAttestation.isValid(member, membershipVerifier)) {
+            println("SyncProcessor: dropping Member block $blockLabel — not signed by the realm master")
+            return true
+        }
+        // ⚠⚠ Ordered by the owner's signed `signedAt`, not by this block's HLC: a realm-key holder can re-push an older
+        // owner-signed row as a fresh block, and LWW alone would let it undo a later edit (a renamed or re-roled row).
+        val stored = executionContext.getDataId(incomingData)?.let { executionContext.database.getData(it) } as? org.tenshu.identity.Member
+        if (org.tenshu.sync.common.MemberRowAttestation.isOlderThanStored(member, stored, membershipVerifier)) {
+            println("SyncProcessor: dropping Member block $blockLabel — older than the owner-signed row stored")
+            return true
+        }
+        if (!membershipRecords.isRevoked(member.realmId.get(), member.memberId.get())) return false
+        println("SyncProcessor: dropping Member block $blockLabel — the realm's signed records revoked that member")
+        return true
+    }
+
+    /**
+     * GR-7: refuse a [org.tenshu.identity.SharedRealmMembership] whose wrapped key is one this device has
+     * already retired ([org.tenshu.identity.RetainedRealmKey], keyed `realm::sha256(wrapped)`).
+     *
+     * ⚠⚠ LWW alone does not stop it. `isNewer` compares only against the last *ingested* version, so the
+     * relay's echo of this device's own pre-rotation row lands over the rotation's newer local write and
+     * reinstates the retired `Kr` as current — and new content would then be encrypted under a key the
+     * removed member still holds. A rotation always mints a fresh key, so a retired key is never
+     * legitimately current again. It matches bytes, so it covers exactly the rows the rotation retired
+     * (with real crypto a re-wrap never matches: `sealToIdentity` uses a fresh ephemeral key each call; the
+     * deterministic test stub is the exception).
+     *
+     * ⚠ It only ever stops a *revert*: with no membership row stored for the realm it lets the row in. A
+     * device that ingests the retired-key record before the realm's only surviving membership row (a rotation
+     * cut short between its two saves) then holds the retired key, as it would without this guard, rather
+     * than losing the realm.
+     */
+    @OptIn(ExperimentalStdlibApi::class)
+    private fun isRetiredRealmKeyMembership(incomingData: Data, blockLabel: String): Boolean {
+        val membership = incomingData as? org.tenshu.identity.SharedRealmMembership ?: return false
+        val realmId = membership.sharedRealmId.get()
+        val storedId = StringDataId.create(executionContext.context, org.tenshu.identity.SharedRealmMembership.ID, realmId)
+        if (executionContext.database.getData(storedId) == null) return false
+        val keyId = sha256(membership.wrappedMasterKey.get()).toHexString()
+        val retiredId = StringDataId.create(
+            executionContext.context,
+            org.tenshu.identity.RetainedRealmKey.ID,
+            org.tenshu.identity.RetainedRealmKey.compositeKey(realmId, keyId),
+        )
+        if (executionContext.database.getData(retiredId) == null) return false
+        println("SyncProcessor: dropping SharedRealmMembership block $blockLabel — it carries a key this device retired")
+        return true
     }
 
     /**

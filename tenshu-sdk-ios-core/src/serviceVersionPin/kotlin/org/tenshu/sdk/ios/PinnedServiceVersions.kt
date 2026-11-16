@@ -46,7 +46,8 @@ object PinnedServiceVersions {
         "tenshu/health/service" to 1,
         "tenshu/home/device/service" to 1,
         "tenshu/hub/management/service" to 1,
-        "tenshu/identity" to 1,
+        // v2: `DeviceRecord` + membership records, MR-3's `Member` reshape (`sync-entity-identity.md` §5b R6).
+        "tenshu/identity" to 2,
         "tenshu/inference/service" to 1,
         "tenshu/ingest/service" to 1,
         "tenshu/logging/service" to 1,

@@ -324,7 +324,17 @@ class MockSyncRelay(
     /** Test accessor: the ownerIds bootstrapped via [createRealm], in call order. */
     fun createdRealms(): List<String> = createdRealms.toList()
 
+    private val createdRealmFirstDevices = mutableListOf<Triple<String, String, ByteArray>>()
+
+    /** Test accessor: each [createRealm]'s `(ownerId, firstDeviceId, firstDevicePublicKey)`, in call order. */
+    fun createdRealmFirstDevices(): List<Triple<String, String, ByteArray>> = createdRealmFirstDevices.toList()
+
     private val admittedDevices = mutableListOf<Triple<String, String, ByteArray>>()
+
+    private val admittedStamps = mutableMapOf<Pair<String, String>, String?>()
+
+    /** Test accessor: the `admittedAtHlc` [admitDevice] carried for `(ownerId, deviceId)`. */
+    fun admittedStamp(ownerId: String, deviceId: String): String? = admittedStamps[ownerId to deviceId]
 
     /** Test accessor: the `(ownerId, deviceId, devicePublicKey)` admitted via [admitDevice]. */
     fun admittedDevices(): List<Triple<String, String, ByteArray>> = admittedDevices.toList()
@@ -340,6 +350,7 @@ class MockSyncRelay(
         latency(500)
         refuseUnderivedId(newDeviceId, newDevicePublicKey)?.let { return it }
         admittedDevices.add(Triple(ownerId, newDeviceId, newDevicePublicKey))
+        admittedStamps[ownerId to newDeviceId] = admittedAtHlc
         return TResult.Success.create(context, value = null)
     }
 
@@ -356,6 +367,7 @@ class MockSyncRelay(
         // Mock relay just acks + records the ownerId; tests that exercise the real
         // bootstrap-verification flow use the Ktor relay.
         createdRealms.add(ownerId)
+        createdRealmFirstDevices.add(Triple(ownerId, firstDeviceId, firstDevicePublicKey))
         return TResult.Success.create(context, value = null)
     }
 

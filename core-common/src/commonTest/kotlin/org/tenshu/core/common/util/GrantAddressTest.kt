@@ -58,4 +58,35 @@ class GrantAddressTest {
                 .contentEquals(deriveGrantAddress(alice, bob, other)),
         )
     }
+
+    // ── Acceptance address (read-only-members D7) ───────────────────────────────────────────
+
+    @Test
+    fun acceptancePinnedCrossPlatformVector() {
+        // Pinned 2026-11-11 by the first implementation; every platform must reproduce it.
+        assertEquals(PINNED_ACCEPTANCE, deriveAcceptanceAddress(alice, bob, secret, "realm-1").toHexString())
+    }
+
+    /** ⚠⚠ Per realm: one slot per address, last write wins, so two acceptances must never share one. */
+    @Test
+    fun acceptanceAddressDiffersPerRealm() {
+        assertFalse(
+            deriveAcceptanceAddress(alice, bob, secret, "realm-1").contentEquals(deriveAcceptanceAddress(alice, bob, secret, "realm-2")),
+        )
+    }
+
+    /** ⚠⚠ Never a grant address, so an acceptance can never be picked up as a grant or the reverse. */
+    @Test
+    fun anAcceptanceAddressIsNeverTheGrantAddress() {
+        assertFalse(deriveAcceptanceAddress(alice, bob, secret, "realm-1").contentEquals(deriveGrantAddress(alice, bob, secret)))
+    }
+
+    @Test
+    fun acceptanceAddressIsSixteenBytes() {
+        assertEquals(GRANT_ADDRESS_LENGTH, deriveAcceptanceAddress(alice, bob, secret, "realm-1").size)
+    }
+
+    private companion object {
+        const val PINNED_ACCEPTANCE = "77b88d83bbcd006e8a2d2b61bc93c5cb"
+    }
 }

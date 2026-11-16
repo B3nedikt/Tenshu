@@ -170,13 +170,14 @@ export default function MapView(props: TenshuMapProps & { labels: TenshuMapLabel
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the camera and overlays update in place below
   }, [tileUrl, theme, language, props.glyphsBase])
 
-  // Overlays update in place.
+  // Overlays update in place — each source on its own change. ⚠ Not one effect for both: a pin that
+  // follows a pointer (Fit's chart cursor) would re-upload a whole route's GeoJSON on every move.
   useEffect(() => {
-    const m = map.current
-    if (!m) return
-    ;(m.getSource(PINS_SOURCE) as GeoJSONSource | undefined)?.setData(pinsSource(pins).data)
-    ;(m.getSource(POLYLINES_SOURCE) as GeoJSONSource | undefined)?.setData(polylinesSource(polylines).data)
-  }, [pins, polylines])
+    ;(map.current?.getSource(PINS_SOURCE) as GeoJSONSource | undefined)?.setData(pinsSource(pins).data)
+  }, [pins])
+  useEffect(() => {
+    ;(map.current?.getSource(POLYLINES_SOURCE) as GeoJSONSource | undefined)?.setData(polylinesSource(polylines).data)
+  }, [polylines])
 
   // The camera moves in place — on a new camera, and when an anchored camera's region box arrives.
   // ⚠ Never after a pan: the user's view wins until the next camera prop.

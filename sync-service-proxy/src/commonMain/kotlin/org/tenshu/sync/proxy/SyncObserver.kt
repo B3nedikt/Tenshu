@@ -6,6 +6,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
+import org.tenshu.core.time.HybridLogicalClock
 import org.tenshu.core.Data
 import org.tenshu.core.TResult
 import org.tenshu.core.common.util.bestEffort
@@ -62,6 +63,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.tenshu.sync.common.PendingContentEmit
+import org.tenshu.core.common.util.HLCManager
 import org.tenshu.sync.common.RealmContext
 import org.tenshu.sync.common.SyncBlockEmitter
 import org.tenshu.sync.common.SyncGate
@@ -441,7 +443,7 @@ class SyncObserver(
                         } catch (e: CancellationException) {
                             throw e
                         } catch (e: Throwable) {
-                            e.printStackTrace()
+                            consumerError("a save", e)
                         }
 
                     is EmitEvent.Barrier -> event.signal.complete(Unit)
@@ -457,7 +459,7 @@ class SyncObserver(
                         } catch (e: CancellationException) {
                             throw e
                         } catch (e: Throwable) {
-                            e.printStackTrace()
+                            consumerError("a lane checkpoint", e)
                         } finally {
                             event.ack.complete(Unit)
                         }
@@ -469,7 +471,7 @@ class SyncObserver(
                         } catch (e: CancellationException) {
                             throw e
                         } catch (e: Throwable) {
-                            e.printStackTrace()
+                            consumerError("a lane close", e)
                         } finally {
                             event.ack.complete(Unit)
                         }
@@ -481,7 +483,7 @@ class SyncObserver(
                         } catch (e: CancellationException) {
                             throw e
                         } catch (e: Throwable) {
-                            e.printStackTrace()
+                            consumerError("the lane journal replay", e)
                         } finally {
                             event.ack.complete(Unit)
                         }
@@ -1559,6 +1561,17 @@ class SyncObserver(
         lane.spilled = true
     }
 
+    /**
+     * Where the emit consumer reports an exception it swallowed: a save, checkpoint, close or replay
+     * that threw. The consumer goes on, and a lane event is acknowledged anyway. A test seam.
+     *
+     * ⚠⚠ A test that checks the journal or the queue after a lane event must fail on this, not just
+     * on the state it reads. A throw part-way through a checkpoint leaves journal rows behind with
+     * every block queued, which reads as a bare `expected:<0> but was:<1>` and nothing else
+     * (`SyncLaneTest.aCheckpointThatThrows_isReported`).
+     */
+    internal var consumerError: (what: String, error: Throwable) -> Unit = { _, e -> e.printStackTrace() }
+
     /** Where [spill] logs. A test seam. */
     internal var laneLog: (String) -> Unit = ::println
 
@@ -1754,6 +1767,24 @@ class SyncObserver(
         )
     }
 
+    /** [emit] at the caller's authored stamp — the same resolve, the same refusals. */
+    override fun emitAt(
+        targetEntityId: DataId,
+        targetEntityType: String,
+        revokedDeviceId: String?,
+        authoredAt: HybridLogicalClock,
+    ): String? {
+        val resolved = wireIds.resolve(targetEntityId) ?: return null
+        return enqueueTombstone(
+            realm = resolved.realm,
+            targetEntityIdHash = resolved.wireName,
+            targetEntityType = targetEntityType,
+            revokedDeviceId = revokedDeviceId,
+            cascadeNames = emptyList(),
+            authoredAt = authoredAt,
+        )
+    }
+
     override fun emit(
         targetEntityIdHash: String,
         targetEntityType: String,
@@ -1772,6 +1803,8 @@ class SyncObserver(
         targetEntityType: String,
         revokedDeviceId: String?,
         cascadeNames: List<String>,
+        /** Null ticks a fresh stamp — every caller but [emitAt]. */
+        authoredAt: HybridLogicalClock? = null,
     ): String? {
         if (!syncManager.isEnabled()) return null
         // ⚠⚠ `isEnabled()` is a **global** answer and this block belongs to a *captured* realm. An
@@ -1799,7 +1832,7 @@ class SyncObserver(
             context = executionContext.context,
             blockId = generateId(),
             ownerId = ownerId,
-            hlc = syncManager.hlcManager.tick(),
+            hlc = authoredAt ?: syncManager.hlcManager.tick(),
             targetEntityIdHash = targetEntityIdHash,
             targetEntityType = targetEntityType,
             revokedDeviceId = revokedDeviceId
@@ -1947,6 +1980,14 @@ class SyncObserver(
         return blocks.map { it.blockId.get() }
     }
 
+    /**
+     * The clock a block for [realm] is stamped with. ⚠⚠ A shared realm's own clock, ticking as its
+     * realm-local device id — never the personal one, whose node id is the personal device id and is
+     * clear on every envelope (threat model T-GR-05). The personal realm keeps `syncManager.hlcManager`.
+     */
+    private fun clockFor(realm: RealmContext): HLCManager =
+        realmRegistry?.clockFor(realm, executionContext.context) ?: syncManager.hlcManager
+
     /** [EmitHandoff.Queued] once the block is queued; ⚠ not when there was no realm to make it in (nothing queued). */
     private fun generateSyncBlock(
         data: Data,
@@ -1980,7 +2021,8 @@ class SyncObserver(
 
         // ⚠⚠ The block's HLC is what an ingest compares against, its own echo included
         // ([TombstoneRegistry.recordEmittedWrite]): record it as this row's last local write.
-        val blockHlc = syncManager.hlcManager.tick()
+        // ⚠ The realm's own clock (T-GR-05): a shared realm's blocks never tick the personal HLC.
+        val blockHlc = clockFor(realm).tick()
         if (propertyId == null) tombstoneRegistry?.recordEmittedWrite(data, blockHlc)
 
         // Metadata blocks use the shared identity key, with the envelope bound as associated data
@@ -3092,7 +3134,7 @@ class SyncObserver(
                 context = executionContext.context,
                 blockId = generateId(),
                 ownerId = ownerId,
-                hlc = syncManager.hlcManager.tick(),
+                hlc = clockFor(realm).tick(),
                 targetEntityIdHash = wireIds.of(targetEntityId),
                 plaintext = manifestPlaintext,
                 identityKey = keys.sharedIdentityKey,

@@ -121,7 +121,9 @@
   "history": {
     "startOver": "Repartir du début",
     "title": "Séances",
-    "empty": "Aucune séance pour l’instant. Importez un fichier GPX ou TCX, ou enregistrez-en une sur votre téléphone."
+    "empty": "Aucune séance pour l’instant. Importez un fichier GPX ou TCX, ou enregistrez-en une sur votre téléphone.",
+    "weekOf": "Semaine du {date}",
+    "weekCount": "{count, plural, one {# séance} other {# séances}}"
   },
   "activity": {
     "Running": "Course",
@@ -164,7 +166,20 @@
     "delete": "Supprimer la séance",
     "deleteTitle": "Supprimer cette séance ?",
     "deleteBody": "Elle sera retirée de tous vos appareils. Cette action est irréversible.",
-    "deleteConfirm": "Supprimer"
+    "deleteConfirm": "Supprimer",
+    "paceChart": "Allure",
+    "paceAria": "Allure pendant la séance",
+    "elevation": "Altitude",
+    "elevationAria": "Altitude, de {min} à {max}",
+    "ascent": "Dénivelé positif",
+    "splits": "Fractions",
+    "splitKm": "km",
+    "splitMi": "mi",
+    "splitTime": "Temps",
+    "splitPace": "Allure",
+    "splitHr": "FC moy.",
+    "splitBest": "Fraction la plus rapide",
+    "avgPace": "Moy. {value}"
   },
   "map": {
     "map": "Carte",
@@ -248,5 +263,34 @@
       "Unavailable": "Indisponible sur cet appareil",
       "Sample": "Données d’exemple"
     }
+  },
+  "trend": {
+    "steps": "{value} pas",
+    "goal": "Objectif {value}",
+    "monthReadout": "{value} par jour · {month}",
+    "aria": {
+      "week": "{metric}, les 7 derniers jours",
+      "month": "{metric}, les 30 derniers jours",
+      "year": "{metric}, les 12 derniers mois par mois"
+    },
+    "km": "{value} km",
+    "mi": "{value} mi"
+  },
+  "elevation": {
+    "m": "{value} m",
+    "ft": "{value} ft"
+  },
+  "home": {
+    "minutes": "min",
+    "goalReached": "Objectif atteint",
+    "toGo": "Encore {value} min",
+    "who": "L’OMS recommande 150 minutes actives par semaine.",
+    "thisWeek": "Cette semaine",
+    "weekTotal": "{value} cette semaine",
+    "delta": "{value} % vs semaine dernière",
+    "latest": "Dernière séance"
+  },
+  "metricPage": {
+    "entries": "Jour par jour"
   }
 }

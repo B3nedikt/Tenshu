@@ -73,19 +73,28 @@ const glance: AppGlance = {
       .filter(o => o.endEpochMs > nowMs)
       .sort((a, b) => a.startEpochMs - b.startEpochMs)
       .slice(0, UPCOMING)
-      .map(o => ({
-        title: o.title,
-        titleKey: '',
+      .map(o => {
         // An all-day event already under way (a conference since yesterday) is labelled by today,
         // not by the day it began.
-        startLocal: o.allDay
+        const startLocal = o.allDay
           ? o.startEpochMs < nowMs
             ? civilDate(now)
             : o.startLocal.slice(0, 10)
-          : localDateTime(o.startEpochMs),
-        allDay: o.allDay,
-        detail: o.location,
-      }))
+          : localDateTime(o.startEpochMs)
+        return {
+          title: o.title,
+          titleKey: '',
+          startLocal,
+          allDay: o.allDay,
+          detail: o.location,
+          // A click opens the event in Calendar's day view (web-apex-home.md §4.11): the day the row
+          // names, the event and which occurrence of it. Ids only — never its title.
+          open: {
+            section: '',
+            fragment: new URLSearchParams({ day: startLocal.slice(0, 10), event: o.eventId, rid: o.recurrenceId }).toString(),
+          },
+        }
+      })
     return { layout: 'agenda', rows }
   },
 }
@@ -94,6 +103,8 @@ type OccurrencesResult =
   | {
       readonly ok: true
       readonly occurrences: readonly {
+        readonly eventId: string
+        readonly recurrenceId: string
         readonly title: string
         readonly location: string
         readonly startLocal: string

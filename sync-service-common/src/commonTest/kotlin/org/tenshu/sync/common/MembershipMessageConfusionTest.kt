@@ -91,4 +91,31 @@ class MembershipMessageConfusionTest {
         // Control: the genuine capability still admits, so the fix isn't just breaking everything.
         assertTrue(MembershipChainVerifier.verifyCapability(masterKey, capability, crypto::verifyEd25519))
     }
+
+    /**
+     * RO D7: A26 signs both device bindings and acceptances, so neither may verify as the other — else an
+     * acceptance signature could admit a device, or a binding could fake an acceptance.
+     */
+    @Test
+    fun anAcceptanceAndADeviceBindingCannotCollide() {
+        val acceptance = MembershipAcceptance.message(realmId, memberAuthority, displayName = "", contactFingerprint = "fp", acceptedAt = 1_000L)
+        val binding = MemberDeviceBinding.message(realmId, "device-1", memberAuthority, boundAt = 1_000L)
+        assertFalse(acceptance.contentEquals(binding))
+        val signature = crypto.signEd25519(memberAuthority, acceptance)
+        assertFalse(crypto.verifyEd25519(memberAuthority, binding, signature), "an acceptance signature never verifies as a binding")
+    }
+
+    /** MR-3: the master signs member rows too — a row signature must never verify as a capability or revocation. */
+    @Test
+    fun aMemberRowSignatureCannotBeReplayedAsACapabilityOrRevocation() {
+        val row = MemberRowAttestation.message(realmId, "member-1", "", "", "member", 1_000L, 1_000L)
+        val signature = crypto.signEd25519(masterKey, row)
+        for (other in listOf(
+            MembershipCapability.message(realmId, memberAuthority, epoch = 0L, issuedAt = 1_000L),
+            MembershipRevocation.message(realmId, memberAuthority, epoch = 0L, revokedAt = 1_000L),
+        )) {
+            assertFalse(row.contentEquals(other))
+            assertFalse(crypto.verifyEd25519(masterKey, other, signature))
+        }
+    }
 }

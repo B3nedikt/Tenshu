@@ -24,6 +24,11 @@ data class SyncDashboardUiState(
      * roster shows the user-chosen name alone; join the two with `deviceDisplayLabel`.
      */
     val deviceHardwareNames: Map<String, String> = emptyMap(),
+    /**
+     * The devices the realm's signed records say are removed (§5b R6c), newest first — the
+     * "Removed" section. Their roster rows are gone, so this is where they still show.
+     */
+    val removedDevices: List<app.tenshu.control.data.RemovedDevice> = emptyList(),
     val currentDeviceId: String = "",
     val isLoading: Boolean = false,
     val isSyncEnabled: Boolean = false,

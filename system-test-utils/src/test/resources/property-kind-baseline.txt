@@ -83,13 +83,17 @@ tenshu/home/device/service/deviceStates|tenshu/home/device/service|CHILD_ROW
 tenshu/home/device/service/homeDevices|tenshu/home/device/service|CHILD_ROW
 tenshu/hub/management/service/hubCommands|tenshu/hub/management/service|CHILD_ROW
 tenshu/hub/management/service/hubStatuses|tenshu/hub/management/service|CHILD_ROW
+tenshu/identity/awaitedAcceptances|tenshu/identity|CHILD_ROW
 tenshu/identity/devices|tenshu/identity|CHILD_ROW
 tenshu/identity/hardwareDescriptions|tenshu/identity|CHILD_ROW
 tenshu/identity/lastSeenObservations|tenshu/identity|CHILD_ROW
 tenshu/identity/members|tenshu/identity|CHILD_ROW
+tenshu/identity/outboundAcceptances|tenshu/identity|CHILD_ROW
 tenshu/identity/pendingGrants|tenshu/identity|CHILD_ROW
 tenshu/identity/retainedRealmKeys|tenshu/identity|CHILD_ROW
 tenshu/identity/sharedRealmMemberships|tenshu/identity|CHILD_ROW
+tenshu/identity/signedDeviceRecords|tenshu/identity|CHILD_ROW
+tenshu/identity/signedMembershipRecords|tenshu/identity|CHILD_ROW
 tenshu/notification/service/dismissedRequests|tenshu/notification/service|CHILD_ROW
 tenshu/notification/service/notifications|tenshu/notification/service|CHILD_ROW
 tenshu/photo/service/albumEntries|tenshu/photo/service|CHILD_ROW

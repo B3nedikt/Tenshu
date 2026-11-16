@@ -69,8 +69,8 @@ class SharedRealmAutoJoinTest {
         val components = proxy.executionContext.initSyncService(
             syncManager = syncManager,
             cryptoManager = crypto,
-            sharedRealmRelayFactory = { ownerId ->
-                relayRequests += ownerId
+            grantedRelayFactory = { realm ->
+                relayRequests += realm.ownerId
                 MockSyncRelay(proxy.tContext)
             },
             // Nothing here steps or waits on the loops, so they are never started — a loop that

@@ -49,6 +49,7 @@ import platform.darwin.dispatch_semaphore_wait
 import kotlin.concurrent.AtomicInt
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.random.Random
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -70,6 +71,10 @@ import kotlin.time.TimeSource
  * temporary directories. Every name is made up.
  */
 class SharedReplicaHostTest {
+
+    /** Stops the graphs this class assembled (`TestGraphs`, `docs/testing-flakes.md`). */
+    @AfterTest
+    fun stopTestGraphs() = TestGraphs.stopAll()
 
     /** The slice of `UIApplication` the adapter uses, recording each assertion and its handler. */
     private class HostApp(background: Boolean = false) : UiKitApplication {

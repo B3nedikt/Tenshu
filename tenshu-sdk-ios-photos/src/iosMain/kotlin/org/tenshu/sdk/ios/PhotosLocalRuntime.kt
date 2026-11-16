@@ -253,6 +253,7 @@ object PhotosLocalRuntime {
         )
         val client = base.tenshuClient
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        base.stopsWithTestGraph(scope)
         // ⚠ No schema-skew source: route 1 runs this app's own proxy, so there is no app↔proxy
         // skew to announce (Android's announce path has no counterpart), and `null` degrades to the
         // pre-SK-1 behaviour rather than failing.

@@ -88,6 +88,13 @@ class PairingResponseInbox(
     private var lastSweepMs: Long = 0L
 
     /**
+     * Test seam: runs inside [post]'s transition, between the consumed check and the insert — the
+     * window an overlapping [ack] must not be able to complete in. `null` in production. Set and
+     * read on the posting thread only (the ack never reads it), so it needs no `@Volatile`.
+     */
+    internal var afterConsumedCheck: (() -> Unit)? = null
+
+    /**
      * Store (or replace — the host's self-heal retry re-posts the same response) the response
      * for [pairingSecretHash]. Refused once the hash has been acked.
      */
@@ -103,6 +110,7 @@ class PairingResponseInbox(
         // mailbox would report consumed while serving the refill for another TTL.
         synchronized(transition) {
             if (isConsumed(pairingSecretHash)) return PostResult.CONSUMED
+            afterConsumedCheck?.invoke()
             live[pairingSecretHash] = Live(encryptedKey, registration, now)
         }
         return PostResult.STORED

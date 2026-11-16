@@ -50,10 +50,21 @@ import org.tenshu.sync.common.hlcTipCanonicalMessage
  * and returns its `publicKey`. Returning `null` means "I don't know this device yet";
  * the tracker treats it as a transient state and skips signature verification (no
  * warning emitted) rather than crying wolf during the propagation window.
+ *
+ * A device the realm's signed records say is **removed** ([isRemoved], `sync-entity-identity.md` §5b
+ * R6c) is treated as unknown: its tips are ignored, its floor is forgotten, and a standing warning
+ * about it is cleared. ⚠ Its `Device` row is gone, so the key lookup already returns `null`; without
+ * this the regression check still ran on it, and a relay that served the removed device's last tip
+ * out of order raised a warning about a device the user had removed.
  */
 class HlcDivergenceTracker(
     private val cryptoManager: SyncCryptoManager,
     private val publicKeyLookup: (deviceId: String) -> ByteArray?,
+    /**
+     * Whether the realm's signed device records say [deviceId] is removed. ⚠ Required for the same
+     * reason as [nowMs]: a wiring that forgot it would silently keep warning about removed devices.
+     */
+    private val isRemoved: (deviceId: String) -> Boolean,
     /**
      * Wall clock for [DivergenceWarning.observedAtMillis]. Deliberately **required**: a default
      * would stamp every warning from an un-updated wiring at epoch 0, which a recency-bounded
@@ -74,6 +85,14 @@ class HlcDivergenceTracker(
      */
     fun observe(tip: SignedHlcTip) {
         val deviceId = tip.deviceId.get()
+
+        // §5b R6c: a removed device is not a peer. Its relay tip is pruned at revocation, so a warning
+        // about it would otherwise never see the forward progress that clears it.
+        _warning.value?.let { if (isRemoved(it.peerDeviceId)) _warning.value = null }
+        if (isRemoved(deviceId)) {
+            highestSeenByDevice.remove(deviceId)
+            return
+        }
 
         if (tip.hlc.physicalTime.get() <= 0L) {
             // An all-zero HLC (physical time 0) is the relay's "no tip yet" sentinel for a

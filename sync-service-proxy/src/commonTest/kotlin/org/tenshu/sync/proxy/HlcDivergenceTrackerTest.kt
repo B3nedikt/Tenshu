@@ -46,8 +46,10 @@ class HlcDivergenceTrackerTest {
      */
     private var clockMs = 1_000L
 
+    private val removed = mutableSetOf<String>()
+
     private fun newTracker(publicKeyLookup: (String) -> ByteArray?) =
-        HlcDivergenceTracker(crypto, publicKeyLookup) { clockMs }
+        HlcDivergenceTracker(crypto, publicKeyLookup, isRemoved = { it in removed }) { clockMs }
 
     @BeforeTest
     fun setup() {
@@ -281,6 +283,32 @@ class HlcDivergenceTrackerTest {
         tracker.observe(signedTip(physicalTime = 100L))
         assertNotNull(tracker.warning.value)
         tracker.clearWarning()
+        assertNull(tracker.warning.value)
+    }
+
+    // ── §5b R6c: a removed device is unknown ──────────────────────────────────────────────────
+
+    @Test
+    fun aRemovedDevice_isIgnored_evenWhenItRegresses() {
+        val tracker = newTracker { null } // its Device row is gone
+        tracker.observe(signedTip(physicalTime = 200L))
+        removed += peerId
+        tracker.observe(signedTip(physicalTime = 100L))
+
+        assertNull(tracker.warning.value)
+        assertTrue(peerId !in tracker.seenPeerDeviceIds(), "its floor is forgotten")
+    }
+
+    @Test
+    fun aStandingWarningAboutADevice_clearsOnceItIsRemoved() {
+        val tracker = newTracker { peerPublicKey }
+        tracker.observe(signedTip(physicalTime = 200L))
+        tracker.observe(signedTip(physicalTime = 100L))
+        assertNotNull(tracker.warning.value)
+
+        removed += peerId
+        tracker.observe(signedTip(physicalTime = 100L))
+
         assertNull(tracker.warning.value)
     }
 }

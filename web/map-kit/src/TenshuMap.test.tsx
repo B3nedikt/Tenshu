@@ -4,11 +4,12 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RegionAccess } from './regions'
 
-const { webgl, MapCtor, fits, maps } = vi.hoisted(() => ({
+const { webgl, MapCtor, fits, maps, setData } = vi.hoisted(() => ({
   webgl: { ok: true },
   MapCtor: vi.fn(),
   fits: vi.fn(),
   maps: [] as Array<{ handlers: Record<string, (e: unknown) => void>; center: { lat: number; lng: number }; zoom: number }>,
+  setData: vi.fn(),
 }))
 vi.mock('./webgl', () => ({ supportsWebGL: () => webgl.ok }))
 vi.mock('maplibre-gl', () => {
@@ -36,8 +37,8 @@ vi.mock('maplibre-gl', () => {
       fits('center', options)
     }
     remove() {}
-    getSource() {
-      return undefined
+    getSource(id: string) {
+      return { setData: (data: unknown) => setData(id, data) }
     }
   }
   return { default: { Map: FakeMap, addProtocol: vi.fn() } }
@@ -58,6 +59,17 @@ describe('<TenshuMap>', () => {
     MapCtor.mockClear()
     fits.mockClear()
     maps.length = 0
+  })
+
+  it('a pin change updates the pins only — never re-uploads the route line (a chart cursor moves per pointer move)', async () => {
+    const regionAt = vi.fn(async () => ({ ok: true as const, region: { regionId: 'it-toscana', name: 'Toscana', byteSize: 1, bounds: [9.6, 42.2, 12.4, 44.5] as const } }))
+    const polylines = [{ id: 'route', segments: [{ points: [camera.center, { lat: 43.78, lng: 11.26 }], color: '#7C3AED' }] }]
+    const pin = (lat: number) => [{ id: 'cursor', position: { lat, lng: 11.25 }, label: 'x' }]
+    const { rerender } = render(<TenshuMap regions={regions(regionAt)} camera={camera} polylines={polylines} pins={pin(43.77)} />)
+    await waitFor(() => expect(MapCtor).toHaveBeenCalledOnce())
+    setData.mockClear()
+    rerender(<TenshuMap regions={regions(regionAt)} camera={camera} polylines={polylines} pins={pin(43.775)} />)
+    expect(setData.mock.calls.map(([id]) => id)).toEqual(['tenshu-pins'])
   })
 
   it('without WebGL: an explicit "Map unavailable", and MapLibre is never constructed', async () => {

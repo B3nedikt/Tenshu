@@ -8,6 +8,7 @@ import kotlinx.coroutines.withTimeout
 import org.tenshu.core.common.delegate.InMemorySecureStorageDelegate
 import platform.Foundation.NSTemporaryDirectory
 import kotlin.random.Random
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -22,6 +23,9 @@ import kotlin.test.assertTrue
  * ⚠ Written on Linux, where nothing iOS compiles: the first Mac pass (HANDOFF H1) is its first run.
  */
 class PhotosLocalRuntimeTest {
+
+    @AfterTest
+    fun stopGraphs() = TestGraphs.stopAll()
 
     private fun assemble() = PhotosLocalRuntime.assemble(
         replicaDirectory = NSTemporaryDirectory() + "photos-local-runtime-test-" + Random.nextLong().toString(16),
