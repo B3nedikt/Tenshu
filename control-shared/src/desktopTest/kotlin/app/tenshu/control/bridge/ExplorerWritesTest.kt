@@ -112,6 +112,22 @@ class ExplorerWritesTest {
     }
 
     @Test
+    fun nothingBelowAnIgnoredFolderIsUploaded() {
+        // Codex's case: a hidden folder holding an ordinary file. Neither is a candidate, nor anything deeper.
+        val local = listOf(
+            ordinary("private", folder = true, hidden = true),
+            ordinary("private/secret.txt"),
+            ordinary("private/deeper", folder = true),
+            ordinary("private/deeper/more.txt"),
+            ordinary("privateer.txt"), // a sibling sharing the prefix is not below it
+        )
+        assertEquals(listOf("privateer.txt"), ExplorerWrites.candidates(emptyList(), local, emptyMap(), now).map { it.relative })
+        // And nothing below it holds up the settle timer.
+        val fresh = listOf(ordinary("private", folder = true, hidden = true), ordinary("private/new.txt", modified = now))
+        assertEquals(null, ExplorerWrites.untilSettled(fresh, now))
+    }
+
+    @Test
     fun rowsDifferingOnlyInCase_resolveToTheOneTheFolderShows() {
         // Codex's case: /A.txt is shown, /a.txt is hidden; an edit of the shown one must never go to the hidden one.
         val remote = listOf(row("/a.txt"), row("/A.txt"))

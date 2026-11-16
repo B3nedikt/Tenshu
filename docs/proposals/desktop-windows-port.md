@@ -1058,6 +1058,16 @@ device at the same time; unit-tested).
   So every path that discards a copy's bytes — delete, cleanup, free — checks them first, on the handle that acts.
 
   Windows normally clears in-sync on any write, so all of this is defence in depth.
+- ⚠⚠ **One rule for which row a path means.** Of realm rows differing only in case, the folder shows the first in path
+  order (`ExplorerMirror.shown`). Every write and every delete or rename resolves to that row, or, for our own
+  placeholder **file**, to the **exact** row its identity names, never a case-insensitive match. ⚠ A **folder** always
+  resolves to the row it displays. A case-only rename made elsewhere leaves a folder's identity naming the old spelling,
+  because the mirror refreshes only file identities, so an exact match would drop the folder's later deletes and renames. Otherwise an edit, rename or
+  delete of the shown file lands on its hidden twin. Case-insensitive matching is only for what NTFS sees: whether
+  something already stands at a target.
+- **An ignored folder's contents are ignored too.** A hidden or system folder is never uploaded, and neither is
+  anything below it (`ExplorerWrites.excludedIn`): the scan walks the whole tree, so checking each entry's own
+  attributes uploaded a hidden folder's ordinary files one by one.
 - **A conflict copy is made once.** If handing the path back fails after the copy went up, the retry finds the realm
   sibling with the same bytes and a conflict name of this file, and only hands the path back.
 - **Writes wait out a suspect listing.** While the realm listing would remove most of the folder (the mass-removal
