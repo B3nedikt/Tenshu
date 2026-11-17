@@ -22,7 +22,10 @@ export function syncView(row: SyncRow | null, lost = false, paused = false): Syn
   if (row === null) return { key: 'checking', tone: 'muted' }
   switch (row.connectivity) {
     case 'online':
-      return row.isSyncing || row.pendingBlockCount > 0 ? { key: 'syncing', tone: 'busy' } : { key: 'synced', tone: 'ok' }
+      // ⚠⚠ Never `isSyncing`: the scheduler sets it for every tick's drain/pull whether or not
+      // anything moved, so the pill blinked Synced ↔ Syncing for ever on an idle browser
+      // (`SyncActivity.kt`, `evaluateSyncActivity`). Busy is real work waiting to go out.
+      return row.pendingBlockCount > 0 ? { key: 'syncing', tone: 'busy' } : { key: 'synced', tone: 'ok' }
     case 'offline':
       return { key: 'offline', tone: 'muted' }
     case 'deferred':

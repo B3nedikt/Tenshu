@@ -55,11 +55,11 @@ final class SharingClusterUITests: XCTestCase {
         attach(name: "redeem-parse-error")
     }
 
-    /// Invite-someone: Files → a folder → Manage Access → Invite someone → Generate renders a QR
+    /// Invite-someone: Files → a folder → Share → Invite someone (shares the folder first, §11) → Generate renders a QR
     /// (the headline `CIQRCodeGenerator` path) plus the copyable link, over the fake's demo invite.
     func test_invite_someone_generates_a_qr() {
         // Default tab is App → Files. Open the seeded "Photos" folder (a non-root folder has the
-        // Manage Access toolbar entry). List rows surface as static text, not buttons — tapping the
+        // Share toolbar entry). List rows surface as static text, not buttons — tapping the
         // name activates the row's NavigationLink.
         let photos = app.staticTexts["Photos"].firstMatch
         XCTAssertTrue(photos.waitForExistence(timeout: 5), "Seeded Photos folder missing")

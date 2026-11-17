@@ -34,6 +34,21 @@ private const val OWNER_RESOLVE_POLL_MS = 1_000L
 private const val USAGE_REFRESH_INTERVAL_MS = 60_000L
 
 /**
+ * The retry after a usage fetch that answered nothing, while no fetch has ever answered.
+ *
+ * ⚠ Until one fetch lands, `usedBytes` is the `0` placeholder, which a gauge draws as "0 B of
+ * 5 GB". A first fetch made at start-up — before the device's relay credential is ready, say —
+ * would otherwise leave that placeholder standing for the whole [USAGE_REFRESH_INTERVAL_MS].
+ */
+private const val USAGE_FIRST_RETRY_MS = 3_000L
+
+/**
+ * How many [USAGE_FIRST_RETRY_MS] retries before falling back to the interval. ⚠ Bounded: an offline
+ * device, or a relay answering 401/426, never answers, and must not be asked every 3 s for life.
+ */
+private const val USAGE_FIRST_RETRIES = 5
+
+/**
  * The **reader half** of the entitlement-derived storage figures
  * (storage-entitlement-sync.md slice 3), relocated out of `:control-shared`'s
  * `initEntitlementStorage` in web-storage-status.md Bucket 2 so both Control and
@@ -138,6 +153,10 @@ fun ExecutionContext.initEntitlementStorageReader(
     // in-flight request per interval behind it; the field is read and written only from the reader's
     // own scope, following the unsynchronised precedent the owner backstop below already sets.
     var usageFetchInFlight = false
+    // Whether any usage fetch has answered — until then [lastKnownUsage] is a placeholder, not a
+    // measurement, and a failed fetch is retried on [USAGE_FIRST_RETRY_MS] instead of the interval.
+    var usageEverReported = false
+    var fastUsageRetriesLeft = USAGE_FIRST_RETRIES
     // Report the unverified state on TRANSITION only. ⚠ `refreshFigures` runs on a 1s poll, so
     // reporting per derivation would flood the error stream with one row per second — the failure
     // it is meant to make visible would bury everything else in the log.
@@ -180,7 +199,17 @@ fun ExecutionContext.initEntitlementStorageReader(
         usageFetchInFlight = true
         scope.launch {
             try {
-                val (used, limit) = usageReader() ?: return@launch
+                val reported = usageReader()
+                if (reported == null) {
+                    // Never answered yet: try again soon rather than in a minute (see the constant).
+                    if (!usageEverReported && fastUsageRetriesLeft > 0) {
+                        fastUsageRetriesLeft--
+                        nextUsageRefreshAtMs = now() + USAGE_FIRST_RETRY_MS
+                    }
+                    return@launch
+                }
+                usageEverReported = true
+                val (used, limit) = reported
                 if (used != lastKnownUsage || limit != lastKnownRelayLimit) {
                     lastKnownUsage = used
                     lastKnownRelayLimit = limit

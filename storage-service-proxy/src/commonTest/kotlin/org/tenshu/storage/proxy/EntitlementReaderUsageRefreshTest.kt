@@ -203,6 +203,105 @@ class EntitlementReaderUsageRefreshTest {
 }
 
 /**
+ * ⚠⚠ **A first fetch that answers nothing must not leave the placeholder for a minute.** Until the
+ * relay answers once, `usedBytes` is `0` — the overview drew "0 B of 5 GB" on every cold load,
+ * because the start-up fetch came back empty and the next one was a whole interval away.
+ */
+class EntitlementReaderFirstUsageRetryTest {
+
+    private fun newProxy(): TestProxy = TestProxy(
+        schemaRegistry = createSyntheticTestRegistry().also {
+            it.registerConfig(identityServiceCommonModule)
+        },
+    )
+
+    private fun TestProxy.seedValidEntitlement(owner: String) {
+        executionContext.saveData(
+            Entitlement.create(
+                context = tContext,
+                ownerId = owner,
+                publisherId = "tenshu.dev",
+                productId = EntitlementProducts.PREMIUM,
+                validFrom = 0L,
+                validUntil = 9_000_000_000L,
+                publisherSignature = ByteArray(0),
+            ),
+        )
+    }
+
+    private suspend fun kotlinx.coroutines.test.TestScope.startWith(
+        answers: ArrayDeque<Pair<Long, Long?>?>,
+        clock: () -> Long,
+    ): Pair<EntitlementStorageProvider, () -> Int> {
+        val proxy = newProxy()
+        val provider = EntitlementStorageProvider()
+        var calls = 0
+        proxy.seedValidEntitlement("owner-x")
+        proxy.executionContext.initEntitlementStorageReader(
+            provider = provider,
+            ownerId = { "owner-x" },
+            now = clock,
+            scope = backgroundScope,
+            usageReader = {
+                calls++
+                answers.removeFirstOrNull()
+            },
+        )
+        runCurrent()
+        return provider to { calls }
+    }
+
+    @Test
+    fun anEmptyFirstFetch_isRetriedWithinSeconds() = runTest {
+        var nowMs = 1_000L
+        val (provider, calls) = startWith(ArrayDeque(listOf(null, 4_200L to null)), { nowMs })
+        assertEquals(1, calls(), "precondition: the start-up fetch answered nothing")
+        assertEquals(0L, provider.observe().first().usedBytes)
+
+        nowMs += 3_500L
+        advanceTimeBy(5_000)
+        runCurrent()
+
+        assertEquals(2, calls(), "retried long before the minute is up")
+        assertEquals(4_200L, provider.observe().first().usedBytes, "and the real fill level is drawn")
+    }
+
+    /** ⚠ Bounded: a relay that never answers falls back to the interval after a few fast tries. */
+    @Test
+    fun aRelayThatNeverAnswers_isNotAskedEveryThreeSecondsForever() = runTest {
+        var nowMs = 1_000L
+        val (_, calls) = startWith(ArrayDeque(), { nowMs })
+        repeat(30) {
+            nowMs += 3_500L
+            advanceTimeBy(4_000)
+            runCurrent()
+        }
+        // ~105 s of an unanswering relay: the start-up fetch, five fast retries (to ~18 s), then one
+        // interval fetch a minute after the last of them.
+        assertEquals(7, calls(), "fast retries are capped, then the interval resumes")
+    }
+
+    /** ⚠ Only until the first answer: once usage is known, an empty fetch waits the interval. */
+    @Test
+    fun afterAnAnswer_anEmptyFetchWaitsTheInterval() = runTest {
+        var nowMs = 1_000L
+        val (provider, calls) = startWith(ArrayDeque(listOf(4_200L to null)), { nowMs })
+        assertEquals(4_200L, provider.observe().first().usedBytes)
+
+        nowMs += USAGE_REFRESH_INTERVAL_TEST_MS + 1_000L
+        advanceTimeBy(5_000)
+        runCurrent()
+        assertEquals(2, calls(), "precondition: the interval fetch ran and answered nothing")
+
+        nowMs += 10_000L
+        advanceTimeBy(15_000)
+        runCurrent()
+        assertEquals(2, calls(), "no fast retry once a figure is known — the last one stands")
+        assertEquals(4_200L, provider.observe().first().usedBytes)
+    }
+}
+
+/**
  * ⚠ A local mirror of the production interval, deliberately **not** the constant itself: the
  * constant is private to the reader, and a test that imported it would keep passing if the interval
  * were changed to a day. This value is what the tests assert the behaviour *at*; if it drifts from

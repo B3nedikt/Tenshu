@@ -11,6 +11,16 @@ interface OverviewInstance {
   observeShownApps(callback: (r: NativeShownAppsResult) => void, onError: (message: string) => void): () => void
   // Replaces the whole list (last write wins).
   setShownApps(appIds: readonly string[]): Promise<{ readonly ok: true } | NativeFailure>
+  // A one-shot read of any of the overview's stored lists.
+  list(key: string): Promise<NativeShownAppsResult>
+  // The same pair for any of the overview's stored lists: 'shownApps', 'widgets', 'background'.
+  // An unknown key fails ('unknown_key').
+  observeList(
+    key: string,
+    callback: (r: NativeShownAppsResult) => void,
+    onError: (message: string) => void,
+  ): () => void
+  setList(key: string, values: readonly string[]): Promise<{ readonly ok: true } | NativeFailure>
 }
 
 declare module '*/productionExecutable/tenshu-sdk-js.js' {

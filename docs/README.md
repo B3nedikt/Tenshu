@@ -80,6 +80,7 @@ Always-relevant guidance for writing platform-shaped code.
 - [`how-to/macos-signing.md`](how-to/macos-signing.md) — macOS code signing for Control + Drive.
 - [`how-to/macos-release.md`](how-to/macos-release.md) — notarized Developer ID `.dmg` per desktop app (`scripts/macos-release.sh`); `--pipeline-test` without the certificate.
 - [`how-to/android-release.md`](how-to/android-release.md) — building Play-uploadable bundles; where the signing key lives and which key signs what.
+- [`how-to/windows-release.md`](how-to/windows-release.md) — the Windows direct download: our own release certificate (non-exportable), `windows-release.ps1` on Windows, `windows-direct-publish.sh` from the Mac, the clean-VM check.
 - [`how-to/windows-store-submission.md`](how-to/windows-store-submission.md) — Control + Drive to the Microsoft Store: Partner Center, the Store-mode `packageMsix` (unsigned, Store publisher compiled into the peer gate), the listing, `winget --source msstore`.
 - [`how-to/play-store-declarations.md`](how-to/play-store-declarations.md) — Play Console declarations owed before any listing.
 - [`how-to/play-console-answers.md`](how-to/play-console-answers.md) — the Play Console answers per app, task by task, and the Data safety CSVs.
@@ -317,6 +318,12 @@ hard to find by filename, or when the doc supersedes something a reader would ot
 
 ### `core-` — platform-core changes
 
+- **Semantic permissions** — proposal (2026-11-17), nothing built;
+  [`proposals/core-semantic-permissions.md`](proposals/core-semantic-permissions.md).
+  Refines `tenshu-rei.md` §2.2: a permission is stated over the callstack, as a *request
+  template* for fixed-request apps or a *capability grant* (fields by use: project, filter,
+  sort, traverse) for planners like Mia. ⚠ `AppPermission` is not enforced anywhere today,
+  and Mia's validator does not check predicate fields (§3.2 there).
 - **Interactor pattern** — largely landed; authoring reference in
   [`schema-dsl.md`](schema-dsl.md) §5 + design rationale in
   [ADR 0012](adr/0012-interactor-pattern.md). Sealed `Interactor<T>`

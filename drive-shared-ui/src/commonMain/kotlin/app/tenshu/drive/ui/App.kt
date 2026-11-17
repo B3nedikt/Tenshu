@@ -329,7 +329,7 @@ fun App(
                     selectedPaths = selectedPaths,
                     isOffline = selectedPaths.isNotEmpty() && selectedPaths.all { it in offlinePaths },
                     shareEnabled = canShareSelection,
-                    onShare = selectionViewModel::onShareClicked,
+                    onShare = { selectionViewModel.onShareRequested()?.let(showManageAccess) },
                     // Mode-A *Share link* — v1 supports single-file selection
                     // only (proposal §6.3). When exactly one file is selected,
                     // open the create-link sheet for it; otherwise no-op.

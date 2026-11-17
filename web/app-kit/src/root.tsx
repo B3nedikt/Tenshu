@@ -2,6 +2,7 @@
 import { StrictMode, type ComponentType, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query'
+import { installAppearance } from './appearance'
 import { createAppQueryClient } from './query'
 
 export interface MountAppOptions {
@@ -14,6 +15,8 @@ export interface MountAppOptions {
 export function mountApp(App: ComponentType, options: MountAppOptions): void {
   const { boundary: Boundary } = options
   const queryClient = options.queryClient ?? createAppQueryClient()
+  // Follow the apex's mode, language and tint while framed (appearance.ts).
+  installAppearance()
   createRoot(options.element ?? document.getElementById('root')!).render(
     <StrictMode>
       <Boundary>

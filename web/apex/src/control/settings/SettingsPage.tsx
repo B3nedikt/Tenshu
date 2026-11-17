@@ -11,6 +11,7 @@
 import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { privacyPolicyUrl, termsOfUseUrl } from '@tenshu/web-tokens/legal'
+import { AppearanceSettings } from '../../appearance/AppearanceSettings'
 import { SETTINGS_ENTRIES } from './settingsEntries'
 
 export function SettingsPage() {
@@ -45,6 +46,9 @@ export function SettingsPage() {
           </li>
         ))}
       </ul>
+
+      {/* Web-only: mode, language and background (web-apex-home.md §4.13). Native follows the OS. */}
+      <AppearanceSettings />
 
       {/* The legal entries, last, as on native: the in-app privacy policy (App Store 5.1.1(i),
           Play's User Data policy want it reachable from every Tenshu app's settings), then the

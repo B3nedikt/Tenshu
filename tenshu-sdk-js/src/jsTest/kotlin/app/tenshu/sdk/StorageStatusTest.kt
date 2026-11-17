@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.promise
 import org.tenshu.identity.Entitlement
 import org.tenshu.identity.EntitlementRecordCredential
@@ -85,6 +86,47 @@ class StorageStatusTest : SdkRuntimeTest() {
         assertEquals(true, status.hasStorage, "derived figure: storage is available")
         assertEquals(5.0, status.usedBytes, "used bytes surface through toJs")
         assertEquals(100.0, status.limitBytes, "limit bytes surface through toJs")
+    }
+
+    // ⚠⚠ The overview's Drive card read "0 B of 5 GB" on every cold load: it snapshots at once, and
+    // until the relay's first `GET /sync/usage` answers, `usedBytes` is the reader's `0` placeholder.
+    // `status()` must wait for that first report rather than answer the placeholder.
+    @Test
+    fun status_waitsForTheFirstUsageReport() = GlobalScope.promise {
+        TenshuSdk.awaitReady().await()
+        JsRuntime.tenshuClient
+
+        val figures = MutableStateFlow(StorageFigures(hasStorage = true, usedBytes = 0L, limitBytes = 100L))
+        JsRuntime.reportedUsage.value = null
+        JsRuntime.usageWaitSpent = false
+        JsRuntime.executionContext.initStorageService(
+            scope = CoroutineScope(Dispatchers.Default),
+            provider = object : StorageProvider {
+                override fun observe(): Flow<StorageFigures> = figures.asStateFlow()
+            },
+        )
+        // The placeholder row is the one `status()` would have answered.
+        var attempts = 0
+        while (JsRuntime.storageCapacityHolder.figures?.hasStorage != true && attempts < 50) {
+            delay(20); attempts++
+        }
+
+        // The relay answers a moment later, and the reader re-pushes the real figure.
+        // The production wrapper records the report — a reader whose answer is never recorded
+        // would leave `status()` waiting out its bound and drawing 0 all the same.
+        val reader = app.tenshu.sdk.internal.recordingUsageReports(JsRuntime.reportedUsage) { 42L to null }
+        GlobalScope.launch {
+            delay(300)
+            reader()
+            figures.value = StorageFigures(hasStorage = true, usedBytes = 42L, limitBytes = 100L)
+        }
+
+        val startedMs = kotlin.js.Date.now()
+        val status: dynamic = Storage.status().await()
+        assertEquals(42.0, status.usedBytes, "the first real report, not the 0 placeholder")
+        // ⚠ Answered on the report, not by waiting out the 5 s bound — which would also read 42 here.
+        assertTrue(kotlin.js.Date.now() - startedMs < 3_000.0, "settled by the report, not the timeout")
+        assertTrue(JsRuntime.usageWaitSpent, "and the wait is spent: later calls answer at once")
     }
 
     @Test

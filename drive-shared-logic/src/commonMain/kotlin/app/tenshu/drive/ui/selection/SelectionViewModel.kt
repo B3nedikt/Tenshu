@@ -92,24 +92,17 @@ class SelectionViewModel(
     }
 
     /**
-     * Mode-B share (`docs/proposals/drive-shared-realm-file-model.md` §6 Phase 3d):
-     * share the selected folder into a fresh shared realm. **Folder-only** (3d.2b):
-     * gates on a single folder selection — sharing a file would bootstrap an empty
-     * realm. [FilesRepository.shareFolder] bootstraps the realm, populates it, and
-     * self-mounts it, so the result surfaces in the Shared tab's *Shared folders*
-     * group. A multi-selection or a file selection is a no-op (the *Share* card is
-     * also disabled in those states — see [canShareSelection]).
+     * *Share* on a selection (`drive-manage-access-ux.md` §11): returns the folder
+     * to open the sharing screen for, and clears the selection. **Folder-only** — a
+     * multi-selection or a file selection returns `null` (the card is also disabled
+     * in those states, see [canShareSelection]). Nothing is shared here: the screen
+     * shares the folder on the first add, and gates storage there.
      */
-    fun onShareClicked() {
-        val path = _selectedPaths.value.singleOrNull() ?: return
-        if (path !in _selectedFolderPaths.value) return
-        when (val decision = StorageGate.evaluate(storageStatus.value)) {
-            StorageGateDecision.Allow -> viewModelScope.launch {
-                filesRepository.shareFolder(path)
-                clearSelection()
-            }
-            else -> _storageGateBlock.value = decision
-        }
+    fun onShareRequested(): String? {
+        val path = _selectedPaths.value.singleOrNull() ?: return null
+        if (path !in _selectedFolderPaths.value) return null
+        clearSelection()
+        return path
     }
 
     /**

@@ -9,6 +9,7 @@ import { APEX_DIR } from '../support-pages/generate.ts'
 import { APP_PAGES } from '../support-pages/appPages.ts'
 import { ANDROID_APPS } from '../support-pages/androidDownload.ts'
 import { MACOS_APPS } from '../support-pages/macosDownload.ts'
+import { WINDOWS_APPS } from '../support-pages/windowsDownload.ts'
 
 const caddyfile = readFileSync(join(APEX_DIR, 'Caddyfile'), 'utf8')
 const live = caddyfile
@@ -183,6 +184,16 @@ describe('the Caddyfile language redirects', () => {
     expect(re.test('/apps/photos/download/macos/en')).toBe(false)
     // The casks' livecheck reads this file; a redirect would hand brew an HTML page.
     expect(re.test('/apps/photos/download/macos.json')).toBe(false)
+  })
+
+  it('sends /apps/<app>/download/windows to its language for exactly the Windows apps (support-pages/windowsDownload.ts)', () => {
+    expect(live).toContain(`@windowsDownloadNeutral path_regexp windowsdl ^/apps/(${WINDOWS_APPS.join('|')})/download/windows/?$`)
+    expect(live).toContain('redir @windowsDownloadNeutral /apps/{re.windowsdl.1}/download/windows/{legal_lang} 302')
+    expect(live).toMatch(/header @windowsDownloadNeutral \{\s*Vary Accept-Language\s*Cache-Control no-store\s*\}/)
+    const re = new RegExp(/@windowsDownloadNeutral path_regexp windowsdl (\S+)/.exec(live)![1]!)
+    expect(re.test('/apps/control/download/windows')).toBe(true)
+    expect(re.test('/apps/control/download/windows/')).toBe(true)
+    expect(re.test('/apps/control/download/windows/en')).toBe(false)
   })
 })
 

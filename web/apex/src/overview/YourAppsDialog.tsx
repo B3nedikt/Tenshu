@@ -1,4 +1,5 @@
-// "Your apps" — add and hide apps on the overview (docs/proposals/web-apex-home.md §3.5, H2), and
+// "Your apps" — add, hide and order apps on the overview (docs/proposals/web-apex-home.md §3.5, H2;
+// ordering moved here from the old Customize dock, §4.12 — edit mode now arranges widgets), and
 // under *More apps* where the user already uses each one (H6: "You use it on Pixel 9").
 //
 // ⚠⚠ Hiding only changes what the overview and the launcher list. The dialog says so, and nothing
@@ -16,9 +17,12 @@ import { AppIcon } from '../apps/AppIcon'
 import { appDescription, appLabel } from '../apps/appLabel'
 import { HOSTED_APPS, type HostedApp } from '../apps/registry'
 import { useAppRegistrations } from '../control/apps/appRegistryContext'
-import { ALWAYS_SHOWN, hiddenApps, shownApps, usesDrive, withAdded, withRemoved } from './shownApps'
+import { ALWAYS_SHOWN, hiddenApps, shownApps, usesDrive, withAdded, withMovedBy, withRemoved } from './shownApps'
 import { useShownAppsEditor } from './useShownAppsEditor'
 import { usedOnDevices } from './usedOn'
+
+const MOVE =
+  'grid h-7 w-7 place-items-center rounded-full border border-line text-sm text-text-2 hover:bg-surface-3 aria-disabled:cursor-default aria-disabled:opacity-30'
 
 export function YourAppsDialog({ onClose }: { readonly onClose: () => void }) {
   const { t } = useTranslation('control')
@@ -58,25 +62,52 @@ export function YourAppsDialog({ onClose }: { readonly onClose: () => void }) {
           {t('yourApps.shownHeading')}
         </h3>
         <ul className="mt-1 divide-y divide-line">
-          {shown.map(app => (
-            <AppRow key={app.id} app={app}>
-              {app.id === ALWAYS_SHOWN ? (
-                <span className="shrink-0 rounded-pill bg-surface-3 px-2.5 py-1 text-xs text-text-2">
-                  {t('yourApps.alwaysOn')}
+          {shown.map((app, i) => {
+            const label = appLabel(t, app)
+            return (
+              <AppRow key={app.id} app={app}>
+                <span className="flex shrink-0 gap-1">
+                  <button
+                    type="button"
+                    aria-disabled={pending || i === 0 || undefined}
+                    onClick={() => {
+                      if (i > 0) void change(withMovedBy(stored, HOSTED_APPS, app.id, -1))
+                    }}
+                    aria-label={t('yourApps.moveUpAriaLabel', { app: label })}
+                    className={MOVE}
+                  >
+                    <span aria-hidden>↑</span>
+                  </button>
+                  <button
+                    type="button"
+                    aria-disabled={pending || i === shown.length - 1 || undefined}
+                    onClick={() => {
+                      if (i < shown.length - 1) void change(withMovedBy(stored, HOSTED_APPS, app.id, 1))
+                    }}
+                    aria-label={t('yourApps.moveDownAriaLabel', { app: label })}
+                    className={MOVE}
+                  >
+                    <span aria-hidden>↓</span>
+                  </button>
                 </span>
-              ) : (
-                <button
-                  type="button"
-                  aria-disabled={pending || undefined}
-                  onClick={() => void change(withRemoved(stored, app.id))}
-                  aria-label={t('yourApps.removeAriaLabel', { app: appLabel(t, app) })}
-                  className="shrink-0 rounded-pill border border-line px-3 py-1 text-xs text-text hover:bg-surface-3 aria-disabled:opacity-50"
-                >
-                  {t('yourApps.remove')}
-                </button>
-              )}
-            </AppRow>
-          ))}
+                {app.id === ALWAYS_SHOWN ? (
+                  <span className="w-[4.5rem] shrink-0 rounded-pill bg-surface-3 px-2.5 py-1 text-center text-xs text-text-2">
+                    {t('yourApps.alwaysOn')}
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    aria-disabled={pending || undefined}
+                    onClick={() => void change(withRemoved(stored, app.id))}
+                    aria-label={t('yourApps.removeAriaLabel', { app: label })}
+                    className="w-[4.5rem] shrink-0 rounded-pill border border-line px-3 py-1 text-xs text-text hover:bg-surface-3 aria-disabled:opacity-50"
+                  >
+                    {t('yourApps.remove')}
+                  </button>
+                )}
+              </AppRow>
+            )
+          })}
         </ul>
       </section>
       {more.length > 0 && (

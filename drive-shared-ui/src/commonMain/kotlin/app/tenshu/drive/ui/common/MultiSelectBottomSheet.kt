@@ -91,9 +91,9 @@ fun MultiSelectBottomSheet(
                     .padding(bottom = MaterialTheme.spacing.l),
                 horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.s)
             ) {
-                // *Share* — Mode-B (share a folder into a shared realm,
-                // drive-shared-realm-file-model.md §6). Folder-only: enabled iff
-                // exactly one folder is selected (3d.2b), greyed + inert otherwise.
+                // *Share* — opens the folder's sharing screen (drive-manage-access-ux.md
+                // §11). Folder-only: enabled iff exactly one folder is selected,
+                // greyed + inert otherwise.
                 ActionCard(
                     modifier = Modifier.weight(1f),
                     icon = Icons.Default.Share,

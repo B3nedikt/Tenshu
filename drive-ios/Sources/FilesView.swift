@@ -373,7 +373,7 @@ struct FilesView: View {
 
     // The per-item action set, mirroring Android's `FileActionsBottomSheet`. Rendered by BOTH
     // the visible `overflowButton` and the long-press context menu — one source, so the two
-    // can never drift. Sharing a *folder* (Manage Access) is reachable here on any folder row,
+    // can never drift. Sharing a *folder* (Share → the access screen) is reachable here on any folder row,
     // including at the root, which is what makes root-level folders shareable without first
     // navigating into them.
     @ViewBuilder
@@ -382,7 +382,7 @@ struct FilesView: View {
             Button {
                 rowSheet = .manageAccess(path: file.path, name: file.name)
             } label: {
-                Label("Manage Access", systemImage: "person.2")
+                Label("Share", systemImage: "person.badge.plus")
             }
         } else {
             // Mode-A link: file-only (a folder has no single blob to seal under K_share).
@@ -510,11 +510,12 @@ struct FilesView: View {
                 .accessibilityIdentifier("settings")
             }
         } else {
-            // Inside a folder: manage who this folder is shared with.
+            // Inside a folder: share it / see who it is shared with.
             ToolbarItem(placement: .topBarTrailing) {
                 Button { showingManageAccess = true } label: {
-                    Image(systemName: "person.2")
+                    Image(systemName: "person.badge.plus")
                 }
+                .accessibilityLabel("Share")
                 .accessibilityIdentifier("manage-access")
             }
         }

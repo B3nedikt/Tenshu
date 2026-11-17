@@ -52,7 +52,7 @@ class FakeFilesRepository(
     private val activityFor: (path: String) -> List<FileActivity> = { emptyList() },
     private val shareLinkResult: RepositoryResult<ShareLinkPayload> =
         RepositoryResult.Success(ShareLinkPayload(shareId = "demo-share-id", urlFragment = "demo-fragment")),
-    private val sharedFolders: List<SharedFolderModel> = emptyList(),
+    sharedFolders: List<SharedFolderModel> = emptyList(),
     initialShares: List<ShareModel> = emptyList(),
     private val inboundShared: List<InboundSharedRealm> = emptyList(),
 ) : FilesRepository {
@@ -256,8 +256,18 @@ class FakeFilesRepository(
         sharesFlow.value = sharesFlow.value.filterNot { it.shareId == shareId }
         return RepositoryResult.Success(Unit)
     }
-    override suspend fun shareFolder(folderPath: String): RepositoryResult<SharedFolderModel> = notConfigured("shareFolder")
-    override suspend fun sharedFolders(): RepositoryResult<List<SharedFolderModel>> = RepositoryResult.Success(sharedFolders)
+    // Sharing a folder records it, so the access screen's share-on-first-add
+    // (drive-manage-access-ux.md §11) has a realm to proceed with and a reopened screen finds it.
+    private val shared = sharedFolders.toMutableList()
+
+    override suspend fun shareFolder(folderPath: String): RepositoryResult<SharedFolderModel> {
+        val name = folderPath.substringAfterLast('/').ifEmpty { folderPath }
+        val parentPath = folderPath.substringBeforeLast('/').ifEmpty { "/" }
+        val folder = SharedFolderModel(sharedRealmId = "demo-realm-$name", name = name, parentPath = parentPath)
+        shared += folder
+        return RepositoryResult.Success(folder)
+    }
+    override suspend fun sharedFolders(): RepositoryResult<List<SharedFolderModel>> = RepositoryResult.Success(shared.toList())
     override suspend fun browseSharedFolder(realmId: String, parentFileId: String): RepositoryResult<List<SharedFolderEntry>> =
         RepositoryResult.Success(emptyList())
     override suspend fun readSharedFile(realmId: String, fileId: String): RepositoryResult<ByteArray> =

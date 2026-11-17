@@ -1,16 +1,16 @@
 import SwiftUI
 import TenshuSdk
 
-// Manage Access (full-parity UI, step B — sharing cluster), bound to the real `ManageAccessViewModel`.
-// Presented for a folder: the access list (you + cross-user members) + invites, with revoke / remove /
-// grant actions, plus *Invite someone* (link/QR). The SAS-confirm + completion-prompt sub-flows are a
-// deferred follow-up.
+// The folder's Share screen (full-parity UI, step B — sharing cluster), bound to the real
+// `ManageAccessViewModel`. Presented for a folder: the access list (you + cross-user members) + invites,
+// with revoke / remove / grant actions, plus *Invite someone* (link/QR). Both adds go through the view
+// model, which shares the folder first when it isn't yet (drive-manage-access-ux.md §11). The
+// SAS-confirm + completion-prompt sub-flows are a deferred follow-up.
 struct ManageAccessView: View {
     let folderPath: String
     let folderName: String
 
     @Environment(\.dismiss) private var dismiss
-    @State private var showInviteSheet = false
     @StateObject private var model: ManageAccessModel
 
     init(folderPath: String, folderName: String) {
@@ -22,6 +22,15 @@ struct ManageAccessView: View {
     var body: some View {
         NavigationStack {
             List {
+                if model.state.sharing {
+                    Section {
+                        HStack(spacing: 12) {
+                            ProgressView()
+                            Text("Sharing this folder…").foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
                 Section("People with access") {
                     Label("You", systemImage: "person.crop.circle.fill")
                         .badge("Owner")
@@ -56,7 +65,7 @@ struct ManageAccessView: View {
                         Label("Grant access to a contact", systemImage: "person.badge.plus")
                     }
                     Button {
-                        showInviteSheet = true
+                        model.inviteSomeone()
                     } label: {
                         Label("Invite someone new", systemImage: "qrcode")
                     }
@@ -65,11 +74,12 @@ struct ManageAccessView: View {
                     Text("Grant access to someone you've already connected with, or invite someone new with a link or QR code.")
                 }
 
-                if let error = model.state.removeError ?? model.state.grantError {
+                if let error = model.state.removeError ?? model.state.grantError ?? model.state.shareError {
                     Section { Text(error).font(.caption).foregroundStyle(.red) }
                 }
             }
-            .navigationTitle(folderName.isEmpty ? "Manage Access" : folderName)
+            .disabled(model.state.sharing)
+            .navigationTitle(folderName.isEmpty ? "Share" : "Share \(folderName)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
@@ -83,8 +93,24 @@ struct ManageAccessView: View {
                     model.grant(personId)
                 }
             }
-            .sheet(isPresented: $showInviteSheet) {
+            .sheet(isPresented: Binding(
+                get: { model.state.showInviteSheet },
+                set: { if !$0 { model.dismissInviteSheet() } }
+            )) {
                 InviteSomeoneSheet(folderName: folderName)
+            }
+            // Sharing creates synced content, so the first add is storage-gated
+            // (storage-capacity-gating.md §2) — the view model raises it, this renders it.
+            .alert(
+                "Storage needed",
+                isPresented: Binding(
+                    get: { model.state.storageGateBlock != nil },
+                    set: { if !$0 { model.dismissStorageGate() } }
+                )
+            ) {
+                Button("OK", role: .cancel) { model.dismissStorageGate() }
+            } message: {
+                Text("Sharing folders needs Tenshu storage. Set up storage in Control to start sharing.")
             }
         }
     }
@@ -153,4 +179,7 @@ final class ManageAccessModel: ObservableObject {
     func showGrantPicker() { vm.onGrantAccessClicked() }
     func dismissGrantPicker() { vm.onGrantPickerDismissed() }
     func grant(_ personId: String) { vm.onGrantToContact(personId: personId) }
+    func inviteSomeone() { vm.onInviteSomeoneClicked() }
+    func dismissInviteSheet() { vm.onInviteSheetDismissed() }
+    func dismissStorageGate() { vm.onStorageGateDismissed() }
 }

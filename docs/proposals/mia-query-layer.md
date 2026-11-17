@@ -1,6 +1,6 @@
 # Mia Query Layer — Turning an Utterance into Grounded Realm Data
 
-**Status:** v0.10 — §22 (2026-11-16) narrows the catch-all: leftover text is a file name only when the sentence reads as a lookup. v0.9 — ⭐ §21 (2026-11-09) measures the photo-search text tower as `ClassifyIntent`'s backend. v0.8 — **Mia on the web runs the same planner in the tab, read-only** (§20). v0.7 — **Mia on iPhone is real and read-only** (§19): a route-1 runtime in place of the mock, and a proxy that offers no action there. ⚠⚠ No question has been asked on a real device yet (§19.4).
+**Status:** v0.13 — §25 (2026-11-17, **proposed, not decided**) designs the clarify turn: Mia asks for a slot it is missing and receives the answer. v0.12 — §24 (2026-11-17) lays out the pipeline as interfaces, built and proposed. v0.11 — §23 (2026-11-16, **proposed, not decided**) puts a composable `Query` between the plan and the chain, rather than a model writing chains; it now waits on [`core-semantic-permissions.md`](core-semantic-permissions.md). v0.10 — §22 (2026-11-16) narrows the catch-all: leftover text is a file name only when the sentence reads as a lookup. v0.9 — ⭐ §21 (2026-11-09) measures the photo-search text tower as `ClassifyIntent`'s backend. v0.8 — **Mia on the web runs the same planner in the tab, read-only** (§20). v0.7 — **Mia on iPhone is real and read-only** (§19): a route-1 runtime in place of the mock, and a proxy that offers no action there. ⚠⚠ No question has been asked on a real device yet (§19.4).
 **v0.6** — **§15.1's 200-series cap is closed** (§17). `queryOccurrences` moves the scan inside `:calendar-service` and bounds **occurrences in the window** instead of **series scanned** — the one quantity there was no safe order to truncate. ⚠⚠ Saturation is now a fact rather than a guess. ⚠ `CalendarService` → v5.
 **v0.5 — MQ-1 … MQ-4 SHIPPED** 2026-08-11/14 (as-built: §7–§11, §13), plus Track A
 slice A1 (§12), **`QueryCalendar` (§15)** — which completes MQ-D4a and every named read intent —
@@ -187,6 +187,18 @@ start, duration, recurrence rule** (MQ-D4a).
   foundation; the real planner needs an explicit no-match verdict from the start.
 - Disambiguation is a first-class answer type: "two places called *Blue Bottle* — which?"
   rendered as selectable cells, not as a follow-up sentence to parse.
+
+> **Where the intent sits (2026-11-17).** The intent is the *first half of the planner
+> arrow*, not a pipeline stage: `utterance → pick intent (grammar rules, or ClassifyIntent
+> §16) → fill its slots (grammar, planForIntent) → QueryPlan`. Lowering, the validator,
+> execution and the answer never see it. As built, each `MiaIntent` names exactly one read
+> variant of `QueryPlan`, and the enum exists only as the closed menu the model picks from;
+> the table above is the v1 design list, not the shipped enum (§24.2). ⚠ MQ-D11 (§23)
+> supersedes this decision **in part**: the *closed set a model picks from* stays, because it
+> is what makes picking classification rather than generation (§21's 80% top-1). *One fixed
+> chain per intent* goes, because intents multiply per slot combination
+> (`FIND_PHOTOS_AT_PLACE` exists only for that). Under `Query`, the intent shrinks to the
+> pickable part, `QuerySource` + `AnswerShape`, and the slots become combinable filters.
 
 ### MQ-D4a — The calendar intents, and why `CreateEvent` is the interesting one
 
@@ -1730,6 +1742,8 @@ module now registers both halves with a note saying so.
   stay last. The intent seam gives a model *one token* of expressiveness; a generated chain gives it
   a tree, and the validator's honest cost (a callstack is inspectable but not legible) is a
   different proposition when a human is no longer the one who wrote it.
+  ⚠ §23 proposes the middle ground: a composable `Query` that a grammar or a model fills and code
+  lowers, so a model never writes the chain at all.
 - **Slot extraction by model** — deliberately never, on §16.1's reasoning, unless someone
   demonstrates the invisible-failure problem is solved.
 - ⚖️ **The threat-model amendment §4 names** — prompts as an in-use plaintext class. ⚠ Nothing here
@@ -2191,3 +2205,753 @@ found the gap). Replacing the guard with `true` fails two tests; removing the fi
 the third. `anUnrecognisedUtteranceSaysSo…` had asserted `FindFilesNamed("weather
 like")` under a comment saying it must not; it now asserts `NoMatch`. ⚠ §21's corpus is not in the
 tree, so the 22-of-24 figure was not re-measured. The test set is a new one by the same author.
+
+## 23. Proposed — a composable query between the plan and the chain (2026-11-16)
+
+**Status: proposal. Nothing here is built, and MQ-D11 below is not decided.** ⚠ It waits on
+[`core-semantic-permissions.md`](core-semantic-permissions.md): a `Query` that combines filters
+needs a grant that says which fields may be filtered on, and none exists (§24.5). It answers one
+question: should a model, eventually, write chain-DSL callstacks directly? §16.8 already said
+"stay last". This section says why, and what to build instead so the grammar improves now and
+any later model has a small, checkable target.
+
+### 23.1 What the grammar answers today
+
+44 questions run through `QueryPlanner.plan` on master `c3f209a26`, clock 2026-11-16 12:00 UTC,
+`OFFERED`. The probe was a throwaway test and is not in the tree.
+
+| Class | Examples | Result |
+|---|---|---|
+| ✅ Works | "photos from last summer", "when was I last in paris", "what did I do last saturday", "how far did I run this week", "what is on my calendar tomorrow", "is the kitchen light on", "find the invoice" | the intended plan |
+| ❌ A slot is dropped | "which pictures show a dog" → **all photos**; "photos from paris last summer" → place only; "the invoice from march" → name only | a plan that reads as an answer and ignores part of the question |
+| ❌ A slot is misread | "show me photos from christmas" → a place called "christmas"; "which restaurants did I go to in lisbon" → a place named "lisbon"; "photos of my dog at the beach" → one label "dog beach" | the wrong filter |
+| ❌ The wrong question | "when was the last time I made a picture of a dog" → a label search, not "when" | a list, not the date asked for |
+| ⚠ No answer shape for it | "how often was I at the gym this month", "what's my fastest 5k", "how long did I stay in paris" | `NoMatch`, or a list of visits for the duration |
+| ⚠ No data for it | "who was I with in paris" | `NoMatch` |
+| ❌ German | "fotos aus berlin", "wann war ich zuletzt in paris", "finde die rechnung" | a file search for the whole sentence; "was habe ich letzten samstag gemacht" gets `NoMatch` only because "was" is an English opener |
+
+⚠⚠ **Every "photos of X" answer is empty in production**, whatever the grammar does:
+labels are inert at three layers (`inference-service.md` §37.1). Only "photos like X" can return
+rows, and only with the model downloaded and `SEMANTIC_IMAGE_SEARCH` granted.
+
+Most of the ❌ rows are not language problems. They come from the plan's shape: one intent, at
+most one time window, one place or one content phrase, and a list as the only answer. A better
+mapper (grammar or model) cannot express "photos of a dog in paris last summer" while the plan
+cannot.
+
+### 23.2 Why a model should not write chains
+
+Size is not the obstacle. Our DSL is far smaller than SQL, and text-to-query over one fixed schema
+is a task small models do well when trained for it: a T5-class seq2seq model is roughly 100–250 MB
+in int8, and a 0.5–3B instruction model roughly 0.3–2 GB in int4. ⚠ Neither figure is measured on
+this DSL. Constrained decoding (the model may only emit tokens the grammar allows) makes every
+output parse, and `MiaChainValidator` makes every parsed chain safe. The obstacles are elsewhere:
+
+1. **No training data.** There are no (utterance, chain) pairs. ⭐ The grammar can produce them:
+   intents × slot values × paraphrases, the paraphrasing done once at build time by a large model
+   over synthetic sentences, no user data.
+2. ⚠⚠ **Valid is not right.** The validator proves a chain is *safe*: reads only, granted
+   services, allowlisted projections, bounded. It cannot prove the chain answers the question. A
+   wrong window passes and renders as an answer, which is §16.1's reason for keeping slots in the
+   grammar. And a callstack is "inspectable but not legible" (`QueryPlan`'s KDoc), so the
+   explanation line could not be derived from a generated chain without its own failure mode.
+3. **The DSL cannot express half of Mia.** Visual search is a dedicated op, not a predicate (§5,
+   MQ-4). Photos-at-place is a join Mia performs over two reads (§12.1). "Last summer" must stay a
+   symbol that `TimeGrammar` resolves, never a timestamp a model invents. A model emitting chains
+   meets the same walls the grammar does, one layer lower.
+4. **More expressive queries need finer permissions** (MQ-D10 check 3). Grants are per service;
+   the projection allowlist is the only finer control, and a free-form chain is what tests it.
+5. **Schema churn.** Every reshape under House Rule 9 makes a chain-trained model stale.
+
+### 23.3 MQ-D11 (proposed) — reads plan to a composable `Query`, which lowers to chains
+
+A `Query` is one source plus combinable filters plus one answer shape:
+
+| Part | Values |
+|---|---|
+| source | files, photos, timeline, places, workouts, devices, calendar |
+| time | a **symbolic** expression (`LastSeason(SUMMER)`, `Named(christmas)`, `Weekday(SATURDAY, PREVIOUS)`), resolved by code at lowering |
+| place | a name, as `FindPhotosAtPlace` and `RecallAtPlace` take today |
+| content | `Label(text)` or `Like(text)`, the §13.2 distinction kept explicit |
+| name | a file-name fragment |
+| answer | `List`, `Latest`, `Count`, `Duration`, `Best(metric)` |
+
+- **Legal combinations are a table, checked before lowering.** Content is legal on photos only;
+  `Best(pace)` on workouts only; a time filter on files is refused, as `noMatchTimeOnFiles` does
+  today, until `File.CreatedAt` is reachable by a predicate. An illegal `Query` is a `NoMatch`
+  that names the missing part, never a silently narrower one.
+- **Lowering is per source and per filter**, and a combination that needs two reads is a Mia-side
+  join on the §12.1 pattern. "Photos of a dog in paris last summer" is the time-windowed photo read,
+  the place join and the content op, intersected. `MiaChainValidator` stays the boundary for
+  every chain this produces. Nothing in it changes.
+- ⭐⭐ **The explanation is rendered from the `Query` by code.** "Searched your photos of “dog”
+  taken around “paris” in summer 2025" names every filter, so a dropped or wrong one is visible
+  to the user. No generator, grammar or model, ever writes that sentence.
+- **Actions stay outside it.** `CreateEvent`, `ControlDevice` and `RunRoutine` remain their own
+  typed plans with MQ-D7's confirmation. A `Query` is a read by construction, so the format
+  cannot carry a write even if a generator emits one (§16.2, MQ-D10 check 1).
+- **No wire change.** `QueryPlan` is plain Kotlin that never crosses the wire (its KDoc), and so is
+  `Query`. No House Rule 9 bump.
+- The 11 read intents become constructors of `Query`, so `QueryPlannerTest` keeps pinning them, and
+  `MiaIntent` survives as the §16 picker's vocabulary.
+
+### 23.4 What fills a `Query`, in order
+
+1. **The grammar, now.** It emits `Query` instead of a single-slot plan, and the ❌ rows of §23.1
+   become grammar work: "show"/"with" as content anchors, holidays as time symbols, place and time
+   together, "how often"/"how long"/"fastest" as answer shapes. Per-language word lists and time
+   grammar (MQ-D4) slot in at the same place.
+2. **A small span tagger** (multilingual, tens of MB) that marks time, place, content and name
+   spans, with code building the `Query` from them. It covers phrasing and German span-finding;
+   German time *resolution* stays code.
+3. **A small model emitting a `Query`** under constrained decoding, trained on grammar-generated
+   pairs (§23.2 item 1). Its whole task is a handful of typed fields, which is what makes a small
+   model plausible.
+4. **Platform models where they exist.** Apple's on-device Foundation Models can emit typed
+   structures directly, and Gemini Nano exists on some Android devices. Desktop has none, so this
+   can only be an extra path, never the only one.
+
+⚠⚠ **Steps 2–4 fill slots, which §16.1 forbids today.** This proposal does **not** lift that
+rule. Lifting it owes, at least: the explanation rendered by code (above), symbolic time only,
+and accuracy measured on a committed question set in English and German, not on a corpus written
+by the grammar's author (§21's limitation). Until then step 1 is the whole proposal.
+
+### 23.5 Owed before deciding
+
+- **A committed question set** with expected `Query`s: supported questions in many phrasings,
+  known gaps marked as expected failures, off-topic questions, German. ⚠ Written by someone other
+  than the grammar's author where possible, ideally the maintainer's own questions. Its accuracy
+  becomes a ratchet in the test suite.
+  ✅ **Drafted 2026-11-17** as `QuestionSet` + `QuestionSetTest` in `:mia-service` `commonTest`.
+  - Each case states the answer the question **means** in planner-neutral terms (source, time,
+    place, content as label or likeness, name, answer shape), which is `Query`'s shape. Only the
+    test's matcher reads `QueryPlan`, so the set carries over to MQ-D11 unchanged.
+  - The ratchet runs both ways: a SUPPORTED case that stops matching is a regression, and a GAP
+    case that starts matching fails until it is promoted.
+  - **Commands are in it too**: `CreateEvent`, `ControlDevice`, `RunRoutine`, as the MQ-D7 card
+    would show them. ⚠ Where the utterance leaves a slot open, the expected answer is a question
+    back (`Action.ask`), not a guess. No planner produces one yet, so those cases are gaps by
+    construction until a clarify turn exists.
+  - Baseline, clock Monday 2026-11-16 12:00 UTC: **English 52/68, German 5/20** (88 cases), all
+    `DRAFT`, up from 42/66 and 0/20 when the set landed. ⚠ Every case so far is
+    `Provenance.DRAFT`, written by the grammar's author, so the English figure flatters it (§21's
+    limitation). The number that counts starts with the first `MAINTAINER` batch.
+  - ✅ **Fixed 2026-11-17**, each promoted to SUPPORTED with a `QueryPlannerTest` beside it:
+    - ⚠⚠ **An explicit part of day now outranks the bare-hour convention.** "at 8 in the
+      evening" was 08:00; it is 20:00, and "at 3 in the morning" is 03:00. ⚠ A part of day
+      *alone* still fixes no time: "add dentist tomorrow morning" stays "when?"
+      (`aPartOfDayAloneStillInventsNoTime`). ⚠⚠ And it counts only where it is bound to the
+      time ("tonight", "in the …", after a day or the hour): in "add night shift handover
+      tomorrow at 8 in the morning", "night" is title, and reading it proposed 20:00.
+    - **Number words, after "at" only, and only without a clock time.** "at one" is 13:00 by the
+      convention; "at noon" is 12:00. ⚠ A digit time anywhere wins: in "add lunch at five guys
+      tomorrow at 8pm", "five" is the venue. ⚠⚠ And a number word is an hour only where the time
+      expression ends: followed by nothing, am/pm, "o'clock", a day or a bound part of day. So
+      "add lunch at five guys tomorrow" asks "when?" rather than proposing 17:00.
+    - **Titles drop the request's scaffolding** ("remind me to", "an event", the "the" of "in the
+      morning"), never a lone noun ("add a meeting at 10" stays "meeting").
+    - ⚠⚠ **A title is the utterance minus what the time grammar consumed.** `EventTimeGrammar`
+      returns the positions it used (`EventTime.consumed`), and the title keeps every other word.
+      It used to strip anything that looked like time, which cost "lunch at five guys" its
+      "five", "one on one with tom" its "one on one", and "book club" its "book". Only the first
+      request verb is dropped.
+    - **"last summer" is the most recent one that has ended.** In July that is last year's; in
+      November, this year's.
+    - **Labels are searched in the singular, by truncation only** ("cats" → "cat", "boxes" →
+      "box"). ⚠⚠ The result is a prefix of the original phrase, so every label that matched before
+      still matches. A rewrite would lose matches: "puppies" → "puppy" misses a stored "puppies",
+      and "James Davies" → "james davy" misses a named face. So "-ies" is left alone. A likeness
+      query keeps its wording.
+    - **"open" is a stop word**, so it no longer leaks into the file name searched for.
+    - **The calendar without a calendar noun**: "what's on …", and "anything / plans / busy /
+      free" beside a calendar time. ⚠ Never without the time: "do I have anything from paris"
+      is not a calendar question. ⚠ And never over a file word: "find files named plans for next
+      week" stays a name search. ⚠⚠ Nor with a past qualifier: the agenda grammar looks forward
+      only, so "was I busy last week" resolved to the rest of *this* week.
+    - ⚠⚠ **German small talk is a no-match, not a file search.** German question and greeting
+      openers are in §22's not-a-lookup list. This does not make Mia answer German; it stops the
+      catch-all reading an unknown German opener as a lookup.
+  - ⚠ **Still open** (gaps in the set):
+    - **A missing time is refused, never asked for.** "add dentist tomorrow", "… tomorrow
+      morning", "remind me to call mum tomorrow". This is the clarify turn, which owes a design
+      note before code.
+    - **A bare hour is still guessed.** "dinner at 8" is 08:00. Asking instead is the same
+      design note's call.
+    - **A past time today is planned anyway.** At noon, "add a meeting at 10" plans 10:00 today.
+    - **No level slot.** "dim the bedroom light to 30 percent" becomes a device search.
+    - ⚠ **The calendar-noun path has the same forward-only problem.** "what was on my calendar
+      last week" resolves to the rest of this week. It predates these fixes; the inferred cue
+      refuses the past, the noun path does not yet.
+    - Every §23.1 row that needs a second slot or an answer shape, and German itself.
+- **A spike** before any model work: the smallest model that fills a `Query` reliably on that set,
+  in both languages, measured on the int8 or int4 artifact that would ship (§21.3's lesson).
+
+## 24. The pipeline as interfaces (2026-11-17)
+
+```
+Utterance ──planner──▶ QueryPlan ──lowering──▶ callstack ──validator──▶ execute ──▶ MiaAnswer ──▶ [rich cells]
+            (+ ClassifyIntent)                   List<Data>   (capability grant)
+```
+
+Each stage's types, **as built** unless marked *proposed*. Bodies are trimmed to the shape;
+KDoc, `create` factories and `Fields`/`Params` id constants are omitted. Proposed types follow
+§23 (MQ-D11) and [`core-semantic-permissions.md`](core-semantic-permissions.md); none of them
+exist.
+
+### 24.1 The entry: `:mia-service` ops (wire, `MiaService` v1)
+
+```kotlin
+interface MiaService : Service                // "tenshu/mia/service", version = 1
+
+interface AskMia : Operation {                // "tenshu/mia/service/askMia" — Io, Terminal
+    fun askMia(utterance: String, nowEpochMs: Long, timeZoneId: String): RequestObject  // → MiaAnswer
+}
+
+interface ConfirmMiaAction : Operation {      // "tenshu/mia/service/confirmMiaAction" — Io, Terminal
+    fun confirmMiaAction(token: String): RequestObject                                  // → MiaAnswer
+}
+```
+
+⚠ Under `core-semantic-permissions.md` SP-D2 these two are the Mia **app's** whole permission:
+two request templates. Everything below runs proxy-side, on the user's behalf, under a capability
+grant.
+
+### 24.2 Planner: utterance → `QueryPlan` (plain Kotlin, never on the wire)
+
+```kotlin
+object QueryPlanner {
+    fun plan(utterance: String, nowMs: Long, zone: TimeZone,
+             actionOffer: MiaActionOffer,
+             granted: Set<MiaSource> = MiaSource.entries.toSet()): QueryPlan
+    fun planForIntent(utterance: String, nowMs: Long, zone: TimeZone,
+                      intent: MiaIntent,
+                      granted: Set<MiaSource> = MiaSource.entries.toSet()): QueryPlan?  // §16
+}
+
+enum class MiaActionOffer { OFFERED, WITHHELD }      // WITHHELD on iOS route-1 (§19.2)
+
+sealed interface QueryPlan {
+    val explanation: String
+    val source: MiaSource?                            // null for NoMatch / ActionWithheld
+
+    // reads
+    data class FindPhotos(val window: TimeWindow, val limit: Int, ...)
+    data class FindFilesNamed(val text: String, val limit: Int, ..., val viaCatchAll: Boolean = false)
+    data class FindPlaces(val text: String, val limit: Int, ...)
+    data class RecallMoments(val window: TimeWindow, val limit: Int, ...)
+    data class RecallAtPlace(val text: String, val limit: Int, val latestOnly: Boolean, ...)
+    data class FindPhotosOfLabel(val text: String, val limit: Int, ...)
+    data class FindPhotosLike(val text: String, val limit: Int, ...)
+    data class FindPhotosAtPlace(val text: String, val limit: Int, ...)
+    data class FindWorkouts(val window: TimeWindow, val limit: Int, ...)
+    data class FindDevices(val text: String, val limit: Int, ...)
+    data class QueryCalendar(val window: AgendaWindow, val limit: Int, ...)
+    // actions — confirmed through MiaAction, never executed by the planner (MQ-D7)
+    data class ControlDevice(val text: String, val on: Boolean, val limit: Int, ...)
+    data class RunRoutine(val text: String, ...)
+    data class CreateEvent(val title: String, val startLocal: LocalDateTime, ...)
+    // no read
+    data class ActionWithheld(override val explanation: String)
+    data class NoMatch(override val explanation: String)
+}
+
+data class TimeWindow(val startMs: Long, val endMsExclusive: Long, val label: String)
+
+enum class MiaIntent(val id: String, val description: String)   // the 11 reads, §16's menu
+
+enum class MiaSource(val serviceId: String, val chainReferenceId: String,
+                     val preference: Preference<Boolean>,          // "mia.grant.<key>", REALM, default true
+                     val writePreference: Preference<Boolean>? = null) {
+    FILES, TIMELINE, FITNESS, PLACES, DEVICES, ROUTINES, LABELS, VISUAL_SEARCH, CALENDAR
+}
+```
+
+*Proposed* (§23.3): the read variants collapse into one composable `Query`. Actions,
+`ActionWithheld` and `NoMatch` stay as they are.
+
+⚠ **`MiaIntent` does not go away with it.** Today an intent *is* a read variant (one each).
+Under `Query` it becomes the pair a model may pick, `(QuerySource, AnswerShape)`: "photos,
+as a list", "timeline, last time". Everything else in a `Query` stays grammar-filled (§16.1).
+So `ClassifyIntent`'s menu survives MQ-D11 as is; only what an intent *names* changes
+(MQ-D4's note).
+
+```kotlin
+data class Query(
+    val source: QuerySource,
+    val time: TimeExpr? = null,
+    val place: String? = null,
+    val content: ContentFilter? = null,
+    val name: String? = null,
+    val answer: AnswerShape = AnswerShape.List,
+    val limit: Int = QueryPlanner.DEFAULT_LIMIT,
+)   // : QueryPlan, explanation rendered from the fields by code, never by a generator
+
+enum class QuerySource { FILES, PHOTOS, TIMELINE, PLACES, WORKOUTS, DEVICES, CALENDAR }
+
+sealed interface TimeExpr {                                     // symbolic; resolved at lowering
+    data class Relative(val unit: TimeUnit, val offset: Int)    // "last week", "this month"
+    data class Season(val season: SeasonName, val which: Which) // "last summer"
+    data class Weekday(val day: DayOfWeek, val which: Which)    // "last saturday"
+    data class Month(val month: Month, val year: Int?)          // "november 2024"
+    data class Holiday(val id: String, val year: Int?)          // "christmas"
+    data class Range(val from: TimeExpr, val to: TimeExpr)
+}
+
+sealed interface ContentFilter {
+    data class Label(val text: String)    // "photos of …" — reads MediaLabel rows (inert today, §23.1)
+    data class Like(val text: String)     // "photos like …" — PhotosLike, ranked
+}
+
+sealed interface AnswerShape {
+    data object List : AnswerShape
+    data object Latest : AnswerShape                      // "when was I last …"
+    data object Count : AnswerShape                       // "how often …"
+    data object Duration : AnswerShape                    // "how long did I stay …"
+    data class Best(val metric: String) : AnswerShape     // "fastest 5k" — per source
+}
+```
+
+⚠ A legality table (§23.3) refuses a `Query` whose parts the source cannot answer, before lowering.
+
+### 24.3 Inference: `:inference-service` ops
+
+As built, and used by Mia:
+
+```kotlin
+interface ClassifyIntent : Operation {        // "tenshu/inference/classifyIntent" — Io, Terminal
+    fun classifyIntent(utterance: String, candidates: List<IntentCandidate>): RequestObject
+}                                              // → TList<IntentChoice>; empty on any failure (§16.4)
+
+interface IntentCandidate : Composite { val intentId: TString; val description: TString }
+interface IntentChoice : Composite { val intentId: TString }
+
+interface PhotosLike : Operation {            // "tenshu/inference/photosLike" — Io, Terminal
+    fun photosLike(text: String, limit: Int): RequestObject      // → TList<SimilarPhoto>
+}
+interface SimilarPhoto : Composite { /* filePath: String, scorePerMille: Int */ }
+
+enum class InferenceCapability(val id: String, ...) {           // two-switch consent, absence = no
+    TEXT_IN_IMAGES, SEMANTIC_IMAGE_SEARCH, CONTENT_TAGGING, FACE_CLUSTERING,
+    QUERY_PLANNING, SPEECH_TO_TEXT;
+    val realmConsent: Preference<Boolean>      // "inference.realm.<id>",  default false
+    val deviceConsent: Preference<Boolean>     // "inference.device.<id>", default false
+}
+```
+
+**Does a `Query` need new inference ops?** Not for §23.4 step 1: the grammar fills the `Query`,
+and `ClassifyIntent` stays the picker. Each later step needs one, and they differ in what crosses
+the wire:
+
+```kotlin
+// Proposed, §23.4 step 2 — a span tagger. The model marks spans; the GRAMMAR builds the Query.
+interface TagQuerySpans : Operation {         // "tenshu/inference/tagQuerySpans" — Io, Terminal
+    fun tagQuerySpans(utterance: String, languageTag: String): RequestObject   // → TList<QuerySpan>
+}
+interface QuerySpan : Composite {
+    val kind: TString        // "time" | "place" | "content" | "name" | "answer"
+    val start: TInteger      // UTF-16 offsets into the utterance
+    val end: TInteger
+}
+
+// Proposed, §23.4 steps 3–4 — a model fills the Query itself (constrained decoding / a platform model).
+interface DraftQuery : Operation {            // "tenshu/inference/draftQuery" — Io, Terminal
+    fun draftQuery(utterance: String, languageTag: String): RequestObject      // → QueryDraft?
+}
+interface QueryDraft : Composite             // the Query's fields, with TimeExpr as a symbol id + args
+```
+
+⭐ **Prefer `TagQuerySpans`.** A span carries offsets, not values, so the model never states a
+time, a place or a name. The grammar reads them from the utterance, which keeps §16.1's rule
+nearly intact and keeps `Query` off the wire. `DraftQuery` puts the slots in the model's hands,
+needs `QueryDraft` as a schema composite (a new wire shape, `InferenceService` version bump and
+`SchemaMigration`, House Rule 9), and owes everything §23.4 lists before it may run.
+⚠ Both gate on `QUERY_PLANNING` consent, as `ClassifyIntent` does.
+
+### 24.4 Lowering: `QueryPlan` → callstack (`:mia-service-proxy`, internal)
+
+```kotlin
+internal class QueryPlanLowering(private val context: TContext) {
+    fun lower(plan: QueryPlan): List<Data>?   // null for a plan with nothing to run
+    // + the second reads of the joins: lowerMomentsAtPlace, lowerPhotosNear, lowerLabelSearch,
+    //   lowerLiveFiles (§18's existence check), lowerCalendarOccurrences, lowerPhotosLike
+}
+```
+
+A lowered chain is an ordinary callstack, e.g. `FindFilesNamed`:
+`defaultFileSystem.root.files.traverse().filter<File> { name.contains(text) }.take(limit)
+.select { fields(PATH); relations(CreatedAt) }.getAll()`.
+
+*Proposed:* `lower(query: Query): List<List<Data>>`. A combination of filters can need more than
+one read, and Mia joins the results on the §12.1 pattern.
+
+### 24.5 Validator: callstack → verdict (`:mia-service-proxy`)
+
+```kotlin
+object MiaChainValidator {
+    data class Policy(
+        val allowedOperationIds: Set<String>,
+        val allowedServiceIds: Set<String>,       // MiaSource.chainReferenceId of each granted source
+        val fieldUses: Map<String, Set<FieldUse>>,  // field/property/relation id → permitted uses
+        val boundingOperations: Map<String, String>,  // list op id → the param that caps it
+        val maxRows: Int, val maxSteps: Int, val maxNestingDepth: Int,
+    )
+    enum class FieldUse { PROJECT, FILTER, SORT, TRAVERSE }   // by the reference's position
+    sealed interface Verdict { data object Allowed; data class Refused(val reason: String) }
+    fun validate(callstack: List<Data>, policy: Policy): Verdict
+}
+// QueryPlanLowering.policyFor(granted: Set<MiaSource>): Policy — POLICY narrowed to the grants,
+// services AND the source-owned ops (photosLike, queryOccurrences, the two photo ops)
+```
+
+✅ **Built 2026-11-17** (`core-semantic-permissions.md` §3.2): `validate` walks the whole tree and
+classifies every reference by where it sits: a top-level relation step is TRAVERSE, a `filter`
+predicate FILTER, a `sortBy` selector SORT, a `select` selector PROJECT. A reference in a literal
+position, a selector outside `select` and a bare value as a chain step are refused. Ops nested in a
+predicate meet the op allowlist like top-level ones. `MiaChainValidatorTest` has one refusal per
+use, each mutation-checked, and `everyPlannerChainPassesTheValidator` covers every chain the proxy
+runs, because the table fails closed.
+
+*Proposed* (`core-semantic-permissions.md` SP-D3): `Policy` becomes a derived capability grant.
+`FieldUse` is already built as above; what remains is deriving the table instead of writing it:
+
+```kotlin
+data class CapabilityGrant(
+    val reach: Set<String>,                          // service / relation ids
+    val invoke: Set<String>,                         // op ids (read class unless a write tier)
+    val fields: Map<String, Set<FieldUse>>,          // composite field/property/relation id → uses
+    val bounds: Bounds,                              // rows, steps, depth, bounding param per list op
+    val rowScope: List<Data>? = null,                // an injected predicate, SP-D2
+)
+enum class FieldUse { PROJECT, FILTER, SORT, TRAVERSE }   // ⚠ FILTER and SORT are reads (SP-D3)
+
+fun CapabilityGrant.Companion.forMia(granted: Set<MiaSource>, writable: Set<MiaSource>): CapabilityGrant
+```
+
+### 24.6 Execute → `MiaAnswer` (wire composites, `MiaService` v1)
+
+```kotlin
+interface MiaAnswer : Composite {             // "tenshu/mia/answer"
+    val verdict: TString        // "answered" | "noMatch" | "confirm" | "unavailable"
+    val explanation: TString    // the plan's explanation — what was actually searched
+    val hits: TList<MiaHit>
+    val action: MiaAction?      // present iff verdict == "confirm"
+}
+
+interface MiaHit : Composite {                // "tenshu/mia/hit"
+    val target: DataId          // what a tap opens (control-cross-app-open.md TT-1c)
+    val title: TString
+    val subtitle: TString
+    val at: UnixInstant         // 0 = unknown
+}
+
+interface MiaAction : Composite {             // "tenshu/mia/action"
+    val token: TString          // single-use; spent by ConfirmMiaAction
+    val title: TString          // the RESOLVED action (MQ-D7)
+    val detail: TString
+}
+```
+
+⚠⚠ A refusal is `noMatch` or `unavailable`, never `answered` with no hits (§14.1).
+
+*Proposed:* `Count`, `Duration` and `Best` answers carry a value that is not a row ("6 times",
+"2 h 10 min"). That needs an optional field: `val summary: MiaSummary?` with `kind`, `value` and
+`unit`. ⚠ It reshapes `MiaAnswer`, so `MiaService` → v2 with its `SchemaMigration` in the same
+change (House Rule 9). Every client moves in lockstep.
+
+### 24.7 Rich cells (`:mia-shared-logic` → `:mia-shared-ui`)
+
+```kotlin
+sealed interface MessageBody {
+    data class Text(val text: String)
+    data class Citations(val caption: String, val hits: List<Hit>)       // verdict "answered"
+    data class Confirmation(val title: String, val detail: String,
+                            val token: String, val done: Boolean = false) // verdict "confirm"
+    // M3 mock shapes, rendered by ChatScreen, produced only by MockConversationRepository:
+    data class PhotoGrid(val caption: String, val photoLabels: List<String>)
+    data class PlaceCard(val name: String, val detail: String)
+    data class DeviceAck(val text: String)
+}
+data class Hit(val target: DataId, ...)   // the glyph switches on target's type id
+```
+
+⚠ The real path renders every answer as **one** `Citations` cell (or a `Confirmation`). The
+`PhotoGrid` / `PlaceCard` cells §1 and §14.7 name exist only for the mock. A photo answer today is a
+citation list with a photo glyph, not a grid. *Proposed:* a `Count`/`Duration`/`Best` answer
+renders its `summary` as a headline over the citations that back it, so the number always comes
+with the rows it was computed from (MQ-D1).
+
+---
+
+## 25. Proposed — the clarify turn: asking back, and hearing the answer (2026-11-17)
+
+**Status:** proposed, not decided. No code. It closes the command gaps the question set records
+(§23.5 "Still open"): a missing time, a bare hour, a time already past today, and the dead-end
+"Which one did you mean?". Nothing here needs a model, and nothing here lifts §16.1.
+
+### 25.1 Why: Mia already asks questions it cannot hear the answer to
+
+- **A missing slot is refused.** "add dentist tomorrow" answers *"I can add that once you tell me
+  when"*. The user must retype the whole request.
+- ⚠⚠ **Disambiguation is a dead end.** Two devices or two routines matching a name answer
+  `noMatch` ending in *"Which one did you mean?"* (`AskMiaImplementation`, the device and routine
+  arms). The reply arrives as a fresh `askMia` with no memory of the question, so "the kitchen one"
+  is planned from nothing. MQ-D4 called disambiguation "a first-class answer type, rendered as
+  selectable cells"; it was never built.
+- **A bare hour is guessed** ("dinner at 8" → 08:00) and **a past time today is planned** ("a
+  meeting at 10", said at noon). Only MQ-D7's card stands between either and a wrong row.
+
+What these lack is not language understanding. It is **dialog state**: a plan that waits for one
+value, and a reply read only as that value. Voice makes it mandatory (MQ-D7's voice note): a spoken
+turn cannot be retyped.
+
+### 25.2 The model: frame-based slot filling, with the write op as the frame
+
+This is the standard shape (Alexa's dialog model, Dialogflow's required parameters, Rasa forms):
+an intent is a **frame** of typed slots. What is missing is found by comparing the frame with what
+was heard, and the question, the parser and the choices come from the **slot's type**, never from
+the intent. Tenshu has one advantage those systems lack: the frame already exists, because every
+Mia command executes one write op, and that op's schema declares its params.
+
+| Command | Frame (the op) | Its params, by who fills them |
+|---|---|---|
+| `CreateEvent` | `SaveEvent` | **utterance**: `TITLE`, `START_LOCAL`. **default**: `END_LOCAL`, `CALENDAR_ID`, `TIME_ZONE_ID`. **minted**: `EVENT_ID` |
+| `ControlDevice` | `IssueDeviceCommand` | **utterance**: `TARGET_DEVICE_ID`, `VERB` (on/off). **minted**: `COMMAND_ID` |
+| `RunRoutine` | `RunRoutineNow` | **utterance**: `ROUTINE_ID` |
+
+⚠⚠ **What the schema does not say yet.** Every one of these params is declared `string(...)`.
+The schema knows a param exists and whether it is optional, but not that `START_LOCAL` is a local
+date-time or that `TARGET_DEVICE_ID` names a `HomeDevice`. "Optional" also does not say "has a
+default". So the frame's *shape* can be read from the schema, but how to ask for a slot cannot be,
+yet.
+
+### 25.3 The two paths: a command lowers like a query
+
+A filled command becomes an ordinary op call on the owning service, exactly as a filled query
+becomes a chain. The write path runs in two phases, with MQ-D7's confirmation between them:
+
+```
+Read:   utterance ─planner─> QueryPlan ─lowering─> callstack ─capability grant─> execute ─> answer
+
+Write:  utterance ─planner─> command, partly filled ⇄ clarify (CL-D1 … CL-D5)
+                     ├─ resolve defaults and candidates: READS, lowered and checked as above
+                     └─> confirmation card (token)
+        tap ───────> lowering: frame + resolved values ─> op call ─request template─> execute ─> ack
+```
+
+- **As built, each command lowers itself by hand.** `ConfirmMiaActionImplementation` has one branch
+  per `PendingMiaAction`, and each builds its op's params map and calls `dispatchOperation`. So the
+  write already *is* a normal op call, but it is hand-assembled and nothing checks it.
+- ⭐ **With the frame (§25.2, CL-D3) the lowering becomes generic.** The frame names the op and where
+  each param comes from, so "resolved command → op call" is one mechanical step for every command.
+  The per-action branches collapse into it, and a new write intent costs a `MiaFrames` entry, not a
+  branch.
+- ⭐⭐ **The frame is the write's request template** (`core-semantic-permissions.md` SP-D2). A
+  write's shape never varies: always `SaveEvent` with these params, only the values change. So the
+  frame *is* the template. Its utterance-filled params are the placeholders, clarify fills a
+  placeholder, and the template matcher checks the call before dispatch. The two permission kinds
+  then line up with the two paths:
+  - **capability grants for what Mia reads**, because a read chain is composed and varies;
+  - **request templates for what Mia writes**, because a write is one fixed op call.
+- ⚠ **Lowering the write happens at tap time, never at plan time.** It is built from the values
+  already resolved and shown (MQ-D7). So the write never appears in a read callstack, and the
+  read validator stays reads-only (MQ-D10 check 1).
+- ⚠ **The checks differ in depth because the shapes do.** A read chains steps (traverse, filter,
+  sort, take), so it needs the field-use walk. A write is a single op call, so a template match is
+  the whole check.
+
+### 25.4 Decisions (proposed)
+
+**CL-D1 — A clarification references a param of the write op, for one of three reasons.**
+`QueryPlan.Clarify(partial, param, reason, candidates, explanation)`, where:
+- `partial` is the command plan resolved so far;
+- `param` is the op param's schema id (`tenshu/calendar/service/saveEvent/startLocal`);
+- `reason` is one of three:
+  - **`MISSING`**: a param the utterance fills, with no value heard ("add dentist tomorrow").
+  - **`AMBIGUOUS`**: more than one value fits. That is either several candidates (two lights
+    called "kitchen") or a *partial* value (an hour with no half of the day).
+  - **`INVALID`**: a value was heard and breaks a constraint on the param (a start that has
+    already passed).
+
+Every case §23.5 records is one of the three; none needs a new kind. It is plain Kotlin and never
+crosses the wire, like every `QueryPlan` (§24.2).
+- ⚠ One param at a time. A plan with two open params asks for the first; a second clarify follows
+  if needed.
+- ⚠ Only commands clarify. A read with a missing value already has an honest default it names
+  ("your calendar for **today**"), and asking would add a turn to every question.
+
+**CL-D2 — How to ask, parse and suggest comes from the slot type, through one registry.**
+`SlotType` is an interface with three members:
+- `question(param)`, the sentence asked;
+- `choices(partial, param, reason)`, the chips;
+- `parse(reply, partial)`, the value or `null`.
+
+A small set of types covers every param above:
+
+| Slot type | Parse | Choices |
+|---|---|---|
+| local date-time | `EventTimeGrammar`, restricted to a time and date | representative times (CL-Q1) |
+| entity reference (`HomeDevice`, `Routine`) | a name match against the **candidates offered**, never the realm | one chip per candidate, from the read chain that found them |
+| free text (a title) | the reply as it is | none |
+
+- ⭐ A new write intent needs **no clarify code** as long as its params' types are registered: its
+  frame comes from its op, and its questions from its types.
+- ⚠ The question text comes from the schema phrase that `core-semantic-permissions.md` SP-D4 wants
+  for consent sentences ("When should it start?", "Which light?"). It is written and translated
+  once, for both uses.
+
+**CL-D3 — Until the schema carries semantic types, Mia keeps the param → slot-type table.**
+`MiaFrames` maps each op param to two things: **who fills it** (utterance / service default /
+minted) and **its slot type**. It sits beside the lowering, like the capability tables (SP-Q3).
+- ⚠⚠ Keyed by **param id**, deliberately. Moving the type into the schema (a semantic param type in
+  the DSL) reshapes every op it touches under House Rule 9, so it waits until a second consumer
+  needs it: Rei's Skills, or a third write intent. Then the registry is keyed by type, and this
+  table shrinks to "who fills it". That matches `core-realm-data.md`'s rule: meaning lives in the
+  schema, and presentation lives with each consumer.
+- ⚠ "Has a default" is asked of the service, not inferred from `isOptional`. The calendar's default
+  calendar and default duration are already preference rows (`CalendarSlots`); the table names the
+  resolver for each defaulted param.
+
+**CL-D4 — The pending clarification lives proxy-side, exactly like a pending action.**
+A token-keyed registry with the `MiaActionRegistry` rules: single-use, a 5-minute TTL, in memory,
+lost on a proxy restart ("ask me again").
+- ⭐ The token is a **narrow capability**, as for actions. It names one param of a plan the proxy
+  holds, so a reply can fill that param and nothing else: never the title, the target or the verb,
+  unless that is the param asked for.
+- ⚠ One open clarification per conversation. A new one, or any confirmation, replaces it, so a
+  stale chip cannot fill a plan the user has moved past.
+
+**CL-D5 — The answer comes back through one new op, as a choice or as free text.**
+`replyToMia(token, utterance, nowEpochMs, timeZoneId)`.
+- A **choice** is a canned reply: each chip carries a canonical `reply` ("19:00",
+  `ref:<deviceId>`) beside its localised `label`. A tap sends the `reply`, so a tap and a spoken
+  answer meet the same `SlotType.parse`.
+- ⚠⚠ **A reply that does not parse as the param is a new question.** The proxy drops the
+  clarification and plans the utterance as `askMia` would. A user who changes their mind ("actually,
+  what's on tomorrow") is answered, not re-asked. ⚠ Never the reverse: an ordinary `askMia` is never
+  read against an open clarification, which is why the reply has its own op and not an optional
+  `askMia` parameter.
+- ⚠ The result is an ordinary `MiaAnswer`: `confirm` with the resolved card, or another `clarify`.
+  **A clarify turn never writes.** MQ-D7's card stays the only path to a row, so a missing time costs
+  two taps: the chip, then confirm.
+
+**CL-D6 — A bare hour is `AMBIGUOUS`, and is answered on the card, not with a turn.**
+Asking for every bare hour would add a turn to "dentist at 9", which the convention gets right. So
+an `AMBIGUOUS` param whose slot type ranks one value first (1–7 → pm, 8–12 → am) resolves to that
+value, and the confirmation card carries the runner-up as a one-tap alternative ("20:00 instead?").
+A turn is spent only when no value ranks first: candidates of equal standing, such as two lights.
+- ⚠ Only a **bare** hour is ambiguous. An hour with am/pm, a bound part of day or a clock time
+  ("18:30") is not, and gets no alternative.
+- ⚠ Not ranked from the title. "Dinner at 8" meaning 20:00 is true, but a meal-word table is a
+  vocabulary that never ends, and one tap on the alternative is cheaper.
+
+**CL-D7 — Only where actions are offered.**
+iOS route-1 and the web tab run `MiaActionOffer.WITHHELD` (§19.2, §20). Their commands withhold at
+the intent, ahead of any slot, and §19.2's reasoning holds unchanged: asking "what time?" there
+would walk the user through a request that runtime then refuses.
+
+**CL-D8 — The question set is the acceptance test.**
+`Action.ask` already states these expectations (§23.5). It becomes the param and reason, and the
+matcher maps `QueryPlan.Clarify` onto it. The GAP cases promote as the turn lands. A free reply
+needs a second utterance, so the set grows a two-turn `Case`: utterance, reply, expected confirm.
+
+### 25.5 What the derivation produces for today's gaps
+
+These are outputs of CL-D1 and CL-D2, not cases to hand-code.
+
+| Utterance | Param | Reason | Asked | Chips |
+|---|---|---|---|---|
+| add dentist tomorrow | `saveEvent/startLocal` | `MISSING` | "When tomorrow should it start?" | Morning 09:00 · Afternoon 14:00 · Evening 19:00 · Other time |
+| add dentist tomorrow morning | `saveEvent/startLocal` | `MISSING` (date and part of day heard) | "When tomorrow morning?" | 08:00 · 09:00 · 10:00 · Other time |
+| add a meeting at 10 (said at noon) | `saveEvent/startLocal` | `INVALID` (in the past) | "10:00 has passed today. When?" | Tomorrow 10:00 · Today 22:00 |
+| add dinner at 8 | `saveEvent/startLocal` | `AMBIGUOUS`, ranked | no turn: the card says 08:00 | "20:00 instead?" on the card |
+| add tomorrow at 1pm | `saveEvent/title` | `MISSING` | "What should I call it?" | none: free text |
+| turn off the light (two lights) | `issueDeviceCommand/targetDeviceId` | `AMBIGUOUS`, unranked | "Which light?" | one chip per candidate |
+| run my evening routine (two) | `runRoutineNow/routineId` | `AMBIGUOUS`, unranked | "Which routine?" | one chip per candidate |
+
+- ⚠ "Other time" is not a reply. It focuses the composer (or the microphone), and the next
+  utterance goes to `replyToMia`.
+- ⚠ The constraint behind `INVALID` ("a start is not in the past") belongs to the slot type's
+  use for `START_LOCAL`, so it lives in `MiaFrames` beside the type, not in the grammar.
+
+### 25.6 Wire shape (proposed): `MiaService` v2
+
+```kotlin
+interface MiaAnswer : Composite {             // + one field
+    // verdict gains "clarify"
+    val clarification: MiaClarification?      // present iff verdict == "clarify"
+}
+
+interface MiaClarification : Composite {      // "tenshu/mia/clarification"
+    val token: TString                        // single-use; spent by ReplyToMia
+    val param: TString                        // the op param asked for: ".../saveEvent/startLocal"
+    val reason: TString                       // "missing" | "ambiguous" | "invalid"
+    val question: TString                     // "When tomorrow should it start?"
+    val choices: TList<MiaChoice>
+}
+
+interface MiaChoice : Composite {             // "tenshu/mia/choice"
+    val label: TString                        // localised, shown: "Evening 19:00"
+    val reply: TString                        // canonical, parsed: "19:00"
+}
+
+interface MiaAction : Composite {             // + one field, for CL-D6
+    val alternatives: TList<MiaChoice>        // "20:00 instead?"; empty for most actions
+}
+
+interface ReplyToMia : Operation {            // "tenshu/mia/service/replyToMia" — Io, Terminal
+    fun replyToMia(token: String, utterance: String, nowEpochMs: Long, timeZoneId: String): RequestObject
+}
+```
+
+- ⚠⚠ **A reshape, so `MiaService` → v2 with its `SchemaMigration` in the same change** (House
+  Rule 9). `MiaAnswer` and `MiaAction` gain fields and the service gains an op.
+  `SchemaShapeBaselineEnforcementTest` names every one of them. Every client moves in lockstep.
+- ⚠ `param` and `reason` are for the client's rendering and for tests. The client never sends them
+  back; the token already names them proxy-side (CL-D4).
+- ⚠ §24.6's proposed `summary` field is a second `MiaAnswer` reshape. If both land in the same
+  release they should share the bump; neither should wait for the other.
+- ⚠ An alternative's tap is a reply against the **card's** token. The proxy re-resolves, mints a new
+  card and invalidates the old one, so the first card cannot be confirmed afterwards.
+- ⚠ Under `core-semantic-permissions.md` SP-D2 the Mia app's permission grows a third template,
+  `replyToMia(?token, ?utterance, ?now, ?zone)`. It reaches nothing new: it is bounded by the plan
+  and param the token names.
+
+### 25.7 Phasing (proposed)
+
+1. **CL-1, proxy:**
+   - `QueryPlan.Clarify`, `SlotType`, and `MiaFrames` for `SaveEvent`;
+   - the pending registry, `replyToMia`, and v2 with its migration;
+   - the `startLocal` clarifications (`MISSING`, `INVALID`);
+   - the generic frame → op-call lowering (§25.3), replacing `ConfirmMiaAction`'s per-action
+     branches for all three commands at once, so no command is left on the hand-built path.
+
+   Tested proxy-side like `AskMiaCreateEventTest`. ⚠ The template check on that call waits for
+   SP-Q2's walker; until then the frame is the only thing that shapes it.
+2. **CL-2, the Android and desktop app:**
+   - a `MessageBody.Clarification` cell with chips;
+   - "Other time" focusing the composer;
+   - the composer routing its next send to `replyToMia` while a clarification is open.
+3. **CL-3, entity references:** `MiaFrames` for `IssueDeviceCommand` and `RunRoutineNow`, and the
+   entity-reference slot type. It replaces the two dead-end "Which one did you mean?" answers.
+4. **CL-4, ranked ambiguity:** the bare-hour alternative on the card (CL-D6), once CL-1's reply path
+   exists.
+5. **Smoke:** House Rule 8 for CL-2 (it changes `androidMain`), and a two-turn click-through on a
+   device. §14 is why: the track's last click-through found six defects no test saw.
+
+### 25.8 Open
+
+- **CL-Q1 — representative values.** 09/14/19 is a guess. A `:preference-service` row ("my morning
+  starts at 7") is the obvious home, but only if anyone changes it; ship constants first.
+- **CL-Q2 — voice.** A spoken "nine" must reach the reply path, never `askMia`. The voice turn has
+  to know a clarification is open. That is CL-2's composer-routing rule, but it lives in the
+  dictation path, which `inference-service.md` owns.
+- **CL-Q3 — where the token lives client-side.** On the message, so a scrolled-back chip is visibly
+  stale once spent (as `Confirmation.done` is today). Or only on the latest message, so older chips
+  render disabled. Lean: the latter, because one open clarification per conversation (CL-D4) makes
+  older ones dead anyway.
+- **CL-Q4 — semantic param types in the schema.** When `MiaFrames`' slot types move into the DSL
+  (CL-D3): a `localDateTime(...)` / `reference<HomeDevice>(...)` param declaration. It reshapes
+  `CalendarService`, `HomeDeviceService` and `RoutineService` ops. Worth doing once, for all
+  consumers: Mia's slots, SP-D4's consent sentences, and the validator's field types.
+- **CL-Q5 — German.** Every slot type's parser is English. A German clarification is blocked on
+  whatever answers §23.4 for German, not on this design.

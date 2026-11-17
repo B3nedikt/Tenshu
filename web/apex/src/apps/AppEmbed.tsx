@@ -32,6 +32,9 @@ export interface AppEmbedProps {
   // inside an iframe (clipboard for share/invite links, WebAuthn for re-auth, the camera for
   // Drive's "Scan an invite").
   readonly allow?: string
+  // The frame's browsing-context name — the opening appearance (`appearance/appAppearance.ts`).
+  // Read by the app before its first paint; never sent to a server.
+  readonly name?: string
 }
 
 // ⚠ A cross-origin frame gets no powerful feature the host doesn't delegate here: without
@@ -40,7 +43,7 @@ export interface AppEmbedProps {
 // delegates to the frame's own origin only, and the browser still asks the user.
 export const FIRST_PARTY_ALLOW = 'clipboard-read; clipboard-write; publickey-credentials-get *; camera'
 
-export function AppEmbed({ origin, entry = '', frameRef, title, allow = FIRST_PARTY_ALLOW }: AppEmbedProps) {
+export function AppEmbed({ origin, entry = '', frameRef, title, allow = FIRST_PARTY_ALLOW, name }: AppEmbedProps) {
   return (
     // The app shell (`shell/AppShell.tsx`) gives its content no padding, so the frame fills the area
     // below the 3.5rem header edge-to-edge, the way a hosted app should feel.
@@ -48,6 +51,7 @@ export function AppEmbed({ origin, entry = '', frameRef, title, allow = FIRST_PA
       ref={frameRef}
       title={title}
       src={origin + entry}
+      name={name}
       allow={allow}
       className="block h-[calc(100vh-3.5rem)] w-full border-0 bg-surface"
     />

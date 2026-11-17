@@ -107,19 +107,42 @@ class QueryPlanLoweringTest {
     @Test
     fun everyPlannerChainPassesTheValidator() = runTest {
         val proxy = createMiaProxy(backgroundScope)
+        val window = TimeWindow(0L, 1L, "w")
         val plans = listOf<QueryPlan>(
             QueryPlan.FindFilesNamed(text = "invoice", limit = 5, explanation = ""),
-            QueryPlan.FindPhotos(TimeWindow(0L, 1L, "w"), limit = 5, explanation = ""),
+            QueryPlan.FindPhotos(window, limit = 5, explanation = ""),
+            QueryPlan.FindPlaces(text = "cafe", limit = 5, explanation = ""),
+            QueryPlan.RecallMoments(window, limit = 5, explanation = ""),
+            QueryPlan.FindWorkouts(window, limit = 5, explanation = ""),
+            QueryPlan.FindDevices(text = "lamp", limit = 5, explanation = ""),
+        )
+        // ⚠⚠ The field-use table fails closed, so a lowering missing from this list is one whose
+        // first real question could be refused in production. Every chain the proxy runs, the
+        // second stages of the joins included, is here.
+        val lowering = lowering(proxy)
+        val chains = plans.map { plan -> plan.toString() to lowering.lower(plan)!! } + listOf(
+            "momentsAtPlace" to lowering.lowerMomentsAtPlace("place-1", limit = 1),
+            "labelSearch" to lowering.lowerLabelSearch("dog", limit = 5),
+            "photosLike" to lowering.lowerPhotosLike("a beach", limit = 5),
+            "photosNear" to lowering.lowerPhotosNear(latE7 = 1, lngE7 = 2, radiusM = 3, limit = 5),
+            "calendar" to lowering.lowerCalendarOccurrences(
+                kotlinx.datetime.LocalDate(2026, 11, 17),
+                kotlinx.datetime.LocalDate(2026, 11, 18),
+                limit = 5,
+            ),
         )
 
-        plans.forEach { plan ->
-            val chain: List<Data> = lowering(proxy).lower(plan)!!
+        chains.forEach { (name, chain) ->
             assertEquals(
                 MiaChainValidator.Verdict.Allowed,
-                MiaChainValidator.validate(chain, QueryPlanLowering.POLICY),
-                "planner emitted a chain its own policy refuses: $plan",
+                MiaChainValidator.validate(chain, QueryPlanLowering.policyFor(MiaSource.entries.toSet())),
+                "planner emitted a chain its own policy refuses: $name",
             )
         }
+        assertEquals(
+            MiaChainValidator.Verdict.Allowed,
+            MiaChainValidator.validate(lowering.lowerLiveFiles(listOf("/a.jpg")), QueryPlanLowering.EXISTENCE_POLICY),
+        )
     }
 
     @Test

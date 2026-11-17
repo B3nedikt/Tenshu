@@ -32,7 +32,8 @@ export function GridBody({
 // corners, and a click opens that photograph in the app (its `open` fragment, under the app's path).
 function Tile({ tile, call, app }: { readonly tile: GlanceTile; readonly call: GlanceCall; readonly app: HostedApp }) {
   const { t } = useTranslation('control')
-  const url = usePreviewUrl(tile.path, call)
+  // Sharp: a card tile is bigger than the LARGE rung covers (previewUrl.ts).
+  const url = usePreviewUrl(tile.path, call, undefined, true)
   const name = tile.path.slice(tile.path.lastIndexOf('/') + 1)
   const href = tile.open ? glanceHref(app, tile.open) : null
   return (

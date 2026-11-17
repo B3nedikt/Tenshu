@@ -79,6 +79,17 @@ import {
   macosLivecheckFile,
   macosLivecheckJson,
 } from './macosDownload.ts'
+import {
+  WINDOWS_APPS,
+  WINDOWS_DOWNLOAD,
+  WINDOWS_DOWNLOAD_LANGUAGES,
+  loadWindowsRelease,
+  windowsAppName,
+  windowsDownloadHtml,
+  windowsDownloadNeutralUrl,
+  windowsDownloadUrl,
+  type WindowsRelease,
+} from './windowsDownload.ts'
 import { APP_PAGES, APP_PAGE_LANGUAGES, BUTTON_PRIMARY, BUTTON_SECONDARY, appPageHtml, appPageNeutralUrl, appPageUrl, type AppPageSet } from './appPages.ts'
 import {
   GETTING_STARTED_ICON,
@@ -1049,7 +1060,9 @@ export async function buildSupportSite({
   files.push(...buildPricing(renderChrome, cssHref))
   files.push(...buildAndroidDownloads(renderChrome, cssHref, storeDir))
   files.push(...buildMacosDownloads(renderChrome, cssHref, storeDir))
-  for (const set of APP_PAGES) files.push(...buildAppPages(renderChrome, cssHref, set, manifests))
+  const windowsRelease = loadWindowsRelease(storeDir)
+  files.push(...buildWindowsDownloads(renderChrome, cssHref, windowsRelease))
+  for (const set of APP_PAGES) files.push(...buildAppPages(renderChrome, cssHref, withWindowsRelease(set, windowsRelease), manifests))
 
   // The hub lists every app; its switch and the content must agree (hub.ts HubApp.support).
   for (const entry of HUB_APPS) {
@@ -1202,6 +1215,40 @@ function buildMacosDownloads(renderChrome: ChromeRenderer, cssHref: string, stor
     const json = release ? macosLivecheckJson(release, app) : null
     return json ? [...html, { file: macosLivecheckFile(app), content: json }] : html
   })
+}
+
+/**
+ * The Windows download pages, `/apps/<app>/download/windows/<lang>` (windowsDownload.ts), one set per
+ * app, from the committed `store/windows-release.json` (or "not available yet" without it).
+ */
+function buildWindowsDownloads(renderChrome: ChromeRenderer, cssHref: string, release: WindowsRelease | null): Output[] {
+  return WINDOWS_APPS.flatMap((app) => {
+    const pages: Record<string, TextPage> = Object.fromEntries(
+      WINDOWS_DOWNLOAD_LANGUAGES.map((lang) => {
+        const page = WINDOWS_DOWNLOAD[lang]!
+        const name = windowsAppName(app)
+        return [lang, { title: page.title(name), description: page.description(name), html: windowsDownloadHtml(page, app, lang, release) }]
+      }),
+    )
+    const set: TextPageSet = {
+      dir: `apps/${app}/download/windows`,
+      neutralUrl: windowsDownloadNeutralUrl(app),
+      articleClass: 'prose windows-download',
+      listClass: 'prose',
+      current: null,
+    }
+    return buildTextPages(renderChrome, cssHref, set, pages, WINDOWS_DOWNLOAD_LANGUAGES, (lang) => windowsDownloadUrl(app, lang))
+  })
+}
+
+/**
+ * An app page's Windows button links its download page only while the committed release carries the
+ * app; otherwise it is "Coming soon". ⚠ Unlike Mac, where every app is released: a Windows button that
+ * opens "not available yet" would be a broken promise on the page a visitor lands on.
+ */
+export function withWindowsRelease(set: AppPageSet, release: WindowsRelease | null): AppPageSet {
+  const released = (WINDOWS_APPS as readonly string[]).includes(set.app) && !!release?.apps[set.app as (typeof WINDOWS_APPS)[number]]
+  return { ...set, downloads: set.downloads.map((d) => (d.target === 'windows' && !released ? { ...d, href: null } : d)) }
 }
 
 /**

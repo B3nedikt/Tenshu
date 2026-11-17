@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { findHostedApp, HOSTED_APPS, type HostedApp } from '../../apps/registry'
 import { GlanceCard } from './GlanceCard'
-import { GlanceGrid } from './GlanceGrid'
+import { WidgetBoard } from '../WidgetBoard'
 import { GlanceGatewayContext, scopedCall, type GatewayCall } from './glanceGateway'
 import { ShownAppsProvider } from '../ShownAppsProvider'
 import { fakeShownApps } from '../../test/fakeShownApps'
@@ -261,13 +261,13 @@ describe('GlanceCard', () => {
   })
 })
 
-describe('GlanceGrid', () => {
+describe('WidgetBoard (not editing)', () => {
   function renderGrid(stored: string[], gateway: GatewayCall | null) {
     return render(
       <GlanceGatewayContext.Provider value={gateway}>
         <ShownAppsProvider source={fakeShownApps(stored)}>
           <MemoryRouter>
-            <GlanceGrid />
+            <WidgetBoard editing={false} />
           </MemoryRouter>
         </ShownAppsProvider>
       </GlanceGatewayContext.Provider>,

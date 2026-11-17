@@ -1,4 +1,4 @@
-# Direct releases: Android APKs and macOS `.dmg` (Cloudflare R2)
+# Direct releases: Android APKs, macOS `.dmg` and Windows `.msix` (Cloudflare R2)
 
 An **R2 bucket**, `tenshu-releases`, behind the custom domain **`releases.tenshu.app`**. It holds the
 signed APKs that tenshu.app offers to phones without Google Play
@@ -11,6 +11,7 @@ Homebrew casks offer ([`desktop-macos-distribution.md`](../../docs/proposals/des
 |---|---|---|---|---|
 | APK | `scripts/android-release.sh --direct` | `scripts/android-direct-publish.sh` | `store/android-release.json` | [`android-release.md`](../../docs/how-to/android-release.md) *Publishing a direct release* |
 | `.dmg` | `scripts/macos-release.sh` | `scripts/macos-direct-publish.sh` | `store/macos-release.json` | [`macos-release.md`](../../docs/how-to/macos-release.md) §7 |
+| `.msix` + `.cer` | `scripts/windows/windows-release.ps1` (on Windows) | `scripts/windows-direct-publish.sh` (on the Mac) | `store/windows-release.json` | [`windows-release.md`](../../docs/how-to/windows-release.md) §3 |
 
 ⚠ One bucket and one publish key for both, on purpose: both are install trust roots (threat model
 A44), both are published by the maintainer from the same Mac, and R2 cannot scope a key to a prefix,
@@ -36,6 +37,11 @@ https://releases.tenshu.app/sha256/<64 hex>.dmg
     Content-Type:        application/x-apple-diskimage
     Cache-Control:       public, max-age=31536000, immutable
     Content-Disposition: attachment; filename="Tenshu<App>-<version>.dmg"
+
+https://releases.tenshu.app/sha256/<64 hex>.msix   (and .cer, the certificate the packages are signed with)
+    Content-Type:        application/msix   (application/pkix-cert)
+    Cache-Control:       public, max-age=31536000, immutable
+    Content-Disposition: attachment; filename="Tenshu<App>-<version>.msix"   ("TenshuBeta.cer")
 ```
 
 - **Content-addressed, flat**, exactly as on `assets.tenshu.app`. The key is the SHA-256 of the

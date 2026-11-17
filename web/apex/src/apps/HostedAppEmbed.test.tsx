@@ -167,3 +167,22 @@ describe('registry sections', () => {
     }
   })
 })
+
+describe('HostedAppEmbed — appearance (web-apex-home.md §4.15)', () => {
+  it('opens the frame with the appearance in its name, and resends it on ready and on a change', async () => {
+    const { setMode } = await import('../appearance/appearance')
+    const { frame } = renderDrive('/drive')
+    expect(frame.getAttribute('name')).toMatch(/^tenshu-appearance:\{"mode":"auto","language":"en","tint":null\}$/)
+    const post = vi.spyOn(frame.contentWindow!, 'postMessage')
+    report(frame, { type: READY_MESSAGE })
+    expect(post).toHaveBeenCalledWith({ type: 'tenshu.appearance', mode: 'auto', language: 'en', tint: null }, DRIVE)
+    act(() => setMode('dark'))
+    try {
+      expect(post).toHaveBeenLastCalledWith({ type: 'tenshu.appearance', mode: 'dark', language: 'en', tint: null }, DRIVE)
+      // The name is fixed at open: a change travels as a message, never as a reload.
+      expect(frame.getAttribute('name')).toContain('"mode":"auto"')
+    } finally {
+      act(() => setMode('auto'))
+    }
+  })
+})

@@ -626,4 +626,131 @@ class QueryPlannerTest {
             assertTrue(offered !is QueryPlan.NoMatch, "$utterance should be a read, was $offered")
         }
     }
+
+    // ---- the question-set fixes (§23.5) ----------------------------------------
+    // The clock here is Wednesday 2026-07-15, so "tomorrow" is the 16th.
+
+    private fun event(utterance: String) = assertIs<QueryPlan.CreateEvent>(plan(utterance))
+
+    @Test
+    fun anExplicitPartOfDayOutranksTheBareHourConvention() {
+        assertEquals(LocalDateTime(2026, 7, 16, 20, 0), event("add dinner tomorrow at 8 in the evening").startLocal)
+        assertEquals(LocalDateTime(2026, 7, 16, 20, 0), event("add dinner tomorrow at 8 tonight").startLocal)
+        // ⚠ And the other way: the convention would make a bare 3 15:00.
+        assertEquals(LocalDateTime(2026, 7, 16, 3, 0), event("add flight tomorrow at 3 in the morning").startLocal)
+    }
+
+    @Test
+    fun aPartOfDayCountsOnlyInTheTimeExpression() {
+        // ⚠⚠ "night" here is title; "in the morning" is the time. Reading the first day part
+        // anywhere proposed 20:00 (Codex review).
+        val shift = event("add night shift handover tomorrow at 8 in the morning")
+        assertEquals(LocalDateTime(2026, 7, 16, 8, 0), shift.startLocal)
+        assertEquals("night shift handover", shift.title)
+        assertEquals(LocalDateTime(2026, 7, 16, 19, 0), event("add call tomorrow evening at 7").startLocal)
+        assertEquals(LocalDateTime(2026, 7, 17, 21, 0), event("add drinks friday night at 9").startLocal)
+        assertEquals("good morning meeting", event("add good morning meeting tomorrow at 9").title)
+    }
+
+    @Test
+    fun aPartOfDayAloneStillInventsNoTime() {
+        // ⚠⚠ The guard that matters: "morning" narrows a time, it does not fix one, and a guessed
+        // time is a wrong row (MQ-D1's amendment). The answer stays "when?".
+        assertIs<QueryPlan.NoMatch>(plan("add dentist tomorrow morning"))
+        assertIs<QueryPlan.NoMatch>(plan("add dinner this evening"))
+    }
+
+    @Test
+    fun numberWordsAreAnHourOnlyAfterAt() {
+        val lunch = event("add lunch with anna on friday at one")
+        assertEquals(LocalDateTime(2026, 7, 17, 13, 0), lunch.startLocal)
+        assertEquals("lunch with anna", lunch.title)
+        assertEquals(LocalDateTime(2026, 7, 16, 12, 0), event("add lunch tomorrow at noon").startLocal)
+        // ⚠⚠ A clock time wins over a number word in a name (Codex review).
+        assertEquals(LocalDateTime(2026, 7, 16, 20, 0), event("add lunch at five guys tomorrow at 8pm").startLocal)
+        // ⚠⚠ And a number word is an hour only where the time expression ends: with no clock
+        // time, a venue's "five" is no time at all, so the answer is "when?".
+        assertIs<QueryPlan.NoMatch>(plan("add lunch at five guys tomorrow"))
+        assertIs<QueryPlan.NoMatch>(plan("add call at one with tom"))
+        assertIs<QueryPlan.NoMatch>(plan("add lunch at noon cafe tomorrow"))
+        assertEquals(LocalDateTime(2026, 7, 16, 13, 0), event("add lunch with anna at one tomorrow").startLocal)
+        assertEquals(LocalDateTime(2026, 7, 16, 19, 0), event("add dinner tomorrow at seven in the evening").startLocal)
+        assertEquals(LocalDateTime(2026, 7, 16, 9, 0), event("add standup tomorrow at nine o'clock").startLocal)
+    }
+
+    @Test
+    fun aTitleDropsTheRequestScaffoldingAndNothingElse() {
+        assertEquals("dentist", event("add an event dentist tomorrow at 9 in the morning").title)
+        assertEquals("call mum", event("remind me to call mum tomorrow at 5").title)
+        // "the" is title unless it belongs to "in the evening".
+        assertEquals("the dentist", event("add the dentist tomorrow at 9").title)
+        // A lone noun is the title, not scaffolding.
+        assertEquals("meeting", event("add a meeting tomorrow at 10").title)
+    }
+
+    /**
+     * ⚠⚠ A title is the utterance minus what the time grammar CONSUMED, never minus a word list:
+     * each case below lost a word when titles were stripped of anything that looked like time.
+     */
+    @Test
+    fun aTitleKeepsEveryWordTheTimeDidNotUse() {
+        assertEquals("lunch at five guys", event("add lunch at five guys tomorrow at 8pm").title)
+        assertEquals("one on one with tom", event("add one on one with tom tomorrow at 3").title)
+        assertEquals("book club", event("add book club tomorrow at 7").title)
+        assertEquals("table at nopa", event("book a table at nopa tomorrow at 7").title)
+        assertEquals("morning standup", event("add morning standup tomorrow at 9").title)
+        assertEquals("call with tom", event("add call with tom in an hour").title)
+        assertEquals("call with a client", event("add call with a client on next friday at 10").title)
+        assertEquals("standup", event("add standup tomorrow at nine o'clock").title)
+        assertEquals("call", event("add call this evening at 7").title)
+    }
+
+    @Test
+    fun lastSeasonIsTheOneThatHasEnded() {
+        // July: summer 2026 is under way, so "last summer" is 2025 (pinned above). November:
+        // summer 2026 has ended, so it is 2026.
+        val november = LocalDateTime(2026, 11, 16, 12, 0).toInstant(TimeZone.UTC).toEpochMilliseconds()
+        val plan = assertIs<QueryPlan.FindPhotos>(
+            QueryPlanner.plan("photos from last summer", november, zone, MiaActionOffer.OFFERED),
+        )
+        assertEquals(utcMs(2026, 6, 1), plan.window.startMs)
+    }
+
+    @Test
+    fun aLabelIsSearchedInTheSingular_aLikenessIsNot() {
+        fun label(u: String) = assertIs<QueryPlan.FindPhotosOfLabel>(plan(u)).text
+        assertEquals("cat", label("pictures of cats"))
+        assertEquals("box", label("photos of boxes"))
+        assertEquals("glass", label("photos of glasses"))
+        assertEquals("bus", label("photos of a bus"))
+        // ⚠⚠ Truncation only: every label that matched the original phrase must still match. A
+        // rewrite ("puppies" → "puppy", "davies" → "davy") would lose a stored label or a named face.
+        listOf("puppies", "james davies", "cats", "boxes", "williams").forEach { stored ->
+            assertTrue(stored.contains(label("photos of $stored")), "lost the label \"$stored\"")
+        }
+        // ⚠ A likeness is a description; its wording is the query.
+        assertEquals("dogs playing", assertIs<QueryPlan.FindPhotosLike>(plan("photos that look like dogs playing")).text)
+    }
+
+    @Test
+    fun aCalendarCueNeedsACalendarTime() {
+        assertIs<QueryPlan.QueryCalendar>(plan("what's on tomorrow"))
+        assertIs<QueryPlan.QueryCalendar>(plan("am I free on friday"))
+        // No day named: not the calendar.
+        assertTrue(plan("do I have anything from paris") !is QueryPlan.QueryCalendar)
+        // ⚠⚠ The agenda grammar looks forward only, so a past question is not routed by the cue.
+        assertTrue(plan("was I busy last week") !is QueryPlan.QueryCalendar)
+        assertIs<QueryPlan.QueryCalendar>(plan("am I busy next week"))
+        // ⚠ A file word outranks the inferred cue (only a calendar noun outranks the file arm).
+        assertIs<QueryPlan.FindFilesNamed>(plan("find files named plans for next week"))
+        // "what … on" apart is a timeline question.
+        assertIs<QueryPlan.RecallMoments>(plan("what did I do on saturday"))
+    }
+
+    @Test
+    fun germanSmallTalkIsANoMatch_notAFileSearch() {
+        listOf("danke", "wie spät ist es", "erzähl mir einen witz", "hallo mia").forEach {
+            assertIs<QueryPlan.NoMatch>(plan(it), it)
+        }
+    }
 }

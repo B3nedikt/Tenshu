@@ -4,7 +4,9 @@
 distribution decision is taken: **Microsoft Store first** (§0, D1–D4). W0 measured on the maintainer's
 Windows 11 machine; W1 and W2 done (W2's exit gate passed with side-loaded MSIX packages; "pair, restart,
 still paired" not yet run), with the Windows CI lane in `.github/workflows/windows.yml`; W3 in progress
-(tray and probes built); W4's Store build exists, unsubmitted (§5.2). No Windows build ships.
+(tray and probes built); W4's Store build exists, unsubmitted (§5.2) — the Store is blocked on the
+Partner Center account. D6 (2026-11-17): the direct-download MSIX is built, signed with our own
+certificate, unpublished (§5.1). No Windows build ships.
 
 **Scope:** what it takes for a person who is not the maintainer to install Tenshu Control on Windows 11,
 pair it, and have it stay resident and safe — then the other desktop apps over it. Covers the platform
@@ -35,6 +37,7 @@ Store policy; each names what must be checked, and the phase that checks it.
 | D2 | ✅ **Decided: the side channel comes later** — a **per-machine** MSI, signed through **SignPath Foundation** (free for OSI-licensed projects; Tenshu is Apache-2.0), on `releases.tenshu.app` and `microsoft/winget-pkgs`. | Free, CI-native signing; per-machine is what makes a shared signer acceptable (§4.2). ⚠ SignPath's acceptance of the project is *not verified*; checked when W6 starts. |
 | D3 | ✅ **Decided: no per-user install, on any channel.** | A per-user install directory is writable by the same user, so a validly signed launcher can be handed someone else's jars — the peer gate cannot hold (§4.1). |
 | D5 | ✅ **Decided 2026-11-10: a native Windows tray agent in C# / WinUI 3** (Windows App SDK), the twin of the macOS Swift agent: a second executable in the Control MSIX, speaking the existing JSON bridge, owning the tray flyout **and** the OS notifications and scheduled reminders. Right-click is a short native menu, left-click the flyout. The Compose tray (§3.4) stays only as the fallback where the agent is absent (a dev `:run`). | A truly native look, the architecture macOS already proves, and in C# toasts and scheduled reminders are first-class APIs — which replaces W3's riskiest item (WinRT from the JVM over FFM). ⚠ Every tray feature now exists in Swift and C#: both agents are kept **thin renderers of bridge-supplied state** (`tech-debt.md` *macOS Tray — Thin the Swift Surface to a Dumb Renderer*). |
+| D6 | ✅ **Decided 2026-11-17: the side channel ships now, as the MSIX (not D2's MSI), signed first with our own self-signed certificate (`CN=Tenshu Beta`, A45), later by SignPath Foundation.** Downloaded from `releases.tenshu.app` like the macOS `.dmg`; users trust the certificate once. Revises D2's *format* and *timing*; D2's signer stays the destination. | The Store is blocked (the Partner Center account is deactivated, support contacted 2026-11-17). The MSIX already carries everything W2–W3 built on package identity (peer gate, `StartupTask`, toasts, tray agent, the sealed `WindowsApps` folder); an MSI throws it away and needs a new gate arm. SignPath asks for a reputation a project released in November 2026 does not have yet; a Certum certificate is the paid fallback. §5.1. |
 | D4 | ✅ **Decided: no paid certificate.** Microsoft's cloud signing, OV and EV certificates were weighed and set aside. | D1 needs none; D2 is free; EV no longer buys SmartScreen reputation (*not verified*, and moot). |
 
 ---
@@ -529,6 +532,40 @@ Order per D1/D2: **§5.2 (Store) is W4**, the first channel; **§5.1 (side-chann
 
 ### 5.1 Side channel: SignPath-signed MSI + winget-pkgs (W6 — later, D2)
 
+> **⚠ Revised by D6 (2026-11-17): the side channel is the MSIX, and it ships now.** What is below is D2's
+> original design, kept for the record; read the as-built block first.
+>
+> **As built (2026-11-17) — the direct-download MSIX.** Runbook: [`how-to/windows-release.md`](../how-to/windows-release.md).
+> - **Signer: our own self-signed certificate**, `CN=Tenshu Beta` (threat model **A45**, §8.25), minted by
+>   `scripts/windows/msix-release-cert.ps1`: RSA-3072, three years, the private key **non-exportable** in the
+>   maintainer's `Cert:\CurrentUser\My` after one offline password-protected backup. Publisher id
+>   `xs68hk207yka0`. Users import its public `.cer` into `LocalMachine\TrustedPeople` once (the download page
+>   gives one command that checks the published thumbprint before it imports).
+> - **Build: `packageMsix -Ptenshu.msix.direct=true`** (`gradle/desktop-msix.gradle.kts`). The Store mode's
+>   exact-publisher rule applies: it refuses at configuration time unless both peer gates are compiled with
+>   exactly the release publisher's id, and it refuses the local test publisher. Signs by thumbprint from the
+>   store (`signtool /sha1 … /s My`) and **timestamps** (`/tr`, DigiCert by default) so a signature outlives the
+>   certificate. `scripts/windows/windows-release.ps1` builds both apps in one invocation, checks signer,
+>   timestamp and manifest identity, and leaves `build/windows-release/` (packages, `.cer`, `release.json`,
+>   `SHA256SUMS`).
+> - **Publish: from the Mac**, `scripts/windows-direct-publish.sh` (the macOS twin, same bucket and key; the key
+>   stays in that Mac's Keychain). It re-checks on macOS what it can: each zip's `AppxManifest.xml`, that each
+>   `AppxSignature.p7x` carries the published certificate, the certificate's subject and thumbprint, the build's
+>   commit. Writes `store/windows-release.json`; tests `scripts/test_windows_publish.py`.
+> - **Pages:** `/apps/<app>/download/windows/<lang>` for the ten apps (`web/apex/support-pages/windowsDownload.ts`);
+>   the app pages' Windows button links only an app the committed manifest carries, else "Coming soon".
+> - ⚠⚠ **A publisher change is a new package family.** Moving from `CN=Tenshu Beta` to SignPath's or a Certum
+>   subject (or the Store's) installs *beside* the old copy, and two Controls run. The publish step refuses a
+>   switch; doing it deliberately needs a migration note on the page (uninstall first) and both ids in the
+>   anchors for the overlap, which Direct mode's exact-publisher rule does not allow yet.
+> - ⚠ The identity names are still the provisional `Tenshu.Control` / `Tenshu.Drive` the Store mode will
+>   replace (windows-store-submission.md §3). That rename changes the direct package's family too.
+> - ⚠ **Not verified:** whether a direct install fetches Control's Windows App Runtime 1.8 dependency by itself
+>   (the Store does; App Installer may resolve framework dependencies from the Store, not checked). Test on a
+>   clean VM before the first publish; if it does not, the page needs an "install the runtime first" step.
+> - Not built: auto-update (an `.appinstaller` needs one mutable URL beside the content-addressed objects),
+>   `winget-pkgs` manifests, the other eight apps (W5).
+
 The Store package is already reachable from the command line (`winget install --source msstore`), so this
 channel is for people who will not, or cannot, use the Store. winget-pkgs is the Homebrew-cask analogue: a
 manifest pointing at **our** per-machine MSI by URL + SHA-256.
@@ -652,7 +689,7 @@ What MSIX changes, all *not verified* until the W4 spike:
 | **W3** | In-process tray (§3.4) ✅ verified by the maintainer 2026-11-10; native tray agent T0–T3 (§3.9, D5) incl. toasts + scheduled reminders (§3.7/§3.6); `StartupTask` autostart (§3.5); power/idle + metered probes (§3.6) ✅ | closed-window Control reachable from the tray; a reminder fires with Control quit — verified from a side-loaded MSIX |
 | **W4** | Microsoft Store: spike, then MSIX per app, lockstep version, ADR 0025 Store row, uninstall (§4.3, §5.2). Store-mode `packageMsix` + runbook ✅ (§5.2 as-built); Partner Center, WACK, submission owed by the maintainer; ADR 0025 row and uninstall still open | the Store build passes certification; `winget install --source msstore` installs it on a clean VM |
 | **W5** | The other desktop apps over the same pipeline | each passes the W4 check |
-| **W6** | Side channel: SignPath-signed per-machine MSI, `releases.tenshu.app`, winget-pkgs manifests + automation (§5.1); the gate's SignPath + `%ProgramFiles%` arm (§3.2) | `winget install Tenshu.Control` (winget-pkgs) on a clean VM; a per-user copy is refused by the gate |
+| **W6** | Side channel, revised by D6: the MSIX signed with A45 on `releases.tenshu.app` ✅ built 2026-11-17, unpublished (§5.1 as-built); then SignPath as the signer, `.appinstaller` updates, winget-pkgs manifests. (D2's MSI and the gate's SignPath + `%ProgramFiles%` arm are not needed while the channel is MSIX.) | a downloaded Drive connects to a downloaded Control on a clean VM, the tray and a toast work, no Store involved |
 | **W7** | (merged into W4 — kept so phase numbers in other docs stay valid) | — |
 
 Out of scope here: Windows Hello app lock (masterkeystore Phase 3), ARM64 Windows (decide at W4, like

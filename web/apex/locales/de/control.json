@@ -60,21 +60,30 @@
     "usedOnOne": "Du nutzt sie auf {device}",
     "usedOnTwo": "Du nutzt sie auf {first} und {second}",
     "usedOnMany": "Du nutzt sie auf {first} und {count} weiteren Geräten",
-    "done": "Fertig"
+    "done": "Fertig",
+    "moveUpAriaLabel": "{app} nach oben",
+    "moveDownAriaLabel": "{app} nach unten"
   },
   "customize": {
     "done": "Fertig",
-    "hint": "Ziehen zum Umsortieren · − blendet eine App aus, ihre Daten bleiben",
-    "unavailable": "Deine App-Auswahl kann gerade nicht geladen werden, daher lässt sich die Anordnung nicht ändern.",
+    "hint": "Ziehe ein Widget, um es zu verschieben · − entfernt es; deine Apps bleiben installiert",
+    "unavailable": "Deine Widgets können gerade nicht geladen werden, daher lassen sie sich nicht ändern.",
     "writeFailed": "Die Änderung konnte nicht gespeichert werden. Versuch es noch einmal.",
-    "hidden": "{app} aus deiner Übersicht ausgeblendet",
-    "hiddenToast": "{app} ausgeblendet. Die Daten bleiben in deinem Realm.",
-    "restored": "{app} ist wieder in deiner Übersicht",
-    "moved": "{app} an Position {position} von {count} verschoben",
-    "hideAriaLabel": "{app} ausblenden",
-    "moveEarlierAriaLabel": "{app} nach vorne verschieben",
-    "moveLaterAriaLabel": "{app} nach hinten verschieben",
-    "undo": "Rückgängig"
+    "restored": "{widget} ist wieder auf deiner Übersicht",
+    "moved": "{widget} an Position {position} von {count} verschoben",
+    "moveEarlierAriaLabel": "{widget} nach vorne",
+    "moveLaterAriaLabel": "{widget} nach hinten",
+    "undo": "Rückgängig",
+    "removed": "{widget} von deiner Übersicht entfernt",
+    "removedToast": "{widget} entfernt. Du kannst es jederzeit wieder hinzufügen.",
+    "removeAriaLabel": "{widget} entfernen",
+    "addWidget": "Widget hinzufügen",
+    "addAriaLabel": "{widget} hinzufügen",
+    "allAdded": "Alle Widgets sind auf deiner Übersicht. Installiere unter Deine Apps weitere Apps, um ihre zu bekommen.",
+    "appsWidgetDetail": "Deine installierten Apps, einen Tipp entfernt",
+    "empty": "Keine Widgets. Mit Widget hinzufügen holst du eines zurück.",
+    "close": "Schließen",
+    "toolbarAriaLabel": "Übersicht bearbeiten"
   },
   "glance": {
     "open": "Öffnen",
@@ -683,6 +692,28 @@
       "PAUSED_POLICY": "Pausiert",
       "OUT_OF_SPACE": "Kein Speicherplatz",
       "ERROR": "Fehler"
+    }
+  },
+  "appearance": {
+    "mode": "Modus",
+    "light": "Hell",
+    "dark": "Dunkel",
+    "auto": "Automatisch",
+    "language": "Sprache",
+    "languageAuto": "Automatisch",
+    "heading": "Darstellung",
+    "thisBrowser": "Modus und Sprache gelten für diesen Browser. Die Hintergrundfarbe folgt dir in jeden Browser.",
+    "background": "Hintergrund",
+    "tint": {
+      "blue": "Blau",
+      "violet": "Violett",
+      "teal": "Petrol",
+      "green": "Grün",
+      "rose": "Rosé",
+      "amber": "Bernstein",
+      "graphite": "Graphit",
+      "classic": "Klassisch",
+      "custom": "Eigene Farbe"
     }
   }
 }

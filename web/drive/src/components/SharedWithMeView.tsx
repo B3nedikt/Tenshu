@@ -14,6 +14,7 @@ import {
 import { displayFingerprint } from '../lib/contacts'
 import { queryKeys } from '../lib/queryKeys'
 import { SharedFolderBrowser } from './SharedFolderBrowser'
+import { ScanInviteFlow } from './ScanInviteFlow'
 
 // The MB-2 *inbound* surface (drive-web-mode-b-sharing.md §7, membership-driven).
 // Sweeps grantable contacts' addresses for waiting grants (`pollPendingGrants`)
@@ -21,8 +22,13 @@ import { SharedFolderBrowser } from './SharedFolderBrowser'
 // member roster as confirmation — the file browser for the shared folder is
 // MB-3 (mount stays optional/deferred per §7). The grantor's petname is
 // resolved from the connected-contacts list by fingerprint.
+//
+// *Scan invite* lives here: scanning someone's invite QR is how a share reaches you when you meet in
+// person (a link opened on the apex redeems on its own). The inviter's side lives on each folder's
+// Share screen (`ManageAccessView`); contacts themselves belong to the Contacts app.
 export function SharedWithMeView() {
   const queryClient = useQueryClient()
+  const [scanning, setScanning] = useState(false)
   const [joined, setJoined] = useState<{ grantor: string; realmId: string } | null>(null)
   const [viewing, setViewing] = useState<InboundRealmItem | null>(null)
 
@@ -82,15 +88,35 @@ export function SharedWithMeView() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <p className="text-sm text-text-2">Folders other people have shared with you.</p>
-        <button
-          type="button"
-          onClick={() => queryClient.invalidateQueries({ queryKey: queryKeys.pendingGrants() })}
-          disabled={pendingQuery.isFetching}
-          className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-text hover:bg-surface-3 disabled:opacity-50"
-        >
-          {pendingQuery.isFetching ? 'Checking…' : 'Check for shares'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setScanning(true)}
+            className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-text hover:bg-surface-3"
+          >
+            Scan invite
+          </button>
+          <button
+            type="button"
+            onClick={() => queryClient.invalidateQueries({ queryKey: queryKeys.pendingGrants() })}
+            disabled={pendingQuery.isFetching}
+            className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-text hover:bg-surface-3 disabled:opacity-50"
+          >
+            {pendingQuery.isFetching ? 'Checking…' : 'Check for shares'}
+          </button>
+        </div>
       </div>
+
+      {scanning && (
+        <ScanInviteFlow
+          onClose={() => setScanning(false)}
+          onDone={() => {
+            setScanning(false)
+            queryClient.invalidateQueries({ queryKey: queryKeys.contacts() })
+            queryClient.invalidateQueries({ queryKey: queryKeys.pendingGrants() })
+          }}
+        />
+      )}
 
       {pending.length > 0 && (
         <section>

@@ -184,35 +184,6 @@ class FileActionsViewModel(
     }
 
     /**
-     * Mode-B producer entry (`docs/proposals/drive-shared-realm-file-model.md` §6;
-     * `drive-manage-access-ux.md` §2.1): share this folder into a fresh shared
-     * realm. **Folder-only** — the row is hidden for files (a file shares via the
-     * Mode-A *Link* action; sharing a file would bootstrap an empty realm), and we
-     * guard here too. Mirrors [SelectionViewModel.onShareClicked]: gated on storage
-     * (`storage-capacity-gating.md` §2) since a full / account-less owner can't
-     * create new synced content; a block raises [FileActionsUiState.storageGateBlock]
-     * for the host-rendered dialog.
-     *
-     * Returns `true` when the share was started (the host may collapse the sheet)
-     * and `false` when the storage gate blocked it (the host keeps the sheet
-     * composed so [StorageGateDialog] can render in place — same rule as
-     * [onLinkClicked]).
-     */
-    fun onShareClicked(): Boolean {
-        if (!isFolder) return true
-        return when (val decision = StorageGate.evaluate(storageStatus.value)) {
-            StorageGateDecision.Allow -> {
-                viewModelScope.launch { filesRepository.shareFolder(filePath) }
-                true
-            }
-            else -> {
-                _uiState.value = _uiState.value.copy(storageGateBlock = decision)
-                false
-            }
-        }
-    }
-
-    /**
      * Mode-A: surface [app.tenshu.drive.ui.share.CreateShareLinkSheet] for
      * this file (`docs/file-sharing.md`). The actual
      * `ShareLink` op call lives on `CreateShareLinkViewModel`; this VM only

@@ -18,11 +18,10 @@ import { SyncBanner } from './components/SyncBanner'
 import { RuntimeBanner } from './components/RuntimeBanner'
 import { HomeView } from './components/HomeView'
 import { SharedFoldersView } from './components/SharedFoldersView'
-import { PeopleView } from './components/PeopleView'
 import { SharedWithMeView } from './components/SharedWithMeView'
 import { SettingsView } from './components/SettingsView'
 
-type Tab = 'home' | 'files' | 'search' | 'shared' | 'people' | 'incoming' | 'settings'
+type Tab = 'home' | 'files' | 'search' | 'shared' | 'incoming' | 'settings'
 
 const SECTIONS: ReadonlyArray<AppNavItem<Tab>> = [
   { id: 'home', label: 'Home' },
@@ -30,7 +29,6 @@ const SECTIONS: ReadonlyArray<AppNavItem<Tab>> = [
   { id: 'search', label: 'Search' },
   { id: 'shared', label: 'Shared links' },
   { id: 'incoming', label: 'Shared with me' },
-  { id: 'people', label: 'People' },
 ]
 const FOOTER: ReadonlyArray<AppNavItem<Tab>> = [{ id: 'settings', label: 'Settings' }]
 // The section ids — the apex registry's `sections` for Drive, with 'home' as `/`. ⚠ Module-level:
@@ -191,7 +189,6 @@ export default function App() {
           )}
           {tab === 'search' && <SearchView onOpenFolder={openFolder} />}
           {tab === 'shared' && <SharedFoldersView />}
-          {tab === 'people' && <PeopleView />}
           {tab === 'incoming' && <SharedWithMeView />}
           {tab === 'settings' && <SettingsView />}
         </ErrorBoundary>

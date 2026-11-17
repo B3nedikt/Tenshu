@@ -93,6 +93,11 @@ coordinates at 4+ decimals in tests (§6 Q3) and the `repo_url` defaults (§6 Q4
   merge. An outside contribution must be brought in here first (`git format-patch` there,
   `git am` here), or the next sync would revert it. `--allow-drift` is for when it already has
   been.
+- a sync when `git fetch origin` fails, or when the local base branch has commits `origin/<branch>`
+  lacks. ⚠⚠ The base, the last sync and the drift check are all read from a freshly fetched
+  `origin/<branch>`, never the local branch: a clone's `master` is only as fresh as its last pull,
+  and a stale one both bases the sync on old history and hides the drift above. The local branch
+  is the base only before the first push.
 
 It never pushes. The push and the PR are the maintainer's.
 

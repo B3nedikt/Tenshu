@@ -80,7 +80,8 @@ describe('syncView', () => {
     })
     expect(syncView(row('online')).key).toBe('synced')
     expect(syncView(row('online', { pendingBlockCount: 3 })).key).toBe('syncing')
-    expect(syncView(row('online', { isSyncing: true })).key).toBe('syncing')
+    // ⚠⚠ A tick's drain/pull alone is not work: the pill must not blink on an idle browser.
+    expect(syncView(row('online', { isSyncing: true }))).toEqual({ key: 'synced', tone: 'ok' })
     expect(syncView(row('offline')).key).toBe('offline')
     expect(syncView(row('device_unrecognized'))).toEqual({ key: 'attention', tone: 'warn' })
     expect(syncView(row('something-new')).key).toBe('unknown')

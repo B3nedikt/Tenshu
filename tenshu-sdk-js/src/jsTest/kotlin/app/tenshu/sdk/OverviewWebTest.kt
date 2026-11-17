@@ -32,4 +32,27 @@ class OverviewWebTest : SdkRuntimeTest() {
             "order kept; blanks and repeats dropped",
         )
     }
+
+    @Test
+    fun eachListIsItsOwnRowAndAnUnknownKeyFails() = GlobalScope.promise {
+        JsRuntime.awaitReady()
+        val apps: dynamic = Overview.setList("shownApps", arrayOf("drive", "photos")).await()
+        assertEquals(true, apps.ok, JSON.stringify(apps))
+        val widgets: dynamic = Overview.setList("widgets", arrayOf("app:photos", "apps", "hidden:app:drive")).await()
+        assertEquals(true, widgets.ok, JSON.stringify(widgets))
+        val background: dynamic = Overview.setList("background", arrayOf("teal")).await()
+        assertEquals(true, background.ok, JSON.stringify(background))
+
+        assertEquals(listOf("drive", "photos"), (Overview.list("shownApps").await().appIds as Array<String>).toList())
+        assertEquals(
+            listOf("app:photos", "apps", "hidden:app:drive"),
+            (Overview.list("widgets").await().appIds as Array<String>).toList(),
+        )
+        assertEquals(listOf("teal"), (Overview.list("background").await().appIds as Array<String>).toList())
+
+        val unknownWrite: dynamic = Overview.setList("nope", arrayOf("x")).await()
+        assertEquals(false, unknownWrite.ok)
+        assertEquals("unknown_key", unknownWrite.error.kind)
+        assertEquals(false, Overview.list("nope").await().ok)
+    }
 }

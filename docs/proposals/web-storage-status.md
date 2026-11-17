@@ -169,3 +169,20 @@ still holds when the mint path lands on web (House Rule #2).
    is value-imported. See `drive-web-app.md` §7.
 5. The Drive-side consumption (`storageStatus()` proxy + UI gating in upload/share + Settings)
    is ~1 hour once the apex produces the status — do it **last**.
+
+## 10. As-built: the first usage report (2026-11-17)
+
+`Storage.status()` is a one-shot snapshot, and until the relay's first `GET /sync/usage` answers,
+the figures' `usedBytes` is the reader's `0` placeholder, not a measurement. ⚠⚠ The overview's
+Drive card reads the moment it mounts, so every cold load drew "0 B of 5 GB" until the next
+reload. Two changes close it:
+
+- **`status()` waits for the first report** when storage is held: `JsRuntime.reportedUsage` is set
+  by the usage reader's wrapper, and `status()` waits (≤ 5 s) for it and for the figures to carry
+  it, then answers. On timeout it answers what there is, as before. ⚠⚠ Waited for **once per
+  runtime** (`usageWaitSpent`): a relay that never answers (offline, 401, 426) must not stall the
+  Share dialog 5 s on every open. Guard: `StorageStatusTest.status_waitsForTheFirstUsageReport`.
+- **The reader retries an empty first fetch after 3 s**, not after the 60 s interval
+  (`USAGE_FIRST_RETRY_MS`), until a fetch has ever answered — ⚠ at most five times
+  (`USAGE_FIRST_RETRIES`), since this is `commonMain` and an offline phone must not be asked every
+  3 s for life. Guard: `EntitlementReaderFirstUsageRetryTest`.

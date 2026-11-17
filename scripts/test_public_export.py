@@ -224,11 +224,23 @@ class PublishFlow(WithInternal):
     def setUp(self):
         super().setUp()
         self.clone = self.fresh("public")
+        # The clone's origin must name the public repo, so the fetch reads a local bare repo instead.
+        self.bare = os.path.join(self.d, "public.git")
+        git(self.d, "init", "-q", "--bare", self.bare)
+        self.saved_fetch = pe.fetch_public
+        pe.fetch_public = lambda clone: git(clone, "fetch", "-q", self.bare, "+refs/heads/*:refs/remotes/origin/*")
         self.tree = os.path.join(self.d, "tree")
         os.makedirs(os.path.join(self.tree, "docs"))
         self.write("hello\n")
         self.first = git(pe.REPO, "rev-parse", "HEAD~1")
         self.head = git(pe.REPO, "rev-parse", "HEAD")
+
+    def tearDown(self):
+        pe.fetch_public = self.saved_fetch
+        super().tearDown()
+
+    def push(self):
+        git(self.clone, "push", "-q", self.bare, "main")
 
     def write(self, text):
         with open(os.path.join(self.tree, "docs", "a.md"), "w") as f:
@@ -325,6 +337,57 @@ class PublishFlow(WithInternal):
         with self.assertRaises(SystemExit) as e:
             self.publish(self.head)
         self.assertIn("outside contribution", str(e.exception))
+
+    def internal_commit(self):
+        with open(os.path.join(pe.REPO, "f.txt"), "a") as f:
+            f.write("more\n")
+        git(pe.REPO, "commit", "-qam", "internal change 3")
+        return git(pe.REPO, "rev-parse", "HEAD")
+
+    def test_a_stale_local_branch_still_bases_on_origin(self):
+        self.publish(self.first)
+        self.push()
+        self.write("second\n")
+        git(self.clone, "switch", "-q", "main")
+        self.publish(self.head)
+        sync = git(self.clone, "branch", "--show-current")
+        # The PR is squash-merged on the public side; this clone's main never pulls it.
+        git(self.clone, "switch", "-q", "main")
+        git(self.clone, "merge", "-q", "--squash", sync)
+        git(self.clone, "commit", "-qm", git(self.clone, "log", "-1", "--format=%B", sync))
+        self.push()
+        git(self.clone, "reset", "-q", "--hard", "HEAD~1")
+        git(self.clone, "branch", "-q", "-D", sync)
+
+        third = self.internal_commit()
+        self.write("third\n")
+        self.publish(third)
+        self.assertEqual(git(self.clone, "rev-parse", "HEAD~1"), git(self.bare, "rev-parse", "main"))
+        self.assertIn("internal change 3", git(self.clone, "log", "-1", "--format=%B"))
+        self.assertEqual(git(self.clone, "diff", "--name-only", "HEAD~1", "HEAD"), "docs/a.md")
+
+    def test_drift_on_origin_alone_is_refused(self):
+        self.publish(self.first)
+        self.commit_on_main("CONTRIBUTED.md", "outside contribution")
+        self.push()
+        git(self.clone, "reset", "-q", "--hard", "HEAD~1")
+        with self.assertRaises(SystemExit) as e:
+            self.publish(self.head)
+        self.assertIn("outside contribution", str(e.exception))
+
+    def test_unpushed_local_commits_are_refused(self):
+        self.publish(self.first)
+        self.push()
+        self.commit_on_main("LOCAL.md", "never pushed")
+        with self.assertRaises(SystemExit) as e:
+            self.publish(self.head)
+        self.assertIn("commits origin/main does not", str(e.exception))
+
+    def test_a_failed_fetch_is_a_refusal(self):
+        clone = self.fresh("unreachable", os.path.join(self.d, "missing.git"))
+        with self.assertRaises(SystemExit) as e:
+            self.saved_fetch(clone)
+        self.assertIn("git fetch origin failed", str(e.exception))
 
     def test_ignored_paths_are_still_committed(self):
         with open(os.path.join(self.tree, ".gitignore"), "w") as f:

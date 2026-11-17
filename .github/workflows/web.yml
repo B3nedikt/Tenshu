@@ -373,6 +373,11 @@ jobs:
           python3 scripts/test_data_safety.py
           python3 scripts/test_public_export.py
 
+      # The Windows direct release's publish checks (scripts/lib/windows_publish.py): they run on the Mac that
+      # publishes, so nothing else would ever execute them. Real openssl, fake git HEAD; no network.
+      - name: Windows direct-release publish checks
+        run: python3 scripts/test_windows_publish.py
+
       - name: Upload apex dist
         if: failure()
         uses: actions/upload-artifact@v6

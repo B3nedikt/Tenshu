@@ -5,6 +5,8 @@ package app.tenshu.sdk
 import app.tenshu.sdk.internal.JsRuntime
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.promise
 import kotlinx.coroutines.withTimeoutOrNull
@@ -41,7 +43,22 @@ object Storage {
      */
     fun status(): Promise<dynamic> = GlobalScope.promise {
         JsRuntime.awaitReady()
-        JsRuntime.tenshuClient.storageService.status().first()?.toJs()
+        val statuses = JsRuntime.tenshuClient.storageService.status()
+        val snapshot = statuses.first()
+        if (snapshot?.hasStorage?.get() != true || JsRuntime.usageWaitSpent) return@promise snapshot?.toJs()
+        // ⚠⚠ Until the relay has answered once, `usedBytes` is the reader's `0` placeholder, and a
+        // snapshot taken on a cold load — the overview's Drive card reads at once — drew
+        // "0 B of 5 GB" until the next reload. Wait (bounded) for the first report, then for the
+        // figures to carry it; on timeout answer what there is, as before.
+        // ⚠ Matched against the LATEST report, not the first: a second report can land before the
+        // figures carry the first one, and a captured value would then never match.
+        val settled = withTimeoutOrNull(USAGE_SETTLE_MS) {
+            combine(statuses, JsRuntime.reportedUsage.filterNotNull()) { status, used -> status to used }
+                .first { (status, used) -> status?.usedBytes?.get() == used }
+                .first
+        }
+        JsRuntime.usageWaitSpent = true
+        (settled ?: statuses.first())?.toJs()
     }
 
     /**
@@ -81,6 +98,10 @@ object Storage {
 }
 
 private const val STATUS_SETTLE_MS = 3_000L
+
+// How long [Storage.status] waits for the relay's first usage report: one fetch, plus the reader's
+// 3 s retry after a first fetch that answered nothing.
+private const val USAGE_SETTLE_MS = 5_000L
 
 // The six mint fields as JSON carries them: epoch-millis as numbers, the signature base64.
 private fun signedEntitlementOrNull(fields: dynamic): EntitlementSignature.SignedEntitlement? = runCatching {

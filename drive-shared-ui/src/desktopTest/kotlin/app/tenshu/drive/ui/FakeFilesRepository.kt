@@ -1,6 +1,7 @@
 package app.tenshu.drive.ui
 
 import kotlinx.coroutines.currentCoroutineContext
+import app.tenshu.drive.data.RepositoryError
 import app.tenshu.error.ErrorCopyKey
 
 import app.tenshu.liststate.ListLoadState
@@ -246,16 +247,28 @@ internal class FakeFilesRepository(
 
     override fun storageStatus(): Flow<StorageStatusModel?> = flowOf(storageStatusResult)
 
+    /** When set, every [shareFolder] call returns this instead of a fresh realm. */
+    var shareFolderResult: RepositoryResult<SharedFolderModel>? = null
+
+    /** The first this-many [sharedFolders] reads fail — a read that never answered. */
+    var sharedFoldersFailures: Int = 0
+
     override suspend fun shareFolder(folderPath: String): RepositoryResult<SharedFolderModel> {
         shareFolderCalls += folderPath
+        shareFolderResult?.let { return it }
         val name = folderPath.substringAfterLast('/').ifEmpty { folderPath }
         return RepositoryResult.Success(
             SharedFolderModel(sharedRealmId = "realm-$name", name = name, parentPath = "/")
         )
     }
 
-    override suspend fun sharedFolders(): RepositoryResult<List<SharedFolderModel>> =
-        RepositoryResult.Success(sharedFoldersResult)
+    override suspend fun sharedFolders(): RepositoryResult<List<SharedFolderModel>> {
+        if (sharedFoldersFailures > 0) {
+            sharedFoldersFailures--
+            return RepositoryResult.Error(RepositoryError.Unknown(ErrorCopyKey.UNEXPECTED))
+        }
+        return RepositoryResult.Success(sharedFoldersResult)
+    }
 
     /** Records each [browseSharedFolder] call as (realmId, parentFileId). */
     val browseCalls = mutableListOf<Pair<String, String>>()

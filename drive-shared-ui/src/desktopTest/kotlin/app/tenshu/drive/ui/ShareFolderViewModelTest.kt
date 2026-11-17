@@ -22,8 +22,9 @@ import kotlin.test.assertTrue
 
 /**
  * Phase 3d.1 of `docs/proposals/drive-shared-realm-file-model.md` (Mode-B outbound):
- *  - the *Share* action (the reserved Mode-B entry point) drives
- *    [FilesRepository.shareFolder] for a single selection and clears it;
+ *  - the *Share* card hands a single selected folder to the sharing screen
+ *    (`drive-manage-access-ux.md` §11) and clears the selection — it shares
+ *    nothing itself;
  *  - the Shared tab loads the member's Mode-B mounts into its *Shared folders*
  *    group via [FilesRepository.sharedFolders].
  */
@@ -39,17 +40,18 @@ class ShareFolderViewModelTest {
     }
 
     @Test
-    fun shareAction_sharesTheSingleSelectedFolder_andClearsSelection() = vmTest { vms ->
+    fun shareAction_opensTheSingleSelectedFolder_andClearsSelection() = vmTest { vms ->
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val repo = FakeFilesRepository()
         val vm = vms.own(SelectionViewModel(repo, NoopOfflinePreferences, NoopSyncRulesPreferences))
 
         vm.toggleSelection("/photos", isFolder = true)
-        vm.onShareClicked()
+        val target = vm.onShareRequested()
         advanceUntilIdle()
 
-        assertEquals(listOf("/photos"), repo.shareFolderCalls, "shares exactly the selected folder")
-        assertTrue(vm.selectedPaths.value.isEmpty(), "selection is cleared after sharing")
+        assertEquals("/photos", target, "opens sharing for exactly the selected folder")
+        assertTrue(repo.shareFolderCalls.isEmpty(), "the screen shares on the first add, not the card")
+        assertTrue(vm.selectedPaths.value.isEmpty(), "selection is cleared")
     }
 
     @Test
@@ -60,10 +62,9 @@ class ShareFolderViewModelTest {
 
         vm.toggleSelection("/a", isFolder = true)
         vm.toggleSelection("/b", isFolder = true)
-        vm.onShareClicked()
+        assertEquals(null, vm.onShareRequested(), "a multi-selection does not share (v1)")
         advanceUntilIdle()
 
-        assertTrue(repo.shareFolderCalls.isEmpty(), "a multi-selection does not share (v1)")
         assertTrue(!vm.canShareSelection.value, "Share is disabled for a multi-selection")
     }
 
@@ -78,9 +79,7 @@ class ShareFolderViewModelTest {
         advanceUntilIdle()
         assertTrue(!vm.canShareSelection.value, "Share is disabled for a single file")
 
-        vm.onShareClicked()
-        advanceUntilIdle()
-        assertTrue(repo.shareFolderCalls.isEmpty(), "a single file does not share")
+        assertEquals(null, vm.onShareRequested(), "a single file does not share")
     }
 
     @Test

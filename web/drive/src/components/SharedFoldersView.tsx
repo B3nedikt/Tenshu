@@ -22,8 +22,10 @@ export function SharedFoldersView() {
   if (managing) {
     return (
       <ManageAccessView
+        folderPath={managing.parentPath === '/' ? `/${managing.name}` : `${managing.parentPath}/${managing.name}`}
         realmId={managing.sharedRealmId}
         folderName={managing.name}
+        backLabel="Shared"
         onBack={() => setManaging(null)}
       />
     )

@@ -15,12 +15,15 @@ import java.security.MessageDigest
 // `packageMsix` lays the jpackage app-image out as an MSIX (AppxManifest.xml + assets), packs it with
 // `makeappx` and, when a certificate is configured, signs it with `signtool`. Windows hosts only.
 //
-// Two modes, one manifest:
+// Three modes, one manifest:
 //  - SIDE-LOAD (default): the W2 peer-gate test and the W3 toast/reminder test need a process with package
 //    identity, which a `:run` never has. Signed with a local test certificate.
 //  - STORE (`-Ptenshu.msix.store=true`, docs/how-to/windows-store-submission.md): the upload for Partner Center.
 //    UNSIGNED (the Store re-signs), Publisher + PublisherDisplayName from Partner Center, a Store-valid version,
 //    and it refuses to build unless Control and Drive are compiled to trust exactly that publisher (below).
+//  - DIRECT (`-Ptenshu.msix.direct=true`, docs/how-to/windows-release.md): the tenshu.app download
+//    (desktop-windows-port.md §5.1, D6). Signed from the Windows certificate store by THUMBPRINT (the release key is
+//    non-exportable, so there is no .pfx to point at) and timestamped; the same exact-publisher rule as the Store.
 //
 // Extra module settings (both modes):
 //     extra["tenshu.msix.identityPins"] = listOf("<root-relative .kt>", …)  // files that must spell the identity name
@@ -58,6 +61,16 @@ import java.security.MessageDigest
 //  - Optional: tenshu.msix.storeDryRun / TENSHU_MSIX_STORE_DRY_RUN = true builds while the identity is still
 //    provisional (`identityReserved = false`), for checking the package; the file is named `-DRYRUN` and must
 //    never be uploaded.
+//
+// Direct-mode inputs (each `-P<name>` → `$ENV`):
+//  - tenshu.msix.direct / TENSHU_MSIX_DIRECT = true. Never together with tenshu.msix.store.
+//  - tenshu.msix.publisher / TENSHU_MSIX_PUBLISHER — the release certificate's subject (`CN=Tenshu Beta` from
+//    scripts/windows/msix-release-cert.ps1). Required; the local test publisher is refused.
+//  - tenshu.msix.certThumbprint / TENSHU_MSIX_CERT_THUMBPRINT — the release certificate in Cert:\CurrentUser\My.
+//  - tenshu.windowsPublisherIds — EXACTLY this publisher's id, as in Store mode and for the same reason.
+//  - Optional: tenshu.msix.timestampUrl / TENSHU_MSIX_TIMESTAMP_URL (RFC 3161; default DigiCert's). ⚠ Without a
+//    timestamp the signature dies with the certificate, and an installed package with it.
+// Direct output: build/msix/direct/<executable>_<version>_x64.msix.
 // Store output: build/msix/store/<executable>_<version>_x64.msix — a plain .msix, not .msixupload: an
 // .msixupload only adds an .appxsym (native PDB symbols for crash analytics), which a JVM app has none of, and
 // Partner Center accepts .msix (Microsoft Learn, "App package requirements for MSIX app", checked 2026-11-10).
@@ -135,6 +148,10 @@ tasks.register("packageMsix") {
     val publisherIdPattern = Regex("^[0-9a-hjkmnp-tv-z]{13}$")
     val store = setting("tenshu.msix.store", "TENSHU_MSIX_STORE").toBoolean()
     val storeDryRun = store && setting("tenshu.msix.storeDryRun", "TENSHU_MSIX_STORE_DRY_RUN").toBoolean()
+    val direct = setting("tenshu.msix.direct", "TENSHU_MSIX_DIRECT").toBoolean()
+    check(!(store && direct)) { "tenshu.msix.store and tenshu.msix.direct are two different packages — pick one" }
+    val certThumbprint = if (direct) setting("tenshu.msix.certThumbprint", "TENSHU_MSIX_CERT_THUMBPRINT")?.replace(" ", "")?.uppercase() else null
+    val timestampUrl = setting("tenshu.msix.timestampUrl", "TENSHU_MSIX_TIMESTAMP_URL") ?: "http://timestamp.digicert.com"
     val identityName = project.extra["tenshu.msix.identityName"] as String
     val identityReserved = project.extra.properties["tenshu.msix.identityReserved"] as Boolean? ?: false
     val identityPins = (project.extra.properties["tenshu.msix.identityPins"] as List<*>?).orEmpty()
@@ -143,7 +160,7 @@ tasks.register("packageMsix") {
     val appId = project.extra["tenshu.msix.appId"] as String
     val executable = project.extra["tenshu.msix.executable"] as String
     val version = (project.extra["tenshu.msix.version"] as String).let { if (it.count { c -> c == '.' } == 2) "$it.0" else it }
-    val publisher = setting("tenshu.msix.publisher", "TENSHU_MSIX_PUBLISHER") ?: if (store) "" else localTestPublisher
+    val publisher = setting("tenshu.msix.publisher", "TENSHU_MSIX_PUBLISHER") ?: if (store || direct) "" else localTestPublisher
     val publisherDisplayName = if (store) setting("tenshu.msix.publisherDisplayName", "TENSHU_MSIX_PUBLISHER_DISPLAY_NAME").orEmpty() else "Tenshu"
     val publisherId = publisherIdOf(publisher)
     // The ids Control's and every app's peer gate are compiled with in THIS build (control-desktop's
@@ -151,15 +168,29 @@ tasks.register("packageMsix") {
     val compiledPublisherIds = ((project.findProperty("tenshu.windowsPublisherIds") as String?) ?: System.getenv("TENSHU_WINDOWS_PUBLISHER_IDS"))
         ?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }?.toSet().orEmpty()
 
-    if (store) {
-        // ⚠⚠ Fail here, at configuration time, so a wrong Store build stops before the long compile — not after.
-        // Runs whenever this task is configured with -Ptenshu.msix.store=true (also by `tasks --all` or an IDE sync).
+    if (store || direct) {
+        // ⚠⚠ Fail here, at configuration time, so a wrong release build stops before the long compile — not after.
+        // Runs whenever this task is configured with -Ptenshu.msix.store=true or -Ptenshu.msix.direct=true (also by
+        // `tasks --all` or an IDE sync).
+        val mode = if (store) "Store" else "Direct"
         val problems = buildList {
-            if (publisher.isBlank()) add("-Ptenshu.msix.publisher is required: Partner Center → Product identity → Package/Identity/Publisher (CN=<GUID>)")
-            else if (!publisher.startsWith("CN=")) add("tenshu.msix.publisher '$publisher' is not a publisher (it starts with CN=) — is it the PublisherDisplayName?")
-            if (publisher == localTestPublisher) add("tenshu.msix.publisher is the LOCAL TEST publisher; the Store needs Partner Center's")
-            if (publisherDisplayName.isBlank()) add("-Ptenshu.msix.publisherDisplayName is required: Partner Center → Product identity → Package/Properties/PublisherDisplayName")
-            // ⚠⚠ Exactly the Store publisher, nothing else: every id in the set may vouch for Control and Drive.
+            if (store) {
+                if (publisher.isBlank()) add("-Ptenshu.msix.publisher is required: Partner Center → Product identity → Package/Identity/Publisher (CN=<GUID>)")
+                if (publisherDisplayName.isBlank()) add("-Ptenshu.msix.publisherDisplayName is required: Partner Center → Product identity → Package/Properties/PublisherDisplayName")
+                if (!identityReserved && !storeDryRun) add(
+                    "the identity name '$identityName' is provisional. Replace it with Partner Center's reserved Package/Identity/Name " +
+                        "in this module and in ${identityPins.joinToString { it.relativeTo(project.rootDir).path }}, then set " +
+                        "extra[\"tenshu.msix.identityReserved\"] = true — or pass -Ptenshu.msix.storeDryRun=true to build a package that must never be uploaded",
+                )
+            } else {
+                if (publisher.isBlank()) add("-Ptenshu.msix.publisher is required: the release certificate's subject (scripts/windows/msix-release-cert.ps1 prints it)")
+                if (certThumbprint == null) add("-Ptenshu.msix.certThumbprint is required: the release certificate in Cert:\\CurrentUser\\My (scripts/windows/msix-release-cert.ps1 prints it)")
+                else if (!Regex("^[0-9A-F]{40}$").matches(certThumbprint)) add("tenshu.msix.certThumbprint '$certThumbprint' is not a certificate thumbprint (40 hex digits)")
+                if (!timestampUrl.startsWith("http")) add("tenshu.msix.timestampUrl '$timestampUrl' is not an RFC 3161 timestamp URL")
+            }
+            if (publisher.isNotBlank() && !publisher.startsWith("CN=")) add("tenshu.msix.publisher '$publisher' is not a publisher (it starts with CN=) — is it the PublisherDisplayName?")
+            if (publisher == localTestPublisher) add("tenshu.msix.publisher is the LOCAL TEST publisher; a release needs its own")
+            // ⚠⚠ Exactly the release publisher, nothing else: every id in the set may vouch for Control and Drive.
             val testId = publisherIdOf(localTestPublisher)
             val malformed = compiledPublisherIds.filterNot { publisherIdPattern.matches(it) }
             if (malformed.isNotEmpty()) add(
@@ -170,27 +201,24 @@ tasks.register("packageMsix") {
                 "tenshu.windowsPublisherIds contains the LOCAL TEST publisher id $testId — anyone can mint that certificate; never ship it",
             )
             if (publisher.isNotBlank() && compiledPublisherIds != setOf(publisherId)) add(
-                "the peer gates must be compiled with exactly this publisher's id, or the Store-installed Control and Drive refuse " +
+                "the peer gates must be compiled with exactly this publisher's id, or the installed Control and Drive refuse " +
                     "each other (or trust a publisher that is not ours): pass -Ptenshu.windowsPublisherIds=$publisherId " +
                     "(currently: ${compiledPublisherIds.ifEmpty { setOf("<empty>") }.joinToString(",")})",
             )
+            // The Store's rule; the direct package keeps it so one suite version means one package version everywhere.
             val parts = version.split(".").map { it.toIntOrNull() }
             if (parts.size != 4 || parts.any { it == null || it !in 0..65535 } || parts[0] == 0 || parts[3] != 0) add(
-                "version $version is not a Store version: four parts, each 0..65535, the first not 0 and the last 0 (the Store reserves it)",
-            )
-            if (!identityReserved && !storeDryRun) add(
-                "the identity name '$identityName' is provisional. Replace it with Partner Center's reserved Package/Identity/Name " +
-                    "in this module and in ${identityPins.joinToString { it.relativeTo(project.rootDir).path }}, then set " +
-                    "extra[\"tenshu.msix.identityReserved\"] = true — or pass -Ptenshu.msix.storeDryRun=true to build a package that must never be uploaded",
+                "version $version is not a release version: four parts, each 0..65535, the first not 0 and the last 0 (the Store reserves it)",
             )
         }
-        check(problems.isEmpty()) { "Store MSIX for ${project.path} refused:\n - " + problems.joinToString("\n - ") }
+        check(problems.isEmpty()) { "$mode MSIX for ${project.path} refused:\n - " + problems.joinToString("\n - ") }
     }
 
     val sdkBinOverride = setting("tenshu.windowsSdkBin", "TENSHU_WINDOWS_SDK_BIN")
     val userHome = System.getProperty("user.home")
     // Store uploads are never signed by us: the Store replaces any signature, and a test signature only confuses.
-    val certPfx = if (store) null else setting("tenshu.msix.certPfx", "TENSHU_MSIX_CERT_PFX")
+    // A direct release signs by thumbprint from the certificate store, never from a file.
+    val certPfx = if (store || direct) null else setting("tenshu.msix.certPfx", "TENSHU_MSIX_CERT_PFX")
         ?: File(userHome, ".tenshu-dev/msix-test.pfx").takeIf { it.isFile }?.absolutePath
     // The default matches scripts/windows/msix-test-cert.ps1 — a throwaway local cert, not a secret.
     val certPassword = setting("tenshu.msix.certPassword", "TENSHU_MSIX_CERT_PASSWORD") ?: "tenshu-local-test"
@@ -199,6 +227,7 @@ tasks.register("packageMsix") {
     val msixFile = when {
         storeDryRun -> layout.buildDirectory.file("msix/store/${executable}_${version}_x64-DRYRUN.msix")
         store -> layout.buildDirectory.file("msix/store/${executable}_${version}_x64.msix")
+        direct -> layout.buildDirectory.file("msix/direct/${executable}_${version}_x64.msix")
         else -> layout.buildDirectory.file("msix/$executable.msix")
     }.get().asFile
     val msixLogos = project.file("icons/windows/msix")
@@ -208,7 +237,9 @@ tasks.register("packageMsix") {
     inputs.files(identityPins)
     val pinNames = identityPins.map { it.path }
 
-    inputs.property("identity", "$identityName|$publisher|$publisherDisplayName|$version|$appId|$displayName|store=$store")
+    inputs.property("identity", "$identityName|$publisher|$publisherDisplayName|$version|$appId|$displayName|store=$store|direct=$direct")
+    inputs.property("certThumbprint", certThumbprint.orEmpty())
+    inputs.property("timestampUrl", if (direct) timestampUrl else "")
     // ⚠⚠ The app-image is an input too. Without it Gradle calls this task UP-TO-DATE after a code change and
     // keeps the old package, so the installed binaries are not the source being debugged.
     inputs.dir(appImage).optional()
@@ -392,6 +423,14 @@ tasks.register("packageMsix") {
         when {
             storeDryRun -> logger.warn("STORE DRY RUN — provisional identity, NEVER upload: $msixFile")
             store -> logger.lifecycle("Store MSIX (unsigned — the Store re-signs), for Partner Center: $msixFile")
+            direct -> {
+                // /s My = Cert:\CurrentUser\My, where msix-release-cert.ps1 imports the key non-exportable.
+                run(
+                    File(bin, "signtool.exe").path, "sign", "/fd", "SHA256", "/sha1", certThumbprint!!, "/s", "My",
+                    "/tr", timestampUrl, "/td", "SHA256", msixFile.path,
+                )
+                logger.lifecycle("Signed + timestamped direct-download MSIX: $msixFile")
+            }
             certPfx != null -> {
                 run(File(bin, "signtool.exe").path, "sign", "/fd", "SHA256", "/f", certPfx, "/p", certPassword, msixFile.path)
                 logger.lifecycle("Signed MSIX: $msixFile")

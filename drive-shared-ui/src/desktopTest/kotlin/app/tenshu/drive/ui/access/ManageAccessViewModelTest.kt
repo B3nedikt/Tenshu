@@ -6,6 +6,8 @@ import app.tenshu.drive.data.MemberModel
 import app.tenshu.drive.data.InvitationModel
 import app.tenshu.drive.data.RepositoryResult
 import app.tenshu.drive.data.SharedFolderModel
+import app.tenshu.drive.domain.StorageGateDecision
+import app.tenshu.ingest.backup.StorageStatusModel
 import app.tenshu.drive.ui.FakeContactsRepository
 import app.tenshu.drive.ui.FakeFilesRepository
 import app.tenshu.drive.ui.FakeMembershipRepository
@@ -335,5 +337,199 @@ class ManageAccessViewModelTest {
         advanceUntilIdle()
 
         assertTrue(membership.pollCount >= 1)
+    }
+
+    // ── §11: one Share entry — the folder is shared on the first add ─────────────────────────────
+
+    private fun bob() = FakeContactsRepository(
+        connectedContactsResult = RepositoryResult.Success(
+            listOf(ContactModel("p1", "Bob", "fp-bob", grantable = true))
+        )
+    )
+
+    @Test
+    fun unsharedFolder_stillOffersContacts() = vmTest { vms ->
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val vm = vms.own(ManageAccessViewModel(FakeFilesRepository(), bob(), FakeMembershipRepository(), "/Holiday"))
+        advanceUntilIdle()
+
+        assertFalse(vm.uiState.value.backsSharedRealm)
+        assertEquals(listOf("p1"), vm.uiState.value.grantableContacts.map { it.personId })
+    }
+
+    @Test
+    fun grantOnUnsharedFolder_sharesItFirst_thenGrantsIntoTheNewRealm() = vmTest { vms ->
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val files = FakeFilesRepository()
+        val membership = FakeMembershipRepository()
+        val vm = vms.own(ManageAccessViewModel(files, bob(), membership, "/Holiday"))
+        advanceUntilIdle()
+
+        vm.onGrantAccessClicked()
+        vm.onGrantToContact("p1")
+        advanceUntilIdle()
+
+        assertEquals(listOf("/Holiday"), files.shareFolderCalls)
+        assertEquals(listOf(FakeMembershipRepository.GrantCall("realm-Holiday", "p1", "Bob")), membership.grantCalls)
+        assertEquals("realm-Holiday", vm.uiState.value.sharedRealmId)
+        assertTrue(vm.uiState.value.backsSharedRealm)
+        assertFalse(vm.uiState.value.sharing)
+        assertFalse(vm.uiState.value.showGrantPicker)
+    }
+
+    @Test
+    fun grantOnAlreadySharedFolder_doesNotShareAgain() = vmTest { vms ->
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val files = backedFiles()
+        val membership = FakeMembershipRepository()
+        val vm = vms.own(ManageAccessViewModel(files, bob(), membership, "/Holiday"))
+        advanceUntilIdle()
+
+        vm.onGrantToContact("p1")
+        advanceUntilIdle()
+
+        assertEquals(emptyList(), files.shareFolderCalls)
+        assertEquals(listOf(FakeMembershipRepository.GrantCall("r1", "p1", "Bob")), membership.grantCalls)
+    }
+
+    /** Tapped before the opening lookup lands: it must wait for it, not mint a second realm. */
+    @Test
+    fun grantBeforeTheLookupLands_waitsForIt_andReusesTheRealm() = vmTest { vms ->
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val files = backedFiles()
+        val membership = FakeMembershipRepository()
+        val vm = vms.own(ManageAccessViewModel(files, bob(), membership, "/Holiday"))
+
+        vm.onGrantToContact("p1")
+        advanceUntilIdle()
+
+        assertEquals(emptyList(), files.shareFolderCalls)
+        assertEquals(listOf("r1"), membership.grantCalls.map { it.realmId })
+    }
+
+    /** A failed "is it shared?" read is not "no": it is asked again before sharing. */
+    @Test
+    fun failedOpeningLookup_isAskedAgain_beforeSharing() = vmTest { vms ->
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val files = backedFiles().also { it.sharedFoldersFailures = 1 }
+        val membership = FakeMembershipRepository()
+        val vm = vms.own(ManageAccessViewModel(files, bob(), membership, "/Holiday"))
+        advanceUntilIdle()
+        assertFalse(vm.uiState.value.backsSharedRealm)
+
+        vm.onGrantToContact("p1")
+        advanceUntilIdle()
+
+        assertEquals(emptyList(), files.shareFolderCalls, "the retry found the realm")
+        assertEquals(listOf("r1"), membership.grantCalls.map { it.realmId })
+    }
+
+    @Test
+    fun failedLookupTwice_neitherSharesNorGrants_andSaysWhy() = vmTest { vms ->
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val files = backedFiles().also { it.sharedFoldersFailures = 2 }
+        val membership = FakeMembershipRepository()
+        val vm = vms.own(ManageAccessViewModel(files, bob(), membership, "/Holiday"))
+        advanceUntilIdle()
+
+        vm.onGrantToContact("p1")
+        advanceUntilIdle()
+
+        assertEquals(emptyList(), files.shareFolderCalls)
+        assertEquals(emptyList(), membership.grantCalls)
+        assertNotNull(vm.uiState.value.shareError)
+        assertFalse(vm.uiState.value.grantInProgress)
+    }
+
+    @Test
+    fun inviteOnUnsharedFolder_sharesItFirst_thenOpensTheSheet() = vmTest { vms ->
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val files = FakeFilesRepository()
+        val vm = vms.own(ManageAccessViewModel(files, FakeContactsRepository(), FakeMembershipRepository(), "/Holiday"))
+        advanceUntilIdle()
+
+        vm.onInviteSomeoneClicked()
+        advanceUntilIdle()
+
+        assertEquals(listOf("/Holiday"), files.shareFolderCalls)
+        assertTrue(vm.uiState.value.showInviteSheet)
+        assertEquals("realm-Holiday", vm.uiState.value.sharedRealmId)
+    }
+
+    @Test
+    fun doubleTapOnInvite_sharesOnce() = vmTest { vms ->
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val files = FakeFilesRepository()
+        val vm = vms.own(ManageAccessViewModel(files, FakeContactsRepository(), FakeMembershipRepository(), "/Holiday"))
+        advanceUntilIdle()
+
+        vm.onInviteSomeoneClicked()
+        vm.onInviteSomeoneClicked()
+        advanceUntilIdle()
+
+        assertEquals(listOf("/Holiday"), files.shareFolderCalls)
+    }
+
+    @Test
+    fun firstAdd_withoutStorage_raisesTheGate_andSharesNothing() = vmTest { vms ->
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val files = FakeFilesRepository(
+            storageStatusResult = StorageStatusModel(hasStorage = false, usedBytes = 0L, limitBytes = 0L),
+        )
+        val membership = FakeMembershipRepository()
+        val vm = vms.own(ManageAccessViewModel(files, bob(), membership, "/Holiday"))
+        advanceUntilIdle()
+
+        vm.onInviteSomeoneClicked()
+        advanceUntilIdle()
+        assertFalse(vm.uiState.value.showInviteSheet)
+        assertEquals(StorageGateDecision.NeedsStorage, vm.uiState.value.storageGateBlock)
+
+        vm.onStorageGateDismissed()
+        vm.onGrantToContact("p1")
+        advanceUntilIdle()
+        assertEquals(StorageGateDecision.NeedsStorage, vm.uiState.value.storageGateBlock)
+        assertFalse(vm.uiState.value.grantInProgress)
+
+        assertEquals(emptyList(), files.shareFolderCalls)
+        assertEquals(emptyList(), membership.grantCalls)
+    }
+
+    /** An already-shared folder needs no storage to add someone: nothing new is created. */
+    @Test
+    fun alreadySharedFolder_isNotStorageGated() = vmTest { vms ->
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val files = FakeFilesRepository(
+            sharedFoldersResult = listOf(SharedFolderModel("r1", "Holiday", "/")),
+            storageStatusResult = StorageStatusModel(hasStorage = false, usedBytes = 0L, limitBytes = 0L),
+        )
+        val vm = vms.own(ManageAccessViewModel(files, FakeContactsRepository(), FakeMembershipRepository(), "/Holiday"))
+        advanceUntilIdle()
+
+        vm.onInviteSomeoneClicked()
+        advanceUntilIdle()
+
+        assertTrue(vm.uiState.value.showInviteSheet)
+        assertNull(vm.uiState.value.storageGateBlock)
+    }
+
+    @Test
+    fun shareFailure_surfacesInThePicker_andGrantsNothing() = vmTest { vms ->
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val files = FakeFilesRepository().also { it.shareFolderResult = FakeMembershipRepository.error() }
+        val membership = FakeMembershipRepository()
+        val vm = vms.own(ManageAccessViewModel(files, bob(), membership, "/Holiday"))
+        advanceUntilIdle()
+
+        vm.onGrantAccessClicked()
+        vm.onGrantToContact("p1")
+        advanceUntilIdle()
+
+        assertEquals(emptyList(), membership.grantCalls)
+        assertNotNull(vm.uiState.value.shareError)
+        assertNotNull(vm.uiState.value.grantError)
+        assertTrue(vm.uiState.value.showGrantPicker)
+        assertFalse(vm.uiState.value.sharing)
+        assertNull(vm.uiState.value.sharedRealmId)
     }
 }

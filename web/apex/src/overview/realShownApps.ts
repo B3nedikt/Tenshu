@@ -6,15 +6,24 @@
 import { Overview } from '@tenshu/sdk/overview'
 import type { ShownAppsSource } from './shownAppsContext'
 
-export const realShownApps: ShownAppsSource = {
-  observe(onList, onError) {
-    return Overview.observeShownApps(
-      result => (result.ok ? onList(result.appIds) : onError(result.error.message ?? result.error.kind)),
-      onError,
-    )
-  },
-  async write(appIds) {
-    const result = await Overview.setShownApps(appIds)
-    return result.ok ? { ok: true } : { ok: false, message: result.error.message ?? result.error.kind }
-  },
+function storedList(key: 'shownApps' | 'widgets' | 'background'): ShownAppsSource {
+  return {
+    observe(onList, onError) {
+      return Overview.observeList(
+        key,
+        result => (result.ok ? onList(result.appIds) : onError(result.error.message ?? result.error.kind)),
+        onError,
+      )
+    },
+    async write(values) {
+      const result = await Overview.setList(key, values)
+      return result.ok ? { ok: true } : { ok: false, message: result.error.message ?? result.error.kind }
+    },
+  }
 }
+
+export const realShownApps = storedList('shownApps')
+/** The widget list (`widgets.ts`), its own REALM row. */
+export const realWidgets = storedList('widgets')
+/** The background colour (`theme/background.ts`), its own REALM row. */
+export const realBackground = storedList('background')

@@ -1,3 +1,8 @@
+/* The apex's background tint (docs/proposals/web-apex-home.md §4.15): re-derives the accent and
+   glass roles under <html data-tint>, which `appearance.ts` sets while framed. After tokens.css,
+   which every app imports before this file. */
+@import '@tenshu/web-tokens/tint.css';
+
 /* Tailwind must see the class names the app-kit's components use, or an app's CSS silently lacks
    them (v4 detects sources from the app's own directory, and this package is outside it). An app's
    index.css imports this after `tailwindcss` and the token layer. ⚠ Only the components: Tailwind

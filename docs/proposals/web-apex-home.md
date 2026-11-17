@@ -1,8 +1,9 @@
 # Web apex Home — an overview first, Control behind the gear
 
-**Status:** **v1.0 — H1–H6 and Pause/Resume (H5c) built (2026-11-13).** §2 is verified
-fact; §3 onward is the design, accepted by the maintainer; §4.1–§4.8 are as-built notes; §7 records
-the decisions.
+**Status:** **v1.1 — H1–H6, Pause/Resume (H5c), and widgets + appearance (W1–W4, §4.12–§4.15)
+built (2026-11-17).** §2 is verified fact; §3 onward is the design, accepted by the maintainer;
+§4 holds the as-built notes; §7 records the decisions. ⚠ §3.5.1 describes the H3 Customize dock,
+which §4.12 replaced.
 
 **Owner:** Benedikt
 
@@ -190,6 +191,10 @@ IPC handshake), so a missing row never means "not used in this browser". The lin
 the list — rows jumping when the read lands would move one out from under the pointer.
 
 #### 3.5.1 Customize mode — the only place the layout changes
+
+> ⚠ **Superseded by §4.12 (2026-11-17).** Edit mode now arranges *widgets*; the dock's apps are
+> added, hidden and ordered in the *Your apps* dialog. Kept for the reasoning that still holds
+> (an explicit mode; keyboard reorder is required; each change writes at once).
 
 Reordering and removing happen **only in an explicit mode**, so a stray drag on the everyday
 page never rearranges it (the iCloud.com pattern).
@@ -531,6 +536,96 @@ Library goes.
   with 0 steps) still draws 0. The card was connected all along: the browser runtime has carried
   the health service since F7 (2026-10-23, `DeclaredServiceVersionsTest`).
 
+### 4.12 Widgets — W1 (2026-11-17)
+
+The overview is a list of **widgets**: "Your apps" (the dock) and one preview card per app. Edit
+mode (`/overview/customize`, *Customize* at the foot of the page) arranges them, iOS home-screen
+style: every widget wiggles, carries a **−** badge and ← / → move buttons, and can be dragged onto
+another; the bar holds *Add widget*, *Your apps* and *Done*. Content is `inert` while editing.
+
+- ⚠⚠ **Two lists, never one** (D-W2). *Installed* = the shown-apps row (`apex.overview.shownApps`,
+  §3.5) — what the dock lists. *Widgets* = `apex.overview.widgets`, the overview's own order.
+  Removing a widget never uninstalls; uninstalling hides that app's card but keeps its place.
+  Installing, hiding and ordering apps moved into the *Your apps* dialog (↑ / ↓ per row).
+- **The default is derived, never written** (D-W1). `[]` = never edited → "Your apps", then a card
+  per installed app with a glance, in the dock's order (today: Your apps, Drive, Photos — the start
+  state is unchanged). An edited list keeps that rule for anything it does not mention, so a newly
+  installed app still gets its card at the end, while a removed default is recorded as
+  `hidden:<widget>` and stays removed — also across an uninstall + reinstall.
+- **Tokens:** `apps`, `app:<id>`, `hidden:<token>`. ⚠ Unknown tokens (a newer client's `clock`)
+  are kept in place on every write. The SDK stores any of the overview's lists by key
+  (`Overview.observeList` / `setList` / `list`: `shownApps`, `widgets`, `background`) — REALM
+  `StringListAdapter` rows over `genericData`, so no schema or service bump (House Rule 9).
+- ⚠ An unreadable widget list draws the default and refuses edits — it is not an empty page. The
+  shown apps still gate the cards (loading or unreadable → the dock alone, which says so).
+- The one write overlay (`ShownAppsProvider.tsx`) now backs a `StoredListProvider` per list.
+- Reduced motion: no wiggle, a dashed outline. Undo toast as before; focus follows each change.
+- Next kinds (a clock, several widgets per app) are a new token each; `Widget.kind` is the switch.
+
+### 4.13 Mode and language in edit mode and Settings — W2 (2026-11-17)
+
+*Light / Dark / Auto* and the language (Automatic, English, Deutsch, Français) sit under the edit
+bar and in **Settings → Appearance** (`appearance/AppearanceControls.tsx`). ⚠ **Per browser, in
+localStorage only** (D-W3): the marketing footer's own keys (`tenshu.theme`, `tenshu.lang`), so a
+pick on the landing page holds here and back. Not a DEVICE preference: that row lives in the same
+origin's storage (cleared with it), and the mode must be readable by the head script before the
+runtime exists. One small store (`appearance/appearance.ts`) so the bar, Settings and the app
+bridge agree; ⚠ it holds the value just set, never a re-read — with storage blocked a re-read said
+"auto" while the page was dark.
+
+### 4.14 Background colour — W3 (2026-11-17)
+
+Swatches (Blue, Violet, Teal, Green, Rose, Amber, Graphite, Classic) and a native colour input
+(`appearance/BackgroundPicker.tsx`), in the same two places. **Blue is the default** (maintainer,
+2026-11-17): it is stored as NOTHING, so every realm that never picked gets it and choosing Blue
+writes no row. **Classic** (stored `classic`) is the brand's own wallpaper, no tint — also what a
+signed-out page wears. An unknown token reads as blue. ⚠ A realm's very first load in a browser paints
+Classic until the row is read (no mirror yet); every load after that paints from the mirror.
+
+- ⚠⚠ **A tint is a hue and a chroma, never a colour** (`@tenshu/web-tokens/tint`). The lightness of
+  every tinted role is fixed per scheme in `web/shared/tint.css`, so any pick — near-black or
+  near-white included — reads in both modes and never changes text contrast. A custom pick keeps
+  only its OKLCH hue and chroma (chroma capped at 0.16).
+- `tint.css` re-derives `--wall`, `--glass` (dark), `--glass-shadow`, `--well` and the accent
+  (`--primary`, `--primary-soft`, `--on-primary`) under `<html data-tint>`; text, surfaces, lines
+  and status colours are untouched. ⚠ Hand-written beside the GENERATED `tokens.css` and imported
+  after it — never edit `tokens.css` for this.
+- **REALM** (D-W3): the colour follows the user to every browser (`apex.overview.background`, a
+  one-element list: a preset name or `h<deg>c<thousandths>`). A localStorage mirror
+  (`tenshu.tint`, always the numeric form) feeds `TINT_BOOT_SCRIPT` so first paint is right; every
+  ready read overwrites it. The colour input previews while dragged and writes once settled.
+
+### 4.15 Hosted apps follow the apex — W4 (2026-11-17)
+
+Every app (Drive and the eight app-kit apps) now matches the chrome around it: mode, language,
+tint. Two channels, because neither alone is enough (`app-kit/src/appearance.ts`):
+
+- **At open, the frame's `name`** (`tenshu-appearance:{mode,language,tint}`) — read synchronously
+  by `/appearance-boot.js`, a same-origin classic script the shared Vite preset serves and puts
+  first in `<head>`. ⚠ A FILE, not inline: the app CSP is `script-src 'self'`. A frame name is never
+  sent to a server and survives the app's `replaceState`s; a query string would have been logged.
+- **Later, `tenshu.appearance`** from the apex origin (and the parent window only), on every
+  change and again on the app's `tenshu.ready`. The app-kit applies `data-theme` / `data-tint` and,
+  in apps that localise, switches i18next (Drive does not bundle it).
+- The language sent is the one the apex **shows** (resolved), so "Automatic" still agrees.
+- ⚠ The tint reaches apps through `app-kit/styles.css` (`@import tint.css`), so it touches accent
+  and glass only — content stays neutral. Opened on its own, an app follows the OS as before.
+- ⚠ The message shape is duplicated in the apex (`appearance/appAppearance.ts`), like the route
+  messages. Change both together.
+
+### 4.16 Sync pill and sharp photo tiles (2026-11-17)
+
+- ⚠⚠ **The sync pill never reads `isSyncing`.** The scheduler sets it for every tick's drain/pull
+  whether or not anything moved, so the overview's label blinked Synced ↔ Syncing for ever on an
+  idle browser (the dot inside an app did too, less visibly). "Syncing" now means
+  `pendingBlockCount > 0` — work waiting to go out (`shell/syncView.ts`; native's rule,
+  `evaluateSyncActivity`). Label on the overview, dot inside an app: same component, same logic.
+- ⚠⚠ **A photo card tile needs more than LARGE.** LARGE is 256 px on the LONG edge: a 3:2 photo is
+  256×171, cropped into a ~180 CSS px square (360 device px on Retina) — a 2× stretch, which was
+  the card's blur while the Photos app was sharp. Grid tiles now do what the Photos app does: LARGE
+  first, then `fs.getTilePreview`'s XLARGE swapped in (`glance/previewUrl.ts`, `sharp`); a stand-in
+  answer or a failure keeps LARGE. List rows (96 px) stay on `fs.getPreview` alone.
+
 ## 5. What this supersedes in `web-control-plane.md`
 
 - §2: `/control/home` is no longer the landing destination; `/overview` is.
@@ -562,3 +657,6 @@ Library goes.
 | D2 | Realm-wide or per-device shown set | **Realm-wide** — shared by every browser. |
 | D3 | A notification history page | **None new.** History stays the existing Control feed (`/control/home`); the bell holds a short list, **last four**, like the tray. A dedicated page may come later. |
 | D4 | Reordering | **Yes**, via an explicit **Customize mode** (§3.5.1) so nobody reorders by accident. |
+| D-W1 | Widget defaults (2026-11-17) | **Derived, as before**: Your apps + a card per installed app; installing adds its card even after an edit; a removed one stays removed (§4.12). |
+| D-W2 | Widgets vs installed apps | **Two lists.** Removing a widget never uninstalls (§4.12). |
+| D-W3 | Where appearance is stored | **Mode + language per browser** (localStorage); **background realm-wide** (§4.13, §4.14). |

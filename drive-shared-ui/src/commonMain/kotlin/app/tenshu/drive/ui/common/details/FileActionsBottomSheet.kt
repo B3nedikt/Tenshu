@@ -14,8 +14,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.SupervisorAccount
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -38,7 +37,6 @@ import app.tenshu.drive.shared.resources.file_actions_make_available_offline
 import app.tenshu.drive.shared.resources.file_actions_make_folder_online_only
 import app.tenshu.drive.shared.resources.file_actions_remove_download
 import app.tenshu.drive.shared.resources.file_actions_link
-import app.tenshu.drive.shared.resources.file_actions_manage_access
 import app.tenshu.drive.shared.resources.file_actions_move
 import app.tenshu.drive.shared.resources.file_actions_rename
 import app.tenshu.drive.shared.resources.file_actions_share
@@ -85,14 +83,9 @@ fun FileActionsBottomSheet(
             onActionCompleted()
         },
         onShareClicked = {
-            // Mode-B folder share. On success collapse the sheet; on a storage-gate
-            // block keep it composed so StorageGateDialog (hosted below) can render
-            // in place — same rule as onLinkClicked.
-            if (viewModel.onShareClicked()) onActionCompleted()
-        },
-        onManageAccessClicked = {
-            // Navigates to the Manage access *screen* (drive-manage-access-ux.md
-            // §10) — like *Details & Activity*, not an in-place sheet.
+            // The folder's one sharing entry (drive-manage-access-ux.md §11): it
+            // navigates to the access screen, which shares the folder on the first
+            // add — like *Details & Activity*, a screen, not an in-place action.
             onManageAccessRequested(uiState.file.path)
             onActionCompleted()
         },
@@ -191,7 +184,6 @@ fun FileActionsBottomSheetContent(
     onDownloadClicked: () -> Unit,
     onFolderOfflineToggled: () -> Unit = {},
     onShareClicked: () -> Unit,
-    onManageAccessClicked: () -> Unit,
     onLinkClicked: () -> Unit,
     onMoveClicked: () -> Unit,
     onRenameClicked: () -> Unit,
@@ -241,19 +233,12 @@ fun FileActionsBottomSheetContent(
         }
 
         if (uiState.isFolder) {
-            // Folder-only: Mode-B shares a *folder* into a shared realm
-            // (drive-manage-access-ux.md §2.1). A file shares via *Link* below.
+            // Folder-only: one entry for sharing a folder and seeing who has access
+            // (drive-manage-access-ux.md §11). A file shares via *Link* below.
             ContentRow(
-                icon = Icons.Default.Share,
+                icon = Icons.Default.PersonAdd,
                 text = stringResource(Res.string.file_actions_share),
                 onClick = onShareClicked
-            )
-
-            // Folder-only, matching the folder-only *Share* gate above.
-            ContentRow(
-                icon = Icons.Default.SupervisorAccount,
-                text = stringResource(Res.string.file_actions_manage_access),
-                onClick = onManageAccessClicked
             )
         }
 
@@ -324,7 +309,6 @@ fun FileDetailsBottomSheetContentPreview() {
                 ),
                 onDownloadClicked = {},
                 onShareClicked = {},
-                onManageAccessClicked = {},
                 onLinkClicked = {},
                 onMoveClicked = {},
                 onRenameClicked = {},

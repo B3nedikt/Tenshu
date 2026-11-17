@@ -804,8 +804,21 @@ internal object JsRuntime : RuntimeContext {
         // must present it (`entitlementProofProvider`, [syncRelayLazy]) or every web write is
         // `402 entitlement_required`. `GET /sync/usage` is a read and needs no entitlement, so
         // the omission is correct HERE only.
-        ({ client.fetchUsage()?.let { it.usedBytes to it.limitBytes } })
+        recordingUsageReports(reportedUsage) { client.fetchUsage()?.let { it.usedBytes to it.limitBytes } }
     }
+
+    /**
+     * The last `usedBytes` a `GET /sync/usage` answered, or null while none has — the signal
+     * `Storage.status()` waits on, because until then the figures' `usedBytes` is a `0` placeholder.
+     */
+    val reportedUsage = kotlinx.coroutines.flow.MutableStateFlow<Long?>(null)
+
+    /**
+     * Whether a `Storage.status()` call has already waited for [reportedUsage]. ⚠ Waited for ONCE
+     * per runtime: a relay that never answers (offline, 401, 426) must cost one bounded wait, not
+     * one per call — the Share dialog and Settings read it on every open.
+     */
+    var usageWaitSpent = false
 
     // The web's only possible write credential. See [RuntimeContext] for why a
     // browser can never present the bearer-token form.
@@ -1145,3 +1158,9 @@ internal object JsRuntime : RuntimeContext {
  * overwrote. `JsRuntime.syncManager` calls this; `RuntimeLeaseTest` pins it.
  */
 internal fun refusesDurableCursor(lease: LeaseState): Boolean = lease == LeaseState.UNGUARDED
+
+/** [reader], recording every usage it answers into [sink] — the signal `Storage.status()` waits on. */
+internal fun recordingUsageReports(
+    sink: kotlinx.coroutines.flow.MutableStateFlow<Long?>,
+    reader: suspend () -> Pair<Long, Long?>?,
+): suspend () -> Pair<Long, Long?>? = { reader()?.also { sink.value = it.first } }

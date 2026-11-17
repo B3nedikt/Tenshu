@@ -49,11 +49,11 @@ class FileActionsBottomSheetTest {
         assertTrue(completed, "sheet should dismiss after navigating to details")
     }
 
-    // §10 restructure (drive-manage-access-ux.md): the folder-only row
-    // *navigates* to the Manage access screen instead of nesting a sheet.
+    // §11 (drive-manage-access-ux.md): a folder has ONE sharing row, *Share*, and it
+    // navigates to the access screen — the separate *Manage access* row is gone.
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun manageAccessRoutesPathToOnManageAccessRequested() = composeVmTest { vms ->
+    fun shareRoutesPathToTheAccessScreen() = composeVmTest { vms ->
         var managePath: String? = null
         var completed = false
 
@@ -70,9 +70,10 @@ class FileActionsBottomSheetTest {
             }
         }
 
-        onNodeWithText("Manage access").performClick()
+        onNodeWithText("Manage access").assertDoesNotExist()
+        onNodeWithText("Share").performClick()
 
         assertEquals("/Photos", managePath)
-        assertTrue(completed, "sheet should dismiss after navigating to Manage access")
+        assertTrue(completed, "sheet should dismiss after navigating to the access screen")
     }
 }
