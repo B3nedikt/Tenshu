@@ -28,7 +28,7 @@ import app.tenshu.drive.shared.resources.invite_link_done
 import app.tenshu.drive.shared.resources.invite_link_error
 import app.tenshu.drive.shared.resources.invite_link_generate
 import app.tenshu.drive.shared.resources.invite_link_generating
-import app.tenshu.drive.shared.resources.invite_link_grant_parked
+import app.tenshu.drive.shared.resources.invite_link_grant_hint
 import app.tenshu.drive.shared.resources.invite_link_one_session
 import app.tenshu.drive.shared.resources.invite_link_qr_description
 import app.tenshu.drive.shared.resources.invite_link_share_subject
@@ -78,7 +78,7 @@ fun InviteLinkSheet(
 
         if (uiState.folderName.isNotEmpty()) {
             Text(
-                text = stringResource(Res.string.invite_link_grant_parked),
+                text = stringResource(Res.string.invite_link_grant_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

@@ -8,11 +8,15 @@
 // - the app REPORTS each move (`tenshu.nav`), and the apex pushes or replaces its own entry;
 // - a move the app did not report (back/forward, the launcher) is SENT to it (`tenshu.route`), and
 //   re-sent when the app says it is listening (`tenshu.ready`) — a message sent earlier is lost.
+//
+// And it hands the app the apex's appearance (web-apex-home.md §4.15, `appearance/appAppearance.ts`):
+// in the frame's `name` at open, then as a `tenshu.appearance` message on each change and on ready.
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { AppEmbed } from './AppEmbed'
 import { READY_MESSAGE, ROUTE_MESSAGE, apexUrl, appPathFor, readNavMessage } from './appNav'
 import type { HostedApp } from './registry'
+import { appearanceMessage, frameName, useAppAppearance } from '../appearance/appAppearance'
 
 export function HostedAppEmbed({ app }: { app: HostedApp }) {
   // ⚠ Keyed by app: react-router renders sibling routes without keys, so a switch from Drive to
@@ -37,6 +41,13 @@ function HostedAppFrame({ app }: { app: HostedApp }) {
   useEffect(() => {
     current.current = { path, hash: location.hash }
   })
+  const appearance = useAppAppearance()
+  // The frame's name, fixed at mount like `src`; later changes travel as messages.
+  const [name] = useState(() => frameName(appearance))
+  const appearanceNow = useRef(appearance)
+  useEffect(() => {
+    appearanceNow.current = appearance
+  })
 
   useEffect(() => {
     const origin = app.origin()
@@ -47,6 +58,8 @@ function HostedAppFrame({ app }: { app: HostedApp }) {
       if ((event.data as { type?: unknown } | null)?.type === READY_MESSAGE) {
         known.current = current.current.path + current.current.hash
         frame.current.contentWindow?.postMessage({ type: ROUTE_MESSAGE, ...current.current }, origin)
+        // The name carried the appearance at open; anything changed while the app booted is resent.
+        frame.current.contentWindow?.postMessage(appearanceMessage(appearanceNow.current), origin)
         return
       }
       const report = readNavMessage(app, event.data)
@@ -64,5 +77,10 @@ function HostedAppFrame({ app }: { app: HostedApp }) {
     frame.current?.contentWindow?.postMessage({ type: ROUTE_MESSAGE, path, hash: location.hash }, app.origin())
   }, [app, here, path, location.hash])
 
-  return <AppEmbed origin={app.origin()} entry={entry} frameRef={frame} title={app.title} />
+  const { mode, language, tint } = appearance
+  useEffect(() => {
+    frame.current?.contentWindow?.postMessage(appearanceMessage({ mode, language, tint }), app.origin())
+  }, [app, mode, language, tint])
+
+  return <AppEmbed origin={app.origin()} entry={entry} frameRef={frame} title={app.title} name={name} />
 }

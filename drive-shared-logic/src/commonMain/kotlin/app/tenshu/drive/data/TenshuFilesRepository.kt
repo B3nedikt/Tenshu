@@ -1233,7 +1233,11 @@ class TenshuFilesRepository(
         // would leak into the outbound group. Joiners cannot mount into their personal
         // tree (drive-shared-realm-file-model.md §6), so only owners hold placements and
         // this filter is a safety net that keeps the group correct if joiners ever can.
+        // ⚠ An unreadable ownership set is an ERROR, never "owns nothing": the Share screen
+        // shares a folder it believes unshared, so an empty answer here mints a second realm
+        // for an already-shared folder (drive-manage-access-ux.md §11).
         val ownerRealmIds = ownedRealmIds()
+            ?: return RepositoryResult.Error(RepositoryError.Unknown(ErrorCopyKey.UNEXPECTED))
         val result = client.fileService.defaultFileSystem.listPlacements()
         return result.fold(
             onSuccess = { placements ->
@@ -1257,13 +1261,12 @@ class TenshuFilesRepository(
 
     /**
      * The ids of the shared realms this member **owns** (`role = owner`), read from
-     * `getSharedRealmMemberships`. Empty on read failure — the owner then sees no
-     * *Shared folders* rather than a leaked inbound mount (memberships are local +
-     * Eager-synced, so failure is unlikely).
+     * `getSharedRealmMemberships`; `null` when the read fails — unknown, which the
+     * caller must not treat as "owns nothing" (see [sharedFolders]).
      */
-    private suspend fun ownedRealmIds(): Set<String> {
+    private suspend fun ownedRealmIds(): Set<String>? {
         val result = client.identityService.getSharedRealmMemberships()
-        if (result !is org.tenshu.core.TResult.Success) return emptySet()
+        if (result !is org.tenshu.core.TResult.Success) return null
         return (result.value?.toList() ?: emptyList())
             .filter { it.role.get() == SharedRealmMembership.Role.OWNER }
             .map { it.sharedRealmId.get() }

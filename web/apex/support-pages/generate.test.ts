@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest'
 import {
   APEX_DIR,
   REQUIRED_SECTIONS,
+  STORE_DIR,
   SUPPORT_DEVICE,
   buildSupportSite,
   loadContent,
@@ -22,7 +23,9 @@ import {
   resolveShot,
   selectPlatform,
   slugify,
+  withWindowsRelease,
 } from './generate.ts'
+import { loadWindowsRelease } from './windowsDownload.ts'
 import { loadSupportChrome } from './loadChrome.ts'
 import { IMPRINT } from './imprint.ts'
 import { PRIVACY, PRIVACY_POLICY_DATE } from './privacy.ts'
@@ -510,7 +513,9 @@ describe('support pages', () => {
   // The app marketing pages (appPages.ts). Rules: no price (they link the pricing page), a store
   // button only where the app is, no "open source", no em dash, and the page works without JavaScript.
   it('builds every app page in every language, with its store links, its screenshots and the download script', () => {
-    for (const set of APP_PAGES) {
+    // As built: the Windows button links only an app the committed store/windows-release.json carries.
+    const windowsRelease = loadWindowsRelease(STORE_DIR)
+    for (const set of APP_PAGES.map((s) => withWindowsRelease(s, windowsRelease))) {
       for (const lang of ['en', 'de', 'fr']) {
         const where = `${set.app} ${lang}`
         const file = site.files.find((f) => f.file === `apps/${set.app}/${lang}/index.html`)
@@ -579,7 +584,7 @@ describe('support pages', () => {
       const primary = (ul: HTMLElement) => [...ul.querySelectorAll('a')].filter((a) => a.className === BUTTON_PRIMARY).map((a) => a.closest('li')!.dataset.os)
       return { hero: order(hero!), primary: primary(hero!), closing: order(closing!), closingPrimary: primary(closing!), hint: document.querySelector('[data-download-hint]')!.textContent }
     }
-    const built = ['android', 'ios', 'macos', 'web']
+    const built = ['android', 'ios', 'macos', 'windows', 'web']
     const android = run('Mozilla/5.0 (Linux; Android 15; Pixel 8)')
     expect(android).toEqual({ hero: built, primary: ['android'], closing: built, closingPrimary: [], hint: 'We think you’re on Android.' })
     const iphone = run('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)')
@@ -587,8 +592,16 @@ describe('support pages', () => {
     // iPadOS reports a Mac; touch points give it away.
     expect(run('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 5).hint).toContain('iPhone and iPad')
     expect(run('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)').hint).toContain('on Mac.')
-    // No target for Windows: nothing moves, no hint.
-    expect(run('Mozilla/5.0 (Windows NT 10.0; Win64; x64)')).toEqual({ hero: built, primary: ['android'], closing: built, closingPrimary: [], hint: '' })
+    // Windows: a target, but Drive is not released there until store/windows-release.json carries it, so
+    // nothing moves and the line says it is coming. Once released it moves first like Mac.
+    const windows = run('Mozilla/5.0 (Windows NT 10.0; Win64; x64)')
+    if (loadWindowsRelease(STORE_DIR)?.apps.drive) {
+      expect(windows).toMatchObject({ hero: ['windows', 'android', 'ios', 'macos', 'web'], primary: ['windows'], hint: 'We think you’re on Windows.' })
+    } else {
+      expect(windows).toEqual({ hero: built, primary: ['android'], closing: built, closingPrimary: [], hint: 'We think you’re on Windows. Tenshu Drive for it is coming soon.' })
+    }
+    // Linux: no target at all, nothing moves, no hint.
+    expect(run('Mozilla/5.0 (X11; Linux x86_64)')).toEqual({ hero: built, primary: ['android'], closing: built, closingPrimary: [], hint: '' })
     // Photos' Mac target is the macOS download page (macosDownload.ts): a Mac visitor gets it first, as the primary button.
     const photos = site.files.find((f) => f.file === 'apps/photos/en/index.html')!.content
     const photosMain = photos.slice(photos.indexOf('<main'), photos.indexOf('</main>') + '</main>'.length)
@@ -596,7 +609,7 @@ describe('support pages', () => {
     Object.defineProperty(dom.window.navigator, 'userAgent', { get: () => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' })
     Object.defineProperty(dom.window.navigator, 'maxTouchPoints', { get: () => 0 })
     dom.window.eval(script)
-    expect([...dom.window.document.querySelectorAll('[data-download] li')].map((li: { dataset: { os: string } }) => li.dataset.os)).toEqual(['macos', 'android', 'ios', 'web'])
+    expect([...dom.window.document.querySelectorAll('[data-download] li')].map((li: { dataset: { os: string } }) => li.dataset.os)).toEqual(['macos', 'android', 'ios', 'windows', 'web'])
     expect(dom.window.document.querySelector('[data-download] li[data-os="macos"] a').className).toBe(BUTTON_PRIMARY)
     expect(dom.window.document.querySelector('[data-download] li[data-os="macos"] a').getAttribute('href')).toBe('/apps/photos/download/macos')
     expect(dom.window.document.querySelector('[data-download-hint]').textContent).toContain('on Mac.')

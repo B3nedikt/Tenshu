@@ -7,6 +7,7 @@ import tailwindcss from '@tailwindcss/vite'
 // Relative, not the package name: Vite loads this config through Node, which would have to strip
 // a .ts file inside node_modules (refused) if the import resolved there.
 import { THEME_BOOT_SCRIPT } from '../shared/theme.ts'
+import { TINT_BOOT_SCRIPT } from '../shared/tint.ts'
 import { supportPages } from './support-pages/vitePlugin.ts'
 import { apexCsp } from './csp/vitePlugin.ts'
 
@@ -40,7 +41,11 @@ export default defineConfig({
     supportPages(),
     {
       name: 'tenshu-theme-boot',
-      transformIndexHtml: () => [{ tag: 'script', children: THEME_BOOT_SCRIPT, injectTo: 'head-prepend' }],
+      transformIndexHtml: () => [
+        { tag: 'script', children: THEME_BOOT_SCRIPT, injectTo: 'head-prepend' },
+        // The overview's background colour, from its local mirror (shared/tint.ts).
+        { tag: 'script', children: TINT_BOOT_SCRIPT, injectTo: 'head-prepend' },
+      ],
     },
     apexCsp(),
   ],

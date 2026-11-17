@@ -10,6 +10,7 @@
 // again, so nothing but that reload may follow.
 import type { SessionApi } from '@tenshu/sdk/onboarding'
 import { signalPasskeyRemoved } from './webauthn'
+import { applyTint } from '../appearance/background'
 
 export type DisconnectOutcome = 'confirmed' | 'unconfirmed'
 
@@ -17,6 +18,8 @@ export async function disconnectBrowser(
   session: Pick<SessionApi, 'clear'>,
 ): Promise<DisconnectOutcome> {
   const result = await session.clear({ purgeRealm: true })
+  // The realm's background colour goes with it (its boot mirror would paint the next load).
+  applyTint(null)
   if (result.passkeyCredentialId !== null) await signalPasskeyRemoved(result.passkeyCredentialId)
   return result.removal === 'confirmed' ? 'confirmed' : 'unconfirmed'
 }

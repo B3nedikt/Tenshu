@@ -68,7 +68,6 @@
     <string name="file_actions_make_folder_offline">Make folder available offline</string>
     <string name="file_actions_make_folder_online_only">Make folder online-only</string>
     <string name="file_actions_share">Share</string>
-    <string name="file_actions_manage_access">Manage access</string>
     <string name="file_actions_link">Link</string>
     <string name="file_actions_move">Move</string>
     <string name="file_actions_rename">Rename</string>
@@ -443,7 +442,7 @@
     <string name="synced_folders_resume">Resume</string>
 
     <!-- Manage access sheet (drive-manage-access-ux.md §2.1) -->
-    <string name="manage_access_title">Manage access to %1$s</string>
+    <string name="manage_access_title">Share %1$s</string>
     <string name="manage_access_role_owner">Owner</string>
     <string name="manage_access_member_you">You</string>
     <string name="manage_access_invite_link_row">Invite link</string>
@@ -453,7 +452,7 @@
     <string name="manage_access_revoke">Revoke</string>
     <string name="manage_access_invite_someone">Invite someone</string>
     <string name="manage_access_empty_title">No one else has access yet</string>
-    <string name="manage_access_empty_body">Invite someone to connect with the + button.</string>
+    <string name="manage_access_empty_body">Add someone you're connected with, or invite someone new with the + button.</string>
     <!-- GR-4: cross-user members + the grant-a-contact action (shared-realm-membership-grant.md GR-4). -->
     <string name="manage_access_role_member">Member</string>
     <string name="manage_access_role_invited">Invited — waiting for them to accept</string>
@@ -461,6 +460,9 @@
     <string name="manage_access_grant_picker_title">Who should have access?</string>
     <string name="manage_access_grant_picker_empty">No connected contacts yet. Invite someone with the + button first.</string>
     <string name="manage_access_grant_error">Couldn't grant access: %1$s</string>
+    <!-- §11: the folder is shared on the first add. -->
+    <string name="manage_access_sharing">Sharing this folder…</string>
+    <string name="manage_access_share_error">Couldn't share this folder: %1$s</string>
     <!-- GR-6: remove a cross-user member (shared-realm-membership-grant.md GR-6). -->
     <string name="manage_access_remove">Remove</string>
     <string name="manage_access_removing">Removing…</string>
@@ -479,7 +481,7 @@
     <string name="invite_link_copy">Copy</string>
     <string name="invite_link_done">Done</string>
     <string name="invite_link_disclosure">Anyone with this link can request to connect with you. It works once and expires in 3 days.</string>
-    <string name="invite_link_grant_parked">Once you are connected, sharing this folder with them is coming in an upcoming update.</string>
+    <string name="invite_link_grant_hint">Once they accept and you confirm, you'll be asked to add them to this folder.</string>
     <string name="invite_link_one_session">This link is only shown once. To hand it out again later, revoke it and create a new one.</string>
     <string name="invite_link_error">Couldn't create the invite link: %1$s</string>
 
@@ -515,7 +517,7 @@
     <string name="redeem_invite_waiting_row">Waiting for confirmation…</string>
     <string name="redeem_invite_accepted_title">You are connected</string>
     <string name="redeem_invite_accepted_body">“%1$s” is now a contact. Their key: %2$s</string>
-    <string name="redeem_invite_accepted_intent">“%1$s” wants to share “%2$s” with you — folder sharing arrives in an upcoming update.</string>
+    <string name="redeem_invite_accepted_intent">“%1$s” wants to share “%2$s” with you. Once they add you, it shows up under Shared for you to accept.</string>
     <string name="redeem_invite_rejected">They declined this request.</string>
     <string name="redeem_invite_gone">This invite has expired or was already used. If you didn't use this link, ask the sender to send a new one.</string>
     <string name="redeem_invite_invalid">Something went wrong verifying this invite. Ask the sender for a new link.</string>

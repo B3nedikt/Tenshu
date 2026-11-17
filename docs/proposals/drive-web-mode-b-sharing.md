@@ -5,7 +5,10 @@
 **MB-3 (Mode-B file read) shipped 2026-06-25** — see §13.
 **MB-4 (Share a folder, outbound) shipped 2026-06-25** — see §14.
 **MB-5 (Verify a contact — camera-QR + SAS) shipped 2026-06-26** — see §15. **Cluster
-MB-1..MB-5 COMPLETE.**
+MB-1..MB-5 COMPLETE.** ⚠ **2026-11-17: the People tab (§11, §15) is gone and MB-4's
+share-on-click is replaced** — a folder's Share screen shares on the first add and holds that
+folder's invites; *Scan invite* moved to *Shared with me*; contacts live in the Contacts app.
+See [`drive-manage-access-ux.md`](drive-manage-access-ux.md) §11.
 Resolves [`drive-web-app.md`](drive-web-app.md) §5 Q2 ("sharing handshake form factor on
 web"), the open question that parked Mode-B + the membership grant as **Deferred (D)**. This
 doc fixes the *form factor*; the op-by-op SDK build and a threat-model pass land with the

@@ -60,21 +60,30 @@
     "usedOnOne": "You use it on {device}",
     "usedOnTwo": "You use it on {first} and {second}",
     "usedOnMany": "You use it on {first} and {count} other devices",
-    "done": "Done"
+    "done": "Done",
+    "moveUpAriaLabel": "Move {app} up",
+    "moveDownAriaLabel": "Move {app} down"
   },
   "customize": {
     "done": "Done",
-    "hint": "Drag to reorder · − hides an app, its data stays",
-    "unavailable": "Your app choices can't be loaded right now, so the layout can't be changed.",
+    "hint": "Drag a widget to move it · − removes it; your apps stay installed",
+    "unavailable": "Your widgets can't be loaded right now, so they can't be changed.",
     "writeFailed": "Couldn't save that change. Try again.",
-    "hidden": "{app} hidden from your overview",
-    "hiddenToast": "{app} hidden. Its data stays in your realm.",
-    "restored": "{app} is back on your overview",
-    "moved": "{app} moved to position {position} of {count}",
-    "hideAriaLabel": "Hide {app}",
-    "moveEarlierAriaLabel": "Move {app} earlier",
-    "moveLaterAriaLabel": "Move {app} later",
-    "undo": "Undo"
+    "restored": "{widget} is back on your overview",
+    "moved": "{widget} moved to position {position} of {count}",
+    "moveEarlierAriaLabel": "Move {widget} earlier",
+    "moveLaterAriaLabel": "Move {widget} later",
+    "undo": "Undo",
+    "removed": "{widget} removed from your overview",
+    "removedToast": "{widget} removed. Add it back any time.",
+    "removeAriaLabel": "Remove {widget}",
+    "addWidget": "Add widget",
+    "addAriaLabel": "Add {widget}",
+    "allAdded": "Every widget is on your overview. Install more apps under Your apps to get theirs.",
+    "appsWidgetDetail": "Your installed apps, one tap away",
+    "empty": "No widgets. Use Add widget to bring one back.",
+    "close": "Close",
+    "toolbarAriaLabel": "Edit overview"
   },
   "glance": {
     "open": "Open",
@@ -683,6 +692,28 @@
       "PAUSED_POLICY": "Paused",
       "OUT_OF_SPACE": "Out of space",
       "ERROR": "Error"
+    }
+  },
+  "appearance": {
+    "mode": "Mode",
+    "light": "Light",
+    "dark": "Dark",
+    "auto": "Auto",
+    "language": "Language",
+    "languageAuto": "Automatic",
+    "heading": "Appearance",
+    "thisBrowser": "Mode and language apply to this browser. The background colour follows you to every browser.",
+    "background": "Background",
+    "tint": {
+      "blue": "Blue",
+      "violet": "Violet",
+      "teal": "Teal",
+      "green": "Green",
+      "rose": "Rose",
+      "amber": "Amber",
+      "graphite": "Graphite",
+      "classic": "Classic",
+      "custom": "Custom colour"
     }
   }
 }

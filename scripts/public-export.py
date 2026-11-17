@@ -278,6 +278,29 @@ def check_public_clone(clone, rules):
     return rules.get("public_branch", "master")
 
 
+def fetch_public(clone):
+    """Bring the clone's `origin/*` up to date. ⚠⚠ The base, the last sync and the drift check are
+    all read from `origin/<branch>`: a local branch is only as fresh as the clone's last pull, so a
+    stale one bases the sync on old history and hides the public commits drift must refuse on."""
+    out = subprocess.run(["git", "fetch", "-q", "origin"], cwd=clone, capture_output=True, text=True)
+    if out.returncode != 0:
+        sys.exit(f"git fetch origin failed in {clone}: refusing to sync against what may be stale:\n"
+                 f"{out.stderr}")
+
+
+def sync_base(clone, branch):
+    """The ref the sync builds on: `origin/<branch>`, or the local branch before the first push.
+    Refuses a local branch carrying commits the public repository does not have."""
+    remote, local = f"refs/remotes/origin/{branch}", f"refs/heads/{branch}"
+    has = lambda ref: bool(git("rev-parse", "--verify", "--quiet", ref, cwd=clone, check=False))
+    if not has(remote):
+        return local if has(local) else None
+    if has(local) and subprocess.run(["git", "merge-base", "--is-ancestor", local, remote],
+                                     cwd=clone, capture_output=True).returncode != 0:
+        sys.exit(f"local {branch} has commits origin/{branch} does not: push or drop them first")
+    return remote
+
+
 def last_sync(clone, branch):
     """(commit, internal sha) of the newest sync commit on `branch`, or (None, None)."""
     if not git("rev-parse", "--verify", "--quiet", branch, cwd=clone, check=False):
@@ -393,13 +416,15 @@ def publish(dest, clone, ref_sha, rules, allow_drift, summary=None):
         sys.exit("⚠⚠ This repository's remotes still name the public repository:\n  " + "\n  ".join(bad)
                  + "\nRe-point them at the internal one first (public-export.md §5, step 3).")
     branch = check_public_clone(clone, rules)
-    has_base = bool(git("rev-parse", "--verify", "--quiet", branch, cwd=clone, check=False))
-    sync_commit, since = last_sync(clone, branch)
+    fetch_public(clone)
+    base = sync_base(clone, branch)
+    has_base = base is not None
+    sync_commit, since = last_sync(clone, base) if has_base else (None, None)
     if has_base:
         if sync_commit is None:
             sys.exit(f"{branch} has commits but none carries an {TRAILER} trailer: not a repo this script made")
         # Merge commits are how a sync PR lands; only the commits under them are drift.
-        drift = git("log", "--no-merges", "--format=%h %s", f"{sync_commit}..{branch}", cwd=clone)
+        drift = git("log", "--no-merges", "--format=%h %s", f"{sync_commit}..{base}", cwd=clone)
         if drift and not allow_drift:
             sys.exit("Public commits since the last sync, not yet brought into this repository:\n"
                      f"{drift}\nImport them here first (git format-patch there, git am here), or "
@@ -407,10 +432,8 @@ def publish(dest, clone, ref_sha, rules, allow_drift, summary=None):
         if since == ref_sha:
             sys.exit(f"Nothing to sync: the public repo is already at {ref_sha[:10]}")
         work = f"sync/{datetime.date.today().isoformat()}-{ref_sha[:8]}"
-        git("switch", "-c", work, branch, cwd=clone)
+        git("switch", "--no-track", "-c", work, base, cwd=clone)
     else:
-        if git("rev-parse", "--verify", "--quiet", f"refs/remotes/origin/{branch}", cwd=clone, check=False):
-            sys.exit(f"origin/{branch} exists but local {branch} does not: check it out first")
         work = branch
         if git("rev-parse", "--verify", "--quiet", "HEAD", cwd=clone, check=False):
             sys.exit(f"{clone} has commits on another branch but no {branch}: refusing to guess")

@@ -20,7 +20,7 @@ import { RecoveryFlow } from './onboarding/RecoveryFlow'
 import { ControlShell } from './control/ControlShell'
 import { AppShell } from './shell/AppShell'
 import { SessionLayout } from './shell/SessionLayout'
-import { realShownApps } from './overview/realShownApps'
+import { realBackground, realShownApps, realWidgets } from './overview/realShownApps'
 import { GlanceGatewayContext } from './overview/glance/glanceGateway'
 import { callInProcess } from './lib/inProcessGateway'
 import { StatusContext } from './shell/statusContext'
@@ -110,7 +110,7 @@ export default function RuntimeApp() {
         <Route path="i" element={<RequiresRuntime><MarketingLayout><ContactRedeemRoute /></MarketingLayout></RequiresRuntime>} />
         {/* Signed-in routes: one session guard (SessionLayout), two shells (web-apex-home.md §3.2) —
             the overview and the hosted apps under AppShell, Control under ControlShell. */}
-        <Route element={<RequiresRuntime><SessionLayout shownApps={realShownApps} /></RequiresRuntime>}>
+        <Route element={<RequiresRuntime><SessionLayout shownApps={realShownApps} widgets={realWidgets} background={realBackground} /></RequiresRuntime>}>
           <Route element={<AppShell />}>
             {/* ⚠⚠ `/overview`, not `/home`: `/home` is the Home APP's route (lib/overviewPath.ts). */}
             <Route path={OVERVIEW_PATH.slice(1)} element={<OverviewPage />} />

@@ -8,10 +8,10 @@ import {
   type PointerEvent,
   type ReactNode,
 } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ContextMenu, Menu, MenuItem, type MenuEntry } from '@tenshu/web-tokens/ui'
 import type { File as FsEntry } from '@tenshu/sdk/files'
-import { deleteEntry, listFiles, move, rename, shareFolder } from '../lib/proxy'
+import { deleteEntry, listFiles, move, rename } from '../lib/proxy'
 import { basename, formatBytes, formatDate, isFolder } from '../lib/paths'
 import { defaultDescending, type ListingPrefs, type SortKey } from '../lib/listingPrefs'
 import { useListingPrefs } from '../lib/deviceSettings'
@@ -129,7 +129,8 @@ export function FileBrowser({
   const [sharing, setSharing] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   // MB-4: the realm being managed right after a folder share completes.
-  const [managing, setManaging] = useState<{ realmId: string; name: string } | null>(null)
+  // The folder whose Share screen is open (it takes over the browser).
+  const [managing, setManaging] = useState<{ path: string; name: string } | null>(null)
   const queryClient = useQueryClient()
 
   const { data, isPending, error, isError } = useQuery({
@@ -277,28 +278,10 @@ export function FileBrowser({
     }
   }
 
-  // MB-4: share a folder out — bootstraps a realm, populates it, self-mounts. On success, open
-  // Manage access so the user can add people right away. The mutation's `variables` is the
-  // in-flight folder path, so a row can show its own "Sharing…" state.
-  const shareFolderMutation = useMutation({
-    mutationFn: async (folderPath: string) => {
-      const result = await shareFolder(folderPath)
-      // ⚠⚠ Naming the step is not cosmetic: 'share' and 'mount' both mean a shared realm was
-      // already created on the relay, so the user's next attempt is not starting from nothing.
-      if (!result.ok) {
-        const where = result.error.kind === 'realm' ? '' : ' (a shared realm was already created)'
-        throw new Error(`Couldn't share “${basename(folderPath)}”${where}.`)
-      }
-      return result.item
-    },
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.sharedFolders() })
-      setManaging({ realmId: result.sharedRealmId, name: result.name })
-    },
-  })
-
+  // A folder opens its Share screen, which shares it on the first add (drive-manage-access-ux.md
+  // §11) — opening it changes nothing, and an already-shared folder is never shared twice.
   function share(entry: FsEntry) {
-    if (isFolder(entry)) shareFolderMutation.mutate(entry.path)
+    if (isFolder(entry)) setManaging({ path: entry.path, name: basename(entry.path) })
     else setSharing(entry.path)
   }
 
@@ -583,7 +566,7 @@ export function FileBrowser({
   if (managing) {
     return (
       <ManageAccessView
-        realmId={managing.realmId}
+        folderPath={managing.path}
         folderName={managing.name}
         onBack={() => setManaging(null)}
       />
@@ -599,11 +582,6 @@ export function FileBrowser({
     // Grows to fill AppLayout's <main> (a flex column), so the listing area below a short list is
     // room to start a band.
     <div className="flex grow flex-col gap-3">
-      {shareFolderMutation.isError && (
-        <p className="rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
-          {shareFolderMutation.error.message}
-        </p>
-      )}
       {notice && (
         <p role="alert" className="flex items-center justify-between rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger">
           {notice}
@@ -744,7 +722,6 @@ export function FileBrowser({
                   onOpen={() => open(entry)}
                   onToggle={() => toggle(entry.path)}
                   menu={menuFor(entry)}
-                  sharing={shareFolderMutation.isPending && shareFolderMutation.variables === entry.path}
                 />
               ))}
             </ul>
@@ -870,7 +847,6 @@ function FileRow({
   onOpen,
   onToggle,
   menu,
-  sharing = false,
   stacked = false,
 }: {
   entry: FsEntry
@@ -882,7 +858,6 @@ function FileRow({
   onOpen: () => void
   onToggle: () => void
   menu: readonly MenuEntry[]
-  sharing?: boolean
   // Grid tile: the size and date go UNDER the name (beside it, a 13rem tile leaves the name no room).
   stacked?: boolean
 }) {
@@ -930,9 +905,9 @@ function FileRow({
             <span data-row-grab="" className="min-w-0 truncate text-sm text-text">
               {name}
             </span>
-            {stacked && <span className="truncate text-xs text-text-3">{sharing ? 'Sharing…' : meta}</span>}
+            {stacked && <span className="truncate text-xs text-text-3">{meta}</span>}
           </span>
-          {!stacked && <span className="shrink-0 text-xs text-text-3">{sharing ? 'Sharing…' : meta}</span>}
+          {!stacked && <span className="shrink-0 text-xs text-text-3">{meta}</span>}
         </button>
         <Menu
           trigger={

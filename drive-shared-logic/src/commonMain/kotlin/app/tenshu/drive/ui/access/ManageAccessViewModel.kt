@@ -8,12 +8,21 @@ import app.tenshu.drive.data.FilesRepository
 import app.tenshu.drive.data.MemberModel
 import app.tenshu.drive.data.MembershipRepository
 import app.tenshu.drive.data.RepositoryResult
+import app.tenshu.drive.domain.StorageGate
+import app.tenshu.drive.domain.StorageGateDecision
+import app.tenshu.ingest.backup.StorageStatusModel
 import org.tenshu.contact.ContactInvite
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * ViewModel for [ManageAccessScreen] (`docs/proposals/drive-manage-access-ux.md`
@@ -28,12 +37,17 @@ import kotlinx.coroutines.launch
  * `COMPLETED` invite whose contact is now a realm member is dropped from the
  * invite rows (the member row — keyed off the realm, not the fragile label —
  * supersedes it).
+ *
+ * **One Share entry (§11):** this screen is the folder's only sharing surface. A
+ * folder that does not back a shared realm yet is shared on the first add —
+ * granting a contact or inviting someone runs [FilesRepository.shareFolder] first
+ * ([ensureSharedRealm]) — so there is no separate "share the folder" step to forget.
  */
 class ManageAccessViewModel(
     private val filesRepository: FilesRepository,
     private val contactsRepository: ContactsRepository,
     private val membershipRepository: MembershipRepository,
-    folderPath: String,
+    private val folderPath: String,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -50,6 +64,51 @@ class ManageAccessViewModel(
     /** Raw label-filtered invites + members, recombined into the displayed list (D7). */
     private var visibleInvites: List<ContactInviteModel> = emptyList()
     private var members: List<MemberModel> = emptyList()
+
+    // Tier-1 storage signal (storage-capacity-gating.md §2): sharing a folder creates
+    // synced content, so the first add is gated exactly like the old *Share* row was.
+    private val storageStatus: StateFlow<StorageStatusModel?> =
+        filesRepository.storageStatus()
+            .catch { emit(null) }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /** Serialises [ensureSharedRealm] so a double tap can never mint two realms. */
+    private val shareMutex = Mutex()
+
+    /**
+     * Whether this folder already backs a realm I own (see [lookUpRealm]).
+     * [ensureSharedRealm] awaits it, so an add tapped before the lookup lands
+     * cannot share the folder a second time.
+     */
+    private val realmLookup: Deferred<String?> = viewModelScope.async { lookUpRealm() }
+
+    /**
+     * Match this folder against my `sharedFolders()` rows; on a hit, capture the
+     * realm and load its roster. Returns `null` once the question is answered, or
+     * the failure's message — a failed read must never be taken as "not shared":
+     * sharing on that basis would mint a second realm for an already-shared folder.
+     */
+    private suspend fun lookUpRealm(): String? {
+        val result = filesRepository.sharedFolders()
+        if (result is RepositoryResult.Error) return result.error.toString()
+        if (result is RepositoryResult.Success) {
+            val match = result.value.firstOrNull { folder ->
+                val path = if (folder.parentPath == "/") {
+                    "/${folder.name}"
+                } else {
+                    "${folder.parentPath}/${folder.name}"
+                }
+                path == folderPath
+            }
+            if (match != null) {
+                _uiState.update {
+                    it.copy(backsSharedRealm = true, sharedRealmId = match.sharedRealmId)
+                }
+                loadMembers()
+            }
+        }
+        return null
+    }
 
     init {
         viewModelScope.launch {
@@ -84,34 +143,67 @@ class ManageAccessViewModel(
                     }
                 }
         }
+        // Contacts are offered whether or not the folder is shared yet: granting one
+        // is what shares it (§11).
+        loadGrantableContacts()
+    }
+
+    /**
+     * *Invite someone*: share the folder first if it isn't yet, then open the link
+     * sheet. The invite only connects two people; the deferred grant offer that
+     * follows the handshake (`SharedScreenViewModel.recomputeGrantOffers`) needs an
+     * owned realm to offer, so without this an invite on an unshared folder never
+     * led anywhere.
+     */
+    fun onInviteSomeoneClicked() {
+        if (_uiState.value.sharing) return
         viewModelScope.launch {
-            // Members section visibility: shown only when this folder backs a
-            // Mode-B shared realm (one of my owned `sharedFolders()` rows). When
-            // it does, capture the realm id and load the roster + grant pickers.
-            val state = _uiState.value
-            val result = filesRepository.sharedFolders()
-            if (result is RepositoryResult.Success) {
-                val match = result.value.firstOrNull { folder ->
-                    val path = if (folder.parentPath == "/") {
-                        "/${folder.name}"
-                    } else {
-                        "${folder.parentPath}/${folder.name}"
-                    }
-                    path == state.folderPath
-                }
-                if (match != null) {
-                    _uiState.update {
-                        it.copy(backsSharedRealm = true, sharedRealmId = match.sharedRealmId)
-                    }
-                    loadMembers()
-                    loadGrantableContacts()
-                }
-            }
+            ensureSharedRealm() ?: return@launch
+            _uiState.update { it.copy(showInviteSheet = true) }
         }
     }
 
-    fun onInviteSomeoneClicked() {
-        _uiState.update { it.copy(showInviteSheet = true) }
+    fun onStorageGateDismissed() {
+        _uiState.update { it.copy(storageGateBlock = null) }
+    }
+
+    /**
+     * The realm this folder backs, sharing the folder into a fresh one first if it
+     * backs none. `null` when the storage gate blocked it ([ManageAccessUiState.storageGateBlock]
+     * is raised) or sharing failed ([ManageAccessUiState.shareError]).
+     */
+    private suspend fun ensureSharedRealm(): String? {
+        val openingFailure = realmLookup.await()
+        return shareMutex.withLock {
+            _uiState.value.sharedRealmId?.let { return@withLock it }
+            // The opening lookup failed: ask again rather than guess "not shared".
+            if (openingFailure != null) {
+                lookUpRealm()?.let { failure ->
+                    _uiState.update { it.copy(shareError = failure) }
+                    return@withLock null
+                }
+            }
+            _uiState.value.sharedRealmId?.let { return@withLock it }
+            val decision = StorageGate.evaluate(storageStatus.value)
+            if (decision != StorageGateDecision.Allow) {
+                _uiState.update { it.copy(storageGateBlock = decision) }
+                return@withLock null
+            }
+            _uiState.update { it.copy(sharing = true, shareError = null) }
+            when (val result = filesRepository.shareFolder(folderPath)) {
+                is RepositoryResult.Success -> {
+                    val realmId = result.value.sharedRealmId
+                    _uiState.update {
+                        it.copy(sharing = false, backsSharedRealm = true, sharedRealmId = realmId)
+                    }
+                    realmId
+                }
+                is RepositoryResult.Error -> {
+                    _uiState.update { it.copy(sharing = false, shareError = result.error.toString()) }
+                    null
+                }
+            }
+        }
     }
 
     fun onInviteSheetDismissed() {
@@ -147,17 +239,24 @@ class ManageAccessViewModel(
     }
 
     /**
-     * GR-4: grant [personId] membership of the folder's realm. Owner-only and
-     * same-session (the realm master key is in-memory) — a failure surfaces in
+     * GR-4: grant [personId] membership of the folder's realm, sharing the folder
+     * first if it backs no realm yet (§11). Owner-only and same-session (the realm
+     * master key is in-memory) — a failure surfaces in
      * [ManageAccessUiState.grantError] and keeps the picker open to retry.
      */
     fun onGrantToContact(personId: String) {
-        val realmId = _uiState.value.sharedRealmId ?: return
         if (_uiState.value.grantInProgress) return
         val label = _uiState.value.grantableContacts
             .firstOrNull { it.personId == personId }?.displayName.orEmpty()
         _uiState.update { it.copy(grantInProgress = true, grantError = null) }
         viewModelScope.launch {
+            val realmId = ensureSharedRealm()
+            if (realmId == null) {
+                // Storage-gated (the dialog is up) or the share failed (its message
+                // is shown in the picker, where the user is looking).
+                _uiState.update { it.copy(grantInProgress = false, grantError = it.shareError) }
+                return@launch
+            }
             when (val result = membershipRepository.grant(realmId, personId, label)) {
                 is RepositoryResult.Success -> {
                     _uiState.update { it.copy(grantInProgress = false, showGrantPicker = false) }

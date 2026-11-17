@@ -1,6 +1,7 @@
 # Drive Manage access — CI-4 UX + implementation handoff
 
-**Status:** Handoff v0.4 (2026-06-12). **CI-4a (§§2–4) and CI-4b (§5) both shipped
+**Status:** Handoff v0.4 (2026-06-12). **§11 (2026-11-17): one *Share* entry — the
+folder is shared on the first add; the separate *Manage access* row is gone.** **CI-4a (§§2–4) and CI-4b (§5) both shipped
 2026-06-12 — CI-4 complete** (Android manual pass pending). **§10 (Manage access
 screen restructure) supersedes the §2.1 sheet** — pinned same day, shipped as its own
 slice. The UX pass that
@@ -389,6 +390,72 @@ methods), `HomeScreen`/`FilesScreen`/`FolderScreen`/`App.kt` FilePreview entry
 `manage_access_status_accepted_confirm`; drop the now-dead section-header keys).
 `ManageAccessViewModelTest` unchanged; `FileActionsBottomSheetTest` gains a
 manage-access navigation case.
+
+## 11. One Share entry — the folder is shared on the first add (2026-11-17)
+
+**Maintainer decision:** a folder has **one** sharing row, *Share*, and it opens this
+screen. The separate *Manage access* row is gone, and so is *Share* as an invisible
+action.
+
+**Why the split existed.** It came from build order, not from a design decision. *Share*
+was the Mode-B producer from `drive-shared-realm-file-model.md` §6 (3d), built before
+there were contacts: all it could do was bootstrap a realm, populate it and self-mount it,
+with no UI and no feedback. *Manage access* came later from CI-4, which explicitly left
+*Share* out of scope (§2.1). The two were never reconciled. Users had to know to press
+*Share* first: before that, this screen offered only an invite link, and the deferred
+grant offer (`SharedScreenViewModel.recomputeGrantOffers`) needs an **owned realm** to
+offer. So an invite sent from an unshared folder connected two people and then went
+nowhere.
+
+**The model (Google Drive's, checked on device):** *Share* and *Manage access* are two
+views of one access list, and opening either changes nothing. Sharing is not a step:
+the first person you add makes the folder shared.
+
+**As built:**
+- `FileActionsBottomSheet`: the folder's *Share* row (person-add icon) navigates to
+  `Destination.ManageAccess`. `FileActionsViewModel.onShareClicked` is deleted. The
+  multi-select *Share* card does the same through `SelectionViewModel.onShareRequested`,
+  which returns the folder path and shares nothing.
+- `ManageAccessViewModel.ensureSharedRealm()` runs before *Grant access to a contact*
+  and before *Invite someone*. It calls `FilesRepository.shareFolder` only when the
+  folder backs no owned realm yet. It is serialised by a mutex and awaits the opening
+  `sharedFolders()` lookup, so a double tap, or a tap before the lookup lands, never mints
+  a second realm. ⚠ A **failed** lookup is never read as "not shared": it is asked again,
+  and a second failure surfaces `shareError` rather than sharing.
+- The storage gate (`storage-capacity-gating.md` §2) moved with it. It is evaluated only
+  when a realm would be created, so adding someone to an already-shared folder is never
+  gated.
+- *Grant access to a contact* is shown on unshared folders too, with grantable contacts
+  loaded unconditionally. The screen title is *Share {folder}*.
+
+**Cost, accepted:** an invite that is never redeemed still leaves the folder shared,
+with only its owner in the realm. That is the price of the deferred offer having
+something to offer. Stopping sharing a whole folder is not built (only removing
+members).
+
+**iOS.** The folder row's action and the in-folder toolbar button are *Share*
+(`person.badge.plus`). `ManageAccessView.swift` routes *Invite someone* through
+`onInviteSomeoneClicked` and binds the sheet to `showInviteSheet`, so both adds share first. It
+renders `sharing`, `shareError` and `storageGateBlock` (as an alert). The iOS SDK's
+`FakeFilesRepository.shareFolder` now records a share, so the UI tests' invite flow has a realm.
+⚠ The view model closes the invite sheet when a redemption arrives while it is open (Android's
+in-person advance to the prompt). iOS has no completion prompt yet, so there the sheet just
+closes.
+
+**Web** (same rules, its own code — House Rule 5):
+- *Share folder* in Files opens `ManageAccessView` by **path**. It no longer calls
+  `shareFolder` on click, which had minted a **second realm** for a folder that was already
+  shared.
+- The view looks the folder up in `sharedFolders()`. On the first add (*Add people* or
+  *Invite someone*) it shares, deduped by an in-flight promise. A pending or failed lookup is
+  re-asked, never read as "not shared".
+- The folder's `SHARE_FOLDER` invites live on that screen, with *Confirm* (the completion
+  dialog, T-CI-10 tests moved with it) and *Cancel*. A completed one whose contact isn't a
+  member is offered as **Add to folder**: the web's deferred grant offer.
+- **The People tab is removed** (maintainer decision). Contacts belong to the Contacts app,
+  which lists bare invites only, so Drive keeps the folder ones. *Scan invite* moved to
+  *Shared with me*, which is where an invitee goes. The apex registry drops the `people`
+  section.
 
 ## References
 

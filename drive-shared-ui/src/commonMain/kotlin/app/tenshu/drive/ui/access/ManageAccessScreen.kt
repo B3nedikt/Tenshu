@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -60,9 +61,12 @@ import app.tenshu.drive.shared.resources.manage_access_status_accepted_confirm
 import app.tenshu.drive.shared.resources.manage_access_status_compromised
 import app.tenshu.drive.shared.resources.manage_access_status_invited
 import app.tenshu.drive.shared.resources.manage_access_revoke
+import app.tenshu.drive.shared.resources.manage_access_share_error
+import app.tenshu.drive.shared.resources.manage_access_sharing
 import app.tenshu.drive.shared.resources.manage_access_title
 import app.tenshu.drive.ui.contacts.ContactPromptDialog
 import app.tenshu.drive.ui.contacts.ContactPromptViewModel
+import app.tenshu.drive.ui.share.StorageGateDialog
 import app.tenshu.ui.chrome.AppBottomSheet
 import app.tenshu.ui.chrome.AppFab
 import app.tenshu.ui.chrome.AppTopAppBar
@@ -111,6 +115,33 @@ fun ManageAccessScreen(
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            // §11: the first add shares the folder — say so while it runs, and why it failed.
+            if (uiState.sharing) {
+                item(key = "sharing") {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        Text(
+                            text = stringResource(Res.string.manage_access_sharing),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+            uiState.shareError?.let { message ->
+                item(key = "share-error") {
+                    Text(
+                        text = stringResource(Res.string.manage_access_share_error, message),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(vertical = 4.dp),
+                    )
+                }
+            }
+
             item(key = "owner") { OwnerRow() }
 
             // GR-4: cross-user members (accepted grants) — real access, listed
@@ -153,14 +184,13 @@ fun ManageAccessScreen(
                 )
             }
 
-            // GR-4: grant an existing contact access to this folder's realm.
-            if (uiState.backsSharedRealm) {
-                item(key = "grant-action") {
-                    GrantAccessRow(onClick = viewModel::onGrantAccessClicked)
-                }
+            // GR-4: grant an existing contact access. Offered on an unshared folder
+            // too — granting is what shares it (§11).
+            item(key = "grant-action") {
+                GrantAccessRow(onClick = viewModel::onGrantAccessClicked)
             }
 
-            if (uiState.invites.isEmpty() && uiState.members.isEmpty() && !uiState.backsSharedRealm) {
+            if (uiState.invites.isEmpty() && uiState.members.isEmpty() && uiState.invited.isEmpty()) {
                 item(key = "empty") { EmptyState() }
             }
         }
@@ -194,6 +224,14 @@ fun ManageAccessScreen(
                 onDismiss = viewModel::onInviteSheetDismissed,
             )
         }
+    }
+
+    // Tier-1 storage gate (storage-capacity-gating.md §2) on the first add.
+    uiState.storageGateBlock?.let { decision ->
+        StorageGateDialog(
+            decision = decision,
+            onDismiss = viewModel::onStorageGateDismissed,
+        )
     }
 
     uiState.promptInviteId?.let { inviteId ->

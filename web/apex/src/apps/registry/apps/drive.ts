@@ -141,7 +141,7 @@ export const drive: HostedApp = {
   methods: DRIVE_METHODS,
   // The embedded app owns its own in-app navigation.
   routePath: 'drive/*',
-  sections: ['', 'files', 'search', 'shared', 'incoming', 'people', 'settings'],
+  sections: ['', 'files', 'search', 'shared', 'incoming', 'settings'],
   glance,
   manifest: {
     id: 'drive',

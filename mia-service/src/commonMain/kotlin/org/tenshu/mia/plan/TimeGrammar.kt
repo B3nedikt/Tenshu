@@ -256,7 +256,11 @@ object TimeGrammar {
     private fun seasonOf(season: String, previous: String?, today: LocalDate, zone: TimeZone): TimeWindow {
         val (firstMonth, months) = SEASONS.getValue(season)
         val recent = mostRecentStartYear(firstMonth, today)
-        val year = if (previous == LAST) recent - 1 else recent
+        // ⚠ "last summer" is the most recent one that has ENDED. In July that is last year's,
+        // because this one is under way; in November it is this year's, just finished. Stepping
+        // back from the most recent *start* got November wrong by a whole year.
+        val recentIsUnderWay = today < LocalDate(recent, firstMonth, 1).plus(DatePeriod(months = months))
+        val year = if (previous == LAST && recentIsUnderWay) recent - 1 else recent
         val first = LocalDate(year, firstMonth, 1)
         val end = first.plus(DatePeriod(months = months))
         return window(first, end, zone, "$season $year")

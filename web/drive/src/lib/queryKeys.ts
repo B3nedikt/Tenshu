@@ -36,5 +36,6 @@ export const queryKeys = defineQueryKeys({
   pendingGrants: () => ['pending-grants'] as const,
   contacts: () => ['contacts'] as const,
   contactInvites: () => ['contact-invites'] as const,
-  contactInviteMint: () => ['contact-invite-mint'] as const,
+  contactInviteMint: (intentKind: string, intentLabel: string) =>
+    ['contact-invite-mint', intentKind, intentLabel] as const,
 })

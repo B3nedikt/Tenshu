@@ -180,13 +180,15 @@ object SharedFiles {
         GlobalScope.promise {
             JsRuntime.awaitReady()
             val client = JsRuntime.tenshuClient
-            val ownedRealmIds = client.identityService.getSharedRealmMemberships()
-                .getOrNull()
-                ?.toList()
-                ?.filter { it.role.get() == SharedRealmMembership.Role.OWNER }
-                ?.map { it.sharedRealmId.get() }
-                ?.toSet()
-                ?: emptySet()
+            // ⚠ A failed read REJECTS, never answers "nothing shared": Drive's Share screen
+            // shares a folder it believes unshared, so an empty answer here mints a second
+            // realm for an already-shared folder (drive-manage-access-ux.md §11).
+            val memberships = client.identityService.getSharedRealmMemberships()
+            if (memberships !is TResult.Success) error("Couldn't read shared-realm memberships")
+            val ownedRealmIds = (memberships.value?.toList() ?: emptyList())
+                .filter { it.role.get() == SharedRealmMembership.Role.OWNER }
+                .map { it.sharedRealmId.get() }
+                .toSet()
             client.fileService.defaultFileSystem.listPlacements().fold(
                 onSuccess = { placements ->
                     (placements?.toList() ?: emptyList())
@@ -200,7 +202,7 @@ object SharedFiles {
                         }
                         .toTypedArray()
                 },
-                onFailure = { emptyArray() },
+                onFailure = { error("Couldn't list shared-folder placements") },
             )
         }
 

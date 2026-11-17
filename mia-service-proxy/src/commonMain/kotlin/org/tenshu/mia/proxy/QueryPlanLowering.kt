@@ -40,7 +40,10 @@ import org.tenshu.core.file.files
 import org.tenshu.core.file.Name
 import org.tenshu.core.file.name
 import org.tenshu.core.file.FileService
+import org.tenshu.core.file.Folder
 import org.tenshu.core.file.system.FileSystem
+import org.tenshu.core.timeline.SubjectRef
+import org.tenshu.mia.proxy.MiaChainValidator.FieldUse
 import org.tenshu.core.file.system.PhotosCapturedBetween
 import org.tenshu.core.file.system.PhotosNear
 import org.tenshu.core.request.RequestObject
@@ -416,12 +419,25 @@ internal class QueryPlanLowering(
         fun policyFor(granted: Set<MiaSource>): MiaChainValidator.Policy =
             POLICY.copy(
                 allowedServiceIds = granted.mapTo(mutableSetOf()) { it.chainReferenceId },
-                allowedOperationIds = if (MiaSource.VISUAL_SEARCH in granted) {
-                    POLICY.allowedOperationIds
-                } else {
-                    POLICY.allowedOperationIds - PhotosLike.ID
-                },
+                allowedOperationIds = POLICY.allowedOperationIds -
+                    OPERATION_SOURCES.filterValues { it !in granted }.keys,
             )
+
+        /**
+         * The ops that belong to one source, removed from the policy when that source is revoked.
+         *
+         * ⚠⚠ **Not only for sources that share a service.** A chain that opens with an op on the
+         * service itself (`photosLike`, `queryOccurrences`) carries **no `ServiceTypeReference`
+         * at all**, so the service check never runs for it, and revoking CALENDAR used to change
+         * nothing the validator could see. Binding the op to its source is what makes the grant
+         * visible there. The generic ops (`filter`, `take`, …) belong to no source.
+         */
+        private val OPERATION_SOURCES: Map<String, MiaSource> = mapOf(
+            PhotosCapturedBetween.ID to MiaSource.FILES,
+            PhotosNear.ID to MiaSource.FILES,
+            PhotosLike.ID to MiaSource.VISUAL_SEARCH,
+            QueryOccurrences.ID to MiaSource.CALENDAR,
+        )
 
         val POLICY = MiaChainValidator.Policy(
             allowedOperationIds = setOf(
@@ -457,18 +473,38 @@ internal class QueryPlanLowering(
             // `service not granted`.
             allowedServiceIds = MiaSource.entries.mapTo(mutableSetOf()) { it.chainReferenceId },
             // Metadata yes, content bytes no. `File.Data`, `File.Preview` and
-            // `File.Thumbnail` are deliberately absent: an intent grammar never asks for
-            // bytes implicitly, and a chain that asks for them explicitly is exactly what
-            // the projection allowlist stands in for while per-property capabilities do
-            // not exist.
+            // `File.Thumbnail` are deliberately absent, for every use: an intent grammar never
+            // asks for bytes implicitly, and a chain that asks for them explicitly is exactly
+            // what this table stands in for while per-property capabilities do not exist.
+            // ⚠⚠ FILTER is a read (`core-semantic-permissions.md` SP-D3): an entry may carry it
+            // only where the field could be learned anyway. Each one below is a field the
+            // answer shows the user (a name, a label, a time).
             // ⚠ The window sources project nothing at all — `getAll()` returns whole rows
             // and the answer mapper reads three scalars off each. That is affordable
             // because these rows are small metadata (a `Moment` is a title, a kind and a
-            // timestamp), and it is why no entry is needed for them here.
-            allowedProjectionIds = setOf(
-                File.Field.PATH,
-                File.CreatedAt.id,
-                File.Name.id,
+            // timestamp), and it is why they have no PROJECT entries here.
+            fieldUses = mapOf(
+                // The relations a chain walks to reach its rows.
+                FileSystem.Relations.ROOT to setOf(FieldUse.TRAVERSE),
+                Folder.Fields.FILES to setOf(FieldUse.TRAVERSE),
+                TimelineService.Relations.MOMENTS to setOf(FieldUse.TRAVERSE),
+                InferenceService.Relations.LABELS to setOf(FieldUse.TRAVERSE),
+                PlaceService.Relations.PLACES to setOf(FieldUse.TRAVERSE),
+                HealthService.Relations.WORKOUTS to setOf(FieldUse.TRAVERSE),
+                HomeDeviceService.Relations.HOME_DEVICES to setOf(FieldUse.TRAVERSE),
+                // Files: the citation (path, date) and the name search.
+                File.Field.PATH to setOf(FieldUse.PROJECT),
+                File.CreatedAt.id to setOf(FieldUse.PROJECT),
+                File.Name.id to setOf(FieldUse.PROJECT, FieldUse.FILTER),
+                // Timeline: the window read, and the recall join through the subject.
+                Moment.Fields.TIMESTAMP to setOf(FieldUse.FILTER, FieldUse.SORT),
+                Moment.Fields.SUBJECT to setOf(FieldUse.FILTER),
+                SubjectRef.Fields.SUBJECT_ID to setOf(FieldUse.FILTER),
+                // One searched field per remaining source.
+                MediaLabel.Fields.LABEL to setOf(FieldUse.FILTER),
+                Place.Fields.LABEL to setOf(FieldUse.FILTER),
+                Workout.Fields.START to setOf(FieldUse.FILTER),
+                HomeDevice.Fields.NAME to setOf(FieldUse.FILTER),
             ),
             boundingOperations = mapOf(
                 PhotosCapturedBetween.ID to PhotosCapturedBetween.Params.LIMIT,
@@ -548,7 +584,13 @@ internal class QueryPlanLowering(
                 org.tenshu.core.OneOf.ID,
             ),
             allowedServiceIds = setOf(MiaSource.FILES.chainReferenceId),
-            allowedProjectionIds = setOf(File.Field.PATH),
+            // ⚠ The path may be filtered here and nowhere else: this read asks about paths the
+            // caller already holds, so filtering on one discloses nothing (see [lowerLiveFiles]).
+            fieldUses = mapOf(
+                FileSystem.Relations.ROOT to setOf(FieldUse.TRAVERSE),
+                Folder.Fields.FILES to setOf(FieldUse.TRAVERSE),
+                File.Field.PATH to setOf(FieldUse.PROJECT, FieldUse.FILTER),
+            ),
             boundingOperations = emptyMap(),
             maxRows = EXISTENCE_CHUNK,
             maxSteps = MAX_STEPS,

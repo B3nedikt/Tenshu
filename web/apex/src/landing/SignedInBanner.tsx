@@ -9,6 +9,7 @@ import { OVERVIEW_PATH } from '../lib/overviewPath'
 import { Trans, useTranslation } from 'react-i18next'
 import { RUNTIME_ELSEWHERE } from '../lib/runtimeElsewhere'
 import { useLandingCta } from './useLandingCta'
+import { applyTint } from '../appearance/background'
 import { dismissBanner, readBannerDismissed } from './signedInBannerStorage'
 
 export function SignedInBanner() {
@@ -41,6 +42,8 @@ export function SignedInBanner() {
     ensureRuntime()
     try {
       await Session.clear({})
+      // The realm's background colour goes with the session (web-apex-home.md §4.14).
+      applyTint(null)
     } catch (error) {
       // Another tab holds the runtime: RuntimeLeaseNotice (above every route) is now showing
       // "open in another tab" with "Use here", which is the answer — so stay put rather than

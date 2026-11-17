@@ -3,10 +3,10 @@
 // (a third next to a half); its last card then grows to fill the row rather than leave a hole.
 
 export const COLUMNS = 6
-const UNITS = { wide: 3, narrow: 2 } as const
+const UNITS = { full: 6, wide: 3, narrow: 2 } as const
 
 /** Column spans for [sizes], in order, every row filled exactly. */
-export function packSpans(sizes: readonly ('wide' | 'narrow')[]): number[] {
+export function packSpans(sizes: readonly ('full' | 'wide' | 'narrow')[]): number[] {
   const spans: number[] = []
   let rowStart = 0
   let used = 0

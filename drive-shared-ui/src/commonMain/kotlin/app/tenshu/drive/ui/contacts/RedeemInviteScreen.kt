@@ -231,7 +231,7 @@ private fun AcceptedContent(ack: InviteAckModel, onBack: () -> Unit) {
         style = MaterialTheme.typography.bodyMedium,
     )
     if (ack.intentKind == ContactInvite.IntentKind.SHARE_FOLDER) {
-        // The grant is parked (§1) — say so honestly instead of pretending.
+        // The grant follows separately: the owner adds them, then it surfaces on Shared.
         Text(
             text = stringResource(
                 Res.string.redeem_invite_accepted_intent,

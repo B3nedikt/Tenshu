@@ -222,6 +222,16 @@
 	}
 	redir @macosDownloadNeutral /apps/{re.macosdl.1}/download/macos/{legal_lang} 302
 
+	# The Windows download pages (support-pages/windowsDownload.ts WINDOWS_APPS) the same way:
+	# /apps/<app>/download/windows → /apps/<app>/download/windows/<lang>.
+	# ⚠ List an app here when it joins WINDOWS_APPS (caddyfile.test.ts holds the two together).
+	@windowsDownloadNeutral path_regexp windowsdl ^/apps/(control|drive|maps|home|calendar|timeline|mia|photos|fit|contacts)/download/windows/?$
+	header @windowsDownloadNeutral {
+		Vary Accept-Language
+		Cache-Control no-store
+	}
+	redir @windowsDownloadNeutral /apps/{re.windowsdl.1}/download/windows/{legal_lang} 302
+
 	# Vite emits content-hashed asset filenames, so they're safe to cache forever.
 	@assets path /assets/*
 	header @assets Cache-Control "public, immutable, max-age=31536000"

@@ -12,13 +12,24 @@ import { useTranslation } from 'react-i18next'
 import { Session } from '@tenshu/sdk/onboarding'
 import { ensurePersistence } from '../lib/persistentStorage'
 import type { SessionOutletContext } from './sessionContext'
-import { ShownAppsProvider } from '../overview/ShownAppsProvider'
+import { TintSync } from '../appearance/TintSync'
+import { BackgroundProvider, ShownAppsProvider, WidgetsProvider } from '../overview/ShownAppsProvider'
 import type { ShownAppsSource } from '../overview/shownAppsContext'
 
 // [shownApps]: the overview's shown-apps source (web-apex-home.md §3.5). ⚠ Required and injected by
 // the runtime root, never defaulted to the SDK here (`overview/shownAppsContext.ts`). Its provider
 // mounts only once the session is ACTIVE, so a locked or first-time browser never subscribes.
-export function SessionLayout({ shownApps }: { readonly shownApps: ShownAppsSource }) {
+// [widgets] and [background] are the overview's widget list and wallpaper colour, the same seam;
+// absent (tests), they read as unavailable and the overview falls back to its defaults.
+export function SessionLayout({
+  shownApps,
+  widgets,
+  background,
+}: {
+  readonly shownApps: ShownAppsSource
+  readonly widgets?: ShownAppsSource
+  readonly background?: ShownAppsSource
+}) {
   const { t } = useTranslation('control')
   const navigate = useNavigate()
   const [deviceName, setDeviceName] = useState<string | null>(null)
@@ -69,7 +80,24 @@ export function SessionLayout({ shownApps }: { readonly shownApps: ShownAppsSour
   const context: SessionOutletContext = { deviceName }
   return (
     <ShownAppsProvider source={shownApps}>
-      <Outlet context={context} />
+      <Optional provider={WidgetsProvider} source={widgets}>
+        <Optional provider={BackgroundProvider} source={background}>
+          {background !== undefined && <TintSync />}
+          <Outlet context={context} />
+        </Optional>
+      </Optional>
     </ShownAppsProvider>
   )
+}
+
+function Optional({
+  provider: Provider,
+  source,
+  children,
+}: {
+  readonly provider: typeof WidgetsProvider
+  readonly source: ShownAppsSource | undefined
+  readonly children: React.ReactNode
+}) {
+  return source === undefined ? <>{children}</> : <Provider source={source}>{children}</Provider>
 }

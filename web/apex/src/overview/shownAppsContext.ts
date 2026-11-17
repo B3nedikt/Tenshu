@@ -44,7 +44,19 @@ const NOT_CONFIGURED: ShownAppsValue = {
 }
 
 export const ShownAppsContext = createContext<ShownAppsValue>(NOT_CONFIGURED)
+/** The overview's widget list (`widgets.ts`) — the same seam over its own stored list. */
+export const WidgetsContext = createContext<ShownAppsValue>(NOT_CONFIGURED)
+/** The overview's background colour (`theme/background.ts`), a one-element stored list. */
+export const BackgroundContext = createContext<ShownAppsValue>(NOT_CONFIGURED)
 
 export function useShownAppsState(): ShownAppsValue {
   return useContext(ShownAppsContext)
+}
+
+export function useWidgetsState(): ShownAppsValue {
+  return useContext(WidgetsContext)
+}
+
+export function useBackgroundState(): ShownAppsValue {
+  return useContext(BackgroundContext)
 }

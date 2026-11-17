@@ -8,7 +8,9 @@
 import { defineConfig, type ViteUserConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import type { Plugin } from 'vite'
 import { tenshuManifestPlugin, type TenshuAppManifest } from './manifest.ts'
+import { APPEARANCE_BOOT_PATH, APPEARANCE_BOOT_SCRIPT } from './appearanceBoot.ts'
 
 export interface TenshuAppConfig {
   // The dev server's port — apex 5173, Drive 5174, Contacts 5175, … one per app so all of them run
@@ -31,7 +33,7 @@ export function tenshuAppConfig(app: TenshuAppConfig): ViteUserConfig {
       // through the app's program, so tsc sees the matcher types too.
       setupFiles: ['./src/test/setup.ts'],
     },
-    plugins: [react(), tailwindcss(), tenshuManifestPlugin(app.manifest)],
+    plugins: [react(), tailwindcss(), tenshuManifestPlugin(app.manifest), appearanceBootPlugin()],
     resolve: {
       // ⚠ One copy of each: the app-kit's components and the app must share React's dispatcher,
       // the QueryClient context and the i18next instance, or hooks break across the boundary.
@@ -49,4 +51,27 @@ export function tenshuAppConfig(app: TenshuAppConfig): ViteUserConfig {
       ? { build: { chunkSizeWarningLimit: app.chunkSizeWarningLimit } }
       : {}),
   })
+}
+
+/**
+ * Serves `appearance-boot.js` (dev: middleware, build: an emitted file) and loads it first in
+ * <head>, a blocking classic script — so a framed app paints in the apex's mode and tint from its
+ * first frame (`appearance.ts`). ⚠ A FILE, not an inline script: the app CSP is `script-src 'self'`.
+ */
+export function appearanceBootPlugin(): Plugin {
+  return {
+    name: 'tenshu-appearance-boot',
+    configureServer(server) {
+      server.middlewares.use(APPEARANCE_BOOT_PATH, (_req, res) => {
+        res.setHeader('Content-Type', 'text/javascript')
+        res.end(APPEARANCE_BOOT_SCRIPT)
+      })
+    },
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: APPEARANCE_BOOT_PATH.slice(1), source: APPEARANCE_BOOT_SCRIPT })
+    },
+    transformIndexHtml: () => [
+      { tag: 'script', attrs: { src: APPEARANCE_BOOT_PATH }, injectTo: 'head-prepend' },
+    ],
+  }
 }

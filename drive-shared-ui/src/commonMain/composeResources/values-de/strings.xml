@@ -50,7 +50,6 @@
     <string name="file_actions_make_folder_offline">Ordner offline verfügbar machen</string>
     <string name="file_actions_make_folder_online_only">Ordner nur online speichern</string>
     <string name="file_actions_share">Freigeben</string>
-    <string name="file_actions_manage_access">Zugriff verwalten</string>
     <string name="file_actions_link">Link</string>
     <string name="file_actions_move">Verschieben</string>
     <string name="file_actions_rename">Umbenennen</string>
@@ -330,7 +329,7 @@
     <string name="sync_banner_stop_backup_action">Stoppen</string>
     <string name="synced_folders_resume">Fortsetzen</string>
 
-    <string name="manage_access_title">Zugriff auf %1$s verwalten</string>
+    <string name="manage_access_title">%1$s freigeben</string>
     <string name="manage_access_role_owner">Eigentümer</string>
     <string name="manage_access_member_you">Du</string>
     <string name="manage_access_invite_link_row">Einladungslink</string>
@@ -340,13 +339,15 @@
     <string name="manage_access_revoke">Widerrufen</string>
     <string name="manage_access_invite_someone">Jemanden einladen</string>
     <string name="manage_access_empty_title">Noch hat niemand sonst Zugriff</string>
-    <string name="manage_access_empty_body">Lade über die Schaltfläche + jemanden ein, sich mit dir zu verbinden.</string>
+    <string name="manage_access_empty_body">Füge jemanden hinzu, mit dem du verbunden bist, oder lade über die Schaltfläche + jemand Neues ein.</string>
     <string name="manage_access_role_member">Mitglied</string>
     <string name="manage_access_role_invited">Eingeladen – wartet auf Annahme</string>
     <string name="manage_access_grant_action">Einem Kontakt Zugriff gewähren</string>
     <string name="manage_access_grant_picker_title">Wer soll Zugriff erhalten?</string>
     <string name="manage_access_grant_picker_empty">Noch keine verbundenen Kontakte. Lade zuerst über die Schaltfläche + jemanden ein.</string>
     <string name="manage_access_grant_error">Zugriff konnte nicht gewährt werden: %1$s</string>
+    <string name="manage_access_sharing">Ordner wird freigegeben …</string>
+    <string name="manage_access_share_error">Ordner konnte nicht freigegeben werden: %1$s</string>
     <string name="manage_access_remove">Entfernen</string>
     <string name="manage_access_removing">Wird entfernt…</string>
     <string name="manage_access_remove_error">Mitglied konnte nicht entfernt werden: %1$s</string>
@@ -362,7 +363,7 @@
     <string name="invite_link_copy">Kopieren</string>
     <string name="invite_link_done">Fertig</string>
     <string name="invite_link_disclosure">Jede Person mit diesem Link kann eine Verbindung mit dir anfragen. Er kann nur einmal verwendet werden und läuft nach 3 Tagen ab.</string>
-    <string name="invite_link_grant_parked">Diesen Ordner für die Person freizugeben, sobald ihr verbunden seid, wird mit einem kommenden Update möglich.</string>
+    <string name="invite_link_grant_hint">Sobald die Person annimmt und du bestätigst, wirst du gefragt, ob du sie zu diesem Ordner hinzufügen möchtest.</string>
     <string name="invite_link_one_session">Dieser Link wird nur einmal angezeigt. Um ihn später erneut weiterzugeben, widerrufe ihn und erstelle einen neuen.</string>
     <string name="invite_link_error">Der Einladungslink konnte nicht erstellt werden: %1$s</string>
 
@@ -395,7 +396,7 @@
     <string name="redeem_invite_waiting_row">Warten auf Bestätigung…</string>
     <string name="redeem_invite_accepted_title">Ihr seid verbunden</string>
     <string name="redeem_invite_accepted_body">„%1$s“ ist jetzt ein Kontakt. Schlüssel der Person: %2$s</string>
-    <string name="redeem_invite_accepted_intent">„%1$s“ möchte „%2$s“ für dich freigeben – die Ordnerfreigabe kommt mit einem späteren Update.</string>
+    <string name="redeem_invite_accepted_intent">„%1$s“ möchte „%2$s“ für dich freigeben. Sobald du hinzugefügt wurdest, erscheint der Ordner unter „Freigegeben“ zum Annehmen.</string>
     <string name="redeem_invite_rejected">Die Anfrage wurde abgelehnt.</string>
     <string name="redeem_invite_gone">Diese Einladung ist abgelaufen oder wurde bereits verwendet. Wenn du diesen Link nicht verwendet hast, bitte die absendende Person um einen neuen.</string>
     <string name="redeem_invite_invalid">Beim Überprüfen dieser Einladung ist etwas schiefgelaufen. Bitte die absendende Person um einen neuen Link.</string>

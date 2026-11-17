@@ -1,0 +1,54 @@
+/* @tenshu/web-tokens/tint.css — the overview's background colour (./tint.ts,
+   docs/proposals/web-apex-home.md §4.14). HAND-WRITTEN, unlike tokens.css: it re-derives a few
+   roles from a hue and a chroma and must be imported AFTER tokens.css.
+
+   Active only under <html data-tint style="--tint-h: <deg>; --tint-c: <0…0.16>">. The lightness
+   of every colour below is fixed per scheme, so a pick never changes contrast: the accent stays at
+   the brand's accent lightness, the wallpaper at the wallpaper's. Text, surfaces, lines and the
+   status colours are untouched — the tint is chrome, content stays neutral.
+
+   Selectors mirror tokens.css's theming: the media query unless <html data-theme> pins a scheme,
+   one specificity step above tokens.css's own blocks. */
+
+:root[data-tint] {
+  --primary:      oklch(0.45 var(--tint-c) var(--tint-h));
+  --primary-soft: oklch(0.92 calc(var(--tint-c) * 0.4) var(--tint-h));
+  --on-primary:   #FFFFFF;
+  --wall:
+    radial-gradient(120% 80% at 10% 0%, oklch(0.92 calc(var(--tint-c) * 0.55) var(--tint-h)) 0%, transparent 60%),
+    radial-gradient(90% 70% at 100% 10%, oklch(0.93 calc(var(--tint-c) * 0.45) calc(var(--tint-h) + 45)) 0%, transparent 55%),
+    radial-gradient(100% 80% at 60% 100%, oklch(0.91 calc(var(--tint-c) * 0.5) calc(var(--tint-h) - 40)) 0%, transparent 60%),
+    oklch(0.96 calc(var(--tint-c) * 0.22) var(--tint-h));
+  --glass-shadow: 0 1px 1px oklch(0.3 calc(var(--tint-c) * 0.6) var(--tint-h) / 0.05), 0 12px 32px -8px oklch(0.35 calc(var(--tint-c) * 0.8) var(--tint-h) / 0.2);
+  --well:         oklch(0.45 var(--tint-c) var(--tint-h) / 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-tint]:not([data-theme="light"]) {
+    --primary:      oklch(0.84 calc(var(--tint-c) * 0.75) var(--tint-h));
+    --primary-soft: oklch(0.36 calc(var(--tint-c) * 0.7) var(--tint-h));
+    --on-primary:   oklch(0.27 calc(var(--tint-c) * 0.8) var(--tint-h));
+    --wall:
+      radial-gradient(110% 80% at 0% 0%, oklch(0.34 calc(var(--tint-c) * 0.9) var(--tint-h)) 0%, transparent 55%),
+      radial-gradient(80% 70% at 100% 20%, oklch(0.31 calc(var(--tint-c) * 0.8) calc(var(--tint-h) + 45)) 0%, transparent 55%),
+      radial-gradient(120% 90% at 50% 110%, oklch(0.3 calc(var(--tint-c) * 0.8) calc(var(--tint-h) - 40)) 0%, transparent 60%),
+      oklch(0.17 calc(var(--tint-c) * 0.35) var(--tint-h));
+    --glass:        oklch(0.24 calc(var(--tint-c) * 0.35) var(--tint-h) / 0.62);
+    --glass-shadow: 0 16px 40px -12px rgb(0 0 0 / 0.55);
+    --well:         rgb(255 255 255 / 0.08);
+  }
+}
+
+:root[data-tint][data-theme="dark"] {
+  --primary:      oklch(0.84 calc(var(--tint-c) * 0.75) var(--tint-h));
+  --primary-soft: oklch(0.36 calc(var(--tint-c) * 0.7) var(--tint-h));
+  --on-primary:   oklch(0.27 calc(var(--tint-c) * 0.8) var(--tint-h));
+  --wall:
+    radial-gradient(110% 80% at 0% 0%, oklch(0.34 calc(var(--tint-c) * 0.9) var(--tint-h)) 0%, transparent 55%),
+    radial-gradient(80% 70% at 100% 20%, oklch(0.31 calc(var(--tint-c) * 0.8) calc(var(--tint-h) + 45)) 0%, transparent 55%),
+    radial-gradient(120% 90% at 50% 110%, oklch(0.3 calc(var(--tint-c) * 0.8) calc(var(--tint-h) - 40)) 0%, transparent 60%),
+    oklch(0.17 calc(var(--tint-c) * 0.35) var(--tint-h));
+  --glass:        oklch(0.24 calc(var(--tint-c) * 0.35) var(--tint-h) / 0.62);
+  --glass-shadow: 0 16px 40px -12px rgb(0 0 0 / 0.55);
+  --well:         rgb(255 255 255 / 0.08);
+}

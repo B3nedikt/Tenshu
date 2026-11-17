@@ -1,5 +1,5 @@
 // react-i18next bootstrap for an app — the apex's setup (`web/apex/src/i18n.ts`, ADR 0016): ICU
-// MessageFormat, the browser's language by default, and bundled JSON catalogues so init is
+// MessageFormat, the apex's language when framed (appearance.ts), else the browser's, and bundled JSON catalogues so init is
 // synchronous and tests need no ready-wait. One namespace per app, named after it.
 //
 // ⚠ Import it from the app's `i18n.ts` only, and only in an app that localises: it pulls i18next
@@ -8,6 +8,7 @@ import i18n, { type i18n as I18n } from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import LanguageDetector from 'i18next-browser-languagedetector'
 import ICU from 'i18next-icu'
+import { currentAppearance, subscribeAppearance } from './appearance'
 
 export const appLanguages = ['en', 'de', 'fr'] as const
 export type AppLanguage = (typeof appLanguages)[number]
@@ -21,9 +22,15 @@ export function initAppI18n(
   namespace: string,
   catalogues: Readonly<Record<AppLanguage, object>>,
 ): I18n {
+  // Framed by the apex, its language wins over the browser's (appearance.ts): app and chrome agree.
+  const detector = new LanguageDetector()
+  detector.addDetector({ name: 'tenshuApex', lookup: () => currentAppearance()?.language || undefined })
+  subscribeAppearance(a => {
+    if (a.language !== '' && a.language !== i18n.resolvedLanguage) void i18n.changeLanguage(a.language)
+  })
   void i18n
     .use(ICU)
-    .use(LanguageDetector)
+    .use(detector)
     .use(initReactI18next)
     .init({
       resources: Object.fromEntries(
@@ -34,7 +41,7 @@ export function initAppI18n(
       ns: [namespace],
       defaultNS: namespace,
       interpolation: { escapeValue: false },
-      detection: { order: ['navigator'], caches: [] },
+      detection: { order: ['tenshuApex', 'navigator'], caches: [] },
       returnNull: false,
     })
   return i18n

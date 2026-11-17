@@ -4,6 +4,7 @@ import app.tenshu.drive.data.ContactInviteModel
 import app.tenshu.drive.data.ContactModel
 import app.tenshu.drive.data.InvitationModel
 import app.tenshu.drive.data.MemberModel
+import app.tenshu.drive.domain.StorageGateDecision
 
 /**
  * State for [ManageAccessScreen] (`docs/proposals/drive-manage-access-ux.md`
@@ -51,4 +52,10 @@ data class ManageAccessUiState(
     val removeError: String? = null,
     /** Set when an *Awaiting your confirmation* row was tapped — host renders the prompt. */
     val promptInviteId: String? = null,
+    /** The folder is being shared into a fresh realm — the first add's prerequisite (§11). */
+    val sharing: Boolean = false,
+    /** Why sharing the folder failed, when it did. */
+    val shareError: String? = null,
+    /** The first add was blocked for want of storage — host renders the gate dialog. */
+    val storageGateBlock: StorageGateDecision? = null,
 )

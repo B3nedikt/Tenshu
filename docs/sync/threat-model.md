@@ -45,6 +45,7 @@ Phase 1 items 3/4/9):** adds assets **A43** (the side-channel signing key, a tru
 custody) and **A44** (the release bucket, its publish key and the committed release manifest — an
 **macOS direct-release sub-amendment (2026-11-06, [`desktop-macos-distribution.md`](../proposals/desktop-macos-distribution.md) §2.7):** widens **A44** to the notarized Developer ID `.dmg` of the ten desktop apps and the committed `store/macos-release.json`, in the same bucket under the same publish key, widens attack surface #20, and adds threat group §8.24 (T-MD-01–02). No asset (A1–A4 / A9), relay surface or sync-protocol change: public installers on Cloudflare R2, nothing user-owned (House Rule #1).
 **Client-side gate sub-amendment (2026-11-06, [`desktop-ipc-client-identity.md`](../proposals/desktop-ipc-client-identity.md) §11):** amends **A14** — the binding now runs in both directions: every desktop app attests the process serving `ipc.sock` as Tenshu Control (`app.tenshu.control.ios`, a compiled-in team) before writing to it. **T-MD-01**'s residual drops to Medium. No asset (A1–A4 / A9), relay surface or sync-protocol change; device-local only (House Rule #1).
+**Windows direct-release sub-amendment (2026-11-17, [`desktop-windows-port.md`](../proposals/desktop-windows-port.md) §5.1, D6):** adds asset **A45** (the Windows release-signing certificate, self-signed, which every tester's PC is told to trust), widens **A44** to the signed `.msix` of Control and Drive, the public `.cer` and the committed `store/windows-release.json`, in the same bucket under the same publish key, widens attack surface #20, and adds threat group §8.25 (T-WD-01–04). No asset (A1–A4 / A9), relay surface or sync-protocol change: public installers on Cloudflare R2, nothing user-owned (House Rule #1).
 **Windows Explorer sub-amendment (2026-11-10, [`desktop-windows-port.md`](../proposals/desktop-windows-port.md) §7.8, X1):**
 adds **T-C-21** and a Windows paragraph to **T-C-16**. With the (off-by-default) *Show Drive in File Explorer*
 switch on, Control hosts a Cloud Files sync root: the OS asks Control to decrypt and serve a file whenever **any**
@@ -2615,8 +2616,8 @@ Explicitly not trusted:
   Mia frame. Stated plainly:
   - **What the origin learns** is what an answer carries: per cited row its type, key parts, title,
     subtitle and time, plus the planner's explanation sentence — bounded per question by
-    `MiaChainValidator` (reads only; the **projection allowlist**, so no content bytes, no
-    `File.Data`; a terminal `take` and step ceilings). It never sees a chain it did not ask for, and
+    `MiaChainValidator` (reads only; the **field-use table**, so no content bytes, no
+    `File.Data`, projected or filtered on; a terminal `take` and step ceilings). It never sees a chain it did not ask for, and
     nothing it can call returns more than an answer.
   - **Read-only, enforced twice**: the tab's proxy is wired `MiaActionOffer.WITHHELD` and
     `confirmMiaAction` is not mapped, so no question writes (T-MQ-01c/d are unreachable from the
@@ -2693,14 +2694,30 @@ Explicitly not trusted:
 - **A44. The release bucket, its publish key and the release manifest.** The Cloudflare R2 bucket
   `tenshu-releases` behind `releases.tenshu.app` (`deploy/cloudflare-releases/`), holding the
   direct APKs at content-addressed keys `sha256/<hex>.apk` and, since 2026-11-06, the notarized macOS
-  `.dmg` at `sha256/<hex>.dmg` (§8.24); the bucket-scoped R2 S3 key pair that
+  `.dmg` at `sha256/<hex>.dmg` (§8.24) and, since 2026-11-17, the signed Windows `.msix` and A45's public
+  `.cer` at `sha256/<hex>.msix` / `.cer` (§8.25); the bucket-scoped R2 S3 key pair that
   can write it (Keychain `r2-releases-*`, an operational credential under `ops-secret-custody.md`
   D1/D2); and the committed `store/android-release.json` that names each app's URL, SHA-256, size,
-  versionCode and A43's certificate digest (and `store/macos-release.json`, the same for the `.dmg`), from which the download pages are rendered at build time.
+  versionCode and A43's certificate digest (and `store/macos-release.json`, the same for the `.dmg`; `store/windows-release.json`, the same for the `.msix` plus A45's thumbprint), from which the download pages are rendered at build time.
   Public by design — no user data, no secret in the objects. It matters for **integrity only**: R2
   does not check that an object's bytes match its key, so the write key can replace an APK, and a
   fresh install trusts whatever key signed the APK it receives (TA4 note, T-DA-01). Hence a bucket and
   key of its own, never shared with `tenshu-assets` (proposal D3).
+- **A45. The Windows release-signing certificate.** One self-signed RSA-3072 code-signing certificate of
+  ours, subject `CN=Tenshu Beta` (`scripts/windows/msix-release-cert.ps1`), that signs the `.msix` offered on
+  tenshu.app until the Store or a publicly trusted signer replaces it (`desktop-windows-port.md` D6). Windows
+  installs an MSIX only from a signer it trusts, so the download page asks each user to import its public
+  half into `Cert:\LocalMachine\TrustedPeople` once, as an administrator. ⚠⚠ That trust is **not scoped to
+  Tenshu**: the PC will install *any* MSIX this key signs, and a full-trust package runs as the user. Its
+  subject also decides the publisher id both peer gates pin (A14), and the id is a hash of the subject
+  *string*, not of the key (T-WD-03). **Custody: a trust anchor** under
+  [`ops-secret-custody.md`](../proposals/ops-secret-custody.md) D1: the working copy is **non-exportable** in
+  the maintainer's Windows user store (signing by thumbprint, no `.pfx` on disk), one password-protected
+  backup lives offline, never in the repo or a synced folder; never in CI. ⚠ Non-exportable stops a copied
+  file, not a process running as the maintainer, which can sign with it. **Compromise** lets an attacker
+  sign packages every tester PC installs (T-WD-02); there is no revocation for a self-signed certificate, so
+  recovery is asking every user to delete it from Trusted People and import a new one. **Loss** costs only a
+  re-mint under the same subject: the publisher id, and so the gates and MSIX upgrades, carry over.
 ## 6. Adversaries
 
 Each threat in §8 is tagged with the adversaries that can execute it. The full list is the "maximal
@@ -2825,10 +2842,10 @@ invariants even if it is true. It is not a subset of AD4; it is the assumed defa
     root and deletes it; commerce's runs `SELECT 1`. What they disclose is bounded by design to
     liveness plus, on the relay, one `durable` flag. See T-T-09.
 
-20. **App distribution outside the stores (Android direct APKs, macOS `.dmg`).** The release bucket
-    (A44) a browser or Homebrew downloads an APK or `.dmg` from, the download pages on tenshu.app that link it, the publish step that
-    writes both (`scripts/android-direct-publish.sh`), and the side-channel key (A43) that signs every
-    such APK. Integrity only: nothing user-owned passes through it. See §8.23.
+20. **App distribution outside the stores (Android direct APKs, macOS `.dmg`, Windows `.msix`).** The release bucket
+    (A44) a browser or Homebrew downloads an APK, `.dmg` or `.msix` from, the download pages on tenshu.app that link it, the publish steps that
+    write both (`scripts/android-direct-publish.sh`, `macos-direct-publish.sh`, `windows-direct-publish.sh`), the side-channel key (A43) that signs every
+    such APK, and the Windows release certificate (A45) users are asked to trust. Integrity only: nothing user-owned passes through it. See §8.23–§8.25.
 
 ## 8. Threats
 
@@ -8309,13 +8326,19 @@ the wrong boundary and the **validator** the right one: nothing about the chain 
 callstack to reads, and a chain that projected `File.Data` would exfiltrate content bytes through a
 surface whose stated job is metadata. Defense: `MiaChainValidator` refuses before execution on four
 checks — an **operation allowlist** (reads only, enforced not inherent), a **service allowlist** (a
-revoked source is refused, never filtered afterwards), a **projection allowlist** (fails closed:
-content-bearing properties are absent by construction, so the next one added is refused without
-anyone remembering to add it), and **cost bounds** (a terminal `take` or a self-bounding op, plus
+revoked source is refused, never filtered afterwards), a **field-use table** (each field, property
+and relation id with the uses a chain may make of it — project, filter, sort, traverse — taken from
+the reference's position; fails closed: content-bearing properties are absent by construction, so
+the next one added is refused without anyone remembering to add it), and **cost bounds** (a terminal `take` or a self-bounding op, plus
 step and nesting ceilings — an unbounded generated tree-walk is the likeliest way to take the proxy
 down, since `RecursiveListWalk` loses the projection and materialises every stored property per row).
-⚠ **Two limits recorded plainly.** (a) Grants are **per service, not per property** — the projection
-allowlist is a stand-in until the fine-grained capability track lands. (b) **Subject identity is
+⚠⚠ **Filter is a read** (`core-semantic-permissions.md` SP-D3): a predicate leaks the field it
+compares through which rows come back, so until 2026-11-17, when the validator checked projections
+only, a chain could learn a field it could never return. All three checks now walk the whole tree:
+ops nested in a predicate meet the operation allowlist, and an op-opened chain that carries no
+service reference is bound to its source's grant through the op set (§3.2 there).
+⚠ **Two limits recorded plainly.** (a) Grants are **per service, not per property** — the field-use
+table is a stand-in until the fine-grained capability track lands. (b) **Subject identity is
 weaker than it looks**: this authenticates a chain, not a caller, and on desktop `UnixSocketServer`
 still hardcodes `clientId`, so per-service grants cannot yet be enforced against a reliably
 identified subject there (tracked as app-registration work, not query-layer work).
@@ -8525,6 +8548,63 @@ validate` and `spctl … context:primary-signature` (must say Notarized Develope
 mounts each read-only to check the bundle id, the version and the team's Developer ID signature, and
 refuses a lower version or a published version with other bytes. ⚠ It reads any directory named
 `macos-release`, so `stapler` and `spctl` are what keep an unnotarized set out. Residual: **Low**.
+
+### 8.25 Windows direct-release distribution
+
+Threats from offering Control and Drive as signed `.msix` on tenshu.app
+([`desktop-windows-port.md`](../proposals/desktop-windows-port.md) §5.1, D6; built:
+`scripts/windows/windows-release.ps1` on Windows, `scripts/windows-direct-publish.sh` on the Mac). Same bucket,
+key and rule as §8.23 (A44): objects first, every object hashed back, manifest last. What differs is Windows's
+own rule: the signer is our **self-signed** certificate (A45), so the user must trust it by hand, once, and the
+certificate travels through the same bucket as the packages it vouches for.
+
+**T-WD-01. A replaced `.msix` or `.cer` in the release bucket.**
+Actors: as T-DA-01 (A44's key, the Cloudflare account). Assets: A44, A45's trust on users' PCs, and through
+them A5/A6 once the user pairs the malicious app. Invariants: I1 at the device boundary.
+The attacker replaces a package with one signed by **their own** key. A PC that already trusts A45 refuses
+it: its signer is not trusted. So the attack is on a *first* install, where the attacker also replaces the
+`.cer` and the user imports the attacker's certificate. ⚠ They can give it the same subject, so the
+publisher id, and with it a genuine Control's gate, would accept their packages too (T-WD-03).
+*Mitigated:* (a) as T-DA-01 (a), (e): one bucket-scoped key held by the maintainer, the publish step's
+read-back hash, `--verify` against the public URLs; (b) the page's trust command carries A45's **thumbprint
+from the committed manifest**, which the R2 key cannot change, and **checks it before it imports**: a swapped
+`.cer` is refused with a warning and nothing is trusted (comparing after the import would only detect a
+certificate already trusted); (c) the manifest publishes every object's sha256. Residual: **Medium**, as
+T-DA-01: a user who trusts a `.cer` some other way than the page's command (double-click → Install
+Certificate) skips (b).
+
+**T-WD-02. A45's private key is stolen or misused.**
+Actors: AD3 on the maintainer's Windows machine, or whoever finds the offline backup and its password.
+Assets: A45, and through it every PC that trusts it.
+The key signs any package, not only ours, and a tester PC installs it on a double-click: a full-trust MSIX
+runs as the user, and with our identity name it is admitted by the genuine Control. *Mitigated:* the working
+copy is non-exportable (a stolen *file* is not enough), signing needs that user session, and the backup is
+offline and password-protected. ⚠ The key signs whatever that session builds: `windows-release.ps1
+-AllowDirty` and a bare `packageMsix -Ptenshu.msix.direct=true` sign any tree. Only the *publish* step
+refuses a dirty or foreign-commit build, and a signed package installs on a trusting PC without being
+published. ⚠ No revocation exists for a self-signed certificate. Recovery: tell every user to delete it from
+Trusted People, mint a new one, republish. Residual: **Medium** until D6's later step (SignPath, or a
+publicly trusted certificate whose CA can revoke) replaces A45.
+
+**T-WD-03. The gate pins the subject, not the key.**
+Actors: anyone who gets a certificate with subject `CN=Tenshu Beta` trusted on a PC. Assets: A14.
+The publisher id is a hash of the publisher *string* (`MsixPublisherId`), so any certificate with A45's
+subject, trusted on that PC, makes packages with our family names that the gate admits. *Mitigated:* the gate
+also requires a signed package origin (Store, LineOfBusiness or DeveloperSigned), and trusting a
+certificate machine-wide takes an administrator, the same bar as the local test certificate (T-C-11's Windows
+paragraph). Residual: **Low**: it needs an administrator to have imported the attacker's certificate, which is
+T-WD-01's first-install case.
+
+**T-WD-04. A package that is not the release's.**
+Actors: the maintainer by mistake. Assets: A44.
+A dirty-tree build, one signed with the local test certificate, peer gates compiled for another publisher,
+an unsigned or untimestamped package, a mixed-version pair, or a second build under a published version.
+*Mitigated:* `packageMsix`'s Direct mode refuses the local test publisher and any peer-gate anchor other than
+exactly the release publisher's id, at configuration time; `windows-release.ps1` refuses a dirty tree and
+checks each package's signer thumbprint, timestamp and manifest identity; the publish step re-checks the
+manifest inside each zip, that each signature carries the published certificate, the certificate's subject
+and thumbprint, the build's commit against the checkout, and refuses a downgrade, a published version with
+other bytes, and a publisher switch. Residual: **Low**.
 
 ## 9. Security Invariants Revisited
 

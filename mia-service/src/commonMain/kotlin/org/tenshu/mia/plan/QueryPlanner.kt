@@ -124,6 +124,33 @@ object QueryPlanner {
     )
 
     /**
+     * Words that read the calendar only **beside a calendar time**: "do I have anything today",
+     * "am I free on friday", "any plans this weekend".
+     *
+     * ⚠ Never on their own. "do I have anything from paris" names no day, and the calendar is
+     * the wrong answer to it.
+     */
+    private val CALENDAR_TIME_WORDS = setOf("anything", "plans", "busy", "free")
+
+    /**
+     * "what's on next week": the calendar question with no calendar noun in it.
+     *
+     * ⚠ Adjacent "what's on" only, and only with a calendar time: "what did I do on saturday" has
+     * a "what" and an "on" and is a timeline question.
+     */
+    private fun asksTheCalendar(words: List<String>, nowMs: Long, zone: TimeZone): Boolean {
+        val whatsOn = words.zipWithNext().any { (a, b) -> a in setOf("what's", "whats") && b == "on" }
+        val cue = whatsOn || words.any { it in CALENDAR_TIME_WORDS }
+        // ⚠⚠ The agenda grammar looks forward only, so a past qualifier resolves to the wrong
+        // dates: "was I busy last week" read the rest of THIS week (Codex review). A resolved
+        // window is not proof the time was understood, so the inferred cue refuses the past.
+        val past = words.any { it in PAST_QUALIFIERS }
+        return cue && !past && AgendaTimeGrammar.resolve(words, nowMs, zone) != null
+    }
+
+    private val PAST_QUALIFIERS = setOf("last", "yesterday", "ago", "previous", "was", "were")
+
+    /**
      * The word that turns a photo question into a question about **what is in** the photo (IN-4).
      *
      * ⚠⚠ Exactly one word, and deliberately: "photos of a cat" is about content, "photos in Munich"
@@ -226,6 +253,12 @@ object QueryPlanner {
         // conversation
         "i", "i'm", "im", "you", "you're", "it", "it's", "hey", "hi", "hello", "thanks",
         "thank", "ok", "okay", "yes", "no",
+        // ⚠⚠ German, so German small talk is an honest no-match rather than a file search for
+        // the whole sentence. This does NOT make Mia answer German: it only stops §22's
+        // catch-all reading an unknown opener as a lookup in the one other language we expect.
+        "wie", "was", "wer", "warum", "wann", "welche", "welcher", "welches", "wo", "ist",
+        "sind", "kannst", "könntest", "erzähl", "erzähle", "sag", "danke", "hallo", "servus",
+        "moin", "guten", "ja", "nein",
     )
 
     /**
@@ -252,6 +285,8 @@ object QueryPlanner {
         "called", "named", "titled", "that", "with", "was", "were", "saved", "stored",
         "far", "long", "much", "many", "how", "been", "go", "went", "visit", "visited",
         "turn", "switch", "put", "off", "please",
+        // ⚠ A lookup word, so it reads as a search; it is never part of the name searched for.
+        "open",
         // ⚠ The recall vocabulary is stripped from a *name* the same way "find" and "show" are:
         // "when did I last visit the gym" must leave "gym", not "when gym". The words still
         // route the intent — `wantsRecall` reads the raw utterance — they just do not survive
@@ -545,7 +580,11 @@ object QueryPlanner {
 
             // ⚠⚠ Ahead of the file-name arm, which is the catch-all that turns every gap in this
             // grammar into a confident answer about something else (§14.5).
-            words.any { it in CALENDAR_READ_WORDS } -> queryCalendar(words, nowMs, zone)
+            // ⚠ The inferred cue yields to a file word: "find files named plans for next week" is a
+            // name search, and only a calendar NOUN outranks the file arm.
+            words.any { it in CALENDAR_READ_WORDS } ||
+                (!wantsFiles && asksTheCalendar(words, nowMs, zone)) ->
+                queryCalendar(words, nowMs, zone)
 
             // ⚠⚠ Leftover text is a file name only when the sentence reads as a LOOKUP (§22).
             // Otherwise it is a question about something Mia has no source for — "what's the
@@ -619,38 +658,49 @@ object QueryPlanner {
      * So "when?" is the answer, never "probably now".
      */
     private fun createEvent(words: List<String>, nowMs: Long, zone: TimeZone): QueryPlan {
-        val start = EventTimeGrammar.resolve(words, nowMs, zone)
+        val time = EventTimeGrammar.resolve(words, nowMs, zone)
             ?: return QueryPlan.NoMatch(
                 "I can add that once you tell me when — “add lunch with Anna tomorrow at 1pm”."
             )
 
-        val title = eventTitle(words)
+        val title = eventTitle(words, time.consumed)
             ?: return QueryPlan.NoMatch("What should I call it?")
 
         return QueryPlan.CreateEvent(
             title = title,
-            startLocal = start,
+            startLocal = time.start,
             explanation = "Add “$title” to your calendar",
         )
     }
 
     /**
-     * What is left once the verb and the whole time expression are removed.
+     * What is left once the request verb and the time expression the grammar consumed are removed.
+     *
+     * ⚠⚠ Only the CONSUMED positions, never "anything that looks like time": "lunch at five
+     * guys", "one on one with tom" and "book club" are title because the grammar did not read
+     * them as time. Stripping by word list cost every one of them a word.
      *
      * ⚠⚠ Deliberately does **not** strip [STOP_WORDS]. A search *query* wants filler removed;
      * a *title* is free text the user will read back — "lunch with anna" must not become
      * "lunch anna". The two look like the same operation and are not.
      */
-    private fun eventTitle(words: List<String>): String? {
-        val remaining = words.filterNot {
-            it in CREATE_EVENT_WORDS ||
-                it in EventTimeGrammar.TIME_WORDS ||
-                TimeGrammar.isTimeWord(it) ||
-                it.toIntOrNull() != null ||
-                it.removeSuffix("pm").removeSuffix("am").toIntOrNull() != null ||
-                it.split(':', '.').size == 2
-        }
+    private fun eventTitle(words: List<String>, consumed: Set<Int>): String? {
+        // ⚠ The first request verb only: "add book club tomorrow at 7" keeps its "book".
+        val verb = words.indexOfFirst { it in CREATE_EVENT_WORDS }
+        val remaining = words.filterIndexed { i, _ -> i != verb && i !in consumed }
+            // ⚠ The request's own scaffolding at the front: "remind me to call mum", "add an event
+            // dentist", "schedule a call". Only while something is left, so "add a meeting at 10"
+            // stays "meeting".
+            .dropWhileKeepingOne { it in TITLE_SCAFFOLD }
         return remaining.joinToString(" ").trim().takeIf { it.length >= MIN_TEXT_LENGTH }
+    }
+
+    private val TITLE_SCAFFOLD = setOf("me", "to", "a", "an", "event", "appointment", "reminder")
+
+    private fun List<String>.dropWhileKeepingOne(predicate: (String) -> Boolean): List<String> {
+        var start = 0
+        while (start < size - 1 && predicate(this[start])) start++
+        return drop(start)
     }
 
     private fun findDevices(text: String) = QueryPlan.FindDevices(
@@ -758,11 +808,34 @@ object QueryPlanner {
         explanation = "Photos that look like “$text”.",
     )
 
-    private fun findPhotosOfLabel(text: String) = QueryPlan.FindPhotosOfLabel(
+    /**
+     * "cats" → "cat", "boxes" → "box", on the last word only, **by truncation only**.
+     *
+     * ⚠⚠ Truncation is what keeps every old match: the result is a prefix of the original phrase,
+     * so any label that contains the original still contains it, and the search (a substring
+     * match) finds strictly more. A rewrite would not: "puppies" → "puppy" loses a stored
+     * "puppies" label, and "James Davies" → "james davy" loses a named face. So "-ies" is left
+     * alone, and irregular plurals ("mice", "children") pass through.
+     */
+    private fun singular(text: String): String {
+        val words = text.split(' ')
+        val last = words.last()
+        val one = when {
+            last.endsWith("ies") -> last
+            last.length > 4 && listOf("ses", "xes", "zes", "ches", "shes").any { last.endsWith(it) } ->
+                last.dropLast(2)
+            last.length > 3 && last.endsWith("s") && listOf("ss", "us", "is").none { last.endsWith(it) } ->
+                last.dropLast(1)
+            else -> last
+        }
+        return (words.dropLast(1) + one).joinToString(" ")
+    }
+
+    private fun findPhotosOfLabel(raw: String) = singular(raw).let { text -> QueryPlan.FindPhotosOfLabel(
         text = text,
         limit = DEFAULT_LIMIT,
         explanation = "Searched your photos for “$text”",
-    )
+    ) }
 
     private fun findPhotosAtPlace(text: String) = QueryPlan.FindPhotosAtPlace(
         text = text,

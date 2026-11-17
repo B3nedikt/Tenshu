@@ -7,7 +7,9 @@
     "./tokens.css": "./tokens.css",
     "./theme": "./theme.ts",
     "./ui": "./ui/index.ts",
-    "./legal": "./legal.ts"
+    "./legal": "./legal.ts",
+    "./tint": "./tint.ts",
+    "./tint.css": "./tint.css"
   },
   "dependencies": {
     "@radix-ui/react-context-menu": "2.3.7",

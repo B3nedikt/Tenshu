@@ -4,6 +4,8 @@
    mapping live in the shared layer so apex and drive stay in lockstep with
    the brand source of truth. See docs/proposals/web-design-system.md. */
 @import "@tenshu/web-tokens/tokens.css";
+/* After tokens.css: the background colour re-derives a few of its roles (web-apex-home.md §4.14). */
+@import "@tenshu/web-tokens/tint.css";
 
 /* The app carousel and the screenshot slots: the landing page's Apps section and the support hub
    share them, and the support-page build compiles this file too, so both get them from here. */
@@ -165,5 +167,29 @@ section[id] {
 @keyframes hero-flow {
   to {
     stroke-dashoffset: -324;
+  }
+}
+
+/* Overview edit mode (web-apex-home.md §4.12): widgets wiggle, home-screen style. A large card
+   turns a fraction of a degree — the corner travels a few px, as on a phone. Reduced motion: no
+   movement, a dashed outline says "editable" instead. */
+@media (prefers-reduced-motion: no-preference) {
+  .widget-wiggle {
+    animation: widget-wiggle 0.34s ease-in-out infinite alternate;
+    transform-origin: 50% 50%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .widget-wiggle {
+    outline: 2px dashed var(--line-strong);
+    outline-offset: 4px;
+  }
+}
+@keyframes widget-wiggle {
+  from {
+    transform: rotate(-0.45deg);
+  }
+  to {
+    transform: rotate(0.45deg);
   }
 }

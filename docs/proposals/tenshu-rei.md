@@ -229,6 +229,12 @@ Chain DSL: a scope grant is a `.search { ... }` clause the proxy injects before 
 operation runs. This is enforced server-side at the proxy; client-side filters don't
 count.
 
+> ⚠ **Refinement proposed 2026-11-17 — [`core-semantic-permissions.md`](core-semantic-permissions.md).**
+> The unit moves from `(service, operation)` to the callstack: fixed-request apps hold
+> *request templates* (the exact chain, placeholders in value positions only), and dynamic
+> planners such as Mia hold *capability grants* (which services, ops, and fields by use). Both
+> render to consent sentences derived from the schema.
+
 ### 2.3 Shared realms are modelled as their own realms, identity gains an encryption sub-key
 
 A shared folder is a *shared realm* with its own master key. Member realms hold the shared
