@@ -43,9 +43,9 @@ sealed interface ClientBinding {
      * compiled-in anchor (`docs/proposals/desktop-windows-port.md` §3.2, D1).
      *
      * ⚠⚠ **The Store assigns these names** when the app name is reserved in Partner Center (they
-     * look like `<publisher>.<App>`). The values in [BundledAppCatalogue] are provisional until that
-     * reservation and must then be replaced by the reserved ones — a mismatch admits nothing, it
-     * does not widen anything.
+     * look like `<publisher>.<App>`, e.g. `62647B3nedikt.TenshuDrive`). An app not reserved yet carries a
+     * provisional value until it is, then the reserved one — a mismatch admits nothing, it does not
+     * widen anything.
      */
     data class WindowsPackage(val packageName: String) : ClientBinding {
         override val clientId: String get() = packageName
@@ -97,8 +97,8 @@ object BundledAppCatalogue {
             clients = listOf(
                 ClientBinding.AndroidPackage("app.tenshu.drive.android"),
                 ClientBinding.MacCodeSignature("app.tenshu.drive.ios"),
-                // ⚠ Provisional until the Partner Center name reservation (WindowsPackage KDoc).
-                ClientBinding.WindowsPackage("Tenshu.Drive"),
+                // Partner Center's reserved Package/Identity/Name; must equal drive-desktop's tenshu.msix.identityName.
+                ClientBinding.WindowsPackage("62647B3nedikt.TenshuDrive"),
             ),
         ),
         FirstPartyApp(
