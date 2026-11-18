@@ -97,6 +97,29 @@ flow proceeds. On failure, screen 3.3.
 - `[Try again]` — re-issues the WebAuthn challenge.
 - `Use recovery phrase` — link to §6.
 
+### Screen 3.4 — No Passkey Stored on This Browser
+
+A browser can know its device (`deviceName` in the session store) yet hold **no passkey
+record**: the §4a.4/§4b.5 step was skipped, or its save was refused because the tab no longer
+held the runtime. ⚠⚠ No passkey the user owns can unlock such a browser — the unlock verifies
+against the record this browser stored, never against the password manager — so the ceremony
+must not be offered: without `allowCredentials` the picker lists every passkey on the RP, each
+fails, and the user reads "That security key isn't registered" against all of them.
+
+- 3.1 shows *"Your Tenshu data is locked, and this browser has no passkey set up…"* with
+  `[Use recovery phrase]` as the primary CTA and no `[Unlock with passkey]`.
+- `Session.unlock`'s `noPasskey` gets its own 3.3 message (never the wrong-credential one) and
+  no `[Try again]`.
+- `Session.registerPasskey` fails unless its write reached IndexedDB, so the setup step shows
+  an error instead of reporting a passkey that is gone after the next reload.
+
+### Screen 3.5 — Add a Passkey After a Phrase Unlock
+
+A successful phrase unlock on a browser that supports WebAuthn goes to the §4a.4 passkey screen
+(*Set up passkey* / *Skip*) before routing on. The master keypair is in memory at that point, so
+the new registration also writes the PRF-wrapped blob. Without this step the phrase stays the
+only way back in after every 24 h session.
+
 ---
 
 ## 4. First Time on This Browser

@@ -163,6 +163,32 @@ class InProcessProxyStreamBehaviorTest {
         assertEquals(n, seen.value.size, "every rapid write must survive the stream fold")
     }
 
+    // ── contract 9: a state stream never joins a signal-only subscription of its chain ────
+    /**
+     * ⚠⚠ Stream ids are callstack hashes, and one id is one interactor and one proxy registration. A
+     * signal-only subscription is answered with payload-free signals, so a `flow()` of the same chain
+     * that joined one would show an empty list forever — the two live in separate id spaces
+     * (`streamIdOf`). Here `changes()` subscribes FIRST, the order that used to make them share.
+     */
+    @Test
+    fun aFlowSubscribedAfterChangesOfTheSameChainStillReceivesRows() = runTest(timeout = TIMEOUT) {
+        val proxy = proxy(backgroundScope)
+        val ticks = MutableStateFlow(0)
+        backgroundScope.launch(Dispatchers.Default) {
+            proxy.client.syntheticService.items.changes(emitOnSubscribe = true).collect { ticks.value += 1 }
+        }
+        withContext(Dispatchers.Default) { withTimeout(WAIT_MS) { while (ticks.value < 1) delay(POLL_MS) } }
+
+        val seen = subscribe(proxy.client, backgroundScope)
+        // The flow is live once it shows a row written after it subscribed — the write that matters
+        // comes after that, so it cannot have been missed for being early.
+        proxy.executionContext.put("seed", 0)
+        awaitContains(seen, "seed")
+        proxy.executionContext.put("arrives", 1)
+
+        awaitContains(seen, "arrives")
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────────────
 
     private fun proxy(scope: CoroutineScope): InProcessProxy = InProcessProxy(

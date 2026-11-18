@@ -77,7 +77,6 @@ export interface AppPage {
   /** Under a button whose target is not available yet. */
   readonly comingSoon: string
   /** Shown once the browser says which system it runs; `{platform}` is filled in. */
-  readonly detectedReady: string
   readonly detectedSoon: string
   /** The screenshots' alt texts, in screen order. */
   readonly shotAlts: readonly [string, string, string]
@@ -124,7 +123,6 @@ const driveEn: AppPage = {
   lede: 'Folders, automatic backup, search and share links, just like the cloud drive you use today. The difference: everything is end-to-end encrypted.',
   targets: { android: 'Google Play', ios: 'App Store', macos: 'Mac', windows: 'Windows', web: 'Web' },
   comingSoon: 'Coming soon',
-  detectedReady: 'We think you’re on {platform}.',
   detectedSoon: 'We think you’re on {platform}. Tenshu Drive for it is coming soon.',
   shotAlts: ['The Files screen with folders and documents', 'A folder of photos in the grid view', 'A photo opened in the viewer'],
   parityHeading: 'Everything you expect from a cloud drive.',
@@ -199,7 +197,6 @@ const driveDe: AppPage = {
   lede: 'Ordner, automatische Sicherung, Suche und Freigabe-Links, genau wie bei dem Cloud-Speicher, den du heute nutzt. Der Unterschied: Alles ist Ende-zu-Ende-verschlüsselt.',
   targets: { android: 'Google Play', ios: 'App Store', macos: 'Mac', windows: 'Windows', web: 'Web' },
   comingSoon: 'Demnächst',
-  detectedReady: 'Du nutzt wohl {platform}.',
   detectedSoon: 'Du nutzt wohl {platform}. Tenshu Drive dafür kommt bald.',
   shotAlts: ['Der Bildschirm „Dateien“ mit Ordnern und Dokumenten', 'Ein Fotoordner in der Rasteransicht', 'Ein Foto in der Vollansicht'],
   parityHeading: 'Alles, was du von einem Cloud-Speicher erwartest.',
@@ -274,7 +271,6 @@ const driveFr: AppPage = {
   lede: 'Dossiers, sauvegarde automatique, recherche et liens de partage, comme le stockage en ligne que vous utilisez aujourd’hui. La différence : tout est chiffré de bout en bout.',
   targets: { android: 'Google Play', ios: 'App Store', macos: 'Mac', windows: 'Windows', web: 'Web' },
   comingSoon: 'Bientôt',
-  detectedReady: 'Vous semblez utiliser {platform}.',
   detectedSoon: 'Vous semblez utiliser {platform}. Tenshu Drive y arrive bientôt.',
   shotAlts: ['L’écran Fichiers avec des dossiers et des documents', 'Un dossier de photos en grille', 'Une photo ouverte dans la visionneuse'],
   parityHeading: 'Tout ce que vous attendez d’un stockage en ligne.',
@@ -349,7 +345,6 @@ const photosEn: AppPage = {
   lede: 'Your photos and videos in one library, on every device: by day, in albums, with a scrubber through the years. The difference: it’s all end-to-end encrypted, so no cloud can look through it.',
   targets: { android: 'Google Play', ios: 'App Store', macos: 'Mac', windows: 'Windows', web: 'Web' },
   comingSoon: 'Coming soon',
-  detectedReady: 'We think you’re on {platform}.',
   detectedSoon: 'We think you’re on {platform}. Tenshu Photos for it is coming soon.',
   shotAlts: ['The photo library, grouped by day', 'An album of photos', 'A photo opened in the viewer'],
   parityHeading: 'Everything you expect from a photo app.',
@@ -447,7 +442,6 @@ const photosDe: AppPage = {
   lede: 'Deine Fotos und Videos in einer Mediathek, auf jedem Gerät: nach Tagen, in Alben, mit einem Schieberegler durch die Jahre. Der Unterschied: Alles ist Ende-zu-Ende-verschlüsselt, keine Cloud kann es durchsehen.',
   targets: { android: 'Google Play', ios: 'App Store', macos: 'Mac', windows: 'Windows', web: 'Web' },
   comingSoon: 'Demnächst',
-  detectedReady: 'Du nutzt wohl {platform}.',
   detectedSoon: 'Du nutzt wohl {platform}. Tenshu Photos dafür kommt bald.',
   shotAlts: ['Die Fotomediathek, nach Tagen gruppiert', 'Ein Fotoalbum', 'Ein Foto in der Vollansicht'],
   parityHeading: 'Alles, was du von einer Foto-App erwartest.',
@@ -545,7 +539,6 @@ const photosFr: AppPage = {
   lede: 'Vos photos et vidéos dans une seule photothèque, sur tous vos appareils : par jour, en albums, avec un curseur pour parcourir les années. La différence : tout est chiffré de bout en bout, aucun cloud ne peut la parcourir.',
   targets: { android: 'Google Play', ios: 'App Store', macos: 'Mac', windows: 'Windows', web: 'Web' },
   comingSoon: 'Bientôt',
-  detectedReady: 'Vous semblez utiliser {platform}.',
   detectedSoon: 'Vous semblez utiliser {platform}. Tenshu Photos y arrive bientôt.',
   shotAlts: ['La photothèque, groupée par jour', 'Un album de photos', 'Une photo ouverte dans la visionneuse'],
   parityHeading: 'Tout ce que vous attendez d’une app photo.',
@@ -646,7 +639,6 @@ const controlEn: AppPage = {
   lede: 'Control is the app the other Tenshu apps need. It connects your devices and keeps your apps in sync. The difference: only your devices can open your data, never our servers.',
   targets: { android: 'Google Play', ios: 'App Store', macos: 'Mac', windows: 'Windows', web: 'Web' },
   comingSoon: 'Coming soon',
-  detectedReady: 'We think you’re on {platform}.',
   detectedSoon: 'We think you’re on {platform}. Tenshu Control for it is coming soon.',
   shotAlts: ['Setup: protected by your device, with no password to remember', 'Adding a device with a QR code', 'Your recovery phrase, 24 words'],
   parityHeading: 'Your devices and your sync in one place.',
@@ -739,7 +731,6 @@ const controlDe: AppPage = {
   lede: 'Control ist die App, die die anderen Tenshu-Apps brauchen. Sie verbindet deine Geräte und hält deine Apps synchron. Der Unterschied: Nur deine Geräte können deine Daten öffnen, nie unsere Server.',
   targets: { android: 'Google Play', ios: 'App Store', macos: 'Mac', windows: 'Windows', web: 'Web' },
   comingSoon: 'Demnächst',
-  detectedReady: 'Du nutzt wohl {platform}.',
   detectedSoon: 'Du nutzt wohl {platform}. Tenshu Control dafür kommt bald.',
   shotAlts: ['Einrichtung: geschützt durch dein Gerät, ohne Passwort', 'Ein Gerät per QR-Code hinzufügen', 'Deine Wiederherstellungsphrase, 24 Wörter'],
   parityHeading: 'Deine Geräte und deine Synchronisation an einem Ort.',
@@ -832,7 +823,6 @@ const controlFr: AppPage = {
   lede: 'Control est l’app dont les autres apps Tenshu ont besoin. Elle relie vos appareils et garde vos apps synchronisées. La différence : seuls vos appareils peuvent ouvrir vos données, jamais nos serveurs.',
   targets: { android: 'Google Play', ios: 'App Store', macos: 'Mac', windows: 'Windows', web: 'Web' },
   comingSoon: 'Bientôt',
-  detectedReady: 'Vous semblez utiliser {platform}.',
   detectedSoon: 'Vous semblez utiliser {platform}. Tenshu Control y arrive bientôt.',
   shotAlts: ['Configuration : protégé par votre appareil, sans mot de passe à retenir', 'Ajouter un appareil avec un code QR', 'Votre phrase de récupération, 24 mots'],
   parityHeading: 'Vos appareils et votre synchronisation au même endroit.',
@@ -927,7 +917,6 @@ const calendarEn: AppPage = {
   lede: 'Month, week, day and agenda, reminders, repeating events and subscriptions, just like the calendar you use today. The difference: your events are end-to-end encrypted.',
   targets: { android: 'Google Play', ios: 'App Store', macos: 'Mac', windows: 'Windows', web: 'Web' },
   comingSoon: 'Coming soon',
-  detectedReady: 'We think you’re on {platform}.',
   detectedSoon: 'We think you’re on {platform}. Tenshu Calendar for it is coming soon.',
   shotAlts: ['The month view with the day’s events below', 'The agenda: what is coming up', 'The week view'],
   parityHeading: 'Everything you expect from a calendar.',
@@ -1024,7 +1013,6 @@ const calendarDe: AppPage = {
   lede: 'Monat, Woche, Tag und Agenda, Erinnerungen, wiederkehrende Termine und Abos, genau wie bei dem Kalender, den du heute nutzt. Der Unterschied: Deine Termine sind Ende-zu-Ende-verschlüsselt.',
   targets: { android: 'Google Play', ios: 'App Store', macos: 'Mac', windows: 'Windows', web: 'Web' },
   comingSoon: 'Demnächst',
-  detectedReady: 'Du nutzt wohl {platform}.',
   detectedSoon: 'Du nutzt wohl {platform}. Tenshu Calendar dafür kommt bald.',
   shotAlts: ['Die Monatsansicht mit den Terminen des Tages', 'Die Agenda: was als Nächstes kommt', 'Die Wochenansicht'],
   parityHeading: 'Alles, was du von einem Kalender erwartest.',
@@ -1121,7 +1109,6 @@ const calendarFr: AppPage = {
   lede: 'Mois, semaine, jour et agenda, rappels, événements récurrents et abonnements, comme l’agenda que vous utilisez aujourd’hui. La différence : vos événements sont chiffrés de bout en bout.',
   targets: { android: 'Google Play', ios: 'App Store', macos: 'Mac', windows: 'Windows', web: 'Web' },
   comingSoon: 'Bientôt',
-  detectedReady: 'Vous semblez utiliser {platform}.',
   detectedSoon: 'Vous semblez utiliser {platform}. Tenshu Calendar y arrive bientôt.',
   shotAlts: ['La vue mois avec les événements du jour', 'L’agenda : ce qui arrive', 'La vue semaine'],
   parityHeading: 'Tout ce que vous attendez d’un agenda.',
@@ -1220,7 +1207,6 @@ const contactsEn: AppPage = {
   lede: 'Numbers, email addresses, search, duplicates and import from your phone, just like the address book you use today. The difference: your contacts are end-to-end encrypted, and nobody can look you up.',
   targets: { android: 'Google Play', ios: 'App Store', macos: 'Mac', windows: 'Windows', web: 'Web' },
   comingSoon: 'Coming soon',
-  detectedReady: 'We think you’re on {platform}.',
   detectedSoon: 'We think you’re on {platform}. Tenshu Contacts for it is coming soon.',
   shotAlts: ['Your contacts, with possible duplicates at the top', 'A contact’s numbers, email addresses and notes', 'Inviting someone with a QR code or a link'],
   parityHeading: 'Everything you expect from an address book.',
@@ -1315,7 +1301,6 @@ const contactsDe: AppPage = {
   lede: 'Nummern, E-Mail-Adressen, Suche, Duplikate und Import von deinem Handy, genau wie beim Adressbuch, das du heute nutzt. Der Unterschied: Deine Kontakte sind Ende-zu-Ende-verschlüsselt, und niemand kann dich nachschlagen.',
   targets: { android: 'Google Play', ios: 'App Store', macos: 'Mac', windows: 'Windows', web: 'Web' },
   comingSoon: 'Demnächst',
-  detectedReady: 'Du nutzt wohl {platform}.',
   detectedSoon: 'Du nutzt wohl {platform}. Tenshu Contacts dafür kommt bald.',
   shotAlts: ['Deine Kontakte, mit möglichen Duplikaten oben', 'Nummern, E-Mail-Adressen und Notizen eines Kontakts', 'Jemanden per QR-Code oder Link einladen'],
   parityHeading: 'Alles, was du von einem Adressbuch erwartest.',
@@ -1410,7 +1395,6 @@ const contactsFr: AppPage = {
   lede: 'Numéros, adresses e-mail, recherche, doublons et import depuis votre téléphone, comme le carnet d’adresses que vous utilisez aujourd’hui. La différence : vos contacts sont chiffrés de bout en bout, et personne ne peut vous rechercher.',
   targets: { android: 'Google Play', ios: 'App Store', macos: 'Mac', windows: 'Windows', web: 'Web' },
   comingSoon: 'Bientôt',
-  detectedReady: 'Vous semblez utiliser {platform}.',
   detectedSoon: 'Vous semblez utiliser {platform}. Tenshu Contacts y arrive bientôt.',
   shotAlts: ['Vos contacts, avec les doublons possibles en haut', 'Les numéros, adresses e-mail et notes d’un contact', 'Inviter quelqu’un avec un code QR ou un lien'],
   parityHeading: 'Tout ce que vous attendez d’un carnet d’adresses.',
@@ -1507,7 +1491,6 @@ const fitEn: AppPage = {
   lede: 'Record runs, rides and walks, bring in your activity from Health Connect, and see your trends, just like the fitness app you use today. The difference: your health data is end-to-end encrypted.',
   targets: { android: 'Google Play', ios: 'App Store', macos: 'Mac', windows: 'Windows', web: 'Web' },
   comingSoon: 'Coming soon',
-  detectedReady: 'We think you’re on {platform}.',
   detectedSoon: 'We think you’re on {platform}. Tenshu Fit for it is coming soon.',
   shotAlts: ['Today: active minutes, steps, distance and energy', 'A run with its route and heart rate', 'Sleep over the week'],
   parityHeading: 'Everything you expect from a fitness app.',
@@ -1605,7 +1588,6 @@ const fitDe: AppPage = {
   lede: 'Läufe, Radtouren und Spaziergänge aufzeichnen, deine Aktivität aus Health Connect übernehmen und Trends sehen, genau wie bei der Fitness-App, die du heute nutzt. Der Unterschied: Deine Gesundheitsdaten sind Ende-zu-Ende-verschlüsselt.',
   targets: { android: 'Google Play', ios: 'App Store', macos: 'Mac', windows: 'Windows', web: 'Web' },
   comingSoon: 'Demnächst',
-  detectedReady: 'Du nutzt wohl {platform}.',
   detectedSoon: 'Du nutzt wohl {platform}. Tenshu Fit dafür kommt bald.',
   shotAlts: ['Heute: aktive Minuten, Schritte, Strecke und Energie', 'Ein Lauf mit Route und Herzfrequenz', 'Schlaf über die Woche'],
   parityHeading: 'Alles, was du von einer Fitness-App erwartest.',
@@ -1703,7 +1685,6 @@ const fitFr: AppPage = {
   lede: 'Enregistrez courses, sorties à vélo et marches, reprenez votre activité depuis Health Connect et suivez vos tendances, comme l’app de fitness que vous utilisez aujourd’hui. La différence : vos données de santé sont chiffrées de bout en bout.',
   targets: { android: 'Google Play', ios: 'App Store', macos: 'Mac', windows: 'Windows', web: 'Web' },
   comingSoon: 'Bientôt',
-  detectedReady: 'Vous semblez utiliser {platform}.',
   detectedSoon: 'Vous semblez utiliser {platform}. Tenshu Fit y arrive bientôt.',
   shotAlts: ['Aujourd’hui : minutes actives, pas, distance et énergie', 'Une course avec son parcours et sa fréquence cardiaque', 'Le sommeil sur la semaine'],
   parityHeading: 'Tout ce que vous attendez d’une app de fitness.',
@@ -1897,6 +1878,8 @@ const escape = (text: string) =>
 const BUTTON = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold'
 /** The detected (or, with JavaScript off, the first) target's button. */
 export const BUTTON_PRIMARY = `${BUTTON} bg-primary text-on-primary hover:opacity-90`
+/** The hero's button for the visitor's own system, once the page's script has detected it. */
+export const BUTTON_DETECTED = `${BUTTON_PRIMARY} sm:min-h-12 sm:px-6 sm:text-base`
 export const BUTTON_SECONDARY = `${BUTTON} border border-line bg-surface text-text hover:bg-surface-2`
 const BUTTON_SOON = `${BUTTON} border border-dashed border-line text-text-3`
 
@@ -1967,7 +1950,8 @@ function widgetHtml(widget: DifferenceWidget): string {
  * The page body as HTML. The hero is two columns from 64rem: the app's icon and text on the left,
  * [carousel] on the right — the landing page's app carousel with this one app (generate.ts
  * buildAppPages; support.css `.app-hero` hides its list of names). [icon] is the app's light and
- * dark icon (hub.ts appIcon); [lang] picks the links; [platformNames] fills the detected-system line.
+ * dark icon (hub.ts appIcon); [lang] picks the links; [platformNames] and [downloadFor] label the
+ * detected system's button (or its coming-soon line).
  * ⚠ Every <h2> carries `class` after its id, so generate.ts's table-of-contents match skips them.
  */
 export function appPageHtml(
@@ -1976,6 +1960,7 @@ export function appPageHtml(
   lang: string,
   hero: { readonly carousel: string; readonly icon: { readonly light: string; readonly dark: string } | null; readonly frameNote: string },
   platformNames: Record<string, string>,
+  downloadFor: string,
 ): string {
   const link = 'text-primary underline underline-offset-4'
   const card = 'rounded-2xl border border-line bg-surface p-6 sm:p-8'
@@ -2003,7 +1988,7 @@ export function appPageHtml(
     `<h1 id="app-heading" class="min-w-0 text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">${escape(page.heading[0])}<br>${escape(page.heading[1])}</h1>`,
     '</div>',
     `<p class="app-hero__fill mt-6 text-lg text-text-2">${escape(page.lede)}</p>`,
-    `<div class="app-download app-hero__fill mt-8" data-download data-names="${escape(JSON.stringify(names))}" data-ready="${escape(page.detectedReady)}" data-soon-text="${escape(page.detectedSoon)}">`,
+    `<div class="app-download app-hero__fill mt-8" data-download data-names="${escape(JSON.stringify(names))}" data-download-for="${escape(downloadFor)}" data-soon-text="${escape(page.detectedSoon)}">`,
     `<ul class="flex flex-wrap gap-3">${downloadRow(set, page, true)}</ul>`,
     '<p class="mt-3 min-h-6 text-sm text-text-3" data-download-hint></p>',
     '</div>',

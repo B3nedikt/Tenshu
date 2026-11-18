@@ -76,11 +76,11 @@ import org.tenshu.inference.proxy.coreml.coreMlModelFacts
 import org.tenshu.inference.proxy.coreml.iosAiDevice
 import org.tenshu.inference.proxy.coreml.iosPreflightKey
 import org.tenshu.inference.proxy.FaceTemplateCustody
-import org.tenshu.inference.proxy.coreml.FaceImageDecoder
+import org.tenshu.inference.proxy.vision.FaceImageDecoder
 import org.tenshu.inference.proxy.coreml.IosFaceImageDecoder
 import org.tenshu.inference.proxy.coreml.SystemVisionFaceDetector
 import org.tenshu.inference.proxy.coreml.VisionCoreMlFaceBackend
-import org.tenshu.inference.proxy.coreml.VisionFaceDetector
+import org.tenshu.inference.proxy.vision.VisionFaceDetector
 import org.tenshu.inference.proxy.coreml.coreMlFaceReadiness
 import org.tenshu.inference.proxy.coreml.coreMlFaceNotPrepared
 import org.tenshu.inference.proxy.coreml.CoreMlFacePreflightModels

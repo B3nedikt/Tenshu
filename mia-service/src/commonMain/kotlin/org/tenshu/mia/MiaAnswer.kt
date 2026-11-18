@@ -57,6 +57,10 @@ interface MiaAnswer : Composite {
     val action: MiaAction?
         get() = getOptionalField(Fields.ACTION)
 
+    /** Present iff [verdict] is [VERDICT_CLARIFY] (`mia-query-layer.md` §25). */
+    val clarification: MiaClarification?
+        get() = getOptionalField(Fields.CLARIFICATION)
+
     companion object {
         const val ID = "tenshu/mia/answer"
 
@@ -93,6 +97,9 @@ interface MiaAnswer : Composite {
          */
         const val VERDICT_UNAVAILABLE = "unavailable"
 
+        /** Mia needs one more value before it can act (§25); [clarification] says which. */
+        const val VERDICT_CLARIFY = "clarify"
+
         val Schema: CompositeSchema = composite(
             id = ID,
             parent = Composite.Schema,
@@ -101,6 +108,7 @@ interface MiaAnswer : Composite {
                 string(Fields.EXPLANATION)
                 list(Fields.HITS, of = MiaHit.Schema)
                 composite(Fields.ACTION, MiaAction.Schema, isOptional = true)
+                composite(Fields.CLARIFICATION, MiaClarification.Schema, isOptional = true)
             },
         )
 
@@ -110,13 +118,18 @@ interface MiaAnswer : Composite {
             explanation: String,
             hits: List<MiaHit> = emptyList(),
             action: MiaAction? = null,
+            clarification: MiaClarification? = null,
         ): MiaAnswer = context.create(
             type = ID,
-            fields = listOfNotNull<Any>(
+            // ⚠⚠ `listOf` with nullable slots, never `listOfNotNull`: the fields are positional,
+            // so with two optional fields a dropped null `action` would slide `clarification` into
+            // its slot. An absent optional field is a null in its own position.
+            fields = listOf<Any?>(
                 verdict,
                 explanation,
                 hits as List<Data>,
                 action,
+                clarification,
             ),
         )
     }
@@ -126,5 +139,6 @@ interface MiaAnswer : Composite {
         const val EXPLANATION = "$ID/explanation"
         const val HITS = "$ID/hits"
         const val ACTION = "$ID/action"
+        const val CLARIFICATION = "$ID/clarification"
     }
 }

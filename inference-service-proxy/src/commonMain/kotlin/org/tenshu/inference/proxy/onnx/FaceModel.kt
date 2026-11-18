@@ -55,6 +55,49 @@ data class FaceModel(
         const val COREML_VISION_RUNTIME = "coreml+vision"
 
         /**
+         * ⚠⚠ The catalog runtime of the **macOS desktop** face pair (`ios-face-grouping.md` §10.8):
+         * Apple Vision detects (a system framework, nothing to download) and the ONNX embedder Android
+         * ships embeds, on ORT. Never bare `"onnx"`: every desktop build contributes that for SigLIP,
+         * and Windows/Linux would be offered a face entry they cannot run. Contributed only on macOS.
+         */
+        const val ONNX_VISION_RUNTIME = "onnx+vision"
+
+        /**
+         * ⚠⚠ The macOS desktop detection pipeline: macOS Vision at [VISION_LANDMARKS_REVISION], the
+         * shared corners-mid mapping, AuraFace on ORT (§10.8). Its own number, and its own range
+         * (**200–299**), because neither neighbour's vectors are its own: macOS Vision's points are not
+         * iOS Vision's (§11.3), and ORT int8 is not Core ML fp16 (§10.8's 0.183 against 0.176).
+         * ⚠ A new mapping, floor, decode or embedder runtime takes a NEW number; never reuse one.
+         */
+        const val MAC_VISION_PIPELINE_VERSION = 200
+
+        /**
+         * The stamp's third field on macOS: [MAC_VISION_PIPELINE_VERSION] with **the OS build** folded
+         * in (FD9: Vision's output depends on the OS that runs it). A macOS update therefore changes
+         * the stamp, and `MediaIndexer` rebases the template store at the next pass, exactly as it
+         * does for a model change: a re-index, never a name (labels are per-photograph).
+         *
+         * Layout: `1_000_000_000 + pipeline × 1_000_000 + crc32(osBuild) mod 1_000_000`, i.e.
+         * 1 200 000 000 – 1 200 999 999 for pipeline 200: far from Android's (< 100) and iOS's
+         * (100, 101), and a pipeline change still moves the whole range. ⚠ Two OS builds share a
+         * stamp with odds of one in a million, and then an update would not re-index.
+         */
+        fun macVisionStamp(osBuild: String, pipeline: Int = MAC_VISION_PIPELINE_VERSION): Int {
+            require(pipeline in 200..299) { "macOS Vision pipelines are 200–299, not $pipeline" }
+            return 1_000_000_000 + pipeline * 1_000_000 + (crc32(osBuild.encodeToByteArray()) % 1_000_000L).toInt()
+        }
+
+        /** Plain CRC-32 (IEEE), so the stamp is the same number on every JVM and in every test. */
+        internal fun crc32(bytes: ByteArray): Long {
+            var crc = 0xFFFFFFFFL
+            for (b in bytes) {
+                crc = crc xor (b.toLong() and 0xFF)
+                repeat(8) { crc = if (crc and 1L != 0L) (crc ushr 1) xor 0xEDB88320L else crc ushr 1 }
+            }
+            return crc xor 0xFFFFFFFFL
+        }
+
+        /**
          * ⚠⚠ The iOS detection pipeline's stamp — the third field of every iOS face template's
          * provenance, as `FaceDetectionStrategy.pipelineVersion` is on Android.
          *
@@ -73,6 +116,21 @@ data class FaceModel(
          * the face preflight key (`RuntimeFingerprint.detectorRevision`).
          */
         const val VISION_LANDMARKS_REVISION = 3
+
+        /**
+         * ⚠⚠ The iOS pipeline **with the animal veto on** (`photos-pets.md` PT-D9): Vision's faces,
+         * then `VNRecognizeAnimalsRequest` at [VISION_ANIMALS_REVISION], and every face inside a
+         * confident cat or dog dropped by `AnimalVeto`. Its own number because it stores different
+         * faces from [VISION_PIPELINE_VERSION]: turning the veto on re-indexes the library, and
+         * turning it off again re-indexes it back. ⚠ A new veto threshold is a new number too.
+         */
+        const val VISION_ANIMAL_VETO_PIPELINE_VERSION = 101
+
+        /**
+         * The `VNRecognizeAnimalsRequest` revision the veto pins (`VNRecognizeAnimalsRequestRevision2`,
+         * iOS 15+). ⚠ Moves with [VISION_ANIMAL_VETO_PIPELINE_VERSION]: another revision draws other boxes.
+         */
+        const val VISION_ANIMALS_REVISION = 2
 
         /**
          * The published ArcFace 112×112 constellation, `models.md` §5.6 — verified three ways and
@@ -127,6 +185,21 @@ data class FaceModel(
          * reason.
          */
         val AuraFaceCoreMl = FaceModel(
+            modelId = "auraface-v1-int8",
+            modelVersion = 1,
+            template = ArcFaceTemplate,
+            profile = ImagePreprocessing.Profile.SIGLIP,
+            dimensions = 512,
+            minFaceNorm = null,
+        )
+
+        /**
+         * ⭐ The macOS desktop twin (`ios-face-grouping.md` §10.8): Android's very artifact
+         * (`auraface_int8.onnx`, the [PinnedAuraFace] weights) on ORT, beside macOS Vision under
+         * [ONNX_VISION_RUNTIME]. Same id and version (FD4): what tells its stamp apart is
+         * [macVisionStamp]. No norm gate, for [PinnedAuraFace]'s reason.
+         */
+        val AuraFaceOnnxMac = FaceModel(
             modelId = "auraface-v1-int8",
             modelVersion = 1,
             template = ArcFaceTemplate,

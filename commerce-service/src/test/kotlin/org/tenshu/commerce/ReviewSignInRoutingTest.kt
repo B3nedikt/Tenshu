@@ -278,7 +278,7 @@ class ReviewSignInRoutingTest {
 
         // The web page's `{email}` variant works with the code too.
         assertEquals(HttpStatusCode.Accepted, client.json("/commerce/account/delete/request", """{"email":"$google"}""").status)
-        assertTrue(sender.noAccountNotices.isEmpty(), "no mail of any kind to a review address")
+        assertFalse(google in sender.recipients, "no mail of any kind to a review address")
         assertEquals(HttpStatusCode.OK, client.json("/commerce/account/delete/confirm", """{"email":"$google","code":"$code"}""").status)
         assertNotNull(store.findAccountById(second.id)!!.erasedAt)
     }

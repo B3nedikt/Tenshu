@@ -34,6 +34,13 @@ import org.tenshu.mia.MiaSource
 import org.tenshu.routine.Routine
 import org.tenshu.routine.RoutineService
 import org.tenshu.mia.MiaAnswer
+import org.tenshu.calendar.SaveEvent
+import org.tenshu.routine.RunRoutineNow
+import org.tenshu.home.device.IssueDeviceCommand
+import org.tenshu.mia.plan.Choice
+import org.tenshu.mia.plan.ClarifyReason
+import org.tenshu.mia.MiaClarification
+import org.tenshu.mia.MiaChoice
 import org.tenshu.core.health.Workout
 import org.tenshu.calendar.Event
 import org.tenshu.calendar.EventOverride
@@ -95,11 +102,23 @@ internal class AskMiaImplementation(
         caller: Any?,
         params: Map<String, Data>?,
     ): T {
-        val context = executionContext.context
         val utterance = (params?.get(AskMia.Params.UTTERANCE) as? TString)?.get().orEmpty()
         val nowMs = (params?.get(AskMia.Params.NOW_EPOCH_MS) as? TInteger)?.get() ?: 0L
         val zoneId = (params?.get(AskMia.Params.TIME_ZONE_ID) as? TString)?.get().orEmpty()
+        return answerUtterance(executionContext, implementationFactory, utterance, nowMs, zoneId) as T
+    }
 
+    /**
+     * Plans [utterance] and answers it. ⚠ Shared with `replyToMia`, which comes here for a reply
+     * that is not an answer to its question (§25, CL-D5): it is planned exactly as a new `askMia`.
+     */
+    internal suspend fun answerUtterance(
+        executionContext: ExecutionContext,
+        implementationFactory: OperationImplementationFactory,
+        utterance: String,
+        nowMs: Long,
+        zoneId: String,
+    ): MiaAnswer {
         val granted = executionContext.readMiaGrants()
         val plan = planFor(
             executionContext = executionContext,
@@ -109,25 +128,45 @@ internal class AskMiaImplementation(
             zone = zoneOf(zoneId),
             granted = granted,
         )
+        return answerPlan(executionContext, implementationFactory, plan, granted, zoneId)
+    }
+
+    /**
+     * Answers a plan, however it was reached. ⚠ Shared with `replyToMia`, which comes here with the
+     * command a reply completed (§25): from this point it is the same plan `askMia` would have had.
+     */
+    internal suspend fun answerPlan(
+        executionContext: ExecutionContext,
+        implementationFactory: OperationImplementationFactory,
+        plan: QueryPlan,
+        granted: Set<MiaSource>,
+        zoneId: String,
+    ): MiaAnswer {
+        val context = executionContext.context
 
         // ⚠⚠ NOT `ANSWERED`: nothing was searched, and an empty `ANSWERED` renders as "… —
         // nothing matched." (§14.1). `NO_MATCH` is the verdict the neighbouring refusals use for
         // "understood, and not going to" — the write grant, a suspended routine.
         if (plan is QueryPlan.ActionWithheld) {
-            return answer(executionContext, MiaAnswer.VERDICT_NO_MATCH, plan.explanation) as T
+            return answer(executionContext, MiaAnswer.VERDICT_NO_MATCH, plan.explanation)
+        }
+
+        // §25: a question back, held under a single-use token until the reply comes.
+        if (plan is QueryPlan.Clarify) {
+            return clarification(executionContext, plan)
         }
 
         // MQ-D4a: a write never lowers, so it is settled before the chain path.
         if (plan is QueryPlan.CreateEvent) {
-            return eventConfirmation(executionContext, plan, zoneOf(zoneId)) as T
+            return eventConfirmation(executionContext, plan, zoneOf(zoneId))
         }
         // RE-5, same rule: the name resolution is a direct row read, not a chain.
         if (plan is QueryPlan.RunRoutine) {
-            return routineConfirmation(executionContext, plan, granted) as T
+            return routineConfirmation(executionContext, plan, granted)
         }
 
         val callstack = QueryPlanLowering(context).lower(plan)
-            ?: return answer(executionContext, MiaAnswer.VERDICT_NO_MATCH, plan.explanation) as T
+            ?: return answer(executionContext, MiaAnswer.VERDICT_NO_MATCH, plan.explanation)
 
         when (val verdict = MiaChainValidator.validate(callstack, QueryPlanLowering.policyFor(granted))) {
             is MiaChainValidator.Verdict.Refused -> {
@@ -135,7 +174,7 @@ internal class AskMiaImplementation(
                 // the policy forbids — a bug on our side, not a user error. It should
                 // never appear; if it does, it is the most interesting line in the log.
                 println("Mia: chain refused by the validator — ${verdict.reason}")
-                return answer(executionContext, MiaAnswer.VERDICT_UNAVAILABLE, UNAVAILABLE_TEXT) as T
+                return answer(executionContext, MiaAnswer.VERDICT_UNAVAILABLE, UNAVAILABLE_TEXT)
             }
 
             MiaChainValidator.Verdict.Allowed -> Unit
@@ -147,17 +186,17 @@ internal class AskMiaImplementation(
         // ⭐ Track A stage two: the chain above resolved WHERE, not what. It needs the raw
         // `Place` rows (their coordinates), which `MiaHit` deliberately does not carry.
         if (plan is QueryPlan.FindPhotosAtPlace && result is TResult.Success<*>) {
-            return photosAtPlace(executionContext, plan, granted, result.value as? Data) as T
+            return photosAtPlace(executionContext, plan, granted, result.value as? Data)
         }
 
         // ⭐ Track B: the same join, reading moments instead of photos.
         if (plan is QueryPlan.RecallAtPlace && result is TResult.Success<*>) {
-            return recallAtPlace(executionContext, plan, granted, result.value as? Data) as T
+            return recallAtPlace(executionContext, plan, granted, result.value as? Data)
         }
 
         // ⭐ The calendar read: one op call, and the occurrences come back resolved (§15.1).
         if (plan is QueryPlan.QueryCalendar && result is TResult.Success<*>) {
-            return queryCalendar(executionContext, plan, result.value as? Data) as T
+            return queryCalendar(executionContext, plan, result.value as? Data)
         }
 
         val hits = when (result) {
@@ -166,7 +205,7 @@ internal class AskMiaImplementation(
             // live. `null` is "could not look", never "nothing matched" (§18).
             is TResult.Success<*> if plan is QueryPlan.FindPhotosOfLabel || plan is QueryPlan.FindPhotosLike ->
                 liveCitations(executionContext, plan, granted, result.value as? Data)
-                    ?: return answer(executionContext, MiaAnswer.VERDICT_UNAVAILABLE, UNAVAILABLE_TEXT) as T
+                    ?: return answer(executionContext, MiaAnswer.VERDICT_UNAVAILABLE, UNAVAILABLE_TEXT)
 
             is TResult.Success<*> -> hitsOf(executionContext, result.value as? Data)
             else -> {
@@ -181,20 +220,35 @@ internal class AskMiaImplementation(
                         executionContext,
                         MiaAnswer.VERDICT_UNAVAILABLE,
                         semanticUnavailableText(it.reason.get(), photoSearch),
-                    ) as T
+                    )
                 }
                 println("Mia: chain execution failed for plan ${plan::class.simpleName} — $error")
-                return answer(executionContext, MiaAnswer.VERDICT_UNAVAILABLE, UNAVAILABLE_TEXT) as T
+                return answer(executionContext, MiaAnswer.VERDICT_UNAVAILABLE, UNAVAILABLE_TEXT)
             }
         }
 
         // MQ-D7: a mutating plan stops here. The chain above RESOLVED which device the user
         // meant — a read — and what comes back is something to tap, not something done.
         if (plan is QueryPlan.ControlDevice) {
-            return confirmation(executionContext, plan, hits) as T
+            if (plan.level == null) return confirmation(executionContext, plan, hits)
+            // ⚠⚠ A level only goes to a device that has one. A plug told to `setLevel` would refuse
+            // on the hub, after the user had confirmed, so the devices without the capability are
+            // dropped here and a match with none says so before any card is shown.
+            val dimmable = ((result as? TResult.Success<*>)?.value as? TList<*>)?.toList().orEmpty()
+                .filterIsInstance<HomeDevice>()
+                .filter { HomeDevice.CAP_LEVEL in it.capabilities() }
+                .mapTo(mutableSetOf()) { it.deviceId.get() }
+            val levelled = hits.filter { it.deviceKey() in dimmable }
+            // ⚠ The chain searched only dimmable devices, so an empty answer may still name real
+            // devices that cannot dim. One plain name read tells "can't be dimmed" from "no such
+            // device", rather than calling a plug that exists unknown.
+            if (levelled.isEmpty() && anyDeviceNamed(executionContext, plan.text, granted)) {
+                return answer(executionContext, MiaAnswer.VERDICT_NO_MATCH, "“${plan.text}” can't be dimmed.")
+            }
+            return confirmation(executionContext, plan, levelled)
         }
 
-        return answer(executionContext, MiaAnswer.VERDICT_ANSWERED, plan.explanation, hits) as T
+        return answer(executionContext, MiaAnswer.VERDICT_ANSWERED, plan.explanation, hits)
     }
 
     /**
@@ -579,6 +633,26 @@ internal class AskMiaImplementation(
             ),
         )
 
+        // ⭐ CL-D6: a bare hour's other half is offered on the card as one tap. The card's token also
+        // holds a clarification for the start, so the tap is an ordinary `replyToMia`, which
+        // re-resolves, mints a new card and spends this one.
+        val alternatives = plan.alternativeStart?.let { alt ->
+            val choice = Choice(label = "${clock(alt)} instead?", reply = alt.toString())
+            actions.putAlternative(
+                token,
+                QueryPlan.Clarify(
+                    op = SaveEvent.ID,
+                    heard = mapOf(SaveEvent.Params.TITLE to plan.title, SaveEvent.Params.START_LOCAL to plan.startLocal),
+                    param = SaveEvent.Params.START_LOCAL,
+                    reason = ClarifyReason.AMBIGUOUS,
+                    choices = listOf(choice),
+                    day = plan.startLocal.date,
+                    explanation = plan.explanation,
+                ),
+            )
+            listOf(MiaChoice.create(executionContext.context, label = choice.label, reply = choice.reply))
+        }.orEmpty()
+
         return answer(
             executionContext = executionContext,
             verdict = MiaAnswer.VERDICT_CONFIRM,
@@ -586,6 +660,7 @@ internal class AskMiaImplementation(
             action = MiaAction.create(
                 context = executionContext.context,
                 token = token,
+                alternatives = alternatives,
                 title = plan.title,
                 // ⚠⚠ The RESOLVED row: when it starts, when it ends, and which calendar —
                 // never the partial utterance. Letting the defaults land unseen is the failure
@@ -638,39 +713,56 @@ internal class AskMiaImplementation(
                 "I couldn't find a routine called \u201C$needle\u201D.",
             )
 
-            1 -> {
-                val (routineId, name, suspended, enabled) = matches.single()
-                if (suspended) {
-                    return answer(
-                        executionContext,
-                        MiaAnswer.VERDICT_NO_MATCH,
-                        "\u201C$name\u201D is suspended \u2014 the engine stopped it after it " +
-                            "misbehaved. You can look at it in Home's Automations tab.",
-                    )
-                }
-                val token = newToken()
-                actions.put(token = token, action = PendingMiaAction.Routine(routineId, name))
-                answer(
-                    executionContext = executionContext,
-                    verdict = MiaAnswer.VERDICT_CONFIRM,
-                    explanation = plan.explanation,
-                    action = MiaAction.create(
-                        context = executionContext.context,
-                        token = token,
-                        // ⚠ The RESOLVED routine's own name, never the fragment typed.
-                        title = "Run $name",
-                        detail = if (enabled) "Runs now on this device" else "Currently off \u2014 runs now anyway",
-                    ),
-                )
-            }
+            1 -> routineCard(executionContext, matches.single(), plan.explanation)
 
-            else -> answer(
+            // ⭐ §25, CL-3: several routines match, so ask which, with one chip per candidate.
+            // The reply is read against these candidates only, never against the realm.
+            else -> clarification(
                 executionContext,
-                MiaAnswer.VERDICT_NO_MATCH,
-                "I found more than one routine matching \u201C$needle\u201D: " +
-                    matches.joinToString(", ") { it.name } + ". Which one?",
+                QueryPlan.Clarify(
+                    op = RunRoutineNow.ID,
+                    heard = emptyMap(),
+                    param = RunRoutineNow.Params.ROUTINE_ID,
+                    reason = ClarifyReason.AMBIGUOUS,
+                    choices = matches.map { Choice(label = it.name, reply = CANDIDATE_PREFIX + it.routineId) },
+                    explanation = "Which routine did you mean?",
+                ),
             )
         }
+    }
+
+    /**
+     * The card for one resolved routine (RE-5), or the honest refusal when it is suspended.
+     *
+     * ⚠⚠ **Refuses BEFORE showing a cell when the routine is suspended.** `RunRoutineNow` honours
+     * `STATE_SUSPENDED` and would refuse, so offering a button guaranteed to fail is worse than an
+     * honest no. ⚠ Also the path a picked candidate takes (CL-3), so the state is the one read at the
+     * pick, not the one read when the question was asked.
+     */
+    private fun routineCard(executionContext: ExecutionContext, row: RoutineRow, explanation: String): MiaAnswer {
+        val (routineId, name, suspended, enabled) = row
+        if (suspended) {
+            return answer(
+                executionContext,
+                MiaAnswer.VERDICT_NO_MATCH,
+                "\u201C$name\u201D is suspended \u2014 the engine stopped it after it " +
+                    "misbehaved. You can look at it in Home's Automations tab.",
+            )
+        }
+        val token = newToken()
+        actions.put(token = token, action = PendingMiaAction.Routine(routineId, name))
+        return answer(
+            executionContext = executionContext,
+            verdict = MiaAnswer.VERDICT_CONFIRM,
+            explanation = explanation,
+            action = MiaAction.create(
+                context = executionContext.context,
+                token = token,
+                // ⚠ The RESOLVED routine's own name, never the fragment typed.
+                title = "Run $name",
+                detail = if (enabled) "Runs now on this device" else "Currently off \u2014 runs now anyway",
+            ),
+        )
     }
 
     /** `(routineId, name, suspended, enabled)` for every routine in the realm. */
@@ -705,6 +797,9 @@ internal class AskMiaImplementation(
     )
 
     /** `2026-07-16T13:00` → `2026-07-16 13:00`; deliberately unlocalised for now. */
+    private fun clock(at: LocalDateTime): String =
+        "${at.hour.toString().padStart(2, '0')}:${at.minute.toString().padStart(2, '0')}"
+
     private fun describe(value: LocalDateTime): String =
         "${value.date} ${value.hour.toString().padStart(2, '0')}:" +
             value.minute.toString().padStart(2, '0')
@@ -729,40 +824,109 @@ internal class AskMiaImplementation(
 
         1 -> {
             val hit = hits.single()
-            val token = newToken()
-            actions.put(
-                token = token,
-                action = PendingMiaAction.Device(
-                    // ⚠ The key out of the row's own id. `IssueDeviceCommand` takes a bare
-                    // `deviceId`, so the citation's `DataId` is unwrapped exactly here and
-                    // nowhere else — the id stays the address everywhere above this line.
-                    deviceId = hit.deviceKey(),
-                    deviceName = hit.title.get(),
-                    on = plan.on,
-                ),
-            )
-            answer(
-                executionContext = executionContext,
-                verdict = MiaAnswer.VERDICT_CONFIRM,
-                explanation = plan.explanation,
-                action = MiaAction.create(
-                    context = executionContext.context,
-                    token = token,
-                    // ⚠ The RESOLVED device's own name, not the fragment the user typed —
-                    // the point of the cell is to show what will actually happen.
-                    title = if (plan.on) "Turn on ${hit.title.get()}" else "Turn off ${hit.title.get()}",
-                    detail = hit.subtitle.get(),
+            // ⚠ The key out of the row's own id. `IssueDeviceCommand` takes a bare `deviceId`, so
+            // the citation's `DataId` is unwrapped exactly here and nowhere else — the id stays
+            // the address everywhere above this line.
+            deviceCard(executionContext, hit.deviceKey(), hit.title.get(), hit.subtitle.get(), plan.on, plan.explanation, plan.level)
+        }
+
+        // ⭐ §25, CL-3: several devices match, so ask which, with one chip per candidate.
+        // ⚠⚠ Exactly where a keyword router would pick one and be confidently wrong, and here the
+        // cost is physical. A label carries the room when two names collide ("Lamp (Bedroom)").
+        else -> {
+            val collides = hits.groupBy { it.title.get() }.filterValues { it.size > 1 }.keys
+            clarification(
+                executionContext,
+                QueryPlan.Clarify(
+                    op = IssueDeviceCommand.ID,
+                    // ⚠ The on/off (or the level) the user said, carried so the pick does not re-read
+                    // the utterance.
+                    heard = mapOf(IssueDeviceCommand.Params.ARG_VALUE to (plan.level ?: plan.on)),
+                    param = IssueDeviceCommand.Params.TARGET_DEVICE_ID,
+                    reason = ClarifyReason.AMBIGUOUS,
+                    choices = hits.map { hit ->
+                        val title = hit.title.get()
+                        val label = if (title in collides && hit.subtitle.get().isNotEmpty()) "$title (${hit.subtitle.get()})" else title
+                        Choice(label = label, reply = CANDIDATE_PREFIX + hit.deviceKey())
+                    },
+                    explanation = "Which “${plan.text}” did you mean?",
                 ),
             )
         }
+    }
 
-        else -> answer(
-            executionContext,
-            MiaAnswer.VERDICT_NO_MATCH,
-            "I found more than one device matching “${plan.text}” — " +
-                hits.joinToString(", ") { it.title.get() } +
-                ". Which one did you mean?",
+    /** The card for one resolved device: what will happen, and the token that makes it happen. */
+    private fun deviceCard(
+        executionContext: ExecutionContext,
+        deviceId: String,
+        name: String,
+        detail: String,
+        on: Boolean,
+        explanation: String,
+        level: Int? = null,
+    ): MiaAnswer {
+        val token = newToken()
+        actions.put(token = token, action = PendingMiaAction.Device(deviceId = deviceId, deviceName = name, on = on, level = level))
+        return answer(
+            executionContext = executionContext,
+            verdict = MiaAnswer.VERDICT_CONFIRM,
+            explanation = explanation,
+            action = MiaAction.create(
+                context = executionContext.context,
+                token = token,
+                // ⚠ The RESOLVED device's own name, not the fragment the user typed — the point of
+                // the cell is to show what will actually happen.
+                title = when {
+                    level != null -> "Set $name to $level%"
+                    on -> "Turn on $name"
+                    else -> "Turn off $name"
+                },
+                detail = detail,
+            ),
         )
+    }
+
+    /**
+     * The card for the candidate a reply picked (`mia-query-layer.md` §25, CL-3).
+     *
+     * ⚠⚠ The grant is checked again here: a source revoked between the question and the pick is
+     * refused, never acted on from a decision made minutes earlier. And a routine is re-read by
+     * id, so one deleted or suspended meanwhile is refused rather than offered.
+     */
+    internal fun confirmCandidate(
+        executionContext: ExecutionContext,
+        clarify: QueryPlan.Clarify,
+        choice: Choice,
+        granted: Set<MiaSource>,
+    ): MiaAnswer {
+        val id = choice.reply.removePrefix(CANDIDATE_PREFIX)
+        val source = clarify.source
+        if (source !in granted) {
+            return answer(
+                executionContext,
+                MiaAnswer.VERDICT_NO_MATCH,
+                "I'm not allowed to use that any more — you can turn it back on in Mia's settings.",
+            )
+        }
+        return when (clarify.op) {
+            IssueDeviceCommand.ID -> {
+                // A Boolean is on/off; an Int is a level (see the clarification above).
+                val heard = clarify.heard[IssueDeviceCommand.Params.ARG_VALUE]
+                deviceCard(
+                    executionContext,
+                    deviceId = id,
+                    name = choice.label,
+                    detail = "",
+                    on = (heard as? Boolean) ?: ((heard as? Int ?: 0) > 0),
+                    explanation = clarify.explanation,
+                    level = heard as? Int,
+                )
+            }
+            RunRoutineNow.ID -> routines(executionContext).firstOrNull { it.routineId == id }
+                ?.let { routineCard(executionContext, it, clarify.explanation) }
+                ?: answer(executionContext, MiaAnswer.VERDICT_NO_MATCH, "That routine isn't there any more.")
+            else -> answer(executionContext, MiaAnswer.VERDICT_NO_MATCH, "That question is no longer open — ask me again.")
+        }
     }
 
     /**
@@ -898,6 +1062,14 @@ internal class AskMiaImplementation(
      * trash is not one to cite. ⚠ One chain per [QueryPlanLowering.EXISTENCE_CHUNK] paths, never one
      * per hit, and each reply is bounded by its chunk rather than by the realm.
      */
+    /** Whether any device at all matches [text] by name: one bounded, validated read. */
+    private suspend fun anyDeviceNamed(executionContext: ExecutionContext, text: String, granted: Set<MiaSource>): Boolean {
+        val callstack = QueryPlanLowering(executionContext.context).lowerDeviceSearch(text, limit = 1)
+        if (MiaChainValidator.validate(callstack, QueryPlanLowering.policyFor(granted)) is MiaChainValidator.Verdict.Refused) return false
+        val result = LocalTaskExecutor(executionContext).executeAsync(executionContext.context.dataFactory().createList<Data>(callstack))
+        return ((result as? TResult.Success<*>)?.value as? TList<*>)?.toList().orEmpty().isNotEmpty()
+    }
+
     private suspend fun livePaths(
         executionContext: ExecutionContext,
         lowering: QueryPlanLowering,
@@ -1031,21 +1203,80 @@ internal class AskMiaImplementation(
         }
     }
 
+    /**
+     * Asks for one param of a command (`mia-query-layer.md` §25, CL-D4).
+     *
+     * ⚠⚠ **The write's preconditions are checked BEFORE asking**, for the rule
+     * [eventConfirmation] follows: asking "what time?" for an event the calendar will refuse
+     * (no write grant, no default calendar) walks the user through a request that then fails.
+     * The refusal is the same sentence the confirmation would have given.
+     */
+    private fun clarification(executionContext: ExecutionContext, plan: QueryPlan.Clarify): MiaAnswer {
+        if (plan.source == MiaSource.CALENDAR) {
+            calendarRefusal(executionContext)?.let { return it }
+        }
+        val token = newToken()
+        actions.putClarification(token, plan)
+        val context = executionContext.context
+        return answer(
+            executionContext = executionContext,
+            verdict = MiaAnswer.VERDICT_CLARIFY,
+            explanation = plan.explanation,
+            clarification = MiaClarification.create(
+                context = context,
+                token = token,
+                param = plan.param,
+                reason = when (plan.reason) {
+                    ClarifyReason.MISSING -> MiaClarification.REASON_MISSING
+                    ClarifyReason.AMBIGUOUS -> MiaClarification.REASON_AMBIGUOUS
+                    ClarifyReason.INVALID -> MiaClarification.REASON_INVALID
+                },
+                question = plan.explanation,
+                choices = plan.choices.map { MiaChoice.create(context, label = it.label, reply = it.reply) },
+            ),
+        )
+    }
+
+    /** Why a calendar write would be refused, or `null` when it would not. */
+    private fun calendarRefusal(executionContext: ExecutionContext): MiaAnswer? {
+        if (!executionContext.canWrite(MiaSource.CALENDAR)) {
+            return answer(
+                executionContext,
+                MiaAnswer.VERDICT_NO_MATCH,
+                "I'm not allowed to add things to your calendar — you can turn that on in " +
+                    "Mia's settings.",
+            )
+        }
+        if (CalendarSlots.defaultCalendar(executionContext) == null) {
+            return answer(
+                executionContext,
+                MiaAnswer.VERDICT_NO_MATCH,
+                "I don't know which calendar to use — set a default one in Calendar first.",
+            )
+        }
+        return null
+    }
+
     private fun answer(
         executionContext: ExecutionContext,
         verdict: String,
         explanation: String,
         hits: List<MiaHit> = emptyList(),
         action: MiaAction? = null,
+        clarification: MiaClarification? = null,
     ): MiaAnswer = MiaAnswer.create(
         context = executionContext.context,
         verdict = verdict,
         explanation = explanation,
         hits = hits,
         action = action,
+        clarification = clarification,
     )
 
     internal companion object {
+        /** Marks a candidate's canonical reply: `ref:<id>` (§25, CL-3). */
+        const val CANDIDATE_PREFIX = "ref:"
+
         /**
          * ⚠ Deliberately generous, and deliberately the SAME for every place.
          * `Place.accuracyM` describes how precisely the *dwell* was located, not how large the

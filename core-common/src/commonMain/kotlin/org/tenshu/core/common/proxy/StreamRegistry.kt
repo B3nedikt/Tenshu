@@ -17,7 +17,11 @@ import org.tenshu.core.Composite
 import org.tenshu.core.Data
 import org.tenshu.core.StreamElement
 import org.tenshu.core.TenshuException
+import org.tenshu.core.collection.list.Filter as FilterOp
+import org.tenshu.core.collection.list.Select
+import org.tenshu.core.collection.list.SortBy as SortByOp
 import org.tenshu.core.collection.list.TList
+import org.tenshu.core.collection.list.Traverse as TraverseOp
 import org.tenshu.core.common.impl.InternalErrorDto
 import org.tenshu.core.collection.list.toList
 import org.tenshu.core.collection.list.toTList
@@ -25,9 +29,11 @@ import org.tenshu.core.common.impl.StreamElementRemovedDto
 import org.tenshu.core.common.impl.StreamElementValueDto
 import org.tenshu.core.core.dataFactory
 import org.tenshu.core.core.schemaProvider
+import org.tenshu.core.entity.DataId
 import org.tenshu.core.entity.Entity
 import org.tenshu.core.entity.getDataIdHash
 import org.tenshu.core.fields
+import org.tenshu.core.id
 import org.tenshu.core.reference.DynamicPropertyTypeReference
 import org.tenshu.core.schema.isSubtypeOf
 
@@ -94,9 +100,15 @@ class StreamRegistry {
         } finally {
             // Once per outermost hold, not per change: a re-evaluation can register or drop many
             // refs in one step, and each copy is O(arrays).
-            if (--holdDepth == 0 && listenersDirty) {
-                listenersDirty = false
-                publishListeners()
+            if (--holdDepth == 0) {
+                if (listenersDirty) {
+                    listenersDirty = false
+                    publishListeners()
+                }
+                if (pumpsDirty) {
+                    pumpsDirty = false
+                    pumpsByStream.store(streamIdToPump.toMap())
+                }
             }
             state.unlock()
         }
@@ -121,6 +133,15 @@ class StreamRegistry {
         listenersByArray.store(refToStreamListeners.mapValues { it.value.toSet() })
     }
     private val refToStreamCount = mutableMapOf<Long, Int>()
+
+    /** Each signal-only stream's [SignalPump]; a stream without one takes the full path. */
+    private val streamIdToPump = mutableMapOf<Long, SignalPump>()
+
+    /** [streamIdToPump] changed in the current hold — republished when it ends. Under [state]. */
+    private var pumpsDirty = false
+
+    /** [streamIdToPump] as an immutable snapshot, for [triggerUpdate] — same reason as [listenersByArray]. */
+    private val pumpsByStream = AtomicReference<Map<Long, SignalPump>>(emptyMap())
     // This registry's array-listener handle per array hash (from `database.setArrayListener`), so
     // teardown removes *this* session's registration without disturbing another session's.
     private val refToListenerHandle = mutableMapOf<Long, Long>()
@@ -191,46 +212,51 @@ class StreamRegistry {
         }
         afterRegistrationStamped?.invoke()
 
+        // Evaluates the stream's chain once, recording every array it reads into [into].
+        val evaluate: (into: MutableSet<ArrayDatabaseReference>) -> Data? = { into ->
+            into.add(reference)
+            executionContext.referenceResolver.collectingReferences(into = into) {
+                // Evaluate the deferred stack against the *reference*
+                // (not a pre-materialised list) so a leading
+                // `drop`/`take` prefix hits the window fusion in
+                // [evaluateCallstack] — the page-load stream then
+                // deserialises only the page window (and gains the
+                // `captureProjection` pushdown). An empty stack
+                // materialises the full array in the final
+                // materialisation step.
+                //
+                // `docs/proposals/core-error-channel.md` §6 Phase 4:
+                // evaluateCallstack returns the value directly and throws
+                // TenshuException on typed failure. The callers' catch blocks
+                // wrap it into a StreamElement.End error.
+                val value = evaluateCallstack(
+                    executionContext = executionContext,
+                    contextData = reference.copy(executionStack = emptyList()),
+                    callstack = executionStack,
+                    allowDeferring = false
+                )
+
+                if (value is ArrayDatabaseReference) {
+                    executionContext.getArrayData(value)
+                        ?.toList()
+                        ?.toTList(executionContext.context)
+                } else if (value is TList<*>) {
+                    value
+                } else {
+                    listOfNotNull<Data>(value).toTList(executionContext.context)
+                }
+            }
+        }
+
+        if (signalOnly) {
+            return setSignalListener(executionContext, streamId, reference, registration, updateMutex, executionStack, evaluate)
+        }
+
         val onUpdate: suspend (Boolean) -> Unit = onUpdate@{ isInitial ->
             updateMutex.lock()
             try {
                 val currentCapturedRefs = mutableSetOf<ArrayDatabaseReference>()
-                currentCapturedRefs.add(reference)
-
-                val processedDataResult: Data? =
-                    executionContext.referenceResolver.collectingReferences(
-                        into = currentCapturedRefs,
-                    ) {
-                        // Evaluate the deferred stack against the *reference*
-                        // (not a pre-materialised list) so a leading
-                        // `drop`/`take` prefix hits the window fusion in
-                        // [evaluateCallstack] — the page-load stream then
-                        // deserialises only the page window (and gains the
-                        // `captureProjection` pushdown). An empty stack
-                        // materialises the full array in the final
-                        // materialisation step.
-                        //
-                        // `docs/proposals/core-error-channel.md` §6 Phase 4:
-                        // evaluateCallstack returns the value directly and throws
-                        // TenshuException on typed failure. The catch block below
-                        // wraps it into a StreamElement.End error.
-                        val value = evaluateCallstack(
-                            executionContext = executionContext,
-                            contextData = reference.copy(executionStack = emptyList()),
-                            callstack = executionStack,
-                            allowDeferring = false
-                        )
-
-                        if (value is ArrayDatabaseReference) {
-                            executionContext.getArrayData(value)
-                                ?.toList()
-                                ?.toTList(executionContext.context)
-                        } else if (value is TList<*>) {
-                            value
-                        } else {
-                            listOfNotNull<Data>(value).toTList(executionContext.context)
-                        }
-                    }
+                val processedDataResult: Data? = evaluate(currentCapturedRefs)
 
                 // Ended (or re-registered) while this evaluated: anything sent now, or any state
                 // written, would belong to a subscription that no longer exists — see
@@ -239,22 +265,7 @@ class StreamRegistry {
 
                 if (processedDataResult != null) {
                     if (processedDataResult.schema.isSubtypeOf("tenshu/core/error")) {
-                        val element =
-                            executionContext.context.dataFactory().createComposite<StreamElement<*>>(
-                                type = StreamElement.End.ID,
-                                // Explicit `<Data?>` is load-bearing: without it Kotlin's
-                                // vararg inference picks the second arg's concrete type
-                                // for the array element (e.g. `TError[]`), and the
-                                // `TIntegerDto` returned by `createValue` then fails to
-                                // store into that typed array at runtime
-                                // (`java.lang.ArrayStoreException`).
-                                fields = listOf<Data?>(
-                                    executionContext.context.dataFactory()
-                                        .createValue("tenshu/core/number/integer", streamId),
-                                    processedDataResult
-                                )
-                            )
-                        executionContext.clientConnection.send(element)
+                        executionContext.clientConnection.send(endElement(executionContext, streamId, processedDataResult))
                         return@onUpdate
                     }
 
@@ -275,60 +286,34 @@ class StreamRegistry {
                     }
                     // Checked again: materialising on-demand properties can suspend.
                     if (!isLive(streamId, registration)) return@onUpdate
-                    val discoveredRefs = findDatabaseReferences(processedDataResult)
+                    val allCurrentRefs = currentCapturedRefs + findDatabaseReferences(processedDataResult)
                         .filterIsInstance<ArrayDatabaseReference>()
-
-                    val allCurrentRefs = currentCapturedRefs + discoveredRefs
 
                     // One guarded step: the liveness check, the diff baseline and the ref
                     // bookkeeping. A stream ended since the check above must not re-register refs
                     // (a listener nobody would ever remove) — so the check is repeated in here.
                     val oldItems = guarded {
-                        if (!isLive(streamId, registration)) return@onUpdate
-                        val currentStreamRefs =
-                            streamIdToNestedRefs.getOrPut(streamId) { mutableSetOf() }
-
-                        val addedRefs = allCurrentRefs - currentStreamRefs
-                        val removedRefs = currentStreamRefs - allCurrentRefs
-
-                        addedRefs.forEach { ref ->
-                            registerRefForStream(executionContext, streamId, ref)
-                        }
-                        removedRefs.forEach { ref ->
-                            unregisterRefForStream(executionContext, streamId, ref)
+                        if (!reconcileRefsLocked(executionContext, streamId, registration, allCurrentRefs)) {
+                            return@onUpdate
                         }
                         if (isInitial) emptyList() else streamIdToItems[streamId] ?: emptyList()
                     }
 
                     if (isInitial) {
-                        // Signal-only subscribers discard payloads client-side;
-                        // the initial full-list emission (the whole folder over
-                        // IPC, parsed just to be dropped) is skipped entirely.
-                        // Everything ABOVE stays: the evaluation seeds
-                        // `streamIdToItems` as the diff baseline (without it the
-                        // first change would re-emit every item as "new") and
-                        // discovers nested refs for invalidation. Subsequent
-                        // per-item diff emissions are the subscriber's signal.
-                        if (!signalOnly) {
-                            executionContext.clientConnection.send(
-                                StreamElementValueDto(
-                                    streamId,
-                                    executionContext.context.dataFactory().createList<Data>(newItems)
-                                )
+                        executionContext.clientConnection.send(
+                            StreamElementValueDto(
+                                streamId,
+                                executionContext.context.dataFactory().createList<Data>(newItems)
                             )
-                        }
+                        )
                     } else {
                         emitChanges(executionContext, streamId, oldItems, newItems)
                     }
                     guarded { if (isLive(streamId, registration)) streamIdToItems[streamId] = newItems }
 
                     // Deferred markers that survived materialisation get a
-                    // background resolution + per-row patch. Signal-only
-                    // subscribers discard payloads — a patch would be a
-                    // spurious wake-up, so skip scheduling entirely.
-                    if (!signalOnly) {
-                        scheduleDeferredResolutions(executionContext, streamId, newItems)
-                    }
+                    // background resolution + per-row patch.
+                    scheduleDeferredResolutions(executionContext, streamId, newItems)
                 }
             } catch (e: Throwable) {
                 // If anything fails in the background update, we stop the stream.
@@ -336,23 +321,11 @@ class StreamRegistry {
                 // [TenshuException] to its [org.tenshu.core.TError]; anything else
                 // becomes [InternalErrorDto] (the proxy-local catch-all shape).
                 e.printStackTrace()
-                val typedError = when (e) {
-                    is TenshuException -> e.error
-                    else -> InternalErrorDto(internalDetail = e.message)
-                }
-                val element =
-                    executionContext.context.dataFactory().createComposite<StreamElement<*>>(
-                        type = StreamElement.End.ID,
-                        // Explicit `<Data?>` is load-bearing — see the matching note on
-                        // the sibling End-element construction above.
-                        fields = listOf<Data?>(
-                            executionContext.context.dataFactory()
-                                .createValue("tenshu/core/number/integer", streamId),
-                            typedError
-                        )
-                    )
+                val typedError = typedErrorOf(e)
                 // An ended stream's failure has no subscription left to end — and would end the next.
-                if (isLive(streamId, registration)) executionContext.clientConnection.send(element)
+                if (isLive(streamId, registration)) {
+                    executionContext.clientConnection.send(endElement(executionContext, streamId, typedError))
+                }
             } finally {
                 updateMutex.unlock()
             }
@@ -383,6 +356,276 @@ class StreamRegistry {
      */
     internal var afterRegistrationStamped: (() -> Unit)? = null
 
+    /**
+     * The signal-only half of [setDatabaseListener] (`changes()`): the stream answers "something it
+     * reads may have changed", never *what*.
+     *
+     * ⚠⚠ **A write costs one signal, not one evaluation.** The full path re-evaluates the chain and
+     * diffs it against the last item list on every write to any array it reads; for a whole-tree
+     * `root.files.traverse().changes()` (the Photos feed's observer) that is a walk of the realm per
+     * write — ≈ 0.27 ms per file per write, inline on the tab's thread in the browser runtime
+     * (`photos-app.md` §45.3). Here a write only marks the stream's [SignalPump] dirty; one drain
+     * per burst sends one signal. Over-signalling is allowed (a write the reader would not show
+     * still ticks it — the reader re-reads); silence across a real change is not.
+     *
+     * The chain is still evaluated — at subscribe, and again when a write could have changed
+     * **which arrays** the stream reads ([mayOpenArrays]): a folder created inside an observed tree
+     * brings arrays nobody listens to yet, and a write into them would otherwise never be heard.
+     * The rediscovery registers the new arrays **before** the signal goes out, so a write landing in
+     * one between the evaluation and its registration is covered by that same signal (the reader
+     * re-reads after it).
+     */
+    private suspend fun setSignalListener(
+        executionContext: ExecutionContext,
+        streamId: Long,
+        reference: ArrayDatabaseReference,
+        registration: Any,
+        updateMutex: Mutex,
+        executionStack: List<Data>,
+        evaluate: (MutableSet<ArrayDatabaseReference>) -> Data?,
+    ): Data? {
+        val pump = SignalPump(
+            executionContext, streamId, reference.arrayId, registration, updateMutex, evaluate,
+            viewDependsOnOtherRows = executionStack.any { it.id !in ROW_INDEPENDENT_OPS },
+        )
+        // Same install contract as the full path (see there).
+        val installed = guarded {
+            if (!isLive(streamId, registration)) return@guarded false
+            streamIdToRef[streamId] = reference
+            streamIdToPump[streamId] = pump
+            pumpsDirty = true
+            registerRefForStream(executionContext, streamId, reference)
+            _activeStreamCount.update { it + 1 }
+            true
+        }
+        if (!installed) return null
+
+        // The subscribe discovery: registers every array the chain reads, and sends nothing — a
+        // signal-only subscriber gets no initial emission. The subscribe confirmation the client
+        // receives is sent after this returns, so a write before it is covered by the reader's own
+        // first read.
+        updateMutex.withLock { pump.discover() }
+        return null
+    }
+
+    /**
+     * One signal-only stream's coalescing state — see [setSignalListener].
+     *
+     * [request] runs on the writer's thread inside the database's lock (from [triggerUpdate]), so it
+     * touches nothing but [pending]: a lock-free flag word plus the rows added since the last drain.
+     * The drain runs on `sessionScope`, under the stream's [updateMutex] (shared with nothing else
+     * here, since a signal-only stream schedules no deferred patches), and loops until no request
+     * arrived during its last round — so a write that lands mid-drain is never dropped, only folded
+     * into the next round.
+     */
+    private inner class SignalPump(
+        private val executionContext: ExecutionContext,
+        private val streamId: Long,
+        private val rootArrayId: DataId,
+        private val registration: Any,
+        private val updateMutex: Mutex,
+        private val evaluate: (MutableSet<ArrayDatabaseReference>) -> Data?,
+        /**
+         * Whether a row can enter the chain's view because of a write to ANOTHER row — a window, or
+         * any op not known to be row-independent. Then any write can bring in rows the chain never
+         * read, with arrays nobody listens to: deleting the first folder under `take(1).traverse()`
+         * exposes the second, and so does re-saving a visible leaf so it sorts behind it under
+         * `sortBy(…).take(1)`. Such a stream rediscovers on **every** write; one built only from
+         * [ROW_INDEPENDENT_OPS] has read every row it can ever show, so only [mayOpenArrays]' rows
+         * can change what it reads.
+         */
+        private val viewDependsOnOtherRows: Boolean,
+    ) {
+        private val pending = AtomicReference(Pending.IDLE)
+
+        /** What the last discovery saw; `null` until one has completed (every add then rediscovers). */
+        private val shape = AtomicReference<StreamShape?>(null)
+
+        /** [added] is the row an add (or a re-save) wrote; `null` for a removal. */
+        fun request(added: Data?) {
+            while (true) {
+                val old = pending.load()
+                if (pending.compareAndSet(old, old.withSignal(added, rediscover = viewDependsOnOtherRows))) {
+                    if (!old.running) executionContext.sessionScope.launch { drain() }
+                    return
+                }
+            }
+        }
+
+        private suspend fun drain() {
+            while (true) {
+                val taken = pending.load()
+                if (!taken.dirty) {
+                    if (pending.compareAndSet(taken, Pending.IDLE)) return
+                    continue
+                }
+                if (!pending.compareAndSet(taken, Pending.RUNNING)) continue
+                val live = updateMutex.withLock {
+                    if (!isLive(streamId, registration)) return@withLock false
+                    val rediscover = taken.rediscover || taken.added.any { mayOpenArrays(it) }
+                    if (rediscover && !discover()) return@withLock false
+                    if (!isLive(streamId, registration)) return@withLock false
+                    executionContext.clientConnection.send(signalElement())
+                    true
+                }
+                // Ended (or failed and sent its End): nothing further belongs to this subscription.
+                // A later registration of the same id installs a fresh pump.
+                if (!live) {
+                    pending.store(Pending.IDLE)
+                    return
+                }
+            }
+        }
+
+        /**
+         * Evaluate the chain and register exactly the arrays it read. `false` when the stream is
+         * over — it ended meanwhile, or the evaluation failed and its End was sent. ⚠ Under
+         * [updateMutex] only.
+         */
+        fun discover(): Boolean = try {
+            val captured = mutableSetOf<ArrayDatabaseReference>()
+            val result = evaluate(captured)
+            when {
+                !isLive(streamId, registration) -> false
+                result == null -> {
+                    shape.store(null)
+                    true
+                }
+                result.schema.isSubtypeOf("tenshu/core/error") -> {
+                    executionContext.clientConnection.send(endElement(executionContext, streamId, result))
+                    false
+                }
+                else -> {
+                    val all = captured + findDatabaseReferences(result).filterIsInstance<ArrayDatabaseReference>()
+                    val reconciled = guarded { reconcileRefsLocked(executionContext, streamId, registration, all) }
+                    if (reconciled) shape.store(StreamShape.of(result, all))
+                    reconciled
+                }
+            }
+        } catch (e: Throwable) {
+            // As on the full path: a failed evaluation ends the stream.
+            e.printStackTrace()
+            if (isLive(streamId, registration)) {
+                executionContext.clientConnection.send(endElement(executionContext, streamId, typedErrorOf(e)))
+            }
+            false
+        }
+
+        /**
+         * Whether [added] could make the chain read an array it does not read now — and so needs a
+         * rediscovery before the signal. ⚠⚠ **Errs towards `true`**: a wrong `true` costs one
+         * evaluation, a wrong `false` is a stream that never hears writes inside the new arrays.
+         *
+         *  - a row whose type has a `TList` field (a folder: the arrays `traverse`/`searchAll`
+         *    descend into, and any `it.someList` a predicate reads), or one carrying a database
+         *    reference anywhere (the arrays the full path finds in its result);
+         *  - a row of a type the last discovery never saw in the result — what the chain does with
+         *    it is unknown, including an empty result (it has seen nothing);
+         *  - any row, for a stream that reads per-entity relation arrays
+         *    (`DataId.EntityPropertyDataId`): those are keyed by the row and appear on no field, so
+         *    only an evaluation finds the new row's.
+         */
+        private fun mayOpenArrays(added: Data): Boolean {
+            val seen = shape.load() ?: return true
+            if (seen.followsRelations) return true
+            val typeId = typeIdOf(added) ?: return true
+            if (typeId !in seen.rowTypes) return true
+            if (hasNestedListFields(typeId, executionContext)) return true
+            return findDatabaseReferences(added).isNotEmpty()
+        }
+
+        /**
+         * The tick: a `Removed` of the stream's **own root array id**, every time.
+         *
+         * ⚠⚠ Both halves of that are load-bearing:
+         *  - **One fixed identity.** The client's per-stream replay buffer (`StreamInteractorImpl`)
+         *    keeps one entry per row id, last wins; a signal with no identity (an empty-list
+         *    `Value`) is kept as a whole-list snapshot instead, so every write would add an entry —
+         *    a buffer growing for the life of the stream (`StreamLateSubscriberTest`). Under one
+         *    id, a late joiner replays one tick.
+         *  - **An id no row carries.** A `flow()` that shares this stream id (ids are callstack
+         *    hashes) folds the element into its state; removing an array's id removes nothing.
+         */
+        private fun signalElement(): Data = StreamElementRemovedDto(streamId, rootArrayId)
+    }
+
+    /** [SignalPump]'s pending work, swapped whole by compare-and-set (identity). */
+    private class Pending(
+        val running: Boolean,
+        val dirty: Boolean,
+        val rediscover: Boolean,
+        val added: List<Data>,
+    ) {
+        fun withSignal(row: Data?, rediscover: Boolean): Pending = when {
+            this.rediscover || rediscover -> Pending(running = true, dirty = true, rediscover = true, added = emptyList())
+            row == null -> Pending(running = true, dirty = true, rediscover = false, added = added)
+            // A long burst stops collecting rows and simply rediscovers once.
+            added.size >= MAX_PENDING_ADDED -> Pending(running = true, dirty = true, rediscover = true, added = emptyList())
+            else -> Pending(running = true, dirty = true, rediscover = false, added = added + row)
+        }
+
+        companion object {
+            val IDLE = Pending(running = false, dirty = false, rediscover = false, added = emptyList())
+            val RUNNING = Pending(running = true, dirty = false, rediscover = false, added = emptyList())
+        }
+    }
+
+    /** What a signal-only stream's last discovery read — the input to [SignalPump.mayOpenArrays]. */
+    private class StreamShape(val rowTypes: Set<String>, val followsRelations: Boolean) {
+        companion object {
+            fun of(result: Data, refs: Set<ArrayDatabaseReference>): StreamShape {
+                val rows = (result as? TList<*>)?.toList() ?: listOf(result)
+                return StreamShape(
+                    rowTypes = rows.mapNotNullTo(HashSet()) { (it as? Data)?.let(::typeIdOf) },
+                    followsRelations = refs.any {
+                        it.arrayId !is DataId.EntityFieldDataId && it.arrayId !is DataId.RelationDataId
+                    },
+                )
+            }
+        }
+    }
+
+    /**
+     * Bring [streamId]'s registered arrays to exactly [refs]. `false`, touching nothing, when the
+     * stream is no longer [registration] — an ended stream must not re-register a listener nobody
+     * would ever remove. ⚠ Under [state] only.
+     */
+    private fun reconcileRefsLocked(
+        executionContext: ExecutionContext,
+        streamId: Long,
+        registration: Any,
+        refs: Set<ArrayDatabaseReference>,
+    ): Boolean {
+        if (!isLive(streamId, registration)) return false
+        val currentStreamRefs = streamIdToNestedRefs.getOrPut(streamId) { mutableSetOf() }
+        val addedRefs = refs - currentStreamRefs
+        val removedRefs = currentStreamRefs - refs
+        addedRefs.forEach { registerRefForStream(executionContext, streamId, it) }
+        removedRefs.forEach { unregisterRefForStream(executionContext, streamId, it) }
+        return true
+    }
+
+    private fun typedErrorOf(e: Throwable): Data = when (e) {
+        // `docs/proposals/core-error-channel.md` §6 Phase 4: unwrap typed [TenshuException] to its
+        // [org.tenshu.core.TError]; anything else becomes [InternalErrorDto] (the proxy-local
+        // catch-all shape).
+        is TenshuException -> e.error
+        else -> InternalErrorDto(internalDetail = e.message)
+    }
+
+    private fun endElement(executionContext: ExecutionContext, streamId: Long, error: Data): Data =
+        executionContext.context.dataFactory().createComposite<StreamElement<*>>(
+            type = StreamElement.End.ID,
+            // Explicit `<Data?>` is load-bearing: without it Kotlin's vararg inference picks the
+            // second arg's concrete type for the array element (e.g. `TError[]`), and the
+            // `TIntegerDto` returned by `createValue` then fails to store into that typed array at
+            // runtime (`java.lang.ArrayStoreException`).
+            fields = listOf<Data?>(
+                executionContext.context.dataFactory().createValue("tenshu/core/number/integer", streamId),
+                error
+            )
+        )
+
     fun removeDatabaseListener(executionContext: ExecutionContext, streamId: Long) {
         executionContext.clientConnection.forgetStream(streamId)
         var jobs: List<Job> = emptyList()
@@ -390,6 +633,7 @@ class StreamRegistry {
             streamIdToRegistration.remove(streamId)
             val wasRegistered = streamIdToRef.remove(streamId) != null
             streamIdToUpdateCallback.remove(streamId)
+            if (streamIdToPump.remove(streamId) != null) pumpsDirty = true
             val refs = streamIdToNestedRefs[streamId]?.toList() ?: emptyList()
             refs.forEach { unregisterRefForStream(executionContext, streamId, it) }
             streamIdToNestedRefs.remove(streamId)
@@ -414,6 +658,8 @@ class StreamRegistry {
         streamIdToRef.clear()
         streamIdToNestedRefs.clear()
         streamIdToUpdateCallback.clear()
+        streamIdToPump.clear()
+        pumpsDirty = true
         streamIdToRegistration.clear()
         refToStreamListeners.clear()
         listenersDirty = true
@@ -617,8 +863,8 @@ class StreamRegistry {
             // registration (multiple sessions may listen on the same array over the shared DB).
             refToListenerHandle[hash] = executionContext.database.setArrayListener(
                 reference = ref,
-                onAdded = { _, _ -> triggerUpdate(executionContext, hash) },
-                onRemoved = { _, _ -> triggerUpdate(executionContext, hash) }
+                onAdded = { added, _ -> triggerUpdate(executionContext, hash, added) },
+                onRemoved = { _, _ -> triggerUpdate(executionContext, hash, added = null) }
             )
         }
         refToStreamListeners.getOrPut(hash) { mutableSetOf() }.add(streamId)
@@ -662,10 +908,18 @@ class StreamRegistry {
      * must not take [state] — that would invert the registry → database order
      * [registerRefForStream] holds. It reads the published snapshot instead, and each update
      * takes its callback under [state] from its own coroutine, one launch per stream as before.
+     * A signal-only stream instead marks its [SignalPump] (lock-free), which launches at most one
+     * drain per burst. [added] is the row an add wrote, `null` for a removal.
      */
-    private fun triggerUpdate(executionContext: ExecutionContext, hash: Long) {
+    private fun triggerUpdate(executionContext: ExecutionContext, hash: Long, added: Data?) {
         val streamsToUpdate = listenersByArray.load()[hash] ?: return
+        val pumps = pumpsByStream.load()
         streamsToUpdate.forEach { streamId: Long ->
+            val pump = pumps[streamId]
+            if (pump != null) {
+                pump.request(added)
+                return@forEach
+            }
             executionContext.sessionScope.launch {
                 guarded { streamIdToUpdateCallback[streamId] }?.invoke(false)
             }
@@ -675,6 +929,17 @@ class StreamRegistry {
     private companion object {
         /** Concurrent deferred resolutions across all streams — see [deferredSemaphore]. */
         const val DEFERRED_RESOLUTION_PARALLELISM = 4
+
+        /**
+         * Chain ops after which every row the chain can show was read by its evaluation: no window,
+         * nothing that depends on another row. A write under these exposes no row it did not read.
+         * ⚠ An allowlist on purpose — an op missing here costs a rediscovery per write, an op wrongly
+         * here is a stream that goes deaf.
+         */
+        val ROW_INDEPENDENT_OPS = setOf(TraverseOp.ID, FilterOp.ID, SortByOp.ID, Select.ID)
+
+        /** Rows a [SignalPump] collects between drains before it stops looking and rediscovers once. */
+        const val MAX_PENDING_ADDED = 64
     }
 
     private fun findDatabaseReferences(data: Data): Set<DatabaseReference> {
@@ -696,3 +961,7 @@ class StreamRegistry {
         return refs
     }
 }
+
+/** A row's concrete type id, as [hasNestedListFields] takes it (an entity's is its `type`, not its schema). */
+private fun typeIdOf(row: Data): String? =
+    if (row is Entity<*>) row.type.get() else row.id

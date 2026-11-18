@@ -120,6 +120,8 @@ fun ModelsScreenContent(
     onAcceptFeatureOffer: () -> Unit = {},
     onDismissFeatureOffer: () -> Unit = {},
     onBack: () -> Unit,
+    /** Whether this process runs the face pipeline: [faceClusteringRunsHere], a parameter so a test can name the platform. */
+    runsFaces: Boolean = faceClusteringRunsHere,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     // ⚠ Keyed on the store's state too: the sentence for a store's refusal is that state's, and
@@ -195,7 +197,7 @@ fun ModelsScreenContent(
 
     // §38.3 — asked once, when a model lands for a feature that is off here. ⚠ Never for a feature
     // this build shows no row for: the answer would have nowhere to be changed.
-    val consents = visibleConsents(state.consents)
+    val consents = visibleConsents(state.consents, runsFaces)
     state.featureOffer?.takeIf { offer -> consents.any { it.capability == offer } }?.let { offer ->
         AlertDialog(
             onDismissRequest = onDismissFeatureOffer,

@@ -23,9 +23,9 @@ import kotlinx.datetime.LocalDateTime
  *
  * Every time below resolves against [CLOCK]: Monday 2026-11-16, 12:00 UTC.
  *
- * ⚠ **A command's right answer is sometimes a question back.** Where the utterance leaves a slot
- * open ("add dentist tomorrow"), the expectation is [Action.ask], not a guess. No planner can
- * produce that today (§23.5's clarify-turn note), so those cases are gaps by construction.
+ * ⚠ **A command's right answer is sometimes a question back.** Where the utterance leaves a param
+ * of the write op open ("add dentist tomorrow"), the expectation is [Action.ask], not a guess
+ * (`mia-query-layer.md` §25).
  */
 internal object QuestionSet {
 
@@ -124,8 +124,9 @@ internal object QuestionSet {
     // ---- commands: each runs only after the MQ-D7 confirmation -------------------
 
     private fun commands() = listOf(
-        Case("add dentist tomorrow at 9", event("dentist", at(17, 9))),
-        Case("schedule a call with tom on friday at 3", event("call with tom", at(20, 15))),
+        // ⭐ CL-D6: a bare hour's card offers the other half of the day as one tap.
+        Case("add dentist tomorrow at 9", event("dentist", at(17, 9), alternative = at(17, 21))),
+        Case("schedule a call with tom on friday at 3", event("call with tom", at(20, 15), alternative = at(20, 3))),
         Case("put gym on thursday at 18:30", event("gym", at(19, 18, 30))),
         Case("add lunch with anna tomorrow at 1pm", event("lunch with anna", at(17, 13))),
         Case("turn off the kitchen light", device("kitchen light", on = false)),
@@ -133,35 +134,32 @@ internal object QuestionSet {
         Case("run my good morning routine", Expected(Src.ROUTINES, action = Action(Act.RUN_ROUTINE, "good morning"))),
         Case("add an event dentist tomorrow at 9 in the morning", event("dentist", at(17, 9))),
         Case("add dinner with anna tomorrow at 8 in the evening", event("dinner with anna", at(17, 20))),
-        Case("add lunch with anna on friday at one", event("lunch with anna", at(20, 13))),
-        Case("add one on one with tom tomorrow at 3", event("one on one with tom", at(17, 15))),
+        Case("add lunch with anna on friday at one", event("lunch with anna", at(20, 13), alternative = at(20, 1))),
+        Case("add one on one with tom tomorrow at 3", event("one on one with tom", at(17, 15), alternative = at(17, 3))),
         Case("add lunch at five guys tomorrow at 8pm", event("lunch at five guys", at(17, 20))),
-        // gaps
-        Case("add dentist tomorrow", event("dentist", ask = Slot.TIME), Status.GAP, note = "refuses instead of asking"),
+        // ⭐ Asking back (§25): the right answer is a question for one param of SaveEvent.
+        Case("add dentist tomorrow", event("dentist", ask = Ask(START, ClarifyReason.MISSING))),
         Case(
             "add dentist tomorrow morning",
-            event("dentist", ask = Slot.TIME),
-            Status.GAP,
-            note = "a part of day narrows the time but does not fix it; refuses",
+            event("dentist", ask = Ask(START, ClarifyReason.MISSING)),
+            note = "a part of day narrows the time but does not fix it",
         ),
-        Case("remind me to call mum tomorrow", event("call mum", ask = Slot.TIME), Status.GAP, note = "refuses instead of asking"),
-        Case(
-            "add dinner with anna tomorrow at 8",
-            event("dinner with anna", ask = Slot.TIME),
-            Status.GAP,
-            note = "a bare 8 is guessed as 08:00; ask-vs-convention is the clarify-turn design",
-        ),
+        Case("remind me to call mum tomorrow", event("call mum", ask = Ask(START, ClarifyReason.MISSING))),
         Case(
             "add a meeting at 10",
-            event("meeting", ask = Slot.DATE),
-            Status.GAP,
-            note = "10:00 today has already passed at the clock's noon; plans it anyway",
+            event("meeting", at = at(16, 10), ask = Ask(START, ClarifyReason.INVALID)),
+            note = "10:00 today has already passed at the clock's noon",
         ),
+        Case("add tomorrow at 1pm", event("", at = at(17, 13), ask = Ask(TITLE, ClarifyReason.MISSING))),
+        Case(
+            "add dinner with anna tomorrow at 8",
+            event("dinner with anna", at = at(17, 8), alternative = at(17, 20)),
+            note = "CL-D6: the convention's 08:00 on the card, with 20:00 offered",
+        ),
+        // gaps
         Case(
             "dim the bedroom light to 30 percent",
             Expected(Src.DEVICES, action = Action(Act.CONTROL_DEVICE, "bedroom light", on = true, level = 30)),
-            Status.GAP,
-            note = "no level slot: a device search for \"dim bedroom light percent\"",
         ),
     )
 
@@ -171,8 +169,11 @@ internal object QuestionSet {
         Case("starte die routine guten morgen", Expected(Src.ROUTINES, action = Action(Act.RUN_ROUTINE, "guten morgen"))),
     ).map { it.copy(lang = Lang.DE, status = Status.GAP, note = "English-only grammar: a file search") }
 
-    private fun event(title: String, at: LocalDateTime? = null, ask: Slot? = null) =
-        Expected(Src.CALENDAR, action = Action(Act.CREATE_EVENT, title, at = at, ask = ask))
+    private fun event(title: String, at: LocalDateTime? = null, ask: Ask? = null, alternative: LocalDateTime? = null) =
+        Expected(Src.CALENDAR, action = Action(Act.CREATE_EVENT, title, at = at, ask = ask, alternative = alternative))
+
+    private const val TITLE = org.tenshu.calendar.SaveEvent.Params.TITLE
+    private const val START = org.tenshu.calendar.SaveEvent.Params.START_LOCAL
 
     private fun device(name: String, on: Boolean) =
         Expected(Src.DEVICES, action = Action(Act.CONTROL_DEVICE, name, on = on))
@@ -250,12 +251,17 @@ internal enum class Src { PHOTOS, FILES, PLACES, TIMELINE, WORKOUTS, CALENDAR, D
 
 internal enum class Act { CREATE_EVENT, CONTROL_DEVICE, RUN_ROUTINE }
 
-/** A slot Mia should ask for rather than guess. */
-internal enum class Slot { DATE, TIME }
+/**
+ * A question back for one param of the command's write op, and why (`mia-query-layer.md` §25,
+ * CL-D1). The param is the op schema's own id, so this stays planner-neutral.
+ */
+internal data class Ask(val param: String, val reason: ClarifyReason)
 
 /**
  * A command, as the confirmation card would show it. [target] is the event title, the device
- * or the routine name. [ask] set means the right answer is a question back for that slot.
+ * or the routine name. [ask] set means the right answer is a question back for that param;
+ * [at] and [target] are then what was heard so far. [alternative] is the one-tap other reading
+ * a card offers (CL-D6).
  */
 internal data class Action(
     val act: Act,
@@ -263,7 +269,8 @@ internal data class Action(
     val at: LocalDateTime? = null,
     val on: Boolean? = null,
     val level: Int? = null,
-    val ask: Slot? = null,
+    val ask: Ask? = null,
+    val alternative: LocalDateTime? = null,
 )
 
 /** What kind of answer the question asks for (the proposed `AnswerShape`). */

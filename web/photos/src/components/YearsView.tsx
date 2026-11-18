@@ -4,7 +4,7 @@ import { useFeed } from '../lib/feed'
 import { yearMarks } from '../lib/layout'
 import { FEED_PAGE_SIZE } from '../lib/feedPager'
 import { previewPathOf } from '../lib/media'
-import { useOnScreen, useThumbnail } from '../lib/thumbnails'
+import { useCoverUrl, useOnScreen } from '../lib/thumbnails'
 import { ErrorPanel, Loading } from './ui'
 
 // The Years collection (web-apps-layout.md §3.5): one card per year of the library, newest first,
@@ -51,7 +51,11 @@ function YearCard({ year, count, coverIndex, onOpen }: { year: number; count: nu
     if (onScreen && reachable) void pager.ensure(coverIndex)
   }, [onScreen, reachable, pager, coverIndex])
   const cover = page.rows[coverIndex]
-  const url = useThumbnail(cover ? previewPathOf(cover) : null, onScreen)
+  const url = useCoverUrl(cover ? previewPathOf(cover) : null, ref, onScreen, {
+    fit: true,
+    pixelWidth: cover?.pixelWidth ?? null,
+    pixelHeight: cover?.pixelHeight ?? null,
+  })
 
   return (
     <button

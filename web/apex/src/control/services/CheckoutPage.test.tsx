@@ -46,7 +46,7 @@ describe('CheckoutPage', () => {
 
   it('names the tier being bought', () => {
     renderAt(PRODUCT_PREMIUM)
-    expect(screen.getByText('Premium — 2 TB')).toBeInTheDocument()
+    expect(screen.getByText('Premium, 2 TB')).toBeInTheDocument()
   })
 
   // ⚠⚠ The gate. `/commerce/checkout` answers 400 without the acknowledgement, so

@@ -49,6 +49,9 @@ const { ensureRuntime, photos } = vi.hoisted(() => {
       removeFromAlbum: vi.fn(async (_id: string, _c: string) => ({ ok: true, changed: true })),
       favourites: vi.fn(async () => ({ ok: true, photos: [] })),
       observeFavourites: vi.fn(observer),
+      people: vi.fn(async () => ({ ok: true, people: [] })),
+      observePeople: vi.fn(observer),
+      personPhotos: vi.fn(async (_n: string) => ({ ok: true, photos: [] })),
       isFavourite: vi.fn(async (_c: string) => ({ ok: true, favourite: false })),
       setFavourite: vi.fn(async (_c: string, _f: boolean) => ok),
       trashed: vi.fn(async () => ({ ok: true, items: [] })),
@@ -115,7 +118,7 @@ describe('proxyGateway — photos', () => {
     mountProxyGateway()
   })
 
-  it('registers exactly the run-A surface: no upload, search, faces, places or mint-on-view', () => {
+  it('registers exactly the run-A surface plus named people: no upload, face grouping, places or mint-on-view', () => {
     expect(Object.keys(captured).filter((m) => m.startsWith('photo.')).sort()).toEqual(
       [
         'photo.addToAlbum',
@@ -132,6 +135,8 @@ describe('proxyGateway — photos', () => {
         'photo.get',
         'photo.isFavourite',
         'photo.motionClip',
+        'photo.people',
+        'photo.personPhotos',
         'photo.removeFromAlbum',
         'photo.renameAlbum',
         'photo.restore',
@@ -144,6 +149,7 @@ describe('proxyGateway — photos', () => {
     expect(Object.keys(subscriptions).filter((m) => m.startsWith('photo.')).sort()).toEqual([
       'photo.albums.observe',
       'photo.favourites.observe',
+      'photo.people.observe',
       'photo.trash.observe',
     ])
   })
@@ -171,6 +177,8 @@ describe('proxyGateway — photos', () => {
     ['photo.addToAlbum', { albumId: 'al', path: '/a.jpg' }, 'addToAlbum', ['al', '/a.jpg']],
     ['photo.removeFromAlbum', { albumId: 'al', contentId: 'c' }, 'removeFromAlbum', ['al', 'c']],
     ['photo.favourites', undefined, 'favourites', []],
+    ['photo.people', undefined, 'people', []],
+    ['photo.personPhotos', { name: 'Anna' }, 'personPhotos', ['Anna']],
     ['photo.isFavourite', { contentId: 'c' }, 'isFavourite', ['c']],
     ['photo.setFavourite', { contentId: 'c', favourite: false }, 'setFavourite', ['c', false]],
     ['photo.trashed', undefined, 'trashed', []],
@@ -222,6 +230,8 @@ describe('proxyGateway — photos', () => {
     ['photo.addToAlbum', { path: '/a.jpg' }],
     ['photo.removeFromAlbum', { albumId: 'al', contentId: '' }],
     ['photo.isFavourite', {}],
+    ['photo.personPhotos', {}],
+    ['photo.personPhotos', { name: '' }],
     ['photo.trash', { path: '' }],
     ['photo.restore', {}],
     ['photo.deleteForever', { contentId: '' }],

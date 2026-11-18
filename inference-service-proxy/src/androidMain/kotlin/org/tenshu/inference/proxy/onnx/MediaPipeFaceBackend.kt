@@ -27,6 +27,8 @@ import kotlinx.coroutines.withContext
 import org.tenshu.core.common.proxy.MediaWorkBudget
 import org.tenshu.inference.InferenceCapability
 import org.tenshu.inference.ModelProvenance
+import org.tenshu.inference.proxy.AnimalVeto
+import org.tenshu.inference.proxy.PixelAnimalDetector
 import org.tenshu.inference.proxy.DetectedFace
 import org.tenshu.inference.proxy.FaceCrop
 import org.tenshu.inference.proxy.FaceDetectionOutcome
@@ -81,7 +83,20 @@ class MediaPipeFaceBackend(
     private val sessions: OnnxSessionFactory = OnnxSessionFactory(environment = environment),
     /** Where detection and embedding run: the process's media lane (D4). */
     private val lane: CoroutineDispatcher = MediaWorkBudget.lane,
+    /**
+     * PT-D9: drop faces inside a confident cat or dog box before they are embedded (`photos-pets.md`
+     * §10.1–§10.3). ⚠⚠ Set, it takes effect only **while [animalDetector] is available**: the detector
+     * is its own download, and until a device holds it the pipeline is the plain one, under the plain
+     * stamp. See [provenance].
+     */
+    private val animalVeto: AnimalVeto? = null,
+    /** The RF-DETR detector the veto asks. Required when [animalVeto] is set, unused otherwise. */
+    private val animalDetector: PixelAnimalDetector? = null,
 ) : InferenceBackend, ModelBackedBackend {
+
+    init {
+        require(animalVeto == null || animalDetector != null) { "an animal veto needs an animal detector" }
+    }
 
     override val id: String get() = "mediapipe-onnx-faces"
 
@@ -93,7 +108,19 @@ class MediaPipeFaceBackend(
      * Why the pipeline is in it at all: freshness is `visited`, so without a stamp change a better
      * detector would never look at a photograph already seen — the library keeps the old faces.
      */
-    override val provenance: ModelProvenance = model.provenance.copy(labelSetVersion = strategy.pipelineVersion)
+    override val provenance: ModelProvenance
+        get() = model.provenance.copy(
+            labelSetVersion = if (vetoActive()) strategy.animalVetoPipelineVersion else strategy.pipelineVersion,
+        )
+
+    /**
+     * ⚠⚠ Whether this backend's pipeline includes the veto **right now**: configured, and its detector
+     * present. Read per call, so [provenance] moves when the detector is downloaded or removed — and a
+     * moved stamp is exactly what makes the indexer and `faceGroups` clear the old templates and
+     * re-index (`photos-pets.md` §10.3). Requiring the detector instead (claiming nothing without it)
+     * would turn People off on every device that has not downloaded the filter.
+     */
+    private fun vetoActive(): Boolean = animalVeto != null && animalDetector?.available() == true
 
     /**
      * ⚠⚠ One lock for everything below. `MediaIndexer` calls [detectFaces] then [embedFace] once
@@ -146,8 +173,35 @@ class MediaPipeFaceBackend(
             val faces = meshes.mapNotNull { mesh ->
                 FaceMesh.landmarks(mesh.points)?.let { DetectedFace(FaceMesh.box(mesh.points).copy(confidence = mesh.score), it) }
             }
-            FaceDetectionOutcome.Detected(faces)
+            val vetoed = vetoAnimals(faces, bitmap) ?: return@withLock FaceDetectionOutcome.Failed
+            FaceDetectionOutcome.Detected(vetoed.kept, insideAnimals = vetoed.removed)
         }
+    }
+
+    /**
+     * [faces] after the animal veto, or `null` when the animal detector could not run.
+     *
+     * ⚠⚠ `null` is [FaceDetectionOutcome.Failed], never "keep them all": this backend's stamp says the
+     * veto ran, so a photograph recorded without it would be another pipeline's record under this one's
+     * name, and `visited` would never bring it back (the iOS backend's `vetoAnimals`, the same rule).
+     * ⚠ Asked only when there are faces: a faceless photograph — most of a library — costs nothing.
+     * ⚠ The detector sees the same upright decode the faces were found on, so the boxes share a frame.
+     */
+    internal fun vetoAnimals(faces: List<DetectedFace>, bitmap: Bitmap): AnimalVeto.Vetoed? {
+        val veto = animalVeto ?: return AnimalVeto.Vetoed(faces, 0)
+        if (faces.isEmpty()) return AnimalVeto.Vetoed(faces, 0)
+        val detector = animalDetector ?: return null
+        // ⚠ No detector file: the plain pipeline, under the plain stamp ([vetoActive]). A file that is
+        // there and will not RUN is the null below — Failed, because the stamp then says it ran.
+        if (!detector.available()) return AnimalVeto.Vetoed(faces, 0)
+        val w = bitmap.width
+        val h = bitmap.height
+        val argb = IntArray(w * h)
+        bitmap.getPixels(argb, 0, w, 0, 0, w, h)
+        val animals = detector.detect(argb, w, h) ?: return null.also {
+            println("MediaPipeFaceBackend -> the animal detector could not run on ${w}x$h")
+        }
+        return veto.apply(faces, animals)
     }
 
     override suspend fun embedFace(bytes: ByteArray, face: DetectedFace, orientation: Int?): ImageEmbedding? =
@@ -443,7 +497,8 @@ class MediaPipeFaceBackend(
      * "nobody in this photograph". The long-edge cap keeps a 12 MP frame off Control's heap while
      * leaving a face far above the 112 px the template wants. Both exactly as F2m measured them.
      */
-    private fun decodeUpright(bytes: ByteArray, orientationOverride: Int? = null): Bitmap? {
+    // ⚠ `internal` for the device harness (`AnimalVetoMeasurementTest`): it must see the frame the faces were found in.
+    internal fun decodeUpright(bytes: ByteArray, orientationOverride: Int? = null): Bitmap? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds) }
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
@@ -524,6 +579,14 @@ sealed interface FaceDetectionStrategy {
      */
     val pipelineVersion: Int
 
+    /**
+     * The same pipeline **with the animal veto on** (`photos-pets.md` PT-D9): [pipelineVersion] +
+     * [ANIMAL_VETO_OFFSET], so 50 and 71–74 today. ⚠⚠ It stores different faces, so it is its own
+     * stamp, and turning the veto on re-indexes the library. ⚠ Collides with plain revision 5 (51–54):
+     * a fifth revision must move the offset first — `FaceDetectionStrategyStampTest` fails if not.
+     */
+    val animalVetoPipelineVersion: Int get() = pipelineVersion + ANIMAL_VETO_OFFSET
+
     data object SingleStage : FaceDetectionStrategy {
         override val pipelineVersion = 0
     }
@@ -546,3 +609,6 @@ sealed interface FaceDetectionStrategy {
         }
     }
 }
+
+/** See [FaceDetectionStrategy.animalVetoPipelineVersion]. */
+const val ANIMAL_VETO_OFFSET: Int = 50

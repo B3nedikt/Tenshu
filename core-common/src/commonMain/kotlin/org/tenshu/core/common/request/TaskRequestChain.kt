@@ -28,8 +28,8 @@ class TaskRequestChain(
 
     override fun getCallstack(): List<Data> = builder.getCallstack()
 
-    override fun createStreamId(): RequestChain {
-        return copy(streamId = getCallstack().hashCode().toLong())
+    override fun createStreamId(signalOnly: Boolean): RequestChain {
+        return copy(streamId = streamIdOf(getCallstack(), signalOnly))
     }
 
     override suspend fun getResult(): TResult<Data> {

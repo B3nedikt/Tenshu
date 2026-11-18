@@ -146,11 +146,13 @@ class AskMiaActionTest {
         val answer = ask(proxy, "turn off the lamp")
 
         // ⚠⚠ Exactly where a keyword router would pick one and be confidently wrong — and
-        // here the cost is physical.
-        assertEquals(MiaAnswer.VERDICT_NO_MATCH, answer.verdict.get())
+        // here the cost is physical. Since §25 (CL-3) the answer asks which, with each candidate
+        // as a chip, and still offers nothing to tap that would act.
+        assertEquals(MiaAnswer.VERDICT_CLARIFY, answer.verdict.get())
         assertNull(answer.action)
-        assertTrue(answer.explanation.get().contains("Kitchen lamp"), answer.explanation.get())
-        assertTrue(answer.explanation.get().contains("Bedroom lamp"), answer.explanation.get())
+        val labels = assertNotNull(answer.clarification).choices.toList()
+            .filterIsInstance<org.tenshu.mia.MiaChoice>().map { it.label.get() }
+        assertEquals(listOf("Kitchen lamp", "Bedroom lamp").sorted(), labels.sorted())
     }
 
     @Test

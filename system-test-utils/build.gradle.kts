@@ -168,6 +168,10 @@ dependencies {
     // stopped) is a property of which rows the repository writes, so a test that called the ops
     // directly would be testing a copy of that choice rather than the choice.
     testImplementation(project(":calendar-shared-logic"))
+    // `mia-query-layer.md` §25: MiaClarifySystemTest drives the REAL `TenshuConversationRepository`
+    // against a real proxy, because which op a send reaches while Mia is asking back is the
+    // repository's choice, and only a client over a proxy can show it.
+    testImplementation(project(":mia-shared-logic"))
     // `commerce-end-to-end-dry-run.md`: CommerceRelaySystemTest runs the REAL commerce issuer
     // in-process next to the real relay, so the commerce -> relay hop is asserted in CI instead of
     // only on a droplet. Test-only: nothing in the harness proper knows the commerce plane exists,

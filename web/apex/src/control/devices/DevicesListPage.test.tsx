@@ -1,10 +1,8 @@
-// `DevicesListPage` reads three module-level surfaces:
+// `DevicesListPage` reads two module-level surfaces:
 //   - `Devices.observe(cb) → unsubscribe` from `@tenshu/sdk/identity`
 //   - `Session.detect()`               from `@tenshu/sdk/onboarding`
-//   - `detectBrowserFamily()`          from `../../lib/browserDetect`
 //
-// We mock all three so the page can be exercised without a live SDK
-// runtime or a real userAgent. The `formatFingerprint` helper is left
+// We mock both so the page can be exercised without a live SDK runtime. The `formatFingerprint` helper is left
 // alone — it has its own pure-logic coverage in `format.test.ts` (when
 // added) and the integration here is just "is the formatted string
 // rendered against the correct device row?"
@@ -13,11 +11,9 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import type { Device, DevicesApi } from '@tenshu/sdk/identity'
 import type { SessionState } from '@tenshu/sdk/onboarding'
-import type { BrowserFamily } from '../../lib/browserDetect'
 
 const observeMock = vi.fn<DevicesApi['observe']>()
 const detectMock = vi.fn<() => Promise<SessionState>>()
-const detectBrowserFamilyMock = vi.fn<() => BrowserFamily>(() => 'safari')
 
 vi.mock('@tenshu/sdk/identity', () => ({
   Devices: {
@@ -31,16 +27,6 @@ vi.mock('@tenshu/sdk/onboarding', () => ({
     detect: () => detectMock(),
   },
 }))
-
-vi.mock('../../lib/browserDetect', async () => {
-  const actual = await vi.importActual<typeof import('../../lib/browserDetect')>(
-    '../../lib/browserDetect',
-  )
-  return {
-    ...actual,
-    detectBrowserFamily: () => detectBrowserFamilyMock(),
-  }
-})
 
 import { DevicesListPage } from './DevicesListPage'
 
@@ -109,25 +95,16 @@ describe('DevicesListPage', () => {
     expect(screen.getByText('cdcd:cdcd:cdcd:cdcd')).toBeInTheDocument()
   })
 
-  it('shows the browser-sync warning for Chrome but not for Safari', async () => {
+  // Browser sync does not replicate IndexedDB, so no browser gets a "shares its identity"
+  // warning (threat-model.md §10, Browser sync as a key-distribution channel).
+  it('never warns that the realm device is shared via browser sync', async () => {
     detectMock.mockResolvedValue({ kind: 'active', deviceName: 'Pixel 9' })
     observeMock.mockImplementation(cb => {
       cb([deviceFixture('Pixel 9', 'dev-1')])
       return () => {}
     })
-
-    // Safari → no warning.
-    detectBrowserFamilyMock.mockReturnValue('safari')
-    const { unmount } = renderPage()
-    await screen.findByText('Pixel 9')
-    expect(screen.queryByText(/shares its identity with your/)).toBeNull()
-    unmount()
-
-    // Chrome → warning rendered with the Chrome-specific copy.
-    detectBrowserFamilyMock.mockReturnValue('chrome')
     renderPage()
-    expect(
-      await screen.findByText(/shares its identity with your Chrome sync account/),
-    ).toBeInTheDocument()
+    await screen.findByText('Pixel 9')
+    expect(screen.queryByText(/shares its identity/)).toBeNull()
   })
 })

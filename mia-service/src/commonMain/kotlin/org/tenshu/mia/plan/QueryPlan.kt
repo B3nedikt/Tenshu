@@ -223,6 +223,8 @@ sealed interface QueryPlan {
         val on: Boolean,
         val limit: Int,
         override val explanation: String,
+        /** A dim level, 0..100, for `setLevel`; `null` for plain on/off (`setPower`). */
+        val level: Int? = null,
     ) : QueryPlan {
         override val source: MiaSource get() = MiaSource.DEVICES
     }
@@ -270,6 +272,11 @@ sealed interface QueryPlan {
         val title: String,
         val startLocal: kotlinx.datetime.LocalDateTime,
         override val explanation: String,
+        /**
+         * The other half of the day when the hour was bare (§25, CL-D6): offered on the card as one
+         * tap, never chosen. `null` when the words settled it, or when it has already passed.
+         */
+        val alternativeStart: kotlinx.datetime.LocalDateTime? = null,
     ) : QueryPlan {
         override val source: MiaSource get() = MiaSource.CALENDAR
     }
@@ -341,6 +348,32 @@ sealed interface QueryPlan {
      * the planner is required to be able to say it understood nothing. [explanation]
      * carries what Mia *can* be asked instead.
      */
+    /**
+     * A command waiting for one param of its write op (`mia-query-layer.md` §25, CL-D1).
+     *
+     * ⚠⚠ **Never executes and never lowers.** The proxy renders it as a question with a
+     * single-use token; a reply fills [param] and the planner checks the command again
+     * ([QueryPlanner.answerClarification]), which may ask for the next param. MQ-D7's card stays
+     * the only path to a write.
+     *
+     * [heard] holds the values the utterance did fill, by param id. [day], [dayPart] and
+     * [rejected] are what is known of a date-time [param]: the day and part of day heard without
+     * an hour, or the time that broke a constraint. [explanation] is the question asked.
+     */
+    data class Clarify(
+        val op: String,
+        val heard: Map<String, Any>,
+        val param: String,
+        val reason: ClarifyReason,
+        val choices: List<Choice>,
+        val day: kotlinx.datetime.LocalDate? = null,
+        val dayPart: String? = null,
+        val rejected: kotlinx.datetime.LocalDateTime? = null,
+        override val explanation: String,
+    ) : QueryPlan {
+        override val source: MiaSource get() = MiaFrames.of(op).source
+    }
+
     data class NoMatch(override val explanation: String) : QueryPlan {
         override val source: MiaSource? get() = null
     }
@@ -369,3 +402,9 @@ data class TimeWindow(
             TimeWindow(startMs = 0L, endMsExclusive = nowMs + 1, label = "all time")
     }
 }
+
+/** Why a param is asked for (`mia-query-layer.md` §25, CL-D1). */
+enum class ClarifyReason { MISSING, AMBIGUOUS, INVALID }
+
+/** A canned reply: [label] is shown, [reply] is sent back and parsed (CL-D5). */
+data class Choice(val label: String, val reply: String)

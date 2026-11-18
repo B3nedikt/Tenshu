@@ -71,10 +71,22 @@ class QuestionSetTest {
             Expected(Src.CALENDAR, time = Span(plan.window.from, plan.window.to.plus(DatePeriod(days = 1))))
         is QueryPlan.FindDevices -> Expected(Src.DEVICES, name = plan.text)
         is QueryPlan.CreateEvent ->
-            Expected(Src.CALENDAR, action = Action(Act.CREATE_EVENT, plan.title, at = plan.startLocal))
+            Expected(
+                Src.CALENDAR,
+                action = Action(Act.CREATE_EVENT, plan.title, at = plan.startLocal, alternative = plan.alternativeStart),
+            )
         is QueryPlan.ControlDevice ->
-            Expected(Src.DEVICES, action = Action(Act.CONTROL_DEVICE, plan.text, on = plan.on))
+            Expected(Src.DEVICES, action = Action(Act.CONTROL_DEVICE, plan.text, on = plan.on, level = plan.level))
         is QueryPlan.RunRoutine -> Expected(Src.ROUTINES, action = Action(Act.RUN_ROUTINE, plan.text))
+        is QueryPlan.Clarify -> Expected(
+            Src.CALENDAR,
+            action = Action(
+                Act.CREATE_EVENT,
+                target = plan.heard[org.tenshu.calendar.SaveEvent.Params.TITLE] as? String ?: "",
+                at = plan.heard[org.tenshu.calendar.SaveEvent.Params.START_LOCAL] as? kotlinx.datetime.LocalDateTime,
+                ask = Ask(plan.param, plan.reason),
+            ),
+        )
         is QueryPlan.NoMatch -> Expected(null)
         // ⚠ The set runs OFFERED, so a withheld action means the planner misread the question.
         is QueryPlan.ActionWithheld -> Expected(null, name = "<ActionWithheld>")

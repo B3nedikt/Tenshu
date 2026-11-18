@@ -16,9 +16,14 @@
 // there, and it must match the policy (docs/policy/acceptable-use-and-limits.md §4.3, §5.2).
 //
 // A public page: it wears MarketingLayout and must never start the runtime (App.tsx).
+//
+// ⚠ Turnstile (commerce D16): every `/request` — the first send AND each resend — carries a fresh
+// widget token when the build has a site key; the widget sits below both steps so a resend from
+// the code step has one. `/confirm` sends no mail and is not challenged.
 import { useLayoutEffect, useState, type FormEvent } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { MarketingLayout } from './MarketingLayout'
+import { useTurnstile } from '../lib/useTurnstile'
 import {
   accountDeletionApi,
   type DeletionConfirmResult,
@@ -39,6 +44,8 @@ function requestErrorKey(result: Exclude<DeletionRequestResult, { kind: 'codeSen
       return 'accountDeletion.error.rateLimited'
     case 'sendFailed':
       return 'accountDeletion.error.sendFailed'
+    case 'challengeFailed':
+      return 'accountDeletion.error.challenge'
     case 'unreachable':
       return 'accountDeletion.error.unreachable'
     case 'error':
@@ -72,14 +79,17 @@ export function AccountDeletionPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [resent, setResent] = useState(false)
+  const challenge = useTurnstile('account-delete')
 
   async function sendCode(e?: FormEvent) {
     e?.preventDefault()
-    if (busy) return
+    if (busy || !challenge.ready) return
     setBusy(true)
     setError(null)
     setResent(false)
-    const result = await accountDeletionApi.request(email)
+    const result = await accountDeletionApi.request(email, challenge.token)
+    // Single-use: spent whatever the answer, so the next send gets a fresh one.
+    challenge.consume()
     setBusy(false)
     if (result.kind === 'codeSent') {
       setResent(step === 'code')
@@ -113,10 +123,11 @@ export function AccountDeletionPage() {
     setResent(false)
   }
 
+  const shownError = error ?? (challenge.failed ? t('accountDeletion.error.unreachable') : null)
   const errorLine =
-    error === null ? null : (
+    shownError === null ? null : (
       <p role="alert" className="text-sm text-danger">
-        {error}
+        {shownError}
       </p>
     )
 
@@ -170,7 +181,7 @@ export function AccountDeletionPage() {
                 {errorLine}
                 <button
                   type="submit"
-                  disabled={busy || email.trim() === ''}
+                  disabled={busy || email.trim() === '' || !challenge.ready}
                   className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-on-primary disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {busy ? t('accountDeletion.email.sending') : t('accountDeletion.email.send')}
@@ -220,7 +231,7 @@ export function AccountDeletionPage() {
                   {/* Resend goes through `/request` again, which the service rate-limits. */}
                   <button
                     type="button"
-                    disabled={busy}
+                    disabled={busy || !challenge.ready}
                     onClick={() => void sendCode()}
                     className="rounded-md border border-line px-4 py-2 text-sm text-text-2 disabled:opacity-60"
                   >
@@ -237,6 +248,8 @@ export function AccountDeletionPage() {
                 </div>
               </form>
             )}
+
+            {challenge.widget !== null && <div className="mt-6">{challenge.widget}</div>}
 
             <p className="mt-10 text-sm text-text-2">
               <Trans

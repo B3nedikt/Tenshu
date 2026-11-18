@@ -191,4 +191,4 @@ internal fun IndexPassResult.summaryLine(): String =
         "embedFailed=$embeddingsFailed embedNotAttempted=$embeddingsNotAttempted " +
         "embedStopped=${if (embeddingStoodDown) "modelFailing" else "no"} paused=$paused deferred=$deferred " +
         "faces=${faceHalf.report} facesSkipped=$facesSkippedOff facesFailed=$facesFailed facesRejected=$facesRejected " +
-        "facePhotos=$photosSearchedForFaces facesFound=$facesFound facesEmbedded=$facesEmbedded facesNotHuman=$facesNotHuman"
+        "facePhotos=$photosSearchedForFaces facesFound=$facesFound facesEmbedded=$facesEmbedded facesNotHuman=$facesNotHuman facesInsideAnimals=$facesInsideAnimals"

@@ -30,6 +30,23 @@ interface ConversationRepository {
     suspend fun confirm(token: String) = Unit
 
     /**
+     * A chip on the [MessageBody.Clarification] holding [token] was tapped (`mia-query-layer.md`
+     * §25): [label] is what the user is shown to have said, [reply] what is sent.
+     *
+     * ⚠⚠ [token] names the chip's OWN question. A chip from an older question must not answer a
+     * newer one, so an implementation ignores a token that is no longer the open question.
+     * ⚠ Defaulted to sending the label, which every chip label parses as, so a repository with no
+     * clarifications needs nothing.
+     */
+    suspend fun answer(token: String, label: String, reply: String) = send(label)
+
+    /**
+     * An alternative on the [MessageBody.Confirmation] holding [token] was tapped (§25, CL-D6). The
+     * card is replaced by a new one; nothing is written. ⚠ Defaulted to sending the label.
+     */
+    suspend fun alternative(token: String, label: String, reply: String) = send(label)
+
+    /**
      * Adds a line from Mia that answers something other than an utterance — today, a tap that
      * could not be honoured (`control-cross-app-open.md` TT-1c).
      *

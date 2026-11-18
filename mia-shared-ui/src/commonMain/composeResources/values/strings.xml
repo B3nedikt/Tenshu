@@ -30,6 +30,9 @@
     <string name="mia_chat_voice_stop">Stop listening</string>
     <string name="mia_chat_listening">Listening…</string>
     <string name="mia_chat_typing">Mia is thinking…</string>
+    <!-- §25: the chip that answers Mia's question in your own words: it focuses the composer. -->
+    <string name="mia_chat_clarify_other">Other…</string>
+    <string name="mia_chat_clarify_answer_hint">Your answer…</string>
 
     <string name="mia_history_empty">No conversations yet.</string>
     <string name="mia_detail_back">Back</string>

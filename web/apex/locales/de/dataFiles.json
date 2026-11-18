@@ -29,7 +29,7 @@
   "errors": {
     "read": {
       "title": "Deine Dateien konnten nicht gelesen werden",
-      "body": "Die Dateiübersicht in diesem Browser wurde nicht geladen. Es wurde nichts verändert – versuche es erneut."
+      "body": "Die Dateiübersicht in diesem Browser wurde nicht geladen. Es wurde nichts verändert. Versuche es erneut."
     },
     "runtime": {
       "title": "Tenshu läuft in diesem Tab nicht",
@@ -37,7 +37,7 @@
     },
     "other": {
       "title": "Etwas ist schiefgelaufen",
-      "body": "Die Dateiübersicht konnte nicht gelesen werden. Es wurde nichts verändert – versuche es erneut."
+      "body": "Die Dateiübersicht konnte nicht gelesen werden. Es wurde nichts verändert. Versuche es erneut."
     }
   },
   "retry": "Erneut versuchen",

@@ -9,6 +9,8 @@ import kotlin.js.Date
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 import kotlin.test.assertNull
 
 // The write fence (`StoreFence.kt`). Two opens of one database stand in
@@ -70,6 +72,26 @@ class StoreFenceTest {
         stale.storeObject(row(6L, "later"))
         stale.flush()
         assertEquals(1, fencedOut, "once, not per write")
+    }
+
+    // ⚠⚠ `Session.registerPasskey` reports success only when its flush lands. A refused one used to
+    // look identical to a written one, so the passkey lived in the page's cache until the reload and
+    // the browser was left with a device name and no passkey to unlock with.
+    @Test
+    fun aSessionFlushSaysWhetherItLanded() = runTest {
+        val dbName = "test-fence-session-${Date.now().toLong()}"
+        val stale = IndexedDbSessionStore.open(dbName)
+        val current = IndexedDbSessionStore.open(dbName)
+        current.setDeviceName("current")
+        assertTrue(current.flush(), "the holder's flush lands")
+
+        stale.setPasskey(org.khronos.webgl.Int8Array(1), org.khronos.webgl.Int8Array(1), -7)
+        assertFalse(stale.flush(), "a fenced-out flush must not report success")
+
+        current.close()
+        assertFalse(current.flush(), "a closed store's flush must not report success")
+        val reloaded = IndexedDbSessionStore.open(dbName, claim = false)
+        assertNull(reloaded.getPasskey(), "the refused passkey never reached IndexedDB")
     }
 
     @Test

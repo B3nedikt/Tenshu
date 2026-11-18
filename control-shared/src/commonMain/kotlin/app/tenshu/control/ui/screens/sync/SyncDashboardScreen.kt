@@ -56,6 +56,7 @@ import app.tenshu.ui.layout.appContentWidth
 import app.tenshu.ui.preview.PreviewBox
 import org.jetbrains.compose.resources.stringResource
 import app.tenshu.control.shared.resources.sync_dashboard_removed_header
+import app.tenshu.control.shared.resources.sync_dashboard_no_phrase_note
 import androidx.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 import androidx.compose.material3.AlertDialog
@@ -272,6 +273,20 @@ fun SyncDashboardContent(
                     // over a list every device in the realm appears in.
                     val previousIdentities =
                         previousIdentitiesOfThisDevice(uiState.devices, currentDeviceId)
+                    // Removing ANOTHER device needs the recovery phrase; a paired device never has it.
+                    // Said before the user tries, not only after a Touch ID prompt and a refusal.
+                    if (uiState.holdsRecoveryPhrase == false &&
+                        uiState.devices.any { it.deviceId.get() != currentDeviceId }
+                    ) {
+                        item(key = "no-phrase-note") {
+                            Text(
+                                text = stringResource(Res.string.sync_dashboard_no_phrase_note),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(bottom = 4.dp),
+                            )
+                        }
+                    }
                     items(uiState.devices) { device ->
                         DeviceItem(
                             device = device,

@@ -53,14 +53,14 @@ describe('RevealPhraseDialog', () => {
     expect(screen.getByRole('button', { name: 'Approve and continue' })).toBeDisabled()
   })
 
-  it('happy path: gate → authenticate → staged "Phrase reveal — coming soon"', async () => {
+  it('happy path: gate → authenticate → staged "Phrase reveal (coming soon)"', async () => {
     const user = userEvent.setup()
     isWebAuthnSupportedMock.mockReturnValue(true)
     getDedicatedAssertionMock.mockResolvedValueOnce({ ok: true, value: freshAssertion() })
     render(<RevealPhraseDialog onClose={() => {}} />)
     await user.click(screen.getByRole('button', { name: 'Approve and continue' }))
     expect(await screen.findByText('Authenticator approved.')).toBeInTheDocument()
-    expect(screen.getByText('Phrase reveal — coming soon')).toBeInTheDocument()
+    expect(screen.getByText('Phrase reveal (coming soon)')).toBeInTheDocument()
     await waitFor(() =>
       expect(getDedicatedAssertionMock).toHaveBeenCalledWith('recovery.reveal-phrase'),
     )

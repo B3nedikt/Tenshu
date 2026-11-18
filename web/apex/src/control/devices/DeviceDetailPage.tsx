@@ -61,12 +61,15 @@ export function DeviceDetailPage() {
     setRevoke({ kind: 'revoking' })
     const result = await Devices.revoke(deviceId!)
     if (!result.ok) {
+      const error = result.error
       const message =
-        result.error.kind === 'network'
+        error.kind === 'network'
           ? t('devices.detail.revoke.networkError')
-          : result.error.message === ''
-            ? t('devices.detail.revoke.fallbackError')
-            : result.error.message
+          : error.kind === 'needsRecoveryPhrase'
+            ? t('devices.detail.revoke.needsRecoveryPhrase')
+            : error.message === ''
+              ? t('devices.detail.revoke.fallbackError')
+              : error.message
       setRevoke({ kind: 'failed', message })
       return
     }

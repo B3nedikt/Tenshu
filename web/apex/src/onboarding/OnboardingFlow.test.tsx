@@ -1,13 +1,12 @@
-// Coverage for the §8.1 first-time orchestrator. The state machine has
-// three CTAs off the chooser — [Sign up free] and [Just try it locally]
-// (both the new-user realm-creation path) and [I have Tenshu already]
-// (existing-realm-device pairing) — plus a long shared tail. This slice
-// asserts the chooser-level dispatch, the back-navigation invariant that
-// distinguishes the two device-name screens (new-user back → intro;
-// pairing back → chooser), the post-6.6 new-user happy path (no in-flow
-// phrase ceremony anymore), and the §8.1/§8.2 intent routing (signup →
-// account picker, try-mode → control home).
-import { describe, expect, it, vi } from 'vitest'
+// Coverage for the §8.1 first-time orchestrator. The chooser has three
+// actions — [Create an account] and [Use without an account] (both the
+// new-user realm-creation path) and [I already use Tenshu] (existing-realm-
+// device pairing). This slice asserts the chooser-level dispatch, that no step
+// asks for a device name (the browser is named for what it is), the new-user
+// happy path (no in-flow phrase ceremony), and the §8.1/§8.2 intent routing:
+// signup → get the apps → plan step → the chosen plan's page; try-mode → get
+// the apps → control home; joiner → control home. No path shows a browser-sync screen.
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
@@ -16,8 +15,7 @@ import { OnboardingSdkContext } from '../lib/onboardingSdkContext'
 import type { OnboardingSdk } from '../lib/mockOnboarding'
 import { OnboardingFlow } from './OnboardingFlow'
 
-// The shallow tests below never reach an SDK call — chooser + intro +
-// device-name screens are pure UI. We still need a non-null context
+// The shallow tests below never reach an SDK call — the chooser is pure UI. We still need a non-null context
 // because `useOnboardingSdk` throws otherwise; deeper screens that
 // would consume it (`GenerateRealmScreen`, `CommittingRealmScreen`,
 // `PairingSubmitScreen`) are out of scope here.
@@ -31,7 +29,7 @@ function renderFlow(sdk: OnboardingSdk = EMPTY_SDK) {
           <Route path="/onboarding" element={<OnboardingFlow />} />
           {/* Landing probes so the intent-routing tests can assert where
               the flow navigates on completion. */}
-          <Route path="/control/services/picker" element={<div>PICKER</div>} />
+          <Route path="/control/services/signup" element={<div>FREE SIGNUP</div>} />
           <Route path="/overview" element={<div>HOME</div>} />
         </Routes>
       </MemoryRouter>
@@ -39,123 +37,124 @@ function renderFlow(sdk: OnboardingSdk = EMPTY_SDK) {
   )
 }
 
-// Walk a new-user run from the chooser through the shared tail to the
-// completion screen, which persists a session and navigates. jsdom has no
-// WebAuthn, so the passkey screen renders its passphrase fallback throughout.
-async function walkNewUserToCompletion(
+const CHROME_ON_MAC =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+
+// Walk a new-user run from the chooser through passkey to the "get the apps"
+// screen. jsdom has no WebAuthn, so the passkey screen
+// renders its passphrase fallback throughout.
+async function walkNewUserToGetApps(
   user: ReturnType<typeof userEvent.setup>,
-  chooserCta: string,
+  chooserCta: RegExp,
 ) {
   await user.click(screen.getByRole('button', { name: chooserCta }))
-  await user.click(await screen.findByRole('button', { name: "Got it, let's start" }))
-  await user.click(await screen.findByRole('button', { name: 'Continue' })) // device name (default)
   // generate (~1.2s) → commit → passkey fallback
   await screen.findByRole('heading', { name: 'Set up a passphrase' }, { timeout: 2500 })
   await user.click(screen.getByRole('button', { name: 'Use recovery phrase only' }))
-  await user.click(await screen.findByRole('button', { name: "Skip — I'll decide later" }))
-  await user.click(await screen.findByRole('button', { name: 'Continue to your apps' }))
-  await user.click(await screen.findByRole('button', { name: 'Continue' })) // storage tier
+  await screen.findByRole('heading', { name: 'Get Tenshu on your devices' })
+}
+
+function newUserSdk() {
+  return {
+    Realm: { create: vi.fn().mockResolvedValue({ ok: true, value: undefined }) },
+    Session: { persist: vi.fn().mockResolvedValue(undefined) },
+  } as unknown as OnboardingSdk
 }
 
 describe('OnboardingFlow', () => {
-  it('renders the §8.1 chooser with all three CTAs', () => {
+  beforeEach(() => {
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(CHROME_ON_MAC)
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('renders the §8.1 chooser: two equal actions, try-mode as a quiet link, no body copy', () => {
     renderFlow()
     expect(screen.getByRole('heading', { name: 'Welcome to Tenshu' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Sign up free' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'I have Tenshu already' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Just try it locally' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Create an account/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /I already use Tenshu/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Use without an account' })).toBeInTheDocument()
+    expect(screen.queryByText(/encrypted on this device/)).toBeNull()
   })
 
-  it('chooser → "Sign up free" advances to the new-user intro', async () => {
-    const user = userEvent.setup()
-    renderFlow()
-    await user.click(screen.getByRole('button', { name: 'Sign up free' }))
-    expect(await screen.findByRole('heading', { name: 'How Tenshu works' })).toBeInTheDocument()
-  })
-
-  it('new-user happy path: generate → commit reaches the shared passkey tail (no in-flow phrase ceremony)', async () => {
+  it('new-user happy path: straight to generate → commit, named for the browser, no phrase ceremony', async () => {
     const user = userEvent.setup()
     const create = vi.fn().mockResolvedValue({ ok: true, value: undefined })
     const sdk = { Realm: { create } } as unknown as OnboardingSdk
     renderFlow(sdk)
 
-    await user.click(screen.getByRole('button', { name: 'Sign up free' }))
-    await user.click(await screen.findByRole('button', { name: "Got it, let's start" }))
-    await user.click(await screen.findByRole('button', { name: 'Continue' })) // device name (default)
-
-    // Generate auto-advances (~1.2s) and commits via Realm.create with a
-    // freshly generated 24-word phrase — show + confirm moved to Settings.
+    await user.click(screen.getByRole('button', { name: /Create an account/ }))
+    // No intro and no device-name step: generate auto-advances (~1.2s) and
+    // commits via Realm.create with a freshly generated 24-word phrase.
     await waitFor(() => expect(create).toHaveBeenCalledTimes(1), { timeout: 2500 })
     const arg = create.mock.calls[0]![0] as { readonly mnemonic: string; readonly deviceName: string }
-    expect(arg.deviceName).toBe('This Browser')
+    expect(arg.deviceName).toBe('Chrome on macOS')
     expect(arg.mnemonic.split(' ')).toHaveLength(24)
 
-    // Commit → shared tail. jsdom lacks WebAuthn so the passkey screen
-    // renders its passphrase fallback.
     expect(
       await screen.findByRole('heading', { name: 'Set up a passphrase' }),
     ).toBeInTheDocument()
-    // The phrase grid never renders in onboarding now.
     expect(screen.queryByRole('heading', { name: 'Save your recovery phrase' })).toBeNull()
   })
 
-  it('signup intent completes into the account picker (§5.1)', async () => {
+  it('the apps screen links the Play Store listing and the Mac download page', async () => {
     const user = userEvent.setup()
-    const sdk = {
-      Realm: { create: vi.fn().mockResolvedValue({ ok: true, value: undefined }) },
-      Session: { persist: vi.fn().mockResolvedValue(undefined) },
-    } as unknown as OnboardingSdk
-    renderFlow(sdk)
-    await walkNewUserToCompletion(user, 'Sign up free')
-    expect(await screen.findByText('PICKER')).toBeInTheDocument()
+    renderFlow(newUserSdk())
+    await walkNewUserToGetApps(user, /Create an account/)
+    expect(screen.getByRole('link', { name: /Get it on Google Play/ })).toHaveAttribute(
+      'href',
+      'https://play.google.com/store/apps/details?id=app.tenshu.control.android',
+    )
+    expect(screen.getByRole('link', { name: /Download for Mac/ })).toHaveAttribute(
+      'href',
+      'https://tenshu.app/apps/control/download/macos',
+    )
   })
 
-  it('try-locally intent completes onto the control home (Try-mode)', async () => {
+  it('signup intent ends on the in-flow plan step, and choosing Free goes to its signup', async () => {
     const user = userEvent.setup()
-    const sdk = {
-      Realm: { create: vi.fn().mockResolvedValue({ ok: true, value: undefined }) },
-      Session: { persist: vi.fn().mockResolvedValue(undefined) },
-    } as unknown as OnboardingSdk
+    const sdk = newUserSdk()
     renderFlow(sdk)
-    await walkNewUserToCompletion(user, 'Just try it locally')
+    await walkNewUserToGetApps(user, /Create an account/)
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
+    expect(await screen.findByRole('heading', { name: 'Choose a plan' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Sign up free' }))
+    expect(await screen.findByText('FREE SIGNUP')).toBeInTheDocument()
+    expect(sdk.Session.persist).toHaveBeenCalled()
+  })
+
+  it('"Not now" on the plan step lands on the control home', async () => {
+    const user = userEvent.setup()
+    renderFlow(newUserSdk())
+    await walkNewUserToGetApps(user, /Create an account/)
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
+    await user.click(await screen.findByRole('button', { name: 'Not now' }))
     expect(await screen.findByText('HOME')).toBeInTheDocument()
   })
 
-  it('intro → "Got it, let\'s start" reaches the new-user device-name screen', async () => {
+  it('try-mode skips the plan step and lands on the control home', async () => {
     const user = userEvent.setup()
-    renderFlow()
-    await user.click(screen.getByRole('button', { name: 'Sign up free' }))
-    await user.click(await screen.findByRole('button', { name: "Got it, let's start" }))
-    expect(await screen.findByRole('heading', { name: 'Name this browser' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Continue' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument()
+    renderFlow(newUserSdk())
+    await walkNewUserToGetApps(user, /Use without an account/)
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
+    expect(await screen.findByText('HOME')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Choose a plan' })).toBeNull()
   })
 
-  it('new-user device-name "Back" returns to the intro screen, not the chooser', async () => {
+  it('chooser → "I already use Tenshu" goes straight to pairing, and Cancel returns to the chooser', async () => {
     const user = userEvent.setup()
     renderFlow()
-    await user.click(screen.getByRole('button', { name: 'Sign up free' }))
-    await user.click(await screen.findByRole('button', { name: "Got it, let's start" }))
-    await user.click(await screen.findByRole('button', { name: 'Back' }))
-    // Back → intro (NOT chooser). The `How Tenshu works` title is the
-    // intro screen's giveaway.
-    expect(await screen.findByRole('heading', { name: 'How Tenshu works' })).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Welcome to Tenshu' })).toBeNull()
+    await user.click(screen.getByRole('button', { name: /I already use Tenshu/ }))
+    expect(
+      await screen.findByRole('heading', { name: 'Add this browser to your realm' }),
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(await screen.findByRole('heading', { name: 'Welcome to Tenshu' })).toBeInTheDocument()
   })
 
-  it('chooser → "I have Tenshu already" reaches the pairing device-name screen', async () => {
+  it('joiner happy path: pair → paired → passkey → control home', async () => {
     const user = userEvent.setup()
-    renderFlow()
-    await user.click(screen.getByRole('button', { name: 'I have Tenshu already' }))
-    expect(await screen.findByRole('heading', { name: 'Name this browser' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Continue' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument()
-  })
-
-  it('joiner happy path: pair → SAS → paired reaches the shared passkey tail', async () => {
-    const user = userEvent.setup()
-    // A session whose observer reports `awaiting` then `paired`, so the
-    // orchestrator walks await → terminal('paired') → goToTailPasskey.
     const session: PairingSession = {
       observe: cb => {
         cb({ kind: 'awaiting', sas: '482 913' })
@@ -165,34 +164,22 @@ describe('OnboardingFlow', () => {
       cancel: () => Promise.resolve(),
     }
     const submit = vi.fn().mockResolvedValue({ ok: true, value: session })
-    const sdk = { Pairing: { submit } } as unknown as OnboardingSdk
+    const sdk = {
+      Pairing: { submit },
+      Session: { persist: vi.fn().mockResolvedValue(undefined) },
+    } as unknown as OnboardingSdk
     renderFlow(sdk)
 
-    await user.click(screen.getByRole('button', { name: 'I have Tenshu already' }))
-    await user.click(await screen.findByRole('button', { name: 'Continue' }))
-    // pairing.submit screen: paste a canonical Control URI, then continue.
+    await user.click(screen.getByRole('button', { name: /I already use Tenshu/ }))
     await user.type(
       await screen.findByPlaceholderText(/tenshu:\/\/join/i),
       'tenshu://join?o=o&d=MQYQ&k=AAAAAAAAAAAA&s=OM',
     )
     await user.click(screen.getByRole('button', { name: 'Continue' }))
     await waitFor(() => expect(submit).toHaveBeenCalled())
-    // terminal('paired') → "Set up passkey" → shared tail. jsdom has no
-    // WebAuthn, so the passkey screen renders its passphrase fallback.
     await user.click(await screen.findByRole('button', { name: 'Set up passkey' }))
-    expect(
-      await screen.findByRole('heading', { name: 'Set up a passphrase' }),
-    ).toBeInTheDocument()
-  })
-
-  it('pairing device-name "Back" returns straight to the chooser, not an intro', async () => {
-    const user = userEvent.setup()
-    renderFlow()
-    await user.click(screen.getByRole('button', { name: 'I have Tenshu already' }))
-    await user.click(await screen.findByRole('button', { name: 'Back' }))
-    // Back → chooser (NOT intro). The pairing branch has no intro
-    // step in the orchestrator's state machine.
-    expect(await screen.findByRole('heading', { name: 'Welcome to Tenshu' })).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'How Tenshu works' })).toBeNull()
+    await user.click(await screen.findByRole('button', { name: 'Use recovery phrase only' }))
+    // A joiner already has the apps and an account: no apps or plan step.
+    expect(await screen.findByText('HOME')).toBeInTheDocument()
   })
 })

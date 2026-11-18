@@ -1,7 +1,7 @@
 // Shared tail screens reused by §4a (existing device), §4b (new user),
-// and §6 (recovery). The flow is: passkey setup → browser-sync warning
-// (+ per-browser opt-out) → layered "How you can use Tenshu" explainer.
-// §4b additionally shows the storage-tier informational screen.
+// and §6 (recovery). Every path sets up a passkey. A new realm additionally
+// gets "Get Tenshu on your devices", and a new account (not try-mode) the
+// plan step.
 //
 // WebAuthn ceremonies live on the web side: `registerPasskey` runs the
 // `navigator.credentials.create()` ceremony, then we hand the result
@@ -10,28 +10,23 @@
 // `getPasskeyAssertion` + `Session.unlock` close the loop on the §3
 // locked path (see `LockedFlow`).
 import { useEffect, useState } from 'react'
-import { Trans, useTranslation } from 'react-i18next'
-import type { TFunction } from 'i18next'
+import { useTranslation } from 'react-i18next'
 import { useOnboardingSdk } from '../../lib/useOnboardingSdk'
-import {
-  browserFamilyLabel,
-  detectBrowserFamily,
-  type BrowserFamily,
-} from '../../lib/browserDetect'
+import { CONTROL_MAC_DOWNLOAD_URL, CONTROL_PLAY_URL } from '../../lib/storeLinks'
+import { TierCard } from '../../control/services/AccountPickerPage'
+import { TIERS } from '../../control/services/tiers'
 import {
   isWebAuthnSupported,
   registerPasskey,
   type WebAuthnFailure,
 } from '../../lib/webauthn'
 import {
-  Hint,
   LinkButton,
   OnboardingActions,
   OnboardingCard,
   OnboardingProse,
   OnboardingTitle,
   PrimaryButton,
-  SecondaryButton,
 } from '../OnboardingShell'
 
 export function PasskeySetupScreen({
@@ -142,147 +137,17 @@ function PasskeyErrorBanner({ error }: { readonly error: WebAuthnFailure }) {
   )
 }
 
-export function BrowserSyncWarningScreen({
-  onSeparate,
-  onSkip,
-}: {
-  readonly onSeparate: () => void
-  readonly onSkip: () => void
-}) {
-  const { t } = useTranslation('onboarding')
-  return (
-    <OnboardingCard>
-      <OnboardingTitle>{t('tail.syncWarning.title')}</OnboardingTitle>
-      <OnboardingProse>
-        <p>{t('tail.syncWarning.body1')}</p>
-        <p>
-          <Trans
-            ns="onboarding"
-            i18nKey="tail.syncWarning.body2"
-            components={{ strong: <strong /> }}
-          />
-        </p>
-        <p className="font-medium text-text">{t('tail.syncWarning.question')}</p>
-      </OnboardingProse>
-      <OnboardingActions>
-        <PrimaryButton onClick={onSeparate}>{t('tail.syncWarning.separate')}</PrimaryButton>
-        <LinkButton onClick={onSkip}>{t('tail.syncWarning.skip')}</LinkButton>
-      </OnboardingActions>
-    </OnboardingCard>
-  )
-}
+// The native apps, most-installed first. An entry without a URL has no store
+// listing yet and renders as "coming soon"; give it one in `lib/storeLinks.ts`.
+type AppPlatformId = 'android' | 'iphone' | 'mac'
 
-export function SyncOptOutScreen({
-  initialFamily,
-  onContinue,
-}: {
-  readonly initialFamily?: BrowserFamily
-  readonly onContinue: () => void
-}) {
-  const { t } = useTranslation('onboarding')
-  const detected = initialFamily ?? detectBrowserFamily()
-  const [family, setFamily] = useState<BrowserFamily>(detected)
-  return (
-    <OnboardingCard>
-      <OnboardingTitle>{t('tail.syncOptOut.title', { family: browserFamilyLabel(family) })}</OnboardingTitle>
-      <BrowserChooser current={family} onChange={setFamily} />
-      <OnboardingProse>
-        <SyncOptOutSteps t={t} family={family} />
-      </OnboardingProse>
-      <OnboardingActions>
-        <PrimaryButton onClick={onContinue}>{t('tail.syncOptOut.doneAction')}</PrimaryButton>
-        <LinkButton onClick={onContinue}>{t('tail.syncOptOut.skipAction')}</LinkButton>
-      </OnboardingActions>
-      <Hint>{t('tail.syncOptOut.hint')}</Hint>
-    </OnboardingCard>
-  )
-}
+const APP_PLATFORMS: readonly { readonly id: AppPlatformId; readonly url?: string }[] = [
+  { id: 'android', url: CONTROL_PLAY_URL },
+  { id: 'mac', url: CONTROL_MAC_DOWNLOAD_URL },
+  { id: 'iphone' },
+]
 
-function BrowserChooser({
-  current,
-  onChange,
-}: {
-  readonly current: BrowserFamily
-  readonly onChange: (next: BrowserFamily) => void
-}) {
-  const { t } = useTranslation('onboarding')
-  const options: readonly BrowserFamily[] = ['chrome', 'edge', 'firefox', 'safari', 'other']
-  return (
-    <div className="mt-4 flex flex-wrap items-center gap-2">
-      <span className="text-xs font-medium text-text-2">{t('tail.syncOptOut.browserLabel')}</span>
-      {options.map(o => (
-        <button
-          key={o}
-          type="button"
-          onClick={() => onChange(o)}
-          className={[
-            'rounded-md border px-2.5 py-1 text-xs',
-            o === current
-              ? 'border-primary bg-primary text-on-primary'
-              : 'border-line bg-surface text-text-2',
-          ].join(' ')}
-        >
-          {browserFamilyLabel(o)}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-function SyncOptOutSteps({ t, family }: { readonly t: TFunction; readonly family: BrowserFamily }) {
-  if (family === 'chrome' || family === 'edge') {
-    return (
-      <>
-        <ol className="ml-5 list-decimal space-y-1 text-sm">
-          <li>{t('tail.syncOptOut.chrome.step1')}</li>
-          <li>
-            <Trans ns="onboarding" i18nKey="tail.syncOptOut.chrome.step2" components={{ em: <em /> }} />
-          </li>
-          <li>
-            <Trans ns="onboarding" i18nKey="tail.syncOptOut.chrome.step3" components={{ em: <em /> }} />
-          </li>
-          <li>
-            <Trans ns="onboarding" i18nKey="tail.syncOptOut.chrome.step4" components={{ strong: <strong /> }} />
-          </li>
-        </ol>
-        <p className="text-sm">{t('tail.syncOptOut.chrome.outcome')}</p>
-      </>
-    )
-  }
-  if (family === 'firefox') {
-    return (
-      <ol className="ml-5 list-decimal space-y-1 text-sm">
-        <li>{t('tail.syncOptOut.firefox.step1')}</li>
-        <li>
-          <Trans ns="onboarding" i18nKey="tail.syncOptOut.firefox.step2" components={{ em: <em /> }} />
-        </li>
-        <li>
-          <Trans ns="onboarding" i18nKey="tail.syncOptOut.firefox.step3" components={{ em: <em /> }} />
-        </li>
-      </ol>
-    )
-  }
-  if (family === 'safari') {
-    return (
-      <>
-        <p className="text-sm">{t('tail.syncOptOut.safari.intro')}</p>
-        <ol className="ml-5 list-decimal space-y-1 text-sm">
-          <li>{t('tail.syncOptOut.safari.step1')}</li>
-          <li>
-            <Trans ns="onboarding" i18nKey="tail.syncOptOut.safari.step2" components={{ em: <em /> }} />
-          </li>
-          <li>
-            <Trans ns="onboarding" i18nKey="tail.syncOptOut.safari.step3" components={{ em: <em /> }} />
-          </li>
-        </ol>
-        <p className="text-xs text-text-2">{t('tail.syncOptOut.safari.caveat')}</p>
-      </>
-    )
-  }
-  return <p className="text-sm">{t('tail.syncOptOut.other')}</p>
-}
-
-export function LayeredExplainerScreen({
+export function GetAppsScreen({
   onContinue,
 }: {
   readonly onContinue: () => void
@@ -290,82 +155,67 @@ export function LayeredExplainerScreen({
   const { t } = useTranslation('onboarding')
   return (
     <OnboardingCard>
-      <OnboardingTitle>{t('tail.explainer.title')}</OnboardingTitle>
+      <OnboardingTitle>{t('tail.getApps.title')}</OnboardingTitle>
       <OnboardingProse>
-        <p>{t('tail.explainer.body')}</p>
+        <p>{t('tail.getApps.body')}</p>
       </OnboardingProse>
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
-        <LayerBlock
-          title={t('tail.explainer.layer.web.title')}
-          chip={t('tail.explainer.layer.web.chip')}
-          body={t('tail.explainer.layer.web.body')}
-        />
-        <LayerBlock
-          title={t('tail.explainer.layer.extension.title')}
-          chip={t('tail.explainer.layer.extension.chip')}
-          body={t('tail.explainer.layer.extension.body')}
-          actionLabel={t('tail.explainer.layer.extension.action')}
-          onAction={() => alert(t('tail.explainer.layer.extension.actionAlert'))}
-        />
-        <LayerBlock
-          title={t('tail.explainer.layer.pwa.title')}
-          chip={t('tail.explainer.layer.pwa.chip')}
-          body={t('tail.explainer.layer.pwa.body')}
-          actionLabel={t('tail.explainer.layer.pwa.action')}
-          onAction={() => alert(t('tail.explainer.layer.pwa.actionAlert'))}
-        />
+      <ul className="mt-6 space-y-3">
+        {APP_PLATFORMS.map(p => (
+          <li key={p.id}>
+            {p.url === undefined ? (
+              <div className="flex items-center justify-between rounded-lg border border-line px-4 py-3 text-sm text-text-2">
+                <span>{t(`tail.getApps.platform.${p.id}`)}</span>
+                <span className="text-xs">{t('tail.getApps.comingSoon')}</span>
+              </div>
+            ) : (
+              <a
+                href={p.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-between rounded-lg bg-text px-4 py-3 text-sm font-medium text-surface shadow-sm transition-opacity hover:opacity-90"
+              >
+                <span>{t(`tail.getApps.platform.${p.id}`)}</span>
+                <span aria-hidden>→</span>
+              </a>
+            )}
+          </li>
+        ))}
+      </ul>
+      <OnboardingActions>
+        <PrimaryButton onClick={onContinue}>{t('tail.getApps.continue')}</PrimaryButton>
+      </OnboardingActions>
+    </OnboardingCard>
+  )
+}
+
+// The plan step that ends the new-account path. The cards are the control
+// plane's own (`AccountPickerPage`), so the tiers and their routing — paid
+// tiers through the acknowledgement step — cannot drift apart. Choosing hands
+// back a destination; onboarding finishes its session, then navigates there.
+export function PlanScreen({
+  onChoose,
+  onNotNow,
+}: {
+  readonly onChoose: (to: string) => void
+  readonly onNotNow: () => void
+}) {
+  const { t } = useTranslation('onboarding')
+  return (
+    <OnboardingCard>
+      <OnboardingTitle>{t('tail.plan.title')}</OnboardingTitle>
+      <OnboardingProse>
+        <p>{t('tail.plan.body')}</p>
+      </OnboardingProse>
+      <div className="mt-6 space-y-3">
+        {TIERS.map(tier => (
+          <TierCard key={tier.id} tier={tier} signedIn={false} onChoose={onChoose} />
+        ))}
       </div>
       <OnboardingActions>
-        <PrimaryButton onClick={onContinue}>{t('tail.explainer.continue')}</PrimaryButton>
-      </OnboardingActions>
-    </OnboardingCard>
-  )
-}
-
-function LayerBlock({
-  title,
-  chip,
-  body,
-  actionLabel,
-  onAction,
-}: {
-  readonly title: string
-  readonly chip: string
-  readonly body: string
-  readonly actionLabel?: string
-  readonly onAction?: () => void
-}) {
-  return (
-    <div className="flex flex-col rounded-lg border border-line p-4 text-sm">
-      <p className="font-medium">{title}</p>
-      <p className="mt-1 text-xs text-text-2">{chip}</p>
-      <p className="mt-3 flex-1 text-sm text-text-2">{body}</p>
-      {actionLabel !== undefined && onAction !== undefined && (
-        <SecondaryButton onClick={onAction}>{actionLabel}</SecondaryButton>
-      )}
-    </div>
-  )
-}
-
-const FREE_TIER_GB = 5 // Placeholder per UX §4b.8 ({free_tier_size}). The real
-// value comes from App Console / Tenshu Store config; this hard-coded
-// constant ships with the demo until that wiring lands.
-
-export function StorageTierScreen({
-  onContinue,
-}: {
-  readonly onContinue: () => void
-}) {
-  const { t } = useTranslation('onboarding')
-  return (
-    <OnboardingCard>
-      <OnboardingTitle>{t('tail.storage.title')}</OnboardingTitle>
-      <OnboardingProse>
-        <p>{t('tail.storage.body1', { sizeGb: FREE_TIER_GB })}</p>
-        <p>{t('tail.storage.body2')}</p>
-      </OnboardingProse>
-      <OnboardingActions>
-        <PrimaryButton onClick={onContinue}>{t('tail.storage.continue')}</PrimaryButton>
+        <LinkButton onClick={() => onChoose('/control/services/redeem')}>
+          {t('tail.plan.redeem')}
+        </LinkButton>
+        <LinkButton onClick={onNotNow}>{t('tail.plan.notNow')}</LinkButton>
       </OnboardingActions>
     </OnboardingCard>
   )

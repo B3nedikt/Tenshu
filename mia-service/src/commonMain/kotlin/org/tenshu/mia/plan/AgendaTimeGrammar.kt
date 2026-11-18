@@ -68,8 +68,19 @@ object AgendaTimeGrammar {
         }
 
         val next = words.any { it == "next" }
+        // ⚠⚠ The calendar keeps its past, so a past question gets a past window: "what was on my
+        // calendar last week" used to read the rest of THIS week, because every branch below looked
+        // forward. "last" names the previous one; a past tense ("was", "were") with no "next" reads
+        // back too.
+        val last = words.any { it == "last" }
+        val past = last || (!next && words.any { it == "was" || it == "were" })
         if (words.any { it == "week" }) {
             val monday = today.minus(DatePeriod(days = today.dayOfWeek.ordinal))
+            if (last) {
+                val from = monday.minus(DatePeriod(days = 7))
+                return AgendaWindow(from, from.plus(DatePeriod(days = 6)), "last week")
+            }
+            if (past) return AgendaWindow(monday, today, "this week so far")
             return if (next) {
                 val from = monday.plus(DatePeriod(days = 7))
                 AgendaWindow(from, from.plus(DatePeriod(days = 6)), "next week")
@@ -81,12 +92,20 @@ object AgendaTimeGrammar {
             }
         }
         if (words.any { it == "weekend" }) {
+            if (past) {
+                // The weekend before this week's: on Sunday, "last weekend" is not yesterday.
+                val monday = today.minus(DatePeriod(days = today.dayOfWeek.ordinal))
+                val saturday = monday.plus(DatePeriod(days = 5)).minus(DatePeriod(days = 7))
+                return AgendaWindow(saturday, saturday.plus(DatePeriod(days = 1)), "last weekend")
+            }
             val saturday = forward(today, DayOfWeek.SATURDAY, includeToday = !next)
             return AgendaWindow(saturday, saturday.plus(DatePeriod(days = 1)), "the weekend")
         }
 
         words.forEach { word ->
             WEEKDAYS[word]?.let { dayOfWeek ->
+                // ⚠ "last friday" / "what was on friday": the most recent one BEFORE today.
+                if (past) return day(backward(today, dayOfWeek), if (last) "last $word" else word)
                 // ⚠ FORWARD, matching [EventTimeGrammar]: "what's on Tuesday" asked on a Tuesday
                 // means the day you are standing in, though — unlike scheduling, where "see you
                 // Tuesday" cannot mean five minutes ago. So this one DOES include today.
@@ -97,10 +116,25 @@ object AgendaTimeGrammar {
         return null
     }
 
+    /**
+     * ⚠⚠ Whether the utterance names a past this grammar cannot place: "a week ago", "the previous
+     * week", "earlier this month". Answering those with a window would answer about other dates
+     * ("was I busy a week ago" read *this week so far*, Codex review), so the caller refuses them
+     * rather than guessing.
+     */
+    fun namesAnUnplaceablePast(words: List<String>): Boolean =
+        words.any { it == "ago" || it == "previous" || it == "earlier" }
+
     /** The default when nothing was named, kept here so the label and the range cannot drift. */
     fun today(today: LocalDate): AgendaWindow = day(today, "today")
 
     private fun day(date: LocalDate, label: String) = AgendaWindow(date, date, label)
+
+    /** The most recent [day] strictly before [today]. */
+    private fun backward(today: LocalDate, day: DayOfWeek): LocalDate {
+        val behind = (today.dayOfWeek.ordinal - day.ordinal + 7) % 7
+        return today.minus(DatePeriod(days = if (behind == 0) 7 else behind))
+    }
 
     private fun forward(today: LocalDate, day: DayOfWeek, includeToday: Boolean): LocalDate {
         val ahead = (day.ordinal - today.dayOfWeek.ordinal + 7) % 7

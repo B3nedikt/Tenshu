@@ -1,11 +1,14 @@
 package org.tenshu.mia
 
 import org.tenshu.core.Composite
+import org.tenshu.core.Data
 import org.tenshu.core.TString
+import org.tenshu.core.collection.list.TList
 import org.tenshu.core.core.TContext
 import org.tenshu.core.core.create
 import org.tenshu.core.schema.CompositeSchema
 import org.tenshu.core.schema.composite
+import org.tenshu.core.schema.list
 import org.tenshu.core.schema.string
 
 /**
@@ -42,6 +45,14 @@ interface MiaAction : Composite {
     val detail: TString
         get() = getField(Fields.DETAIL)
 
+    /**
+     * Other values the user can pick in one tap instead of this one (§25, CL-D6), such as
+     * *"20:00 instead?"* for a bare hour. Each is a reply against this action's [token]. Empty
+     * for most actions.
+     */
+    val alternatives: TList<MiaChoice>
+        get() = getField(Fields.ALTERNATIVES)
+
     companion object {
         const val ID = "tenshu/mia/action"
 
@@ -52,17 +63,20 @@ interface MiaAction : Composite {
                 string(Fields.TOKEN)
                 string(Fields.TITLE)
                 string(Fields.DETAIL)
+                list(Fields.ALTERNATIVES, of = MiaChoice.Schema)
             },
         )
 
+        @Suppress("UNCHECKED_CAST")
         fun create(
             context: TContext,
             token: String,
             title: String,
             detail: String = "",
+            alternatives: List<MiaChoice> = emptyList(),
         ): MiaAction = context.create(
             type = ID,
-            fields = listOf(token, title, detail),
+            fields = listOf(token, title, detail, alternatives as List<Data>),
         )
     }
 
@@ -70,5 +84,6 @@ interface MiaAction : Composite {
         const val TOKEN = "$ID/token"
         const val TITLE = "$ID/title"
         const val DETAIL = "$ID/detail"
+        const val ALTERNATIVES = "$ID/alternatives"
     }
 }

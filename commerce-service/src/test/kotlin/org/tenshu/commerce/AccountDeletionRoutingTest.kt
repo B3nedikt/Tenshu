@@ -75,6 +75,7 @@ class AccountDeletionRoutingTest {
 
     private fun appTest(
         limits: AccountRateLimits = AccountRateLimits.unlimited(),
+        noAccountPad: suspend () -> Unit = {},
         block: suspend (HttpClient) -> Unit,
     ) = testApplication {
         application {
@@ -86,6 +87,7 @@ class AccountDeletionRoutingTest {
                 sessionTtlMs = 3_600_000L,
                 now = { clock.get() },
                 limits = limits,
+                noAccountPad = noAccountPad,
                 stripe = StripeSupport(
                     client = stripe,
                     priceIds = emptyMap(),
@@ -362,14 +364,29 @@ class AccountDeletionRoutingTest {
     // --- No enumeration, and idempotency ----------------------------------------------------------
 
     @Test
-    fun anUnknownAddressIsAnsweredTheSameWayWithANotice() = appTest { client ->
+    fun anUnknownAddressIsAnsweredTheSameWay_butMailedNothing() = appTest { client ->
         val response = client.requestByEmail("nobody@example.com")
 
         assertEquals(HttpStatusCode.Accepted, response.status, "same status as for a real account")
-        assertEquals(listOf("nobody@example.com"), sender.noAccountNotices, "and a mail all the same")
+        // ⚠⚠ The route is unauthenticated: a mail here would let anyone send our mail to anyone.
+        assertTrue(sender.recipients.isEmpty(), "an address no account uses is never mailed")
         assertNull(sender.lastDeletionCode("nobody@example.com"))
         assertNull(store.findAccountByEmail("nobody@example.com"), "asking must not create an account")
         assertEquals(HttpStatusCode.Unauthorized, client.confirmByEmail("nobody@example.com", "123456").status)
+    }
+
+    @Test
+    fun onlyTheNoMailBranchWaitsOutThePad() {
+        val pads = AtomicLong(0)
+        appTest(noAccountPad = { pads.incrementAndGet() }) { client ->
+            assertEquals(HttpStatusCode.Accepted, client.requestByEmail("nobody@example.com").status)
+            assertEquals(1, pads.get(), "the no-mail branch stands in for the SMTP round trip")
+
+            client.registerAndVerify(sender, "pia@example.com", ownerId = "owner-pia")
+            assertEquals(HttpStatusCode.Accepted, client.requestByEmail("pia@example.com").status)
+            assertNotNull(sender.lastDeletionCode("pia@example.com"))
+            assertEquals(1, pads.get(), "the mailing branch already took that time")
+        }
     }
 
     @Test
@@ -387,9 +404,10 @@ class AccountDeletionRoutingTest {
         assertEquals(first, store.findAccountById(accountId))
         assertFalse(store.eraseAccount(accountId, clock.get()), "the store call is idempotent too")
         assertEquals(first, store.findAccountById(accountId))
-        // Asking again now reads as "no account" — the honest answer, and how the page learns it worked.
+        // Asking again answers as for any address with no account: 202, and no mail.
+        val mailedBefore = sender.recipients.size
         assertEquals(HttpStatusCode.Accepted, client.requestByEmail("max@example.com").status)
-        assertEquals(listOf("max@example.com"), sender.noAccountNotices)
+        assertEquals(mailedBefore, sender.recipients.size)
     }
 
     @Test

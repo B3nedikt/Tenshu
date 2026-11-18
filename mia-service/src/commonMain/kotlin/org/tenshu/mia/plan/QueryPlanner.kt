@@ -1,7 +1,12 @@
 package org.tenshu.mia.plan
 
+import kotlinx.datetime.DatePeriod
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
+import org.tenshu.calendar.SaveEvent
 import kotlin.time.Instant
 import org.tenshu.mia.MiaSource
 
@@ -50,6 +55,19 @@ object QueryPlanner {
     private val TURN_ON_WORDS = setOf("on")
     private val TURN_OFF_WORDS = setOf("off")
     private val ACTION_VERBS = setOf("turn", "switch", "put")
+
+    /** Verbs that set a device's level, and the units a level is said in. */
+    private val LEVEL_VERBS = setOf("dim", "brighten", "set")
+    private val LEVEL_UNITS = setOf("percent", "per", "cent", "pct")
+
+    /** "30 percent", "30%", "30 per cent" → 30; `null` without a unit, or outside 0..100. */
+    private fun levelOf(words: List<String>): Int? {
+        words.forEachIndexed { i, word ->
+            val n = word.removeSuffix("%").toIntOrNull() ?: return@forEachIndexed
+            if (word.endsWith("%") || words.getOrNull(i + 1) in LEVEL_UNITS) return n.takeIf { it in 0..100 }
+        }
+        return null
+    }
 
     /** Smart-home nouns. A device question is always *about* one of these. */
     /**
@@ -141,14 +159,12 @@ object QueryPlanner {
     private fun asksTheCalendar(words: List<String>, nowMs: Long, zone: TimeZone): Boolean {
         val whatsOn = words.zipWithNext().any { (a, b) -> a in setOf("what's", "whats") && b == "on" }
         val cue = whatsOn || words.any { it in CALENDAR_TIME_WORDS }
-        // ⚠⚠ The agenda grammar looks forward only, so a past qualifier resolves to the wrong
-        // dates: "was I busy last week" read the rest of THIS week (Codex review). A resolved
-        // window is not proof the time was understood, so the inferred cue refuses the past.
-        val past = words.any { it in PAST_QUALIFIERS }
-        return cue && !past && AgendaTimeGrammar.resolve(words, nowMs, zone) != null
+        // ⚠ "was I busy last week" is a calendar question too, now that the agenda grammar reads
+        // the past ("last week" is last Monday to Sunday). It used to be refused here, because the
+        // grammar resolved it to the rest of THIS week. ⚠ A window still has to resolve: "do I have
+        // anything from paris" names no day.
+        return cue && !AgendaTimeGrammar.namesAnUnplaceablePast(words) && AgendaTimeGrammar.resolve(words, nowMs, zone) != null
     }
-
-    private val PAST_QUALIFIERS = setOf("last", "yesterday", "ago", "previous", "was", "were")
 
     /**
      * The word that turns a photo question into a question about **what is in** the photo (IN-4).
@@ -222,7 +238,9 @@ object QueryPlanner {
     private fun isLatestSignal(words: List<String>, index: Int): Boolean {
         if (words[index] !in LATEST_WORDS) return false
         val next = words.getOrNull(index + 1) ?: return true
-        return !TimeGrammar.isTimeWord(next)
+        // ⚠ "last weekend" is a time, not "the most recent …": `TimeGrammar` has no weekend, and
+        // reading it as a latest signal sent "what was on my calendar last weekend" to a place recall.
+        return !TimeGrammar.isTimeWord(next) && next != "weekend"
     }
 
     /**
@@ -629,6 +647,32 @@ object QueryPlanner {
             )
         }
 
+        // ⭐ "dim the bedroom light to 30 percent" — a level, through `setLevel` (0..100). ⚠ Only
+        // with a level heard: "dim the light" with no number says what it needs, never guesses one.
+        // ⚠⚠ Only when the level verb OPENS the request (after the polite lead-ins), the rule a
+        // create verb follows: "is the kitchen lamp set to 30 percent" asks about a state, and
+        // reading its "set" as an instruction would offer to change the lamp (Codex review).
+        if (words.dropWhile { it in COMMAND_LEAD_INS }.firstOrNull() in LEVEL_VERBS) {
+            val level = levelOf(words)
+            if (withheld) return QueryPlan.ActionWithheld(WITHHELD_DEVICE)
+            // ⚠ The lead-ins the command check skipped go too: "would you dim the kitchen lamp…" is
+            // a search for "kitchen lamp", not "would kitchen lamp" (Codex review).
+            val target = deviceText(
+                words.dropWhile { it in COMMAND_LEAD_INS }
+                    .filterNot { it in LEVEL_VERBS || it in LEVEL_UNITS || it.endsWith("%") },
+            )
+            if (level == null) {
+                return QueryPlan.NoMatch("How bright should it be? Try “dim the bedroom light to 30 percent”.")
+            }
+            return QueryPlan.ControlDevice(
+                text = target,
+                on = level > 0,
+                limit = DEFAULT_LIMIT,
+                explanation = "Set “$target” to $level%",
+                level = level,
+            )
+        }
+
         val hasVerb = words.any { it in ACTION_VERBS }
         val on = words.any { it in TURN_ON_WORDS }
         val off = words.any { it in TURN_OFF_WORDS }
@@ -652,26 +696,241 @@ object QueryPlanner {
     }
 
     /**
-     * ⚠⚠ **Refuses rather than guesses a time.** A read with a missing slot returns a wrong
-     * *answer*, which the user sees and ignores; a write with a missing slot creates a wrong
-     * *row* that persists, syncs and fires a reminder three weeks later (MQ-D1's amendment).
-     * So "when?" is the answer, never "probably now".
+     * ⚠⚠ **Asks rather than guesses** (`mia-query-layer.md` §25). A read with a missing slot
+     * returns a wrong *answer*, which the user sees and ignores; a write with a missing slot
+     * creates a wrong *row* that persists, syncs and fires a reminder three weeks later (MQ-D1's
+     * amendment). So a missing or impossible start is a question, never "probably now".
      */
     private fun createEvent(words: List<String>, nowMs: Long, zone: TimeZone): QueryPlan {
         val time = EventTimeGrammar.resolve(words, nowMs, zone)
-            ?: return QueryPlan.NoMatch(
+        // ⚠⚠ Ask back only when the request OPENS with its verb ("add …", "can you add …",
+        // "remind me …"). A create verb inside a question ("can you recommend a good BOOK") is
+        // not a command, and asking "What time?" would coach the user into an event they never
+        // asked for. Without a time, such a sentence keeps the plain refusal.
+        if (time == null && !opensWithCreateVerb(words)) {
+            return QueryPlan.NoMatch(
                 "I can add that once you tell me when — “add lunch with Anna tomorrow at 1pm”."
             )
-
-        val title = eventTitle(words, time.consumed)
-            ?: return QueryPlan.NoMatch("What should I call it?")
-
-        return QueryPlan.CreateEvent(
+        }
+        val partial = EventTimeGrammar.partial(words, nowMs, zone)
+        val title = eventTitle(words, time?.consumed ?: partial.consumed)
+        return checkEvent(
             title = title,
-            startLocal = time.start,
-            explanation = "Add “$title” to your calendar",
+            start = time?.start,
+            day = partial.day,
+            dayPart = partial.dayPart,
+            nowMs = nowMs,
+            zone = zone,
+            alternative = time?.alternative,
         )
     }
+
+    /** Polite lead-ins a command may open with before its verb. */
+    private val COMMAND_LEAD_INS = setOf("please", "can", "could", "would", "will", "you", "hey", "mia", "ok", "okay")
+
+    private fun opensWithCreateVerb(words: List<String>): Boolean =
+        words.dropWhile { it in COMMAND_LEAD_INS }.firstOrNull() in CREATE_EVENT_WORDS
+
+    /**
+     * The frame's checks, in frame order (`MiaFrames.SAVE_EVENT`): the title, then the start. The
+     * first one that fails is the one asked for (CL-D1), so a reply re-enters here and may meet
+     * the next.
+     */
+    private fun checkEvent(
+        title: String?,
+        start: LocalDateTime?,
+        day: LocalDate?,
+        dayPart: String?,
+        nowMs: Long,
+        zone: TimeZone,
+        alternative: LocalDateTime? = null,
+    ): QueryPlan {
+        val now = Instant.fromEpochMilliseconds(nowMs).toLocalDateTime(zone)
+        val heard = buildMap<String, Any> {
+            title?.let { put(SaveEvent.Params.TITLE, it) }
+            start?.let { put(SaveEvent.Params.START_LOCAL, it) }
+        }
+        fun clarify(param: String, reason: ClarifyReason, question: String, choices: List<Choice>, rejected: LocalDateTime? = null) =
+            QueryPlan.Clarify(
+                op = SaveEvent.ID,
+                heard = heard,
+                param = param,
+                reason = reason,
+                choices = choices,
+                day = day,
+                dayPart = dayPart,
+                rejected = rejected,
+                explanation = question,
+            )
+
+        if (title == null) {
+            return clarify(SaveEvent.Params.TITLE, ClarifyReason.MISSING, "What should I call it?", emptyList())
+        }
+        if (start == null) {
+            return clarify(
+                SaveEvent.Params.START_LOCAL,
+                ClarifyReason.MISSING,
+                startQuestion(day, dayPart, now.date),
+                startChoices(day ?: now.date, dayPart, now),
+            )
+        }
+        // ⚠⚠ A start that has already passed is INVALID, not a row to write. At noon, "add a
+        // meeting at 10" means tomorrow or tonight, never 10:00 today.
+        if (start < now) {
+            return clarify(
+                SaveEvent.Params.START_LOCAL,
+                ClarifyReason.INVALID,
+                "${clock(start)} has passed today. When should it be?",
+                pastChoices(start, now),
+                rejected = start,
+            )
+        }
+        return QueryPlan.CreateEvent(
+            title = title,
+            startLocal = start,
+            explanation = "Add “$title” to your calendar",
+            // ⚠ Never one that has passed: "20:00 instead?" at 21:00 offers a row in the past.
+            alternativeStart = alternative?.takeIf { it > now },
+        )
+    }
+
+    /**
+     * Fills [clarify]'s param from a reply and checks the command again (`mia-query-layer.md` §25,
+     * CL-D5). The result is the completed command, or the next clarification.
+     *
+     * ⚠⚠ `null` when the reply does not parse as the param. The caller then plans the reply as a
+     * new question, so "actually, what's on tomorrow" is answered rather than asked again.
+     */
+    fun answerClarification(clarify: QueryPlan.Clarify, reply: String, nowMs: Long, zone: TimeZone): QueryPlan? {
+        if (clarify.op != SaveEvent.ID) return null
+        val title = clarify.heard[SaveEvent.Params.TITLE] as? String
+        val start = clarify.heard[SaveEvent.Params.START_LOCAL] as? LocalDateTime
+        return when (clarify.param) {
+            SaveEvent.Params.TITLE -> {
+                val given = reply.trim().takeIf { it.length >= MIN_TEXT_LENGTH } ?: return null
+                checkEvent(given, start, clarify.day, clarify.dayPart, nowMs, zone)
+            }
+            SaveEvent.Params.START_LOCAL -> {
+                val words = tokenize(reply)
+                if (words.isEmpty()) return null
+                val given = EventTimeGrammar.resolveReplyTime(words, clarify.day, clarify.dayPart, nowMs, zone)
+                    ?: return null
+                checkEvent(title, given.start, given.start.date, dayPart = null, nowMs = nowMs, zone = zone, alternative = given.alternative)
+            }
+            else -> null
+        }
+    }
+
+    /**
+     * What a reply to a *which one?* question picks (`mia-query-layer.md` §25, CL-3): one
+     * candidate, or fewer of them to ask about again.
+     */
+    sealed interface Pick {
+        data class One(val choice: Choice) : Pick
+        data class Fewer(val clarify: QueryPlan.Clarify) : Pick
+    }
+
+    /**
+     * Reads a reply to an entity-reference clarification **only against the candidates offered**
+     * (CL-D2), never against the realm: a chip's canonical reply, a name, a part of a name only one
+     * candidate has ("spot"), or an ordinal ("the second one").
+     *
+     * ⚠⚠ The reply must be a candidate and nothing else, the rule `resolveReply` has for a time.
+     * `null` means it is not, and the caller plans it as a new question. A part that fits several
+     * candidates ("kitchen") asks again with just those ([Pick.Fewer]), so the user is never
+     * answered with a guess between them.
+     */
+    fun answerCandidate(clarify: QueryPlan.Clarify, reply: String): Pick? {
+        val raw = reply.trim()
+        clarify.choices.firstOrNull { it.reply == raw }?.let { return Pick.One(it) }
+        val words = tokenize(raw).filterNot { it in CANDIDATE_FILLERS }
+        if (words.isEmpty()) return null
+        ordinal(words, clarify.choices.size)?.let { return Pick.One(clarify.choices[it]) }
+        val text = words.joinToString(" ")
+        // ⚠ Both sides normalised the same way: typing an offered label verbatim ("Lamp (Bedroom)")
+        // must match it, and the reply loses its punctuation to `tokenize` (Codex review).
+        val exact = clarify.choices.filter { candidateKey(it.label) == text }
+        val fits = exact.ifEmpty { clarify.choices.filter { text in candidateKey(it.label) } }
+        // ⚠⚠ More than one fits, even exactly (two routines may share a name): ask again with those,
+        // never pick the first. The card would show the same name either way, so the user could
+        // not see the wrong one being chosen (Codex review).
+        return when (fits.size) {
+            0 -> null
+            1 -> Pick.One(fits.single())
+            else -> Pick.Fewer(clarify.copy(choices = fits))
+        }
+    }
+
+    /** A label as a reply would read it: tokenised, without the fillers. */
+    private fun candidateKey(label: String): String =
+        tokenize(label).filterNot { it in CANDIDATE_FILLERS }.joinToString(" ")
+
+    private val CANDIDATE_FILLERS = setOf(
+        "the", "one", "please", "that", "this", "i", "mean", "meant", "its", "it's", "ok", "okay",
+        "number", "oh", "um", "uh",
+    )
+
+    private fun ordinal(words: List<String>, count: Int): Int? {
+        val index = when (words.singleOrNull()) {
+            "first", "1", "1st" -> 0
+            "second", "2", "2nd" -> 1
+            "third", "3", "3rd" -> 2
+            "fourth", "4", "4th" -> 3
+            "last" -> count - 1
+            else -> return null
+        }
+        return index.takeIf { it in 0 until count }
+    }
+
+    /** *"What time tomorrow?"*, *"What time this evening?"*, *"When should it start?"* */
+    private fun startQuestion(day: LocalDate?, dayPart: String?, today: LocalDate): String {
+        val onDay = when (day) {
+            null -> null
+            today -> "today"
+            today.plus(DatePeriod(days = 1)) -> "tomorrow"
+            else -> "on " + day.dayOfWeek.name.lowercase().replaceFirstChar { it.uppercase() }
+        }
+        return when {
+            dayPart == "tonight" -> "What time tonight?"
+            dayPart != null && (day == null || day == today) -> "What time this $dayPart?"
+            dayPart != null -> "What time $onDay $dayPart?"
+            onDay != null -> "What time $onDay?"
+            else -> "When should it start?"
+        }
+    }
+
+    /**
+     * Representative starts for a day, or inside the part of day heard (CL-Q1: constants until
+     * anyone wants them changed). ⚠ A start already past is never offered.
+     */
+    private fun startChoices(day: LocalDate, dayPart: String?, now: LocalDateTime): List<Choice> {
+        val hours: List<Pair<String?, Int>> = when (dayPart) {
+            null -> listOf("Morning" to 9, "Afternoon" to 14, "Evening" to 19)
+            "morning" -> listOf(null to 8, null to 9, null to 10)
+            "afternoon" -> listOf(null to 13, null to 14, null to 15)
+            "evening" -> listOf(null to 18, null to 19, null to 20)
+            else -> listOf(null to 20, null to 21, null to 22)
+        }
+        return hours.map { (name, hour) -> name to LocalDateTime(day.year, day.month, day.day, hour, 0) }
+            .filter { (_, at) -> at > now }
+            .map { (name, at) -> Choice(label = listOfNotNull(name, clock(at)).joinToString(" "), reply = at.toString()) }
+    }
+
+    /** For a start that has passed: the same time tomorrow, or the evening hour today if it is still ahead. */
+    private fun pastChoices(start: LocalDateTime, now: LocalDateTime): List<Choice> {
+        val tomorrow = start.date.plus(DatePeriod(days = 1))
+        val nextDay = LocalDateTime(tomorrow.year, tomorrow.month, tomorrow.day, start.hour, start.minute)
+        val evening = start.hour.takeIf { it in 1..11 }?.let {
+            LocalDateTime(start.date.year, start.date.month, start.date.day, it + 12, start.minute)
+        }?.takeIf { it > now }
+        return listOfNotNull(
+            Choice(label = "Tomorrow ${clock(nextDay)}", reply = nextDay.toString()),
+            evening?.let { Choice(label = "Today ${clock(it)}", reply = it.toString()) },
+        )
+    }
+
+    private fun clock(at: LocalDateTime): String =
+        "${at.hour.toString().padStart(2, '0')}:${at.minute.toString().padStart(2, '0')}"
 
     /**
      * What is left once the request verb and the time expression the grammar consumed are removed.
@@ -722,6 +981,13 @@ object QueryPlanner {
      * for the place it searched around.
      */
     private fun queryCalendar(words: List<String>, nowMs: Long, zone: TimeZone): QueryPlan {
+        // ⚠⚠ A past the agenda grammar cannot place is refused by name, never answered about other
+        // dates: "what was on my calendar a week ago" is not this week, and not today.
+        if (AgendaTimeGrammar.namesAnUnplaceablePast(words)) {
+            return QueryPlan.NoMatch(
+                "I can look at your calendar for a day, a week or a weekend — try “what was on my calendar last week”."
+            )
+        }
         val window = AgendaTimeGrammar.resolve(words, nowMs, zone)
             ?: AgendaTimeGrammar.today(
                 Instant.fromEpochMilliseconds(nowMs).toLocalDateTime(zone).date

@@ -227,12 +227,12 @@ enum LockedStrings {
     static let unlockWithFaceId = "Unlock with Face ID"
     static let usePassphrase = "Use passphrase instead"
     static let unlocking = "Unlocking…"
-    static let tooManyTries = "Too many tries — recovery from your phrase is the cleanest path."
+    static let tooManyTries = "Too many tries. Recovery from your phrase is the cleanest path."
 
     // "Forget this device" escape hatch — clears this device's local realm custody and returns
     // to onboarding (see LockedView).
     static let forgetDevice = "Forget this device"
     static let forgetConfirmTitle = "Forget this device?"
-    static let forgetConfirmMessage = "This removes this device's access to your Tenshu realm. You'll need your recovery phrase — or another device that's still signed in — to get back in. Downloaded files on this device will be cleared. This can't be undone."
+    static let forgetConfirmMessage = "This removes this device's access to your Tenshu realm. You'll need your recovery phrase, or another device that's still signed in, to get back in. Downloaded files on this device will be cleared. This can't be undone."
     static let forgetCancel = "Cancel"
 }

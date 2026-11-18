@@ -34,6 +34,10 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.DurationUnit
 import kotlin.time.TimeSource
+import org.tenshu.inference.proxy.vision.FaceImage
+import org.tenshu.inference.proxy.vision.VisionDetection
+import org.tenshu.inference.proxy.vision.VisionFaceDetector
+import org.tenshu.inference.proxy.vision.VisionFaceObservation
 
 /**
  * The face path over **real** Vision and, when handed one, the **real** F2 archive, on the simulator
@@ -113,6 +117,35 @@ class VisionCoreMlFaceRealTest {
         assertEquals(FaceProbePhoto.SHA256, digest)
         assertEquals("3c49a0b75ed61d862b2b7f3d44dab36f78f26fa94c3b1ba63b0b9f1c5e095772", digest)
         assertEquals(19_933, FaceProbePhoto.jpeg.size)
+    }
+
+    /**
+     * PT-2: the real `VNRecognizeAnimalsRequest` runs on the simulator at the pinned revision, and the
+     * bundled face is no cat or dog. ⚠ Not a recall test — no animal photograph is committed (M1).
+     */
+    @Test
+    fun visionsAnimalRequestRunsAtThePinnedRevisionAndFindsNoAnimalInTheFace() {
+        val photo = CoreMlFacePreflightModels().faceProbe()
+        val image = FaceImage(photo.width, photo.height, photo.argb)
+        lateinit var first: VisionAnimalDetection
+        val warmUp: Double = ms { first = SystemVisionAnimalDetector.detect(image) }
+        val after: List<Double> = List(5) { ms { SystemVisionAnimalDetector.detect(image) } }
+        println("VISION-REAL animals revision ${first.revisionRun}: first request $warmUp ms, then ${after.sorted()} ms; ${first.animals}")
+        assertEquals(FaceModel.VISION_ANIMALS_REVISION, first.revisionRun)
+        assertEquals(emptyList(), first.animals)
+    }
+
+    /** The veto on, over real Vision: the bundled face is still a face. */
+    @Test
+    fun withTheVetoOnTheBundledFaceIsKept() = runBlocking<Unit> {
+        val backend = VisionCoreMlFaceBackend(
+            locate = { "/nowhere" },
+            open = { _, _ -> error("not opened by a detection") },
+            animalVeto = org.tenshu.inference.proxy.AnimalVeto.Proposed,
+        )
+        val detected = assertIs<FaceDetectionOutcome.Detected>(backend.detectFaces(FaceProbePhoto.jpeg))
+        assertEquals(1, detected.faces.size)
+        assertEquals(0, detected.insideAnimals)
     }
 
     @Test

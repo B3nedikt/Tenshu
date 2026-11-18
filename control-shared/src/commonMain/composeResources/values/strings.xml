@@ -91,7 +91,7 @@
 
     <!-- Locked screen — welcome-back unlock (control-onboarding-ux.md §3). -->
     <string name="locked_welcome_back">Welcome back</string>
-    <string name="locked_too_many_tries">Too many tries — recovery from your phrase is the cleanest path.</string>
+    <string name="locked_too_many_tries">Too many tries. Recovery from your phrase is the cleanest path.</string>
     <string name="locked_biometric_body">Your Tenshu realm is locked. Use your device biometric to unlock.</string>
     <string name="locked_biometric_waiting">Waiting for biometric…</string>
     <string name="locked_biometric_cta">Unlock with biometric</string>
@@ -108,9 +108,9 @@
     <string name="recovery_title_processing">Recovering…</string>
     <string name="recovery_title_success">Welcome back</string>
     <string name="recovery_entry_body">If you've lost access to all your devices, enter your 24-word recovery phrase below to recover your realm.</string>
-    <string name="recovery_entry_slow_note">This is a slow operation by design — it takes a few seconds to derive your master key from your recovery phrase. That delay is what protects your phrase from brute-force guessing.</string>
+    <string name="recovery_entry_slow_note">This is a slow operation by design: it takes a few seconds to derive your master key from your recovery phrase. That delay is what protects your phrase from brute-force guessing.</string>
     <string name="recovery_entry_word_count">%1$d of 24 words</string>
-    <string name="recovery_entry_warning">Don't share this phrase with anyone — including Tenshu.</string>
+    <string name="recovery_entry_warning">Don't share this phrase with anyone, including Tenshu.</string>
     <string name="recovery_entry_recover">Recover</string>
     <string name="recovery_entry_troubleshooting">Trouble recovering? See the recovery troubleshooting guide.</string>
     <string name="recovery_error_unknown_word">'%1$s' isn't a valid recovery word. Check spelling, or pick a suggestion from the autocomplete.</string>
@@ -118,11 +118,11 @@
     <!-- ⚠ Says the phrase was rejected and stops there. Reaching this means the local BIP-39
          decode passed and the proxy's did not, so naming a cause would assert one we cannot know. -->
     <string name="recovery_error_phrase_rejected">That phrase was not accepted. Check each word and try again.</string>
-    <string name="recovery_error_checksum_mismatch">This phrase doesn't look right. Double-check each word — even one wrong word breaks recovery.</string>
+    <string name="recovery_error_checksum_mismatch">This phrase doesn't look right. Double-check each word. Even one wrong word breaks recovery.</string>
     <string name="recovery_processing_heading">Recovering your realm…</string>
     <string name="recovery_processing_body">This may take 5–10 seconds.</string>
     <string name="recovery_success_heading">Welcome back</string>
-    <string name="recovery_success_body">Your realm is recovered. This device is now your only realm device — if you find your other devices later, you'll need to re-pair them.</string>
+    <string name="recovery_success_body">Your realm is recovered. This device is now your only realm device. If you find your other devices later, you'll need to re-pair them.</string>
     <string name="recovery_success_sync_note">You'll see your devices and apps re-appear over the next few minutes as things sync.</string>
     <string name="recovery_success_continue">Continue</string>
 
@@ -132,7 +132,7 @@
 
     <!-- Welcome / chooser — onboarding-low-friction.md §4.0. -->
     <string name="welcome_title">Welcome to Tenshu</string>
-    <string name="welcome_body">Tenshu is a private place for your files. Everything is encrypted on this device — nobody else can read it, including us.</string>
+    <string name="welcome_body">Tenshu is a private place for your files. Everything is encrypted on this device, so nobody else can read it, including us.</string>
     <string name="welcome_start_fresh">Start fresh on this device</string>
     <string name="welcome_existing_device">I have Tenshu on another device</string>
     <string name="welcome_recover_phrase">Recover from a recovery phrase</string>
@@ -151,24 +151,24 @@
          never told so (ios-services-status-and-purchase.md §3.5/§3.7). Local-first is the design
          (ADR 0019), so the line states it as the fact it is rather than as a warning — and the
          secondary CTA beside it is the way to change it. -->
-    <string name="new_user_youre_set_up_body">Your realm is ready on this device. Until you turn on sync, everything stays here — nothing leaves this device.</string>
+    <string name="new_user_youre_set_up_body">Your realm is ready on this device. Until you turn on sync, everything stays here. Nothing leaves this device.</string>
     <string name="new_user_turn_on_sync">Turn on sync</string>
     <string name="new_user_continue">Continue</string>
 
     <!-- Device-protection default — control-keep-device-unlocked.md §4.1. -->
     <string name="device_protection_title">Protected by your device</string>
-    <string name="device_protection_body">Tenshu secures your keys with this device's secure storage, so your files start syncing right away — even after a restart, with no passphrase to remember.</string>
+    <string name="device_protection_body">Tenshu secures your keys with this device's secure storage, so your files start syncing right away, even after a restart, with no passphrase to remember.</string>
     <string name="device_protection_add_lock">Add a passphrase for extra security</string>
     <string name="device_protection_continue">Continue</string>
     <string name="device_protection_back">Use device protection instead</string>
 
     <!-- Setup unlock step — control-onboarding-ux.md §4.1. -->
     <string name="setup_unlock_title">Lock Tenshu when you're not using it</string>
-    <string name="setup_unlock_biometric_body">Use your device biometric to lock and unlock Tenshu. Your biometric stays on this device — Tenshu never sees it.</string>
+    <string name="setup_unlock_biometric_body">Use your device biometric to lock and unlock Tenshu. Your biometric stays on this device. Tenshu never sees it.</string>
     <string name="setup_unlock_biometric_waiting">Waiting for biometric…</string>
     <string name="setup_unlock_biometric_cta">Set up biometric unlock</string>
     <string name="setup_unlock_use_passphrase_instead">Set a passphrase instead</string>
-    <string name="setup_unlock_skip">Skip — protected by this device</string>
+    <string name="setup_unlock_skip">Skip (protected by this device)</string>
     <string name="setup_unlock_passphrase_body">Pick a passphrase to seal your realm on this device. You'll enter it when Tenshu locks.</string>
     <string name="setup_unlock_passphrase_label">Passphrase</string>
     <string name="setup_unlock_confirm_label">Confirm passphrase</string>
@@ -177,7 +177,7 @@
     <string name="setup_unlock_choice_body">Choose how to unlock Tenshu. Biometric is quickest; you'll also set a recovery passphrase as a backup.</string>
     <string name="setup_unlock_choice_biometric">Use biometric unlock</string>
     <string name="setup_unlock_choice_passphrase">Use a passphrase</string>
-    <string name="setup_unlock_recovery_body">Set an unlock passphrase. You'll use biometrics day to day — but if they ever stop working, after an app update or on a new device, this passphrase unlocks Tenshu here. It can't be reset, so pick something you'll remember. Your recovery phrase is separate: that's what restores your realm if you lose this device.</string>
+    <string name="setup_unlock_recovery_body">Set an unlock passphrase. You'll use biometrics day to day, but if they ever stop working, after an app update or on a new device, this passphrase unlocks Tenshu here. It can't be reset, so pick something you'll remember. Your recovery phrase is separate: that's what restores your realm if you lose this device.</string>
     <string name="setup_unlock_back">Back</string>
 
     <!-- Recovery phrase screen — show/copy phrase from sync dashboard. -->
@@ -192,7 +192,7 @@
          could not tell "no phrase here" from "broken button" — on the one screen whose job is
          saving the only thing that survives hardware loss. Apostrophes bare — see i18n note. -->
     <string name="recovery_phrase_absent_title">This device doesn't have your recovery phrase</string>
-    <string name="recovery_phrase_absent_body">Only a device set up with the phrase — or one that created the realm — keeps a copy. A device added by pairing never receives it. Open this screen on a device that has it, and write the phrase down: it is the only thing that survives losing every device.</string>
+    <string name="recovery_phrase_absent_body">Only a device set up with the phrase, or one that created the realm, keeps a copy. A device added by pairing never receives it. Open this screen on a device that has it, and write the phrase down: it is the only thing that survives losing every device.</string>
     <string name="recovery_phrase_copied">Recovery phrase copied</string>
 
     <!-- ⚠⚠ Offered ONLY once the phrase has been revealed. An "I have saved it" button available
@@ -210,8 +210,8 @@
     <string name="forget_device_headline">Forget this device</string>
     <string name="forget_device_support">Remove this device from your realm and start over here.</string>
     <string name="forget_device_title">Forget this device?</string>
-    <string name="forget_device_body">This device leaves your realm and forgets who it was. You can set it up again later, but it joins as a new device — it will not get its name or its settings here back.</string>
-    <string name="forget_device_phrase_warning">This device holds your recovery phrase. It may be the only copy. Write it down before continuing — without it your realm cannot be recovered once your other devices are gone.</string>
+    <string name="forget_device_body">This device leaves your realm and forgets who it was. You can set it up again later, but it joins as a new device. It will not get its name or its settings here back.</string>
+    <string name="forget_device_phrase_warning">This device holds your recovery phrase. It may be the only copy. Write it down before continuing. Without it your realm cannot be recovered once your other devices are gone.</string>
     <string name="forget_device_acknowledge">I have saved my recovery phrase</string>
     <string name="forget_device_confirm">Forget this device</string>
     <string name="forget_device_cancel">Cancel</string>
@@ -237,7 +237,7 @@
     <string name="pairing_scan_error_unknown_role">This pairing code requires a newer version of Tenshu. Update your app and try again.</string>
     <string name="pairing_scan_error_malformed">This isn't a valid Tenshu pairing code. Scan the code shown on your other device.</string>
     <!-- Hub flow (hub proposal §11): scanning a headless device's PRINTED label. -->
-    <string name="pairing_scan_error_hub_verify_failed">This code doesn't match this hub. The pairing offer failed verification against the printed code — don't pair with it.</string>
+    <string name="pairing_scan_error_hub_verify_failed">This code doesn't match this hub. The pairing offer failed verification against the printed code. Don't pair with it.</string>
     <string name="pairing_scan_error_hub_not_armed">No pairing offer found. Arm the hub for pairing (start it while unpaired), then scan again.</string>
     <string name="pairing_scan_error_hub_unsupported">Your sync relay doesn't support hub pairing yet.</string>
     <string name="pairing_manual_heading">Enter the pairing code</string>
@@ -245,7 +245,7 @@
     <string name="pairing_manual_placeholder">tenshu://join...</string>
     <string name="pairing_manual_continue">Continue</string>
     <string name="pairing_name_heading">Name this device</string>
-    <string name="pairing_name_body">Pick a name for this device. You'll see it in your realm's device list — “Sarah's MacBook”, “Living Room Hub”, anything you'll recognise.</string>
+    <string name="pairing_name_body">Pick a name for this device. You'll see it in your realm's device list: “Sarah's MacBook”, “Living Room Hub”, anything you'll recognise.</string>
     <string name="pairing_name_label">Device Name</string>
     <string name="pairing_name_placeholder">e.g. Work Laptop</string>
     <string name="pairing_name_rename_later">You can rename this later in Settings → Realm Devices.</string>
@@ -285,7 +285,7 @@
          finally shows it. `sync-pairing-scanned-announce.md` §5.3. -->
     <string name="pairing_responder_success_match_note">Check this code matches the one now shown on the new device. If it doesn't, remove that device and try again.</string>
     <!-- Hub flow: no SAS — the printed-key signature verification replaces it (hub §11.4). -->
-    <string name="pairing_responder_hub_verified_note">Verified against the printed code you scanned — no confirmation code needed. Approve only if you're setting up this hub yourself.</string>
+    <string name="pairing_responder_hub_verified_note">Verified against the printed code you scanned, so no confirmation code is needed. Approve only if you're setting up this hub yourself.</string>
     <string name="pairing_responder_approve">Approve</string>
     <string name="pairing_responder_deny">Deny</string>
     <string name="pairing_responder_adding">Adding device…</string>
@@ -298,19 +298,19 @@
     <string name="add_device_show_heading">Show this on your new device</string>
     <string name="add_device_show_body">Scan this code with the device you want to add.</string>
     <string name="add_device_show_stop">Stop</string>
-    <string name="add_device_connection_lost">Can't reach the relay — retrying…</string>
+    <string name="add_device_connection_lost">Can't reach the relay. Retrying…</string>
     <!-- The relay answered and refused this device's identity (401): its registration is gone and,
          as a pairing joiner, it cannot restore it. Deliberately NOT "can't reach the relay": that
          sends the user to check a working network and promises a retry that cannot succeed. -->
-    <string name="add_device_not_recognized">This device isn't recognised by your account any more — its access was removed, or the account data was reset. Pair this device again to restore it. Your local data is safe.</string>
+    <string name="add_device_not_recognized">This device isn't recognised by your account any more. Its access was removed, or the account data was reset. Pair this device again to restore it. Your local data is safe.</string>
     <string name="unfunded_realm_heading">Nothing will sync yet</string>
-    <string name="unfunded_realm_body">This realm has no storage plan, so the relay is refusing writes. Everything stays on your devices and nothing is lost — but changes won't reach your other devices until storage is set up.</string>
+    <string name="unfunded_realm_body">This realm has no storage plan, so the relay is refusing writes. Everything stays on your devices and nothing is lost, but changes won't reach your other devices until storage is set up.</string>
     <string name="unfunded_realm_cta">Set up storage</string>
-    <string name="unfunded_realm_host_note">Nothing will sync to it yet — this realm has no storage plan.</string>
+    <string name="unfunded_realm_host_note">Nothing will sync to it yet, because this realm has no storage plan.</string>
     <string name="add_device_show_success_heading">Device added</string>
     <string name="add_device_show_success_body">The new device has been paired. Your data will sync to it over the next few minutes.</string>
     <string name="add_device_offer_heading">Scan with your other device</string>
-    <string name="add_device_offer_body">On a device that already has Tenshu, open Control, choose Add a device, and scan this code — then approve the request there.</string>
+    <string name="add_device_offer_body">On a device that already has Tenshu, open Control, choose Add a device, and scan this code. Then approve the request there.</string>
     <string name="add_device_offer_sas_label">Code shown on both devices</string>
     <!-- A3: the offerer's PRE-APPROVAL state. The other device has scanned and announced its key,
          so the SAS is derivable here while its approval prompt is still on screen — the
@@ -342,16 +342,16 @@
          an older Tenshu shows a different code by construction (threat model T-P-14) — so a
          mismatch now also means "update". Kept word-for-word identical on iOS (PairingStrings
          .sasVersionHint) and web (pairing.await.versionHint, devices.pair.request.versionHint). -->
-    <string name="pairing_sas_version_hint">If the codes don't match, don't continue — make sure both devices are on the latest version of Tenshu.</string>
+    <string name="pairing_sas_version_hint">If the codes don't match, don't continue. Make sure both devices are on the latest version of Tenshu.</string>
     <string name="sync_dashboard_manual_code_label">Manual Code:</string>
     <string name="sync_dashboard_copy_clipboard">Copy to clipboard</string>
     <string name="sync_dashboard_pairing_error">Error generating pairing code</string>
-    <string name="sync_dashboard_pairing_connection_lost">Cannot reach the sync server to check for pairing requests. This device may need to reconnect — if it persists, the relay may have restarted.</string>
+    <string name="sync_dashboard_pairing_connection_lost">Cannot reach the sync server to check for pairing requests. This device may need to reconnect. If it persists, the relay may have restarted.</string>
     <string name="sync_dashboard_scan_qr_body">Scan this QR code from the Tenshu app on your other device.</string>
     <!-- Phase 1.5 "in Pairing" placeholder row (control-pairing-ux.md §3.5). -->
-    <string name="sync_dashboard_pairing_waiting">Pairing in progress — %1$s left</string>
+    <string name="sync_dashboard_pairing_waiting">Pairing in progress (%1$s left)</string>
     <string name="sync_dashboard_pairing_waiting_no_countdown">Pairing in progress</string>
-    <string name="sync_dashboard_pairing_request">A device wants to join — tap to review</string>
+    <string name="sync_dashboard_pairing_request">A device wants to join. Tap to review</string>
 
     <!-- Device item — sync dashboard row. -->
     <string name="device_item_this_device">This Device</string>
@@ -361,6 +361,7 @@
     <string name="device_item_approve">Approve Device</string>
     <string name="device_item_revoke">Revoke Device</string>
     <string name="sync_dashboard_removed_header">Removed devices</string>
+    <string name="sync_dashboard_no_phrase_note">This device doesn't have your recovery phrase, so it can't remove other devices. To remove another device, use one that has the phrase, or tenshu.app after unlocking with the phrase.</string>
     <string name="removed_device_unnamed">Device %1$s</string>
     <string name="removed_device_today">Removed today</string>
     <string name="removed_device_yesterday">Removed yesterday</string>
@@ -376,7 +377,7 @@
          Deliberately phrased as an observation with a consequence, not an instruction: the app
          cannot tell this from a second machine restored from a backup, so the person decides. -->
     <string name="device_item_previous_identity">Earlier identity of this device</string>
-    <string name="device_item_previous_identity_detail">Same security key as this device, under an older ID. Nothing runs as it any more, so it can never confirm it has received changes — which holds up cleaning up storage for every device. Removing it is safe unless this is a different machine restored from a backup.</string>
+    <string name="device_item_previous_identity_detail">Same security key as this device, under an older ID. Nothing runs as it any more, so it can never confirm it has received changes, which holds up cleaning up storage for every device. Removing it is safe unless this is a different machine restored from a backup.</string>
     <string name="sync_dashboard_message_dismiss">OK</string>
     <string name="device_revoke_dialog_title">Remove this device?</string>
     <!-- ⚠⚠ Must NOT promise the device can be added back — it cannot. Under option F
@@ -384,7 +385,7 @@
          hardware can be set up again, but it returns as a new device with no name, settings or
          history. The old copy promised a re-add and would have stranded the user who believed it.
          Apostrophes are bare — see i18n note. -->
-    <string name="device_revoke_dialog_body">“%1$s” will lose access to your files straight away, and this cannot be undone. You can set the device up again later, but it joins as a new device — it will not get its name or its settings here back.</string>
+    <string name="device_revoke_dialog_body">“%1$s” will lose access to your files straight away, and this cannot be undone. You can set the device up again later, but it joins as a new device. It will not get its name or its settings here back.</string>
     <!-- Gates the confirm button. F has no way to undo a mistaken removal, so the mis-tap has to be
          caught before it happens — this is that mitigation, not a second "are you sure". -->
     <string name="device_revoke_dialog_admittees_intro">These devices report that “%1$s” added them. Keep trusting them? Untick a device to remove it too. Each device reports this itself, so treat the list as a guide, not a guarantee.</string>
@@ -413,7 +414,7 @@
     -->
     <string name="data_delete_all_action">Delete all…</string>
     <string name="data_delete_dialog_title">Delete all %1$s?</string>
-    <string name="data_delete_dialog_body">This removes your %1$s from all your devices, and it cannot be undone. Apps that show this data will lose it too — the data belongs to you, not to any one app.</string>
+    <string name="data_delete_dialog_body">This removes your %1$s from all your devices, and it cannot be undone. Apps that show this data will lose it too. The data belongs to you, not to any one app.</string>
     <string name="data_delete_dialog_confirm">Delete all</string>
     <string name="data_delete_dialog_cancel">Cancel</string>
     <string name="data_delete_result_one">Deleted 1 item from all your devices</string>
@@ -422,7 +423,7 @@
     <string name="data_delete_stop_action">Stop</string>
     <string name="data_delete_result_stopped">Stopped. Some %1$s were deleted from all your devices; run it again to finish.</string>
     <string name="data_delete_error_unsupported">%1$s cannot be deleted from here</string>
-    <string name="data_delete_error_failed">Could not delete your %1$s. Nothing was removed — please try again.</string>
+    <string name="data_delete_error_failed">Could not delete your %1$s. Nothing was removed. Please try again.</string>
 
     <!-- Shares — control-ia.md §5.3. -->
     <string name="shares_title">Shares</string>
@@ -463,7 +464,7 @@
 
     <!-- EPC app pairing — control-ia.md §4.3; ios-proxy-architecture.md §10.6. -->
     <string name="epc_pairing_title">Connect an app</string>
-    <string name="epc_pairing_instruction">Scan this code with the app on your other device. Your keys stay here — the app reaches them through this Control.</string>
+    <string name="epc_pairing_instruction">Scan this code with the app on your other device. Your keys stay here, and the app reaches them through this Control.</string>
     <string name="epc_pairing_waiting">Waiting for the app to connect…</string>
     <string name="epc_pairing_manual_label">Or paste this link into the app:</string>
     <string name="epc_pairing_sas_title">Confirm the codes match</string>
@@ -497,7 +498,7 @@
     <!-- Services — onboarding-low-friction.md §6.1. -->
     <string name="services_title">Services</string>
     <string name="services_relay_title">Tenshu Storage</string>
-    <string name="services_relay_empty_body">Not signed in on this device. To sync across devices, sign in to your Tenshu account — or create a free one.</string>
+    <string name="services_relay_empty_body">Not signed in on this device. To sync across devices, sign in to your Tenshu account, or create a free one.</string>
     <string name="services_sign_up">Sign in or create an account</string>
     <string name="services_plan_label">Plan: %1$s</string>
     <string name="services_plan_free">Free</string>
@@ -532,7 +533,7 @@
     <!-- Redemption code screen — commerce-accounts-and-sessions.md §2.3. -->
     <string name="rei_key_top_title">Redeem a code</string>
     <string name="rei_key_heading">Have a code?</string>
-    <string name="rei_key_body">Enter a redemption code to unlock storage. No email needed — codes are anonymous.</string>
+    <string name="rei_key_body">Enter a redemption code to unlock storage. No email needed: codes are anonymous.</string>
     <string name="rei_key_label">Redemption code</string>
     <string name="rei_key_checking">Redeeming…</string>
     <string name="rei_key_continue">Redeem</string>
@@ -551,7 +552,7 @@
          waiting on a missing code had no visible way to ask for another. -->
     <string name="free_signup_resend">Send a new code</string>
     <string name="free_signup_resent">A new code is on its way.</string>
-    <string name="free_signup_body">Already have a Tenshu account? Enter the same email — you'll be signed back in on this device, with your plan and storage unchanged. We use your email only to verify you're a real person and to recover your account if you lose your devices. We never see your files.</string>
+    <string name="free_signup_body">Already have a Tenshu account? Enter the same email. You'll be signed back in on this device, with your plan and storage unchanged. We use your email only to verify you're a real person and to recover your account if you lose your devices. We never see your files.</string>
     <string name="free_signup_email_label">Email address</string>
     <string name="free_signup_display_name_label">Display name (optional)</string>
     <string name="free_signup_sending">Sending…</string>
@@ -585,12 +586,12 @@
     <!-- Account picker — onboarding-low-friction.md §5.1. -->
     <string name="account_picker_title">Pick a plan</string>
     <string name="account_picker_heading">To sync your data, pick a plan</string>
-    <string name="account_picker_body">Tenshu syncs your data across your devices through our relay server. We never see your files — they're encrypted on your device first.</string>
+    <string name="account_picker_body">Tenshu syncs your data across your devices through our relay server. We never see your files, because they're encrypted on your device first.</string>
     <!-- ⚠ The picker is also the way back in for a returning user, who is not picking a plan at
          all: Free routes to the same email-OTP screen, and `bindOwner` restores whatever plan
          the account already has (the local Free is a placeholder the synced entitlement then
          corrects — D5). Without this line the "5 GB" on the Free card reads as a downgrade. -->
-    <string name="account_picker_returning">Already have an account? Choose Free to sign in — whatever plan you're on comes back with you.</string>
+    <string name="account_picker_returning">Already have an account? Choose Free to sign in. Whatever plan you're on comes back with you.</string>
     <string name="account_picker_cancel">Cancel</string>
     <string name="account_picker_free_title">Free</string>
     <string name="account_picker_free_body">5 GB. Verify your email. Free forever.</string>
@@ -639,8 +640,8 @@
 
     <!-- Lifetime purchase — onboarding-low-friction.md §5.3. -->
     <string name="lifetime_title">Lifetime</string>
-    <string name="lifetime_heading">Lifetime — 50 GB</string>
-    <string name="lifetime_body">One-time payment. No email collected by Tenshu — the store handles your identity.</string>
+    <string name="lifetime_heading">Lifetime: 50 GB</string>
+    <string name="lifetime_body">One-time payment. No email collected by Tenshu. The store handles your identity.</string>
     <string name="lifetime_processing">Processing…</string>
     <string name="lifetime_buy">Buy through Stripe</string>
     <string name="lifetime_cancel">Cancel</string>
@@ -680,7 +681,7 @@
     <string name="reauth_recovery_phrase_subtitle">Your recovery phrase gives full access to your data.</string>
     <string name="reauth_forget_device_subtitle">Forgetting this device removes its access to your account.</string>
     <string name="reauth_disable_encryption_subtitle">This removes the passphrase protecting your keys on this device.</string>
-    <string name="reauth_revoke_device_subtitle">Removing a device is permanent — it cannot rejoin under the same identity.</string>
+    <string name="reauth_revoke_device_subtitle">Removing a device is permanent. It cannot rejoin under the same identity.</string>
     <string name="app_lock_subtitle">Confirm it's you to open Control.</string>
     <!-- macOS system auth sheet: completes "Tenshu Control is trying to ___." — lowercase, no full stop, never repeat the app name. -->
     <string name="app_lock_system_reason">verify it's you</string>
@@ -738,7 +739,7 @@
     <!-- Background ingest — the registry of apps backing up device data (Synced Folders Phase 2). -->
     <string name="background_ingest_title">Background ingest</string>
     <string name="background_ingest_empty_headline">No background ingest yet</string>
-    <string name="background_ingest_empty_support">Apps that back up device data — like Drive photo backup — will appear here.</string>
+    <string name="background_ingest_empty_support">Apps that back up device data, like Drive photo backup, will appear here.</string>
     <string name="background_ingest_status_idle">Idle</string>
     <string name="background_ingest_status_running">Backing up…</string>
     <string name="background_ingest_status_up_to_date">Up to date</string>
@@ -760,13 +761,13 @@
     <string name="locked_error_recovery_phrase_unreadable">This device can't read its saved recovery phrase, so unlocking can't succeed. Use “Add This Device” from another device that is still signed in.</string>
 
     <!-- New-user screen — typed-error renderings. -->
-    <string name="new_user_error_local_unlock_setup_failed">Couldn't set up local unlock — try again.</string>
+    <string name="new_user_error_local_unlock_setup_failed">Couldn't set up local unlock. Try again.</string>
     <string name="new_user_error_biometric_finalize_failed">Couldn't finalize biometric setup. Set a passphrase instead.</string>
     <string name="new_user_error_biometric_enroll_failed">Biometric setup failed. Set a passphrase instead.</string>
     <string name="new_user_error_realm_bootstrap_failed">Couldn't bootstrap the realm.</string>
 
     <!-- Setup-unlock interstitial — typed-error renderings (skippable surface). -->
-    <string name="setup_unlock_error_local_unlock_setup_failed">Couldn't set up local unlock — try again, or skip for now.</string>
+    <string name="setup_unlock_error_local_unlock_setup_failed">Couldn't set up local unlock. Try again, or skip for now.</string>
     <string name="setup_unlock_error_biometric_setup_failed">Couldn't set up biometric unlock. Try again, or set a passphrase instead.</string>
     <string name="setup_unlock_error_biometric_enroll_failed">Biometric setup failed. Set a passphrase instead.</string>
 
@@ -774,7 +775,7 @@
     <string name="unlock_settings_error_biometric_unavailable">Biometric unlock isn't available on this device.</string>
     <string name="unlock_settings_error_enable_biometric_failed">Couldn't enable biometric unlock. Try unlocking again first.</string>
     <string name="unlock_settings_error_biometric_enroll_failed">Biometric setup failed.</string>
-    <string name="unlock_settings_error_passphrase_required">Set a recovery passphrase first — biometric unlock needs one as a backup.</string>
+    <string name="unlock_settings_error_passphrase_required">Set a recovery passphrase first. Biometric unlock needs one as a backup.</string>
 
     <!-- OS biometric prompt copy (rendered by the system BiometricPrompt UI). -->
     <string name="biometric_prompt_setup_title">Set up biometric unlock</string>
@@ -831,8 +832,8 @@
     <!-- What the relay has done with a removal this device made (GetDeviceAccessRevocations): never shown as
          plainly "removed" while the relay has not applied it (maintainer decision 2026-11-12). -->
     <string name="removed_device_relay_owed">Waiting for the relay to confirm this removal.</string>
-    <string name="removed_device_relay_unknown">Not confirmed: the relay doesn't know this account (it may have been reset, or not be updated yet). Retrying — until then the device may still connect.</string>
-    <string name="removed_device_relay_needs_update">Not confirmed: this app and the relay are on different versions. It goes through after an update — until then the device may still connect.</string>
-    <string name="removed_device_relay_refused">Not removed at the relay — it refused the request (%1$s). The device can still connect. Update Tenshu on your devices — a newer version may be accepted.</string>
+    <string name="removed_device_relay_unknown">Not confirmed: the relay doesn't know this account (it may have been reset, or not be updated yet). Retrying. Until then the device may still connect.</string>
+    <string name="removed_device_relay_needs_update">Not confirmed: this app and the relay are on different versions. It goes through after an update. Until then the device may still connect.</string>
+    <string name="removed_device_relay_refused">Not removed at the relay: it refused the request (%1$s). The device can still connect. Update Tenshu on your devices. A newer version may be accepted.</string>
     <string name="removed_device_relay_superseded">Added back since: the relay holds a later admission of this device, so this removal no longer applies.</string>
 </resources>

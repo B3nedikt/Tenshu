@@ -72,6 +72,12 @@ ENV VITE_CONSTRUCTION_CODE=${VITE_CONSTRUCTION_CODE}
 ARG VITE_SIGNUP_DISABLED=
 ENV VITE_SIGNUP_DISABLED=${VITE_SIGNUP_DISABLED}
 
+# Cloudflare Turnstile site key (src/lib/turnstileScript.ts; commerce D16): public, not a secret.
+# Empty (the default) = no widget and no token on the sign-up and account-deletion forms. ⚠⚠ Set it
+# only together with commerce's TURNSTILE_SECRET_KEY (docs/how-to/set-up-otp-email.md §8).
+ARG VITE_TURNSTILE_SITE_KEY=
+ENV VITE_TURNSTILE_SITE_KEY=${VITE_TURNSTILE_SITE_KEY}
+
 # Each app's partner origin, inlined at build time (web-app-suite.md F2/F4): every app dials the
 # apex at VITE_APEX_ORIGIN, and the apex frames and allows each hosted app `<id>` at its own
 # `https://<id>.tenshu.app` — the production default every app's registry entry falls back to in a

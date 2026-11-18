@@ -1033,8 +1033,8 @@ enum PairingStrings {
     static let showHeading = "Show this on your new device"
     static let showBody = "Scan this code with the device you want to add."
     static let showStop = "Stop"
-    static let connectionLost = "Can't reach the relay — retrying…"
-    static let deviceNotRecognized = "This device isn't recognised by your account any more — its " +
+    static let connectionLost = "Can't reach the relay. Retrying…"
+    static let deviceNotRecognized = "This device isn't recognised by your account any more. Its " +
         "access was removed, or the account data was reset. Pair this device again to restore it. " +
         "Your local data is safe."
     static let manualCodeLabel = "Manual Code:"
@@ -1047,12 +1047,12 @@ enum PairingStrings {
     static let hostSasPrompt = "Confirm this code matches on the other device:"
     /// Join flow, both screens. Word-for-word the Compose `pairing_sas_version_hint` and the web
     /// `versionHint` keys — SAS v2 is lockstep, so an older Tenshu on either side shows a different code.
-    static let sasVersionHint = "If the codes don't match, don't continue — make sure both devices are on the latest version of Tenshu."
+    static let sasVersionHint = "If the codes don't match, don't continue. Make sure both devices are on the latest version of Tenshu."
     static let hostApprove = "Approve"
     static let hostDeny = "Deny"
     static let offerHeading = "Scan with your other device"
     static let offerBody =
-        "On a device that already has Tenshu, open Control, choose Add a device, and scan this code — then approve the request there."
+        "On a device that already has Tenshu, open Control, choose Add a device, and scan this code. Then approve the request there."
     static let offerSasLabel = "Code shown on both devices"
     static let offerScannedHeading = "Code scanned"
     static let offerScannedBody = "Check this code matches the one on your other device, then approve there."
@@ -1062,9 +1062,9 @@ enum PairingStrings {
     // Track D — the realm cannot sync (mirror the composeResources `unfunded_realm_*`).
     static let unfundedHeading = "Nothing will sync yet"
     static let unfundedBody =
-        "This realm has no storage plan, so the relay is refusing writes. Everything stays on your devices and nothing is lost — but changes won't reach your other devices until storage is set up."
+        "This realm has no storage plan, so the relay is refusing writes. Everything stays on your devices and nothing is lost, but changes won't reach your other devices until storage is set up."
     static let unfundedCta = "Set up storage"
-    static let unfundedHostNote = "Nothing will sync to it yet — this realm has no storage plan."
+    static let unfundedHostNote = "Nothing will sync to it yet, because this realm has no storage plan."
     static let hostSuccessHeading = "Device added"
     static let hostSuccessBody =
         "The new device has been paired. Your data will sync to it over the next few minutes."
@@ -1077,7 +1077,7 @@ enum PairingStrings {
 
     static let nameHeading = "Name this device"
     static let nameBody =
-        "Pick a name for this device. You'll see it in your realm's device list — \"Sarah's MacBook\", \"Living Room Hub\", anything you'll recognise."
+        "Pick a name for this device. You'll see it in your realm's device list: \"Sarah's MacBook\", \"Living Room Hub\", anything you'll recognise."
     static let namePlaceholder = "e.g. Work Laptop"
     static let nameRenameLater = "You can rename this later in Settings → Realm Devices."
     static let nameContinue = "Continue"
@@ -1102,7 +1102,7 @@ enum PairingStrings {
     static let responderReading = "Reading pairing code…"
     static let responderHeading = "Add \"%@\" to your realm?"
     static let responderBody =
-        "This device showed a pairing code. Approve only if you're adding it yourself — check the code below matches the one it shows."
+        "This device showed a pairing code. Approve only if you're adding it yourself. Check that the code below matches the one it shows."
     static let responderApprove = "Approve"
     static let responderDeny = "Deny"
     static let responderAdding = "Adding device…"

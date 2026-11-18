@@ -11,7 +11,8 @@
     "years": "Jahre",
     "collections": "Sammlungen",
     "videos": "Videos",
-    "search": "Suche"
+    "search": "Suche",
+    "people": "Personen"
   },
   "common": {
     "cancel": "Abbrechen",
@@ -194,5 +195,12 @@
     "larger": "Größere Fotos",
     "perRow": "{count, plural, one {# Foto pro Reihe} other {# Fotos pro Reihe}}",
     "years": "In der Jahresansicht ist die Größe fest"
+  },
+  "people": {
+    "count": "{count, plural, one {# Foto} other {# Fotos}}",
+    "back": "← Personen",
+    "empty": "Noch keine benannten Personen.",
+    "hint": "Personen werden in der Fotos-App auf deinem Handy gruppiert und benannt. Namen, die du dort vergibst, erscheinen hier.",
+    "emptyPerson": "In deiner Mediathek sind keine Fotos von {name}."
   }
 }

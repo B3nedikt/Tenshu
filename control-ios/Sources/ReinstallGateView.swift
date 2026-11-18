@@ -129,7 +129,7 @@ enum ReinstallGateStrings {
     static let title = "This device already has an identity"
     // ⚠ Says what is true and what the choice is, without implying a fault. The Keychain detail is
     // the one thing a user cannot possibly infer, so it is stated plainly rather than softened.
-    static let body = "Tenshu found an existing device identity in this device's keychain — it stays there when the app is deleted, so reinstalling picks up where you left off. You can carry on as this device, or discard it and set this device up from scratch."
+    static let body = "Tenshu found an existing device identity in this device's keychain. It stays there when the app is deleted, so reinstalling picks up where you left off. You can carry on as this device, or discard it and set this device up from scratch."
     static let continueAsThisDevice = "Continue as this device"
     static let startFresh = "Start fresh on this device"
     static let discarding = "Discarding this identity…"

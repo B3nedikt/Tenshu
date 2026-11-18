@@ -37,6 +37,7 @@ import org.tenshu.commerce.routing.TokenAdminAuth
 import org.tenshu.commerce.routing.WebReturnUrls
 import org.tenshu.commerce.routing.configureAccountDeletionRouting
 import org.tenshu.commerce.routing.configureAccountRouting
+import org.tenshu.commerce.routing.jitteredSendPad
 import org.tenshu.commerce.routing.configureAdminRouting
 import org.tenshu.commerce.play.RealGooglePlayClient
 import org.tenshu.commerce.routing.GooglePlaySupport
@@ -211,11 +212,16 @@ fun main() {
     )
     println(
         "Commerce OTP budgets: ${config.otpSendPerIpPerHour}/ip/h send, " +
-            "${config.otpSendPerEmailPerHour}/email/h send, ${config.otpVerifyPerEmailPerHour}/email/h verify, " +
+            "${config.otpSendPerEmailPerHour}/email/h send, ${config.otpSendGlobalPerDay}/day send overall, " +
+            "${config.otpVerifyPerEmailPerHour}/email/h verify, " +
             "${config.otpFailedPerEmailPerDay} failed codes/email/24h"
     )
     // ⚠ Counts only — never an address, a digest or the key (T-CB-12).
     val reviewSignIn = config.reviewSignIn(store)
+    // ⚠ Off unless TURNSTILE_SECRET_KEY is set (D16). Say which, since the only visible effect of
+    // the wrong posture is a web form that bots can drive again — or one no browser can pass.
+    val turnstile = config.turnstileSecretKey?.let { TurnstileVerifier.create(it, HttpClient(CIO)) }
+    println(if (turnstile != null) "Turnstile: on (/register from a browser, /delete/request by email)" else "Turnstile: off (TURNSTILE_SECRET_KEY unset)")
     // A rotated or withdrawn review code must not live on through the sessions it minted. Run with an
     // empty set when the feature is off, so removing the config ends those sessions too.
     val reviewSessionsReset = reviewSignIn?.endSessionsOnRotation()
@@ -351,6 +357,7 @@ fun main() {
                     }
                 },
                 reviewSignIn = reviewSignIn,
+                turnstile = turnstile,
                 otpFailedPerEmailPerDay = config.otpFailedPerEmailPerDay,
                 signupCap = SignupCap(perDay = config.signupLimitPerDay, total = config.signupLimitTotal).also {
                     SignupCap.logConfigured(it, config.signupLimitPerDay, config.signupLimitTotal)
@@ -362,7 +369,22 @@ fun main() {
                     // The fail-closed table ceiling is a real-attack signal, not routine — say so
                     // once it happens, since the visible symptom is otherwise "signups stopped".
                     onTableFull = { System.err.println("WARNING: OTP rate-limiter key table full — refusing new keys") },
+                    sendGlobalPerDay = config.otpSendGlobalPerDay,
+                    // Past it every sign-in and deletion code is refused until the window rolls —
+                    // the visible symptom is "nobody can sign in", so name the cause.
+                    // Once an hour at most: it fires on every refused request, i.e. all of an attack.
+                    onGlobalSpent = run {
+                        val lastWarnedMs = java.util.concurrent.atomic.AtomicLong(0L)
+                        fun() {
+                            val nowMs = System.currentTimeMillis()
+                            val last = lastWarnedMs.get()
+                            if (nowMs - last >= AccountRateLimits.HOUR_MS && lastWarnedMs.compareAndSet(last, nowMs)) {
+                                System.err.println("WARNING: OTP_SEND_GLOBAL_PER_DAY spent — refusing every code send until the window rolls")
+                            }
+                        }
+                    },
                 ),
+                noAccountPad = { jitteredSendPad() },
             )
         },
     ).start(wait = true)
@@ -414,6 +436,10 @@ fun Application.module(
     otpFailedPerEmailPerDay: Int = CommerceConfig.DEFAULT_OTP_FAILED_PER_EMAIL_PER_DAY,
     /** The operator's cap on new accounts; off by default so the test host is unchanged. */
     signupCap: SignupCap = SignupCap.off(),
+    /** See [configureAccountDeletionRouting]; instant by default, main() passes [jitteredSendPad]. */
+    noAccountPad: suspend () -> Unit = {},
+    /** Cloudflare Turnstile on the mail-sending routes (D16); null = off, the default without `TURNSTILE_SECRET_KEY`. */
+    turnstile: TurnstileVerifier? = null,
 ) {
     val otpFailures = PersistedFailureLimit(
         store,
@@ -472,8 +498,8 @@ fun Application.module(
         configureHealthRouting(store)
         configureMintRouting(minter, store, now)
         configureTokenRouting(tokenMinter, store, now)
-        configureAccountRouting(store, emailSender, otpTtlMs, otpMaxAttempts, sessionTtlMs, now, limits, reviewSignIn, otpFailures, signupCap)
-        configureAccountDeletionRouting(store, emailSender, otpTtlMs, otpMaxAttempts, subscriptionCanceller, now, limits, reviewSignIn, otpFailures)
+        configureAccountRouting(store, emailSender, otpTtlMs, otpMaxAttempts, sessionTtlMs, now, limits, reviewSignIn, otpFailures, signupCap, turnstile = turnstile)
+        configureAccountDeletionRouting(store, emailSender, otpTtlMs, otpMaxAttempts, subscriptionCanceller, now, limits, reviewSignIn, otpFailures, noAccountPad, turnstile = turnstile)
         configureRedeemRouting(store, minter, now)
         configureCheckoutRouting(stripe, store, now)
         configureBillingRouting(

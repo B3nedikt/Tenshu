@@ -61,6 +61,13 @@ export interface PhotoAlbum {
   readonly coverPath: string | null
 }
 
+// A NAMED person (photos-app.md §42.7). ⚠ Read-only on web: never an unnamed group, no naming.
+export interface Person {
+  readonly name: string
+  readonly photoCount: number
+  readonly coverPath: string
+}
+
 export interface TrashedPhoto {
   readonly contentId: string
   readonly photo: Photo
@@ -95,6 +102,7 @@ export type PhotoDetailsResult = { readonly ok: true; readonly details: PhotoDet
 // ⚠⚠ `bytes: null` is a wait, not an answer — never cache it.
 export type MotionClipResult = { readonly ok: true; readonly bytes: Int8Array | null } | PhotosFailure
 export type AlbumsResult = { readonly ok: true; readonly albums: PhotoAlbum[] } | PhotosFailure
+export type PeopleResult = { readonly ok: true; readonly people: Person[] } | PhotosFailure
 export type PhotosListResult = { readonly ok: true; readonly photos: Photo[] } | PhotosFailure
 export type TrashResult = { readonly ok: true; readonly items: TrashedPhoto[] } | PhotosFailure
 export type PhotosWriteResult = { readonly ok: true } | PhotosFailure

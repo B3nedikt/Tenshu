@@ -53,8 +53,8 @@ final class ServicesModel: ObservableObject {
 
     var planLabel: String {
         switch planKey {
-        case "basic": return "Basic — 50 GB"
-        case "premium": return "Premium — 2 TB"
+        case "basic": return "Basic: 50 GB"
+        case "premium": return "Premium: 2 TB"
         case "free": return "Free"
         default: return "No plan"
         }
@@ -67,7 +67,7 @@ final class ServicesModel: ObservableObject {
         // iOS-only user: with StorageSyncGate shut, their realm never syncs and there is no second
         // device to be rescued from (ios-services-status-and-purchase.md §3.5). S2-pre gives this
         // device its own way out; the copy names it rather than pointing off-device.
-        case "none": return "No storage plan yet. Sign in to your Tenshu account — or create a free one — to start syncing this device."
+        case "none": return "No storage plan yet. Sign in to your Tenshu account, or create a free one, to start syncing this device."
         // ⚠⚠ Signed in, but nothing funds this realm. `servicesStatusSnapshot` reports
         // `localAccount` the moment a `PublisherAccount` exists locally, independently of whether
         // any entitlement was found — so this pair is reachable whenever the session outlives its

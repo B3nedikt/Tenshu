@@ -28,6 +28,8 @@ import org.tenshu.core.toTString
 import org.tenshu.identity.Device
 import org.tenshu.identity.client.identityService
 import org.tenshu.identity.getDevices
+import org.tenshu.core.TenshuException
+import org.tenshu.sync.RecoveryPhraseRequiredError
 import org.tenshu.sync.client.syncService
 import org.tenshu.sync.revokeDevice
 import kotlin.js.Promise
@@ -140,13 +142,20 @@ object Devices {
                 val client = JsRuntime.tenshuClient
                 when (val result = client.syncService.revokeDevice(deviceId)) {
                     is TResult.Success<*> -> okVoid()
-                    is TResult.Failure<*> -> errorResult(
-                        kind = "other",
-                        message = result.error.errorMessage(),
-                    )
+                    // ⚠ Decision A: removing ANOTHER device needs the master key (A1). The error has
+                    // no message, so as "other" it read "Revoke failed" — its own kind lets the apex
+                    // say that unlocking with the recovery phrase is what makes removal possible.
+                    is TResult.Failure<*> -> if (result.error is RecoveryPhraseRequiredError) {
+                        errorResult(kind = "needsRecoveryPhrase", message = null)
+                    } else {
+                        errorResult(kind = "other", message = result.error.errorMessage())
+                    }
                     else -> errorResult("other", "unexpected result type")
                 }
             } catch (t: Throwable) {
+                if ((t as? TenshuException)?.error is RecoveryPhraseRequiredError) {
+                    return@promise errorResult(kind = "needsRecoveryPhrase", message = null)
+                }
                 val msg = t.message ?: t::class.simpleName ?: "unknown"
                 val kind = if (looksLikeNetworkError(msg)) "network" else "other"
                 errorResult(kind, msg)

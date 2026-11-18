@@ -98,11 +98,14 @@ build() { # build(component)
     commerce) ./deploy/build-commerce-image.sh --tag "$TAG" --ship "$TARGET" ;;
     # Every hosted app `<id>` at `https://<id>.$DEV_DOMAIN`, as `<ID>_ORIGIN=…` words
     # (deploy/lib/web-apps.sh discovers the apps, so a new one needs no edit here).
+    # Turnstile `off` unless DEV_TURNSTILE_SITE_KEY names a widget for the lab's hostname: the
+    # production site key fails on any other host, and the lab's commerce holds no secret (D16).
     # shellcheck disable=SC2046 # one word per app, by design
     apex)     env $(dev_app_origins) \
                 RELAY_URL="https://relay.$DEV_DOMAIN" COMMERCE_URL="https://commerce.$DEV_DOMAIN" \
                 APEX_ORIGIN="https://$DEV_DOMAIN" \
                 TENSHU_EXTRA_ISSUER="$EXTRA_ISSUER" \
+                TURNSTILE_SITE_KEY="${DEV_TURNSTILE_SITE_KEY:-off}" \
                 ./deploy/build-apex-image.sh --tag "$TAG" --ship "$TARGET" ;;
   esac
 }

@@ -223,7 +223,7 @@ enum SignInStrings {
     static let title = "Sign in or create"
     static let heading = "Sign in or create your free Tenshu account"
     static let body =
-        "Already have a Tenshu account? Enter the same email — you'll be signed back in on this device, with your plan and storage unchanged. We use your email only to verify you're a real person and to recover your account if you lose your devices. We never see your files."
+        "Already have a Tenshu account? Enter the same email. You'll be signed back in on this device, with your plan and storage unchanged. We use your email only to verify you're a real person and to recover your account if you lose your devices. We never see your files."
     static let emailLabel = "Email address"
     static let submit = "Email me a code"
     static let sending = "Sending…"

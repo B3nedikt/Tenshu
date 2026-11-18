@@ -30,6 +30,40 @@
       ]
     },
     {
+      "id": "auraface-v1-int8",
+      "name": "People (AuraFace + Apple Vision, macOS)",
+      "version": 1,
+      "capabilities": ["faceClustering"],
+      "runtime": "onnx+vision",
+      "artifactVersion": 1,
+      "licence": "Apache-2.0",
+      "artifacts": [
+        {
+          "role": "faceEmbedder",
+          "path": "auraface-v1-int8/1/auraface_int8.onnx",
+          "sha256": "1b7b3c18b113b1c2cbc99c537dd9b83d65e2bc35f37e948b84131ae092389a9a",
+          "byteSize": 66033423
+        }
+      ]
+    },
+    {
+      "id": "rfdetr-nano-coco-int8",
+      "name": "People: cat and dog filter (RF-DETR Nano)",
+      "version": 1,
+      "capabilities": ["faceClustering"],
+      "runtime": "onnx+mediapipe",
+      "artifactVersion": 1,
+      "licence": "Apache-2.0",
+      "artifacts": [
+        {
+          "role": "animalDetector",
+          "path": "rfdetr-nano-coco-int8/1/rfdetr_nano_int8.onnx",
+          "sha256": "e3523f7581daa4e20469e853488e04cc70a70856898c04cb57439867363dd167",
+          "byteSize": 28806262
+        }
+      ]
+    },
+    {
       "id": "siglip-base-patch16-256-multilingual",
       "name": "SigLIP base (multilingual)",
       "version": 1,

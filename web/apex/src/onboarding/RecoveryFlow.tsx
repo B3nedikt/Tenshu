@@ -2,8 +2,7 @@
 // realm devices and passkeys. The 24-word recovery phrase rebuilds the
 // master identity; per UX §6.2, the Argon2id derive takes 5–10s.
 //
-// On success the user enters the shared tail (passkey → browser sync →
-// explainer), modeled in UX §6.3 as "treated as a returning user with
+// On success the user enters the shared tail (passkey), modeled in UX §6.3 as "treated as a returning user with
 // a brand-new device". We re-use the tail components from
 // `./screens/TailScreens` rather than inlining a different copy.
 import { useEffect, useMemo, useState } from 'react'
@@ -27,20 +26,13 @@ import {
   PrimaryButton,
 } from './OnboardingShell'
 import {
-  BrowserSyncWarningScreen,
   CompletingSessionScreen,
-  LayeredExplainerScreen,
   PasskeySetupScreen,
-  SyncOptOutScreen,
 } from './screens/TailScreens'
-import { DeviceNameScreen } from './screens/NewUserScreens'
+import { useDefaultDeviceName } from './useDefaultDeviceName'
 
 type Step =
   | { readonly kind: 'entry' }
-  | {
-      readonly kind: 'deviceName'
-      readonly mnemonic: string
-    }
   | {
       readonly kind: 'processing'
       readonly mnemonic: string
@@ -53,30 +45,18 @@ type Step =
       readonly error: RecoveryError
     }
   | { readonly kind: 'tail.passkey'; readonly deviceName: string }
-  | { readonly kind: 'tail.syncWarning'; readonly deviceName: string }
-  | { readonly kind: 'tail.syncOptOut'; readonly deviceName: string }
-  | { readonly kind: 'tail.explainer'; readonly deviceName: string }
   | { readonly kind: 'tail.completing' }
 
 export function RecoveryFlow() {
-  const { t } = useTranslation('onboarding')
   const navigate = useNavigate()
+  const deviceName = useDefaultDeviceName()
   const [step, setStep] = useState<Step>({ kind: 'entry' })
 
   return (
     <OnboardingShell>
       {step.kind === 'entry' && (
         <RecoveryEntryScreen
-          onSubmit={mnemonic => setStep({ kind: 'deviceName', mnemonic })}
-        />
-      )}
-      {step.kind === 'deviceName' && (
-        <DeviceNameScreen
-          defaultName={t('deviceName.default')}
-          onContinue={name =>
-            setStep({ kind: 'processing', mnemonic: step.mnemonic, deviceName: name })
-          }
-          onBack={() => setStep({ kind: 'entry' })}
+          onSubmit={mnemonic => setStep({ kind: 'processing', mnemonic, deviceName })}
         />
       )}
       {step.kind === 'processing' && (
@@ -112,23 +92,9 @@ export function RecoveryFlow() {
       {step.kind === 'tail.passkey' && (
         <PasskeySetupScreen
           deviceName={step.deviceName}
-          onContinue={() => setStep({ kind: 'tail.syncWarning', deviceName: step.deviceName })}
-          onSkip={() => setStep({ kind: 'tail.syncWarning', deviceName: step.deviceName })}
+          onContinue={() => setStep({ kind: 'tail.completing' })}
+          onSkip={() => setStep({ kind: 'tail.completing' })}
         />
-      )}
-      {step.kind === 'tail.syncWarning' && (
-        <BrowserSyncWarningScreen
-          onSeparate={() => setStep({ kind: 'tail.syncOptOut', deviceName: step.deviceName })}
-          onSkip={() => setStep({ kind: 'tail.explainer', deviceName: step.deviceName })}
-        />
-      )}
-      {step.kind === 'tail.syncOptOut' && (
-        <SyncOptOutScreen
-          onContinue={() => setStep({ kind: 'tail.explainer', deviceName: step.deviceName })}
-        />
-      )}
-      {step.kind === 'tail.explainer' && (
-        <LayeredExplainerScreen onContinue={() => setStep({ kind: 'tail.completing' })} />
       )}
       {step.kind === 'tail.completing' && (
         <CompletingSessionScreen onCompleted={() => navigate(OVERVIEW_PATH, { replace: true })} />

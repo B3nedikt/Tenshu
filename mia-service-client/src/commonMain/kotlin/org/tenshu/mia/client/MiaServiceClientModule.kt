@@ -6,8 +6,10 @@ import org.tenshu.core.common.module.tModule
 import org.tenshu.mia.AskMia
 import org.tenshu.mia.ConfirmMiaAction
 import org.tenshu.mia.MiaService
+import org.tenshu.mia.ReplyToMia
 import org.tenshu.mia.client.impl.AskMiaRo
 import org.tenshu.mia.client.impl.ConfirmMiaActionRo
+import org.tenshu.mia.client.impl.ReplyToMiaRo
 import org.tenshu.mia.client.impl.MiaServiceRo
 
 /**
@@ -30,6 +32,12 @@ val miaServiceClientModule = tModule {
         interfaceClass = ConfirmMiaAction::class,
         protocolSchema = ConfirmMiaAction.Schema,
         roFactory = ::ConfirmMiaActionRo,
+    )
+
+    operation(
+        interfaceClass = ReplyToMia::class,
+        protocolSchema = ReplyToMia.Schema,
+        roFactory = ::ReplyToMiaRo,
     )
 
     service(

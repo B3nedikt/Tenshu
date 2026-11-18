@@ -33,13 +33,6 @@ interface EmailSender {
     fun sendAccountDeletionCode(email: String, code: String)
 
     /**
-     * Answer to a deletion request for an address **no account uses**. Sent so the request is
-     * answered the same way — a mail, after the same SMTP round trip — whether or not the account
-     * exists; a route that mailed only known addresses would be an enumeration oracle by timing.
-     */
-    fun sendNoAccountNotice(email: String)
-
-    /**
      * Answer to a sign-up while the operator's signup cap is reached (`SIGNUP_LIMIT_*`). Sent in
      * place of a code, after the same SMTP round trip, so `/register` answers a new address and an
      * existing one alike — the route never becomes an enumeration oracle, cap or no cap.
@@ -69,10 +62,6 @@ class LoggingEmailSender : EmailSender {
 
     override fun sendSignupsPausedNotice(email: String) {
         logger.info("Signups paused notice to {} (not sent: dev sender)", emailDomain(email))
-    }
-
-    override fun sendNoAccountNotice(email: String) {
-        logger.info("[dev EmailSender] deletion requested for {}, which has no account", emailTag(email))
     }
 }
 
@@ -137,17 +126,6 @@ class SmtpEmailSender(
             AccountDeletionEmail.CODE_SUBJECT,
             AccountDeletionEmail.codeText(code, config.ttlMinutes),
             AccountDeletionEmail.codeHtml(code, config.ttlMinutes),
-        ),
-    )
-
-    override fun sendNoAccountNotice(email: String) = send(
-        email,
-        "no-account notice",
-        buildMessage(
-            email,
-            AccountDeletionEmail.NO_ACCOUNT_SUBJECT,
-            AccountDeletionEmail.noAccountText(),
-            AccountDeletionEmail.noAccountHtml(),
         ),
     )
 
@@ -259,7 +237,6 @@ object OtpEmail {
 object AccountDeletionEmail {
 
     const val CODE_SUBJECT = "Confirm deleting your Tenshu account"
-    const val NO_ACCOUNT_SUBJECT = "Your Tenshu account deletion request"
 
     fun codeText(code: String, ttlMinutes: Long): String = """
         Someone asked to delete the Tenshu account that uses this email address.
@@ -286,27 +263,6 @@ object AccountDeletionEmail {
             <p>It expires in $ttlMinutes minutes and can be used once.</p>
             <p><strong>Deleting the account cannot be undone.</strong> If you didn't ask for this,
               ignore this email — nothing is deleted without the code.</p>
-            <p style="color:#666;font-size:13px">— Tenshu</p>
-          </body>
-        </html>
-    """.trimIndent()
-
-    fun noAccountText(): String = """
-        Someone asked to delete the Tenshu account that uses this email address, but no Tenshu
-        account uses it — so there is nothing to delete.
-
-        If you have a Tenshu account, it may use a different address.
-
-        — Tenshu
-    """.trimIndent()
-
-    fun noAccountHtml(): String = """
-        <!doctype html>
-        <html>
-          <body style="font-family:system-ui,-apple-system,sans-serif;color:#1a1a1a;line-height:1.5">
-            <p>Someone asked to delete the Tenshu account that uses this email address, but no
-              Tenshu account uses it — so there is nothing to delete.</p>
-            <p>If you have a Tenshu account, it may use a different address.</p>
             <p style="color:#666;font-size:13px">— Tenshu</p>
           </body>
         </html>

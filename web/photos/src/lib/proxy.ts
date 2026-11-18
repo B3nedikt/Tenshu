@@ -30,6 +30,8 @@ import type {
   PhotosFailure,
   PhotosListResult,
   PhotosWriteResult,
+  PeopleResult,
+  Person,
   TrashedPhoto,
   TrashResult,
 } from '@tenshu/sdk/photos'
@@ -44,6 +46,8 @@ export type {
   PhotoDetails,
   PhotosFailure,
   PhotosListResult,
+  PeopleResult,
+  Person,
   TrashedPhoto,
   TrashResult,
 }
@@ -67,6 +71,9 @@ export const ProxyMethod = {
   DeleteAlbum: 'photo.deleteAlbum',
   AddToAlbum: 'photo.addToAlbum',
   RemoveFromAlbum: 'photo.removeFromAlbum',
+  People: 'photo.people',
+  PeopleObserve: 'photo.people.observe',
+  PersonPhotos: 'photo.personPhotos',
   Favourites: 'photo.favourites',
   FavouritesObserve: 'photo.favourites.observe',
   IsFavourite: 'photo.isFavourite',
@@ -191,6 +198,25 @@ export function removeFromAlbum(albumId: string, contentId: string): Promise<Res
 
 export function listFavourites(): Promise<PhotosListResult> {
   return call<PhotosListResult>(ProxyMethod.Favourites)
+}
+
+// ── people (named only, photos-app.md §42.7) ────────────────────────────────
+
+// ⚠ Read-only: names come from a device that groups faces; the browser groups none and names no one.
+export function listPeople(): Promise<PeopleResult> {
+  return call<PeopleResult>(ProxyMethod.People)
+}
+
+export function subscribePeople(
+  onValue: (result: PeopleResult) => void,
+  onError: (error: Error) => void,
+): () => void {
+  return subscribe(ProxyMethod.PeopleObserve, undefined, onValue, onError)
+}
+
+// Newest first; empty for a name nobody has.
+export function personPhotos(name: string): Promise<PhotosListResult> {
+  return call<PhotosListResult>(ProxyMethod.PersonPhotos, { name })
 }
 
 export function subscribeFavourites(

@@ -322,14 +322,103 @@ Check the message lands in the inbox and not in spam, and that the header shows 
 
 ## 8. Rate limits are already on
 
-`/register` is budgeted at 20/IP/hour and 5/email/hour, `/verify` at 20/email/hour
-(CE-2). These exist because `/register` is unauthenticated **by design** — the verified email is
-the sybil gate — so without them a real sender is an unmetered outbound-mail bill and a way to
-mail-bomb a third party. Tune with `OTP_SEND_PER_IP_PER_HOUR`, `OTP_SEND_PER_EMAIL_PER_HOUR`,
+`/register` and `/account/delete/request` are budgeted at 20/IP/hour, 5/inbox/hour and
+**200/day across the whole service**; `/verify` at 20/email/hour (CE-2). These exist because
+`/register` is unauthenticated **by design** — the verified email is the sybil gate — so without
+them a real sender is an unmetered outbound-mail bill and a way to mail-bomb a third party. Tune
+with `OTP_SEND_PER_IP_PER_HOUR`, `OTP_SEND_PER_EMAIL_PER_HOUR`, `OTP_SEND_GLOBAL_PER_DAY`,
 `OTP_VERIFY_PER_EMAIL_PER_HOUR`; `<= 0` disables one.
+
+⚠ **"Per inbox", not per spelling.** Gmail ignores dots and `+tags`, so a per-address budget is no
+budget against `j.o.h.n@gmail.com`-style variants; the key folds them (`AccountRateLimits.inboxKey`).
+
+⚠⚠ **The per-key budgets did not stop the 2026-11 form-spam wave**, and nothing per-key can: a bot
+rotating IPs *and* addresses sent ~500 deletion mails in nine days (224 on the worst), 77% of
+them bouncing, without one request over budget. Two things answer it — the daily global ceiling,
+and the deletion route no longer mailing addresses that have no account
+(`commerce-accounts-and-sessions.md` §9.7). If `OTP_SEND_GLOBAL_PER_DAY` is ever hit, the log says
+so (`WARNING: OTP_SEND_GLOBAL_PER_DAY spent`) and **nobody can sign in until the day rolls** —
+raise it for a launch, don't leave it raised. Watch the TEM console's *Email activity* bounce
+column: a sudden wall of "Mailbox not found" is the signature.
 
 They are also what protects the **SES reputation metrics** that decide whether we stay out of the
 sandbox: a bounce rate over ~5% or complaints over ~0.1% puts sending under review.
+
+### 8.1 Turnstile — the bot check in front of the budgets
+
+The budgets bound the damage; [Cloudflare Turnstile](https://developers.cloudflare.com/turnstile/)
+stops a bot before it spends any of it, so the global ceiling stops being a way to lock everyone
+out. It covers the **web** sign-up form and the public account-deletion page; the native apps are
+exempt (why, and what that exemption does *not* protect:
+`docs/proposals/commerce-accounts-and-sessions.md` D16). It is **off** until both keys are set.
+
+**Create the keys** (Cloudflare dashboard, the account that holds the `tenshu.app` zone — Turnstile
+does not need the zone, but keeping it there keeps one owner):
+
+1. *Turnstile* (`dash.cloudflare.com/?to=/:account/turnstile`) → **Add widget**. **Widget name**:
+   `tenshu-apex`.
+2. **Region: Rest of World.** ⚠ Fixed once the widget exists — choosing wrong means a new widget
+   and new keys.
+3. **Hostname management**: `tenshu.app` (add the dev lab's apex host too if it should be covered, or make a
+   second widget for it so its keys never sit on the production box). `localhost` is not needed —
+   use the test keys below for local runs.
+4. **Widget mode: Managed.** Most visitors see a tick that passes on its own; only suspicious
+   traffic gets an interaction. ⚖️ Leave **Pre-clearance support** off: it sets a `cf_clearance`
+   cookie, and the privacy policy says the website sets none.
+5. **Create**. Cloudflare shows a **site key** (public; it is compiled into the page) and a **secret
+   key** (a secret, like the SMTP password).
+
+**Store both in the Keychain** (account `tenshu`, like every other deploy secret). `-w` given
+last with no value makes `security` prompt, so the key never lands in shell history or argv:
+
+```bash
+security add-generic-password -a tenshu -s commerce-turnstile-secret-key -w
+security add-generic-password -a tenshu -s apex-turnstile-site-key -w
+```
+
+Read them only inside the command that uses them — never `security … -w` on its own, which
+prints the secret.
+
+⚠⚠ **`deploy/build-apex-image.sh` refuses to build without a site key.** Once production commerce
+holds the secret, an apex built without the key ships a broken web sign-up, and nothing else would
+say so. Unset, the script reads `apex-turnstile-site-key` from the Keychain itself (the build line
+prints `turnstile=on (from Keychain …)`); with neither, it stops before building. A build whose
+commerce has **no** secret says so explicitly with `TURNSTILE_SITE_KEY=off`: `ship-dev-stack.sh`
+does (override with `DEV_TURNSTILE_SITE_KEY` for a widget made for the lab's hostname — the
+production key fails on any other host). The CI image workflow reads the repository **variable**
+`TURNSTILE_SITE_KEY` (public, so not a secret) and fails while it is unset.
+
+**Configure:**
+
+| Where | Variable | Value |
+|---|---|---|
+| commerce box `deploy.env` | `TURNSTILE_SECRET_KEY` | the secret key |
+| apex image build | `TURNSTILE_SITE_KEY` (`deploy/build-apex-image.sh`) or `VITE_TURNSTILE_SITE_KEY` (compose / Dockerfile build arg) | the site key |
+
+⚠⚠ **Order: commerce first, then the apex.** A commerce without the field refuses the apex's new
+body (`400`), and a commerce *with* the secret refuses every web sign-up whose apex has no site key
+(`403 challenge_failed`). So: deploy commerce with `TURNSTILE_SECRET_KEY`, rebuild + ship the apex
+with the site key straight after; the native apps are unaffected throughout. Commerce logs
+`Turnstile: on (…)` or `Turnstile: off (…)` at startup — check it.
+
+⚠ The site key is a **build-time** input (Vite inlines it), like the relay URL: changing it means
+rebuilding the apex, not restarting it. The build also adds `https://challenges.cloudflare.com` to
+the page's CSP only when a key is set.
+
+**Local / test runs:** Cloudflare publishes
+[dummy keys](https://developers.cloudflare.com/turnstile/troubleshooting/testing/) — site key
+`1x00000000000000000000AA` with secret `1x0000000000000000000000000000000AA` always passes;
+`2x…` variants always fail. Never put a real secret in a dev overlay.
+
+**Rotating the secret:** *Turnstile → the widget → Rotate secret key*. Check the grace period the
+dashboard gives the old key, and set the new one in `deploy.env` + redeploy commerce inside it;
+after it, every web sign-up is refused until commerce has the new secret.
+
+**What a refusal looks like:** `403 {"error":"challenge_failed"}` (no/spent/rejected token — the
+page asks the visitor to wait for the check and retry) or `503 {"error":"challenge_unavailable"}`
+(commerce could not reach Cloudflare — fail closed, logged as `Turnstile siteverify …`). Cloudflare's
+*Turnstile → Analytics* shows solve rates per widget; a wave of failures there with no matching
+mail in the TEM console is the check doing its job.
 
 ---
 

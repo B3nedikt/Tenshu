@@ -3,31 +3,25 @@
     "loading": "Tenshu wird geladen…"
   },
   "deviceName": {
-    "default": "Dieser Browser"
+    "default": "Dieser Browser",
+    "browserOnOs": "{browser} auf {os}"
   },
   "chooser": {
     "markAriaLabel": "Tenshu",
     "title": "Willkommen bei Tenshu",
-    "body1": "Tenshu funktioniert in diesem Browser fürs Erste, aber damit deine Daten über Browser-Updates und Geräte hinweg sicher bleiben, brauchst du die Synchronisierung.",
-    "body2": "Alles wird auf diesem Gerät verschlüsselt – niemand sonst kann es lesen, auch wir nicht.",
-    "actionSignUp": "Kostenlos registrieren",
-    "actionHaveTenshu": "Ich habe Tenshu schon",
-    "actionTryLocally": "Erst mal lokal ausprobieren"
+    "signUpPrompt": "Neu bei Tenshu?",
+    "actionSignUp": "Konto erstellen",
+    "haveTenshuPrompt": "Schon auf deinem Handy oder Computer?",
+    "actionHaveTenshu": "Ich nutze Tenshu bereits",
+    "actionTryLocally": "Ohne Konto nutzen"
   },
   "signupClosed": {
     "title": "Tenshu ist noch nicht geöffnet",
-    "body1": "Wir nehmen gerade noch keine neuen Konten an – die Registrierung bleibt geschlossen, während wir die letzten Arbeiten abschließen.",
+    "body1": "Wir nehmen gerade noch keine neuen Konten an. Die Registrierung bleibt geschlossen, während wir die letzten Arbeiten abschließen.",
     "body2": "Auf diesem Gerät hat sich nichts geändert. Wenn du Tenshu hier bereits nutzt, kannst du weiterhin entsperren und wie gewohnt weitermachen.",
     "backHome": "← Zurück zu tenshu.app"
   },
   "newUser": {
-    "intro": {
-      "title": "So funktioniert Tenshu",
-      "body1": "Tenshu beruht auf einer einfachen Idee: Deine Daten gehören dir. Wenn du Tenshu einrichtest, erstellst du ein <em>Realm</em> – einen persönlichen Raum, in dem deine Apps leben und deine Daten Ende-zu-Ende-verschlüsselt zwischen deinen Geräten synchronisiert werden.",
-      "body2": "Apps, die du in deinem Realm installierst, können nur auf das zugreifen, was du ihnen erlaubst. Die Server von Tenshu sehen Chiffretext, nicht deine Daten. Wenn du deine Geräte verlierst, kannst du mit einer Wiederherstellungsphrase neu anfangen, ohne etwas zu verlieren.",
-      "continue": "Verstanden, los geht’s",
-      "tellMeMore": "Erzähl mir mehr über Tenshu"
-    },
     "generate": {
       "title": "Dein Realm wird eingerichtet",
       "body": "Wir erzeugen die Identität deines Realms lokal in deinem Browser. Diese Identität verlässt dein Gerät nie unverschlüsselt.",
@@ -35,9 +29,9 @@
     },
     "show": {
       "title": "Speichere deine Wiederherstellungsphrase",
-      "body": "Nur damit kannst du dein Realm wiederherstellen, wenn du alle deine Geräte verlierst. Schreib diese 24 Wörter auf Papier auf oder speichere sie in einem Passwortmanager. Mach keinen Screenshot – die Fotosicherung deines Handys ist möglicherweise für andere sichtbar.",
-      "supportWarning": "Der Tenshu-Support wird dich nie nach deiner Wiederherstellungsphrase fragen. Wenn jemand danach fragt – selbst jemand, der angeblich von Tenshu ist –, gib sie nicht heraus.",
-      "walletWarning": "Diese Phrase ähnelt der Seed-Phrase einer Bitcoin- oder Ethereum-Wallet, ist aber <strong>keine</strong>. Gib sie nicht in eine Krypto-Wallet ein – deine Daten werden dadurch nicht wiederhergestellt, und die Wallet kann sie nicht entschlüsseln.",
+      "body": "Nur damit kannst du dein Realm wiederherstellen, wenn du alle deine Geräte verlierst. Schreib diese 24 Wörter auf Papier auf oder speichere sie in einem Passwortmanager. Mach keinen Screenshot, denn die Fotosicherung deines Handys ist möglicherweise für andere sichtbar.",
+      "supportWarning": "Der Tenshu-Support wird dich nie nach deiner Wiederherstellungsphrase fragen. Wenn jemand danach fragt, selbst jemand, der angeblich von Tenshu ist, gib sie nicht heraus.",
+      "walletWarning": "Diese Phrase ähnelt der Seed-Phrase einer Bitcoin- oder Ethereum-Wallet, ist aber <strong>keine</strong>. Gib sie nicht in eine Krypto-Wallet ein. Deine Daten werden dadurch nicht wiederhergestellt, und die Wallet kann sie nicht entschlüsseln.",
       "savedCheckbox": "Ich habe sie an einem sicheren Ort aufbewahrt.",
       "continue": "Weiter"
     },
@@ -58,17 +52,10 @@
     },
     "commitFailed": {
       "title": "Dein Realm konnte nicht eingerichtet werden",
-      "retainPhrase": "Deine Wiederherstellungsphrase ist noch in diesem Tab – versuch es erneut, um sie zu verwenden.",
+      "retainPhrase": "Deine Wiederherstellungsphrase ist noch in diesem Tab, du kannst es also erneut damit versuchen.",
       "retry": "Erneut versuchen",
       "cancel": "Abbrechen und neu beginnen",
       "networkHint": "Wenn das weiterhin fehlschlägt, ist dein Netzwerk möglicherweise blockiert. Versuch es mit einem anderen Netzwerk."
-    },
-    "deviceName": {
-      "title": "Gib diesem Browser einen Namen",
-      "body": "Diesen Namen siehst du in deiner Geräteliste. Wähle etwas, woran du diesen Browser später wiedererkennst – zum Beispiel „Arbeitslaptop – Chrome“ oder „iPad“.",
-      "fieldLabel": "Gerätename",
-      "continue": "Weiter",
-      "back": "Zurück"
     }
   },
   "pairing": {
@@ -77,7 +64,7 @@
       "body": "Um diesen Browser zu deinem Realm hinzuzufügen, kopple ihn mit einem deiner vorhandenen Geräte. So bleiben deine Daten sicher: Selbst Tenshu kann deinem Realm kein Gerät hinzufügen, ohne dass deine vorhandenen Geräte zustimmen.",
       "step1": "Öffne die Tenshu-App auf deinem vorhandenen Gerät.",
       "step2": "Gehe zu <em>Realm-Geräte → Neues Gerät hinzufügen</em>.",
-      "step3": "Scanne den QR-Code auf diesem Gerät mit der Kamera unten – oder füge den Kopplungscode ein.",
+      "step3": "Scanne den QR-Code auf diesem Gerät mit der Kamera unten oder füge den Kopplungscode ein.",
       "useCamera": "Kamera verwenden",
       "stopCamera": "Kamera stoppen",
       "cameraHint": "Scannen mit der Kamera wird in Chrome und Edge unterstützt.",
@@ -119,8 +106,8 @@
       "title": "Auf deinem vorhandenen Gerät bestätigen",
       "body1": "Dein anderes Gerät hat die Anfrage erhalten. Achte auf eine Benachrichtigung oder öffne die Tenshu-App, um die Kopplung zu bestätigen.",
       "body2": "Prüfe, ob dieser Code mit dem auf deinem anderen Gerät übereinstimmt:",
-      "mismatchHint": "Wenn der Code nicht übereinstimmt, lehne auf deinem vorhandenen Gerät ab – möglicherweise versucht jemand, die Kopplung abzufangen.",
-      "versionHint": "Wenn die Codes nicht übereinstimmen, fahre nicht fort – stelle sicher, dass auf beiden Geräten die neueste Tenshu-Version läuft.",
+      "mismatchHint": "Wenn der Code nicht übereinstimmt, lehne auf deinem vorhandenen Gerät ab. Möglicherweise versucht jemand, die Kopplung abzufangen.",
+      "versionHint": "Wenn die Codes nicht übereinstimmen, fahre nicht fort. Stelle sicher, dass auf beiden Geräten die neueste Tenshu-Version läuft.",
       "cancel": "Kopplung abbrechen"
     },
     "paired": {
@@ -150,13 +137,13 @@
     "passkey": {
       "fallback": {
         "title": "Passphrase festlegen",
-        "body": "Dein Browser unterstützt keine Passkeys. Lege eine Passphrase fest, um Tenshu zu entsperren – wähle etwas, das du dir merken kannst, das aber niemand erraten würde.",
+        "body": "Dein Browser unterstützt keine Passkeys. Lege eine Passphrase fest, um Tenshu zu entsperren. Wähle etwas, das du dir merken kannst, das aber niemand erraten würde.",
         "placeholder": "(Die Passphrase-Alternative ist in dieser Vorschau nur ein Platzhalter; der vollständige Ablauf mit Argon2id-abgeleitetem Sitzungsschlüssel kommt mit Track A.)",
         "continue": "Nur Wiederherstellungsphrase verwenden"
       },
       "title": "Passkey für diesen Browser hinzufügen",
       "body": "Mit Passkeys entsperrst du Tenshu schnell per Biometrie deines Geräts oder mit einem Sicherheitsschlüssel. Dein Passkey gilt nur für diesen Browser; er wird nicht mit deinen anderen Geräten geteilt.",
-      "firstEncounterNote": "Falls deine Hardware keine Passkeys unterstützt, kannst du diesen Schritt überspringen und stattdessen mit deiner Wiederherstellungsphrase entsperren – das Entsperren dauert dann aber jedes Mal länger.",
+      "firstEncounterNote": "Falls deine Hardware keine Passkeys unterstützt, kannst du diesen Schritt überspringen und stattdessen mit deiner Wiederherstellungsphrase entsperren. Das Entsperren dauert dann aber jedes Mal länger.",
       "registering": "Warte auf den Browser…",
       "register": "Passkey einrichten",
       "skip": "Überspringen",
@@ -169,72 +156,22 @@
         "other": "Passkey konnte nicht registriert werden: {message}"
       }
     },
-    "syncWarning": {
-      "title": "Zur Browser-Synchronisierung",
-      "body1": "Wenn du Chrome Sync, Firefox Sync oder eine andere Browser-Synchronisierung nutzt, werden die Tenshu-Daten dieses Browsers möglicherweise mit allen Browsern geteilt, die in deinem Sync-Konto angemeldet sind.",
-      "body2": "In diesem Fall behandelt Tenshu diese Browser als <strong>ein</strong> Realm-Gerät, nicht als mehrere. Das ist deine Entscheidung – es gibt Gründe dafür (sofortiger Zugriff auf einem neuen Rechner nach der Synchronisierung) und Gründe dagegen (ein kompromittiertes Sync-Konto erreicht auch deine Tenshu-Daten).",
-      "question": "Soll dieser Browser ein eigenes Realm-Gerät sein?",
-      "separate": "Ja, als eigenes Realm-Gerät einrichten",
-      "skip": "Überspringen – ich entscheide später"
-    },
-    "syncOptOut": {
-      "title": "Tenshu von der {family}-Synchronisierung ausschließen",
-      "browserLabel": "Browser:",
-      "doneAction": "Erledigt",
-      "skipAction": "Vorerst überspringen",
-      "hint": "Du kannst das später im Bereich „So nutzt du Tenshu“ der Kontrollzentrale erneut aufrufen.",
-      "chrome": {
-        "step1": "Öffne Einstellungen → Sie und Google → Synchronisierung und Google-Dienste.",
-        "step2": "Klicke auf <em>Synchronisierte Daten verwalten</em>.",
-        "step3": "Wechsle zu <em>Synchronisierung anpassen</em>.",
-        "step4": "Deaktiviere den Schalter für <strong>Website-Einstellungen</strong>.",
-        "outcome": "Damit wird IndexedDB für tenshu.app von der Synchronisierung ausgeschlossen."
+    "getApps": {
+      "title": "Tenshu auf deine Geräte holen",
+      "body": "Installiere Tenshu auf deinem Handy, und deine Daten bleiben mit diesem Browser synchron, Ende-zu-Ende-verschlüsselt.",
+      "platform": {
+        "android": "Jetzt bei Google Play",
+        "iphone": "iPhone & iPad",
+        "mac": "Für Mac herunterladen"
       },
-      "firefox": {
-        "step1": "Öffne Einstellungen → Sync.",
-        "step2": "Klicke unter <em>Was wird synchronisiert</em> auf <em>Ändern</em>.",
-        "step3": "Deaktiviere <em>Website-Einstellungen</em>."
-      },
-      "safari": {
-        "intro": "Safari synchronisiert Website-Daten über iCloud. So schließt du tenshu.app aus:",
-        "step1": "Öffne Systemeinstellungen → Apple-ID → iCloud.",
-        "step2": "Klicke neben iCloud Drive auf <em>Verwalten</em>.",
-        "step3": "Suche Safari und schalte <em>Mit Safari surfen</em> aus – <em>oder</em> nutze für tenshu.app das private Surfen, das Safari automatisch von der iCloud-Synchronisierung ausschließt.",
-        "caveat": "(Die Optionen von Safari sind hier leider weniger fein einstellbar als die anderer Browser.)"
-      },
-      "other": "Sieh in den Einstellungen deines Browsers nach, wie Website-Daten synchronisiert werden. Die Einstellung, die du deaktivieren möchtest, heißt in den Sync-Optionen des Browsers meist „Website-Einstellungen“ oder „Website-Daten“."
-    },
-    "explainer": {
-      "title": "So kannst du Tenshu nutzen",
-      "body": "Tenshu funktioniert im Web auf drei Arten. Du kannst sie beliebig kombinieren – sie arbeiten alle zusammen.",
-      "continue": "Weiter zu deinen Apps",
-      "layer": {
-        "web": {
-          "title": "Web",
-          "chip": "Nutzt du gerade",
-          "body": "Die eigenen Tenshu-Apps funktionieren in jedem modernen Browser. Keine Installation nötig."
-        },
-        "extension": {
-          "title": "Browser-Erweiterung",
-          "chip": "Bald verfügbar",
-          "body": "Unterstützt Tenshu-Apps von Drittanbietern auf Websites außerhalb von tenshu.app. Verfügbar, sobald Tenshu Rei in Betrieb ist.",
-          "action": "Sag mir Bescheid, wenn sie da ist",
-          "actionAlert": "Wir geben dir Bescheid."
-        },
-        "pwa": {
-          "title": "Als PWA installieren",
-          "chip": "Optional",
-          "body": "Installiere Tenshu als App – mit eigenem Symbol zum Starten, Offline-Unterstützung und einem Fenster ohne Browser-Bedienelemente.",
-          "action": "Tenshu installieren",
-          "actionAlert": "Hier würde die PWA-Installationsabfrage des Browsers erscheinen."
-        }
-      }
-    },
-    "storage": {
-      "title": "Zum Speicher",
-      "body1": "Mit dem kostenlosen Plan von Tenshu erhältst du {sizeGb} GB verschlüsselten Speicher auf dem Relay von Tenshu. Das reicht für Dokumente, Notizen und die meisten Fotos. Wenn er voll ist, kannst du in der Kontrollzentrale auf einen kostenpflichtigen Plan wechseln.",
-      "body2": "Der Speicher liegt auf einem von Tenshu betriebenen Server, Ende-zu-Ende-verschlüsselt. Die Server von Tenshu speichern den Chiffretext, können deine Daten aber nicht lesen.",
+      "comingSoon": "Demnächst",
       "continue": "Weiter"
+    },
+    "plan": {
+      "title": "Wähle einen Tarif",
+      "body": "Dein Tarif ist der verschlüsselte Speicher, über den deine Geräte synchronisieren. Du kannst ihn jederzeit ändern.",
+      "redeem": "Einen Code einlösen",
+      "notNow": "Später"
     },
     "completing": {
       "title": "Einrichtung wird abgeschlossen…"
@@ -244,6 +181,7 @@
     "welcome": {
       "title": "Willkommen zurück, {deviceName}",
       "body": "Deine Tenshu-Daten sind gesperrt. Entsperre sie mit deinem Sicherheitsschlüssel oder dem Passkey deines Geräts.",
+      "noPasskeyStoredBody": "Deine Tenshu-Daten sind gesperrt, und in diesem Browser ist kein Passkey eingerichtet. Entsperre mit deiner Wiederherstellungsphrase. Danach kannst du direkt einen Passkey hinzufügen.",
       "unlock": "Mit Passkey entsperren",
       "lostPasskey": "Passkey verloren?",
       "whatIsPasskey": "Was ist ein Passkey?",
@@ -264,14 +202,15 @@
         "cancelled": "Du hast das Entsperren abgebrochen. Versuch es erneut, wenn du so weit bist.",
         "wrongCredential": "Dieser Sicherheitsschlüssel ist für diesen Browser nicht registriert. Verwende einen anderen oder stelle den Zugriff mit deiner Wiederherstellungsphrase wieder her.",
         "hardware": "Dein Sicherheitsgerät war nicht erreichbar. Stelle sicher, dass es angeschlossen (oder per Bluetooth gekoppelt) ist, und versuch es erneut.",
-        "unsupported": "Dieser Browser unterstützt keine Passkeys. Verwende zum Entsperren deine Wiederherstellungsphrase in einem unterstützten Browser – oder wechsle zu einem.",
+        "unsupported": "Dieser Browser unterstützt keine Passkeys. Verwende zum Entsperren deine Wiederherstellungsphrase in einem unterstützten Browser oder wechsle zu einem.",
         "masterKeyUnwrap": "Dein Passkey wurde bestätigt, aber deine Verschlüsselungsschlüssel für diesen Browser konnten nicht wiederhergestellt werden. Verwende deine Wiederherstellungsphrase, um fortzufahren.",
-        "unknown": "Beim Entsperren ist etwas schiefgelaufen. Versuch es erneut oder verwende deine Wiederherstellungsphrase."
+        "unknown": "Beim Entsperren ist etwas schiefgelaufen. Versuch es erneut oder verwende deine Wiederherstellungsphrase.",
+        "noPasskey": "In diesem Browser ist kein Passkey eingerichtet, daher kann keiner deiner Passkeys ihn entsperren. Verwende deine Wiederherstellungsphrase. Danach kannst du direkt einen Passkey hinzufügen."
       }
     },
     "phraseEntry": {
       "title": "Wiederherstellungsphrase verwenden",
-      "body1": "Gib deine 24-Wort-Wiederherstellungsphrase ein, um diesen Browser zu entsperren. Aus deiner Phrase werden deine Verschlüsselungsschlüssel lokal neu erzeugt – nichts wird an die Server von Tenshu gesendet.",
+      "body1": "Gib deine 24-Wort-Wiederherstellungsphrase ein, um diesen Browser zu entsperren. Aus deiner Phrase werden deine Verschlüsselungsschlüssel lokal neu erzeugt, und nichts wird an die Server von Tenshu gesendet.",
       "body2": "Das dauert ein paar Sekunden. Genau diese Verzögerung schützt deine Phrase davor, per Brute Force erraten zu werden.",
       "fieldLabel": "Wiederherstellungsphrase",
       "placeholder": "Gib deine 24 Wörter ein, getrennt durch Leerzeichen oder Zeilenumbrüche.",
@@ -316,7 +255,7 @@
     "entry": {
       "title": "Zugriff wiederherstellen",
       "body1": "Wenn du den Zugriff auf alle deine Geräte und Passkeys verloren hast, gib unten deine 24-Wort-Wiederherstellungsphrase ein, um dein Realm wiederherzustellen.",
-      "body2": "Dieser Vorgang ist absichtlich langsam – es dauert ein paar Sekunden, deinen Hauptschlüssel aus deiner Wiederherstellungsphrase abzuleiten. Genau diese Verzögerung schützt deine Phrase davor, per Brute Force erraten zu werden.",
+      "body2": "Dieser Vorgang ist absichtlich langsam. Es dauert ein paar Sekunden, deinen Hauptschlüssel aus deiner Wiederherstellungsphrase abzuleiten. Genau diese Verzögerung schützt deine Phrase davor, per Brute Force erraten zu werden.",
       "fieldLabel": "Wiederherstellungsphrase",
       "placeholder": "Gib deine 24 Wörter ein, getrennt durch Leerzeichen oder Zeilenumbrüche.",
       "wordsLabel": "Wörter:",
@@ -324,7 +263,7 @@
       "unknownLabel": "Unbekannt:",
       "submit": "Wiederherstellen",
       "cancel": "Abbrechen",
-      "hint": "Keine Sorge, wenn du dich vertippst – wir prüfen jedes Wort anhand der Wortliste für Wiederherstellungsphrasen, bevor wir etwas senden.",
+      "hint": "Keine Sorge, wenn du dich vertippst. Wir prüfen jedes Wort anhand der Wortliste für Wiederherstellungsphrasen, bevor wir etwas senden.",
       "footer": "Hast du deine Geräte noch? <back>Zurück</back>."
     },
     "processing": {
@@ -349,11 +288,11 @@
       },
       "noBackupOnRelay": {
         "title": "Keine Sicherung gefunden",
-        "body": "Wir konnten keine Sicherung für diese Wiederherstellungsphrase finden. Wenn du Tenshu erst kürzlich eingerichtet hast, wurde deine Sicherung möglicherweise noch nicht synchronisiert – versuch es in ein paar Minuten erneut."
+        "body": "Wir konnten keine Sicherung für diese Wiederherstellungsphrase finden. Wenn du Tenshu erst kürzlich eingerichtet hast, wurde deine Sicherung möglicherweise noch nicht synchronisiert. Versuch es in ein paar Minuten erneut."
       },
       "kdfParametersOutOfDate": {
         "title": "Diese Wiederherstellungsphrase stammt aus einer älteren Tenshu-Version",
-        "body": "Die Wiederherstellung ist trotzdem möglich, dauert aber länger. Versuch es erneut – diesmal dauert es ein paar Sekunden länger."
+        "body": "Die Wiederherstellung ist trotzdem möglich, dauert aber länger. Versuch es erneut. Diesmal dauert es ein paar Sekunden länger."
       },
       "deviceAlreadySetUp": {
         "title": "Dieser Browser ist bereits eingerichtet",
@@ -361,7 +300,7 @@
       },
       "network": {
         "title": "Netzwerkfehler",
-        "body": "Wir konnten das Tenshu-Relay nicht erreichen, um deine Sicherung abzurufen. Prüfe deine Verbindung und versuch es erneut – deine Wiederherstellungsphrase ist noch in diesem Tab, der langsame Teil wird also nicht wiederholt."
+        "body": "Wir konnten das Tenshu-Relay nicht erreichen, um deine Sicherung abzurufen. Prüfe deine Verbindung und versuch es erneut. Deine Wiederherstellungsphrase ist noch in diesem Tab, der langsame Teil wird also nicht wiederholt."
       },
       "other": {
         "title": "Wiederherstellung fehlgeschlagen"

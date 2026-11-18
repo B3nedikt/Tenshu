@@ -26,7 +26,7 @@
     "modified": "modified",
     "loading": "Loading preview…",
     "download": "Download",
-    "notAnImage": "not an image — preview unavailable"
+    "notAnImage": "not an image, so there's no preview"
   },
   "status": {
     "uploading": "uploading {name}…",

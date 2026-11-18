@@ -100,7 +100,14 @@ sealed interface FaceDetectionOutcome {
      * The detector ran. ⚠ [faces] may be **empty**, and that is the fact worth remembering: this
      * photograph has no faces in it, and no future pass needs to open it again.
      */
-    data class Detected(val faces: List<DetectedFace>) : FaceDetectionOutcome
+    data class Detected(
+        val faces: List<DetectedFace>,
+        /**
+         * Faces the detector found and the backend's [AnimalVeto] removed, already absent from
+         * [faces]: a count for the pass report, nothing more.
+         */
+        val insideAnimals: Int = 0,
+    ) : FaceDetectionOutcome
 
     /** These bytes are not an image this device can decode. Stable for this file on this device. */
     data object Unreadable : FaceDetectionOutcome

@@ -180,18 +180,16 @@ class ExecutionContextStreamTest {
     }
 
     /**
-     * Signal-only mode (`Stream` op's `signalOnly` param): the initial
-     * full-list emission is skipped entirely — but the initial evaluation
-     * still runs, seeding the diff baseline. Pins the three load-bearing
-     * behaviours:
+     * Signal-only mode (`Stream` op's `signalOnly` param, `changes()`): the stream says "something
+     * it reads may have changed", never what (`StreamRegistry.setSignalListener`). Pins:
      *
      *  1. nothing is sent on subscribe;
-     *  2. the FIRST change emits exactly the changed item — not the whole
-     *     list re-diffed against an empty baseline;
-     *  3. removals still emit (any element type is a valid signal).
+     *  2. a change sends ONE signal — a `Removed` of the stream's own array id, not the changed row
+     *     and not the list re-diffed (the diff was the per-write cost this mode exists to skip);
+     *  3. removals signal too.
      */
     @Test
-    fun signalOnly_skipsInitialEmission_butSeedsDiffBaseline() = runTest {
+    fun signalOnly_skipsInitialEmission_andSignalsEachChange() = runTest {
         val testProxy = createTestProxy(backgroundScope)
         val ref = arrayRef(testProxy)
         val streamId = 5L
@@ -206,17 +204,15 @@ class ExecutionContextStreamTest {
         )
         assertEquals(0, testProxy.updates.size, "signal-only subscribe must send nothing")
 
-        // First change: exactly ONE Value element (the new item), not the 4
-        // pre-existing items re-emitted as "new" against an unseeded baseline.
         testProxy.database.addToArray(
             reference = ref,
             value = SyntheticTestData.Factory.create(testProxy.tContext, "fresh", 99L)
         )
         waitFor { testProxy.updates.isNotEmpty() }
         delay(100) // settle: give any incorrect extra emissions a chance to land
-        val values = testProxy.updates.filterIsInstance<StreamElementValueDto>()
-        assertEquals(1, values.size, "first change must emit exactly the changed item")
-        assertEquals("fresh", (values.single().payload as SyntheticTestData).name.get())
+        val signal = testProxy.updates.single()
+        assertTrue(signal is StreamElementRemovedDto, "a signal is a Removed element, got $signal")
+        assertEquals(ref.arrayId.getDataIdHash(), signal.removedId.getDataIdHash(), "of the stream's own array id")
 
         // Removal still signals.
         testProxy.database.removeFromArray(

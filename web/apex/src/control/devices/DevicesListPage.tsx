@@ -15,7 +15,6 @@ import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { Devices, type Device } from '@tenshu/sdk/identity'
 import { Session } from '@tenshu/sdk/onboarding'
-import { detectBrowserFamily, browserFamilyLabel } from '../../lib/browserDetect'
 import { PairNewDeviceDialog } from './PairNewDeviceDialog'
 import { formatDeviceLabel, formatFingerprint } from './format'
 
@@ -43,9 +42,6 @@ export function DevicesListPage() {
     return () => unsubscribe()
   }, [])
 
-  const browser = browserFamilyLabel(detectBrowserFamily())
-  const showBrowserSyncWarning = browser === 'Chrome' || browser === 'Edge' || browser === 'Firefox'
-
   return (
     <div>
       <h1 className="text-2xl font-medium">{t('devices.list.title')}</h1>
@@ -65,17 +61,6 @@ export function DevicesListPage() {
           {t('devices.list.pairNew')}
         </button>
       </div>
-
-      {showBrowserSyncWarning && (
-        <div className="mt-4 rounded-md border border-warning/30 bg-warning/10 p-4">
-          <p className="text-sm font-medium text-warning">
-            {t('devices.list.syncWarning.title', { browser })}
-          </p>
-          <p className="mt-1 text-sm text-warning">
-            {t('devices.list.syncWarning.body', { browser })}
-          </p>
-        </div>
-      )}
 
       <DevicesList devices={devices} thisDeviceName={thisDeviceName} />
 

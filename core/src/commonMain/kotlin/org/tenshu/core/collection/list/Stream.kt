@@ -39,10 +39,11 @@ interface Stream<T : Data> : Operation {
 
     /**
      * [signalOnly] is the proxy-visible "the subscriber discards payloads"
-     * bit: the proxy skips serialising/sending the initial full-list emission
-     * (per-item change emissions still flow and *are* the signal — see
-     * [changes]). The param rides the wire only when `true`, so plain streams
-     * stay byte-identical and interoperate with older proxies.
+     * bit: the proxy sends no initial emission, and answers a write with one
+     * payload-free signal element instead of re-evaluating and diffing the list
+     * (`StreamRegistry.setSignalListener`) — see [changes]. It may over-signal,
+     * never stay silent. The param rides the wire only when `true`, so plain
+     * streams stay byte-identical and interoperate with older proxies.
      */
     fun stream(signalOnly: Boolean = false): RequestObject
 
@@ -433,8 +434,11 @@ private fun <T : Data> TList<T>.changesOnce(context: TContext?): Flow<StreamSign
  * initial emission and no payload state**. Registers with
  * `stream(signalOnly = true)`, so the proxy never serialises the initial
  * full-list emission (for a large folder that was the whole list over IPC,
- * parsed client-side just to be dropped) — subsequent per-item change
- * emissions arrive as usual and each one becomes a `Unit` tick.
+ * parsed client-side just to be dropped), and a write costs the proxy one
+ * signal element rather than a re-evaluation of the chain — each element
+ * becomes a `Unit` tick. A tick can come for a change the reader does not
+ * show (bursts are coalesced, and any write to an array the chain reads
+ * counts); a real change always ticks.
  *
  * This is the observer counterpart to [flow]: [flow] is a *state* stream
  * (fold + full-snapshot emissions, initial included), [changes] is an

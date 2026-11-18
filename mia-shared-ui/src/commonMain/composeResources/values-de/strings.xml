@@ -24,6 +24,8 @@
     <string name="mia_chat_voice_stop">Zuhören beenden</string>
     <string name="mia_chat_listening">Hört zu…</string>
     <string name="mia_chat_typing">Mia denkt nach…</string>
+    <string name="mia_chat_clarify_other">Andere…</string>
+    <string name="mia_chat_clarify_answer_hint">Deine Antwort…</string>
     <string name="mia_history_empty">Noch keine Unterhaltungen.</string>
     <string name="mia_detail_back">Zurück</string>
     <string name="mia_settings_coming_soon">Demnächst verfügbar</string>

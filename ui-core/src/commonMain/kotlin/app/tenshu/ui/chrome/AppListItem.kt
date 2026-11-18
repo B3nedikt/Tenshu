@@ -79,7 +79,9 @@ fun AppListItem(
         else -> Modifier
     }
 
-    Surface(modifier = modifier.then(clickableModifier)) {
+    // ⚠ The Surface takes the item's container colour: painting its own default under a
+    // caller's (say, transparent over a search panel) would make `colors` half-ignored.
+    Surface(modifier = modifier.then(clickableModifier), color = colors.containerColor) {
         ListItem(
             headlineContent = headlineContentOverride ?: { Text(text = headline) },
             supportingContent = when {

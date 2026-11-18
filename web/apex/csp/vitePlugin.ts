@@ -5,7 +5,7 @@ import { readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Plugin } from 'vite'
-import { applyCsp, connectOrigins, hostedAppOrigins, screenshotOrigins, type BuildEnv } from './csp.ts'
+import { applyCsp, connectOrigins, hostedAppOrigins, screenshotOrigins, turnstileOrigins, type BuildEnv } from './csp.ts'
 
 const REGISTRY_APPS_DIR = join(dirname(fileURLToPath(import.meta.url)), '../src/apps/registry/apps')
 
@@ -33,8 +33,15 @@ export function apexCsp(): Plugin {
     transformIndexHtml: {
       // Last, so the hashes cover every inline script another transform added (the theme boot).
       order: 'post',
-      handler: (html) =>
-        applyCsp(html, { connect: connectOrigins(env), frame: hostedAppOrigins(env, hostedAppIds()), images: screenshotOrigins() }),
+      handler: (html) => {
+        const turnstile = turnstileOrigins(env)
+        return applyCsp(html, {
+          scripts: turnstile,
+          connect: [...connectOrigins(env), ...turnstile],
+          frame: [...hostedAppOrigins(env, hostedAppIds()), ...turnstile],
+          images: screenshotOrigins(),
+        })
+      },
     },
   }
 }

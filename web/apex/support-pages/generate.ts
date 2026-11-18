@@ -90,7 +90,7 @@ import {
   windowsDownloadUrl,
   type WindowsRelease,
 } from './windowsDownload.ts'
-import { APP_PAGES, APP_PAGE_LANGUAGES, BUTTON_PRIMARY, BUTTON_SECONDARY, appPageHtml, appPageNeutralUrl, appPageUrl, type AppPageSet } from './appPages.ts'
+import { APP_PAGES, APP_PAGE_LANGUAGES, BUTTON_DETECTED, BUTTON_SECONDARY, appPageHtml, appPageNeutralUrl, appPageUrl, type AppPageSet } from './appPages.ts'
 import {
   GETTING_STARTED_ICON,
   GETTING_STARTED_ID,
@@ -180,6 +180,8 @@ interface Chrome {
   readonly source: string
   readonly screenshotPending: string
   readonly choose: string
+  /** The app page's detected-system button, `{platform}` filled from [platformNames]. */
+  readonly downloadFor: string
 }
 
 
@@ -201,6 +203,7 @@ const CHROME: Record<string, Chrome> = {
     source: 'Source',
     screenshotPending: 'Screenshot coming soon',
     choose: 'Choose your platform',
+    downloadFor: 'Download for {platform}',
   },
   // ⚠ Machine-translated, pending native review — like the de.md / fr.md they frame
   // (`reviewed: false` in their front matter).
@@ -221,6 +224,7 @@ const CHROME: Record<string, Chrome> = {
     source: 'Quelle',
     screenshotPending: 'Screenshot folgt',
     choose: 'Wähle deine Plattform',
+    downloadFor: 'Für {platform} herunterladen',
   },
   fr: {
     languageName: 'Français',
@@ -239,6 +243,7 @@ const CHROME: Record<string, Chrome> = {
     source: 'Source',
     screenshotPending: 'Capture d’écran à venir',
     choose: 'Choisissez votre plateforme',
+    downloadFor: 'Télécharger pour {platform}',
   },
 }
 
@@ -1253,9 +1258,9 @@ export function withWindowsRelease(set: AppPageSet, release: WindowsRelease | nu
 
 /**
  * The download block's only logic, inlined into each app page: [REDIRECT_LOGIC]'s `detect`; if the
- * app is on the detected system, its button moves first and becomes the primary one. Either way a
- * line says which system we think it is (and, if the app is not there yet, that it is coming). Without JavaScript the row stays as built: every
- * target, the first available one primary.
+ * app is on the detected system, its button moves first and becomes the large primary one, labelled
+ * "Download for <system>". If the app is not there yet, a line says it is coming. Without
+ * JavaScript the row stays as built: every target, the first available one primary.
  */
 function appDownloadScript(): string {
   return `(function(){` +
@@ -1263,8 +1268,9 @@ function appDownloadScript(): string {
   `var r=document.querySelector('[data-download]');if(!r)return;` +
   `var p=detect(navigator.userAgent,navigator.maxTouchPoints||0);var i=p&&r.querySelector('[data-os="'+p+'"]');if(!i)return;` +
   `var n=JSON.parse(r.getAttribute('data-names'));var u=i.parentNode;` +
-  `if(!i.hasAttribute('data-soon')){Array.prototype.forEach.call(u.querySelectorAll('a'),function(a){a.className=${JSON.stringify(BUTTON_SECONDARY)}});i.querySelector('a').className=${JSON.stringify(BUTTON_PRIMARY)};u.insertBefore(i,u.firstChild);}` +
-  `r.querySelector('[data-download-hint]').textContent=r.getAttribute(i.hasAttribute('data-soon')?'data-soon-text':'data-ready').replace('{platform}',n[p]);` +
+  `if(i.hasAttribute('data-soon')){r.querySelector('[data-download-hint]').textContent=r.getAttribute('data-soon-text').replace('{platform}',n[p]);return;}` +
+  `Array.prototype.forEach.call(u.querySelectorAll('a'),function(a){a.className=${JSON.stringify(BUTTON_SECONDARY)}});` +
+  `var a=i.querySelector('a');a.className=${JSON.stringify(BUTTON_DETECTED)};a.textContent=r.getAttribute('data-download-for').replace('{platform}',n[p]);u.insertBefore(i,u.firstChild);` +
   `})();`
 }
 
@@ -1311,7 +1317,7 @@ function buildAppPages(renderChrome: ChromeRenderer, cssHref: string, set: AppPa
       `<body class="${shared.bodyClass}">`,
       siteHeader(chrome, shared),
       `<main id="main" class="${APP_MAIN_CLASSES}">`,
-      `<article class="app-page">\n${appPageHtml(set, page, lang, { carousel, icon: appIcon(set.app), frameNote: copy.frameNote }, chrome.platformNames)}\n</article>`,
+      `<article class="app-page">\n${appPageHtml(set, page, lang, { carousel, icon: appIcon(set.app), frameNote: copy.frameNote }, chrome.platformNames, chrome.downloadFor)}\n</article>`,
       '</main>',
       siteFooter(shared),
       `<script>${appDownloadScript()}</script>`,

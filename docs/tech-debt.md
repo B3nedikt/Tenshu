@@ -2840,6 +2840,20 @@ with it, same forcing both arms):
   `host.syncScheduler.drainNow()` after C's admission is red 3/3 with the gate's message. Fixed by
   running the class stepped: `pair(…)` ticks only the two devices pairing, so the host is never
   ticked after pairing B. Green 5/5 under six CPU burners.
+- `ForegroundTaskLivenessTest.a gap shorter than the linger keeps the service promoted` (`:control`;
+  *"expected:<[Active(count=1), CountChanged(count=1)]> but was:<[Active(count=1)]>"*, once in a
+  `run-gate.sh --quick` on an unrelated branch, 2026-11-14, a 4-core Linux container; 5/5 alone) —
+  category C: the script drove the real collector under `runBlocking` and took a real `delay(50)` as
+  enough for it to act. ⚠ **Not the conflated 0** that the shape suggests: the collector reads the 0
+  in its first hop, and a 150 ms stall while the count is 0 stays green. The loss is at the *last*
+  step: acting on the final 1 makes `collectLatest` `cancelAndJoin` the pending linger, which takes
+  two more dispatches, and a stall over 50 ms queues the script's timer ahead of the second one, so
+  the script cancels the scope first. Forced: an 80 ms `Thread.sleep` in a task launched right after
+  that last `counts.value = 1` is red with the gate's exact message. Fixed by running both linger
+  cases on virtual time (`runTest`, the collector in `backgroundScope`, `runCurrent()` after every
+  set) — `ForegroundTaskLiveness` takes its dispatcher and its `delay` from the scope alone, so no
+  production change; green under the same forcing. The linger is now pinned to the millisecond: a
+  gap of 1 999 ms under a 2 000 ms linger stays promoted, and idle has not fired at 99 of 100 ms.
 
 **The method — each rule below was learned by getting it wrong:**
 
@@ -7088,17 +7102,47 @@ faces with 22 non-faces, so it is off — on previews it cannot work at any thre
 10.67–14.95 vs non-human 11.07–14.95). Next: a human/non-human classifier that does not track image
 quality, a gate on original-sourced faces only (little effect on a library indexed from previews),
 or letting the user hide a group. Pets proper are P1, a different feature.
+⭐ An animal veto exists for this (2026-11-17, `photos-pets.md` §10, PT-D9): a face inside a confident
+cat or dog box is dropped before embedding. Built on iOS only and **off** until M5 is run; Android's
+detector is PT-2b, behind the COCO licence call. It covers cats and dogs, not dolls, drawings or food.
 
-### People on desktop: no face detector — MediaPipe has no JVM build (2026-09-25)
+### People on desktop: Windows/Linux have no face detector — MediaPipe has no JVM build (2026-09-25; macOS built 2026-11-18)
 
-**Files**: `control-shared-proxy/src/desktopMain/.../di/PlatformProxyModule.kt` (no face backend),
-`control-shared/src/desktopMain/.../ui/BuildFeatures.desktop.kt` (`faceClusteringRunsHere = false`).
+**Files**: `control-shared-proxy/src/desktopMain/.../di/PlatformProxyModule.kt` (the macOS backend,
+bound when `MacFaces.runsHere`), `control-shared/src/desktopMain/.../ui/BuildFeatures.desktop.kt`
+(`faceClusteringRunsHere`: macOS only).
 
-People runs on Android only. The detector half is MediaPipe Face Landmarker, and `tasks-vision` is an
-Android AAR, so desktop has no way to run it. Desktop therefore hides the face switch, filters the
-`onnx+mediapipe` catalog entry out, and answers `faceGroups` with `NO_BACKEND`.
+People runs on Android (MediaPipe) and iOS (Vision, `ios-face-grouping.md`), not desktop. Android's
+detector half is MediaPipe Face Landmarker, and `tasks-vision` is an Android AAR, so desktop cannot
+run it. Desktop therefore hides the face switch, filters the face catalog entries out, and answers
+`faceGroups` with `NO_BACKEND`.
 
-**The slice (phase F2d in `photos-people-and-pets.md` §6):**
+⭐⭐ **macOS: BUILT 2026-11-18** (`ios-face-grouping.md` §10.8 *As built*). ⭐ **Published 2026-11-18**: the signed catalog carries `auraface-v1-int8` under `onnx+vision`, pinned to the calibrated int8 file, so Settings → Models offers it on a Mac. ⭐ **First real-library pass done 2026-11-18** (`ios-face-grouping.md` §10.8): the packaged app indexed the maintainer's 79-photo Mac library with no failure and showed the one expected person in People. Nothing is owed for the Mac. Windows/Linux below is untouched.
+
+⭐ **Re-checked 2026-11-18: on macOS the premise no longer holds.** The entry was written when
+*"no platform detector exists on desktop"* (`photos-people-and-pets.md` §7a) was still true. The iOS
+route has changed that for the Mac, so desktop now has two slices:
+
+**The Mac slice (Vision + AuraFace on ONNX Runtime). This is the cheaper route and it reuses iOS:**
+1. Vision is on macOS with the same `VNDetectFaceLandmarksRequest`. The JVM already drives Vision
+   through FFM (`macos-helpers/.../ffi/Vision.kt`, QR), and Control's desktop modules already depend
+   on `:macos-helpers`. Add a face-landmarks request beside the barcode one, with a pinned `revision`.
+2. Reuse `VisionFaceLandmarks.landmarks` (`commonMain`, already JVM-tested) for the five points, then
+   `alignFace` and the resample. Embed with AuraFace on the ONNX Runtime desktop already links.
+3. One backend that does both detection and embedding, as `VisionCoreMlFaceBackend` does on iOS. The
+   registry's `backendFor` is first-wins and cannot pair a separate detector with an embedder
+   (`photos-people-and-pets.md`, iOS route notes). Add a catalog entry with a new runtime (e.g.
+   `onnx+vision`), declared only when `os.name` is macOS, so the Windows and Linux builds keep
+   filtering it out.
+4. ⭐ **Calibrated 2026-11-18 (`ios-face-grouping.md` §10.8): ③ holds**, on the harness's decode
+   (nearest different person 0.183) and on desktop's own decode (`MacFaces.Decoder`, 0.179), with
+   33 of 33 verified faces and 0 intruders. The shared 0.44 stands, with no override.
+5. ⚠ **macOS Vision is not iOS Vision.** At the same revision and on the same pixels, the points
+   differ, with end-to-end cosine as low as 0.856 (`ios-face-grouping.md` §11.3). Stamp the OS build
+   into the face key (FD9), and never use a Mac recording as a golden for iOS or the reverse.
+
+**The Windows/Linux slice (phase F2d in `photos-people-and-pets.md` §6). Vision cannot help here,
+and the Windows port (`desktop-windows-port.md`) makes it real:**
 1. Convert the `.task` bundle's detector and mesh models (TFLite) to ONNX, and show the converted
    mesh's landmarks match MediaPipe's on the same photographs. §3.3's rule applies: a different
    landmark source changes crops, hence templates.
@@ -7110,7 +7154,9 @@ Android AAR, so desktop has no way to run it. Desktop therefore hides the face s
    its own number) before flipping `faceClusteringRunsHere` on desktop. The F2m library lives only
    on the phone, so the owner decides whether it may be copied to the Mac.
 
-Deferred 2026-09-25: Android first, desktop when desktop People becomes a priority.
+Deferred 2026-09-25: Android first, desktop when desktop People becomes a priority. Neither slice is
+scheduled. If the Mac comes first, it does not unblock the Windows/Linux slice, and it adds a fourth
+landmark source (Android MediaPipe, iOS Vision, macOS Vision, ONNX).
 
 ### The feed's density re-anchor drifted ~a year — seen ONCE, not reproduced (2026-09-17)
 

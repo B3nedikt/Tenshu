@@ -2,6 +2,7 @@ package org.tenshu.mia.proxy
 
 import kotlinx.coroutines.test.runTest
 import org.tenshu.core.TResult
+import org.tenshu.core.collection.list.toList
 import org.tenshu.core.common.TestProxy
 import org.tenshu.core.get
 import org.tenshu.mia.MiaAnswer
@@ -79,10 +80,12 @@ class AskMiaRoutineTest {
 
         val answer = ask(proxy, "run my evening routine")
 
-        assertEquals(MiaAnswer.VERDICT_NO_MATCH, answer.verdict.get())
+        // Since §25 (CL-3): a question with each candidate as a chip, and nothing that would act.
+        assertEquals(MiaAnswer.VERDICT_CLARIFY, answer.verdict.get())
         assertNull(answer.action, "an ambiguous match must offer nothing to tap")
-        val text = answer.explanation.get()
-        assertTrue(text.contains("Evening wind down") && text.contains("Evening lights"), text)
+        val labels = assertNotNull(answer.clarification).choices.toList()
+            .filterIsInstance<org.tenshu.mia.MiaChoice>().map { it.label.get() }
+        assertEquals(listOf("Evening lights", "Evening wind down"), labels.sorted())
     }
 
     @Test

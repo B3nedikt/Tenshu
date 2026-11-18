@@ -232,8 +232,10 @@ class ModelsScreenTextTest {
         // ⚠⚠ An ON switch stays visible even where the build cannot run it — never an invisible consent.
         val on = faces.copy(device = true)
         assertEquals(listOf(search, on), visibleConsents(listOf(search, on), runsFaces = false))
-        // ⚠ This desktop test build IS the desktop actual.
-        assertEquals(false, faceClusteringRunsHere)
+        // ⚠ This desktop test build IS the desktop actual: macOS with FFM runs faces; Windows, Linux and a
+        // pre-FFM runtime (this module tests on JDK 17) do not.
+        val mac = System.getProperty("os.name").orEmpty().startsWith("Mac", ignoreCase = true)
+        assertEquals(mac && runCatching { app.tenshu.macos.MacFaceVision.isAvailable }.getOrDefault(false), faceClusteringRunsHere)
     }
 
     /**

@@ -28,6 +28,7 @@ import {
   isWebAuthnSupported,
   type WebAuthnFailure,
 } from '../lib/webauthn'
+import { PasskeySetupScreen } from './screens/TailScreens'
 import {
   Hint,
   LinkButton,
@@ -47,6 +48,9 @@ type Step =
   | 'phrase-entry'
   | { phraseProcessing: { mnemonic: string } }
   | { phraseFailed: { mnemonic: string; error: PhraseUnlockError } }
+  // After a phrase unlock: the passkey path just failed or never existed, so offer a new one here
+  // rather than leaving the phrase as the only way back in every 24 hours.
+  | 'passkey-setup'
 
 type LockedFailure =
   | 'cancelled'
@@ -59,6 +63,9 @@ type LockedFailure =
   // missing blob). Routes the user to the recovery-phrase fallback
   // since the passkey alone can't restore asset A1.
   | 'masterKeyUnwrap'
+  // This browser has no passkey stored at all (skipped at setup, or its save never landed). No
+  // passkey the user owns can unlock it, so the ceremony is not offered — only the phrase.
+  | 'noPasskey'
 
 export function LockedFlow() {
   const { t } = useTranslation('onboarding')
@@ -69,6 +76,8 @@ export function LockedFlow() {
   const destination = postUnlockPath(searchParams.get('next'))
   const [deviceName, setDeviceName] = useState<string>(() => t('deviceName.default'))
   const [step, setStep] = useState<Step>('welcome')
+  // false only on a definite "none stored"; a failed lookup stays unknown and keeps the passkey path.
+  const [hasPasskey, setHasPasskey] = useState<boolean | 'unknown'>('unknown')
 
   useEffect(() => {
     let cancelled = false
@@ -83,6 +92,11 @@ export function LockedFlow() {
         return
       }
       setDeviceName(s.deviceName)
+      void sdk.Session.passkeyCredentialId()
+        .then(id => {
+          if (!cancelled) setHasPasskey(id !== null)
+        })
+        .catch(() => undefined)
     })
     return () => {
       cancelled = true
@@ -92,8 +106,18 @@ export function LockedFlow() {
   async function onUnlock() {
     setStep('unlocking')
     // Narrow the browser's picker to the passkey this browser registered. A failed lookup
-    // must not block unlock — fall back to the discoverable picker.
-    const credentialId = await sdk.Session.passkeyCredentialId().catch(() => null)
+    // must not block unlock — fall back to the discoverable picker. A definite "none stored" must
+    // not open the picker either: it lists every passkey the user owns, and each one fails.
+    const lookup = await sdk.Session.passkeyCredentialId().then(
+      id => ({ ok: true as const, id }),
+      () => ({ ok: false as const }),
+    )
+    if (lookup.ok && lookup.id === null) {
+      setHasPasskey(false)
+      setStep({ failure: 'noPasskey' })
+      return
+    }
+    const credentialId = lookup.ok ? lookup.id : null
     const assertionResult = await getPasskeyAssertion(credentialId)
     if (!assertionResult.ok) {
       setStep({ failure: mapFailure(assertionResult.error) })
@@ -113,6 +137,7 @@ export function LockedFlow() {
       {step === 'welcome' && (
         <WelcomeCard
           deviceName={deviceName}
+          hasPasskey={hasPasskey !== false}
           onUnlock={() => void onUnlock()}
           onUsePhrase={() => setStep('phrase-entry')}
           onDisconnect={() => setStep('confirm-disconnect')}
@@ -157,7 +182,9 @@ export function LockedFlow() {
       {typeof step === 'object' && 'phraseProcessing' in step && (
         <PhraseProcessingCard
           mnemonic={step.phraseProcessing.mnemonic}
-          onSucceeded={() => navigate(destination, { replace: true })}
+          onSucceeded={() =>
+            isWebAuthnSupported() ? setStep('passkey-setup') : navigate(destination, { replace: true })
+          }
           onFailed={error =>
             setStep({
               phraseFailed: { mnemonic: step.phraseProcessing.mnemonic, error },
@@ -177,6 +204,13 @@ export function LockedFlow() {
           onWelcome={() => setStep('welcome')}
         />
       )}
+      {step === 'passkey-setup' && (
+        <PasskeySetupScreen
+          deviceName={deviceName}
+          onContinue={() => navigate(destination, { replace: true })}
+          onSkip={() => navigate(destination, { replace: true })}
+        />
+      )}
     </OnboardingShell>
   )
 }
@@ -188,6 +222,7 @@ function mapFailure(error: WebAuthnFailure): LockedFailure {
 function mapUnlockError(error: UnlockError): LockedFailure {
   switch (error.kind) {
     case 'noPasskey':
+      return 'noPasskey'
     case 'wrongCredential':
       return 'wrongCredential'
     case 'masterKeyUnwrap':
@@ -201,11 +236,13 @@ function mapUnlockError(error: UnlockError): LockedFailure {
 
 function WelcomeCard({
   deviceName,
+  hasPasskey,
   onUnlock,
   onUsePhrase,
   onDisconnect,
 }: {
   readonly deviceName: string
+  readonly hasPasskey: boolean
   readonly onUnlock: () => void
   readonly onUsePhrase: () => void
   readonly onDisconnect: () => void
@@ -215,11 +252,17 @@ function WelcomeCard({
     <OnboardingCard>
       <OnboardingTitle>{t('locked.welcome.title', { deviceName })}</OnboardingTitle>
       <OnboardingProse>
-        <p>{t('locked.welcome.body')}</p>
+        <p>{hasPasskey ? t('locked.welcome.body') : t('locked.welcome.noPasskeyStoredBody')}</p>
       </OnboardingProse>
       <OnboardingActions>
-        <PrimaryButton onClick={onUnlock}>{t('locked.welcome.unlock')}</PrimaryButton>
-        <LinkButton onClick={onUsePhrase}>{t('locked.welcome.lostPasskey')}</LinkButton>
+        {hasPasskey ? (
+          <>
+            <PrimaryButton onClick={onUnlock}>{t('locked.welcome.unlock')}</PrimaryButton>
+            <LinkButton onClick={onUsePhrase}>{t('locked.welcome.lostPasskey')}</LinkButton>
+          </>
+        ) : (
+          <PrimaryButton onClick={onUsePhrase}>{t('locked.failed.usePhrase')}</PrimaryButton>
+        )}
         <LinkButton onClick={onDisconnect}>{t('locked.welcome.disconnect')}</LinkButton>
       </OnboardingActions>
       <Hint>
@@ -263,8 +306,14 @@ function UnlockFailedCard({
         <p>{message}</p>
       </OnboardingProse>
       <OnboardingActions>
-        <PrimaryButton onClick={onRetry}>{t('locked.failed.retry')}</PrimaryButton>
-        <LinkButton onClick={onUsePhrase}>{t('locked.failed.usePhrase')}</LinkButton>
+        {failure === 'noPasskey' ? (
+          <PrimaryButton onClick={onUsePhrase}>{t('locked.failed.usePhrase')}</PrimaryButton>
+        ) : (
+          <>
+            <PrimaryButton onClick={onRetry}>{t('locked.failed.retry')}</PrimaryButton>
+            <LinkButton onClick={onUsePhrase}>{t('locked.failed.usePhrase')}</LinkButton>
+          </>
+        )}
         <LinkButton onClick={onWelcome}>{t('locked.failed.back')}</LinkButton>
         <LinkButton onClick={onDisconnect}>{t('locked.failed.disconnect')}</LinkButton>
       </OnboardingActions>

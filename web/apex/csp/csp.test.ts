@@ -14,6 +14,8 @@ import {
   PROD_RELAY_URL,
   screenshotOrigins,
   TILES_HOST_URL,
+  TURNSTILE_ORIGIN,
+  turnstileOrigins,
   withCspMeta,
 } from './csp.ts'
 
@@ -109,6 +111,27 @@ describe('origins', () => {
     ])
     expect(hostedAppOrigins({ PROD: true, VITE_MY_APP_ORIGIN: 'https://m.example' }, ['my-app'])).toEqual(['https://m.example'])
     expect(hostedAppOrigins({ PROD: false, DEV: true }, ['drive'])).toEqual([])
+  })
+})
+
+describe('turnstileOrigins', () => {
+  it('names Cloudflare only for a build with a site key', () => {
+    expect(turnstileOrigins({ PROD: true })).toEqual([])
+    expect(turnstileOrigins({ PROD: true, VITE_TURNSTILE_SITE_KEY: '  ' })).toEqual([])
+    expect(turnstileOrigins({ PROD: true, VITE_TURNSTILE_SITE_KEY: '0x4AAAAAAA' })).toEqual([TURNSTILE_ORIGIN])
+  })
+
+  it('lands in script-src (before the hashes), connect-src and frame-src', () => {
+    const turnstile = [TURNSTILE_ORIGIN]
+    const policy = new Map(
+      contentSecurityPolicy({ scriptHashes: [sha('x')], scripts: turnstile, connect: turnstile, frame: turnstile })
+        .split('; ')
+        .map((d) => d.split(' '))
+        .map(([name, ...sources]) => [name!, sources]),
+    )
+    expect(policy.get('script-src')).toEqual(["'self'", TURNSTILE_ORIGIN, sha('x')])
+    expect(policy.get('connect-src')).toContain(TURNSTILE_ORIGIN)
+    expect(policy.get('frame-src')).toContain(TURNSTILE_ORIGIN)
   })
 })
 

@@ -2,7 +2,7 @@
 //   vi.mock('../lib/proxy', async () => (await import('../test/proxyMock')).proxyModule)
 // and drives the pushed streams through `streams`.
 import { vi } from 'vitest'
-import type { AlbumsResult, Photo, PhotoAlbum, PhotosListResult, TrashResult } from '@tenshu/sdk/photos'
+import type { AlbumsResult, PeopleResult, Person, Photo, PhotoAlbum, PhotosListResult, TrashResult } from '@tenshu/sdk/photos'
 import type { LargePreview } from '@tenshu/sdk/files'
 
 type Sub<T> = { onValue: (v: T) => void; onError: (e: Error) => void; closed: boolean }
@@ -32,6 +32,7 @@ export const streams = {
   albums: stream<AlbumsResult>(),
   favourites: stream<PhotosListResult>(),
   trash: stream<TrashResult>(),
+  people: stream<PeopleResult>(),
 }
 
 const ok = { ok: true as const }
@@ -54,6 +55,9 @@ export const proxy = {
   deleteAlbum: vi.fn(async (_id: string): Write => ok),
   addToAlbum: vi.fn(async (_id: string, _path: string): Write => ok),
   removeFromAlbum: vi.fn(async (_id: string, _c: string) => ({ ok: true as const, changed: true }) as unknown),
+  listPeople: vi.fn(async (): Promise<PeopleResult> => ({ ok: true, people: [] })),
+  subscribePeople: vi.fn(streams.people.subscribe),
+  personPhotos: vi.fn(async (_name: string): Promise<PhotosListResult> => ({ ok: true, photos: [] })),
   listFavourites: vi.fn(async (): Promise<PhotosListResult> => ({ ok: true, photos: [] })),
   subscribeFavourites: vi.fn(streams.favourites.subscribe),
   isFavourite: vi.fn(async (_c: string) => ({ ok: true as const, favourite: false }) as unknown),
@@ -96,6 +100,11 @@ export function resetProxy() {
   streams.albums.reset()
   streams.favourites.reset()
   streams.trash.reset()
+  streams.people.reset()
+}
+
+export function person(overrides: Partial<Person> & { name: string }): Person {
+  return { photoCount: 1, coverPath: `/Photos/${overrides.name}.jpg`, ...overrides }
 }
 
 let n = 0

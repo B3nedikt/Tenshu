@@ -9,7 +9,7 @@ import { getPreview, getTilePreview } from './proxy'
 import { sniffImageMime } from './imageMime'
 import { ThumbnailCache } from './thumbnailCache'
 import { scaleTile } from './downscale'
-import type { TilePlan } from './tileSize'
+import { planTile, useDevicePixelRatio, type TilePlan } from './tileSize'
 
 // `GetStoredThumbnail.LARGE_PX`.
 export const TILE_PREVIEW_PX = 256
@@ -113,6 +113,65 @@ export function useTileUrl(path: string | null, active: boolean, plan: TilePlan)
   const key = path && plan.rung === 'xlarge' ? sharpKey(path, plan.devicePx, plan.fit) : null
   const sharp = useCachedUrl(sharpCache, key, active)
   return sharp ?? large
+}
+
+const LARGE_PLAN: TilePlan = { rung: 'large' }
+
+/**
+ * A card's cover (an album, a year): [path]'s URL planned from the card's MEASURED size, like a grid
+ * tile — `LARGE` first, the sharp rung swapped in when `LARGE` cannot cover the card on this screen.
+ * ⚠⚠ A plain [useThumbnail] stops at `LARGE` (256 px), which a 300 px card on a Retina screen draws
+ * at under half its pixels: the covers were blurry while the grid's tiles were sharp.
+ * [fit]: a card that is not square (the year banner) takes the whole photo fit to its longer side,
+ * so `object-cover` frames it as before; a square card takes the square crop.
+ */
+export function useCoverUrl<T extends Element>(
+  path: string | null,
+  ref: RefObject<T | null>,
+  active: boolean,
+  { fit = false, pixelWidth = null, pixelHeight = null }: { fit?: boolean; pixelWidth?: number | null; pixelHeight?: number | null } = {},
+): string | null {
+  const span = useLongerSide(ref)
+  const ratio = useDevicePixelRatio()
+  return useTileUrl(path, active, planCover(span, ratio, { fit, pixelWidth, pixelHeight }))
+}
+
+/**
+ * A cover's plan for a card whose longer side is [span] CSS px (0 = not measured yet: `LARGE`).
+ * ⚠⚠ With [fit] the card is filled by `object-cover`, so what must reach across it is the photo's
+ * SHORT side when the photo is portrait, and a fit rung of `devicePx` gives the short side only
+ * `devicePx / aspect`. The orientation is unknown (the stored dimensions are before EXIF rotation), so
+ * the request is widened by the aspect either way; `planTile` still caps it at what `XLARGE` holds.
+ */
+export function planCover(
+  span: number,
+  ratio: number,
+  { fit = false, pixelWidth = null, pixelHeight = null }: { fit?: boolean; pixelWidth?: number | null; pixelHeight?: number | null } = {},
+): TilePlan {
+  if (span <= 0) return LARGE_PLAN
+  if (!fit) return planTile(span, ratio, pixelWidth, pixelHeight, false)
+  const known = pixelWidth && pixelHeight && pixelWidth > 0 && pixelHeight > 0
+  const aspect = known ? Math.max(pixelWidth, pixelHeight) / Math.min(pixelWidth, pixelHeight) : 4 / 3
+  return planTile(span * aspect, ratio, pixelWidth, pixelHeight, true)
+}
+
+// The element's longer side in CSS px, kept current; 0 until measured (and without
+// `ResizeObserver`, as in jsdom — the card then stays on `LARGE`).
+function useLongerSide<T extends Element>(ref: RefObject<T | null>): number {
+  const [span, setSpan] = useState(0)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const measure = () => {
+      const box = el.getBoundingClientRect()
+      setSpan(Math.round(Math.max(box.width, box.height)))
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [ref])
+  return span
 }
 
 /** [path]'s tile URL while [active], else `null` — and the reference is released. */

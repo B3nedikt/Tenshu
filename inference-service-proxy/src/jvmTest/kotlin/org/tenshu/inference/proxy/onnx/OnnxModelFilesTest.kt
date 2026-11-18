@@ -268,4 +268,54 @@ class OnnxModelFilesTest {
 
         assertNull(locate())
     }
+
+    // ---- the animal detector (pets PT-2c) -------------------------------------------------------
+
+    /** A descriptor whose size is [write]'s three bytes, so the size check can be exercised. */
+    private val animals = AnimalDetectorModel("rfdetr-test", 1, sha256 = "00", byteSize = 3, minConfidence = 0.3f)
+
+    private fun animalStore(version: Int, at: String?): ModelStore {
+        val record = InstalledModelData(
+            modelId = animals.modelId,
+            modelVersion = version,
+            artifacts = listOfNotNull(at?.let { InstalledArtifactData(ModelArtifactRole.ANIMAL_DETECTOR, it, 3, "00") }),
+            labelSetVersion = 0,
+            licence = "Apache-2.0",
+        )
+        val base = storeHolding(null)
+        return object : ModelStore by base {
+            override fun installed(): List<InstalledModelData> = listOf(record)
+        }
+    }
+
+    @Test
+    fun theInstalledAnimalDetectorIsLocated() {
+        val installed = write("inference/models/${animals.modelId}.animalDetector.model")
+        val locate = OnnxModelFiles.animalDetectorStoreLocator(animalStore(1, "inference/models/${animals.modelId}.animalDetector.model"), root, animals)
+        assertEquals(installed.absolutePath, locate())
+    }
+
+    /** ⚠⚠ Another installed version is refused, never answered by the side-load: the stamp names the detector. */
+    @Test
+    fun anotherInstalledAnimalDetectorVersionIsRefusedEvenWithASideLoad() {
+        write("${OnnxModelFiles.DIRECTORY}/${OnnxModelFiles.animalDetectorFileName(animals)}")
+        val locate = OnnxModelFiles.animalDetectorStoreLocator(animalStore(2, "inference/models/x.model"), root, animals)
+        assertNull(locate())
+    }
+
+    @Test
+    fun withNothingInstalledTheSideLoadAnswersAndAWrongSizeDoesNot() {
+        val side = write("${OnnxModelFiles.DIRECTORY}/${OnnxModelFiles.animalDetectorFileName(animals)}")
+        val locate = OnnxModelFiles.animalDetectorStoreLocator(storeHolding(null), root, animals)
+        assertEquals(side.absolutePath, locate())
+        side.writeBytes(byteArrayOf(1, 2, 3, 4))
+        assertNull(locate(), "a file of another size is another detector")
+    }
+
+    @Test
+    fun anUnreadableIndexLocatesNoAnimalDetector() {
+        write("${OnnxModelFiles.DIRECTORY}/${OnnxModelFiles.animalDetectorFileName(animals)}")
+        assertNull(OnnxModelFiles.animalDetectorStoreLocator(storeWithAnIndexItCannotRead(), root, animals)())
+    }
 }
+

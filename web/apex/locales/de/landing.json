@@ -325,7 +325,8 @@
       "sendFailed": "Wir konnten die E-Mail gerade nicht senden. Bitte versuche es in ein paar Minuten noch einmal.",
       "invalidCode": "Dieser Code hat nicht funktioniert. Prüfe ihn und versuche es noch einmal, oder fordere einen neuen Code an.",
       "unreachable": "Der Kontodienst ist nicht erreichbar. Prüfe deine Verbindung und versuche es noch einmal.",
-      "generic": "Etwas ist schiefgelaufen. Bitte versuche es noch einmal."
+      "generic": "Etwas ist schiefgelaufen. Bitte versuche es noch einmal.",
+      "challenge": "Wir konnten nicht bestätigen, dass diese Anfrage von einem Menschen kommt. Warte, bis die Prüfung unten abgeschlossen ist, und versuche es dann noch einmal."
     },
     "help": "Fragen, oder kommt kein Code an? Schreib an <mail>support@tenshu.app</mail>."
   }

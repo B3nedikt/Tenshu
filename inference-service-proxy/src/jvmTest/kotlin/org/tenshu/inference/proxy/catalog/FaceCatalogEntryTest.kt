@@ -188,6 +188,43 @@ class FaceCatalogEntryTest {
         }
     }
 
+    /** The macOS desktop entry (`ios-face-grouping.md` §10.8): Apple Vision detects, ORT embeds. */
+    private val mac = faces.single { it.runtime == FaceModel.ONNX_VISION_RUNTIME }
+
+    /**
+     * ⚠⚠ The macOS entry is Android's embedder, byte for byte: the one file §10.8 calibrated
+     * (`auraface_int8.onnx`, sha `1b7b3c18…`), at Android's own path. Pinned, so any other file staged
+     * there fails to sign rather than shipping uncalibrated.
+     */
+    @Test
+    fun theMacEntryIsAndroidsCalibratedEmbedderAlone() {
+        assertEquals(FaceModel.AuraFaceOnnxMac.modelId, mac.modelId)
+        assertEquals(FaceModel.AuraFaceOnnxMac.modelVersion, mac.modelVersion)
+        assertEquals(entry.labelSetVersion, mac.labelSetVersion)
+        assertEquals(listOf(InferenceCapability.FACE_CLUSTERING), mac.capabilities)
+        val embedder = mac.artifacts.single()
+        assertEquals(ModelArtifactRole.FACE_EMBEDDER, embedder.role)
+        assertEquals(entry.artifacts.single { it.role == ModelArtifactRole.FACE_EMBEDDER }.path, embedder.path)
+        val pinned = manifest.models.single { it.id == mac.modelId && it.runtime == FaceModel.ONNX_VISION_RUNTIME }.artifacts.single()
+        assertEquals(MAC_CALIBRATED_EMBEDDER_SHA256, pinned.sha256)
+        assertEquals(66_033_423L, pinned.byteSize)
+    }
+
+    /**
+     * ⚠⚠ Who sees it: only a build that contributes `onnx+vision` — macOS desktop, decided at run
+     * time. Android, Windows/Linux desktop and every iOS build keep exactly what they saw before.
+     */
+    @Test
+    fun onlyAMacDesktopSeesTheMacEntryAndItSeesExactlyOne() {
+        fun facesSeenBy(runtimes: Set<String>) =
+            usableModels(catalog, supportedRuntimes = runtimes).filter { it.modelId == FaceModel.PinnedAuraFace.modelId }.map { it.runtime }
+
+        assertEquals(listOf(FaceModel.ONNX_VISION_RUNTIME), facesSeenBy(SUPPORTED_RUNTIMES + FaceModel.ONNX_VISION_RUNTIME))
+        assertEquals(listOf(FaceModel.RUNTIME), facesSeenBy(SUPPORTED_RUNTIMES + FaceModel.RUNTIME))
+        assertEquals(emptyList(), facesSeenBy(SUPPORTED_RUNTIMES))
+        assertEquals(listOf(IOS_FACE_RUNTIME), facesSeenBy(IOS_AI_L_RUNTIMES + IOS_FACE_RUNTIME))
+    }
+
     private fun repoRoot(): File {
         var dir: File? = File(System.getProperty("user.dir")).absoluteFile
         while (dir != null && !File(dir, "settings.gradle.kts").isFile) dir = dir.parentFile
@@ -197,6 +234,9 @@ class FaceCatalogEntryTest {
     private companion object {
         /** ⚠ The face runtime iOS's backend will contribute (FD4); F5 contributes it. */
         const val IOS_FACE_RUNTIME = FaceModel.COREML_VISION_RUNTIME
+
+        /** The int8 embedder §10.8 calibrated on macOS (`ios-face-grouping.md`), Android's served file. */
+        const val MAC_CALIBRATED_EMBEDDER_SHA256 = "1b7b3c18b113b1c2cbc99c537dd9b83d65e2bc35f37e948b84131ae092389a9a"
 
         /** What Photos on iOS contributes with AI-L on (`PhotosOnDeviceAi.kt`, `PhotosModelDownloadTest`). */
         val IOS_AI_L_RUNTIMES = setOf("coreml")

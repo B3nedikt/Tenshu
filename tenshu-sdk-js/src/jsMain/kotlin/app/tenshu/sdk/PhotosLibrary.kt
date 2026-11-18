@@ -291,6 +291,18 @@ class PhotoJs internal constructor(
     val renditionPath: String?,
 )
 
+/**
+ * One NAMED person (`photos-app.md` §42.7): a name someone typed into People on a device that groups
+ * faces, and how many of their photographs this realm still holds.
+ */
+@JsExport
+class PersonJs internal constructor(
+    val name: String,
+    val photoCount: Int,
+    /** The newest photograph's preview path: its edit's rendition when it has one. */
+    val coverPath: String,
+)
+
 @JsExport
 class PhotoAlbumJs internal constructor(
     val albumId: String,

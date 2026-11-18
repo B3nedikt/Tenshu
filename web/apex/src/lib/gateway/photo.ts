@@ -40,6 +40,9 @@ export const photoGateway: GatewayModule = {
     'photo.motionClip': async (params) => Photos.motionClip(readId(params, 'path', 'photo.motionClip')),
 
     'photo.albums': async () => Photos.albums(),
+    // Named people (photos-app.md §42.7) — read-only: the browser groups no faces and names no one.
+    'photo.people': async () => Photos.people(),
+    'photo.personPhotos': async (params) => Photos.personPhotos(readId(params, 'name', 'photo.personPhotos')),
     'photo.albumPhotos': async (params) => Photos.albumPhotos(readId(params, 'albumId', 'photo.albumPhotos')),
     // An empty contentId is a value (a file predating content addressing), not an omission.
     'photo.albumsFor': async (params) => Photos.albumsFor(readString(params, 'contentId', 'photo.albumsFor')),
@@ -82,6 +85,7 @@ export const photoGateway: GatewayModule = {
     // that dies ends the subscriber's stream with a terminal error instead of freezing its screen.
     // ⚠ The feed has no push form. Its only Flow is a whole-realm stream, so it is snapshot + refetch.
     'photo.albums.observe': (_params, emit, fail) => Photos.observeAlbums((result) => emit(result), fail),
+    'photo.people.observe': (_params, emit, fail) => Photos.observePeople((result) => emit(result), fail),
     'photo.favourites.observe': (_params, emit, fail) =>
       Photos.observeFavourites((result) => emit(result), fail),
     'photo.trash.observe': (_params, emit, fail) => Photos.observeTrash((result) => emit(result), fail),

@@ -8,6 +8,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.promise
 import org.tenshu.core.TError
@@ -59,6 +61,13 @@ import org.tenshu.core.inRange
 import org.tenshu.core.oneOf
 import org.tenshu.core.resolve
 import org.tenshu.file.client.fileService
+import org.tenshu.inference.INDEX_MARKER_LABEL
+import org.tenshu.inference.InferenceCapability
+import org.tenshu.inference.MediaLabel
+import org.tenshu.inference.capability
+import org.tenshu.inference.client.inferenceService
+import org.tenshu.inference.filePath as labelFilePath
+import org.tenshu.inference.label
 import org.tenshu.photo.Album
 import org.tenshu.photo.AlbumEntry
 import org.tenshu.photo.PhotoEdit
@@ -94,8 +103,8 @@ import org.tenshu.photo.createdAt as albumCreatedAt
  * The Photos web surface (`web-app-suite.md` Wave 2). It mirrors the parts of the
  * native `PhotosRepository` / `TenshuPhotosRepository` that `photos-app.md` §42 leaves undisputed:
  * the capture-date feed, the viewer's stored details, albums, favourites, the trash and `MOTION`
- * clip bytes. Faces, labels, search, places, duplicates, upload and mint-on-view are §42's open
- * questions and are deliberately absent.
+ * clip bytes, and NAMED people, read-only (§42.7). Face grouping and naming, labels, semantic search,
+ * places, duplicates, upload and mint-on-view are §42's decisions and are deliberately absent.
  *
  * ⚠⚠ **Re-implemented, not compiled.** `*-shared-logic` must not compile to JS, so this is a second
  * reader of the relations `TenshuPhotosRepository` reads. The rules it copies are listed once at
@@ -559,6 +568,45 @@ object Photos {
     internal var deleteFile: suspend (path: String) -> TResult<*> =
         { path -> client().fileService.defaultFileSystem.deleteFile(path) }
 
+    // ── people (named only) ───────────────────────────────────────────────────────────────────
+
+    /**
+     * Every NAMED person, by name: `{ ok: true, people }` (`photos-app.md` §42.7).
+     *
+     * ⚠⚠ **Named people only, and read-only.** Grouping faces needs face templates, which are
+     * device-local and never sync (IN-D5), and a model the browser does not run. What does sync is
+     * one `MediaLabel` per photograph a person named on a device (capability `FACE_CLUSTERING`,
+     * `NameFaceGroupImplementation`). So this lists those names, never an unnamed group, and offers
+     * no naming.
+     *
+     * The rules copied from native (`CollectionsViewModel` → `peopleFrom`): grouped by the name (two
+     * people sharing one are ONE person, `photos-people-and-pets.md` §9); a path whose file moved or
+     * was trashed is dropped; a person left with nothing is dropped; sorted by name.
+     */
+    fun people(): Promise<dynamic> = GlobalScope.promise { JsRuntime.awaitReady(); peopleResult() }
+
+    /**
+     * Pushes the [people] envelope when a name is written or arrives by sync, and when a photograph
+     * is trashed or restored (the count moves). `onError` is terminal.
+     *
+     * ⚠ Not on a file-side change alone: a named photograph moved, or a file that syncs in after its
+     * name, shows on the next push or read (the page re-reads on open). Watching files would mean the
+     * whole-library stream the feed already declines (`photo.ts`, "the feed has no push form").
+     */
+    fun observePeople(callback: (dynamic) -> Unit, onError: (String) -> Unit): () -> Unit =
+        Contacts.observeJob(onError) {
+            merge(faceLabelRowsFlow(), trashRowsFlow()).collect { callback(peopleResult()) }
+        }
+
+    /** One named person's photographs, newest first: `{ ok: true, photos }` — empty for a name nobody has. */
+    fun personPhotos(name: String): Promise<dynamic> = GlobalScope.promise {
+        JsRuntime.awaitReady()
+        val paths = namedPaths().valueOr { return@promise photosFailure(it) }[name].orEmpty()
+        val photos = libraryByPaths(paths).valueOr { return@promise photosFailure(it) }
+        okResult { it.photos = photos.toTypedArray() }
+    }
+
+    // ── internals ─────────────────────────────────────────────────────────────────────────────
     // ── internals ─────────────────────────────────────────────────────────────────────────────
 
     private fun client(): TenshuClient = JsRuntime.tenshuClient
@@ -696,6 +744,94 @@ object Photos {
         )
     }
 
+    /** Name → distinct paths, from the face labels. ⚠ The index marker is never a name. */
+    private suspend fun namedPaths(): Read<Map<String, List<String>>> =
+        client().inferenceService.labels
+            .filter<MediaLabel> { capability equalTo InferenceCapability.FACE_CLUSTERING.id }
+            .select { fields(MediaLabel.Fields.FILE_PATH, MediaLabel.Fields.LABEL, MediaLabel.Fields.CAPABILITY) }
+            .getAll()
+            .fold(
+                onSuccess = { rows ->
+                    Read.Ok(
+                        rows.toList()
+                            .filter { it.capability.get() == InferenceCapability.FACE_CLUSTERING.id }
+                            .filter { it.label.get() != INDEX_MARKER_LABEL && it.label.get().isNotBlank() }
+                            .groupBy({ it.label.get() }, { it.labelFilePath.get() })
+                            .mapValues { (_, paths) -> paths.distinct() },
+                    )
+                },
+                onFailure = { Read.Failed(it) },
+            )
+
+    private suspend fun peopleResult(): dynamic {
+        val byName = namedPaths().valueOr { return photosFailure(it) }
+        // ⚠ One walk for every named path, not one per person or per photograph.
+        val photos = libraryByPaths(byName.values.flatten()).valueOr { return photosFailure(it) }
+            .associateBy { it.path }
+        val people = byName.entries.sortedBy { it.key }.mapNotNull { (name, paths) ->
+            val mine = paths.mapNotNull { photos[it] }
+            val newest = mine.maxWithOrNull(compareBy<PhotoJs> { it.capturedAtMs }.thenByDescending { it.path })
+                ?: return@mapNotNull null
+            PersonJs(name = name, photoCount = mine.size, coverPath = newest.renditionPath ?: newest.path)
+        }
+        return okResult { it.people = people.toTypedArray() }
+    }
+
+    /**
+     * Live (untrashed) media at [paths], newest first: one fused walk per [CONTENT_ID_CHUNK] paths,
+     * the twin of [libraryByContentIds] for rows that carry a path rather than a content id.
+     */
+    private suspend fun libraryByPaths(paths: List<String>): Read<List<PhotoJs>> {
+        val wanted = paths.filter { it.isNotEmpty() }.distinct()
+        if (wanted.isEmpty()) return Read.Ok(emptyList())
+        val edits = renditions().valueOr { return Read.Failed(it) }
+        val all = mutableListOf<PhotoJs>()
+        for (chunk in wanted.chunked(CONTENT_ID_CHUNK)) {
+            val rows = client().fileService.defaultFileSystem.root
+                .files
+                .traverse()
+                .filter<File> { isMedia() }
+                .filter<File> { createdAt.inRange(0L, Long.MAX_VALUE) }
+                .filter<File> { notTrashed() }
+                .filter<File> { path oneOf chunk }
+                .select { photoRowProjection() }
+                .getAll()
+                .fold(onSuccess = { Read.Ok(it.toList()) }, onFailure = { Read.Failed(it) })
+                .valueOr { return Read.Failed(it) }
+            all += rows.mapNotNull { it.photoOf(edits) }
+        }
+        return Read.Ok(
+            all.distinctBy { it.path }
+                .sortedWith(compareByDescending<PhotoJs> { it.capturedAtMs }.thenBy { it.path }),
+        )
+    }
+
+    // ⚠⚠ LABEL_KEY is not read, but a push stream cannot run without it: rows are told apart by
+    // DataId, which `MediaLabelDataIdProvider` derives from it (the Albums stream died without its key,
+    // `web-apps-layout.md` §4.11). CAPABILITY and LABEL are what the snapshot filters and groups by.
+    // ⚠⚠ Face labels only, and only when the NAMES move: an indexing pass syncs a marker per file
+    // (and content tags), and each emission here re-reads People — a recompute per marker otherwise.
+    private fun faceLabelRowsFlow(): Flow<*> =
+        client().inferenceService.labels
+            .filter<MediaLabel> { capability equalTo InferenceCapability.FACE_CLUSTERING.id }
+            .select {
+                fields(
+                    MediaLabel.Fields.LABEL_KEY,
+                    MediaLabel.Fields.FILE_PATH,
+                    MediaLabel.Fields.LABEL,
+                    MediaLabel.Fields.CAPABILITY,
+                )
+            }
+            .flow()
+            .map { read ->
+                // A failed read is passed on as itself (null), so the collector still re-reads and answers it.
+                read.getOrNull()?.toList()
+                    ?.map { it.label.get() to it.labelFilePath.get() }
+                    ?.filter { (name, _) -> name != INDEX_MARKER_LABEL }
+                    ?.toSet()
+            }
+            .distinctUntilChanged()
+
     // ⚠⚠ Each push form's projection must carry EVERY field its snapshot reads: `StreamRegistry`
     // compares the projected rows, so a change to an unprojected field (a rename, a healed path
     // hint, a new cover) emits nothing and the subscriber keeps the stale value.
@@ -707,10 +843,15 @@ object Photos {
             }
             .flow()
 
+    // ⚠⚠ KEY is not read, but a push stream cannot run without it: it tells rows apart by their
+    // DataId, and `AlbumEntryDataIdProvider` derives that from KEY. Left out, the stream died on the
+    // first album with a photo in it ("Field …/albumEntry/key not found") and the Albums page showed
+    // "This list stopped updating" over a list that was current. A snapshot (`getAll`) does not care.
     private fun entryRowsFlow(): Flow<*> =
         service().albumEntries
             .select {
                 fields(
+                    AlbumEntry.Field.KEY,
                     AlbumEntry.Field.ALBUM_ID,
                     AlbumEntry.Field.CONTENT_ID,
                     AlbumEntry.Field.FILE_PATH,

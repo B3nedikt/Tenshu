@@ -118,7 +118,7 @@ class ForgetDeviceDialogTest {
         // current member can still admit without A1. What is lost is recovery.
         onNodeWithText(
             "This device holds your recovery phrase. It may be the only copy. Write it down before " +
-                "continuing — without it your realm cannot be recovered once your other devices are gone.",
+                "continuing. Without it your realm cannot be recovered once your other devices are gone.",
         ).assertIsDisplayed()
     }
 

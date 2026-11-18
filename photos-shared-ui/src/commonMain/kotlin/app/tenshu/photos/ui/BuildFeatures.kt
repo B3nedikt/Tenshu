@@ -10,6 +10,7 @@ package app.tenshu.photos.ui
  * phone that has not downloaded the models yet, and only the second has a remedy. Without this flag
  * desktop Photos would tell its user to download a model desktop Control does not offer.
  *  - **Android = true**: Photos always talks to the Control on the same phone.
- *  - **Desktop = false** until the face detector runs off MediaPipe. Flip it together with Control's.
+ *  - **Desktop = macOS only**, with Control's: macOS Control runs Apple Vision + ORT
+ *    (`ios-face-grouping.md` §10.8); Windows and Linux Control have no face detector (F2d).
  */
 expect val faceGroupingRunsHere: Boolean

@@ -29,6 +29,15 @@ interface NativePhotoAlbum {
   readonly coverPath: string | null
 }
 
+// A NAMED person (photos-app.md §42.7): names typed on a device that groups faces, synced as one
+// label per photograph. ⚠ Never an unnamed group: the browser cannot group faces.
+interface NativePerson {
+  readonly name: string
+  readonly photoCount: number
+  // The newest photograph's preview path (its edit's rendition when it has one).
+  readonly coverPath: string
+}
+
 interface NativeTrashedPhoto {
   readonly contentId: string
   // `photo.path` is its `/Trash/…` path.
@@ -87,6 +96,15 @@ interface PhotosInstance {
     callback: (result: NativePhotosOk<{ readonly albums: NativePhotoAlbum[] }>) => void,
     onError: (message: string) => void,
   ): () => void
+  // Named people, by name. ⚠ Read-only on web: no naming, no unnamed groups.
+  people(): Promise<NativePhotosOk<{ readonly people: NativePerson[] }>>
+  // ⚠ `onError` is TERMINAL. Pushes on a name written or synced, and on trash / restore.
+  observePeople(
+    callback: (result: NativePhotosOk<{ readonly people: NativePerson[] }>) => void,
+    onError: (message: string) => void,
+  ): () => void
+  // Newest first; empty for a name nobody has.
+  personPhotos(name: string): Promise<NativePhotosOk<{ readonly photos: NativePhoto[] }>>
   // Unknown album = `error_photos_unknown_album`.
   albumPhotos(albumId: string): Promise<NativePhotosOk<{ readonly photos: NativePhoto[] }>>
   albumsFor(contentId: string): Promise<NativePhotosOk<{ readonly albums: NativePhotoAlbum[] }>>

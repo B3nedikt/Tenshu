@@ -845,6 +845,44 @@ binds to is the model this doc fixes (§3.3), so IAP is no longer "unchanged by 
   the oldest failure ages out. ⚠ The cost is a denial-of-service lever: anyone who knows an address can
   keep its owner from signing in for a day with 20 wrong guesses — accepted, because that owner's
   data is unaffected (end-to-end encrypted, usable offline) and only billing actions wait.
+- **D16. Cloudflare Turnstile on the web callers of the two mail-sending routes; the native apps
+  are exempt by the absence of `Origin`.** *Decided (2026-11-18), after the 2026-11 form-spam wave
+  (§9.7, `how-to/set-up-otp-email.md` §8).* The per-key budgets cannot stop a bot that rotates IPs
+  and addresses, and the global daily ceiling that does stop it is also a lever for denying every
+  real user sign-in. Turnstile is the layer in front: a request that fails it spends **nothing** — no
+  budget, no store read, no mail — because the check runs first (`TurnstileVerifier`,
+  `passesTurnstile`). Off unless `TURNSTILE_SECRET_KEY` is set; the apex's matching
+  `VITE_TURNSTILE_SITE_KEY` is build-time. Who is challenged:
+  - **`/delete/request` with `{email}`: always**, browser or not. Only the public web page sends that
+    variant — the apps send `{sessionToken}`, which already proves the inbox and is never challenged
+    — so nothing needs exempting, and dropping a header buys a script nothing.
+  - **`/register`: only a request that carries an `Origin` header** (`isBrowserCall`). The apps call
+    it from native HTTP clients, which send no `Origin` and cannot run the widget; a browser cannot
+    drop `Origin` from a cross-origin `fetch` (commerce and the apex are different origins), so every
+    real browser — a bot driving the web form included — is challenged.
+  - ⚠⚠ **The exemption is a classifier, not a credential.** A script that talks to `/register`
+    directly and omits `Origin` is unchallenged. That path stays bounded by the budget stack (per-IP,
+    per-inbox, global) exactly as before Turnstile; closing it needs app attestation (Play Integrity /
+    App Attest), not a header. A separate native-only route was rejected for the same reason: it is
+    the same unauthenticated door at a different path.
+  - ⚠ **Fail closed**: no answer from Cloudflare is `503 challenge_unavailable`, never a pass — the
+    widget loads from Cloudflare too, so an outage has already stopped the web flow. A missing,
+    spent or rejected token is `403 challenge_failed`. Tokens are single-use; the web asks for a
+    fresh one after every send, resends included.
+  - **Wire shape**: one optional body field, `turnstileToken`, on `RegisterRequest` and
+    `DeletionRequest`. Not a schema type (House Rule 9 does not apply), but commerce decodes
+    strictly, so a commerce older than this refuses a body that carries it: **deploy commerce
+    before an apex built with a site key.** The apex omits the field entirely when it has no key.
+  - The apex CSP names `https://challenges.cloudflare.com` in `script-src`, `frame-src` and
+    `connect-src` only for a build with a site key (`web/apex/csp/csp.ts` `turnstileOrigins`).
+  - ⚖️ **Privacy policy `2026-11-18`** discloses it (website section + Cloudflare as recipient, all
+    three languages; legal basis Art. 6(1)(f)). Widget mode is **Managed with pre-clearance off**,
+    so no `cf_clearance` cookie and the policy's "no cookies" stays true — turning pre-clearance on
+    would need a policy change first.
+  - ⚠⚠ **A build without the site key is a broken sign-up**, so `deploy/build-apex-image.sh`
+    refuses one: the key, the Keychain's `apex-turnstile-site-key`, or an explicit
+    `TURNSTILE_SITE_KEY=off` (the dev lab, whose commerce has no secret). CI reads the repository
+    variable `TURNSTILE_SITE_KEY`.
 - **Q1. Session mechanics.** Opaque random token in `session` (hashed) vs. a signed stateless
   session. Lean opaque + DB (simplest, instantly revocable). *Open — size in Phase 2.*
 - **Q2. Free-tier abuse beyond email.** Is verified email a strong enough sybil gate, or add
@@ -1584,12 +1622,19 @@ Decisions, each pinned by `AccountDeletionRoutingTest` (19):
   ⚠⚠ Disjoint **by construction**: `normaliseEmail` rejects `:` and requires one strict RFC 822
   address, so `/register` with `account-deletion:victim@x.com` is a `400`, not a write over the
   victim's pending code (found in review).
-- ⚠ **No enumeration.** The `{email}` request always answers `202` and always sends a mail — the code,
-  or "no account uses this address" (`sendNoAccountNotice`) — so neither status nor SMTP timing tells.
-  That notice is also how a retried deletion learns it already went through. Both branches do the
-  same DB work: an unknown address upserts a throwaway hashed code under the fixed
-  `ErasedAccounts.DECOY_OTP_KEY` (never under the stranger's address). Budgets are `/register`'s
-  (send) and `/verify`'s (guess).
+- ⚠ **No enumeration.** The `{email}` request always answers `202` after the same DB work: an unknown
+  address upserts a throwaway hashed code under the fixed `ErasedAccounts.DECOY_OTP_KEY` (never under
+  the stranger's address). Budgets are `/register`'s (send) and `/verify`'s (guess).
+- ⚠⚠ **An address no account uses is mailed NOTHING** (amended 2026-11-18; this bullet's original
+  design mailed a "no account uses this address" notice so SMTP timing could not tell). The route is
+  unauthenticated, so that notice made it a cannon aimed wherever a caller liked — and a form-spam
+  bot found the public page: ~500 notices to scraped and mangled addresses from 2026-11-09, 77%
+  bounced, all charged to the sender reputation the sign-in codes share. The timing half of the old
+  argument is kept by a **jittered pause** (`jitteredSendPad`, 0.3–1.5 s, the span TEM shows a real
+  send taking) in place of the SMTP round trip. Residual, accepted: a `503 send_failed` can only come
+  from the account branch — but only while our own transport is down, which a caller cannot cause.
+  A retried deletion no longer *learns* it went through by mail; the page's copy ("If a Tenshu
+  account uses…") never promised one.
 - ⚠ **A lost confirm response.** The retry gets `401` (no account, no session). The app does not read
   that as "wrong code": on a `401` it asks `/account/session`, and if commerce says the session is
   gone it disconnects and says *"This device is signed out. If you just deleted your account, the

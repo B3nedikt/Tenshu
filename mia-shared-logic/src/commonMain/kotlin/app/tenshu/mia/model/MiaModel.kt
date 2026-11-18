@@ -56,7 +56,34 @@ sealed interface MessageBody {
         val detail: String,
         val token: String,
         val done: Boolean = false,
+        /**
+         * Another reading the user can pick in one tap instead (§25, CL-D6): *"20:00 instead?"* for
+         * a bare hour. ⚠ A tap never writes: it replaces this card with a new one.
+         */
+        val alternatives: List<Choice> = emptyList(),
+        /** Replaced by an alternative's card, so it can no longer be confirmed. */
+        val replaced: Boolean = false,
     ) : MessageBody
+
+    /**
+     * Mia asking back for one value (`mia-query-layer.md` §25, CL-2).
+     *
+     * ⭐ Each [Choice] is a canned reply: a tap shows its [Choice.label] as the user's message and
+     * sends its [Choice.reply]. A typed or spoken answer goes the same way while this is [open].
+     *
+     * ⚠ [open] flips to false once the question is answered or superseded, so older chips render
+     * disabled. One question is open at a time, and the proxy refuses a spent token anyway, so this
+     * is honesty rather than the control (CL-Q3).
+     */
+    data class Clarification(
+        val question: String,
+        val choices: List<Choice>,
+        val token: String,
+        val open: Boolean = true,
+    ) : MessageBody
+
+    /** A chip: what it shows, and what a tap sends back. */
+    data class Choice(val label: String, val reply: String)
 }
 
 /**

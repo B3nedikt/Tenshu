@@ -29,6 +29,9 @@ import org.tenshu.core.common.proxy.MediaWorkBudget
 import org.tenshu.inference.InferenceCapability
 import org.tenshu.inference.ModelProvenance
 import org.tenshu.inference.proxy.AiReadiness
+import org.tenshu.inference.proxy.AnimalSpecies
+import org.tenshu.inference.proxy.AnimalVeto
+import org.tenshu.inference.proxy.DetectedAnimal
 import org.tenshu.inference.proxy.DetectedFace
 import org.tenshu.inference.proxy.FaceBox
 import org.tenshu.inference.proxy.FaceCrop
@@ -52,6 +55,17 @@ import org.tenshu.inference.proxy.onnx.FaceModel
 import org.tenshu.inference.proxy.onnx.ImagePreprocessing
 import org.tenshu.inference.proxy.onnx.TowerGuards
 import org.tenshu.inference.proxy.resampleFace
+import org.tenshu.inference.proxy.vision.FACE_DECODE_MAX_EDGE
+import org.tenshu.inference.proxy.vision.FaceImage
+import org.tenshu.inference.proxy.vision.FaceImageDecoder
+import org.tenshu.inference.proxy.vision.VisionDetection
+import org.tenshu.inference.proxy.vision.VisionFaceDetector
+import org.tenshu.inference.proxy.vision.VisionFaceObservation
+import org.tenshu.inference.proxy.vision.VisionRequestException
+import org.tenshu.inference.proxy.vision.faceDecodeEdge
+import org.tenshu.inference.proxy.vision.facesOf
+import org.tenshu.inference.proxy.vision.orient
+import org.tenshu.inference.proxy.vision.visionFaceBox
 import platform.CoreFoundation.CFDataCreate
 import platform.CoreFoundation.CFDictionaryAddValue
 import platform.CoreFoundation.CFDictionaryCreateMutable
@@ -102,7 +116,12 @@ import platform.CoreVideo.CVPixelBufferRelease
 import platform.CoreVideo.CVPixelBufferUnlockBaseAddress
 import platform.CoreVideo.kCVPixelFormatType_32BGRA
 import platform.CoreVideo.kCVReturnSuccess
+import platform.Vision.VNAnimalIdentifierCat
+import platform.Vision.VNAnimalIdentifierDog
+import platform.Vision.VNClassificationObservation
 import platform.Vision.VNDetectFaceLandmarksRequest
+import platform.Vision.VNRecognizeAnimalsRequest
+import platform.Vision.VNRecognizedObjectObservation
 import platform.Vision.VNFaceLandmarkRegion2D
 import platform.Vision.VNFaceObservation
 import platform.Vision.VNImageRequestHandler
@@ -117,92 +136,17 @@ import platform.Vision.VNImageRequestHandler
  */
 const val IOS_FACE_PREPROCESSING_REVISION: Int = 1
 
-/**
- * The long edge the face path decodes at, at most (`MediaPipeFaceBackend.MAX_DECODE_EDGE`): a face
- * stays far above the template's 112 px while a 48 MP frame never becomes a full-size bitmap.
- */
-internal const val FACE_DECODE_MAX_EDGE: Int = 2048
-
-/** At most this many faces per photograph, the largest first: Android's cap. */
-internal const val MAX_FACES_PER_PHOTO: Int = 10
+/** What one animal request returned: the cats and dogs, and **the revision Vision says it ran**. */
+class VisionAnimalDetection(val revisionRun: Int, val animals: List<DetectedAnimal>)
 
 /**
- * The long edge a `width × height` image is decoded at: halved while it is over
- * [FACE_DECODE_MAX_EDGE], as Android's power-of-two `inSampleSize` does
- * (`MediaPipeFaceBackend.decodeUpright`), so both platforms see a photograph at the same scale.
+ * Vision's cat and dog detector (`photos-pets.md` PT-D4), as the face backend's animal veto uses it.
+ * ⚠ The same contract as [VisionFaceDetector]: reports the revision run, throws on a Vision error,
+ * and never answers a failure with an empty list.
  */
-internal fun faceDecodeEdge(width: Int, height: Int): Int {
-    val long: Int = maxOf(width, height)
-    var sample = 1
-    while (long / sample > FACE_DECODE_MAX_EDGE) sample *= 2
-    return (long / sample).coerceAtLeast(1)
+fun interface VisionAnimalDetector {
+    fun detect(image: FaceImage): VisionAnimalDetection
 }
-
-/** One decoded photograph, upright: row-major packed ARGB, exactly `width * height` pixels. */
-class FaceImage(val width: Int, val height: Int, val argb: IntArray) {
-    init {
-        require(width > 0 && height > 0 && argb.size == width * height) { "${argb.size} pixels is not a ${width}x$height image" }
-    }
-}
-
-/** The face path's decode: bounded, upright, sRGB. `null` for bytes that are not an image. */
-fun interface FaceImageDecoder {
-    /** @param orientation EXIF 1–8 to apply instead of the bytes' own (a preview carries none); `null` reads the bytes'. */
-    fun decodeUpright(bytes: ByteArray, orientation: Int?): FaceImage?
-}
-
-/**
- * One face as Vision reported it, in plain numbers: no Vision type leaves this file.
- *
- * @param box top-left image fractions, Vision's own `confidence` in it.
- * @param regions the seven regions `VisionFaceLandmarks` reads, `pointsInImage` pixels (bottom-left
- *   origin) **of the image Vision ran on**; `null` when Vision gave no landmarks.
- */
-class VisionFaceObservation(val box: FaceBox, val regions: VisionFaceLandmarks.Regions?)
-
-/** What one Vision request returned: the faces, and **the revision Vision says it ran**. */
-class VisionDetection(val revisionRun: Int, val faces: List<VisionFaceObservation>)
-
-/** Vision's face detector, as the backend and the preflight use it: a port, so the guards are testable. */
-interface VisionFaceDetector {
-    /**
-     * Every face in [image], asking for [FaceModel.VISION_LANDMARKS_REVISION].
-     * ⚠ Reports the revision Vision actually ran, not the one asked for: whether that is the pinned
-     * one is the caller's check (the backend's, and the preflight judge's).
-     * @throws Throwable on a Vision error. ⚠⚠ Never an empty list for a failure: an empty list is
-     *   remembered against the photograph for good.
-     */
-    fun detect(image: FaceImage): VisionDetection
-}
-
-/** A Vision request that failed. */
-class VisionRequestException(message: String) : Exception(message)
-
-/**
- * Vision's `boundingBox` — normalised, origin **bottom-left** — as a top-left [FaceBox].
- * ⚠ The y-flip of the box; [VisionFaceLandmarks] flips the points.
- */
-internal fun visionFaceBox(x: Double, y: Double, width: Double, height: Double, confidence: Float): FaceBox =
-    FaceBox(left = x.toFloat(), top = (1.0 - (y + height)).toFloat(), right = (x + width).toFloat(), bottom = (1.0 - y).toFloat(), confidence = confidence)
-
-/**
- * Vision's observations of an `imageWidth × imageHeight` image as the faces the pipeline embeds:
- * the five points mapped by [VisionFaceLandmarks] (§10.3's *corners-mid*), the largest
- * [MAX_FACES_PER_PHOTO] kept.
- *
- * ⚠ What F1a and F1b measured, and nothing more (`ios-face-grouping.md` §14): no confidence floor
- * of our own (Vision returned 1.0 on all 86 library faces), and no de-duplication of our own
- * (Vision's boxes matched 86 of 86 with none doubled). A face whose regions cannot carry the
- * mapping is left out: it cannot be aligned. Changing any of this is a new
- * `FaceModel.VISION_PIPELINE_VERSION`.
- */
-internal fun facesOf(observations: List<VisionFaceObservation>, imageWidth: Int, imageHeight: Int): List<DetectedFace> =
-    observations.mapNotNull { observation ->
-        val regions: VisionFaceLandmarks.Regions = observation.regions ?: return@mapNotNull null
-        val landmarks: FaceLandmarks = VisionFaceLandmarks.landmarks(regions, imageWidth, imageHeight) ?: return@mapNotNull null
-        DetectedFace(observation.box, landmarks)
-    }.sortedByDescending { (it.box.right - it.box.left) * (it.box.bottom - it.box.top) }
-        .take(MAX_FACES_PER_PHOTO)
 
 /**
  * The face pipeline on iOS (`ios-face-grouping.md` §4): Apple Vision finds faces and their
@@ -240,6 +184,13 @@ class VisionCoreMlFaceBackend(
     /** Awaited before the embedder can be opened, outside the lock: an earlier graph may still be unloading. */
     private val beforeLoad: suspend () -> Unit = {},
     private val recordedOpen: suspend (role: String, open: () -> CoreMlSessionPort) -> CoreMlSessionPort = { _, opening -> opening() },
+    /**
+     * PT-D9: drop faces inside a confident cat or dog box before they are embedded. ⚠⚠ `null` — off —
+     * in every shipping graph until M5 has measured it (`photos-pets.md` §7); on, it is another
+     * pipeline with another stamp ([FaceModel.VISION_ANIMAL_VETO_PIPELINE_VERSION]).
+     */
+    private val animalVeto: AnimalVeto? = null,
+    private val animalDetector: VisionAnimalDetector = SystemVisionAnimalDetector,
 ) : InferenceBackend, ModelBackedBackend {
 
     override val id: String get() = "vision-core-ml-faces"
@@ -248,7 +199,9 @@ class VisionCoreMlFaceBackend(
      * ⚠⚠ The model's stamp with the iOS detection pipeline in its third field — the SAME value on
      * every vector [embedFace] returns, and never one of Android's (FD9, `FaceModel.VISION_PIPELINE_VERSION`).
      */
-    override val provenance: ModelProvenance = model.provenance.copy(labelSetVersion = FaceModel.VISION_PIPELINE_VERSION)
+    override val provenance: ModelProvenance = model.provenance.copy(
+        labelSetVersion = if (animalVeto == null) FaceModel.VISION_PIPELINE_VERSION else FaceModel.VISION_ANIMAL_VETO_PIPELINE_VERSION,
+    )
 
     private val spec: CoreMlTowerSpec = CoreMlTowerSpec.faceEmbedder(model)
 
@@ -300,10 +253,37 @@ class VisionCoreMlFaceBackend(
                 return@withLock FaceDetectionOutcome.Failed
             }
             val faces: List<DetectedFace> = facesOf(detection.faces, image.width, image.height)
+            val vetoed: AnimalVeto.Vetoed = vetoAnimals(faces, image) ?: return@withLock FaceDetectionOutcome.Failed
             // ⚠⚠ Asked again after the blocking call: a teardown under it means nothing of this is recorded.
             if (!serving()) return@withLock FaceDetectionOutcome.Failed
-            FaceDetectionOutcome.Detected(faces)
+            FaceDetectionOutcome.Detected(vetoed.kept, insideAnimals = vetoed.removed)
         }
+    }
+
+    /**
+     * [faces] after the animal veto, or `null` when the animal request could not run.
+     *
+     * ⚠⚠ `null` is [FaceDetectionOutcome.Failed], never "keep them all": this backend's stamp says the
+     * veto ran, so a photograph recorded without it would be a different pipeline's record under this
+     * one's name, and `visited` would never bring it back.
+     * ⚠ Asked only when there are faces: a faceless photograph — most of a library — costs nothing.
+     */
+    private fun vetoAnimals(faces: List<DetectedFace>, image: FaceImage): AnimalVeto.Vetoed? {
+        val veto: AnimalVeto = animalVeto ?: return AnimalVeto.Vetoed(faces, 0)
+        if (faces.isEmpty()) return AnimalVeto.Vetoed(faces, 0)
+        val animals: VisionAnimalDetection = try {
+            animalDetector.detect(image)
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (failure: Throwable) {
+            println("VisionCoreMlFaceBackend -> Vision's animal request failed on ${image.width}x${image.height}: $failure")
+            return null
+        }
+        if (animals.revisionRun != FaceModel.VISION_ANIMALS_REVISION) {
+            println("VisionCoreMlFaceBackend -> Vision ran animal revision ${animals.revisionRun}, not ${FaceModel.VISION_ANIMALS_REVISION}")
+            return null
+        }
+        return veto.apply(faces, animals.animals)
     }
 
     override suspend fun embedFace(bytes: ByteArray, face: DetectedFace, orientation: Int?): ImageEmbedding? = withContext(lane) {
@@ -547,7 +527,7 @@ object SystemVisionFaceDetector : VisionFaceDetector {
      * route tried (bitmap context in four layouts, ImageIO's own image), 1 through a pixel buffer and
      * through encoded data (§14.4). A pixel buffer is the camera's own input type and copies once.
      */
-    private fun pixelBufferOf(image: FaceImage): CVPixelBufferRef? = memScoped {
+    internal fun pixelBufferOf(image: FaceImage): CVPixelBufferRef? = memScoped {
         val created = alloc<CVPixelBufferRefVar>()
         if (CVPixelBufferCreate(null, image.width.convert(), image.height.convert(), kCVPixelFormatType_32BGRA, null, created.ptr) != kCVReturnSuccess) return@memScoped null
         val buffer: CVPixelBufferRef = created.value ?: return@memScoped null
@@ -576,6 +556,57 @@ object SystemVisionFaceDetector : VisionFaceDetector {
         buffer
     }
 }
+
+/**
+ * `VNRecognizeAnimalsRequest` at [FaceModel.VISION_ANIMALS_REVISION], over the same pixel buffer
+ * route the face detector uses (a CGImage finds nothing on the simulator, [SystemVisionFaceDetector]).
+ *
+ * ⚠ Each observation's species is its top label; an observation whose top label is neither cat nor
+ * dog is dropped (PT-D5). Its confidence is that label's.
+ */
+@OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
+object SystemVisionAnimalDetector : VisionAnimalDetector {
+
+    override fun detect(image: FaceImage): VisionAnimalDetection = autoreleasepool {
+        val buffer: CVPixelBufferRef = SystemVisionFaceDetector.pixelBufferOf(image)
+            ?: throw VisionRequestException("the pixels could not be wrapped for Vision")
+        try {
+            val request = VNRecognizeAnimalsRequest()
+            request.setRevision(FaceModel.VISION_ANIMALS_REVISION.toULong())
+            val handler = VNImageRequestHandler(cVPixelBuffer = buffer, options = emptyMap<Any?, Any?>())
+            memScoped {
+                val error = alloc<ObjCObjectVar<NSError?>>()
+                if (!handler.performRequests(listOf(request), error.ptr)) {
+                    throw VisionRequestException("Vision failed: ${error.value?.localizedDescription ?: "no NSError reported"}")
+                }
+            }
+            VisionAnimalDetection(revisionRun = request.revision.toInt(), animals = (request.results ?: emptyList<Any?>()).mapNotNull { result ->
+                val observation: VNRecognizedObjectObservation = result as? VNRecognizedObjectObservation
+                    ?: throw VisionRequestException("Vision returned $result")
+                val top: VNClassificationObservation = observation.labels.firstOrNull() as? VNClassificationObservation ?: return@mapNotNull null
+                val species: AnimalSpecies = when (top.identifier) {
+                    VNAnimalIdentifierCat -> AnimalSpecies.CAT
+                    VNAnimalIdentifierDog -> AnimalSpecies.DOG
+                    else -> return@mapNotNull null
+                }
+                observation.boundingBox.useContents { visionAnimal(species, origin.x, origin.y, size.width, size.height, top.confidence) }
+            })
+        } finally {
+            CVPixelBufferRelease(buffer)
+        }
+    }
+}
+
+/** Vision's `boundingBox` — normalised, origin bottom-left — as a top-left [DetectedAnimal], [visionFaceBox]'s flip. */
+internal fun visionAnimal(species: AnimalSpecies, x: Double, y: Double, width: Double, height: Double, confidence: Float): DetectedAnimal =
+    DetectedAnimal(
+        species = species,
+        left = x.toFloat(),
+        top = (1.0 - (y + height)).toFloat(),
+        right = (x + width).toFloat(),
+        bottom = (1.0 - y).toFloat(),
+        confidence = confidence,
+    )
 
 /** An sRGB RGBX context, 8 bits a channel, as `IosImageDecoder` draws into. */
 @OptIn(ExperimentalForeignApi::class)
@@ -682,32 +713,4 @@ object IosFaceImageDecoder : FaceImageDecoder {
             CGContextRelease(context)
         }
     }
-}
-
-/**
- * [stored] shown as EXIF [orientation] (1–8) says: the displayed pixel at `(x, y)` is read from
- * the stored pixel this names. Pure, so its eight cases are tested.
- */
-internal fun orient(stored: FaceImage, orientation: Int): FaceImage {
-    val w: Int = stored.width
-    val h: Int = stored.height
-    val swaps: Boolean = orientation in 5..8
-    val width: Int = if (swaps) h else w
-    val height: Int = if (swaps) w else h
-    val source: IntArray = stored.argb
-    val out = IntArray(width * height)
-    for (y in 0 until height) for (x in 0 until width) {
-        val (sx, sy) = when (orientation) {
-            2 -> (w - 1 - x) to y
-            3 -> (w - 1 - x) to (h - 1 - y)
-            4 -> x to (h - 1 - y)
-            5 -> y to x
-            6 -> y to (h - 1 - x)
-            7 -> (w - 1 - y) to (h - 1 - x)
-            8 -> (w - 1 - y) to x
-            else -> x to y
-        }
-        out[y * width + x] = source[sy * w + sx]
-    }
-    return FaceImage(width, height, out)
 }

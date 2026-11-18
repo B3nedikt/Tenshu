@@ -28,6 +28,9 @@ import org.tenshu.commerce.store.EntitlementHistory
 import org.tenshu.commerce.store.EntitlementSource
 import org.tenshu.commerce.store.ErasedAccounts
 import org.tenshu.commerce.SignupCap
+import org.tenshu.commerce.TurnstileVerifier
+import org.tenshu.commerce.isBrowserCall
+import org.tenshu.commerce.passesTurnstile
 import org.tenshu.commerce.store.Rail
 
 private val accountLogger = LoggerFactory.getLogger("org.tenshu.commerce.routing.AccountRouting")
@@ -64,6 +67,8 @@ fun Route.configureAccountRouting(
     otpFailures: PersistedFailureLimit? = null,
     /** The operator's cap on new accounts (cost brake); [SignupCap.off] by default. */
     signupCap: SignupCap = SignupCap.off(),
+    /** Cloudflare Turnstile (D16); null = off. Challenges browser callers only — see [isBrowserCall]. */
+    turnstile: TurnstileVerifier? = null,
 ) {
     post("/commerce/account/register") {
         val request = runCatching { call.receive<RegisterRequest>() }.getOrNull()
@@ -74,6 +79,8 @@ fun Route.configureAccountRouting(
             call.respond(HttpStatusCode.BadRequest, mapOf("error" to "bad_request"))
             return@post
         }
+        // ⚠⚠ Before any budget or store read (D16): an unsolved challenge must spend nothing.
+        if (!call.passesTurnstile(turnstile, request.turnstileToken, required = call.isBrowserCall(), call.clientIp())) return@post
 
         val nowMs = now()
         if (!limits.allowSend(call.clientIp(), email, nowMs)) {
@@ -265,13 +272,23 @@ fun Route.configureAccountRouting(
 
 /**
  * The abuse budgets applied by [configureAccountRouting] (`commerce-end-to-end-dry-run.md` CE-2).
- * Two budgets guard the mail-sending routes and one guards `/verify`; they are separate objects
- * because they key on different things (address vs. IP) and expire independently.
+ * Three budgets guard the mail-sending routes and one guards `/verify`; they are separate objects
+ * because they key on different things (IP, inbox, the whole service) and expire independently.
+ *
+ * ⚠ The per-email send budget keys on the **inbox**, not the typed address ([inboxKey]): Gmail
+ * ignores dots and `+tags`, so `j.o.h.n@gmail.com` and `jo.hn+x@gmail.com` are one mailbox under
+ * any number of spellings, and a per-spelling budget never trips. Form-spam bots use exactly that.
+ *
+ * ⚠ [sendGlobal] is the backstop for a source that rotates both IPs and addresses — the shape no
+ * per-key budget can bound. It is a cost and reputation ceiling, so it trades availability away on
+ * purpose: past it nobody gets a code until the window rolls, which is why [onGlobalSpent] fires.
  */
 class AccountRateLimits(
     private val sendPerIp: RateLimiter,
     private val sendPerEmail: RateLimiter,
     private val verifyPerEmail: RateLimiter,
+    private val sendGlobal: RateLimiter = RateLimiter(limit = 0, windowMs = DAY_MS),
+    private val onGlobalSpent: () -> Unit = {},
 ) {
     /**
      * Spend one unit of **both** send budgets, or neither.
@@ -293,10 +310,16 @@ class AccountRateLimits(
      * bounds, and one extra email is not a failure mode worth a lock for.
      */
     fun allowSend(ip: String, email: String, nowMs: Long): Boolean {
+        val inbox = inboxKey(email)
         if (!sendPerIp.wouldAllow(ip, nowMs)) return false
-        if (!sendPerEmail.wouldAllow(email, nowMs)) return false
+        if (!sendPerEmail.wouldAllow(inbox, nowMs)) return false
+        if (!sendGlobal.wouldAllow(GLOBAL_KEY, nowMs)) {
+            onGlobalSpent()
+            return false
+        }
         sendPerIp.tryAcquire(ip, nowMs)
-        sendPerEmail.tryAcquire(email, nowMs)
+        sendPerEmail.tryAcquire(inbox, nowMs)
+        sendGlobal.tryAcquire(GLOBAL_KEY, nowMs)
         return true
     }
 
@@ -310,19 +333,45 @@ class AccountRateLimits(
             verifyPerEmail = RateLimiter(limit = 0, windowMs = HOUR_MS),
         )
 
-        /** Hourly budgets from config. `<= 0` on any of them disables that one. */
+        /**
+         * Hourly per-key budgets plus the daily service-wide one, from config. `<= 0` on any of
+         * them disables that one.
+         */
         fun hourly(
             sendPerIpPerHour: Int,
             sendPerEmailPerHour: Int,
             verifyPerEmailPerHour: Int,
+            sendGlobalPerDay: Int = 0,
             onTableFull: () -> Unit = {},
+            onGlobalSpent: () -> Unit = {},
         ): AccountRateLimits = AccountRateLimits(
             sendPerIp = RateLimiter(sendPerIpPerHour, HOUR_MS, onTableFull = onTableFull),
             sendPerEmail = RateLimiter(sendPerEmailPerHour, HOUR_MS, onTableFull = onTableFull),
             verifyPerEmail = RateLimiter(verifyPerEmailPerHour, HOUR_MS, onTableFull = onTableFull),
+            sendGlobal = RateLimiter(sendGlobalPerDay, DAY_MS),
+            onGlobalSpent = onGlobalSpent,
         )
 
+        /**
+         * The mailbox an address delivers to, as far as we can tell from its spelling: lower-cased,
+         * `+tag` dropped (honoured by Gmail, Outlook, iCloud, Fastmail, Proton and most others), and
+         * for Gmail the dots too. A **budget key only** — never stored, never mailed: over-merging two
+         * real mailboxes costs at worst a shared 5/hour, under-merging is the bypass.
+         */
+        fun inboxKey(email: String): String {
+            val lower = email.trim().lowercase()
+            val at = lower.lastIndexOf('@')
+            if (at <= 0) return lower
+            var local = lower.substring(0, at).substringBefore('+')
+            var domain = lower.substring(at + 1)
+            if (domain == "googlemail.com") domain = "gmail.com"
+            if (domain == "gmail.com") local = local.replace(".", "")
+            return "$local@$domain"
+        }
+
         const val HOUR_MS: Long = 60L * 60L * 1000L
+        const val DAY_MS: Long = 24L * HOUR_MS
+        private const val GLOBAL_KEY = "*"
     }
 }
 
@@ -408,7 +457,13 @@ internal fun normaliseEmail(raw: String): String? {
 const val FREE_ENTITLEMENT_WINDOW_MS: Long = 3650L * 24 * 60 * 60 * 1000
 
 @Serializable
-data class RegisterRequest(val email: String, val tosVersion: String, val privacyVersion: String)
+data class RegisterRequest(
+    val email: String,
+    val tosVersion: String,
+    val privacyVersion: String,
+    /** The Turnstile widget's token (D16); sent by the web apex only, and only when it has a site key. */
+    val turnstileToken: String? = null,
+)
 
 @Serializable
 data class VerifyRequest(val email: String, val code: String, val ownerId: String)

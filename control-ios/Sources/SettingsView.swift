@@ -142,7 +142,7 @@ struct SettingsView: View {
                     Text(!appLockAvailable
                         ? "Set up a passcode or Face ID in your device settings to use this."
                         : realmSealed
-                            ? "Require unlock asks for Face ID, Touch ID, or your passcode to open Control. Unlock with Face ID also lets you re-open a locked realm without typing your passphrase — the passphrase stays your fallback. Your files keep syncing in the background either way."
+                            ? "Require unlock asks for Face ID, Touch ID, or your passcode to open Control. Unlock with Face ID also lets you re-open a locked realm without typing your passphrase. The passphrase stays your fallback. Your files keep syncing in the background either way."
                             : "Require unlock asks for Face ID, Touch ID, or your passcode to open Control. Your keys are protected by this device at rest, so there is no separate passphrase to set. Your files keep syncing in the background either way.")
                 }
                 // ⚠⚠ Gated on `realmSealed`, for the same reason as the Face ID row above. The

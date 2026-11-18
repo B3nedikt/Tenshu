@@ -119,7 +119,7 @@ enum OnboardingStrings {
     // Welcome
     static let welcomeTitle = "Welcome to Tenshu"
     static let welcomeBody =
-        "Tenshu is a private place for your files. Everything is encrypted on this device — nobody else can read it, including us."
+        "Tenshu is a private place for your files. Everything is encrypted on this device, so nobody else can read it, including us."
     static let welcomeStartFresh = "Start fresh on this device"
     static let welcomeExistingDevice = "I have Tenshu on another device"
     static let welcomeRecoverPhrase = "Recover from a recovery phrase"
@@ -127,7 +127,7 @@ enum OnboardingStrings {
     // New user — device-protection default (control-keep-device-unlocked.md §4.1)
     static let protectTitle = "Protected by your device"
     static let protectBody =
-        "Tenshu secures your keys with this device's secure storage, so your files start syncing right away — even after a restart, with no passphrase to remember."
+        "Tenshu secures your keys with this device's secure storage, so your files start syncing right away, even after a restart, with no passphrase to remember."
     static let protectAddLock = "Add a passphrase for extra security"
     static let protectBack = "Use device protection instead"
 
@@ -150,7 +150,7 @@ enum OnboardingStrings {
     // this states it as the fact it is rather than as a warning — and `newUserTurnOnSync` beside it
     // is the way to change it. Mirrors the CMP `new_user_youre_set_up_body`.
     static let newUserYoureSetUpBody =
-        "Your realm is ready on this device. Until you turn on sync, everything stays here — nothing leaves this device."
+        "Your realm is ready on this device. Until you turn on sync, everything stays here. Nothing leaves this device."
     static let newUserTurnOnSync = "Turn on sync"
     static let newUserContinue = "Continue"
 
@@ -159,8 +159,8 @@ enum OnboardingStrings {
     static let recoveryEntryBody =
         "If you've lost access to all your devices, enter your 24-word recovery phrase below to recover your realm."
     static let recoveryEntrySlowNote =
-        "This is a slow operation by design — it takes a few seconds to derive your master key from your recovery phrase. That delay is what protects your phrase from brute-force guessing."
-    static let recoveryEntryWarning = "Don't share this phrase with anyone — including Tenshu."
+        "This is a slow operation by design: it takes a few seconds to derive your master key from your recovery phrase. That delay is what protects your phrase from brute-force guessing."
+    static let recoveryEntryWarning = "Don't share this phrase with anyone, including Tenshu."
     static let recoveryEntryRecover = "Recover"
     static let recoveryEntryPaste = "Paste from clipboard"
     static func recoveryWordCount(_ n: Int) -> String { "\(n) of 24 words" }
@@ -170,6 +170,6 @@ enum OnboardingStrings {
     static let recoveryProcessingBody = "This may take 5–10 seconds."
     static let recoverySuccessHeading = "Welcome back"
     static let recoverySuccessBody =
-        "Your realm is recovered. This device is now your only realm device — if you find your other devices later, you'll need to re-pair them."
+        "Your realm is recovered. This device is now your only realm device. If you find your other devices later, you'll need to re-pair them."
     static let recoverySuccessContinue = "Continue"
 }

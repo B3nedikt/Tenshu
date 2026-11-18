@@ -184,6 +184,11 @@ kotlin {
                 implementation(libs.kotlin.test)
                 // `OssLicencesNoticeScreenTest`: the real notices rendered on the shared screen.
                 implementation(compose.desktop.uiTestJUnit4)
+                // `MacFacesRealTest`: the macOS face pair through real FFM, which needs this module's JDK 25
+                // (`:control-shared-proxy` tests on 17, where FFM does not exist). It reaches the
+                // proxy's face adapters and the shared Vision types they implement.
+                implementation(project(":control-shared-proxy"))
+                implementation(project(":inference-service-proxy"))
             }
         }
     }

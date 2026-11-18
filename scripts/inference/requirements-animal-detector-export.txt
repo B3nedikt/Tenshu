@@ -1,0 +1,17 @@
+# The toolchain `export-animal-detector.py` exports, quantises and self-checks with, and refuses to run
+# outside of. Python 3.13. (`photos-pets.md` §10.1, PT-2b.)
+#
+# ⚠ rfdetr builds the graph from the checkpoint; its version and torch's decide the fp32 ONNX bytes.
+rfdetr==1.8.3
+torch==2.15.0
+torchvision==0.29.2
+transformers==5.23.0
+supervision==0.31.7
+numpy==2.5.5
+onnx==1.23.2
+# The quantiser and the self-check. ⚠ Not the apps' version (`gradle/libs.versions.toml` holds 1.22.0):
+# the quantised graph is plain QDQ, and the self-check is re-run on the device's runtime by
+# `OnnxAnimalDetectorRealTest`, which loads the artifact through onnxruntime 1.22.0 on the JVM.
+onnxruntime==1.31.1
+sympy==1.14.0
+pillow==13.0.0

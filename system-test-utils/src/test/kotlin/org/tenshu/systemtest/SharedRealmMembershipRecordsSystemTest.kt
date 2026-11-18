@@ -291,6 +291,9 @@ class SharedRealmMembershipRecordsSystemTest {
             val bobMemberId = sha256(bobAuthHex.hexToByteArray()).toHexString()
             assertTrue(alice.tenshuClient.syncService.removeSharedRealmMember(realmId, bobMemberId) is TResult.Success)
             system.advanceUntil(timeout = 30.seconds) { aliceTablet.runtimeKeys(realmId) == alice.runtimeKeys(realmId) }
+            // ⚠ The key arriving is not the records having stopped arriving: the rotation re-emits them under the new
+            // key, which the tablet can only open once it holds it. Delete before that lands and it brings them back.
+            system.awaitQuiet(alice, aliceTablet)
 
             // Take both revocation records off the tablet: the state a failed revocation push would leave.
             aliceTablet.readRelation(IdentityService.Relations.MEMBERSHIP_RECORDS, MembershipRecord.ID)
@@ -366,6 +369,8 @@ class SharedRealmMembershipRecordsSystemTest {
             system.advanceUntil(timeout = 30.seconds) {
                 aliceTablet.runtimeKeys(realmId) == alice.runtimeKeys(realmId) && aliceTablet.generationRowForCurrentKey(realmId) != null
             }
+            // ⚠ As above: the rotation's re-emitted records land after the key; let them, or they undo the deletes.
+            system.awaitQuiet(alice, aliceTablet)
 
             // The window: the tablet holds the new key, but neither its generation row nor a revocation record.
             val row = checkNotNull(aliceTablet.generationRowForCurrentKey(realmId))
@@ -402,6 +407,24 @@ class SharedRealmMembershipRecordsSystemTest {
         } finally {
             system.shutdown()
         }
+    }
+
+    /**
+     * Polled mode's "sync went quiet" for [devices]: drain each on its scheduler's own `tickMutex` path (safe beside the
+     * running loop) until two rounds in a row move nothing — no backlog left to pull and no new block at the relay. The
+     * rule [TestSystem.syncUntilQuiet] uses in stepped mode. A test that deletes synced rows to stage a *missing* row
+     * calls this first, or a block still in flight lands after the delete and the stage is gone.
+     */
+    private suspend fun TestSystem.awaitQuiet(vararg devices: TestClient, maxRounds: Int = 50) {
+        var stillRounds = 0
+        repeat(maxRounds) {
+            val before = syncMailbox.lastArrivalSeq
+            var backlog = false
+            devices.forEach { if (it.stepOnce()) backlog = true }
+            stillRounds = if (!backlog && syncMailbox.lastArrivalSeq == before) stillRounds + 1 else 0
+            if (stillRounds == 2) return
+        }
+        throw AssertionError("sync never went quiet in $maxRounds rounds of ${devices.map { it.deviceId }}")
     }
 
     /** This device's [org.tenshu.identity.RealmKeyGeneration] row for the key its membership of [realmId] holds. */

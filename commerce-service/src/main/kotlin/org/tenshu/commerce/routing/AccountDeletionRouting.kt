@@ -15,6 +15,8 @@ import org.tenshu.commerce.PersistedFailureLimit
 import org.tenshu.commerce.ReviewSignIn
 import org.tenshu.commerce.SessionTokens
 import org.tenshu.commerce.SubscriptionCanceller
+import org.tenshu.commerce.TurnstileVerifier
+import org.tenshu.commerce.passesTurnstile
 import org.tenshu.commerce.describeForLog
 import org.tenshu.commerce.emailDomain
 import org.tenshu.commerce.shortId
@@ -48,16 +50,24 @@ private val deletionLogger = LoggerFactory.getLogger("org.tenshu.commerce.routin
  * ⚠⚠ which deletes stored content **only** when both `ACCOUNT_CLOSURE_RELAY_URL` and the relay's
  * `ACCOUNT_CLOSURE_RECLAIM` are set — a deploy-time decision, not this route's.
  *
- * ⚠ **No enumeration.** The `{email}` variant answers `202` and sends *a* mail whatever the address
- * — a code when an account uses it, [EmailSender.sendNoAccountNotice] otherwise — so neither the
- * status nor the SMTP round trip says whether the account exists. Every refusal on `/confirm` is the
- * same `401`. Budgets are `/register`'s and `/verify`'s ([AccountRateLimits]): a deletion code is
- * mail, and a guess is a guess.
+ * ⚠⚠ **An address no account uses gets NO mail.** The `{email}` variant is unauthenticated and
+ * answers any address, so a mail per request makes it an open cannon pointed wherever a caller
+ * likes. That is not hypothetical: from 2026-11-09 a form-spam bot fed the public web page ~500
+ * scraped and mangled addresses (Gmail dot-variants, random prefixes), 77% of which bounced — each
+ * bounce charged to `tenshu.app`'s sender reputation, which the sign-in codes share. So only an
+ * address with an account is mailed (`commerce-accounts-and-sessions.md` §9.7).
+ *
+ * ⚠ **Still no enumeration.** Both branches answer the same `202` after the same DB work (an unknown
+ * address upserts a throwaway code under the fixed decoy key). The unknown branch has no SMTP round
+ * trip, so it waits [noAccountPad] instead — a jittered pause in the range a real send takes — so the
+ * response time does not say whether the account exists. Every refusal on `/confirm` is the same
+ * `401`. Budgets are `/register`'s and `/verify`'s ([AccountRateLimits]): a deletion code is mail,
+ * and a guess is a guess.
  *
  * ⚠ **Idempotent where it can be.** A second confirmation (a retry after a lost response) finds no
- * account or no code and answers `401`; a repeated request for the address now mails the
- * no-account notice — which is the honest answer, and how the web page's "send a new code" learns
- * the deletion went through. The store side is idempotent outright.
+ * account or no code and answers `401`; a repeated request for the address answers `202` and mails
+ * nothing, which the web page's copy already allows for ("If a Tenshu account uses…"). The store
+ * side is idempotent outright.
  */
 fun Route.configureAccountDeletionRouting(
     store: CommerceStore,
@@ -76,9 +86,24 @@ fun Route.configureAccountDeletionRouting(
     reviewSignIn: ReviewSignIn? = null,
     /** Per-address cap on failed code checks per rolling 24 h, shared with `/verify` (D15). */
     otpFailures: PersistedFailureLimit? = null,
+    /**
+     * Stands in for the SMTP round trip on the no-account branch, so its response time matches the
+     * mailing branch's. Production passes [jitteredSendPad]; tests leave it instant.
+     */
+    noAccountPad: suspend () -> Unit = {},
+    /**
+     * Cloudflare Turnstile (D16); null = off. Challenges every `{email}` request, browser or not:
+     * only the web page sends that variant (the apps send `{sessionToken}`, which already proves
+     * the inbox), so no native caller needs exempting.
+     */
+    turnstile: TurnstileVerifier? = null,
 ) {
     post("/commerce/account/delete/request") {
         val request = runCatching { call.receive<DeletionRequest>() }.getOrNull()
+        // ⚠⚠ Before resolving the target — a session or account lookup — and before any budget (D16).
+        if (!call.passesTurnstile(turnstile, request?.turnstileToken, required = !request?.email.isNullOrBlank(), call.clientIp())) {
+            return@post
+        }
         val target = request?.let { store.resolveDeletionTarget(it.email, it.sessionToken, now()) }
         when (target) {
             null, DeletionTarget.Malformed -> {
@@ -107,23 +132,25 @@ fun Route.configureAccountDeletionRouting(
             return@post
         }
         try {
-            // ⚠ Both branches do the same work — generate, hash, one upsert, one mail — so the
-            // response time does not say whether the account exists. The unknown-address branch
-            // writes to a single fixed decoy key rather than under the address: it must not leave a
-            // row naming someone who has no account with us.
+            // ⚠ Both branches do the same DB work — generate, hash, one upsert — and take about as
+            // long: the mail on one, [noAccountPad] on the other. The unknown-address branch writes
+            // to a single fixed decoy key rather than under the address: it must not leave a row
+            // naming someone who has no account with us. It mails nobody (class note).
             val code = OtpCodes.generate()
             val key = if (target.account != null) ErasedAccounts.deletionOtpKey(target.email) else ErasedAccounts.DECOY_OTP_KEY
             store.putEmailVerification(key, OtpCodes.hash(code), expiresAt = nowMs + otpTtlMs)
             if (target.account != null) {
                 emailSender.sendAccountDeletionCode(target.email, code)
             } else {
-                emailSender.sendNoAccountNotice(target.email)
+                noAccountPad()
             }
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (failure: Exception) {
-            // ⚠ Safe to surface for the same reason as /register: a mail is attempted in BOTH
-            // branches, so a 503 says nothing about whether the account exists.
+            // ⚠ Only the account branch can reach this, so a 503 does say "an account exists" — but
+            // only when OUR transport is failing, which a caller cannot cause, and then for every
+            // account alike. Accepted: answering 202 instead would tell a real user a code is coming
+            // when none is (`commerce-otp-delivery-feedback.md`).
             if (generateSequence<Throwable>(failure) { it.cause }.take(5).any { it is MessagingException }) {
                 deletionLogger.warn("Deletion mail failed; answering send_failed ({})", describeForLog(failure))
             } else {
@@ -248,7 +275,24 @@ private fun CommerceStore.resolveDeletionTarget(email: String?, sessionToken: St
 }
 
 @Serializable
-data class DeletionRequest(val email: String? = null, val sessionToken: String? = null)
+data class DeletionRequest(
+    val email: String? = null,
+    val sessionToken: String? = null,
+    /** The Turnstile widget's token (D16); the web page's `{email}` variant only. */
+    val turnstileToken: String? = null,
+)
 
 @Serializable
 data class DeletionConfirm(val email: String? = null, val sessionToken: String? = null, val code: String)
+
+/**
+ * The production [configureAccountDeletionRouting] `noAccountPad`: a uniform pause over the span the
+ * TEM log shows a real send taking (≈0.1–2 s, most under 1 s), so the no-mail branch is not
+ * measurably faster than the mailing one.
+ */
+suspend fun jitteredSendPad() {
+    kotlinx.coroutines.delay(kotlin.random.Random.nextLong(NO_ACCOUNT_PAD_MIN_MS, NO_ACCOUNT_PAD_MAX_MS))
+}
+
+private const val NO_ACCOUNT_PAD_MIN_MS = 300L
+private const val NO_ACCOUNT_PAD_MAX_MS = 1_500L

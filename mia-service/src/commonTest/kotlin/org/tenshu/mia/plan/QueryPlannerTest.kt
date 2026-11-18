@@ -593,8 +593,14 @@ class QueryPlannerTest {
      */
     @Test
     fun theSlotQuestionsThatTeachAnAction_areWithheldToo() {
+        // ⭐ With actions offered, a command missing its time now ASKS for it (§25); withheld, it
+        // still withholds at the intent, ahead of any question.
+        val asked = plan("add lunch with anna", MiaActionOffer.OFFERED)
+        assertIs<QueryPlan.Clarify>(asked)
+        assertEquals(org.tenshu.calendar.SaveEvent.Params.START_LOCAL, asked.param)
+        assertIs<QueryPlan.ActionWithheld>(plan("add lunch with anna", MiaActionOffer.WITHHELD))
+
         val cases = listOf(
-            "add lunch with anna" to "tell me when",
             "run a routine" to "Which routine",
             "show my routines" to "I can run a routine",
             "toggle the kitchen light" to "turn something on or off",
@@ -656,8 +662,12 @@ class QueryPlannerTest {
     fun aPartOfDayAloneStillInventsNoTime() {
         // ⚠⚠ The guard that matters: "morning" narrows a time, it does not fix one, and a guessed
         // time is a wrong row (MQ-D1's amendment). The answer stays "when?".
-        assertIs<QueryPlan.NoMatch>(plan("add dentist tomorrow morning"))
-        assertIs<QueryPlan.NoMatch>(plan("add dinner this evening"))
+        // Since §25 the answer is a question, still with no start heard.
+        listOf("add dentist tomorrow morning", "add dinner this evening").forEach {
+            val asked = assertIs<QueryPlan.Clarify>(plan(it), it)
+            assertEquals(org.tenshu.calendar.SaveEvent.Params.START_LOCAL, asked.param, it)
+            assertTrue(org.tenshu.calendar.SaveEvent.Params.START_LOCAL !in asked.heard, it)
+        }
     }
 
     @Test
@@ -670,9 +680,11 @@ class QueryPlannerTest {
         assertEquals(LocalDateTime(2026, 7, 16, 20, 0), event("add lunch at five guys tomorrow at 8pm").startLocal)
         // ⚠⚠ And a number word is an hour only where the time expression ends: with no clock
         // time, a venue's "five" is no time at all, so the answer is "when?".
-        assertIs<QueryPlan.NoMatch>(plan("add lunch at five guys tomorrow"))
-        assertIs<QueryPlan.NoMatch>(plan("add call at one with tom"))
-        assertIs<QueryPlan.NoMatch>(plan("add lunch at noon cafe tomorrow"))
+        // (Since §25 "when?" is a question, not a refusal: still no start invented.)
+        listOf("add lunch at five guys tomorrow", "add call at one with tom", "add lunch at noon cafe tomorrow").forEach {
+            val asked = assertIs<QueryPlan.Clarify>(plan(it), it)
+            assertTrue(org.tenshu.calendar.SaveEvent.Params.START_LOCAL !in asked.heard, it)
+        }
         assertEquals(LocalDateTime(2026, 7, 16, 13, 0), event("add lunch with anna at one tomorrow").startLocal)
         assertEquals(LocalDateTime(2026, 7, 16, 19, 0), event("add dinner tomorrow at seven in the evening").startLocal)
         assertEquals(LocalDateTime(2026, 7, 16, 9, 0), event("add standup tomorrow at nine o'clock").startLocal)
@@ -738,13 +750,60 @@ class QueryPlannerTest {
         assertIs<QueryPlan.QueryCalendar>(plan("am I free on friday"))
         // No day named: not the calendar.
         assertTrue(plan("do I have anything from paris") !is QueryPlan.QueryCalendar)
-        // ⚠⚠ The agenda grammar looks forward only, so a past question is not routed by the cue.
-        assertTrue(plan("was I busy last week") !is QueryPlan.QueryCalendar)
+        // ⚠⚠ A past question gets a past window now (the agenda grammar reads "last week"), so the
+        // cue routes it. On this clock (Wed 2026-07-15) last week is Mon 6 to Sun 12 July.
+        val past = assertIs<QueryPlan.QueryCalendar>(plan("was I busy last week"))
+        assertEquals(LocalDate(2026, 7, 6), past.window.from)
+        assertEquals(LocalDate(2026, 7, 12), past.window.to)
         assertIs<QueryPlan.QueryCalendar>(plan("am I busy next week"))
         // ⚠ A file word outranks the inferred cue (only a calendar noun outranks the file arm).
         assertIs<QueryPlan.FindFilesNamed>(plan("find files named plans for next week"))
         // "what … on" apart is a timeline question.
         assertIs<QueryPlan.RecallMoments>(plan("what did I do on saturday"))
+    }
+
+    /**
+     * ⚠⚠ The calendar keeps its past: a past question reads back, never the rest of this week (the
+     * defect: "what was on my calendar last week" answered about the coming days).
+     */
+    @Test
+    fun aPastCalendarQuestionGetsAPastWindow() {
+        fun window(u: String) = assertIs<QueryPlan.QueryCalendar>(plan(u), u).window.let { it.from to it.to }
+        // Wed 2026-07-15.
+        assertEquals(LocalDate(2026, 7, 6) to LocalDate(2026, 7, 12), window("what was on my calendar last week"))
+        assertEquals(LocalDate(2026, 7, 11) to LocalDate(2026, 7, 12), window("what was on my calendar last weekend"))
+        assertEquals(LocalDate(2026, 7, 10) to LocalDate(2026, 7, 10), window("what was on my calendar last friday"))
+        assertEquals(LocalDate(2026, 7, 10) to LocalDate(2026, 7, 10), window("what meetings were on friday"))
+        assertEquals(LocalDate(2026, 7, 13) to LocalDate(2026, 7, 15), window("what was on my calendar this week"))
+        // ⚠⚠ A past the grammar cannot place is refused, never answered about other dates.
+        assertIs<QueryPlan.NoMatch>(plan("what was on my calendar a week ago"))
+        assertTrue(plan("was I busy a week ago") !is QueryPlan.QueryCalendar)
+        assertTrue(plan("was I busy the previous week") !is QueryPlan.QueryCalendar)
+        // …and the future still reads forward.
+        assertEquals(LocalDate(2026, 7, 17) to LocalDate(2026, 7, 17), window("what is on my calendar friday"))
+        assertEquals(LocalDate(2026, 7, 20) to LocalDate(2026, 7, 26), window("what is on my calendar next week"))
+    }
+
+    @Test
+    fun dimmingToALevelIsACommandWithTheLevel() {
+        val dim = assertIs<QueryPlan.ControlDevice>(plan("dim the bedroom light to 30 percent"))
+        assertEquals("bedroom light", dim.text)
+        assertEquals(30, dim.level)
+        assertEquals(30, assertIs<QueryPlan.ControlDevice>(plan("set the kitchen lamp to 30%")).level)
+        assertEquals(0, assertIs<QueryPlan.ControlDevice>(plan("dim the kitchen lamp to 0 percent")).level)
+        // ⚠ No level heard is never a guessed one, and nothing above 100 exists.
+        assertIs<QueryPlan.NoMatch>(plan("dim the bedroom light"))
+        assertIs<QueryPlan.NoMatch>(plan("dim the bedroom light to 150 percent"))
+        // ⚠⚠ A level verb inside a question describes a state; it is a read, not a command.
+        assertIs<QueryPlan.FindDevices>(plan("is the kitchen lamp set to 30 percent"))
+        assertIs<QueryPlan.FindDevices>(plan("is the kitchen lamp set to 30 percent", MiaActionOffer.WITHHELD))
+        assertEquals(30, assertIs<QueryPlan.ControlDevice>(plan("can you dim the kitchen lamp to 30 percent")).level)
+        // ⚠ Every accepted lead-in leaves the device name, or the search finds nothing (Codex review).
+        listOf("would you", "hey mia", "will you", "please", "ok mia").forEach { lead ->
+            assertEquals("kitchen lamp", assertIs<QueryPlan.ControlDevice>(plan("$lead dim the kitchen lamp to 30 percent")).text, lead)
+        }
+        // ⚠ Withheld where actions are not offered, as on/off is.
+        assertIs<QueryPlan.ActionWithheld>(plan("dim the bedroom light to 30 percent", MiaActionOffer.WITHHELD))
     }
 
     @Test

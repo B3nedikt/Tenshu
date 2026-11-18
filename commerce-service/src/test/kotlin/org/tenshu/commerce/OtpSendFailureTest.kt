@@ -40,11 +40,6 @@ class OtpSendFailureTest {
             throw IllegalStateException("smtp relay refused the message")
         }
 
-        override fun sendNoAccountNotice(email: String) {
-            calls++
-            throw IllegalStateException("smtp relay refused the message")
-        }
-
         override fun sendSignupsPausedNotice(email: String) {
             calls++
             throw IllegalStateException("smtp relay refused the message")

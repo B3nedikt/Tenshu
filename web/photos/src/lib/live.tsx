@@ -1,5 +1,5 @@
-// The push half of Photos: `photo.albums.observe`, `photo.favourites.observe` and
-// `photo.trash.observe` are genuine streams (run A). Each is subscribed ONCE, at the app root, and
+// The push half of Photos: `photo.albums.observe`, `photo.favourites.observe`,
+// `photo.trash.observe` and `photo.people.observe` are genuine streams. Each is subscribed ONCE, at the app root, and
 // written into the query cache, so every screen reads one copy and no view refetches after a write
 // — the write's own emission updates it. The mechanism is the app-kit's (`useLive`).
 //
@@ -7,14 +7,16 @@
 // swallowed. ⚠ The feed has no push form (its only Flow is a whole-realm stream): it is snapshot +
 // refetch, `feed.tsx`.
 import type { ReactNode } from 'react'
-import type { AlbumsResult, PhotosListResult, TrashResult } from '@tenshu/sdk/photos'
+import type { AlbumsResult, PeopleResult, PhotosListResult, TrashResult } from '@tenshu/sdk/photos'
 import { createLiveContext, useLive, type Live } from '@tenshu/app-kit/live'
 import {
   listAlbums,
   listFavourites,
+  listPeople,
   listTrash,
   subscribeAlbums,
   subscribeFavourites,
+  subscribePeople,
   subscribeTrash,
 } from './proxy'
 import { queryKeys } from './queryKeys'
@@ -22,6 +24,8 @@ import { queryKeys } from './queryKeys'
 interface LiveState {
   readonly albums: Live<AlbumsResult>
   readonly favourites: Live<PhotosListResult>
+  // Named people (photos-app.md §42.7). Also what decides whether People is in the sidebar.
+  readonly people: Live<PeopleResult>
   readonly trash: Live<TrashResult>
 }
 
@@ -31,7 +35,8 @@ export function LiveProvider({ children }: { children: ReactNode }) {
   const albums = useLive(queryKeys.albums(), listAlbums, subscribeAlbums)
   const favourites = useLive(queryKeys.favourites(), listFavourites, subscribeFavourites)
   const trash = useLive(queryKeys.trash(), listTrash, subscribeTrash)
-  return <LiveContext.Provider value={{ albums, favourites, trash }}>{children}</LiveContext.Provider>
+  const people = useLive(queryKeys.people(), listPeople, subscribePeople)
+  return <LiveContext.Provider value={{ albums, favourites, trash, people }}>{children}</LiveContext.Provider>
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -42,6 +47,11 @@ export function useAlbums(): Live<AlbumsResult> {
 // eslint-disable-next-line react-refresh/only-export-components
 export function useFavourites(): Live<PhotosListResult> {
   return useLiveState().favourites
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function usePeople(): Live<PeopleResult> {
+  return useLiveState().people
 }
 
 // eslint-disable-next-line react-refresh/only-export-components

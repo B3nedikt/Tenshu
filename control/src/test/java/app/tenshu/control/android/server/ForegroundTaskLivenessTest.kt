@@ -4,6 +4,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.tenshu.core.common.proxy.BackgroundLiveness
 
 /**
@@ -116,41 +120,70 @@ class ForegroundTaskLivenessTest {
 
     // --- control-background-work-off-fgs.md §5.2: the demotion linger ---
 
-    /** Drives the real collector over [counts], with [lingerMs] as the window; returns the events. */
-    private fun collect(lingerMs: Long, script: suspend (MutableStateFlow<Int>) -> Unit): List<Event> =
-        kotlinx.coroutines.runBlocking {
-            val handle = RecordingHandle()
-            val counts = MutableStateFlow(0)
-            val scope = kotlinx.coroutines.CoroutineScope(coroutineContext + kotlinx.coroutines.Job())
-            ForegroundTaskLiveness(counts, handle, idleLingerMs = lingerMs).launchIn(scope)
-            kotlinx.coroutines.yield()
-            script(counts)
-            scope.coroutineContext[kotlinx.coroutines.Job]!!.cancel()
-            handle.events.toList()
+    /**
+     * Drives the real collector over a count flow, with [lingerMs] as the window; returns the events.
+     *
+     * ⚠⚠ Virtual time, not `runBlocking` + real `delay`: the collector's `collectLatest` takes several
+     * dispatches to act on a value (a `cancelAndJoin` of the pending linger, then the new block), and
+     * on the real clock a stall longer than the script's next `delay` let the script cancel the scope
+     * between those hops — the gate's `but was:<[Active(count=1)]>`. Here the collector and its
+     * linger `delay` both run on the test scheduler (it takes its dispatcher and its `Delay` from the
+     * scope, nothing else), and [Steps.set] runs every queued task before the script moves on, so
+     * each value is observed by construction and the linger is measured in virtual milliseconds.
+     */
+    private fun collect(lingerMs: Long, script: suspend Steps.() -> Unit): List<Event> {
+        val handle = RecordingHandle()
+        runTest {
+            val steps = Steps(this, handle)
+            ForegroundTaskLiveness(steps.counts, handle, idleLingerMs = lingerMs).launchIn(backgroundScope)
+            runCurrent()
+            steps.script()
         }
+        return handle.events.toList()
+    }
+
+    /** The script's vocabulary: set a count and let the collector act on it, or let virtual time pass. */
+    private class Steps(private val test: TestScope, private val handle: RecordingHandle) {
+        val counts = MutableStateFlow(0)
+
+        /** What the handle has seen so far. */
+        fun events(): List<Event> = handle.events.toList()
+
+        fun set(count: Int) {
+            counts.value = count
+            test.runCurrent()
+        }
+
+        fun advance(ms: Long) {
+            test.advanceTimeBy(ms)
+            test.runCurrent()
+        }
+    }
 
     @Test
     fun `a gap shorter than the linger keeps the service promoted`() {
         // ⚠⚠ The case the linger exists for: a user-started folder upload is a run of tasks with gaps.
         // Demoting in a gap after the user left would make the next promotion refused for good.
-        val events = collect(lingerMs = 2_000) { counts ->
-            counts.value = 1
-            kotlinx.coroutines.delay(50)
-            counts.value = 0 // between two files
-            kotlinx.coroutines.delay(100)
-            counts.value = 1 // the next file
-            kotlinx.coroutines.delay(50)
+        val events = collect(lingerMs = 2_000) {
+            set(1)
+            advance(50)
+            set(0) // between two files
+            advance(1_999) // one virtual millisecond short of the linger
+            set(1) // the next file
+            advance(50)
         }
         assertEquals(listOf(Event.Active(1), Event.CountChanged(1)), events)
     }
 
     @Test
     fun `idle fires once the count has stayed at zero for the linger`() {
-        val events = collect(lingerMs = 100) { counts ->
-            counts.value = 1
-            kotlinx.coroutines.delay(50)
-            counts.value = 0
-            kotlinx.coroutines.delay(400)
+        val events = collect(lingerMs = 100) {
+            set(1)
+            advance(50)
+            set(0)
+            advance(99)
+            assertEquals("not before the linger has run out", listOf<Event>(Event.Active(1)), events())
+            advance(1)
         }
         assertEquals(listOf(Event.Active(1), Event.Idle), events)
     }

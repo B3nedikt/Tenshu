@@ -3516,6 +3516,33 @@ All recommendations accepted:
   reads `imagesOnly`). Web keeps it — a favourited video should appear — pinned by
   `PhotosLibraryContractTest.aVideoCarriesItsDuration_andAFavouritedVideoIsAFavourite`.
 
+### 42.7 Amended (maintainer, 2026-11-17): named people on web, read-only
+
+§42.1 hid People because the browser cannot **group** faces: templates never leave the device that
+made them (IN-D5), and no model runs in a tab. That stands. But a **name** is not a grouping: naming
+a group writes one synced `MediaLabel` per photograph (`FACE_CLUSTERING`, `ModelProvenance.User`),
+and the browser has received those rows since F7. Android ships People, and iOS has the whole
+pipeline built behind `TENSHU_PHOTOS_FACES` (`ios-face-grouping.md`), so names exist to show.
+
+- **What web shows:** each named person, their photographs (newest first) and a cover (the newest).
+  The rules are native's (`CollectionsViewModel` → `peopleFrom`): one person per name; a moved or
+  trashed photograph drops out; a person with nothing left is not listed.
+- **What it never shows:** unnamed groups, "Is this Anna?", naming, a face crop. Each needs
+  templates. The page says where names come from.
+- **Sidebar:** People appears once someone is named, and stays while it is the open section.
+- **Surface:** `Photos.people` / `observePeople` / `personPhotos` (jsTest
+  `PhotosLibraryContractTest`), gateway `photo.people{,.observe}` / `photo.personPhotos`. Nothing
+  new is written, no consent is read (withdrawal keeps the names, A40), and `labels` is read through
+  the relation maintainer the photo plugin already installs. No `initInferenceService`, no indexer.
+- ⚠⚠ The push select carries `MediaLabel.Fields.LABEL_KEY`, the field its DataId comes from
+  (`web-apps-layout.md` §4.11). `observePeopleStaysOpenAndPushesANewName` fails without it.
+- ⚠ The push re-reads People only when a **name** moves (face labels filtered in the query, markers
+  dropped, `distinctUntilChanged`) or on trash/restore. An indexing pass syncs a marker per file,
+  and re-reading per marker was a recompute storm (`observePeopleIgnoresMarkersAndTags_butPushesATrash`).
+- ⚠ **Known gap:** a file-side change alone does not push. A named photograph moved, or a file that
+  syncs in after its name, shows on the next push or on opening the page. Watching files would mean
+  the whole-library stream the feed already declines.
+
 ## 43. As built — web Photos run A: the SDK boundary and bridge (web-app-suite Wave 2, 2026-10-23)
 
 The undisputed half of §42 reaches the web through three pieces:

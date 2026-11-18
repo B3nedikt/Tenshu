@@ -161,6 +161,40 @@ class SyncDashboardViewModelTest {
         )
     }
 
+    // Decision A: a device without the master key may remove only itself. The refusal is a typed
+    // error with no message, so it used to surface as the bare fallback, "Could not remove the
+    // device" — which named neither the cause nor what would work.
+    @Test
+    fun aRefusalForLackOfThePhrase_saysSo_whetherReturnedOrThrown() = vmTest { vms ->
+        val returned = FakeSyncRepository(
+            revokeResult = ResultFailureDto(org.tenshu.sync.RecoveryPhraseRequiredError.create(context))
+        )
+        val vmA = viewModel(vms, returned, backgroundScope)
+        vmA.revokeDevice("other-device")
+        advanceUntilIdle()
+        assertTrue(
+            vmA.uiState.value.error.orEmpty().startsWith("Removing another device needs your recovery phrase"),
+            "saw ${vmA.uiState.value.error}",
+        )
+
+        val thrown = FakeSyncRepository(
+            revokeThrows = TenshuException(org.tenshu.sync.RecoveryPhraseRequiredError.create(context))
+        )
+        val vmB = viewModel(vms, thrown, backgroundScope)
+        vmB.revokeDevice("other-device")
+        advanceUntilIdle()
+        assertEquals(vmA.uiState.value.error, vmB.uiState.value.error)
+    }
+
+    @Test
+    fun whetherThisDeviceHoldsThePhrase_isKnownBeforeAnyRemoval() = vmTest { vms ->
+        val without = viewModel(vms, FakeSyncRepository(recoveryPhrase = null), backgroundScope)
+        val with = viewModel(vms, FakeSyncRepository(recoveryPhrase = "abandon ".repeat(23) + "art"), backgroundScope)
+        advanceUntilIdle()
+        assertEquals(false, without.uiState.value.holdsRecoveryPhrase)
+        assertEquals(true, with.uiState.value.holdsRecoveryPhrase)
+    }
+
     @Test
     fun revokeThrows_surfacesAnError_ratherThanVanishing() = vmTest { vms ->
         val repo = FakeSyncRepository(revokeThrows = IllegalStateException("Proxy not connected"))

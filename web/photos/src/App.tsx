@@ -14,24 +14,25 @@ import { SearchBox } from './components/SearchBox'
 import { SearchView } from './components/SearchView'
 import { DEFAULT_COLUMNS, DENSITIES, type Density } from './lib/layout'
 import { AlbumsView } from './components/AlbumsView'
+import { PeopleView } from './components/PeopleView'
 import { FavouritesView } from './components/FavouritesView'
 import { TrashView } from './components/TrashView'
-import { LiveProvider } from './lib/live'
+import { LiveProvider, usePeople } from './lib/live'
 import { FeedProvider } from './lib/feed'
 import { urlViewer } from './lib/viewerRoute'
 import { PaneContext, type PaneControl, type PhotoFocus } from './lib/pane'
 import { loadPaneOpen, savePaneOpen } from './lib/paneState'
 import { PhotoPane } from './components/PhotoPane'
 
-type Tab = 'photos' | 'search' | 'years' | 'videos' | 'albums' | 'favourites' | 'trash'
+type Tab = 'photos' | 'search' | 'years' | 'videos' | 'people' | 'albums' | 'favourites' | 'trash'
 
 // Also the URL's sections (web-apps-layout.md §3.4): `photos` is `/`, the rest `/<id>` — they must
 // equal the apex registry's `sections`. Module-level: its identity is an effect dependency.
 // `search` is reached from the sidebar's search field, not a nav item; its query is `q=` in the
 // fragment (§3.4: what the user typed never goes in the path).
-const TABS: readonly Tab[] = ['photos', 'search', 'years', 'videos', 'albums', 'favourites', 'trash']
+const TABS: readonly Tab[] = ['photos', 'search', 'years', 'videos', 'people', 'albums', 'favourites', 'trash']
 // The sections with a photo grid — the ones the Info pane describes a selection in.
-const GRID_TABS: readonly Tab[] = ['photos', 'search', 'videos', 'albums', 'favourites']
+const GRID_TABS: readonly Tab[] = ['photos', 'search', 'videos', 'people', 'albums', 'favourites']
 // The Library (sections `photos`) carries its density and where to open in the fragment:
 // `view=days`, `view=years&at=120` (§3.4 — a fragment, never the path). Months is the default.
 // The viewer adds `open=<feed index>` to whatever is there (`view=days&open=42`, `lib/viewerRoute`).
@@ -56,9 +57,19 @@ function libraryFragment(density: Density, at: number | null = null): string {
 // subscribed once, here (`LiveProvider`), and the feed's pager lives here too (`FeedProvider`), so
 // a tab switch keeps the library's place.
 //
-// ⚠ Not on web v1, by decision (photos-app.md §42.6): faces, labels, semantic search, upload,
-// places, mint-on-view, duplicates and a hidden-photos surface.
+// ⚠ Not on web v1, by decision (photos-app.md §42.6): face grouping and naming, labels, semantic
+// search, upload, places, mint-on-view, duplicates and a hidden-photos surface. People who were
+// NAMED on a device are shown, read-only (§42.7).
 export default function App() {
+  // The streams (and the People entry's visibility, which reads one) live under LiveProvider.
+  return (
+    <LiveProvider>
+      <PhotosApp />
+    </LiveProvider>
+  )
+}
+
+function PhotosApp() {
   const { t } = useTranslation()
   const { section: tab, fragment, navigate, setFragment, open, back } = useAppRoute(TABS, 'photos')
   const searched = tab === 'search' ? (new URLSearchParams(fragment).get('q') ?? '') : ''
@@ -104,6 +115,13 @@ export default function App() {
   // Albums: `a=<albumId>` is the open album (opening one pushes; its Back is `back`), and its
   // viewer adds `open=<index into the album>`. An opaque id, never the title.
   const openAlbum = tab === 'albums' ? new URLSearchParams(fragment).get('a') : null
+  // People: `p=<name>` is the open person (a name is the only identity a synced person has).
+  const openPerson = tab === 'people' ? new URLSearchParams(fragment).get('p') : null
+  // ⚠ People is in the sidebar once someone has been NAMED (§42.7) — a realm that never uses faces
+  // gets no empty section — and always while it is the open section (a deep link, the last name
+  // removed while looking at it), so the active item never vanishes from under the user.
+  const people = usePeople().data
+  const showPeople = (people?.ok === true && people.people.length > 0) || tab === 'people'
   // The Info pane (D2): stays as you left it, per browser; describes the one selected photograph,
   // which the grid reports (`lib/pane`) — lifted here because the pane is AppLayout's.
   const [paneOpen, setPaneOpen] = useState(loadPaneOpen)
@@ -118,91 +136,97 @@ export default function App() {
     { id: 'photos' as const, label: t('nav.photos') },
     { id: 'years' as const, label: t('nav.years'), heading: t('nav.collections') },
     { id: 'videos' as const, label: t('nav.videos') },
+    ...(showPeople ? [{ id: 'people' as const, label: t('nav.people') }] : []),
     { id: 'albums' as const, label: t('nav.albums') },
     { id: 'favourites' as const, label: t('nav.favourites') },
   ]
 
   return (
-    <LiveProvider>
-      <FeedProvider>
-        {/* No headline: the apex top bar already names the app (web-apps-layout.md §3.1). */}
-        <AppLayout
-          // Never keyed: a remount would drop focus mid-typing. It follows the URL itself (Back/forward).
-          primaryAction={<SearchBox initial={searched} section={tab} onSearch={onSearch} />}
-          navLabel={t('nav.label')}
-          nav={nav}
-          navFooter={[{ id: 'trash', label: t('nav.trash') }]}
-          active={tab}
-          onNavigate={navigate}
-          pane={paneOpen && GRID_TABS.includes(tab) ? <PhotoPane focus={focus} /> : null}
-          paneLabel={t('pane.label')}
-          onPaneClose={togglePane}
-          // First: in a tab without the runtime, every other read fails too.
-          banners={
-            <>
-              <RuntimeBanner />
-              <SyncBanner />
-            </>
-          }
-        >
-          {/* Keyed by tab, so a crashed view recovers on navigation and the shell stays usable. */}
-          <PaneContext value={pane}>
-          <ErrorBoundary key={tab}>
-            <div className="flex min-h-0 flex-1 flex-col">
-              {tab === 'photos' && (
-                <FeedView
-                  density={density}
-                  // A density change is a view setting, not a place: no history entry. It is also
-                  // this browser's new default (best effort: no sync identity yet keeps the old one).
-                  onDensity={(next, topIndex) => {
-                    setFragment(libraryFragment(next, topIndex))
-                    // ⚠ The cached setting first: a later visit with no `view=` (the Library nav)
-                    // must open at this choice, not the value read at the session's start.
-                    remember({ density: next })
-                    void setPhotoDensity(next).catch(() => undefined)
-                  }}
-                  mosaic={mosaic}
-                  fit={fit}
-                  // Same rule: the cached setting first (it drives the grid now), then the store.
-                  onLayout={(nextMosaic, nextFit) => {
-                    remember({ mosaic: nextMosaic, fit: nextFit })
-                    void setPhotoLayout(nextMosaic, nextFit).catch(() => undefined)
-                  }}
-                  columns={columns}
-                  onColumns={(next) => {
-                    remember({ columns: next })
-                    void setPhotoColumns(next).catch(() => undefined)
-                  }}
-                  startAt={library.at}
-                  viewer={viewer}
-                />
-              )}
-              {tab === 'search' && <SearchView query={searched} viewer={viewer} />}
-              {tab === 'years' && (
-                // A year opens the Library at its first photograph, by month — a history entry.
-                <YearsView onOpenYear={(index) => navigate('photos', libraryFragment('months', index))} />
-              )}
-              {tab === 'videos' && (
-                // The Videos collection (L5): the library's walk filtered to videos, its own pager
-                // and times; by month, its viewer `open=<index into the videos>`.
-                <FeedProvider kind="videos">
-                  <FeedView viewer={viewer} emptyText={t('videos.empty')} fit={fit} columns={columns} />
-                </FeedProvider>
-              )}
-              {tab === 'albums' && (
-                <AlbumsView
-                  albumId={openAlbum}
-                  onAlbum={(id) => (id === null ? back('') : open(new URLSearchParams({ a: id }).toString()))}
-                  viewer={viewer}
-                />
-              )}
-              {tab === 'favourites' && <FavouritesView viewer={viewer} />}
-              {tab === 'trash' && <TrashView />}
-            </div>
-          </ErrorBoundary>
-          </PaneContext>
-        </AppLayout>
-      </FeedProvider>
-    </LiveProvider>
+    <FeedProvider>
+      {/* No headline: the apex top bar already names the app (web-apps-layout.md §3.1). */}
+      <AppLayout
+        // Never keyed: a remount would drop focus mid-typing. It follows the URL itself (Back/forward).
+        primaryAction={<SearchBox initial={searched} section={tab} onSearch={onSearch} />}
+        navLabel={t('nav.label')}
+        nav={nav}
+        navFooter={[{ id: 'trash', label: t('nav.trash') }]}
+        active={tab}
+        onNavigate={navigate}
+        pane={paneOpen && GRID_TABS.includes(tab) ? <PhotoPane focus={focus} /> : null}
+        paneLabel={t('pane.label')}
+        onPaneClose={togglePane}
+        // First: in a tab without the runtime, every other read fails too.
+        banners={
+          <>
+            <RuntimeBanner />
+            <SyncBanner />
+          </>
+        }
+      >
+        {/* Keyed by tab, so a crashed view recovers on navigation and the shell stays usable. */}
+        <PaneContext value={pane}>
+        <ErrorBoundary key={tab}>
+          <div className="flex min-h-0 flex-1 flex-col">
+            {tab === 'photos' && (
+              <FeedView
+                density={density}
+                // A density change is a view setting, not a place: no history entry. It is also
+                // this browser's new default (best effort: no sync identity yet keeps the old one).
+                onDensity={(next, topIndex) => {
+                  setFragment(libraryFragment(next, topIndex))
+                  // ⚠ The cached setting first: a later visit with no `view=` (the Library nav)
+                  // must open at this choice, not the value read at the session's start.
+                  remember({ density: next })
+                  void setPhotoDensity(next).catch(() => undefined)
+                }}
+                mosaic={mosaic}
+                fit={fit}
+                // Same rule: the cached setting first (it drives the grid now), then the store.
+                onLayout={(nextMosaic, nextFit) => {
+                  remember({ mosaic: nextMosaic, fit: nextFit })
+                  void setPhotoLayout(nextMosaic, nextFit).catch(() => undefined)
+                }}
+                columns={columns}
+                onColumns={(next) => {
+                  remember({ columns: next })
+                  void setPhotoColumns(next).catch(() => undefined)
+                }}
+                startAt={library.at}
+                viewer={viewer}
+              />
+            )}
+            {tab === 'search' && <SearchView query={searched} viewer={viewer} />}
+            {tab === 'years' && (
+              // A year opens the Library at its first photograph, by month — a history entry.
+              <YearsView onOpenYear={(index) => navigate('photos', libraryFragment('months', index))} />
+            )}
+            {tab === 'videos' && (
+              // The Videos collection (L5): the library's walk filtered to videos, its own pager
+              // and times; by month, its viewer `open=<index into the videos>`.
+              <FeedProvider kind="videos">
+                <FeedView viewer={viewer} emptyText={t('videos.empty')} fit={fit} columns={columns} />
+              </FeedProvider>
+            )}
+            {tab === 'people' && (
+              <PeopleView
+                name={openPerson}
+                onPerson={(name) => (name === null ? back('') : open(new URLSearchParams({ p: name }).toString()))}
+                viewer={viewer}
+              />
+            )}
+            {tab === 'albums' && (
+              <AlbumsView
+                albumId={openAlbum}
+                onAlbum={(id) => (id === null ? back('') : open(new URLSearchParams({ a: id }).toString()))}
+                viewer={viewer}
+              />
+            )}
+            {tab === 'favourites' && <FavouritesView viewer={viewer} />}
+            {tab === 'trash' && <TrashView />}
+          </div>
+        </ErrorBoundary>
+        </PaneContext>
+      </AppLayout>
+    </FeedProvider>
   )
 }

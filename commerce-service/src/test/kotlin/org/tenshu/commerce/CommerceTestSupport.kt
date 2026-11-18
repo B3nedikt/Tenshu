@@ -19,7 +19,11 @@ private val testJson = Json { ignoreUnknownKeys = true }
 class RecordingEmailSender : EmailSender {
     private val codes = ConcurrentHashMap<String, String>()
 
+    /** Every recipient mailed anything, in order — for "no mail at all" assertions. */
+    val recipients: MutableList<String> = java.util.concurrent.CopyOnWriteArrayList()
+
     override fun sendOtp(email: String, code: String) {
+        recipients += email.trim().lowercase()
         codes[email.trim().lowercase()] = code
     }
 
@@ -27,21 +31,16 @@ class RecordingEmailSender : EmailSender {
 
     private val deletionCodes = ConcurrentHashMap<String, String>()
 
-    /** Addresses that were sent the "no account uses this address" notice, in order. */
-    val noAccountNotices: MutableList<String> = java.util.concurrent.CopyOnWriteArrayList()
-
     override fun sendAccountDeletionCode(email: String, code: String) {
+        recipients += email.trim().lowercase()
         deletionCodes[email.trim().lowercase()] = code
-    }
-
-    override fun sendNoAccountNotice(email: String) {
-        noAccountNotices += email.trim().lowercase()
     }
 
     /** Addresses that were sent the "sign-ups are paused" notice, in order. */
     val signupsPausedNotices: MutableList<String> = java.util.concurrent.CopyOnWriteArrayList()
 
     override fun sendSignupsPausedNotice(email: String) {
+        recipients += email.trim().lowercase()
         signupsPausedNotices += email.trim().lowercase()
     }
 

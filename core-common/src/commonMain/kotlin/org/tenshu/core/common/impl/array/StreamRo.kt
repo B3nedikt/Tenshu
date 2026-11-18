@@ -20,7 +20,7 @@ class StreamRo<T : Data>(
 ) : OperationRo(requestChain, context), Stream<T> {
 
     override fun stream(signalOnly: Boolean): RequestObject {
-        val streamIdChain = requestChain.createStreamId()
+        val streamIdChain = requestChain.createStreamId(signalOnly)
         val streamId = streamIdChain.streamId
 
         val nextChain = streamIdChain.addArray(

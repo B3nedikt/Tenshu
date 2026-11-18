@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
@@ -92,6 +93,11 @@ fun HorizontalFileItem(
      * existing browse/list call site unchanged.
      */
     showMoreButton: Boolean = true,
+    /**
+     * The row's background. Listings leave it as the screen's surface; the search results pass
+     * [Color.Transparent] so the rows sit on the search panel's own colour instead of striping it.
+     */
+    containerColor: Color = Color.Unspecified,
     onItemClicked: (item: FileUiModel) -> Unit,
     onItemLongClicked: (item: FileUiModel) -> Unit,
     onToggleSelection: (item: FileUiModel) -> Unit,
@@ -228,6 +234,11 @@ fun HorizontalFileItem(
                     }
                 }
             }
+        },
+        colors = if (containerColor == Color.Unspecified) {
+            ListItemDefaults.colors()
+        } else {
+            ListItemDefaults.colors(containerColor = containerColor)
         }
     )
 }

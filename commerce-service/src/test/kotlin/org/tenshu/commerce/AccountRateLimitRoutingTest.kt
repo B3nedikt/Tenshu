@@ -32,6 +32,7 @@ class AccountRateLimitRoutingTest {
         sendPerIpPerHour: Int = 0,
         sendPerEmailPerHour: Int = 0,
         verifyPerEmailPerHour: Int = 0,
+        sendGlobalPerDay: Int = 0,
         block: suspend (HttpClient) -> Unit,
     ) = testApplication {
         application {
@@ -46,6 +47,7 @@ class AccountRateLimitRoutingTest {
                     sendPerIpPerHour = sendPerIpPerHour,
                     sendPerEmailPerHour = sendPerEmailPerHour,
                     verifyPerEmailPerHour = verifyPerEmailPerHour,
+                    sendGlobalPerDay = sendGlobalPerDay,
                 ),
             )
         }
@@ -134,5 +136,39 @@ class AccountRateLimitRoutingTest {
             client.register("a@example.com").status,
             "a spent budget must not be permanent",
         )
+    }
+
+    @Test
+    fun spellingsOfOneGmailInboxShareItsBudget() = appTest(sendPerEmailPerHour = 2) { client ->
+        // Gmail delivers all three to johnsmith@gmail.com; a per-spelling budget would never trip.
+        assertEquals(HttpStatusCode.Accepted, client.register("john.smith@gmail.com").status)
+        assertEquals(HttpStatusCode.Accepted, client.register("j.o.h.n.s.m.i.t.h@gmail.com").status)
+        assertEquals(HttpStatusCode.TooManyRequests, client.register("JohnSmith+tenshu@googlemail.com").status)
+        assertNull(sender.lastCode("johnsmith+tenshu@googlemail.com"), "a refused register must send no mail")
+
+        // Dots are only meaningless at Gmail: elsewhere they name a different mailbox.
+        assertEquals(HttpStatusCode.Accepted, client.register("john.smith@example.com").status)
+        assertEquals(HttpStatusCode.Accepted, client.register("johnsmith@example.com").status)
+    }
+
+    @Test
+    fun theGlobalDailyBudgetBoundsASourceRotatingAddresses() = appTest(sendGlobalPerDay = 3) { client ->
+        repeat(3) { assertEquals(HttpStatusCode.Accepted, client.register("bot$it@example.com").status) }
+
+        assertEquals(HttpStatusCode.TooManyRequests, client.register("bot3@example.com").status)
+        assertNull(sender.lastCode("bot3@example.com"), "a refused register must send no mail")
+
+        clock.addAndGet(AccountRateLimits.HOUR_MS)
+        assertEquals(HttpStatusCode.TooManyRequests, client.register("bot4@example.com").status, "a DAILY budget")
+        clock.addAndGet(AccountRateLimits.DAY_MS)
+        assertEquals(HttpStatusCode.Accepted, client.register("bot4@example.com").status, "but not a permanent one")
+    }
+
+    @Test
+    fun inboxKeyFoldsOnlyWhatTheMailboxIgnores() {
+        val key = AccountRateLimits::inboxKey
+        assertEquals("johnsmith@gmail.com", key(" J.o.h.n.Smith+x@GoogleMail.com "))
+        assertEquals("john.smith@example.com", key("John.Smith+news@example.com"))
+        assertEquals("a@b.c", key("a@b.c"))
     }
 }

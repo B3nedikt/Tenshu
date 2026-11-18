@@ -3,9 +3,11 @@ package org.tenshu.mia.proxy
 import org.tenshu.core.common.proxy.executor.OperationImplementation
 import org.tenshu.mia.AskMia
 import org.tenshu.mia.ConfirmMiaAction
+import org.tenshu.mia.ReplyToMia
 import org.tenshu.mia.plan.MiaActionOffer
 import org.tenshu.mia.proxy.impl.AskMiaImplementation
 import org.tenshu.mia.proxy.impl.ConfirmMiaActionImplementation
+import org.tenshu.mia.proxy.impl.ReplyToMiaImplementation
 
 /**
  * Mia's proxy-side operations (`mia-query-layer.md` MQ-1).
@@ -41,6 +43,12 @@ fun miaServiceProxyImplementationFactory(
     when (id) {
         AskMia.ID -> AskMiaImplementation(actions = actions, actionOffer = actionOffer, photoSearch = photoSearch, newToken = newId)
         ConfirmMiaAction.ID -> ConfirmMiaActionImplementation(actions = actions, newCommandId = newId)
+        // §25: shares the registry the questions were asked into, and answers through the same
+        // `AskMiaImplementation` an `askMia` would use.
+        ReplyToMia.ID -> ReplyToMiaImplementation(
+            actions = actions,
+            ask = AskMiaImplementation(actions = actions, actionOffer = actionOffer, photoSearch = photoSearch, newToken = newId),
+        )
         else -> null
     }
 

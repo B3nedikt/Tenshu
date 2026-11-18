@@ -70,8 +70,11 @@ export interface PublisherClient {
   /** Non-null exactly when a session is held; the portal and redeem calls need it. */
   currentSessionToken(): string | null
   subscribe(listener: () => void): () => void
-  /** Sends an OTP. Serves sign-up and sign-in alike — the service decides which. */
-  register(email: string, displayName: string | null): Promise<RegisterResult>
+  /**
+   * Sends an OTP. Serves sign-up and sign-in alike — the service decides which. [turnstileToken]:
+   * the sign-up form's Turnstile token, when the build has a site key (commerce D16).
+   */
+  register(email: string, displayName: string | null, turnstileToken?: string | null): Promise<RegisterResult>
   /** Completes the OTP started by [register]. */
   verify(code: string): Promise<VerifyResult>
   startCheckout(productId: string, withdrawalAcknowledged: boolean): Promise<CheckoutResult>
@@ -172,12 +175,12 @@ export class CommercePublisherClient implements PublisherClient {
     }
   }
 
-  async register(email: string, displayName: string | null): Promise<RegisterResult> {
+  async register(email: string, displayName: string | null, turnstileToken?: string | null): Promise<RegisterResult> {
     const normalised = email.trim()
     if (normalised === '' || !normalised.includes('@')) {
       return { kind: 'error', message: 'Enter a valid email address.' }
     }
-    const result = await this.api.register(normalised)
+    const result = await this.api.register(normalised, turnstileToken)
     if (result.kind === 'otpSent') {
       this.pendingEmail = normalised
       this.pendingDisplayName = displayName?.trim() || null

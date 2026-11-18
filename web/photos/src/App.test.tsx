@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderWithQueryClient } from '@tenshu/app-kit/testing'
 import i18n from './i18n'
-import { album, photo, proxy, resetProxy } from './test/proxyMock'
+import { album, person, photo, proxy, resetProxy } from './test/proxyMock'
 
 vi.mock('./lib/proxy', async () => (await import('./test/proxyMock')).proxyModule)
 
@@ -44,12 +44,46 @@ describe('App', () => {
     expect(await screen.findByText('The trash is empty.')).toBeInTheDocument()
   })
 
-  it('builds none of the surfaces decided out of web v1 (photos-app.md §42.6)', () => {
+  // People is §42.7's exception: absent here only because nobody has been named (the default mock).
+  it('builds none of the surfaces decided out of web v1 (photos-app.md §42.6)', async () => {
     proxy.captureTimes.mockResolvedValue({ ok: true, times: [] })
     renderWithQueryClient(<App />)
+    await waitFor(() => expect(proxy.listPeople).toHaveBeenCalled())
     for (const name of [/people/i, /faces/i, /search/i, /upload/i, /places/i, /duplicates/i, /hidden/i]) {
       expect(screen.queryByRole('button', { name })).toBeNull()
     }
+  })
+
+  // photos-app.md §42.7: named people, read-only — in the sidebar once someone has been named.
+  describe('people', () => {
+    it('appears once someone is named, and opens at /people', async () => {
+      proxy.captureTimes.mockResolvedValue({ ok: true, times: [] })
+      proxy.listPeople.mockResolvedValue({ ok: true, people: [person({ name: 'Anna', photoCount: 3 })] })
+      renderWithQueryClient(<App />)
+      await userEvent.click(await screen.findByRole('button', { name: 'People' }))
+      expect(window.location.pathname).toBe('/people')
+      expect(await screen.findByText('Anna')).toBeInTheDocument()
+      expect(screen.getByText('3 photos')).toBeInTheDocument()
+    })
+
+    it('a deep link opens the person, and their Back returns to the list', async () => {
+      const p = photo({ name: 'anna-at-sea.jpg' })
+      proxy.listPeople.mockResolvedValue({ ok: true, people: [person({ name: 'Anna' })] })
+      proxy.personPhotos.mockResolvedValue({ ok: true, photos: [p] })
+      window.history.replaceState(null, '', '/people#p=Anna')
+      renderWithQueryClient(<App />)
+      expect(await screen.findByRole('button', { name: /anna-at-sea\.jpg/ })).toBeInTheDocument()
+      expect(proxy.personPhotos).toHaveBeenCalledWith('Anna')
+      await userEvent.click(screen.getByRole('button', { name: '← People' }))
+      expect(await screen.findByText(/grouped and named in the Photos app/)).toBeInTheDocument()
+    })
+
+    it('stays in the sidebar while it is the open section, even with nobody named', async () => {
+      window.history.replaceState(null, '', '/people')
+      renderWithQueryClient(<App />)
+      expect(await screen.findByText('No named people yet.')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'People' })).toBeInTheDocument()
+    })
   })
 
   // web-apps-layout.md §3.4 / §5 L2: the section is the URL path; `/` is the library.
