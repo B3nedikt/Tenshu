@@ -8,8 +8,8 @@
 param([string]$Agent)
 
 $ErrorActionPreference = 'Stop'
-$package = Get-AppxPackage Tenshu.Control
-if (-not $package) { throw 'Tenshu.Control is not installed — side-load it first (desktop-windows-port.md §5).' }
+$package = Get-AppxPackage 62647B3nedikt.TenshuControl
+if (-not $package) { throw '62647B3nedikt.TenshuControl is not installed — side-load it first (desktop-windows-port.md §5).' }
 if (-not $Agent) { $Agent = Join-Path $package.InstallLocation 'tray-agent\tray-agent.exe' }
 
 $result = Join-Path $env:TEMP "tenshu-toast-test-$PID.txt"

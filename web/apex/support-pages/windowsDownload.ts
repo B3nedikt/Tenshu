@@ -36,7 +36,7 @@ const NAMES: Record<WindowsApp, string> = {
 
 /** The MSIX Identity/@Name each packaged app carries: what the peer gate admits (scripts/lib/windows_publish.py APPS). */
 const IDENTITY: Partial<Record<WindowsApp, string>> = {
-  control: 'Tenshu.Control',
+  control: '62647B3nedikt.TenshuControl',
   drive: 'Tenshu.Drive',
 }
 
