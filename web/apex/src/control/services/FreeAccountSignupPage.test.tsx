@@ -7,6 +7,8 @@ import { MemoryRouter } from 'react-router'
 import { FreeAccountSignupPage } from './FreeAccountSignupPage'
 import { PublisherClientProvider } from './PublisherClientProvider'
 import { MockPublisherClient } from './publisherClient'
+import type { RegisterResult } from './commerceApi'
+import { installFakeTurnstile, uninstallFakeTurnstile } from '../../test/fakeTurnstile'
 
 function renderPage(client = new MockPublisherClient()) {
   render(
@@ -20,6 +22,7 @@ function renderPage(client = new MockPublisherClient()) {
 }
 
 afterEach(async () => {
+  uninstallFakeTurnstile()
   await i18n.changeLanguage('en')
 })
 
@@ -90,5 +93,57 @@ describe('FreeAccountSignupPage', () => {
     await user.type(screen.getByLabelText(/Email address/), 'a@example.com')
     await user.click(screen.getByRole('button', { name: 'Send code' }))
     expect(await screen.findByRole('button', { name: 'Send a new code' })).toBeInTheDocument()
+  })
+})
+
+/** Records the Turnstile token each `register` was given; answers [answer]. */
+class TokenRecordingClient extends MockPublisherClient {
+  readonly tokens: Array<string | null | undefined> = []
+  answer: RegisterResult = { kind: 'otpSent' }
+  override async register(email: string, displayName: string | null, turnstileToken?: string | null): Promise<RegisterResult> {
+    this.tokens.push(turnstileToken)
+    if (this.answer.kind !== 'otpSent') return this.answer
+    return super.register(email, displayName)
+  }
+}
+
+// Commerce D16: with a site key, each send carries a fresh Turnstile token.
+describe('FreeAccountSignupPage with Turnstile', () => {
+  it('waits for a token, sends it, and needs a fresh one to resend', async () => {
+    const turnstile = installFakeTurnstile()
+    const user = userEvent.setup()
+    const client = renderPage(new TokenRecordingClient()) as TokenRecordingClient
+    await user.type(screen.getByLabelText(/Email address/), 'a@example.com')
+    expect(screen.getByRole('button', { name: 'Send code' })).toBeDisabled()
+    expect(turnstile.options()).toMatchObject({ action: 'register' })
+
+    turnstile.solve('tok-1')
+    await user.click(screen.getByRole('button', { name: 'Send code' }))
+    await screen.findByLabelText(/6-digit code/)
+    expect(client.tokens).toEqual(['tok-1'])
+    expect(turnstile.resets()).toBe(1)
+    expect(screen.getByRole('button', { name: 'Send a new code' })).toBeDisabled()
+  })
+
+  it('says the check failed on a refused challenge', async () => {
+    const turnstile = installFakeTurnstile()
+    const user = userEvent.setup()
+    const client = new TokenRecordingClient()
+    client.answer = { kind: 'challengeFailed' }
+    renderPage(client)
+    await user.type(screen.getByLabelText(/Email address/), 'a@example.com')
+    turnstile.solve('tok-1')
+    await user.click(screen.getByRole('button', { name: 'Send code' }))
+    expect(await screen.findByText(/couldn't confirm this request came from a person/)).toBeInTheDocument()
+  })
+
+  it('without a site key renders no widget and sends no token', async () => {
+    const user = userEvent.setup()
+    const client = renderPage(new TokenRecordingClient()) as TokenRecordingClient
+    expect(screen.queryByTestId('turnstile')).not.toBeInTheDocument()
+    await user.type(screen.getByLabelText(/Email address/), 'a@example.com')
+    await user.click(screen.getByRole('button', { name: 'Send code' }))
+    await screen.findByLabelText(/6-digit code/)
+    expect(client.tokens).toEqual([null])
   })
 })

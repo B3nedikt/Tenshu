@@ -528,7 +528,7 @@ class SyncDashboardScreenTest {
             }
         }
 
-        onNodeWithText("Pairing in progress — 1:35 left").assertIsDisplayed()
+        onNodeWithText("Pairing in progress (1:35 left)").assertIsDisplayed()
     }
 
     @OptIn(ExperimentalTestApi::class)
@@ -555,7 +555,7 @@ class SyncDashboardScreenTest {
             }
         }
 
-        onNodeWithText("A device wants to join — tap to review").assertIsDisplayed()
+        onNodeWithText("A device wants to join. Tap to review").assertIsDisplayed()
     }
 
     // NOTE (control-pairing-ux.md Phase 2): the dashboard no longer hosts a "show QR" dialog

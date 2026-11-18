@@ -120,7 +120,7 @@ fun ConversationDetailScreen(conversation: Conversation, onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             items(conversation.messages, key = { it.id }) { message ->
-                MessageRow(message)
+                MessageRow(message, interactive = false)
             }
         }
     }

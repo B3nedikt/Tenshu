@@ -165,7 +165,7 @@ export function ConstructionGate({
           role="alert"
           aria-live="polite"
         >
-          That code didn’t work — give it another try.
+          That code didn’t work. Give it another try.
         </p>
       </main>
     </div>

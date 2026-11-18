@@ -105,6 +105,29 @@ class MediaIndexerFacesTest {
         assertEquals(2, result.photosSearchedForFaces)
     }
 
+    /**
+     * PT-D9: a face the backend's animal veto removed never reaches the embedder, and the pass says
+     * how many there were. ⚠ The photograph is still DONE: a veto is a fact about that face.
+     */
+    @Test
+    fun facesInsideAnimalsAreCountedAndThePhotoIsStillDone() = runTest {
+        val store = InMemoryFaceTemplateStore()
+        val proxy = proxy().apply { consentTo(faceCapability) }
+
+        val result = indexer(store).index(
+            proxy.executionContext,
+            media("/a.jpg" to "anna,^cat,^dog", "/b.jpg" to "bob"),
+            capability = faceCapability,
+        )
+
+        assertEquals(2, result.facesInsideAnimals)
+        assertEquals(2, result.facesFound, "anna and bob: the vetoed faces are not found faces")
+        assertEquals(2, result.facesEmbedded)
+        assertEquals(1, store.facesOf("/a.jpg").size)
+        assertEquals(0, result.facesFailed)
+        assertEquals(2, result.faceRecordsWritten)
+    }
+
     @Test
     fun aPassEmbedsEveryFaceItFinds() = runTest {
         val store = InMemoryFaceTemplateStore()

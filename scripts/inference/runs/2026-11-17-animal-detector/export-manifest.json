@@ -1,0 +1,129 @@
+{
+  "artifact": {
+    "byteSize": 28806262,
+    "file": "rfdetr_nano_int8.onnx",
+    "sha256": "e3523f7581daa4e20469e853488e04cc70a70856898c04cb57439867363dd167"
+  },
+  "classes": {
+    "cat": 17,
+    "dog": 18,
+    "logits": "sigmoid over [300, 91] COCO category ids"
+  },
+  "fp32Export": {
+    "byteSize": 107835234,
+    "interface": {
+      "dets": [
+        1,
+        300,
+        4
+      ],
+      "input": [
+        1,
+        3,
+        384,
+        384
+      ],
+      "labels": [
+        1,
+        300,
+        91
+      ]
+    },
+    "sha256": "755c5c1f31b6c99633e0f354c0c4d9442c96946ea3d2e1d522be5a97b8e21f35"
+  },
+  "preprocessing": {
+    "layout": "NCHW RGB",
+    "mean": [
+      0.485,
+      0.456,
+      0.406
+    ],
+    "resize": "antialiased triangle squash (resize())",
+    "side": 384,
+    "std": [
+      0.229,
+      0.224,
+      0.225
+    ]
+  },
+  "quantisation": {
+    "calibrationImages": 200,
+    "format": "QDQ",
+    "matMulConstBOnly": true,
+    "perChannel": false
+  },
+  "selfCheck": {
+    "bars": {
+      "cat": {
+        "precision": 0.95,
+        "recall": 0.88
+      },
+      "dog": {
+        "precision": 0.86,
+        "recall": 0.8
+      }
+    },
+    "decisionFlips": {
+      "cat": 5,
+      "dog": 8
+    },
+    "floor": 0.5,
+    "fp32": {
+      "cat": {
+        "falsePositives": 1,
+        "positives": 110,
+        "precision": 0.99,
+        "recall": 0.945
+      },
+      "dog": {
+        "falsePositives": 5,
+        "positives": 98,
+        "precision": 0.944,
+        "recall": 0.867
+      },
+      "images": 2547,
+      "msPerImage": 53.7
+    },
+    "int8": {
+      "cat": {
+        "falsePositives": 0,
+        "positives": 110,
+        "precision": 1.0,
+        "recall": 0.909
+      },
+      "dog": {
+        "falsePositives": 6,
+        "positives": 98,
+        "precision": 0.933,
+        "recall": 0.857
+      },
+      "images": 2547,
+      "msPerImage": 61.6
+    }
+  },
+  "source": {
+    "licence": "Apache-2.0",
+    "repo": "roboflow/rf-detr",
+    "sha256": "d8d6b9ee57d4d0ed2b1f305163624712a0532cb7bce0c747317984fc5457440d",
+    "url": "https://storage.googleapis.com/rfdetr/nano_coco/checkpoint_best_regular.pth"
+  },
+  "split": {
+    "annotationsSha256": "e8c7f7908f1d7278341fae127d0da654f102f11bd7b21d8aeefa635b8c810b6f",
+    "calibration": "half 0",
+    "heldOut": 2547,
+    "seed": "20261117"
+  },
+  "toolchain": {
+    "matchesPins": true,
+    "versions": {
+      "numpy": "2.5.5",
+      "onnx": "1.23.2",
+      "onnxruntime": "1.31.1",
+      "pillow": "13.0.0",
+      "python": "3.13.7",
+      "rfdetr": "1.8.3",
+      "torch": "2.15.0",
+      "torchvision": "0.29.2"
+    }
+  }
+}

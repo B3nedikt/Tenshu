@@ -49,6 +49,9 @@ services:
         # wants, so it needs no configuration. Set any non-empty value in apex.env to close the
         # door behind "Get started" while leaving the marketing site public.
         VITE_SIGNUP_DISABLED: "${VITE_SIGNUP_DISABLED:-}"
+        # Cloudflare Turnstile site key (commerce D16). Empty (default) = off. ⚠⚠ Set only together
+        # with commerce's TURNSTILE_SECRET_KEY (docs/how-to/set-up-otp-email.md §8).
+        VITE_TURNSTILE_SITE_KEY: "${VITE_TURNSTILE_SITE_KEY:-}"
     restart: unless-stopped
     environment:
       APEX_DOMAIN: "${APEX_DOMAIN}"

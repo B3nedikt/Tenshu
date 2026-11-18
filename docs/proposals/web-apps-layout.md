@@ -138,7 +138,7 @@ This unblocks deep links from the bell, from Mia's sources and from cross-app op
 ### 3.5 Photos — option B
 
 Sidebar: **Library** · *Collections* — **Years**, **Videos**, *Places* (§42.4: shown only once
-Timeline exposes place reads), *People* (§42.1: hidden on v1) · *Albums* (each album, + New album) ·
+Timeline exposes place reads), *People* (named people only, read-only: `photos-app.md` §42.7) · *Albums* (each album, + New album) ·
 **Favourites** · **Trash**. Search sits in the top bar.
 
 Library view modes: **Mosaic / Day / Month / Year** — densities of the same feed, laid out client-side
@@ -587,4 +587,34 @@ validated 3…8 in the gateway and the SDK).
 - Videos follows the Library's slider (it has no slider of its own).
 - Chosen with the maintainer from three renders of whole-photo mode at their window with the Info
   pane open: 5 per row (then default sizing), 4 (≈ iCloud's picture size there), 3 ("huge").
+
+
+### 4.11 As built — the Albums stream and sharp covers (2026-11-17)
+
+- ⚠⚠ **The Albums page always said "This list stopped updating"** for anyone with a photo in an
+  album. `Photos.observeAlbums` merges the album and entry streams, and the entry stream's `select`
+  left out `AlbumEntry.Field.KEY`. A push stream (`.flow()`) tells rows apart by DataId, and
+  `AlbumEntryDataIdProvider` derives that from KEY, so the stream died on the first entry with
+  "Field …/albumEntry/key not found". A snapshot (`getAll`) never needs the key, so the list itself
+  stayed right. **A `.flow()` select must carry the relation's DataId field even when nothing reads
+  it.** Native's `changes()` watch over the same select is unaffected (its watch test files a photo
+  in an album). Guard: `PhotosLibraryContractTest.observeAlbumsStaysOpenOverAnAlbumWithPhotos`;
+  the rename test passed only because its album was empty.
+- **Album and year covers plan their rung from the card's measured size** (`useCoverUrl`), like the
+  grid's tiles: `LARGE` first, then `XLARGE` when `LARGE` cannot cover the card on this screen. They
+  had stopped at `LARGE` (256 px). The square album card takes the square crop. The wide year
+  banner takes the whole photo (`fit`), so `object-cover` frames it as before. ⚠ Its request is
+  widened by the photo's aspect (`planCover`): what must span the banner is a portrait photo's
+  short side, and the stored dimensions cannot say which side that is. Guard: `SharpCovers.test.tsx`
+  (the YearCard wiring itself has no render test; `planCover` is tested directly).
+
+### 4.12 As built — People, named only (2026-11-17)
+
+- **People** sits under Collections after Videos. It is shown once someone has been named, and
+  always while it is the open section. The open person is `p=<name>` in the fragment, because a name
+  is the only identity a synced person has.
+- Cards are round crops of the newest photograph (`useCoverUrl`, so sharp on Retina). The person
+  page is the album page's grid and viewer (`PhotoListView`) without "remove from album".
+- Read-only, named-only: `photos-app.md` §42.7 owns why. Guards: `PeopleView.test.tsx`,
+  `App.test.tsx` *people*.
 

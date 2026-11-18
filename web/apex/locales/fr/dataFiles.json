@@ -29,7 +29,7 @@
   "errors": {
     "read": {
       "title": "Impossible de lire vos fichiers",
-      "body": "L’inventaire des fichiers ne s’est pas chargé dans ce navigateur. Rien n’a été modifié — réessayez."
+      "body": "L’inventaire des fichiers ne s’est pas chargé dans ce navigateur. Rien n’a été modifié. Réessayez."
     },
     "runtime": {
       "title": "Tenshu ne tourne pas dans cet onglet",
@@ -37,7 +37,7 @@
     },
     "other": {
       "title": "Un problème est survenu",
-      "body": "L’inventaire des fichiers n’a pas pu être lu. Rien n’a été modifié — réessayez."
+      "body": "L’inventaire des fichiers n’a pas pu être lu. Rien n’a été modifié. Réessayez."
     }
   },
   "retry": "Réessayer",

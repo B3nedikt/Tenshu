@@ -164,10 +164,11 @@ class ModelsScreenLayoutTest {
     fun aFeatureWithNoRowHereIsNotOffered() {
         composeTestRule.setContent {
             ModelsScreenContent(
-                // ⚠ This desktop test build does not run faces (`faceClusteringRunsHere`).
+                // ⚠ A build that does not run faces, named rather than inherited: macOS desktop does.
                 state = ModelsUiState(loading = false, models = models, featureOffer = InferenceCapability.FACE_CLUSTERING),
                 onDownload = {},
                 onBack = {},
+                runsFaces = false,
             )
         }
 

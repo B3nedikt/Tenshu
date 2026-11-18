@@ -1,6 +1,5 @@
 // §4b new-user signup screens (roadmap 6.4, reordered in 6.6). Component-
-// level coverage for the generate → commit chain and the device-name +
-// failure screens. The phrase show + confirm screens moved to Settings →
+// level coverage for the generate → commit chain and the failure screen. The phrase show + confirm screens moved to Settings →
 // Set up account recovery (§7.4); their coverage moved with them to
 // `control/recovery/RecoveryCaptureScreens.test.tsx`. The generate screen
 // runs the real Kotlin `Bip39` bundle unmocked in jsdom.
@@ -12,9 +11,7 @@ import { OnboardingSdkContext } from '../../lib/onboardingSdkContext'
 import type { OnboardingSdk } from '../../lib/mockOnboarding'
 import {
   CommittingRealmScreen,
-  DeviceNameScreen,
   GenerateRealmScreen,
-  IntroScreen,
   RealmCreateFailedScreen,
 } from './NewUserScreens'
 
@@ -36,53 +33,6 @@ function withSdk(sdk: OnboardingSdk, ui: ReactElement) {
     <OnboardingSdkContext.Provider value={sdk}>{ui}</OnboardingSdkContext.Provider>,
   )
 }
-
-describe('IntroScreen', () => {
-  it('continues and links out to the about page', async () => {
-    const user = userEvent.setup()
-    const onContinue = vi.fn()
-    render(<IntroScreen onContinue={onContinue} />)
-    expect(screen.getByRole('heading', { name: 'How Tenshu works' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /tell me more/i })).toHaveAttribute(
-      'href',
-      'https://tenshu.app/about',
-    )
-    await user.click(screen.getByRole('button', { name: "Got it, let's start" }))
-    expect(onContinue).toHaveBeenCalled()
-  })
-})
-
-describe('DeviceNameScreen', () => {
-  it('falls back to the default name when cleared', async () => {
-    const user = userEvent.setup()
-    const onContinue = vi.fn()
-    render(<DeviceNameScreen defaultName="This Browser" onContinue={onContinue} />)
-    await user.clear(screen.getByLabelText('Device name'))
-    await user.click(screen.getByRole('button', { name: 'Continue' }))
-    expect(onContinue).toHaveBeenCalledWith('This Browser')
-  })
-
-  it('trims a custom name and shows Back only when provided', async () => {
-    const user = userEvent.setup()
-    const onContinue = vi.fn()
-    const onBack = vi.fn()
-    render(
-      <DeviceNameScreen defaultName="This Browser" onContinue={onContinue} onBack={onBack} />,
-    )
-    const field = screen.getByLabelText('Device name')
-    await user.clear(field)
-    await user.type(field, '  Work laptop  ')
-    await user.click(screen.getByRole('button', { name: 'Continue' }))
-    expect(onContinue).toHaveBeenCalledWith('Work laptop')
-    await user.click(screen.getByRole('button', { name: 'Back' }))
-    expect(onBack).toHaveBeenCalled()
-  })
-
-  it('omits Back when no handler is given', () => {
-    render(<DeviceNameScreen defaultName="This Browser" onContinue={vi.fn()} />)
-    expect(screen.queryByRole('button', { name: 'Back' })).toBeNull()
-  })
-})
 
 describe('GenerateRealmScreen', () => {
   it('auto-advances with a freshly generated 24-word mnemonic', async () => {

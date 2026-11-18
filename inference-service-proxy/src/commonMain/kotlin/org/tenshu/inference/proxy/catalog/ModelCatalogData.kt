@@ -50,6 +50,13 @@ object ModelArtifactRole {
      * (`FaceTemplateStore`); a cosine across the two is computable and meaningless.
      */
     const val FACE_EMBEDDER: String = "faceEmbedder"
+
+    /**
+     * Pets PT-2c: the cat and dog detector People's animal veto asks (`photos-pets.md` §10.3), in its
+     * **own** catalog entry (`rfdetr-nano-coco-int8`), never a third role on the AuraFace entry: that
+     * entry could only gain one through a version bump, which re-stamps every face template.
+     */
+    const val ANIMAL_DETECTOR: String = "animalDetector"
 }
 
 /**

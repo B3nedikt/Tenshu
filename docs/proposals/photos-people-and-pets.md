@@ -1,6 +1,9 @@
 # Photos — People (and, later, pets)
 
-**Status:** v0.5 — **F1–F4 shipped on Android (§12.12); desktop owes its detector; iOS is F5.**
+**Status:** v0.5 — **F1–F4 shipped on Android (§12.12); desktop owes its detector; iOS has the whole
+pipeline built behind `TENSHU_PHOTOS_FACES` = `NO`, awaiting its device pass and flag flip
+([`ios-face-grouping.md`](ios-face-grouping.md) F8); web shows NAMED people read-only
+(`photos-app.md` §42.7).**
 F6a/F6b built; **F6c designed 2026-09-30, not built** ([§6a](#f6c--design-2026-09-30)), with
 maintainer decisions D1–D11 owed — ⭐ except its **name-suggestion slice, F6c-s, built 2026-11-11**
 ([as built](#f6c-s--name-suggestions-as-built-2026-11-11)): label-anchored *"Is this Anna?"* and a
@@ -229,13 +232,13 @@ is worth verifying early because it changes the shape of F3 (HR #9). Verify with
 | **F0** | This document + the drafted amendment | Design and the threat-model entry drafted in §8, so ⚖️ counsel review can start while F1–F2 are built. ⚠ The amendment does not LAND here — it lands with F3, the slice that first writes a person's name into realm data | — |
 | **F1** | The seam, against the fake | Face-shaped members on `InferenceBackend` (detect → box + **landmarks**, embed → vector), defaulted so existing backends stay valid; the **shared 5-point alignment** (§3.3); the device-local template store; clustering in `commonMain`. **No model, nothing user-visible.** | F0 |
 | **F2** | The real models (⭐ **Android shipped 2026-09-24, §12.12**; desktop owes an ONNX detector) | A second catalog entry claiming `faceClustering`; new `ModelArtifactRole` constants for detector + embedder; per-artifact SHA-256. ⚠⚠ **Three gates, and TWO ARE NOW CLOSED.** ⭐ **Calibration** — chosen 2026-09-24, `FaceClustering.Measured` = 0.44 / `minFaces = 2`, wired in production (§10 Q2). ⭐ **Recall** — characterised with a candidate fix (§12.7–§12.8). ⚖️ **The licence** (§10 Q1, for the **embedder** alone now the detector half is settled by MediaPipe) is the one that remains, and no measurement answers it. ⭐⭐ Recall is now *characterised and has a candidate fix*: the single-stage path finds **80%** of the faces a short-range detector can see at 0.5, and a crop-stage second pass takes that to **93%** (replacement) or **95%** (hybrid). ⭐ The replacement costs **~3× less** landmarker time for one fewer face, so it is the better trade on this library. ⚠ Not closed — faces both models miss are invisible to that experiment, and the sample is 25 detections on one library. ⭐ **Shipped 2026-09-29 as tiled two-stage detection: 35 → 62 faces on the verified library, ~21 of the new ones real people, one cat group (§12.14).** ⭐ §12.6 removes the *quality* doubt for route 2; it chooses no numbers and measures no recall | F1 + ⚖️ a cleared checkpoint + recorded calibration + a recall answer |
-| **F2d** | Desktop's detector — ⏳ **follow-up** | The MediaPipe detector converted to ONNX, with landmark parity against MediaPipe shown; a desktop face backend; a second catalog entry (runtime `onnx`); **the calibration re-measured** for that pipeline; then `faceClusteringRunsHere = true` on desktop. `tech-debt.md` *"People on desktop: no face detector"* | F2 |
+| **F2d** | Desktop's detector — ⏳ **follow-up** | ⭐ **macOS has a cheaper route since iOS shipped Vision:** Vision through the existing JVM FFM bridge + AuraFace on ORT. ⭐⭐ **Built 2026-11-18** (`VisionOnnxFaceBackend`, macOS only; catalog entry published and a first real-library pass done the same day). Calibrated: ③ holds at 0.44 with int8, nearest different person 0.183, 0.179 on desktop's own decode (`ios-face-grouping.md` §10.8; `tech-debt.md` *"People on desktop"*, Mac slice). What follows is the **Windows/Linux** route: the MediaPipe detector converted to ONNX, with landmark parity against MediaPipe shown; a desktop face backend; a second catalog entry (runtime `onnx`); **the calibration re-measured** for that pipeline; then `faceClusteringRunsHere = true` on desktop. `tech-debt.md` *"People on desktop: no face detector"* | F2 |
 | **F2v** | Versioned model installs — ✅ **shipped 2026-09-30** (§12.12, *F2v as built*) | `DefaultModelStore` stops overwriting bytes a live install record points at: every artifact lands at a content-addressed path, closing the equal-length commit window §12.12 records. ⚠ Shared with SigLIP; pre-F2v installs keep resolving at their flat paths with no move and no re-download. | F2 |
 | **F3** | People in Photos | `people` beside `things` in `CollectionsUiState`; person grids via `Destination.Smart`; the naming flow; person names in search. **The threat-model amendment lands here** — it is where person names first become realm data | F2 |
 | **F4** | The switch — ⭐ **shipped 2026-09-24** | `OfferedConsents += FACE_CLUSTERING`, Settings copy, off by default; withdrawal deletes the templates, keeps the names (§12.12) | F3 |
 | **F5** | iOS | Vision detection + our embedder. ⚠⚠ **Bigger than it looks**: there is no iOS inference backend at all today, and **no ONNX Runtime on iOS** — so the embedder has no runtime there and giving it one is a slice about the size of IN-3b's Android step. Detection alone is small and well-precedented; People end to end is not. §11 collects what the research found | F1 |
 | **F6** | People are people, not clusters — ⏳ **planned 2026-09-25**; ⭐ F6a (header) and F6b ("With…" chip) built, §6a; F6c **designed 2026-09-30** ([§6a F6c](#f6c--design-2026-09-30)), not built | People lists **named persons** (every photo carrying the name, across clusters) above unnamed clusters; a per-person **prototype** drives *"is this also Anna?"* suggestions (§7, decided 2026-09-22); person-wide rename / merge / remove-from-photo; the cover rule (§7). ⚠⚠ Needs a **face-level** assignment the per-photo label cannot give — §6a. The People row + its *View all* grid (3 columns, named first) follow the Collections-as-rows layout, `photos-app.md` §35 | F4 |
-| **P1** | Pets — ⏳ **designed 2026-11-11 in [`photos-pets.md`](photos-pets.md)**, not built | Its own detector and embedder — a human face model does not cluster dogs — and whole-animal re-identification rather than "pet faces" | F3 |
+| **P1** | Pets — ⏳ **designed 2026-11-11 in [`photos-pets.md`](photos-pets.md)**; PT-1 and PT-2a (the animal veto, iOS, off) built | Its own detector and embedder — a human face model does not cluster dogs — and whole-animal re-identification rather than "pet faces" | F3 |
 
 ⚠ F1 before F2 is the repo's established order and it is not ceremony: IN-1 shipped *"no model ships;
 everything downstream becomes testable"*, and §32 is the record of what happens when the fake is the
@@ -958,7 +961,7 @@ specific rather than a general objection to IN-D13.**
 |---|---|---|
 | Landmark semantics | **three conventions** — Vision's, ML Kit's, ours on desktop | **one**, everywhere |
 | Alignment template | one **per detector**, each needing a calibration set nobody has | one, and it is already verified three ways (`models.md` §5.6) |
-| Desktop | ❌ nothing exists; ours regardless | ✅ covered |
+| Desktop | ❌ nothing on Windows/Linux, ours regardless; ⚠ macOS has Vision (re-checked 2026-11-18) | ✅ covered |
 | Android size | ML Kit bundled is **+6.9 MB** | **~2.7 MB** for the pair |
 | What ships | a closed SDK binary | **Apache-2.0 weights we host** |
 | Reproducible build | ⚠ no — a blob the APK cannot be built from | yes |
@@ -984,6 +987,9 @@ Three things decide it:
 
 1. ⚠⚠ **Desktop needs our own model whatever we do**, because no platform detector exists there. Once
    one exists, using it on the other platforms costs less than not doing so.
+   ⚠ *Re-checked 2026-11-18:* true for Windows and Linux only. **macOS has Vision**, which the iOS
+   route (`ios-face-grouping.md`) has since measured on the Mac itself (§10.4 there), so the Mac can
+   follow iOS instead of F2d (`tech-debt.md` *"People on desktop"*).
 2. ⚠⚠ **iOS needs an inference runtime for the EMBEDDER regardless** — there is none today, and that
    is the largest single item in F5. Once it is there, MediaPipe's detector is 2.7 MB on top. Vision
    saves **bytes, not structure**.

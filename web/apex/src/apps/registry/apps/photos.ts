@@ -36,6 +36,10 @@ const METHODS: ProxyMethodAllowlist = [
   'photo.deleteAlbum',
   'photo.addToAlbum',
   'photo.removeFromAlbum',
+  // Named people, read-only (photos-app.md §42.7).
+  'photo.people',
+  'photo.people.observe',
+  'photo.personPhotos',
   'photo.favourites',
   'photo.favourites.observe',
   'photo.isFavourite',
@@ -101,7 +105,7 @@ export const photos: HostedApp = {
   origin: () => appOrigin(import.meta.env.VITE_PHOTOS_ORIGIN, PROD_ORIGIN, 5178),
   methods: METHODS,
   routePath: 'photos/*',
-  sections: ['', 'search', 'years', 'videos', 'albums', 'favourites', 'trash'],
+  sections: ['', 'search', 'years', 'videos', 'people', 'albums', 'favourites', 'trash'],
   glance,
   // ⚠ DISPLAY data for the Apps section — what the app can actually call is `methods` above.
   manifest: {

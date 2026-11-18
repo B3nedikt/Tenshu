@@ -1,5 +1,7 @@
 package app.tenshu.mia.ui.screens.chat
 
+import app.tenshu.mia.model.MessageBody
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.tenshu.mia.data.ConversationRepository
@@ -112,6 +114,27 @@ class ChatViewModel(
     fun confirm(token: String) {
         if (_uiState.value.replying) return
         viewModelScope.launch { repository.confirm(token) }
+    }
+
+    /**
+     * A chip on Mia's question was tapped (`mia-query-layer.md` §25). ⚠ Never writes: the answer
+     * is a confirmation card or another question, and only [confirm] changes anything.
+     */
+    fun answer(question: MessageBody.Clarification, choice: MessageBody.Choice) {
+        if (_uiState.value.replying || !question.open) return
+        // ⚠ A chip ends a dictation, as [send] does (Codex review): left open, the recogniser keeps
+        // filling the composer behind the answer, and [toggleListening] ignores the Stop button
+        // while Mia replies. The half-dictated answer the chip replaced goes with it.
+        if (_uiState.value.listening) voice?.stop()
+        _uiState.update { it.copy(input = "") }
+        viewModelScope.launch { repository.answer(question.token, choice.label, choice.reply) }
+    }
+
+    /** "20:00 instead?" on a card (§25, CL-D6). ⚠ Never writes: the card is replaced by a new one. */
+    fun alternative(card: MessageBody.Confirmation, choice: MessageBody.Choice) {
+        if (_uiState.value.replying || card.done || card.replaced) return
+        if (_uiState.value.listening) voice?.stop()
+        viewModelScope.launch { repository.alternative(card.token, choice.label, choice.reply) }
     }
 
     /**

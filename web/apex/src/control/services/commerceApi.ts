@@ -23,10 +23,13 @@ export { PRODUCT_BASIC, PRODUCT_FREE, PRODUCT_PREMIUM } from './plans'
  * hand because the web does not compile the Kotlin client.
  */
 export const TOS_VERSION = '2026-10-28'
-export const PRIVACY_VERSION = '2026-11-16'
+export const PRIVACY_VERSION = '2026-11-18'
 
 export type RegisterResult =
   | { readonly kind: 'otpSent' }
+  // 403 `challenge_failed` / 503 `challenge_unavailable`: the Turnstile token was missing, spent or
+  // refused, or Cloudflare could not check it (D16). The widget is reset and the user tries again.
+  | { readonly kind: 'challengeFailed' }
   | { readonly kind: 'error'; readonly message: string }
 
 export type VerifyResult =
@@ -106,6 +109,22 @@ export const COMMERCE_URL: string =
   (import.meta.env.VITE_TENSHU_COMMERCE_URL as string | undefined) ??
   (import.meta.env.DEV ? 'http://localhost:8081' : 'https://commerce.service.tenshu.app')
 
+/**
+ * The Turnstile token as a body field, or nothing. ⚠ Omitted, never `null`, when there is none:
+ * commerce decodes strictly, so a build without a site key sends exactly the body it always did.
+ */
+function challengeField(turnstileToken: string | null | undefined): { turnstileToken?: string } {
+  return turnstileToken ? { turnstileToken } : {}
+}
+
+/** Commerce's Turnstile refusals (D16), told apart from a send failure that shares the 503. */
+function isChallengeRefusal(response: { status: number; json: unknown }): boolean {
+  return (
+    response.status === 403 ||
+    (response.status === 503 && readString(response.json, 'error') === 'challenge_unavailable')
+  )
+}
+
 async function postJson(
   path: string,
   body: unknown,
@@ -153,7 +172,8 @@ function readString(json: unknown, key: string): string | null {
 }
 
 export interface CommerceApi {
-  register(email: string): Promise<RegisterResult>
+  /** [turnstileToken]: the widget's token when the build has a site key (D16). */
+  register(email: string, turnstileToken?: string | null): Promise<RegisterResult>
   verify(email: string, code: string, ownerId: string): Promise<VerifyResult>
   checkout(args: {
     ownerId: string
@@ -168,13 +188,15 @@ export interface CommerceApi {
 }
 
 export const commerceApi: CommerceApi = {
-  async register(email) {
+  async register(email, turnstileToken) {
     const response = await postJson('/commerce/account/register', {
       email,
       tosVersion: TOS_VERSION,
       privacyVersion: PRIVACY_VERSION,
+      ...challengeField(turnstileToken),
     })
     if (response === null) return { kind: 'error', message: UNREACHABLE }
+    if (isChallengeRefusal(response)) return { kind: 'challengeFailed' }
     // ⚠ 202 whether or not the address is known — that is what stops this being
     // an enumeration oracle, and the UI must not try to tell the two apart.
     return response.status === 202
@@ -284,6 +306,8 @@ export type DeletionRequestResult =
   | { readonly kind: 'rateLimited' }
   // 503: the mail could not be sent; worth retrying shortly.
   | { readonly kind: 'sendFailed' }
+  // 403 / 503 `challenge_unavailable`: the Turnstile check failed or could not run (D16).
+  | { readonly kind: 'challengeFailed' }
   // Network, DNS or CORS — no response at all.
   | { readonly kind: 'unreachable' }
   | { readonly kind: 'error' }
@@ -298,16 +322,20 @@ export type DeletionConfirmResult =
   | { readonly kind: 'error' }
 
 export interface AccountDeletionApi {
-  /** Mails a deletion code to [email], if an account uses it. */
-  request(email: string): Promise<DeletionRequestResult>
+  /** Mails a deletion code to [email], if an account uses it. [turnstileToken]: see `register`. */
+  request(email: string, turnstileToken?: string | null): Promise<DeletionRequestResult>
   /** Deletes the account [email] names, given the code mailed to it. Irreversible. */
   confirm(email: string, code: string): Promise<DeletionConfirmResult>
 }
 
 export const accountDeletionApi: AccountDeletionApi = {
-  async request(email) {
-    const response = await postJson('/commerce/account/delete/request', { email: email.trim() })
+  async request(email, turnstileToken) {
+    const response = await postJson('/commerce/account/delete/request', {
+      email: email.trim(),
+      ...challengeField(turnstileToken),
+    })
     if (response === null) return { kind: 'unreachable' }
+    if (isChallengeRefusal(response)) return { kind: 'challengeFailed' }
     switch (response.status) {
       case 202:
         return { kind: 'codeSent' }

@@ -121,7 +121,7 @@ class FakeInferenceBackend(
         if (InferenceCapability.FACE_CLUSTERING !in capabilities) return FaceDetectionOutcome.Failed
         if (bytes.decodeToString() == UNREADABLE) return FaceDetectionOutcome.Unreadable
         return FaceDetectionOutcome.Detected(
-            faceTokens(bytes).mapIndexed { index, _ ->
+            detectedTokens(bytes).mapIndexed { index, _ ->
                 // ⚠ The index rides in `left` so [embedFace] can tell which face it was handed —
                 // this fixture's stand-in for a crop.
                 val left = index / 10f
@@ -138,6 +138,8 @@ class FakeInferenceBackend(
                     ),
                 )
             },
+            // ⚠ A token starting with `^` is a face the backend's animal veto removed — `"anna,^cat"`.
+            insideAnimals = faceTokens(bytes).count { it.startsWith(INSIDE_AN_ANIMAL_PREFIX) },
         )
     }
 
@@ -151,7 +153,7 @@ class FakeInferenceBackend(
      */
     override suspend fun embedFace(bytes: ByteArray, face: DetectedFace): ImageEmbedding? {
         if (InferenceCapability.FACE_CLUSTERING !in capabilities) return null
-        val tokens = faceTokens(bytes)
+        val tokens = detectedTokens(bytes)
         val token = tokens.getOrNull((face.box.left * 10f).toInt()) ?: return null
         val axis = ((token.fold(7) { acc, c -> acc * 31 + c.code } % dimensions) + dimensions) % dimensions
         return ImageEmbedding(
@@ -164,6 +166,10 @@ class FakeInferenceBackend(
 
     private fun faceTokens(bytes: ByteArray): List<String> =
         bytes.decodeToString().split(',').map { it.trim() }.filter { it.isNotEmpty() }
+
+    /** The faces [detectFaces] reports: every token but the ones the animal veto removed. */
+    private fun detectedTokens(bytes: ByteArray): List<String> =
+        faceTokens(bytes).filterNot { it.startsWith(INSIDE_AN_ANIMAL_PREFIX) }
 
     override suspend fun classifyIntent(utterance: String, labels: List<IntentLabel>): String? {
         if (InferenceCapability.QUERY_PLANNING !in capabilities) return null
@@ -189,3 +195,6 @@ class FakeInferenceBackend(
 
 /** Prefix of a face token that [FakeInferenceBackend] embeds as not a human face — `"anna,~cat"`. */
 const val NOT_A_FACE_PREFIX = "~"
+
+/** Prefix of a face token that [FakeInferenceBackend] reports as removed by an animal veto — `"anna,^cat"`. */
+const val INSIDE_AN_ANIMAL_PREFIX = "^"

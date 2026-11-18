@@ -171,7 +171,7 @@ enum RecoveryPhraseStrings {
     // ⚠ Bare apostrophes, matching the project's i18n convention.
     static let onboardingCaption = "Write these words down and keep them somewhere safe. They are the only way back into your account if you lose every device."
     static let settingsCaption = "These words are the only way back into your account if you lose every device."
-    static let settingsFooter = "Anyone with these words has full access to your account. Keep them offline — a password manager or paper, not a note or a message."
+    static let settingsFooter = "Anyone with these words has full access to your account. Keep them offline: a password manager or paper, not a note or a message."
     static let noPhrase = "This device joined your account from another device, so it doesn't hold the recovery phrase. Open Recovery phrase on the device you first set up."
     static let onboardingSkip = "I'll do this later"
     static let onboardingDone = "I've saved it"

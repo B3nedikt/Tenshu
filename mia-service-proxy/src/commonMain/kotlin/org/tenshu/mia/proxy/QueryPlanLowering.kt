@@ -109,7 +109,7 @@ internal class QueryPlanLowering(
         // ⭐ A device COMMAND lowers to the same read as a device question. The write is not
         // in this chain and must never be (MQ-D10): resolving which device the user meant is
         // a read, and only `ConfirmMiaAction` mutates.
-        is QueryPlan.ControlDevice -> lowerDeviceSearch(plan.text, plan.limit)
+        is QueryPlan.ControlDevice -> lowerDeviceSearch(plan.text, plan.limit, levelOnly = plan.level != null)
         // ⚠⚠ A write lowers to NOTHING. There is no read that resolves it — the defaults come
         // from preference rows, not from a chain — and putting the write itself in a chain is
         // exactly what MQ-D10's reads-only allowlist forbids.
@@ -132,6 +132,8 @@ internal class QueryPlanLowering(
         is QueryPlan.RunRoutine -> null
         // ⚠ Nothing was resolved, so there is nothing to read (`MiaActionOffer.WITHHELD`).
         is QueryPlan.ActionWithheld -> null
+        // ⚠ A question back is never a read: it waits for a reply (§25).
+        is QueryPlan.Clarify -> null
         is QueryPlan.NoMatch -> null
     }
 
@@ -312,10 +314,16 @@ internal class QueryPlanLowering(
     private fun lowerFindDevices(plan: QueryPlan.FindDevices): List<Data> =
         lowerDeviceSearch(plan.text, plan.limit)
 
-    private fun lowerDeviceSearch(text: String, limit: Int): List<Data> =
+    /**
+     * ⚠⚠ [levelOnly]: a dim command searches only devices that have a level, **before** the `take`.
+     * Narrowed after it, twenty name matches without the capability crowded out a dimmable one,
+     * and the answer was a wrong "can't be dimmed" (Codex review). The proxy still checks the
+     * capability exactly; this only keeps the bound from hiding a candidate.
+     */
+    internal fun lowerDeviceSearch(text: String, limit: Int, levelOnly: Boolean = false): List<Data> =
         chainOver<HomeDeviceService>(HomeDeviceService.ID) {
-            homeDevices
-                .filter<HomeDevice> { name.contains(text, ignoreCase = true) }
+            val named = homeDevices.filter<HomeDevice> { name.contains(text, ignoreCase = true) }
+            (if (levelOnly) named.filter<HomeDevice> { capabilityIds.contains(HomeDevice.CAP_LEVEL) } else named)
                 .take(limit)
                 .findOperation<GetAll<HomeDevice>>(GetAll.ID)
                 .getAll()
@@ -505,6 +513,9 @@ internal class QueryPlanLowering(
                 Place.Fields.LABEL to setOf(FieldUse.FILTER),
                 Workout.Fields.START to setOf(FieldUse.FILTER),
                 HomeDevice.Fields.NAME to setOf(FieldUse.FILTER),
+                // A dim command narrows to devices with a level before its bound. Capability ids
+                // are hub-written metadata, so filtering on them reveals nothing private.
+                HomeDevice.Fields.CAPABILITY_IDS to setOf(FieldUse.FILTER),
             ),
             boundingOperations = mapOf(
                 PhotosCapturedBetween.ID to PhotosCapturedBetween.Params.LIMIT,

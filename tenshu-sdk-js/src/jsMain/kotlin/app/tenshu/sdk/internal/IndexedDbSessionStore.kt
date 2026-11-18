@@ -130,8 +130,9 @@ internal class IndexedDbSessionStore private constructor(
         SessionHint.write(getDeviceName(), getSessionToken()?.expiresAtMs)
     }
 
-    suspend fun flush() {
-        if (closed) return
+    /** True when the snapshot reached IndexedDB; false when this store is closed or fenced out. */
+    suspend fun flush(): Boolean {
+        if (closed) return false
         // Persist the current cache snapshot. Called by Session.persist /
         // Session.clear so the IDB put is guaranteed before the Promise
         // resolves — apex routing logic can rely on the next Session.detect
@@ -142,8 +143,9 @@ internal class IndexedDbSessionStore private constructor(
             for ((k, v) in cache) putRecord(store, k, v)
         }
         fence.report(written)
-        if (!written) return
+        if (!written) return false
         refreshHint()
+        return true
     }
 
     internal data class SessionTokenJs(

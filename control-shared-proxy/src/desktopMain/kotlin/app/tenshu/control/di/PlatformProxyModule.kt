@@ -61,6 +61,9 @@ import org.tenshu.core.common.proxy.JvmFileDatabase
 import org.tenshu.inference.proxy.IndexingConditions
 import org.tenshu.inference.proxy.InferenceBackend
 import org.tenshu.inference.proxy.onnx.AwtImageDecoder
+import org.tenshu.inference.proxy.onnx.FaceModel
+import org.tenshu.inference.proxy.onnx.VisionOnnxFaceBackend
+import app.tenshu.control.inference.MacFaces
 import org.tenshu.inference.proxy.onnx.OnnxInferenceBackend
 import org.tenshu.inference.proxy.catalog.DEFAULT_MODELS_DIR
 import org.tenshu.inference.proxy.catalog.FileLockModelStoreOwnership
@@ -673,7 +676,12 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
     // IN-D13. ⚠⚠ This artifact links `onnxMain`, so it can execute an `onnx`
     // checkpoint — and says so HERE rather than letting a `commonMain` constant claim it on
     // every platform. iOS and web contribute nothing and therefore download nothing.
-    single<Set<String>>(named("supportedModelRuntimes")) { SUPPORTED_RUNTIMES }
+    // ⚠ Plus the macOS face pair (`FaceModel.ONNX_VISION_RUNTIME`, `ios-face-grouping.md` §10.8): Vision
+    // detects and ORT embeds, and only macOS has Vision. Decided at run time, because this one build
+    // also ships to Windows and Linux, which are offered no face entry they could not run.
+    single<Set<String>>(named("supportedModelRuntimes")) {
+        if (MacFaces.runsHere) SUPPORTED_RUNTIMES + FaceModel.ONNX_VISION_RUNTIME else SUPPORTED_RUNTIMES
+    }
     // §32 — on AC power, no low-battery warning, five minutes without input. macOS and Windows read
     // the machine (`desktopIndexingConditions`); ⚠ Linux cannot tell, and so never indexes.
     single<IndexingConditions>(named("indexingConditions")) { desktopIndexingConditions() }
@@ -688,6 +696,20 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
                 // then answers NO_TEXT_EMBEDDING rather than pretending to search.
                 locateText = OnnxModelFiles.storeLocator(get(), contentRoot, ModelArtifactRole.TEXT),
                 locateVocabulary = OnnxModelFiles.storeLocator(get(), contentRoot, ModelArtifactRole.VOCABULARY),
+            ),
+        ) + if (!MacFaces.runsHere) emptyList() else listOf(
+            // People on macOS (`ios-face-grouping.md` §10.8): Vision + AuraFace on ORT, calibrated at
+            // the shared 0.44. ⚠ Claims FACE_CLUSTERING only while the embedder is installed (the
+            // `onnx+vision` entry, or the side-load `auraface-v1-int8.embedder.onnx`), and consent is
+            // still enforced per file by `MediaIndexer` and per read by `faceGroups`. ⚠⚠ Its stamp
+            // carries the OS build, so a macOS update re-indexes People once (FD9).
+            VisionOnnxFaceBackend(
+                locateEmbedder = OnnxModelFiles.faceStoreLocator(
+                    get(), contentRoot, ModelArtifactRole.FACE_EMBEDDER, FaceModel.AuraFaceOnnxMac,
+                ),
+                decoder = MacFaces.Decoder,
+                detector = MacFaces.Detector,
+                osBuild = MacFaces.osBuild,
             ),
         )
     }

@@ -1,6 +1,6 @@
 # Mia Query Layer — Turning an Utterance into Grounded Realm Data
 
-**Status:** v0.13 — §25 (2026-11-17, **proposed, not decided**) designs the clarify turn: Mia asks for a slot it is missing and receives the answer. v0.12 — §24 (2026-11-17) lays out the pipeline as interfaces, built and proposed. v0.11 — §23 (2026-11-16, **proposed, not decided**) puts a composable `Query` between the plan and the chain, rather than a model writing chains; it now waits on [`core-semantic-permissions.md`](core-semantic-permissions.md). v0.10 — §22 (2026-11-16) narrows the catch-all: leftover text is a file name only when the sentence reads as a lookup. v0.9 — ⭐ §21 (2026-11-09) measures the photo-search text tower as `ClassifyIntent`'s backend. v0.8 — **Mia on the web runs the same planner in the tab, read-only** (§20). v0.7 — **Mia on iPhone is real and read-only** (§19): a route-1 runtime in place of the mock, and a proxy that offers no action there. ⚠⚠ No question has been asked on a real device yet (§19.4).
+**Status:** v0.17 — §25.12 (2026-11-18): **CL-4 is built, so the clarify turn is complete**: a bare hour's card offers the other half of the day. v0.16 — §25.11 (2026-11-18): **CL-3 is built**: two devices or two routines matching a name are asked about, not refused. v0.15 — §25.10 (2026-11-18): **CL-2 is built**: the question is a cell with chips, and "Other…" focuses the composer. v0.14 — §25.9 (2026-11-17): **CL-1 is built**, so Mia asks for a missing or past event start and hears the answer. `MiaService` → v2. v0.13 — §25 (2026-11-17) designs the clarify turn: Mia asks for a slot it is missing and receives the answer. v0.12 — §24 (2026-11-17) lays out the pipeline as interfaces, built and proposed. v0.11 — §23 (2026-11-16, **proposed, not decided**) puts a composable `Query` between the plan and the chain, rather than a model writing chains; it now waits on [`core-semantic-permissions.md`](core-semantic-permissions.md). v0.10 — §22 (2026-11-16) narrows the catch-all: leftover text is a file name only when the sentence reads as a lookup. v0.9 — ⭐ §21 (2026-11-09) measures the photo-search text tower as `ClassifyIntent`'s backend. v0.8 — **Mia on the web runs the same planner in the tab, read-only** (§20). v0.7 — **Mia on iPhone is real and read-only** (§19): a route-1 runtime in place of the mock, and a proxy that offers no action there. ⚠⚠ No question has been asked on a real device yet (§19.4).
 **v0.6** — **§15.1's 200-series cap is closed** (§17). `queryOccurrences` moves the scan inside `:calendar-service` and bounds **occurrences in the window** instead of **series scanned** — the one quantity there was no safe order to truncate. ⚠⚠ Saturation is now a fact rather than a guess. ⚠ `CalendarService` → v5.
 **v0.5 — MQ-1 … MQ-4 SHIPPED** 2026-08-11/14 (as-built: §7–§11, §13), plus Track A
 slice A1 (§12), **`QueryCalendar` (§15)** — which completes MQ-D4a and every named read intent —
@@ -2372,16 +2372,30 @@ by the grammar's author (§21's limitation). Until then step 1 is the whole prop
       openers are in §22's not-a-lookup list. This does not make Mia answer German; it stops the
       catch-all reading an unknown German opener as a lookup.
   - ⚠ **Still open** (gaps in the set):
-    - **A missing time is refused, never asked for.** "add dentist tomorrow", "… tomorrow
-      morning", "remind me to call mum tomorrow". This is the clarify turn, which owes a design
-      note before code.
-    - **A bare hour is still guessed.** "dinner at 8" is 08:00. Asking instead is the same
-      design note's call.
-    - **A past time today is planned anyway.** At noon, "add a meeting at 10" plans 10:00 today.
-    - **No level slot.** "dim the bedroom light to 30 percent" becomes a device search.
-    - ⚠ **The calendar-noun path has the same forward-only problem.** "what was on my calendar
-      last week" resolves to the rest of this week. It predates these fixes; the inferred cue
-      refuses the past, the noun path does not yet.
+    - ✅ ~~A missing time is refused~~ and ✅ ~~a past time today is planned anyway~~: since CL-1
+      both are asked about (§25.9).
+    - ✅ ~~A bare hour is still guessed~~: "dinner at 8" is 08:00 with "20:00 instead?" on the card
+      since CL-4 (§25.12).
+    - ✅ ~~No level slot~~ (2026-11-18): "dim/brighten/set … to N percent" is a `ControlDevice`
+      with a level, lowered to `setLevel` ("0"…"100"). ⚠ Only devices with the `level`
+      capability are offered, and a match with none is refused before any card ("can't be
+      dimmed"), because the hub would refuse after the tap. ⚠ No number heard is never a guessed
+      one ("How bright should it be?"). ⚠⚠ The level verb must open the request: "is the kitchen
+      lamp set to 30 percent" is a state question and stays a read. ⚠ The capability narrows the
+      chain **before** its bound (`lowerDeviceSearch(levelOnly)`), so many matching devices that
+      cannot dim cannot crowd out one that can. One plain name read then tells "can't be dimmed"
+      from "no such device".
+    - ✅ ~~The calendar-noun path has the same forward-only problem~~ (2026-11-18):
+      `AgendaTimeGrammar` reads the past.
+      - "last week" is last Monday to Sunday, and "last weekend" the weekend before this week's.
+      - "last friday" and "what was on friday" are the most recent Friday before today.
+      - A past-tense "this week" is Monday until today.
+
+      The inferred cue no longer refuses the past ("was I busy last week" reads last week), and
+      "last weekend" is a time, not a "most recent" signal (`isLatestSignal`). ⚠⚠ A past the
+      grammar cannot place ("a week ago", "the previous week", "earlier") is refused by name, on
+      both paths, never answered about other dates. ⚠ `TimeGrammar` (the timeline's) still has no
+      weekend.
     - Every §23.1 row that needs a second slot or an answer shape, and German itself.
 - **A spike** before any model work: the smallest model that fills a `Query` reliably on that set,
   in both languages, measured on the int8 or int4 artifact that would ship (§21.3's lesson).
@@ -2955,3 +2969,181 @@ interface ReplyToMia : Operation {            // "tenshu/mia/service/replyToMia"
   consumers: Mia's slots, SP-D4's consent sentences, and the validator's field types.
 - **CL-Q5 — German.** Every slot type's parser is English. A German clarification is blocked on
   whatever answers §23.4 for German, not on this design.
+
+### 25.9 As built — CL-1, the proxy half (2026-11-17)
+
+`askMia` asks for a missing or impossible event start, or a missing title, and `replyToMia`
+hears the answer. `MiaService` is v2.
+
+- **Wire:**
+  - `MiaClarification` (token, param, reason, question, choices) and `MiaChoice` (label, reply);
+  - `MiaAnswer.clarification` and the `clarify` verdict;
+  - `MiaAction.alternatives`, shipped empty until CL-4;
+  - the `replyToMia` op;
+  - an empty v1 → v2 `SchemaMigration`, because Mia stores no rows.
+- **Planner** (`:mia-service`):
+  - `QueryPlan.Clarify` carries the op, the values heard, the param, the reason, canonical
+    choices, and what is known of a date-time param (the day, the part of day, a rejected time).
+  - `MiaFrames` has the three frames. `MiaFramesTest` pins each one against its op's schema.
+  - `QueryPlanner.answerClarification` fills the param and runs the frame's checks again (title,
+    then start, then "not in the past"), so a reply can produce the next question.
+- **Proxy:**
+  - `MiaActionRegistry` holds clarifications under the action rules: single-use, 5 minutes, in
+    memory.
+  - `AskMiaImplementation` checks the write's preconditions (the grant, a default calendar)
+    before asking.
+  - `ReplyToMiaImplementation` sends a parsed reply through `answerPlan` and anything else
+    through `answerUtterance`.
+  - ⭐ `ConfirmMiaAction` lowers every confirmed action through its frame (§25.3). Its three
+    hand-written branches are gone, and a frame param with no value fails closed.
+- **Web:** `replyToMia` is in `MiaPlugin.EXCLUDED_OPS` beside `confirmMiaAction`, so a WITHHELD
+  tab cannot reach it (`MiaWebContractTest`).
+
+**Where it deviates from the design, and why:**
+
+- ⚠⚠ **Asking needs the verb first.** `opensWithCreateVerb` allows polite lead-ins ("please",
+  "can you"). The first run asked *"What time?"* for "can you recommend a good **book**": "book" is
+  a create verb, so the sentence was already planned as an event and refused for lack of a time.
+  Asking would coach the user into an event they never wanted. Without a time, such a sentence
+  keeps the plain refusal.
+- ⚠⚠ **A reply must be a time and nothing else** (CL-D5, tightened by review). Every word has to
+  belong to the time expression or be filler ("make it 9", "how about nine"). Otherwise the reply
+  is a new question: "actually, what's on my calendar tomorrow at 3pm" holds a time, and reading it
+  as the answer booked the dentist for 15:00. Relative replies ("in 10 minutes") are parsed before
+  clock ones, so they are never read as 10:00.
+- ⚠ **One open clarification per proxy, not per conversation** (CL-D4). The proxy has no
+  conversation id. A new question closes every older one, so the app and Home's embed, which share
+  the proxy, close each other's. The reply then gets "That question is no longer open — ask me
+  again".
+- **`MiaFrames` lives in `:mia-service`, not beside the lowering** (CL-D3). The planner reads it
+  for the owed params and the proxy for the lowering, and the planner cannot see the proxy.
+- **Choices are computed by the planner**, as pure data, so they are tested without a proxy.
+  Representative hours are constants (CL-Q1), and a choice in the past is never offered.
+- ⚠ **The client half of CL-2 came forward.** `TenshuConversationRepository` routes the next send
+  to `replyToMia` while a question is open. Without that, a user answering "What time tomorrow?"
+  would have sent "9" to `askMia`, which would plan "9" from nothing. CL-2 (§25.10) added the cell
+  and the test.
+- ⚠ `AMBIGUOUS` is not produced yet: devices and routines are CL-3, and a bare hour is CL-4.
+- ⚠ The Mia manifest still declares only `askMia` (it never listed `confirmMiaAction`). It is not
+  enforced (`core-semantic-permissions.md` §3.1), and SP-D2's templates replace it.
+
+**Verified:**
+- `ClarifyTurnTest` (11) and `AskMiaClarifyTest` (11) cover asking, a typed reply, a chip reply,
+  "nine", the part of day the question already knew, a past start, title then start, a
+  never-past choice, a reply that is a new question, single use, one open question, the
+  preconditions before asking, and a grant revoked before the reply.
+- Five guards are mutation-checked: single use, one open question, the preconditions, the
+  past-start check and the opening verb.
+- The question set promotes its ask cases and gains "add tomorrow at 1pm": English 57/69, German 5/20.
+
+### 25.10 As built — CL-2, the chat half (2026-11-18)
+
+Mia's question is a cell with a chip per choice and an **"Other…"** chip, which focuses the
+composer. While the question is open, the composer's placeholder reads *"Your answer…"*.
+
+- `MessageBody.Clarification` (question, choices, token, `open`) and `MessageBody.Choice` (label,
+  reply), in `:mia-shared-logic`. `ChatScreen`'s `ClarificationCell` renders them with
+  `SuggestionChip`s, and the strings are in English and German.
+- **A tap shows the chip's label as the user's message, and sends its canonical reply**
+  (`ConversationRepository.answer(token, label, reply)`).
+- ⚠⚠ **A chip answers only its own question.** The first version used whatever question was open,
+  so a chip scrolled back to on an older question would have answered the newer one. The token now
+  travels with the tap, and a token that is no longer the open question sends nothing
+  (`aStaleChipCannotAnswerANewerQuestion`).
+- An answered or superseded question renders its chips disabled (CL-Q3, the "latest only" lean).
+  History renders every question disabled (`MessageRow(interactive = false)`): a past chip has no
+  question left to answer.
+
+**Verified:** `MiaClarifySystemTest` (4) drives the real `TenshuConversationRepository` over a real
+proxy in `:system-test-utils`. It covers:
+- a typed answer reaching `replyToMia`, then the card, then a real calendar row after the tap;
+- a chip showing its label and sending its reply;
+- a stale chip sending nothing;
+- a new question asked instead of an answer being answered as one.
+
+Two guards are mutation-checked: the routing (sending every message to `askMia` fails both answer
+tests) and the chip token.
+
+⚠ **Not verified:** the cell itself on a screen (layout, the focus jump), and a click-through on a
+device. §14's lesson stands: the last click-through found six defects no test saw. iOS and the web
+are WITHHELD and never receive a clarification, so they render none.
+
+### 25.11 As built — CL-3, *which one?* (2026-11-18)
+
+The two dead ends §25.1 named are closed. Two devices or two routines matching a name answer
+*"Which “lamp” did you mean?"* / *"Which routine did you mean?"* with one chip per candidate.
+
+- **Asked proxy-side**, because only the read knows the candidates. It is an `AMBIGUOUS`
+  `QueryPlan.Clarify` on the op's entity param (`issueDeviceCommand/targetDeviceId`,
+  `runRoutineNow/routineId`).
+  - A choice's reply is `ref:<id>`.
+  - A device keeps the on/off the user said in `heard`, so the pick does not re-read the
+    utterance.
+  - Two devices with one name carry their room ("Lamp (Bedroom)").
+- **Read against the candidates only** (`QueryPlanner.answerCandidate`, pure). A reply must be a
+  candidate and nothing else, the same rule as for a time:
+  - a chip;
+  - a name;
+  - a part only one candidate has ("strip", "the bedroom one");
+  - an ordinal ("the second one", "last").
+
+  ⚠ A part that fits several asks again with just those ("kitchen"), never a guess. ⚠⚠ A device
+  that exists in the realm but was not offered is no answer: the reply is planned as a new
+  question.
+- **The pick is checked again** (`AskMiaImplementation.confirmCandidate`): the grant is read
+  again, and a routine is re-read by id, so one deleted or suspended since the question is
+  refused. The result is the ordinary card. A pick never acts, and MQ-D7's tap still does.
+
+**Verified:**
+- `AskMiaWhichOneTest` (8) covers a chip through to the command row, a name and an ordinal, a
+  narrowing reply, a realm device that was not offered, colliding names, routines, and a
+  suspension and a revoked grant between the question and the pick.
+- `CandidateReplyTest` (4) covers the matcher.
+- Three guards are mutation-checked: narrow-not-guess, the grant at the pick, and the state at
+  the pick.
+- ⚠ Two devices with one name **and** one room still label identically. The room is the only
+  disambiguator the row carries.
+
+### 25.12 As built — CL-4, the other half of the day on the card (2026-11-18)
+
+"add dinner tomorrow at 8" still plans 08:00 by the convention, and its card now offers **"20:00
+instead?"** as one tap (CL-D6). That completes the clarify turn's phasing.
+
+- **Grammar:** `EventTime.alternative` is the other half of the day for a **bare** hour: a 1–11,
+  digit or word, with no am/pm, no bound part of day and no clock form.
+  - ⚠ "at 12" offers nothing, because it is noon far more often than midnight.
+  - A typed reply is just as bare ("8" answering *"What time tomorrow?"*), unless the question
+    already knew the part of day.
+- **Planner:** `CreateEvent.alternativeStart` carries it. ⚠ It is dropped when it has passed: at
+  noon, "lunch today at 1" offers no 01:00.
+- **Proxy:** the card ships it in `MiaAction.alternatives`, the field CL-1 put on the wire empty.
+  The card's token also holds a clarification for the start, so the tap is an ordinary
+  `replyToMia`, which mints a new card from the canonical reply. ⚠⚠ The two halves spend each
+  other:
+  - `replyToMia` takes the card's pending action, so the 08:00 card cannot be confirmed beside the
+    20:00 one;
+  - `confirmMiaAction` takes the card's clarification, so after the row exists the alternative
+    writes nothing.
+
+  ⚠⚠ The card's clarification is held **beside** the open question (`putAlternative`), not in
+  its slot. Otherwise a second card, or a question asked in between, would silently disable the
+  first card's alternative while the card itself stayed confirmable (Codex review).
+- **Client:**
+  - `MessageBody.Confirmation` gains `alternatives` and `replaced`;
+  - the card shows the chip;
+  - a tap marks the card *Changed* and replies against its token (`ConversationRepository.alternative`).
+
+**Verified:**
+- Planner tests cover a bare hour (digit and word), seven settled forms that offer nothing, a past
+  alternative, and a bare versus a settled reply.
+- `AskMiaClarifyTest` covers the replacement, both directions of the spent token, and a settled
+  time.
+- `MiaClarifySystemTest` covers the round trip through the real chat.
+- Five guards are mutation-checked: both token directions, "bare only", "never past", and the
+  client routing.
+- The question set promotes "add dinner with anna tomorrow at 8". The four other bare-hour
+  commands now state their alternative. English 58/69.
+- ⚠ The alternative is offered for every bare hour, including ones nobody means at night ("a call
+  at 3" offers 03:00). That is the cost CL-D6 accepted against a meal-word table: a chip nobody
+  taps costs nothing, and a wrong guess with no way back would cost a wrong row.
+

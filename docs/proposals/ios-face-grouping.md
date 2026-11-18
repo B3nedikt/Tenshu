@@ -288,7 +288,7 @@ with its real reason stated: calibration, not wire comparability.
 | Download | ~3.7 MB detector + embedder | embedder only; the SDK is in the binary | **embedder only** | none |
 | D1 ("no third-party binary on iOS") | kept | ❌ **broken**: TFLite + MediaPipe in the app, beside Core ML | kept | kept |
 | Work | largest: two conversions **plus** the post-processing port, with parity per stage | medium, but a cinterop and a vendored binary (the libsodium-style build script precedent) | smallest: one Vision call through K/N `platform.Vision`, one 5-point mapping in `commonMain`, one conversion | n/a |
-| Who it helps besides iOS | ⭐ desktop F2d (MediaPipe → ONNX) could share the ported post-processing | nobody | nobody | — |
+| Who it helps besides iOS | ⭐ desktop F2d (MediaPipe → ONNX) could share the ported post-processing | nobody | ⭐ macOS desktop: the same Vision call over JVM FFM (re-checked 2026-11-18) | — |
 | Spike cost | high, and mostly on the Mac | medium | **low, entirely on the Mac**: macOS has the same Vision API [I] | — |
 
 **Why (c) is out.**
@@ -312,6 +312,10 @@ The reasoning, against §7a's three grounds for MediaPipe everywhere:
 1. *"Desktop needs our own model whatever we do."* True, and unaffected. Desktop gets nothing from
    either iOS route except, under (a), a ported post-processing. That is a real but deferred benefit:
    F2d is not scheduled [D: `tech-debt.md` "People on desktop"].
+   ⚠ *Re-checked 2026-11-18:* true for Windows and Linux only. On macOS, route (b) itself carries
+   over: macOS has the same Vision API, this doc's measurements already ran on the Mac, and the JVM
+   reaches Vision through FFM (`macos-helpers/.../ffi/Vision.kt`). `tech-debt.md` *"People on
+   desktop"* has the Mac slice.
 2. *"iOS needs an inference runtime for the embedder regardless; once there, MediaPipe is 2.7 MB on
    top."* ⚠⚠ **This ground was written before D1 (2026-10-04) and no longer holds.** The runtime iOS
    got is Core ML, which cannot run a `.task` bundle. "2.7 MB on top" is now either (a′)'s
@@ -741,6 +745,91 @@ None of these is evidence for §6.1's iPhone targets. F1b measures them on the p
   - this conversion route and its toolchain;
   - the `weight.bin` digest as the identity;
   - the 130.6 MB fp16 size for the free-space check.
+
+### 10.8 ⭐ The desktop pairing: macOS Vision + AuraFace on ORT (2026-11-18) — **③ holds**
+
+macOS desktop would run this section's detector and mapping but embed on ONNX Runtime, not Core ML
+(`tech-debt.md` *"People on desktop"*, Mac slice). The pipeline is different, so it needs its own
+number (§10 Q2 of `photos-people-and-pets.md`). Everything below is **[M]** on the same Mac (M4 Pro,
+macOS 27.2 build 26B123), with §10.1's harness unchanged except that `embed.py` also runs ORT int8 on
+the Vision crops. The library was pulled again from the OnePlus's harness folder (400 of 400) and
+deleted afterwards. The model shas match §10.1/§10.2.
+
+**The harness reproduces itself first.** The MediaPipe + ORT int8 reference gives 61 faces over 58
+photographs, clusters 33 / 9 / 6 / 3 / 2 / 2 and nearest different person 0.1876, as §10.1 and §10.4
+recorded. Vision + Core ML fp16 gives 0.176 / 0.189, as §10.4 recorded. Vision found the same 86
+faces (33 V, 25 D, 28 U).
+
+**③ at 0.44, Vision → corners-mid → each embedder:**
+
+| Embedder | V | D intruders | U members | nearest different person (other clusters / all non-members) | stable |
+|---|---|---|---|---|---|
+| Core ML fp16 (iOS, §10.4) | 33 of 33 | 0 | 4 | 0.176 / 0.189 | 0.20–0.52 |
+| ORT fp32 `glintr100.onnx` | 33 of 33 | 0 | 4 | 0.176 / 0.189 | 0.20–0.52 |
+| ⭐ **ORT int8 `auraface_int8.onnx`** (Android's artifact) | **33 of 33** | **0** | **4** | ⭐ **0.183 / 0.183** | **0.20–0.52** |
+
+- ⭐ **0.183 ≤ 0.22**, so 0.44 clears the 2× margin rule on the desktop pairing too, with 0.037 to
+  spare. That is between iOS's phone (0.023, §11.4) and the Mac's Core ML (0.044).
+- **The same cluster under all three embedders**: membership is identical at 0.44, and so are the
+  4 U members. They come from the same Vision outputs, on the same OS build, as §10.4's 4. That they
+  are the 4 faces the maintainer verified on 2026-11-09 is [I]: the file names were not kept then.
+- At 0.60 all three split the same way (29 V + 4 U stay together, 4 V leave), as §10.4 recorded.
+- **Int8 moves vectors more on Vision crops than §10.2 recorded**: ORT int8 against ORT fp32 on the
+  86 Vision crops gives mean 0.9866, median 0.9887, min **0.895**. On all 147 crops, mean is 0.9874.
+  §10.2 recorded mean 0.9919, min 0.9755 (n = 149). The clustering is unaffected on this library,
+  but the tail is lower. ⚠ That a lower floor is harmless on another library is [I].
+- **Mac CPU timing, median per face**: ORT int8 **30.6 ms**, ORT fp32 64.4 ms, Core ML fp16
+  2.8 ms (ANE). Desktop's indexer runs in the background, so 30 ms is acceptable. CoreML through FFM
+  would be ~10× faster, but would add a second runtime to desktop. This is unmeasured inside the JVM
+  process [I].
+- ⇒ **The desktop Mac slice may ship with Android's int8 artifact and the shared 0.44, with no
+  override.** fp32 would match iOS's vectors more closely (cosine to Core ML ≈ 0.99997, §10.2), at
+  four times the download (260.7 MB against 66.0 MB) and twice the time. Both pass ③.
+- ~~This measures prep.py's decode, not desktop's~~: **measured, ③ holds on desktop's own decode
+  too** (below).
+
+**③ again on the desktop decoder (2026-11-18), the backend's own pixels.** Desktop decodes with
+ImageIO's thumbnail route (`MacFaces.Decoder`, iOS's `IosFaceImageDecoder` route over FFM), not PIL.
+On the bundled probe the two decodes differ by mean 0.24 and max 24 per channel, Vision's points
+move ~0.35 px, and the end-to-end int8 vector moves to cosine **0.964**. So the library was re-run
+with every photograph decoded by `MacFaces.Decoder` itself (the MediaPipe reference kept on PIL, as
+Android's ground truth):
+
+| Embedder, on `MacFaces.Decoder`'s pixels | V | D | U | nearest different person | stable |
+|---|---|---|---|---|---|
+| ⭐ **ORT int8** | **33 of 33** | **0** | **4** | ⭐ **0.179** | **0.20–0.52** |
+| ORT fp32 | 33 of 33 | 0 | 4 | 0.179 | 0.20–0.52 |
+| Core ML fp16 | 33 of 33 | 0 | 4 | 0.179 | 0.20–0.52 |
+
+- ⭐ **0.179 ≤ 0.22**: the shared 0.44 holds on the pixels the shipped backend sees. Vision found the
+  same 86 faces and recall is unchanged (58 of 61 reference faces, 33 of 33 verified).
+- ⚠ The split edge moved in: at 0.60 the cluster keeps 19 V (22 with fp32) against 29 on PIL's
+  decode. 0.60 is outside the window 0.44 sits in, so this changes no decision, but it is the margin
+  a future threshold change spends first.
+- **Code parity.** On identical pixels and landmarks, the Kotlin backend and the Python harness give
+  cosine **0.995** on the probe (ORT 1.22 in the JVM against 1.20 in Python is the likely rest, [I]).
+  The FFM Vision call matches the harness's `vision_detect.swift` to < 0.0005 IOD on the probe
+  (`MacFaceVisionTest`).
+
+**As built (2026-11-18).** `VisionOnnxFaceBackend` (`:inference-service-proxy` jvmMain) over
+`MacFaceVision` (`:macos-helpers`, FFM to ImageIO and Vision), bound by desktop Control on macOS only
+(`MacFaces.runsHere`); catalog entry `auraface-v1-int8` under `onnx+vision`, pinned to the
+calibrated file and **published 2026-11-18** (served catalog verified against `MODEL_CATALOG_PUBLIC_KEY_HEX`).
+
+**First run through the packaged app (2026-11-18), [M].** All ten desktop apps were installed from
+master, and the People model was downloaded through Settings → Models (stored under its sha,
+`1b7b3c18…`). Index now then ran over the maintainer's Mac library:
+- **79 of 79 photographs** visited, the same 79 SigLIP indexed, with no `Failed` and no latch.
+- The store is stamped `auraface-v1-int8@1/1200271445` (pipeline 200, build 26B123). HEIC went
+  through ImageIO.
+- **3 faces**, one per photograph, unit-norm and 512 wide. Two of them have cosine 0.728 and the
+  third is ≤ 0.08 from both, so at 0.44 People shows **one person with two photographs**. The
+  maintainer confirmed that in Photos.
+- ⚠ This is a smoke test, not a recall figure. The library is mostly stock images (52) plus
+  landscapes and cats, and nobody labelled it. ⚠⚠ Its stamp is `FaceModel.macVisionStamp(osBuild)` (pipeline 200 with the OS
+build folded in), so a macOS update re-indexes People once through `MediaIndexer`'s rebase (FD9).
+⚠ The platform-neutral Vision half (`FaceImage`, `VisionFaceDetector`, `facesOf`, …) moved from
+iosMain to `org.tenshu.inference.proxy.vision` in commonMain, shared by both backends.
 
 ---
 

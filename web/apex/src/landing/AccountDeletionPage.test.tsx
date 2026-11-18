@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { AccountDeletionPage } from './AccountDeletionPage'
 import i18n from '../i18n'
+import { installFakeTurnstile, uninstallFakeTurnstile } from '../test/fakeTurnstile'
 
 interface Sent {
   path: string
@@ -64,6 +65,7 @@ beforeEach(() => {
 })
 afterEach(async () => {
   vi.unstubAllGlobals()
+  uninstallFakeTurnstile()
   await i18n.changeLanguage('en')
 })
 
@@ -211,5 +213,56 @@ describe('AccountDeletionPage', () => {
     await i18n.changeLanguage('fr')
     renderPage()
     expect(screen.getByRole('heading', { level: 1, name: 'Supprimer votre compte Tenshu' })).toBeInTheDocument()
+  })
+})
+
+// Commerce D16: with a site key, every `/request` carries a fresh Turnstile token.
+describe('AccountDeletionPage with Turnstile', () => {
+  it('without a site key there is no widget and no token field — the body is unchanged', async () => {
+    const user = userEvent.setup()
+    responses = [[202, { status: 'code_sent' }]]
+    renderPage()
+    expect(screen.queryByTestId('turnstile')).not.toBeInTheDocument()
+    await requestCode(user)
+    expect(sent[0]?.body).toEqual({ email: 'a@example.com' })
+  })
+
+  it('holds the send until a token arrives, sends it, and asks for a fresh one for the resend', async () => {
+    const turnstile = installFakeTurnstile()
+    const user = userEvent.setup()
+    responses = [
+      [202, { status: 'code_sent' }],
+      [202, { status: 'code_sent' }],
+    ]
+    renderPage()
+    await user.type(screen.getByLabelText('Email address of your Tenshu account'), 'a@example.com')
+    expect(screen.getByRole('button', { name: 'Send code' })).toBeDisabled()
+    expect(turnstile.options()).toMatchObject({ sitekey: '0x4AAAAAAAtest', action: 'account-delete' })
+
+    turnstile.solve('tok-1')
+    await user.click(screen.getByRole('button', { name: 'Send code' }))
+    await screen.findByLabelText('6-digit code')
+    expect(sent[0]?.body).toEqual({ email: 'a@example.com', turnstileToken: 'tok-1' })
+    expect(turnstile.resets()).toBe(1)
+
+    // The spent token is gone: the resend waits for the next one rather than replaying it.
+    const resend = screen.getByRole('button', { name: 'Send a new code' })
+    expect(resend).toBeDisabled()
+    turnstile.solve('tok-2')
+    await user.click(resend)
+    await waitFor(() => expect(sent).toHaveLength(2))
+    expect(sent[1]?.body).toEqual({ email: 'a@example.com', turnstileToken: 'tok-2' })
+  })
+
+  it('a refused challenge says so and stays on the email step', async () => {
+    const turnstile = installFakeTurnstile()
+    const user = userEvent.setup()
+    responses = [[403, { error: 'challenge_failed' }]]
+    renderPage()
+    await user.type(screen.getByLabelText('Email address of your Tenshu account'), 'a@example.com')
+    turnstile.solve('tok-1')
+    await user.click(screen.getByRole('button', { name: 'Send code' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent("We couldn't confirm this request came from a person.")
+    expect(screen.queryByLabelText('6-digit code')).not.toBeInTheDocument()
   })
 })

@@ -194,7 +194,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vergleiche diesen Code mit deinem Kontakt – persönlich oder über einen vertrauenswürdigen Kanal – und bestätige dann."
+            "value" : "Vergleiche diesen Code mit deinem Kontakt, persönlich oder über einen vertrauenswürdigen Kanal, und bestätige dann."
           }
         }
       }
@@ -427,13 +427,13 @@
         }
       }
     },
-    "It loses access to your realm. This cannot be undone — the hardware can be set up again, but it joins as a new device.\n\n%@" : {
+    "It loses access to your realm. This cannot be undone. The hardware can be set up again, but it joins as a new device.\n\n%@" : {
       "comment" : "Device removal message; %@ = device id",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Es verliert den Zugriff auf dein Realm. Das kann nicht rückgängig gemacht werden – die Hardware kann erneut eingerichtet werden, tritt dann aber als neues Gerät bei.\n\n%@"
+            "value" : "Es verliert den Zugriff auf dein Realm. Das kann nicht rückgängig gemacht werden. Die Hardware kann erneut eingerichtet werden, tritt dann aber als neues Gerät bei.\n\n%@"
           }
         }
       }

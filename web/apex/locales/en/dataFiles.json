@@ -29,7 +29,7 @@
   "errors": {
     "read": {
       "title": "Couldn't read your files",
-      "body": "The file inventory on this browser didn't load. Nothing was changed — try again."
+      "body": "The file inventory on this browser didn't load. Nothing was changed. Try again."
     },
     "runtime": {
       "title": "Tenshu isn't running in this tab",
@@ -37,7 +37,7 @@
     },
     "other": {
       "title": "Something went wrong",
-      "body": "The file inventory couldn't be read. Nothing was changed — try again."
+      "body": "The file inventory couldn't be read. Nothing was changed. Try again."
     }
   },
   "retry": "Try again",

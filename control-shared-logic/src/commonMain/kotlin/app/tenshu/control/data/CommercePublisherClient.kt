@@ -494,11 +494,12 @@ class CommercePublisherClient(
          * `2026-11-05`: iOS device backups — the data store is excluded (ios-shared-store-sqlite.md
          * D3/D3b), and what still is backed up is listed. `2026-11-16`: hosting moved to OVHcloud
          * in Gravelines (OVH SAS a new processor); Scaleway keeps sign-in mail and, until deleted,
-         * the pre-move data (docs/how-to/move-to-ovh.md). ⚠ A build
+         * the pre-move data (docs/how-to/move-to-ovh.md). `2026-11-18`: Cloudflare Turnstile on the
+         * web sign-in form and the account-deletion page (commerce-accounts-and-sessions.md D16). ⚠ A build
          * released before a bump keeps sending the older date while its link opens the live page; the
          * superseded texts are in git history only.
          */
-        const val PRIVACY_VERSION: String = "2026-11-16"
+        const val PRIVACY_VERSION: String = "2026-11-18"
 
         /** SecureStorageDelegate key for the persisted commerce session record (email + token). */
         const val STORAGE_KEY: String = "commerce_session"

@@ -37,10 +37,9 @@ expect val billingRail: BillingRail
  *
  * ⚠⚠ A build fact, not a catalog guess: inferring it from the catalog conflates
  * "this platform cannot" with "the catalog is unreachable", and any fallback between the two gets
- * one of them wrong. The face pair's runtime (`FaceModel.RUNTIME`) needs MediaPipe, which only the
- * Android build links:
+ * one of them wrong. Each face pair needs a detector only some platforms have:
  *  - **Android = true**
- *  - **Desktop = false** while its detector is not ONNX — flip this together with the runtime it
- *    declares.
+ *  - **Desktop = macOS only**: Apple Vision detects and ORT embeds (`FaceModel.ONNX_VISION_RUNTIME`,
+ *    `ios-face-grouping.md` §10.8); Windows and Linux have no Vision, and stay false until F2d.
  */
 expect val faceClusteringRunsHere: Boolean

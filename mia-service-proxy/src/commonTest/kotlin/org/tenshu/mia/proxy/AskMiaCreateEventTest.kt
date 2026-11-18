@@ -5,6 +5,7 @@ import org.tenshu.calendar.Calendar
 import org.tenshu.calendar.CalendarPreferences
 import org.tenshu.calendar.CalendarService
 import org.tenshu.calendar.Event
+import org.tenshu.calendar.SaveEvent
 import org.tenshu.core.TResult
 import org.tenshu.core.collection.list.getAll
 import org.tenshu.core.collection.list.toList
@@ -136,10 +137,11 @@ class AskMiaCreateEventTest {
         val answer = ask(proxy, "add lunch with anna")
 
         // ⚠⚠ "Probably now" would be a row that fires a reminder at the wrong moment weeks
-        // later. A read can afford a bad guess; a write cannot.
-        assertEquals(MiaAnswer.VERDICT_NO_MATCH, answer.verdict.get())
+        // later. A read can afford a bad guess; a write cannot. Since §25 the answer is a
+        // question for the start, never a card and never a row.
+        assertEquals(MiaAnswer.VERDICT_CLARIFY, answer.verdict.get())
+        assertEquals(SaveEvent.Params.START_LOCAL, assertNotNull(answer.clarification).param.get())
         assertNull(answer.action)
-        assertTrue(answer.explanation.get().contains("when"), answer.explanation.get())
         assertTrue(proxy.events().isEmpty())
     }
 

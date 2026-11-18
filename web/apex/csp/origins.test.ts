@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { connectOrigins, hostedAppOrigins, originOf, STORE_DIR } from './csp.ts'
+import { connectOrigins, hostedAppOrigins, originOf, STORE_DIR, TURNSTILE_ORIGIN } from './csp.ts'
 import { hostedAppIds } from './vitePlugin.ts'
 
 // Non-literal specifiers keep these src/ modules (vite/client typed) out of this node-typed project.
@@ -67,5 +67,12 @@ describe('the CSP names the origins the SPA actually reaches', () => {
     expect(connectOrigins(env)).toEqual(runtime.connect)
     expect(hostedAppOrigins(env, runtime.ids)).toEqual(runtime.apps)
     expect(runtime.apps.every((o) => o.endsWith('.tenshu.xyz'))).toBe(true)
+  })
+})
+
+describe('the CSP names the Turnstile origin the widget loads from', () => {
+  it('is the origin of the script URL', async () => {
+    const { TURNSTILE_SCRIPT_URL } = await load<{ TURNSTILE_SCRIPT_URL: string }>('lib/turnstileScript.ts')
+    expect(originOf(TURNSTILE_SCRIPT_URL)).toBe(TURNSTILE_ORIGIN)
   })
 })

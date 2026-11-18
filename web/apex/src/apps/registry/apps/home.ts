@@ -47,7 +47,7 @@ export const home: HostedApp = {
   manifest: {
     id: 'home',
     label: 'Home',
-    description: 'Your devices, automations and activity — view only, end-to-end encrypted.',
+    description: 'Your devices, automations and activity. View only, end-to-end encrypted.',
     version: '0.1.0',
     launchPath: '/home',
     // ⚠ The permissions listed here are DISPLAY data — what the app can actually call is `methods`.

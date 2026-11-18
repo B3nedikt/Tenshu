@@ -5,6 +5,7 @@
 // 2026-10-16: per-card status read as confusing).
 import { useTranslation } from 'react-i18next'
 import { Section } from './Section'
+import { CONTROL_PLAY_URL } from '../../lib/storeLinks'
 
 // Data-driven copy pattern (ADR 0016 / agent.md §19): the static array
 // carries IDs only — strings come from the catalogue at render time via
@@ -21,9 +22,6 @@ interface Platform {
   readonly storeUrl?: string
 }
 
-// On Android you start with Control: it holds the realm, and every other app joins through it.
-// iOS gets its link once Control has an App Store id (`TENSHU_CONTROL_APP_STORE_ID`, unset so far).
-const CONTROL_PLAY_URL = 'https://play.google.com/store/apps/details?id=app.tenshu.control.android'
 
 // Phones first, then computer, then browser.
 const PLATFORMS: readonly Platform[] = [

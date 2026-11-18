@@ -132,7 +132,7 @@ function Hop({
 
 export function AnswerArt() {
   return (
-    <Canvas label="On both your phone and your desktop, Drive talks only to Control — the proxy app on that device; Control is the only app that reaches the relay, which only ever holds your data locked">
+    <Canvas label="On both your phone and your desktop, Drive talks only to Control, the proxy app on that device. Control is the only app that reaches the relay, which only ever holds your data locked">
       {/* The phone (lower-left) as a launcher home screen. The frame is
           drawn inline (not the Phone mark) so the larger size keeps a
           uniform stroke weight. */}

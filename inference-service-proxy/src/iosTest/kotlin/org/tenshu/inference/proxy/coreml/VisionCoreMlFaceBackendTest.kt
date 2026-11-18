@@ -4,6 +4,9 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.tenshu.inference.InferenceCapability
+import org.tenshu.inference.proxy.AnimalSpecies
+import org.tenshu.inference.proxy.AnimalVeto
+import org.tenshu.inference.proxy.DetectedAnimal
 import org.tenshu.inference.proxy.DetectedFace
 import org.tenshu.inference.proxy.FaceBox
 import org.tenshu.inference.proxy.FaceDetectionOutcome
@@ -23,6 +26,16 @@ import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import org.tenshu.inference.proxy.vision.FaceImage
+import org.tenshu.inference.proxy.vision.FaceImageDecoder
+import org.tenshu.inference.proxy.vision.MAX_FACES_PER_PHOTO
+import org.tenshu.inference.proxy.vision.VisionDetection
+import org.tenshu.inference.proxy.vision.VisionFaceDetector
+import org.tenshu.inference.proxy.vision.VisionFaceObservation
+import org.tenshu.inference.proxy.vision.VisionRequestException
+import org.tenshu.inference.proxy.vision.faceDecodeEdge
+import org.tenshu.inference.proxy.vision.orient
+import org.tenshu.inference.proxy.vision.visionFaceBox
 
 /**
  * [VisionCoreMlFaceBackend]'s own guards on a fixture backend: a fake decoder, a fake Vision and a
@@ -75,7 +88,16 @@ class VisionCoreMlFaceBackendTest {
         override fun close() {}
     }
 
-    private fun backend() = VisionCoreMlFaceBackend(
+    private var animals: (FaceImage) -> VisionAnimalDetection = { VisionAnimalDetection(FaceModel.VISION_ANIMALS_REVISION, emptyList()) }
+    private var animalRequests = 0
+    private val animalDetector = VisionAnimalDetector { image ->
+        animalRequests++
+        animals(image)
+    }
+
+    private fun backend(animalVeto: AnimalVeto? = null) = VisionCoreMlFaceBackend(
+        animalVeto = animalVeto,
+        animalDetector = animalDetector,
         locate = { located },
         ready = { ready },
         decoder = decoder,
@@ -371,5 +393,73 @@ class VisionCoreMlFaceBackendTest {
         val prepared = org.tenshu.inference.proxy.PreparedModel.of(ModelArtifactRole.FACE_EMBEDDER to path)
         assertEquals(path, prepared.paths[ModelArtifactRole.FACE_EMBEDDER])
         assertNull(org.tenshu.inference.proxy.PreparedModel("v", "t", "w").paths[ModelArtifactRole.FACE_EMBEDDER], "SigLIP's generation names a face embedder")
+    }
+
+    // ─── PT-D9: the animal veto ─────────────────────────────────────────────────────────────────
+
+    /** The fixture face is (0.25, 0.25)–(0.75, 0.75) top-left; this cat holds all of it. */
+    private fun aCatAroundTheFace(confidence: Float = 0.9f) =
+        VisionAnimalDetection(FaceModel.VISION_ANIMALS_REVISION, listOf(DetectedAnimal(AnimalSpecies.CAT, 0.2f, 0.2f, 0.8f, 0.8f, confidence)))
+
+    @Test
+    fun offTheAnimalRequestNeverRunsAndTheStampIsTheFacePipelines() = runBlocking<Unit> {
+        animals = { aCatAroundTheFace() }
+        val backend = backend()
+        assertIs<FaceDetectionOutcome.Detected>(backend.detectFaces(red)).also { assertEquals(1, it.faces.size) }
+        assertEquals(0, animalRequests, "off means not asked")
+        assertEquals(FaceModel.VISION_PIPELINE_VERSION, backend.provenance.labelSetVersion)
+    }
+
+    @Test
+    fun onAFaceInsideACatIsDroppedAndCounted() = runBlocking<Unit> {
+        animals = { aCatAroundTheFace() }
+        val backend = backend(AnimalVeto.Proposed)
+        val detected = assertIs<FaceDetectionOutcome.Detected>(backend.detectFaces(red))
+        assertTrue(detected.faces.isEmpty())
+        assertEquals(1, detected.insideAnimals)
+        assertEquals(FaceModel.VISION_ANIMAL_VETO_PIPELINE_VERSION, backend.provenance.labelSetVersion)
+    }
+
+    @Test
+    fun onAnUnsureCatVetoesNothing() = runBlocking<Unit> {
+        animals = { aCatAroundTheFace(confidence = 0.2f) }
+        val detected = assertIs<FaceDetectionOutcome.Detected>(backend(AnimalVeto.Proposed).detectFaces(red))
+        assertEquals(1, detected.faces.size)
+        assertEquals(0, detected.insideAnimals)
+    }
+
+    /** A faceless photograph — most of a library — never pays for the animal request. */
+    @Test
+    fun onAPhotoWithNoFacesNeverAsksForAnimals() = runBlocking<Unit> {
+        observations = { emptyList() }
+        assertIs<FaceDetectionOutcome.Detected>(backend(AnimalVeto.Proposed).detectFaces(red))
+        assertEquals(0, animalRequests)
+    }
+
+    /**
+     * ⚠⚠ The stamp says the veto ran, so a photograph it could not run on is Failed — never recorded
+     * with every face kept, which `visited` would then keep for good.
+     */
+    @Test
+    fun onAnAnimalRequestThatThrowsIsFailedNotEveryFaceKept() = runBlocking<Unit> {
+        animals = { throw VisionRequestException("boom") }
+        assertEquals(FaceDetectionOutcome.Failed, backend(AnimalVeto.Proposed).detectFaces(red))
+    }
+
+    @Test
+    fun onAnotherAnimalRevisionIsFailed() = runBlocking<Unit> {
+        animals = { VisionAnimalDetection(FaceModel.VISION_ANIMALS_REVISION + 1, emptyList()) }
+        assertEquals(FaceDetectionOutcome.Failed, backend(AnimalVeto.Proposed).detectFaces(red))
+    }
+
+    @Test
+    fun visionsBottomLeftAnimalBoxIsFlippedToTopLeft() {
+        val animal = visionAnimal(AnimalSpecies.DOG, 0.1, 0.2, 0.3, 0.4, 0.7f)
+        assertEquals(AnimalSpecies.DOG, animal.species)
+        assertEquals(0.1f, animal.left, 1e-6f)
+        assertEquals(0.4f, animal.top, 1e-6f, "1 - (y + height)")
+        assertEquals(0.4f, animal.right, 1e-6f)
+        assertEquals(0.8f, animal.bottom, 1e-6f, "1 - y")
+        assertEquals(0.7f, animal.confidence)
     }
 }

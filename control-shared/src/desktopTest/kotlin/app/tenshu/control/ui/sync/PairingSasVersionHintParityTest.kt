@@ -39,7 +39,7 @@ class PairingSasVersionHintParityTest {
             .find(read("web/apex/locales/en/control.json"))
             ?.groupValues?.get(1)
 
-        val expected = "If the codes don't match, don't continue — make sure both devices are on " +
+        val expected = "If the codes don't match, don't continue. Make sure both devices are on " +
             "the latest version of Tenshu."
         assertEquals(expected, compose, "Compose (Android + desktop)")
         assertEquals(expected, ios, "iOS PairingStrings")

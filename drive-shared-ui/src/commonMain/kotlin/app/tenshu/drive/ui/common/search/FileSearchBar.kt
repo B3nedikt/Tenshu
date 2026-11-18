@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.focus.FocusRequester
 import app.tenshu.drive.shared.resources.Res
@@ -155,6 +156,7 @@ fun FilesSearchBarContent(
                     item = item,
                     effectivePolicy = syncRules.effectivePolicy(item.path),
                     localDataLoader = localDataLoader,
+                    containerColor = Color.Transparent,
                     onItemClicked = { onResultClicked(item) },
                     onItemLongClicked = {},
                     onToggleSelection = {},

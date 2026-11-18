@@ -35,6 +35,7 @@ androidx-sqlite = "2.7.1"
 # UI modules apply no BOM at all, so an unversioned entry resolved to whatever
 # transitive constraint happened to win (1.12.0 in :ui-core vs 1.12.4 elsewhere).
 activity-compose = "1.13.0"
+navigationevent = "1.1.1"
 
 koin = "4.2.2"
 koin-test = "4.2.2"
@@ -119,6 +120,8 @@ awssdk = "2.54.19"
 s3mock = "4.12.4"
 
 [libraries]
+# The common system-Back hook (already on the graph via material3 / navigation3).
+navigationevent-compose = { module = "androidx.navigationevent:navigationevent-compose", version.ref = "navigationevent" }
 
 appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
 pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }

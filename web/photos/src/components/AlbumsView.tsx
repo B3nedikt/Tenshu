@@ -8,7 +8,7 @@ import { useAlbums } from '../lib/live'
 import { useFeed } from '../lib/feed'
 import { queryKeys } from '../lib/queryKeys'
 import { attempt } from '../lib/errors'
-import { useOnScreen, useThumbnail } from '../lib/thumbnails'
+import { useCoverUrl, useOnScreen } from '../lib/thumbnails'
 import { useCloseViewerWhenEmpty, type ViewerRoute } from '../lib/viewerRoute'
 import { PhotoListView } from './PhotoListView'
 import { Button, ConfirmDialog, ErrorPanel, Loading, PromptDialog } from './ui'
@@ -78,11 +78,12 @@ export function AlbumsView({
 function AlbumCard({ album, onOpen }: { album: PhotoAlbum; onOpen: () => void }) {
   const { t } = useTranslation()
   const ref = useRef<HTMLButtonElement>(null)
+  const square = useRef<HTMLDivElement>(null)
   const onScreen = useOnScreen(ref)
-  const cover = useThumbnail(album.coverPath, onScreen)
+  const cover = useCoverUrl(album.coverPath, square, onScreen)
   return (
     <button ref={ref} type="button" onClick={onOpen} className="block w-full text-left">
-      <div className="aspect-square overflow-hidden rounded-lg bg-surface-3">
+      <div ref={square} className="aspect-square overflow-hidden rounded-lg bg-surface-3">
         {cover && <img src={cover} alt="" className="size-full object-cover" />}
       </div>
       <div className="mt-2 truncate text-sm font-medium text-text">{album.name}</div>

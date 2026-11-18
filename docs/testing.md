@@ -381,7 +381,7 @@ having executed **zero** tests).
 
 ⭐ The second lane is the valuable one and the least like anything native has: it drives the
 **real** runtime — IndexedDB, crypto, schema, sync wiring — in a real browser. A local realm
-("Just try it locally") needs no relay and no second device, which makes far more reproducible
+("Use without an account") needs no relay and no second device, which makes far more reproducible
 than it looks.
 
 ### 9.2 What a green web gate does NOT mean

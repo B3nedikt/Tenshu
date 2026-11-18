@@ -44,3 +44,12 @@ export function purchasePath(productId: string, signedIn: boolean): string {
     ? `/control/services/checkout/${productId}`
     : `/control/services/signup?return=checkout&product=${encodeURIComponent(productId)}`
 }
+
+/** Where choosing [tier] leads. */
+export function tierDestination(tier: Tier, signedIn: boolean): string {
+  // ⚠ A paid tier goes to the acknowledgement step, never straight to Stripe: the
+  // service refuses a checkout without it, and the customer has to have seen it.
+  return tier.productId === null
+    ? '/control/services/signup'
+    : purchasePath(tier.productId, signedIn)
+}

@@ -15,13 +15,13 @@ test KDocs that record a past flake, and four recent cases from public Linux CI.
 
 ## 1. The categories, with counts
 
-91 distinct flakes. "Open" includes *watch* rows and rows that were never diagnosed.
+92 distinct flakes. "Open" includes *watch* rows and rows that were never diagnosed.
 
 | | Category | Fixed | Open | The harness change that removes the class | State |
 |---|---|---:|---:|---|---|
 | **A** | **Sampling race**: a test reads `.value` once, at a moment it cannot name, or awaits one signal and asserts another | 13 | 1 | `awaitState(what, timeout) { predicate }` (`:core-test-utils`): returns the value to assert, and on timeout reports the last state and `elapsed / budget`. Order of remedies: `testing.md` §10.3 | ✅ helper shipped; adoption is per test |
 | **B** | **Leaked global state**: Koin, `Dispatchers.Main`, kotlinx-test's `ExceptionCollector`, uncancelled view models or scopes, a shared home directory | 11 | 5 | `scripts/check-test-koin.py` (gate + pre-commit): a test that starts the global Koin stops it, and none stops another class's. `OwnedViewModels` (§11). A per-run `user.home` (§7.2) | ✅ Koin check shipped; 11 sites fixed. Next: a teardown census that fails the *leaker* (`proposals/testing-leaked-scope-guard.md`) |
-| **C** | **Wall-clock bound**: `elapsed < N`, a 1 000 ms `waitUntil`, Mocha's 2 s, `usleep` used as an ordering | 9 | 0 | `scripts/check-test-wallclock.py` (gate + pre-commit): a ratchet. No test file may gain a real-time bound, `Duration.parse` budget or sleep; the way out is a written `wall-clock:` reason. For a Compose test over a real proxy: an `IdlingResource` on the producer (`RepositoryIdling`, §4) | ✅ shipped; 200 lines grandfathered (§3) |
+| **C** | **Wall-clock bound**: `elapsed < N`, a 1 000 ms `waitUntil`, Mocha's 2 s, `usleep` used as an ordering | 10 | 0 | `scripts/check-test-wallclock.py` (gate + pre-commit): a ratchet. No test file may gain a real-time bound, `Duration.parse` budget or sleep; the way out is a written `wall-clock:` reason. For a Compose test over a real proxy: an `IdlingResource` on the producer (`RepositoryIdling`, §4) | ✅ shipped; 200 lines grandfathered (§3) |
 | **D** | **Test double diverges from production**: dispatcher, lock, replay, who else calls, a fixture that froze what varies | 5 | 1 | Production-shaped defaults in the shared fixtures: `TestProxy` defaults to a real `TestDatabaseLock`; hand-stepped fixtures use `startBackgroundLoops = false`. Next: no defaulted `coroutineScope` on `TestProxy` (`tech-debt.md` "Wandering NPE") | partly built |
 | **E** | **Inert seam**: a harness parameter defaulting to null, so the test passes or hangs for the wrong reason | 1 | 0 | Rule: a seam the test depends on has no default. `RecentFilesFailureIntegrationTest` delegates to the platform chain instead of narrowing it | rule only |
 | **F** | **Platform assumption**: wildcard bind vs loopback, `/tmp` owned by root, the JS regex `u` flag, JS `Float`, no tz database, a `JAVA_TOOL_OPTIONS` banner, `chmod` under root | 10 | 0 | Bind `127.0.0.1`; one JS exclusion list read by both gate and CI; the Linux-container method in `tech-debt.md` "Every JVM test on Linux, run ahead of CI" | method, no gate (no Linux lane, by decision) |
@@ -30,14 +30,14 @@ test KDocs that record a past flake, and four recent cases from public Linux CI.
 | **I** | **Build step**, not a test (`*:packageDebug`) | 1 | 1 | Outside the test harness | — |
 | **R** | **Random test input**: a random swap that matched the checksum 1 time in 16 | 1 | 0 | Fixed vectors. A seeded-`Random` rule is cheap to check and not yet written | rule only |
 | **U** | **Undiagnosed** | 0 | 12 | Instrument, don't hypothesise: `elapsed / budget` on every wait (`awaitState`, `TestSystem.advanceUntil`), `PagingSettleProbe` at the next hang site | — |
-| | **Total** | **69** | **22** | | |
+| | **Total** | **70** | **22** | | |
 
 Read the table this way:
 
 - **H is the largest fixed bucket**, as `tech-debt.md` already concluded: most members that were
   diagnosed turned out not to be load. So the harness does not make a red go away. It makes a red
   *about the code*.
-- **A, B, C and G are the classes a harness can close**, and together they are 31 of the 65 fixed.
+- **A, B, C and G are the classes a harness can close**, and together they are 36 of the 70 fixed.
   Each fix used to be one test at a time. Each now has a mechanism that stops the next instance.
 - **Nothing here retries, shuffles or loosens.** The two verdicts this doc rules out by method are
   "flaky, retry it" and "slow machine, raise the timeout". `tech-debt.md`'s method section says

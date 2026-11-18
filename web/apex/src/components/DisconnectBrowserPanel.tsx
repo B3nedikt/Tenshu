@@ -4,7 +4,7 @@
 //
 // ⚠⚠ Why each part exists:
 //  - **The acknowledgement checkbox.** The disconnect destroys this browser's copy of the realm.
-//    For a realm made here ("Just try it locally", or the first device) that may be the only copy,
+//    For a realm made here ("Use without an account", or the first device) that may be the only copy,
 //    and from the lock screen the phrase cannot be shown first. One accidental click must not be
 //    enough.
 //  - **The busy state.** The removal waits up to 8 s for the relay. With no feedback, people reload —

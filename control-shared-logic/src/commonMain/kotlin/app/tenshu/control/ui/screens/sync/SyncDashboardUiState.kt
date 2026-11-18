@@ -47,4 +47,14 @@ data class SyncDashboardUiState(
      * successful readmit would be nothing at all.
      */
     val notice: String? = null,
+    /**
+     * Whether THIS device holds the recovery phrase; `null` until it has answered. Removing
+     * another device needs the realm's master key (A1, derived from the phrase), so a device added
+     * by pairing — which never receives it — can remove only itself. The roster says so up front
+     * when this is `false`, rather than after a Touch ID prompt and a refusal.
+     *
+     * ⚠ A hint, not a gate: a device can hold A1 in memory without the phrase, so the Remove
+     * action stays offered and the op remains the authority (`RecoveryPhraseRequiredError`).
+     */
+    val holdsRecoveryPhrase: Boolean? = null,
 )

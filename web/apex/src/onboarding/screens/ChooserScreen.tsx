@@ -1,28 +1,17 @@
-// §8.1 Apex Welcome — first-time chooser, ported to the low-friction
-// redesign (`docs/proposals/onboarding-low-friction.md` §8.1, web-roadmap
-// 6.6). Browsers are not durable storage the way phones are, so — unlike
-// native, where the equal-weight chooser defers signup — the web surface
-// prompts signup eagerly: `[Sign up free]` is the primary CTA. The genuine
-// deferral, `[Just try it locally]`, is the *third* CTA (quiet link) because
-// the cost of deferring is much higher on web (a browser profile can be
-// cleared at any time). All three are framed as sync-enablement, not
-// access-gating.
+// §8.1 Apex Welcome — first-time chooser (`docs/proposals/onboarding-low-friction.md`
+// §8.1). No body copy: the landing page has already made the pitch.
 //
-//   [Sign up free]            primary    → create the realm, then §5.1 picker
-//   [I have Tenshu already]   secondary  → existing-device pairing (§4a)
-//   [Just try it locally]     tertiary   → Try-mode (§8.2): realm only, the
-//                                          non-dismissible TryModeBanner nags
+//   [Create an account]       primary    → create the realm, passkey, plan step
+//   [I already use Tenshu]    primary    → existing-device pairing (§4a)
+//   Use without an account    footer link → Try-mode (§8.2): realm only, the
+//                                           non-dismissible TryModeBanner nags
+//
+// The two primary actions carry equal weight on purpose: most web users arrive
+// with the app already on a phone or computer, so pairing is not a secondary
+// path. Try-mode is an expert path and stays a quiet link.
 import { useTranslation } from 'react-i18next'
 import { MarkOutline } from '../../components/marks/Outline'
-import {
-  LinkButton,
-  OnboardingActions,
-  OnboardingCard,
-  OnboardingProse,
-  OnboardingTitle,
-  PrimaryButton,
-  SecondaryButton,
-} from '../OnboardingShell'
+import { LinkButton, OnboardingCard, OnboardingTitle } from '../OnboardingShell'
 
 export function ChooserScreen({
   onSignUp,
@@ -39,20 +28,45 @@ export function ChooserScreen({
       <div className="flex justify-center">
         <MarkOutline size={96} aria-label={t('chooser.markAriaLabel')} />
       </div>
-      <div className="mt-6">
+      <div className="mt-6 text-center">
         <OnboardingTitle>{t('chooser.title')}</OnboardingTitle>
       </div>
-      <OnboardingProse>
-        <p>{t('chooser.body1')}</p>
-        <p>{t('chooser.body2')}</p>
-      </OnboardingProse>
-      <OnboardingActions>
-        <PrimaryButton onClick={onSignUp}>{t('chooser.actionSignUp')}</PrimaryButton>
-        <SecondaryButton onClick={onExisting}>{t('chooser.actionHaveTenshu')}</SecondaryButton>
-      </OnboardingActions>
-      <div className="mt-4">
+      <div className="mt-8 grid gap-3 sm:grid-cols-2">
+        <ChoiceButton
+          prompt={t('chooser.signUpPrompt')}
+          label={t('chooser.actionSignUp')}
+          onClick={onSignUp}
+        />
+        <ChoiceButton
+          prompt={t('chooser.haveTenshuPrompt')}
+          label={t('chooser.actionHaveTenshu')}
+          onClick={onExisting}
+        />
+      </div>
+      <div className="mt-6 text-center">
         <LinkButton onClick={onTryLocally}>{t('chooser.actionTryLocally')}</LinkButton>
       </div>
     </OnboardingCard>
+  )
+}
+
+function ChoiceButton({
+  prompt,
+  label,
+  onClick,
+}: {
+  readonly prompt: string
+  readonly label: string
+  readonly onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex flex-col items-center gap-1 rounded-lg bg-primary px-4 py-4 text-on-primary shadow-sm transition-colors hover:bg-primary/90"
+    >
+      <span className="text-xs opacity-80">{prompt}</span>
+      <span className="text-sm font-semibold">{label}</span>
+    </button>
   )
 }

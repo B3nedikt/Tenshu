@@ -38,6 +38,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -47,6 +48,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -61,6 +64,8 @@ import app.tenshu.mia.shared.resources.mia_chat_greeting_title
 import app.tenshu.mia.shared.resources.mia_chat_input_hint
 import app.tenshu.mia.shared.resources.mia_chat_send
 import app.tenshu.mia.shared.resources.mia_chat_typing
+import app.tenshu.mia.shared.resources.mia_chat_clarify_other
+import app.tenshu.mia.shared.resources.mia_chat_clarify_answer_hint
 import app.tenshu.mia.shared.resources.mia_chat_listening
 import app.tenshu.mia.shared.resources.mia_chat_voice
 import app.tenshu.mia.shared.resources.mia_chat_voice_stop
@@ -83,6 +88,9 @@ fun ChatScreen(viewModel: ChatViewModel) {
     // voiceInput = true — constant false until the voice pipeline lands.
     val koin = getKoin()
     val capabilities = remember(koin) { koin.getOrNull<MiaCapabilities>() ?: MiaCapabilities() }
+    // §25: "Other…" on Mia's question puts the cursor in the composer, whose next send is the reply.
+    val composer = remember { FocusRequester() }
+    val asking = state.messages.lastOrNull()?.body.let { it is MessageBody.Clarification && it.open }
 
     // Keep the newest message in view as the thread grows.
     LaunchedEffect(state.messages.size, state.replying) {
@@ -115,6 +123,9 @@ fun ChatScreen(viewModel: ChatViewModel) {
                         message,
                         onConfirm = viewModel::confirm,
                         onOpen = viewModel::openHit,
+                        onChoose = viewModel::answer,
+                        onAlternative = viewModel::alternative,
+                        onOther = { composer.requestFocus() },
                     )
                 }
                 if (state.replying) {
@@ -139,13 +150,17 @@ fun ChatScreen(viewModel: ChatViewModel) {
                 placeholder = {
                     Text(
                         stringResource(
-                            if (state.listening) Res.string.mia_chat_listening
-                            else Res.string.mia_chat_input_hint,
+                            when {
+                                state.listening -> Res.string.mia_chat_listening
+                                // ⚠ Says the next send answers Mia's question, not a new one.
+                                asking -> Res.string.mia_chat_clarify_answer_hint
+                                else -> Res.string.mia_chat_input_hint
+                            },
                         ),
                     )
                 },
                 singleLine = true,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).focusRequester(composer),
             )
             // AV-1: shown only where a platform bound an ON-DEVICE recogniser (IN-D11). The
             // capability flag and the binding move together, so a mic can never appear without
@@ -202,6 +217,11 @@ fun MessageRow(
     message: MiaMessage,
     onConfirm: (String) -> Unit = {},
     onOpen: (Hit) -> Unit = {},
+    onChoose: (MessageBody.Clarification, MessageBody.Choice) -> Unit = { _, _ -> },
+    onAlternative: (MessageBody.Confirmation, MessageBody.Choice) -> Unit = { _, _ -> },
+    onOther: () -> Unit = {},
+    /** ⚠ False in History: a past question's chips must not look like they could still answer. */
+    interactive: Boolean = true,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -214,7 +234,10 @@ fun MessageRow(
                 is MessageBody.PlaceCard -> PlaceCardCell(body)
                 is MessageBody.DeviceAck -> DeviceAckCell(body)
                 is MessageBody.Citations -> CitationsCell(body, onOpen)
-                is MessageBody.Confirmation -> ConfirmationCell(body, onConfirm)
+                is MessageBody.Confirmation ->
+                    ConfirmationCell(body, interactive, onConfirm, onAlternative = { onAlternative(body, it) })
+                is MessageBody.Clarification ->
+                    ClarificationCell(body, open = interactive && body.open, onChoose = { onChoose(body, it) }, onOther = onOther)
             }
         }
     }
@@ -227,8 +250,14 @@ fun MessageRow(
  * and letting the resolution land unseen is the failure this exists to prevent, and it matters
  * far more once voice lands: a spoken interface has no undo and no hover state.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ConfirmationCell(body: MessageBody.Confirmation, onConfirm: (String) -> Unit) {
+private fun ConfirmationCell(
+    body: MessageBody.Confirmation,
+    interactive: Boolean,
+    onConfirm: (String) -> Unit,
+    onAlternative: (MessageBody.Choice) -> Unit,
+) {
     Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceVariant) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(body.title, style = MaterialTheme.typography.bodyLarge)
@@ -242,10 +271,69 @@ private fun ConfirmationCell(body: MessageBody.Confirmation, onConfirm: (String)
             TextButton(
                 onClick = { onConfirm(body.token) },
                 // ⚠ Spent confirmations cannot be re-tapped. The proxy refuses a used token
-                // too, so this is politeness rather than the control.
-                enabled = !body.done,
+                // too, so this is politeness rather than the control. A replaced card (CL-D6)
+                // cannot be confirmed either: its alternative minted the card that can.
+                enabled = interactive && !body.done && !body.replaced,
             ) {
-                Text(if (body.done) "Done" else "Confirm")
+                Text(
+                    when {
+                        body.done -> "Done"
+                        body.replaced -> "Changed"
+                        else -> "Confirm"
+                    },
+                )
+            }
+            // ⭐ §25 CL-D6: "20:00 instead?" for a bare hour. A tap replaces this card, never writes.
+            if (body.alternatives.isNotEmpty() && !body.done && !body.replaced) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    body.alternatives.forEach { choice ->
+                        SuggestionChip(
+                            onClick = { onAlternative(choice) },
+                            label = { Text(choice.label) },
+                            enabled = interactive,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Mia asking back (`mia-query-layer.md` §25): the question, a chip per canned reply, and "Other…",
+ * which focuses the composer for an answer in the user's own words.
+ *
+ * ⚠ A tap never writes. It sends the chip's reply and the answer is a confirmation card or another
+ * question; MQ-D7's card stays the only path to a change.
+ * ⚠ Once answered or superseded the chips render disabled ([MessageBody.Clarification.open]): a
+ * stale chip must not look like it could still answer.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ClarificationCell(
+    body: MessageBody.Clarification,
+    open: Boolean,
+    onChoose: (MessageBody.Choice) -> Unit,
+    onOther: () -> Unit,
+) {
+    Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceVariant) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(body.question, style = MaterialTheme.typography.bodyLarge)
+            if (body.choices.isNotEmpty()) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    body.choices.forEach { choice ->
+                        SuggestionChip(
+                            onClick = { onChoose(choice) },
+                            label = { Text(choice.label) },
+                            enabled = open,
+                        )
+                    }
+                    SuggestionChip(
+                        onClick = onOther,
+                        label = { Text(stringResource(Res.string.mia_chat_clarify_other)) },
+                        enabled = open,
+                    )
+                }
             }
         }
     }

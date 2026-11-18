@@ -192,7 +192,7 @@ struct SyncDashboardView: View {
             // identity**: the hardware can be set up again, but it joins as a NEW device and does
             // not recover its name, its per-device settings or its place in this list. Copy that
             // implies recovery strands exactly the user who trusted it.
-            Text("It loses access to your realm. This cannot be undone — the hardware can be set up again, but it joins as a new device.\n\n\(device.id)")
+            Text("It loses access to your realm. This cannot be undone. The hardware can be set up again, but it joins as a new device.\n\n\(device.id)")
         }
         .sheet(item: $pendingRemoval) { removal in
             RemoveWithAdmitteesSheet(removal: removal) { alsoRemove in
@@ -360,7 +360,7 @@ private struct RemoveWithAdmitteesSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    Text("\(deviceName) loses access to your realm. This cannot be undone — the hardware can be set up again, but it joins as a new device.")
+                    Text("\(deviceName) loses access to your realm. This cannot be undone. The hardware can be set up again, but it joins as a new device.")
                     Text(removal.device.id)
                         .font(.caption2)
                         .foregroundStyle(.secondary)

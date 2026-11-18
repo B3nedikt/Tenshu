@@ -364,6 +364,34 @@ class PhotosLibraryContractTest : SdkRuntimeTest() {
         assertNotNull(kept, "deleting an album touches no photograph")
     }
 
+    // ⚠⚠ The Albums page showed "This list stopped updating" for anyone with a photo in an album: the
+    // entries stream selected no KEY, the field its rows' DataIds come from, and died on the first
+    // entry. An EMPTY album never reaches it — which is why the rename test below stayed green.
+    @Test
+    fun observeAlbumsStaysOpenOverAnAlbumWithPhotos() = runTest {
+        val dir = folder()
+        val a = seed(dir, "open.jpg", window() + 1)
+        val albumId = ok(Photos.createAlbum("Open ${stamp()}"), "createAlbum").albumId as String
+        ok(Photos.addToAlbum(albumId, a), "add a")
+        val ended = mutableListOf<String>()
+        var counted: Int? = null
+        val stop = Photos.observeAlbums(
+            { result ->
+                val row = (result.albums as Array<dynamic>?)?.firstOrNull { it.albumId == albumId }
+                if (row != null) counted = row.photoCount as Int
+            },
+            { ended += it },
+        )
+        try {
+            // ⚠ Real time: the stream crosses a JS dispatcher the test scheduler cannot advance.
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { kotlinx.coroutines.delay(2_000) }
+            assertEquals(emptyList<String>(), ended, "the stream must not end")
+            assertEquals(1, counted, "and it pushed the album with its photo")
+        } finally {
+            stop()
+        }
+    }
+
     @Test
     fun observeAlbumsPushesARename_notOnlyMembershipChanges() = runTest {
         val albumId = ok(Photos.createAlbum("Before ${stamp()}"), "createAlbum").albumId as String
@@ -390,6 +418,124 @@ class PhotosLibraryContractTest : SdkRuntimeTest() {
                 }
             }
             assertEquals(true, pushed, "a rename must reach an observeAlbums subscriber; saw $seen")
+        } finally {
+            stop()
+        }
+    }
+
+    // ── people (named only, §42.7) ────────────────────────────────────────────────────────────
+
+    /** A label as `NameFaceGroupImplementation` writes it — or, with another capability, a model's tag. */
+    private fun label(path: String, name: String, capability: org.tenshu.inference.InferenceCapability) {
+        val ec = JsRuntime.executionContext
+        ec.saveData(
+            org.tenshu.core.entity.Entity.create<org.tenshu.inference.MediaLabel>(
+                context = ec.context,
+                composite = org.tenshu.inference.MediaLabel.create(
+                    context = ec.context,
+                    filePath = path,
+                    capability = capability,
+                    label = name,
+                    confidencePerMille = 1_000,
+                    producedBy = org.tenshu.inference.ModelProvenance.User,
+                ),
+            ),
+        )
+    }
+
+    private suspend fun person(name: String): dynamic =
+        ok(Photos.people(), "people").people.unsafeCast<Array<dynamic>>().firstOrNull { it.name == name }
+
+    @Test
+    fun aNamedPersonIsListedWithTheirLivePhotographs_andNothingElseIs() = runTest {
+        val dir = folder()
+        val t = window()
+        val older = seed(dir, "anna-1.jpg", t + 1)
+        val newer = seed(dir, "anna-2.jpg", t + 2)
+        val gone = seed(dir, "anna-3.jpg", t + 3)
+        val anna = "Anna ${stamp()}"
+        val face = org.tenshu.inference.InferenceCapability.FACE_CLUSTERING
+        label(older, anna, face)
+        label(newer, anna, face)
+        label(gone, anna, face)
+        // Never a person: the index marker, and a model's tag under another capability.
+        label(older, org.tenshu.inference.INDEX_MARKER_LABEL, face)
+        val tag = "Beach ${stamp()}"
+        label(older, tag, org.tenshu.inference.InferenceCapability.CONTENT_TAGGING)
+        ok(Photos.trash(gone), "trash")
+
+        val listed = assertNotNull(person(anna), "a named person is listed")
+        assertEquals(2, listed.photoCount, "a trashed photograph no longer counts")
+        assertEquals(newer, listed.coverPath, "the cover is the newest photograph")
+        assertEquals(null, person(tag), "a model's tag is not a person")
+        assertEquals(null, person(org.tenshu.inference.INDEX_MARKER_LABEL), "the index marker is not a person")
+        val photos = ok(Photos.personPhotos(anna), "personPhotos").photos.unsafeCast<Array<dynamic>>().map { it.path as String }
+        assertEquals(listOf(newer, older), photos, "their photographs, newest first")
+        assertEquals(0, ok(Photos.personPhotos("Nobody ${stamp()}"), "unknown").photos.unsafeCast<Array<dynamic>>().size)
+    }
+
+    // ⚠⚠ The Albums lesson (`web-apps-layout.md` §4.11): a push stream whose select lacks its DataId
+    // field dies on the first row. This one must stay open over a named photograph, and push a name.
+    @Test
+    fun observePeopleStaysOpenAndPushesANewName() = runTest {
+        val dir = folder()
+        val p = seed(dir, "bo.jpg", window() + 1)
+        val bo = "Bo ${stamp()}"
+        val ended = mutableListOf<String>()
+        var counted: Int? = null
+        val stop = Photos.observePeople(
+            { result ->
+                val row = (result.people as Array<dynamic>?)?.firstOrNull { it.name == bo }
+                if (row != null) counted = row.photoCount as Int
+            },
+            { ended += it },
+        )
+        try {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                kotlinx.coroutines.delay(500)
+                label(p, bo, org.tenshu.inference.InferenceCapability.FACE_CLUSTERING)
+                kotlinx.coroutines.delay(2_000)
+            }
+            assertEquals(emptyList<String>(), ended, "the stream must not end")
+            assertEquals(1, counted, "and the new name was pushed")
+        } finally {
+            stop()
+        }
+    }
+
+    // ⚠⚠ An indexing pass syncs a marker per file and content tags; each push re-reads People, so
+    // only a change to the NAMES may push. A trash moves a count, so it must.
+    @Test
+    fun observePeopleIgnoresMarkersAndTags_butPushesATrash() = runTest {
+        val dir = folder()
+        val p = seed(dir, "cy.jpg", window() + 1)
+        val cy = "Cy ${stamp()}"
+        val face = org.tenshu.inference.InferenceCapability.FACE_CLUSTERING
+        label(p, cy, face)
+        var pushes = 0
+        var present: Boolean? = null
+        val ended = mutableListOf<String>()
+        val stop = Photos.observePeople(
+            { result ->
+                pushes++
+                present = (result.people as Array<dynamic>?)?.any { it.name == cy }
+            },
+            { ended += it },
+        )
+        try {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                kotlinx.coroutines.delay(1_000)
+                val settled = pushes
+                assertEquals(true, present, "precondition: the named person is pushed")
+                label(p, org.tenshu.inference.INDEX_MARKER_LABEL, face)
+                label(p, "Tag ${stamp()}", org.tenshu.inference.InferenceCapability.CONTENT_TAGGING)
+                kotlinx.coroutines.delay(1_000)
+                assertEquals(settled, pushes, "a marker or a tag must not re-read People")
+                ok(Photos.trash(p), "trash")
+                kotlinx.coroutines.delay(1_500)
+            }
+            assertEquals(emptyList<String>(), ended)
+            assertEquals(false, present, "trashing their only photograph takes the person off the list")
         } finally {
             stop()
         }

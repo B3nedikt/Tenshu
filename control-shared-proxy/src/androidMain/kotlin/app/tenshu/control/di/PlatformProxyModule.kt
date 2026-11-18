@@ -61,6 +61,7 @@ import org.tenshu.core.common.module.coreCommonAndroidModule
 import org.tenshu.core.common.proxy.AndroidClientConnection
 import org.tenshu.core.common.proxy.AndroidFileDatabase
 import org.tenshu.inference.proxy.AndroidIndexingConditions
+import org.tenshu.inference.proxy.AnimalVeto
 import org.tenshu.inference.proxy.IndexingConditions
 import org.tenshu.inference.proxy.InferenceBackend
 import org.tenshu.inference.proxy.onnx.AndroidImageDecoder
@@ -68,6 +69,7 @@ import org.tenshu.inference.proxy.onnx.OnnxInferenceBackend
 import org.tenshu.inference.proxy.catalog.ModelArtifactRole
 import org.tenshu.inference.proxy.onnx.FaceModel
 import org.tenshu.inference.proxy.onnx.MediaPipeFaceBackend
+import org.tenshu.inference.proxy.onnx.OnnxAnimalDetector
 import org.tenshu.inference.proxy.catalog.SUPPORTED_RUNTIMES
 import org.tenshu.inference.proxy.onnx.OnnxModelFiles
 import org.tenshu.core.common.proxy.AndroidFileDatabaseImpl
@@ -646,6 +648,11 @@ val platformProxyModule = module {
                 locateEmbedder = OnnxModelFiles.faceStoreLocator(
                     get(), root, ModelArtifactRole.FACE_EMBEDDER, FaceModel.PinnedAuraFace,
                 ),
+                // Pets PT-2c (`photos-pets.md` §10.2–§10.3): a face inside a confident cat or dog box is
+                // not a person. ⚠ Effective only once the device holds the detector (its own catalog
+                // row); its arrival moves the face stamp 22 → 72, which re-indexes People once.
+                animalVeto = AnimalVeto.Proposed,
+                animalDetector = OnnxAnimalDetector(locate = OnnxModelFiles.animalDetectorStoreLocator(get(), root)),
             ),
         )
     }

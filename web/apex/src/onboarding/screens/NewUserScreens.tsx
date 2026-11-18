@@ -3,19 +3,18 @@
 // readable and the copy can be cross-referenced against UX §4b.
 //
 // State flow (single mount, no URL changes), post web-roadmap 6.6:
-//   §4b.1 Intro          → IntroScreen
 //   §4b.2 Generate       → GenerateRealmScreen (1.2s spinner; auto-advance)
 //   §4b.x Commit         → CommittingRealmScreen (Realm.create)
 // On commit success the orchestrator transitions straight into the shared
-// tail (passkey → browser sync → explainer → storage tier). The phrase
+// tail (passkey → get the apps → plan). The phrase
 // show + confirm screens moved to Settings → Set up account recovery
 // (`control/recovery/RecoveryCaptureScreens.tsx`, §7.4) — per the
 // low-friction redesign the phrase is generated here but no longer shown.
 //
 // Per UX §7.1 the mnemonic only persists once `Realm.create` resolves.
 // Closing the tab before commit leaves no trace.
-import { useEffect, useRef, useState } from 'react'
-import { Trans, useTranslation } from 'react-i18next'
+import { useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Bip39 } from '@tenshu/sdk/core'
 import { useOnboardingSdk } from '../../lib/useOnboardingSdk'
 import {
@@ -26,38 +25,7 @@ import {
   OnboardingProse,
   OnboardingTitle,
   PrimaryButton,
-  SecondaryButton,
 } from '../OnboardingShell'
-
-export function IntroScreen({
-  onContinue,
-}: {
-  readonly onContinue: () => void
-}) {
-  const { t } = useTranslation('onboarding')
-  return (
-    <OnboardingCard>
-      <OnboardingTitle>{t('newUser.intro.title')}</OnboardingTitle>
-      <OnboardingProse>
-        <p>
-          <Trans ns="onboarding" i18nKey="newUser.intro.body1" components={{ em: <em /> }} />
-        </p>
-        <p>{t('newUser.intro.body2')}</p>
-      </OnboardingProse>
-      <OnboardingActions>
-        <PrimaryButton onClick={onContinue}>{t('newUser.intro.continue')}</PrimaryButton>
-        <a
-          href="https://tenshu.app/about"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-sm font-medium text-text-2 underline-offset-4 hover:text-text hover:underline"
-        >
-          {t('newUser.intro.tellMeMore')}
-        </a>
-      </OnboardingActions>
-    </OnboardingCard>
-  )
-}
 
 export function GenerateRealmScreen({
   onReady,
@@ -158,52 +126,6 @@ export function RealmCreateFailedScreen({
         <LinkButton onClick={onCancel}>{t('newUser.commitFailed.cancel')}</LinkButton>
       </OnboardingActions>
       <Hint>{t('newUser.commitFailed.networkHint')}</Hint>
-    </OnboardingCard>
-  )
-}
-
-export function DeviceNameScreen({
-  defaultName,
-  onContinue,
-  onBack,
-}: {
-  readonly defaultName: string
-  readonly onContinue: (name: string) => void
-  readonly onBack?: () => void
-}) {
-  const { t } = useTranslation('onboarding')
-  // The UX spec defaults the device name to "This Browser" when the user
-  // declines to set one (§3.1's `{device_name}` substitution). Asking
-  // here is a small kindness so the device list reads better.
-  const [name, setName] = useState(defaultName)
-  const trimmed = name.trim()
-  return (
-    <OnboardingCard>
-      <OnboardingTitle>{t('newUser.deviceName.title')}</OnboardingTitle>
-      <OnboardingProse>
-        <p>{t('newUser.deviceName.body')}</p>
-      </OnboardingProse>
-      <label className="mt-6 block">
-        <span className="block text-xs font-medium text-text-2">
-          {t('newUser.deviceName.fieldLabel')}
-        </span>
-        <input
-          type="text"
-          autoFocus
-          value={name}
-          maxLength={64}
-          onChange={e => setName(e.target.value)}
-          className="mt-1 w-full rounded-md border border-line bg-surface-2 px-3 py-2 text-sm shadow-sm"
-        />
-      </label>
-      <OnboardingActions>
-        <PrimaryButton onClick={() => onContinue(trimmed === '' ? defaultName : trimmed)}>
-          {t('newUser.deviceName.continue')}
-        </PrimaryButton>
-        {onBack !== undefined && (
-          <SecondaryButton onClick={onBack}>{t('newUser.deviceName.back')}</SecondaryButton>
-        )}
-      </OnboardingActions>
     </OnboardingCard>
   )
 }

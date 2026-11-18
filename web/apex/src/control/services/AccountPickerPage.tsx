@@ -4,7 +4,7 @@
 // CE-4); redeeming a code now has its own entry below the tiers.
 import { Link, useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { TIERS, tierStorageLabel, type Tier, purchasePath } from './tiers'
+import { TIERS, tierDestination, tierStorageLabel, type Tier } from './tiers'
 import { usePublisherAccount } from './publisherContext'
 
 export function AccountPickerPage() {
@@ -30,7 +30,10 @@ export function AccountPickerPage() {
       <div className="mt-4 text-center">
         <button
           type="button"
-          onClick={() => navigate(-1)}
+          // Not `navigate(-1)`: onboarding reaches this page with `replace`, so
+          // the previous history entry is whatever preceded `/onboarding` —
+          // usually the public landing page.
+          onClick={() => navigate('/control/services')}
           className="text-sm text-text-2 underline-offset-4 hover:text-text hover:underline"
         >
           {t('services.picker.cancel')}
@@ -40,15 +43,31 @@ export function AccountPickerPage() {
   )
 }
 
-function TierCard({ tier, signedIn }: { readonly tier: Tier; readonly signedIn: boolean }) {
+/**
+ * One plan card. With [onChoose] the action is a button handing back the
+ * destination instead of a link — onboarding has to finish its session before
+ * it can navigate there.
+ */
+export function TierCard({
+  tier,
+  signedIn,
+  onChoose,
+}: {
+  readonly tier: Tier
+  readonly signedIn: boolean
+  readonly onChoose?: (to: string) => void
+}) {
   const { t } = useTranslation('control')
   const free = tier.productId === null
-  // ⚠ A paid tier goes to the acknowledgement step, never straight to Stripe: the
-  // service refuses a checkout without it, and the customer has to have seen it.
-  const to =
-    tier.productId === null
-      ? '/control/services/signup'
-      : purchasePath(tier.productId, signedIn)
+  const to = tierDestination(tier, signedIn)
+  const actionClass = free
+    ? 'inline-flex rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-on-primary hover:bg-primary/90'
+    : 'inline-flex rounded-md border border-line px-3 py-1.5 text-sm font-medium text-text hover:bg-surface-3'
+  const actionLabel = free
+    ? signedIn
+      ? t('services.picker.tiers.free.ctaSignedIn')
+      : t('services.picker.tiers.free.cta')
+    : t('services.picker.choose')
   return (
     <section
       className={
@@ -69,20 +88,15 @@ function TierCard({ tier, signedIn }: { readonly tier: Tier; readonly signedIn: 
         {t(`services.picker.tiers.${tier.id}.body`, { storage: tierStorageLabel(tier) })}
       </p>
       <div className="mt-3">
-        <Link
-          to={to}
-          className={
-            free
-              ? 'inline-flex rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-on-primary hover:bg-primary/90'
-              : 'inline-flex rounded-md border border-line px-3 py-1.5 text-sm font-medium text-text hover:bg-surface-3'
-          }
-        >
-          {free
-            ? signedIn
-              ? t('services.picker.tiers.free.ctaSignedIn')
-              : t('services.picker.tiers.free.cta')
-            : t('services.picker.choose')}
-        </Link>
+        {onChoose === undefined ? (
+          <Link to={to} className={actionClass}>
+            {actionLabel}
+          </Link>
+        ) : (
+          <button type="button" onClick={() => onChoose(to)} className={actionClass}>
+            {actionLabel}
+          </button>
+        )}
       </div>
     </section>
   )

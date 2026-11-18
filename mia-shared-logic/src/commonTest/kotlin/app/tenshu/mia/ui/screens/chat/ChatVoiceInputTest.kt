@@ -131,6 +131,28 @@ class ChatVoiceInputTest {
         assertEquals(1, voice.stops)
     }
 
+    /** ⚠ A chip is a send too: it must not leave the microphone open behind the answer (Codex review). */
+    @Test
+    fun answeringAChipWhileListeningClosesTheMicrophone() = vmTest { vms ->
+        val repo = Repo()
+        val voice = FakeVoice()
+        val viewModel = vms.own(ChatViewModel(repo, voice))
+        viewModel.toggleListening()
+        voice.partial.value = "at nin"
+
+        val question = app.tenshu.mia.model.MessageBody.Clarification(
+            question = "What time tomorrow?",
+            choices = listOf(app.tenshu.mia.model.MessageBody.Choice("Morning 09:00", "2026-07-16T09:00")),
+            token = "t-1",
+        )
+        viewModel.answer(question, question.choices.single())
+
+        assertFalse(viewModel.uiState.value.listening)
+        assertEquals(1, voice.stops)
+        assertEquals("", viewModel.uiState.value.input, "the half-dictated answer the chip replaced is cleared")
+        assertEquals(listOf("Morning 09:00"), repo.sent, "the default answer sends the label")
+    }
+
     @Test
     fun theMicIsInertWhileMiaIsReplying() = vmTest { vms ->
         val voice = FakeVoice()

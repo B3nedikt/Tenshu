@@ -103,6 +103,7 @@ data class IndexPassResult(
      *
      * ⚠ Counted apart from [facesEmbedded]: a detector that finds faces the embedder then refuses
      * is a very different failure from one that finds none, and a single number hides which.
+     * ⚠ After any animal veto: [facesInsideAnimals] are not in it.
      */
     val facesFound: Int = 0,
     /**
@@ -123,6 +124,8 @@ data class IndexPassResult(
     val facesEmbedded: Int = 0,
     /** Detections the embedder judged not a human face and left out (§12.15) — a cat, a doll, food. */
     val facesNotHuman: Int = 0,
+    /** Detections the backend's animal veto removed before embedding (`photos-pets.md` PT-D9): a face inside a cat or dog. */
+    val facesInsideAnimals: Int = 0,
     /**
      * Photographs the detector was run over.
      *
@@ -658,6 +661,7 @@ class MediaIndexer(
         var facesFound = 0
         var facesEmbedded = 0
         var facesNotHuman = 0
+        var facesInsideAnimals = 0
         var photosSearchedForFaces = 0
         var facesSkippedOff = 0
         var facesFailed = 0
@@ -862,6 +866,7 @@ class MediaIndexer(
                     // and no future pass needs to open it again.
                     is FaceDetectionOutcome.Detected -> {
                         facesFound += detection.faces.size
+                        facesInsideAnimals += detection.insideAnimals
                         // ⚠⚠ **All of them, or none of them.** `embedFace` documents `null` as "the
                         // model could not run" — never "not a face" — because whether these bytes
                         // decode was already settled by `detectFaces`. So dropping the failures and
@@ -987,6 +992,7 @@ class MediaIndexer(
             facesFound = facesFound,
             facesEmbedded = facesEmbedded,
             facesNotHuman = facesNotHuman,
+            facesInsideAnimals = facesInsideAnimals,
             photosSearchedForFaces = photosSearchedForFaces,
             deferred = deferred,
             faceHalf = faceHalf,

@@ -14,7 +14,7 @@ export default tenshuAppConfig({
   manifest: {
     id: 'home',
     name: 'Home',
-    description: 'Your devices, automations and activity — view only, end-to-end encrypted.',
+    description: 'Your devices, automations and activity. View only, end-to-end encrypted.',
     // ⚠ Read only (web-app-suite.md §8 items 2 and 9): there is no write to declare.
     semanticPermissions: [
       {

@@ -143,7 +143,12 @@ object Session {
         }
         val store = JsRuntime.sessionStore
         store.setPasskey(credentialId, publicKey, algorithm)
-        store.flush()
+        // ⚠⚠ A refused write (this tab gave the runtime up, or another tab claimed it) leaves the
+        // passkey in this page's cache only: unlock keeps working until the reload, then the browser
+        // has a device name and no passkey, and every passkey the user owns is rejected.
+        if (!store.flush()) {
+            return@promise resultErr("passkey not saved: this tab no longer holds the Tenshu runtime")
+        }
 
         // Phase 5 producer: wrap the master keypair (asset A1) under the
         // PRF output if both are available. The master keypair is in

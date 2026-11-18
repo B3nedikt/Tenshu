@@ -28,10 +28,10 @@
       },
       "contacts": {
         "label": "Kontakte",
-        "description": "Die Menschen, die du kennst – Ende-zu-Ende-verschlüsselt."
+        "description": "Die Menschen, die du kennst, Ende-zu-Ende-verschlüsselt."
       }
     },
-    "control": "Control – Geräte, Daten, Speicher",
+    "control": "Control: Geräte, Daten, Speicher",
     "yourApps": "Deine Apps …"
   },
   "overview": {
@@ -178,7 +178,7 @@
     "requestFailed": "Synchronisierung konnte nicht gestartet werden.",
     "pause": "Pausieren",
     "resume": "Fortsetzen",
-    "pausedNote": "In diesem Browser pausiert. Änderungen bleiben hier, bis du fortsetzt – deine anderen Geräte synchronisieren weiter.",
+    "pausedNote": "In diesem Browser pausiert. Änderungen bleiben hier, bis du fortsetzt. Deine anderen Geräte synchronisieren weiter.",
     "state": {
       "checking": "Wird geprüft",
       "synced": "Synchronisiert",
@@ -200,22 +200,22 @@
   },
   "disconnectBrowser": {
     "title": "Diesen Browser trennen?",
-    "body1": "Dadurch wird {deviceName} aus deinem Realm entfernt, und alle in diesem Browser gespeicherten Tenshu-Daten werden gelöscht – auch sein Tenshu-Passkey.",
+    "body1": "Dadurch wird {deviceName} aus deinem Realm entfernt, und alle in diesem Browser gespeicherten Tenshu-Daten werden gelöscht, auch sein Tenshu-Passkey.",
     "body2": "Um diesen Realm hier wieder zu nutzen, brauchst du deine 24-Wort-Wiederherstellungsphrase oder ein anderes deiner Geräte, um diesen Browser zu koppeln. Ein Passkey allein reicht nicht.",
     "body3": "Deine Daten auf deinen anderen Geräten bleiben unberührt.",
     "ack": "Ich habe meine Wiederherstellungsphrase, oder dieser Realm ist auch auf einem anderen Gerät. Wenn beides nicht zutrifft, sind die Daten in diesem Browser endgültig verloren.",
     "confirm": "Diesen Browser trennen",
     "cancel": "Abbrechen",
     "inFlight": "Wird getrennt…",
-    "inFlightNote": "Dieser Browser wird aus deinem Realm entfernt. Das kann ein paar Sekunden dauern – lass diesen Tab geöffnet.",
+    "inFlightNote": "Dieser Browser wird aus deinem Realm entfernt. Das kann ein paar Sekunden dauern, lass diesen Tab also geöffnet.",
     "unconfirmed": {
-      "title": "Getrennt – mit einem offenen Punkt",
-      "body": "Die Tenshu-Daten dieses Browsers sind gelöscht, aber wir konnten nicht bestätigen, dass er aus deinem Realm entfernt wurde – vielleicht war er offline. Wenn er auf einem deiner anderen Geräte noch in der Geräteliste erscheint, entferne ihn dort.",
+      "title": "Getrennt, mit einem offenen Punkt",
+      "body": "Die Tenshu-Daten dieses Browsers sind gelöscht, aber wir konnten nicht bestätigen, dass er aus deinem Realm entfernt wurde. Vielleicht war er offline. Wenn er auf einem deiner anderen Geräte noch in der Geräteliste erscheint, entferne ihn dort.",
       "continue": "Weiter"
     },
     "failed": {
       "title": "Trennen konnte nicht abgeschlossen werden",
-      "body": "Unterwegs ist etwas schiefgegangen. Versuche es erneut – Tenshu schließt den Vorgang außerdem beim nächsten Laden dieser Seite ab.",
+      "body": "Unterwegs ist etwas schiefgegangen. Versuche es erneut. Tenshu schließt den Vorgang außerdem beim nächsten Laden dieser Seite ab.",
       "retry": "Erneut versuchen"
     }
   },
@@ -318,10 +318,6 @@
       "loading": "Wird geladen…",
       "count": "{count, plural, =1 {1 Gerät} other {{count} Geräte}}",
       "pairNew": "Neues Gerät koppeln",
-      "syncWarning": {
-        "title": "Dieser Browser teilt seine Identität mit deinem {browser}-Sync-Konto",
-        "body": "Andere Browser, die mit demselben {browser}-Konto angemeldet sind, können dieses Realm lesen. Wenn du das nicht möchtest, melde dich von der {browser}-Synchronisierung ab – oder kopple ein neues Gerät, das kein Konto teilt."
-      },
       "empty": "Noch keine Geräte. Kopple ein erstes weiteres Gerät mit diesem Browser, um mit der Synchronisierung zu beginnen.",
       "thisDeviceBadge": "Dieses Gerät"
     },
@@ -355,6 +351,7 @@
         "inFlight": "Wird entfernt…",
         "cancel": "Abbrechen",
         "networkError": "Das Relay war nicht erreichbar. Prüfe deine Verbindung und versuch es erneut.",
+        "needsRecoveryPhrase": "Um ein anderes Gerät zu entfernen, brauchst du deine Wiederherstellungsphrase, und dieser Browser ist nicht damit entsperrt. Sperre Tenshu, entsperre mit deiner Wiederherstellungsphrase und versuch es dann erneut.",
         "fallbackError": "Entfernen fehlgeschlagen. Bitte versuch es erneut."
       },
       "notFound": {
@@ -382,7 +379,7 @@
       "request": {
         "wantsToJoinSuffix": " möchte deinem Realm beitreten.",
         "sasLabel": "Prüfe, ob diese Ziffern auf dem anderen Gerät übereinstimmen",
-        "versionHint": "Wenn die Codes nicht übereinstimmen, fahre nicht fort – stelle sicher, dass auf beiden Geräten die neueste Tenshu-Version läuft.",
+        "versionHint": "Wenn die Codes nicht übereinstimmen, fahre nicht fort. Stelle sicher, dass auf beiden Geräten die neueste Tenshu-Version läuft.",
         "noSasHint": "Prüfe vor dem Bestätigen, ob der Gerätename oben stimmt.",
         "approve": "Bestätigen",
         "approving": "Wird bestätigt…",
@@ -410,7 +407,7 @@
     "title": "Kontowiederherstellung einrichten",
     "subtitle": "Diese Phrase schützt dein Tenshu seit dem ersten Tag. Schreib sie jetzt auf, damit du den Zugriff wiederherstellen kannst, falls du diesen Browser verlierst.",
     "gateBody": "Wir zeigen dir deine 24-Wort-Wiederherstellungsphrase und bitten dich dann, ein paar Wörter zu bestätigen, damit wir wissen, dass sie sicher notiert ist.",
-    "gateNote": "Die Phrase wird nur angezeigt, solange deine Sitzung entsperrt ist, und nur in diesem Browser – sie erreicht nie unsere Server.",
+    "gateNote": "Die Phrase wird nur angezeigt, solange deine Sitzung entsperrt ist, und nur in diesem Browser. Sie erreicht nie unsere Server.",
     "start": "Wiederherstellungsphrase anzeigen",
     "cancel": "Nicht jetzt",
     "revealing": "Deine Wiederherstellungsphrase wird entsperrt…",
@@ -424,7 +421,7 @@
     },
     "done": {
       "title": "Wiederherstellung ist eingerichtet",
-      "body": "Du hast deine Wiederherstellungsphrase aufgeschrieben. Bewahre sie sicher und offline auf – wer sie hat, kann auf dein Realm zugreifen.",
+      "body": "Du hast deine Wiederherstellungsphrase aufgeschrieben. Bewahre sie sicher und offline auf. Wer sie hat, kann auf dein Realm zugreifen.",
       "back": "Zurück zur Wiederherstellung →"
     }
   },
@@ -457,7 +454,7 @@
       "actions": "Aktionen",
       "test": {
         "title": "Wiederherstellung testen",
-        "description": "Gib deine Phrase ein, um zu bestätigen, dass sie noch funktioniert. Wir leiten deinen Hauptschlüssel lokal neu ab – nichts verlässt dieses Gerät.",
+        "description": "Gib deine Phrase ein, um zu bestätigen, dass sie noch funktioniert. Wir leiten deinen Hauptschlüssel lokal neu ab, und nichts verlässt dieses Gerät.",
         "cta": "Test starten"
       },
       "reveal": {
@@ -491,20 +488,20 @@
         "otherFallback": "Etwas ist schiefgelaufen. Bitte versuch es erneut.",
         "invalidLength": "24 Wörter erwartet, {wordCount} erhalten.",
         "unknownWordGeneric": "Eines der Wörter steht nicht in der BIP-39-Wortliste.",
-        "unknownWord": "„{word}“ steht nicht in der BIP-39-Wortliste – prüfe die Schreibweise.",
+        "unknownWord": "„{word}“ steht nicht in der BIP-39-Wortliste. Prüfe die Schreibweise.",
         "checksum": "Die Phrase hat ihre eingebaute Prüfsumme nicht bestanden. Prüfe die Wörter und ihre Reihenfolge noch einmal."
       }
     },
     "reveal": {
       "title": "Wiederherstellungsphrase erneut anzeigen",
       "gateBody": "Das Anzeigen deiner Wiederherstellungsphrase gewährt vollen Zugriff auf dieses Realm. Bestätige eine neue Passkey-Prüfung, damit wir sicher sind, dass du es wirklich bist.",
-      "gateNote": "Diese Abfrage ist unabhängig von deiner Entsperrung – selbst wenn deine Sitzung bereits aktiv ist, fragen wir den Authenticator noch einmal.",
+      "gateNote": "Diese Abfrage ist unabhängig von deiner Entsperrung. Selbst wenn deine Sitzung bereits aktiv ist, fragen wir den Authenticator noch einmal.",
       "noWebAuthn": "Dieser Browser unterstützt kein WebAuthn, das zum Anzeigen der Phrase erforderlich ist.",
       "approve": "Bestätigen und weiter",
       "cancel": "Abbrechen",
       "authenticating": "Warte auf deinen Authenticator…",
       "retry": "Erneut versuchen",
-      "stagedTitle": "Phrase anzeigen – kommt bald",
+      "stagedTitle": "Phrase anzeigen (kommt bald)",
       "stagedBody": "Die Authentifizierung funktioniert, aber zum Auslesen deiner Phrase ist eine kleine SDK-Erweiterung nötig (der Hauptschlüsselspeicher hält derzeit das Schlüsselpaar, nicht die BIP-39-Entropie). Das ist als Folgeaufgabe von Track A erfasst; die Abfrage ist bereits in Phase B enthalten, damit der Ablauf bereitsteht, sobald das SDK nachzieht.",
       "stagedFallback": "Bis dahin ist deine Phrase das, was du bei der Registrierung aufgeschrieben hast. Wenn du sie verloren hast, rotiere das Realm: Kopple ein neues Gerät und starte von dort eine neue Wiederherstellung.",
       "approved": "Authenticator hat bestätigt.",
@@ -541,13 +538,13 @@
       "portalUnavailable": "Die Abrechnungsverwaltung ist in dieser Instanz nicht verfügbar.",
       "portalNoSubscription": "Du hast kein kostenpflichtiges Abo, das du verwalten könntest.",
       "deviceStorage": "Dieser Browser",
-      "deviceStoragePersisted": "Dauerhaft – der Browser hat zugesagt, dein Realm hier zu speichern.",
+      "deviceStoragePersisted": "Dauerhaft. Der Browser hat zugesagt, dein Realm hier zu speichern.",
       "deviceStorageEvictable": "Kann gelöscht werden. Wenn der Browser Speicherplatz freigibt, verliert dieser Browser seinen Platz in deinem Realm und muss erneut gekoppelt werden. Wenn du Tenshu als App installierst, wird der Speicher meist dauerhaft.",
       "deleteAccount": "Konto löschen"
     },
     "picker": {
       "title": "Wähle einen Plan, um deine Daten zu synchronisieren",
-      "body": "Tenshu synchronisiert deine Daten über unseren Relay-Server zwischen deinen Geräten. Wir sehen deine Dateien nie – sie werden zuerst auf deinem Gerät verschlüsselt.",
+      "body": "Tenshu synchronisiert deine Daten über unseren Relay-Server zwischen deinen Geräten. Wir sehen deine Dateien nie, denn sie werden zuerst auf deinem Gerät verschlüsselt.",
       "priceFree": "Kostenlos",
       "pricePerMonth": "{price} / Monat",
       "choose": "Auswählen",
@@ -556,7 +553,7 @@
       "tiers": {
         "free": {
           "title": "Free",
-          "body": "{storage} verschlüsselter Speicher. Bestätige deine E-Mail-Adresse – für immer kostenlos.",
+          "body": "{storage} verschlüsselter Speicher. Bestätige deine E-Mail-Adresse. Für immer kostenlos.",
           "cta": "Kostenlos registrieren",
           "ctaSignedIn": "Konto verwalten"
         },
@@ -585,7 +582,8 @@
       "verifying": "Wird geprüft…",
       "resend": "Neuen Code senden",
       "invalidCode": "Dieser Code hat nicht funktioniert. Prüfe ihn und versuch es erneut oder fordere einen neuen an.",
-      "cancel": "Abbrechen"
+      "cancel": "Abbrechen",
+      "challengeFailed": "Wir konnten nicht bestätigen, dass diese Anfrage von einem Menschen kommt. Warte, bis die Prüfung unten abgeschlossen ist, und versuche es dann noch einmal."
     },
     "disconnect": {
       "title": "Vom Tenshu Relay trennen?",
@@ -598,7 +596,7 @@
     },
     "checkout": {
       "title": "Kauf bestätigen",
-      "tier": "{tier} – {storage}",
+      "tier": "{tier}, {storage}",
       "unknownTier": "Dieser Plan ist nicht verfügbar.",
       "ackBody": "Dein Speicher steht dir zur Verfügung, sobald du bezahlt hast, nicht erst nach einer Wartefrist.",
       "ackCheckbox": "Ich verlange ausdrücklich, dass Tenshu vor Ablauf der Widerrufsfrist mit der Leistung beginnt. Mir ist bekannt, dass ich bei einem Widerruf den Anteil des Preises für die Zeit bis zum Widerruf zahle.",
@@ -626,12 +624,12 @@
         "body": "Änderungen, die du vorgenommen hast, werden auf diesem Gerät übernommen, sobald es synchronisiert."
       },
       "confirm": {
-        "title": "Danke – bestätige deine E-Mail-Adresse, um deinen Plan zu aktivieren",
+        "title": "Danke! Bestätige deine E-Mail-Adresse, um deinen Plan zu aktivieren",
         "body": "Gib die E-Mail-Adresse ein, die du beim Bezahlvorgang verwendet hast. Wir senden einen Code an diese Adresse, und dein Plan wird diesem Gerät hinzugefügt, sobald du ihn eingibst.",
         "cta": "E-Mail bestätigen"
       },
       "activating": {
-        "title": "Danke – dein Plan wird aktiviert",
+        "title": "Danke! Dein Plan wird aktiviert",
         "body": "Das dauert meist ein paar Sekunden."
       },
       "active": {
@@ -639,7 +637,7 @@
         "body": "Der Speicher deines Plans {plan} ist jetzt auf diesem Gerät aktiv."
       },
       "pending": {
-        "title": "Danke – dein Plan ist unterwegs",
+        "title": "Danke! Dein Plan ist unterwegs",
         "body": "Wir haben die Zahlungsbestätigung für {email} noch nicht erhalten. Deine Dienste-Seite wird aktualisiert, sobald sie eingeht. Falls du mit einer anderen E-Mail-Adresse bezahlt hast, melde dich stattdessen mit dieser an."
       }
     },
@@ -650,8 +648,8 @@
       "continue": "Einlösen",
       "checking": "Wird geprüft…",
       "invalid": "Dieser Code ist ungültig.",
-      "notSavedSignedIn": "Dein Code wurde akzeptiert, aber der Plan konnte diesem Gerät nicht hinzugefügt werden. Der Code ist verbraucht, also löse ihn nicht erneut ein – öffne die Dienste, um den Plan abzurufen.",
-      "notSavedSignedOut": "Dein Code wurde akzeptiert, aber der Plan konnte diesem Gerät nicht hinzugefügt werden. Der Code ist verbraucht, also löse ihn nicht erneut ein – bewahre ihn auf und wende dich an den Support, damit der Plan wiederhergestellt wird.",
+      "notSavedSignedIn": "Dein Code wurde akzeptiert, aber der Plan konnte diesem Gerät nicht hinzugefügt werden. Der Code ist verbraucht, also löse ihn nicht erneut ein. Öffne die Dienste, um den Plan abzurufen.",
+      "notSavedSignedOut": "Dein Code wurde akzeptiert, aber der Plan konnte diesem Gerät nicht hinzugefügt werden. Der Code ist verbraucht, also löse ihn nicht erneut ein. Bewahre ihn auf und wende dich an den Support, damit der Plan wiederhergestellt wird.",
       "cancel": "Abbrechen"
     }
   },
@@ -683,7 +681,7 @@
     "subtitle": "Apps, die Gerätedaten im Hintergrund sichern. Schalte eine Quelle aus, um sie auf ihrem Gerät zu stoppen.",
     "loading": "Wird geladen…",
     "count": "{count, plural, =1 {1 Quelle} other {{count} Quellen}}",
-    "empty": "Noch keine Hintergrundsicherung. Apps, die Gerätedaten sichern – etwa die Fotosicherung von Drive –, erscheinen hier.",
+    "empty": "Noch keine Hintergrundsicherung. Apps, die Gerätedaten sichern, etwa die Fotosicherung von Drive, erscheinen hier.",
     "toggleAria": "{name} aktivieren",
     "status": {
       "IDLE": "Inaktiv",

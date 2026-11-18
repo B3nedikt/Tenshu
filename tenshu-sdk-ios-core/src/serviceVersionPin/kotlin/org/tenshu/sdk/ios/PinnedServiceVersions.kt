@@ -52,7 +52,7 @@ object PinnedServiceVersions {
         "tenshu/ingest/service" to 1,
         "tenshu/logging/service" to 1,
         "tenshu/mapRegion/service" to 1,
-        "tenshu/mia/service" to 1,
+        "tenshu/mia/service" to 2,
         "tenshu/notification/service" to 1,
         // v2: ED-3 `PhotoEdit` (`photos-editing.md` §12).
         "tenshu/photo/service" to 2,

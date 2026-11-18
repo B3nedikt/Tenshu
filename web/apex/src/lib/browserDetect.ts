@@ -1,7 +1,6 @@
-// Browser-family detection for UX §4a.6 (per-browser sync opt-out
-// instructions). Only used to pick which copy block to show; the apex
-// always renders a chooser when detection is ambiguous so an incorrect
-// guess never traps the user.
+// Browser-family detection from the user agent. Used to name this browser
+// in the device list ("Chrome on macOS", `lib/deviceName.ts`); an
+// unrecognised browser is 'other' and the name falls back accordingly.
 export type BrowserFamily = 'chrome' | 'edge' | 'firefox' | 'safari' | 'other'
 
 export function detectBrowserFamily(userAgent: string = navigator.userAgent): BrowserFamily {

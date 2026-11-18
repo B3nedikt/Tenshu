@@ -1,16 +1,15 @@
 // Coverage for the §6 Recovery flow. Walks the state machine far enough
 // to verify the four interesting transitions:
-//   - entry → deviceName (after a 24-valid-word submit)
-//   - deviceName → processing → tail.passkey on Recovery.claim success
+//   - entry → processing → tail.passkey on Recovery.claim success, with
+//     the browser named for what it is (no device-name step)
 //   - processing → failed (with a representative `describeRecoveryError`
 //     branch — `noBackupOnRelay`)
 //   - failed → processing on retry (Recovery.claim re-invoked)
 //
-// The tail screens (`PasskeySetupScreen`, `BrowserSyncWarningScreen`,
-// etc.) are shared with `OnboardingFlow` and have their own tests in a
+// The tail screens (`PasskeySetupScreen` etc.) are shared with `OnboardingFlow` and have their own tests in a
 // later T.2 slice. Here we only confirm we *land* on the tail's first
 // screen, not that the tail is fully wired.
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
@@ -43,7 +42,17 @@ function renderFlow(sdk: OnboardingSdk) {
   )
 }
 
+const FIREFOX_ON_WINDOWS =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0'
+
 describe('RecoveryFlow', () => {
+  beforeEach(() => {
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(FIREFOX_ON_WINDOWS)
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('keeps Recover disabled until 24 valid BIP-39 words are typed', async () => {
     const user = userEvent.setup()
     const claim = vi.fn()
@@ -56,14 +65,6 @@ describe('RecoveryFlow', () => {
     expect(claim).not.toHaveBeenCalled()
   })
 
-  it('advances to the device-name step after a valid Recover submit', async () => {
-    const user = userEvent.setup()
-    renderFlow(stubSdk(vi.fn()))
-    await user.type(screen.getByLabelText('Recovery phrase'), TWENTY_FOUR_ABANDONS)
-    await user.click(screen.getByRole('button', { name: 'Recover' }))
-    expect(await screen.findByText('Name this browser')).toBeInTheDocument()
-  })
-
   it('runs Recovery.claim with the entered values and lands on the passkey-setup tail on success', async () => {
     const user = userEvent.setup()
     const claim = vi.fn(
@@ -72,12 +73,10 @@ describe('RecoveryFlow', () => {
     renderFlow(stubSdk(claim))
     await user.type(screen.getByLabelText('Recovery phrase'), TWENTY_FOUR_ABANDONS)
     await user.click(screen.getByRole('button', { name: 'Recover' }))
-    // Accept the default device-name "This Browser".
-    await user.click(await screen.findByRole('button', { name: 'Continue' }))
     await waitFor(() => {
       expect(claim).toHaveBeenCalledWith({
         mnemonic: TWENTY_FOUR_ABANDONS,
-        deviceName: 'This Browser',
+        deviceName: 'Firefox on Windows',
       })
     })
     // The first tail screen is `PasskeySetupScreen`, which renders the
@@ -106,7 +105,6 @@ describe('RecoveryFlow', () => {
     renderFlow(stubSdk(claim))
     await user.type(screen.getByLabelText('Recovery phrase'), TWENTY_FOUR_ABANDONS)
     await user.click(screen.getByRole('button', { name: 'Recover' }))
-    await user.click(await screen.findByRole('button', { name: 'Continue' }))
     expect(await screen.findByText("Couldn't find a backup")).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Try again' }))
     await waitFor(() => expect(claim).toHaveBeenCalledTimes(2))
@@ -122,7 +120,6 @@ describe('RecoveryFlow', () => {
     renderFlow(stubSdk(claim))
     await user.type(screen.getByLabelText('Recovery phrase'), TWENTY_FOUR_ABANDONS)
     await user.click(screen.getByRole('button', { name: 'Recover' }))
-    await user.click(await screen.findByRole('button', { name: 'Continue' }))
     expect(await screen.findByText('This browser is already set up')).toBeInTheDocument()
     expect(screen.getByText(/disconnect this browser first/)).toBeInTheDocument()
   })

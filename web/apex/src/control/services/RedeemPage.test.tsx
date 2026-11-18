@@ -55,7 +55,7 @@ describe('RedeemPage', () => {
     expect(
       await screen.findByText(/accepted, but the plan couldn't be added on this device/),
     ).toBeInTheDocument()
-    expect(screen.getByText(/don't redeem it again — open Services/)).toBeInTheDocument()
+    expect(screen.getByText(/don't redeem it again. Open Services/)).toBeInTheDocument()
     expect(screen.queryByText('services')).not.toBeInTheDocument()
   })
 
@@ -65,7 +65,7 @@ describe('RedeemPage', () => {
     vi.spyOn(client, 'redeem').mockResolvedValue({ kind: 'notSaved', signedIn: false })
     renderPage(client)
     await redeem('CODE-1')
-    expect(await screen.findByText(/don't redeem it again — keep it/)).toBeInTheDocument()
+    expect(await screen.findByText(/don't redeem it again. Keep it/)).toBeInTheDocument()
     expect(screen.queryByText(/open Services/)).not.toBeInTheDocument()
   })
 })

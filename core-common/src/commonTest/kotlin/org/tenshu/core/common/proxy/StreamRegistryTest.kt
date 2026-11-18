@@ -2,18 +2,25 @@ package org.tenshu.core.common.proxy
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.tenshu.core.Data
 import org.tenshu.core.PureOperationRunner
 import org.tenshu.core.collection.list.TList
+import org.tenshu.core.collection.list.Take
+import org.tenshu.core.common.impl.OperationDto
+import org.tenshu.core.common.impl.StreamElementRemovedDto
+import org.tenshu.core.number.toTInteger
 import org.tenshu.core.common.createCoreTestRegistry
 import org.tenshu.core.common.createTestContext
 import org.tenshu.core.entity.DataId
+import org.tenshu.core.entity.getDataIdHash
 import org.tenshu.core.toTString
 import org.tenshu.core.trait.traitResolver
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 /**
@@ -233,6 +240,136 @@ class StreamRegistryTest {
         )
     }
 
+    // --- Signal-only streams (`changes()`) ---------------------------------------------------
+
+    /**
+     * ⚠⚠ The point of the signal path: a write that cannot change which arrays the stream reads is
+     * answered with one signal and **no evaluation**. A whole-tree `traverse().changes()` used to
+     * re-walk the realm on every write (`photos-app.md` §45.3).
+     */
+    @Test
+    fun signalOnly_aLeafAddSignalsWithoutReevaluating() = runTest {
+        val harness = unconfinedHarness()
+        val (registry, executionContext, db) = harness
+        val ref = makeArrayRef("/folder")
+        db.rows = listOf("existing".toTString())
+        var evaluations = 0
+        db.onGetArrayData = { if (it == ref) evaluations++ }
+
+        registry.setDatabaseListener(executionContext, streamId = 60L, ref, emptyList(), signalOnly = true)
+        assertEquals(1, evaluations, "the subscribe discovery")
+        assertEquals(0, harness.connection.sent.size, "a signal-only subscribe sends nothing")
+
+        db.fireAdded() // a row of a type the stream has seen, with no list fields
+        db.fireRemoved()
+
+        assertEquals(1, evaluations, "neither write may re-evaluate the chain")
+        assertEquals(2, harness.connection.sent.size, "one signal per write")
+        harness.connection.sent.forEach { assertIsSignal(it, ref) }
+    }
+
+    /**
+     * ⚠⚠ Never silent: a write that lands while a drain is running — here, from inside its own
+     * rediscovery — is folded into one more round, which signals after it.
+     */
+    @Test
+    fun signalOnly_aWriteDuringADrainIsSignalledAfterIt() = runTest {
+        val harness = unconfinedHarness()
+        val (registry, executionContext, db) = harness
+        val ref = makeArrayRef("/folder")
+        // Empty at subscribe: the stream has seen no row type, so the first add must rediscover.
+        registry.setDatabaseListener(executionContext, streamId = 61L, ref, emptyList(), signalOnly = true)
+
+        db.rows = listOf("added".toTString())
+        var firedDuring = false
+        db.onGetArrayData = {
+            if (!firedDuring) {
+                firedDuring = true
+                db.fireAdded() // a second write, mid-rediscovery
+            }
+        }
+        db.fireAdded()
+
+        assertTrue(firedDuring, "the first add rediscovered (it brought a type the stream had not seen)")
+        assertEquals(2, harness.connection.sent.size, "the write during the drain owes its own signal")
+    }
+
+    /**
+     * A row of a type the last discovery never saw is not provably harmless (the chain's behaviour
+     * on it is unknown), so it rediscovers once — and the next row of that type does not.
+     */
+    @Test
+    fun signalOnly_anUnseenRowTypeRediscoversOnce() = runTest {
+        val harness = unconfinedHarness()
+        val (registry, executionContext, db) = harness
+        val ref = makeArrayRef("/folder")
+        var evaluations = 0
+        db.onGetArrayData = { if (it == ref) evaluations++ }
+        registry.setDatabaseListener(executionContext, streamId = 62L, ref, emptyList(), signalOnly = true)
+        assertEquals(1, evaluations)
+
+        db.rows = listOf("added".toTString())
+        db.fireAdded()
+        assertEquals(2, evaluations, "the first row of a new type rediscovers")
+
+        db.fireAdded()
+        assertEquals(2, evaluations, "the type is known now")
+        assertEquals(2, harness.connection.sent.size)
+    }
+
+    /**
+     * ⚠⚠ Under a window, a write to one row can bring ANOTHER row — never read, with arrays nobody
+     * listens to — into view: a visible leaf re-saved so it sorts behind an unread folder. So a
+     * windowed stream rediscovers on every write, even an update of a row type it has seen.
+     */
+    @Test
+    fun signalOnly_aWindowedStreamRediscoversOnEveryWrite() = runTest {
+        val harness = unconfinedHarness()
+        val (registry, executionContext, db) = harness
+        val ref = makeArrayRef("/folder")
+        db.rows = listOf("added".toTString(), "other".toTString())
+        var evaluations = 0
+        db.onGetArrayData = { if (it == ref) evaluations++ }
+        val window = listOf<Data>(
+            OperationDto(params = mapOf(Take.Params.N to 1.toTInteger()), schema = Take.Schema),
+        )
+
+        registry.setDatabaseListener(executionContext, streamId = 64L, ref, window, signalOnly = true)
+        val afterSubscribe = evaluations
+        assertTrue(afterSubscribe >= 1, "the subscribe discovery")
+
+        db.fireAdded() // a re-save of a row of a type the stream has seen
+        assertTrue(evaluations > afterSubscribe, "a windowed stream must rediscover on an update")
+        assertEquals(1, harness.connection.sent.size)
+        assertIsSignal(harness.connection.sent.single(), ref)
+    }
+
+    /** An ended signal-only stream sends nothing more, and leaves no listener behind. */
+    @Test
+    fun signalOnly_anEndedStreamSendsNothing() = runTest {
+        val harness = unconfinedHarness()
+        val (registry, executionContext, db) = harness
+        val ref = makeArrayRef("/folder")
+        registry.setDatabaseListener(executionContext, streamId = 63L, ref, emptyList(), signalOnly = true)
+        registry.removeDatabaseListener(executionContext, streamId = 63L)
+
+        db.fireAdded()
+
+        assertEquals(0, harness.connection.sent.size)
+        assertEquals(listOf(ref), db.removeArrayListenerCalls)
+    }
+
+    private fun TestScope.unconfinedHarness() = createRegistryHarness(
+        // Unconfined, so a fired listener's drain has run by the time the fire returns.
+        sessionScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler)),
+    )
+
+    /** A signal is a `Removed` of the stream's own root array id — one identity, carried by no row. */
+    private fun assertIsSignal(sent: Data, root: ArrayDatabaseReference) {
+        val removed = assertIs<StreamElementRemovedDto>(sent, "a signal is a Removed element")
+        assertEquals(root.arrayId.getDataIdHash(), removed.removedId.getDataIdHash())
+    }
+
     // --- Fixture ----------------------------------------------------------------
 
     private data class Harness(
@@ -282,6 +419,7 @@ class StreamRegistryTest {
         val removeArrayListenerCalls = mutableListOf<ArrayDatabaseReference>()
         private val handleToRef = mutableMapOf<Long, ArrayDatabaseReference>()
         private val handleToOnAdded = mutableMapOf<Long, (Data, WriteOrigin) -> Unit>()
+        private val handleToOnRemoved = mutableMapOf<Long, (DataId, WriteOrigin) -> Unit>()
         private var nextHandle = 0L
 
         /** Called for every array read, so a test can count evaluations or read further. */
@@ -292,6 +430,11 @@ class StreamRegistryTest {
 
         /** What `addToArray` does to every registered listener once the write has landed. */
         fun fireAdded() = handleToOnAdded.values.toList().forEach { it("added".toTString(), WriteOrigin.USER) }
+
+        /** What `removeFromArray` does to every registered listener. */
+        fun fireRemoved() = handleToOnRemoved.values.toList().forEach {
+            it(DataId.StringDataId.create(type = "tenshu/file", keyValue = "/gone"), WriteOrigin.USER)
+        }
 
         override fun getData(dataId: DataId, asEntity: Boolean, projection: Projection?): Data? = null
         override fun saveData(data: Data) {}
@@ -312,10 +455,12 @@ class StreamRegistryTest {
             val handle = nextHandle++
             handleToRef[handle] = reference
             handleToOnAdded[handle] = onAdded
+            handleToOnRemoved[handle] = onRemoved
             return handle
         }
         override fun removeArrayListener(handle: Long) {
             handleToOnAdded.remove(handle)
+            handleToOnRemoved.remove(handle)
             handleToRef.remove(handle)?.let { removeArrayListenerCalls.add(it) }
         }
         override fun <R> transaction(block: () -> R): R = block()

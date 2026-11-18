@@ -108,6 +108,52 @@ object OnnxModelFiles {
         }
     }
 
+    /** The animal detector's side-load name (`photos-pets.md` §10.1): `<modelId>.onnx`, beside the others. */
+    fun animalDetectorFileName(model: AnimalDetectorModel = AnimalDetectorModel.RfDetrNanoInt8): String = "${model.modelId}.onnx"
+
+    /**
+     * The animal detector by its side-load name only. ⚠ The size must be the descriptor's — a file of
+     * another length is another detector. ⚠ Size, not a digest: this runs per `supports()` call.
+     */
+    fun animalDetectorLocator(root: File, model: AnimalDetectorModel = AnimalDetectorModel.RfDetrNanoInt8): () -> String? {
+        val sideLoad = locatorFor(root) { animalDetectorFileName(model) }
+        return { sideLoad()?.takeIf { File(it).length() == model.byteSize } }
+    }
+
+    /**
+     * [faceStoreLocator]'s twin for the animal detector (`photos-pets.md` §10.3): **installed first**
+     * (its own catalog entry, digest-checked at download), [animalDetectorLocator]'s side-load second,
+     * resolved per call so a download or a removal takes effect on the next photograph.
+     *
+     * ⚠⚠ Another installed version, or a file whose size is not the descriptor's, is **null**, never
+     * the side-load: the backend's stamp says which detector ran, and a different one must not run
+     * under it.
+     */
+    fun animalDetectorStoreLocator(
+        store: ModelStore,
+        root: File,
+        model: AnimalDetectorModel = AnimalDetectorModel.RfDetrNanoInt8,
+    ): () -> String? {
+        val sideLoad = animalDetectorLocator(root, model)
+        return locate@{
+            val index: List<InstalledModelData> = try {
+                store.installed()
+            } catch (unreadable: ModelIndexUnreadableException) {
+                return@locate null
+            }
+            val installed = index.firstOrNull { it.modelId == model.modelId } ?: return@locate sideLoad()
+            if (installed.modelVersion != model.modelVersion) return@locate null
+            val artifact = installed.artifacts.firstOrNull { it.role == ModelArtifactRole.ANIMAL_DETECTOR }
+                ?: return@locate sideLoad()
+            val file = File(root, artifact.localPath)
+            when {
+                !file.isFile -> sideLoad()
+                file.length() != model.byteSize -> null
+                else -> file.absolutePath
+            }
+        }
+    }
+
     private fun locatorFor(root: File, name: () -> String): () -> String? = {
         File(File(root, DIRECTORY), name()).takeIf { it.isFile }?.absolutePath
     }

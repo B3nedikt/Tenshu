@@ -117,4 +117,22 @@ describe('DeviceDetailPage', () => {
       await screen.findByText(/Couldn't reach the relay\./i),
     ).toBeInTheDocument()
   })
+
+  // Removing ANOTHER device needs the realm's master key. The SDK's typed refusal has no message,
+  // so without its own kind it read "Revoke failed. Please try again." — a retry that never works.
+  it('a refusal for lack of the recovery phrase says to unlock with the phrase', async () => {
+    const user = userEvent.setup()
+    detectMock.mockResolvedValue({ kind: 'active', deviceName: 'Pixel 9' })
+    emit([
+      deviceFixture('Pixel 9', 'dev-1'),
+      deviceFixture('MacBook Pro', 'dev-2'),
+    ])
+    revokeMock.mockResolvedValue({ ok: false, error: { kind: 'needsRecoveryPhrase' } })
+    renderAt('dev-2')
+    await user.click(await screen.findByRole('button', { name: 'Revoke device' }))
+    const dialogConfirm = screen.getAllByRole('button', { name: 'Revoke device' }).at(-1)!
+    await user.click(dialogConfirm)
+    expect(await screen.findByText(/unlock with your recovery phrase/i)).toBeInTheDocument()
+    expect(screen.queryByText(/Revoke failed/i)).not.toBeInTheDocument()
+  })
 })

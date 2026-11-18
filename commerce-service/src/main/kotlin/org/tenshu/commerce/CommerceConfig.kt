@@ -159,6 +159,11 @@ data class CommerceConfig(
     val otpSendPerIpPerHour: Int = DEFAULT_OTP_SEND_PER_IP_PER_HOUR,
     /** Per-**email** hourly budget on the same two routes — the anti-mail-bombing half. */
     val otpSendPerEmailPerHour: Int = DEFAULT_OTP_SEND_PER_EMAIL_PER_HOUR,
+    /**
+     * Service-wide daily budget on the same routes (`OTP_SEND_GLOBAL_PER_DAY`) — the backstop for a
+     * source rotating both IPs and addresses. `<= 0` disables.
+     */
+    val otpSendGlobalPerDay: Int = DEFAULT_OTP_SEND_GLOBAL_PER_DAY,
     /** Per-email hourly budget on `/verify`, above the per-code [otpMaxAttempts] burn. */
     val otpVerifyPerEmailPerHour: Int = DEFAULT_OTP_VERIFY_PER_EMAIL_PER_HOUR,
     /**
@@ -219,6 +224,12 @@ data class CommerceConfig(
      * Persisted. `<= 0` disables.
      */
     val otpFailedPerEmailPerDay: Int = DEFAULT_OTP_FAILED_PER_EMAIL_PER_DAY,
+    /**
+     * Cloudflare Turnstile secret key (`TURNSTILE_SECRET_KEY`, D16); null = the challenge is off. The
+     * matching site key is the apex's build-time `VITE_TURNSTILE_SITE_KEY`, never read here. A
+     * secret: never log it.
+     */
+    val turnstileSecretKey: String? = null,
 ) {
 
     /** A parsed `REDEMPTION_CODES` entry: the raw code + what it grants. */
@@ -408,12 +419,13 @@ data class CommerceConfig(
             "portalReturnUrl=$portalReturnUrl, stripeApiBase=$stripeApiBase, webAppOrigin=$webAppOrigin, " +
             "accountClosureRelayUrl=$accountClosureRelayUrl, accountClosureSweepMinutes=$accountClosureSweepMinutes, " +
             "smtp=$smtp, otpSendPerIpPerHour=$otpSendPerIpPerHour, otpSendPerEmailPerHour=$otpSendPerEmailPerHour, " +
+            "otpSendGlobalPerDay=$otpSendGlobalPerDay, " +
             "otpVerifyPerEmailPerHour=$otpVerifyPerEmailPerHour, otpFailedPerEmailPerDay=$otpFailedPerEmailPerDay, " +
             "stripeFakeRail=$stripeFakeRail, publicBaseUrl=$publicBaseUrl, " +
             "subscriptionCancelSweepMinutes=$subscriptionCancelSweepMinutes, subscriptionCancelWindowMs=$subscriptionCancelWindowMs, " +
             "unverifiedAccountExpireSweepMinutes=$unverifiedAccountExpireSweepMinutes, " +
             "googlePlay=$googlePlay, reviewSignInAccounts=${secret(reviewSignInAccounts)}, " +
-            "reviewSignInHmacKey=${secret(reviewSignInHmacKey)})"
+            "reviewSignInHmacKey=${secret(reviewSignInHmacKey)}, turnstileSecretKey=${secret(turnstileSecretKey)})"
     }
 
     /**
@@ -461,6 +473,7 @@ data class CommerceConfig(
             smtp == other.smtp &&
             otpSendPerIpPerHour == other.otpSendPerIpPerHour &&
             otpSendPerEmailPerHour == other.otpSendPerEmailPerHour &&
+            otpSendGlobalPerDay == other.otpSendGlobalPerDay &&
             otpVerifyPerEmailPerHour == other.otpVerifyPerEmailPerHour &&
             stripeFakeRail == other.stripeFakeRail &&
             googlePlay == other.googlePlay &&
@@ -505,6 +518,7 @@ data class CommerceConfig(
         result = 31 * result + (smtp?.hashCode() ?: 0)
         result = 31 * result + otpSendPerIpPerHour
         result = 31 * result + otpSendPerEmailPerHour
+        result = 31 * result + otpSendGlobalPerDay
         result = 31 * result + otpVerifyPerEmailPerHour
         result = 31 * result + stripeFakeRail.hashCode()
         result = 31 * result + (googlePlay?.hashCode() ?: 0)
@@ -613,6 +627,13 @@ data class CommerceConfig(
         const val DEFAULT_OTP_SEND_PER_EMAIL_PER_HOUR = 5
 
         /**
+         * Default service-wide daily OTP-send budget. Real traffic is a handful a day; a form-spam
+         * bot reached 224 in one day (2026-11-16) without tripping any per-key budget. Raise it
+         * deliberately for a launch, not by default.
+         */
+        const val DEFAULT_OTP_SEND_GLOBAL_PER_DAY = 200
+
+        /**
          * Default per-email hourly `/verify` budget. The per-code [DEFAULT_OTP_MAX_ATTEMPTS] burn
          * already stops guessing *one* code; this bounds guessing across repeatedly re-issued ones.
          */
@@ -695,7 +716,8 @@ data class CommerceConfig(
          * | `SMTP_FROM_NAME`       | _(unset)_            | Display name on the `From` header.          |
          * | `SMTP_STARTTLS`        | `true`               | Require STARTTLS; false only for a local sink.|
          * | `OTP_SEND_PER_IP_PER_HOUR` | `20`             | Per-IP budget on `/register`; `<= 0` disables.            |
-         * | `OTP_SEND_PER_EMAIL_PER_HOUR` | `5`           | Per-email budget on the same routes.         |
+         * | `OTP_SEND_PER_EMAIL_PER_HOUR` | `5`           | Per-inbox budget on the same routes.         |
+         * | `OTP_SEND_GLOBAL_PER_DAY` | `200`             | Service-wide daily budget on them; `<= 0` disables. |
          * | `OTP_VERIFY_PER_EMAIL_PER_HOUR` | `20`        | Per-email budget on `/verify`.               |
          * | `STRIPE_MODE`          | `real`               | `fake` = the dev rail; **illegal when `DEV_MODE=false`**. |
          * | `PUBLIC_BASE_URL`      | `http://127.0.0.1:$PORT` | Origin the fake confirm page + self-webhook use. |
@@ -704,6 +726,7 @@ data class CommerceConfig(
          * | `OTP_FAILED_PER_EMAIL_PER_DAY` | `20`         | Per-address cap on failed code checks per rolling 24 h (persisted); `<= 0` disables. |
          * | `REVIEW_SIGNIN_ACCOUNTS` | _(unset)_          | `<address>=<hex HMAC of its code>`, comma-sep; one per store (T-CB-12). |
          * | `REVIEW_SIGNIN_HMAC_KEY` | _(unset)_          | ≥ 32-char secret key for those HMACs. Both or neither. |
+         * | `TURNSTILE_SECRET_KEY` | _(unset)_            | Cloudflare Turnstile secret; unset = no challenge (D16). |
          *
          * [getenv] is injectable so the parsing is unit-testable.
          */
@@ -758,6 +781,8 @@ data class CommerceConfig(
                     ?: DEFAULT_OTP_SEND_PER_IP_PER_HOUR,
                 otpSendPerEmailPerHour = getenv("OTP_SEND_PER_EMAIL_PER_HOUR")?.toIntOrNull()
                     ?: DEFAULT_OTP_SEND_PER_EMAIL_PER_HOUR,
+                otpSendGlobalPerDay = getenv("OTP_SEND_GLOBAL_PER_DAY")?.toIntOrNull()
+                    ?: DEFAULT_OTP_SEND_GLOBAL_PER_DAY,
                 otpVerifyPerEmailPerHour = getenv("OTP_VERIFY_PER_EMAIL_PER_HOUR")?.toIntOrNull()
                     ?: DEFAULT_OTP_VERIFY_PER_EMAIL_PER_HOUR,
                 signupLimitPerDay = signupLimit(getenv("SIGNUP_LIMIT_PER_DAY"), "SIGNUP_LIMIT_PER_DAY"),
@@ -777,6 +802,7 @@ data class CommerceConfig(
                 reviewSignInHmacKey = getenv("REVIEW_SIGNIN_HMAC_KEY")?.trim()?.takeIf { it.isNotEmpty() },
                 otpFailedPerEmailPerDay = getenv("OTP_FAILED_PER_EMAIL_PER_DAY")?.toIntOrNull()
                     ?: DEFAULT_OTP_FAILED_PER_EMAIL_PER_DAY,
+                turnstileSecretKey = getenv("TURNSTILE_SECRET_KEY")?.trim()?.takeIf { it.isNotEmpty() },
             )
         }
 

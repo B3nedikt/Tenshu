@@ -78,8 +78,6 @@ class CommerceRelaySystemTest {
 
         override fun sendAccountDeletionCode(email: String, code: String) = Unit
 
-        override fun sendNoAccountNotice(email: String) = Unit
-
         override fun sendSignupsPausedNotice(email: String) = Unit
 
         fun code(email: String): String? = codes[email.trim().lowercase()]

@@ -566,15 +566,15 @@ suspecting a bug.
 > (on-device live-relay round-trip pending). The §10 phasing originally landed
 > the deferral for **Control only** (Phase 2 *Modules touched:
 > `:control-shared`*); web-roadmap 6.6 ports §8 to the apex. As built:
-> §8.1 chooser reframed to `[Sign up free]` / `[I have Tenshu already]` /
-> `[Just try it locally]`; the new-user path drops the show/confirm phrase
+> §8.1 chooser reframed (wording and hierarchy revised again 2026-11-18, see
+> §8.1); the new-user path drops the show/confirm phrase
 > ceremony (generate → commit → tail); §7.4 capture moved to a Settings
 > "Set up account recovery" entry (`AccountRecoverySetupPage`, route
 > `/control/settings/recovery/setup`), sourcing the phrase via a new
 > `Recovery.revealPhrase()` SDK-boundary op (apex mock returns it; live SDK
 > returns `unavailable`/"coming soon" until the Kotlin actual lands — the wrap
 > blob doesn't carry BIP-39 entropy yet, same gap as re-display). Intent
-> routing: signup → §5.1 picker, try-mode → control home + the non-dismissible
+> routing: signup → the in-flow plan step (§8.1), try-mode → control home + the non-dismissible
 > `TryModeBanner`. No protocol change; reuses I7 + T-OB-01 (§9). §7.2 Levels
 > 1–3 + §8.2's post-upload convert modal remain unbuilt on web (Level-0 nag is
 > the standing `TryModeBanner`). Per-flow log in
@@ -592,23 +592,69 @@ prompted, but it is still framed as sync-enablement, not access-gating.**
 
 ### 8.1 Apex Welcome (replaces existing apex §4b.1)
 
-**Title**: *"Welcome to Tenshu"*
+> **Revised 2026-11-18** (web onboarding pass). The original chooser below is
+> superseded; the reasoning for each change is kept here because each one is a
+> reversal of a choice this section used to make.
 
-**Body**: *"Tenshu in this browser will work for now, but to keep your data safe across
-browser updates and devices, you'll want sync."*
+**Title**: *"Welcome to Tenshu"*. **No body copy** — the public landing page has
+already made the encryption and sync pitch, and repeating it here read as filler.
 
-**CTAs**:
+**Actions**:
 
-- `[Sign up free]` — primary. Enters §5.1.
-- `[I have Tenshu already]` — secondary. Enters the existing apex pairing flow.
-- `[Just try it locally]` — tertiary, quiet text link. Enters a Try-mode (§8.2).
+- `[Create an account]` — primary. Not *"Sign up free"*: the steps that follow
+  create a passkey and pick a plan, which is not a "sign-up" form, and "free" on
+  the first button read as pushy.
+- `[I already use Tenshu]` — **equal weight** to Create, side by side. Most web
+  visitors arrive with the app already on a phone or computer, so pairing is not
+  a secondary path. It goes straight to pairing.
+- `Use without an account` — quiet footer link. Enters Try-mode (§8.2). It is an
+  expert path.
 
-The default path on web is to sign up. The deferral is still offered, but it is third in
-the visual hierarchy because the cost of deferring on web is much higher than on Android.
+**The flow after the chooser** (`web/apex/src/onboarding/OnboardingFlow.tsx`):
+
+| Path | Steps |
+|---|---|
+| Create an account | generate → commit → passkey → *Get Tenshu on your devices* → **Choose a plan** → the chosen plan's page |
+| Use without an account | generate → commit → passkey → *Get Tenshu on your devices* → control home |
+| I already use Tenshu | pairing → passkey → control home |
+| Recovery (§6) | phrase → passkey → control home |
+
+Screens removed in this pass and why:
+
+- **"How Tenshu works" intro**: it repeated the landing page.
+- **"Name this browser"**: the browser is named for what it is, *"Chrome on
+  macOS"* (`web/apex/src/lib/deviceName.ts`). That name is also what the *other*
+  device shows in its pairing approval prompt, so a recognisable default matters
+  more than letting people pick one. ⚠ Renaming a device is **not built** on any
+  platform yet (`DeviceDetailPage.tsx`), so the default is all there is for now.
+- **Browser sync screens** (the warning and the per-browser opt-out instructions):
+  they told users to turn off Chrome's "Site Settings" sync to "exclude IndexedDB".
+  As far as we know no mainstream browser sync (Chrome, Firefox, Safari/iCloud)
+  replicates a site's IndexedDB, so the instructions fixed a problem that does not
+  exist, and a page cannot change browser sync settings anyway. A one-line note
+  replaced them briefly and was then dropped too: it explained a non-problem and
+  mostly raised the question it answered. ⚠ Not verified with a two-machine test
+  (threat model §10).
+- **"How you can use Tenshu" (web / extension / PWA)**: two of its three cards
+  were "coming soon" or a placeholder alert. It is replaced by *Get Tenshu on your
+  devices*, which lists the native store pages (`web/apex/src/lib/storeLinks.ts`).
+  Only Google Play has a listing today; iPhone and Mac show "Coming soon" until
+  they get one.
+- **"About storage"**: it repeated the plan picker. The picker itself is now an
+  onboarding step (*Choose a plan*) that reuses the control plane's `TierCard`s,
+  so tiers and their routing cannot drift apart. *Not now* lands on the control
+  home. The standalone `/control/services/picker` is still there for the
+  Services tab and the Try-mode banner. ⚠ Its Cancel used to call
+  `navigate(-1)`, which, after onboarding's `replace` navigation, left the app for
+  the public landing page; it now goes to `/control/services`.
+
+The original hierarchy put signup first and pairing second "because the cost of
+deferring on web is much higher than on Android". That cost is real, but it
+argues for demoting *Try-mode*, which this revision keeps doing, not pairing.
 
 ### 8.2 Try-mode
 
-A user who picks `[Just try it locally]` enters a Try-mode session:
+A user who picks `Use without an account` enters a Try-mode session:
 
 - Master identity is generated and IndexedDB-persisted (per the existing apex
   architecture).

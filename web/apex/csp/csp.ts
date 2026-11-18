@@ -38,6 +38,12 @@ export const PROD_COMMERCE_URL = 'https://commerce.service.tenshu.app'
  * `map-region-service-proxy/…/TilesManifestKey.kt` (origins.test.ts reads it from there).
  */
 export const TILES_HOST_URL = 'https://tiles.service.tenshu.app'
+/**
+ * Cloudflare Turnstile (commerce D16): the widget's script, its challenge iframe and the iframe's
+ * calls all come from here. ⚠ Must be the origin of `TURNSTILE_SCRIPT_URL` in
+ * src/lib/turnstileScript.ts — origins.test.ts pins the two.
+ */
+export const TURNSTILE_ORIGIN = 'https://challenges.cloudflare.com'
 const DEV_RELAY_URL = 'http://localhost:8080'
 const DEV_COMMERCE_URL = 'http://localhost:8081'
 
@@ -75,6 +81,15 @@ export function connectOrigins(env: BuildEnv): string[] {
   const relay = configured(env, 'VITE_TENSHU_RELAY_URL') ?? (env.DEV ? DEV_RELAY_URL : PROD_RELAY_URL)
   const commerce = configured(env, 'VITE_TENSHU_COMMERCE_URL') ?? (env.DEV ? DEV_COMMERCE_URL : PROD_COMMERCE_URL)
   return [...new Set([originOf(relay), originOf(commerce), originOf(TILES_HOST_URL)])]
+}
+
+/**
+ * The Turnstile origin, for `script-src`, `frame-src` and `connect-src` — only when the build sets
+ * `VITE_TURNSTILE_SITE_KEY`. Without a site key the SPA never loads the widget, so the policy names
+ * nothing it does not use.
+ */
+export function turnstileOrigins(env: BuildEnv): string[] {
+  return configured(env, 'VITE_TURNSTILE_SITE_KEY')?.trim() ? [TURNSTILE_ORIGIN] : []
 }
 
 /**
@@ -120,6 +135,8 @@ export function inlineScriptHashes(html: string): string[] {
 export interface PagePolicy {
   /** `inlineScriptHashes` of the page. */
   readonly scriptHashes: readonly string[]
+  /** Extra `script-src` origins (`turnstileOrigins()`; none for a static page). */
+  readonly scripts?: readonly string[]
   /** Extra `connect-src` origins (the SPA's relay + commerce; none for a static page). */
   readonly connect?: readonly string[]
   /** Extra `frame-src` origins (the hosted apps; none for a static page). */
@@ -132,10 +149,11 @@ export interface PagePolicy {
  * The policy for one page. Every directive is spelled out rather than left to `default-src`, so a
  * reader sees what each kind of load may do. Why each one: docs/web/architecture.md §5.3.
  */
-export function contentSecurityPolicy({ scriptHashes, connect = [], frame = [], images = [] }: PagePolicy): string {
+export function contentSecurityPolicy({ scriptHashes, scripts = [], connect = [], frame = [], images = [] }: PagePolicy): string {
   const directives: [string, ...string[]][] = [
     ['default-src', "'self'"],
-    ['script-src', "'self'", ...scriptHashes],
+    // The Turnstile origin, when the build has a site key (`turnstileOrigins`).
+    ['script-src', "'self'", ...scripts, ...scriptHashes],
     // React `style={…}` and the support pages' `style="aspect-ratio…"` are inline style ATTRIBUTES;
     // only 'unsafe-inline' admits those (a hash cannot name an attribute without 'unsafe-hashes').
     ['style-src', "'self'", "'unsafe-inline'"],
@@ -146,7 +164,7 @@ export function contentSecurityPolicy({ scriptHashes, connect = [], frame = [], 
     ['media-src', "'self'", 'blob:'],
     // blob: — the share viewer reads its own text blob back with fetch().
     ['connect-src', "'self'", 'blob:', ...connect],
-    // blob: — the share viewer's PDF preview; the apps — AppEmbed.
+    // blob: — the share viewer's PDF preview; the apps — AppEmbed; Turnstile's challenge iframe.
     ['frame-src', "'self'", 'blob:', ...frame],
     ['worker-src', "'self'"],
     ['manifest-src', "'self'"],

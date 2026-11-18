@@ -2330,6 +2330,9 @@ Explicitly not trusted:
   model opinion and overwrite it. `nameFaceGroup` is the **only** operation in this feature that
   writes realm data; it carries a path and a name and nothing else, and widening it is a change to
   this entry (House Rule 2).
+  ⚠ **The browser renders names, read-only** (`photos-app.md` §42.7, 2026-11-17). A browser device
+  already received these rows as a sync peer. Showing them adds no artifact and no write, and the
+  tab never holds or derives a template: no model runs there, and no face op is mapped.
 
   **Acquisition is gated twice** (IN-D3): a realm switch and a per-device switch, both defaulting
   to *no*, offered in Settings only and never during onboarding, with consent re-read per file so a
@@ -2529,6 +2532,16 @@ Explicitly not trusted:
   templates in memory. It already reads the realm's keys and plaintext under Decision C, so this
   adds no new trust boundary. **Relay exposure unchanged (House Rule #1)**; no key material, sync
   protocol, relay data shape or schema'd row is touched, so no House Rule 9 bump.
+
+  **Faces on macOS desktop (2026-11-18, [`ios-face-grouping.md`](../proposals/ios-face-grouping.md)
+  §10.8).** Desktop Control binds `VisionOnnxFaceBackend` on macOS only (`MacFaces.runsHere`); Windows
+  and Linux bind none. **The detector is Apple Vision**, called in Control's own process through FFM
+  at a pinned revision, and the embedder is Android's own file on ORT: nothing of a photograph leaves
+  the device to find or embed a face. Templates go to the same device-local log as Android's
+  (`/inference/faces.log` under Control's data directory), and `faceGroups` keeps the process
+  boundary the first paragraph describes: Control's process holds templates, and no app process does.
+  Consent, the realm stamp and the never-sync rule are unchanged. **Relay exposure unchanged (House
+  Rule #1)**; no asset (A1–A4 / A9), sync protocol, relay data shape or schema'd row is touched.
 
   **Name suggestions (IN-6 F6c name suggestions, 2026-11-11; `photos-people-and-pets.md` §6a
   *F6c-s as built*).** Two new things, neither of them realm data:
@@ -7649,12 +7662,24 @@ Defense:
   ⚠⚠ The key spaces are disjoint **by construction**: `normaliseEmail` rejects any `:` and requires a
   strict single RFC 822 address, so no input to `/register` can normalise to `account-deletion:…` (or
   `erased:…`) and overwrite a victim's pending deletion code with a sign-in code.
-- **No enumeration oracle.** The `{email}` request answers `202` and sends *a* mail whatever the
-  address — the code, or a "no account uses this address" notice — so neither the status nor the SMTP
-  round trip reveals existence; every `/confirm` refusal is one `401`. Both branches also do the same
-  database work (one hashed-code upsert; an unknown address writes a fixed decoy key, never a row
-  naming the stranger). Both routes spend `/register`'s
-  and `/verify`'s budgets (CE-2), so the mail-bomb surface is the one `/register` already had.
+- **No enumeration oracle.** The `{email}` request answers `202` whatever the address, and every
+  `/confirm` refusal is one `401`. Both branches do the same database work (one hashed-code upsert; an
+  unknown address writes a fixed decoy key, never a row naming the stranger).
+  *Amendment (2026-11-18, `commerce-accounts-and-sessions.md` §9.7):* ⚠⚠ **an address no account uses
+  is mailed NOTHING.** The original defense mailed it a "no account uses this address" notice so the
+  SMTP round trip could not tell — which made this unauthenticated route a mail cannon at any address,
+  and a form-spam bot used it (~500 notices from 2026-11-09, 77% bounced, all charged to the sender
+  reputation sign-in codes share). The timing half is now held by a **jittered pause**
+  (`jitteredSendPad`, 0.3–1.5 s, the span a real TEM send takes) in place of the SMTP call.
+  Residuals, accepted: (a) the pause is a distribution matched by eye, not the SMTP latency itself —
+  many samples may separate the two; (b) a `503 send_failed` can only come from the account branch,
+  and only while **our** transport is failing, which a caller cannot cause.
+- **Mail volume is bounded per source, per inbox and in total.** Both routes spend `/register`'s and
+  `/verify`'s budgets (CE-2). The per-email budget keys on the **inbox**
+  (`AccountRateLimits.inboxKey`: `+tag` dropped, Gmail dots folded), since Gmail delivers every
+  spelling to one mailbox; and `OTP_SEND_GLOBAL_PER_DAY` (default 200) caps all code mail service-wide,
+  the only bound on a source rotating IPs *and* addresses. ⚠ That cap is a deliberate availability
+  trade: spent, nobody receives a code until the day rolls (**Low** DoS, logged).
 - **A self-made closure cannot delete somebody else's files.** ⚠⚠ The closure sweep now **skips any
   `ownerId` still live-bound to an account that is not closed** (`closedAccountsWithOwners`). Without
   it, erasure opened a real hole: the address no longer finds the erased row, so the same person
@@ -8671,19 +8696,27 @@ explicit carve-outs:
 - OS-level compromise of client devices (rooted/jailbroken) — explicitly untrusted.
 - Duress scenarios. No duress password in v1.
 - Active DoS by the relay (pure availability attacks indistinguishable from outages).
-- **Browser sync as a key-distribution channel.** On web (per
-  [`docs/web/architecture.md`](../web/architecture.md) §4.2), Chrome Sync / Firefox Sync may
-  replicate the `tenshu.app` IndexedDB across all browsers signed into the user's
-  Google/Mozilla account. When this happens, the device key in IndexedDB is shared across
-  every machine in the sync set, making them all *one* realm device rather than several. This
-  is a property of the user's browser configuration, not a protocol-level fact, and is
-  accepted as out-of-scope for the protocol. The web control plane surfaces the situation
-  legibly (*"This realm device is shared via browser sync"*) and offers per-browser
-  instructions for excluding `tenshu.app` from sync if the user wants per-machine
-  granularity. Browser-sync providers are themselves outside the trust set per TA2 (platform
-  keystores are the only platform key-distribution mechanism Tenshu trusts); a compromised
-  browser-sync account therefore expands the attack surface, and the user should treat their
-  Google/Mozilla account credentials with the same care as their device passwords.
+- **Browser sync as a key-distribution channel.** *(Amended 2026-11-18, web onboarding
+  pass.)* This entry used to assume that Chrome Sync / Firefox Sync may replicate the
+  `tenshu.app` IndexedDB, so that every browser in a sync set would share one device key and
+  act as *one* realm device. That premise is wrong. No mainstream browser sync (Chrome, Edge,
+  Firefox, Safari/iCloud) replicates a site's IndexedDB or `localStorage`: what syncs is
+  bookmarks, history, passwords and passkeys, settings and per-site permissions. Page storage
+  stays in the profile that wrote it, and only an extension's `chrome.storage.sync` crosses
+  devices. So the device key, and the PRF-wrapped A1 slot beside it (§4.2 of
+  [`docs/web/architecture.md`](../web/architecture.md)), stay in the one browser profile that
+  holds them. Another browser joins the realm only by pairing, as its own realm device. The web
+  surfaces therefore no longer warn that a realm device is "shared via browser sync", and no
+  longer give per-browser instructions for excluding `tenshu.app` from sync.
+  ⚠ What *does* cross a sync account is a **synced passkey** (Google Password Manager, iCloud
+  Keychain). On another machine it yields the same WebAuthn-PRF output, but the wrapped A1 blob
+  it would unwrap is not there. A compromised sync account therefore reaches A1 only *together
+  with* a copy of the original profile's IndexedDB, which is T-C-08's actor, not a new one.
+  Browser-sync providers stay outside the trust set per TA2, and the user should still treat
+  their Google/Mozilla/Apple account credentials with the same care as their device passwords.
+  ⚠ The premise was corrected from the browsers' documented sync data types, not from a
+  two-machine test. If a browser is ever found replicating site storage, this entry must change,
+  and the apex owes its users a warning again (it currently shows none).
 
 ## 11. Resolved Decisions
 

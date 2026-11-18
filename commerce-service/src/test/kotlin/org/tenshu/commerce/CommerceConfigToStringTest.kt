@@ -31,11 +31,12 @@ class CommerceConfigToStringTest {
             "GOOGLE_PLAY_RTDN_TOKEN" to "SECRETrtdn",
             "REVIEW_SIGNIN_ACCOUNTS" to "store-a-review-SECRETsuffix@example.com=$digest",
             "REVIEW_SIGNIN_HMAC_KEY" to "SECREThmackey-0123456789abcdef0123",
+            "TURNSTILE_SECRET_KEY" to "0x4AAAAAAA-SECRETturnstile",
         )
         val config = CommerceConfig.fromEnv { env[it] }
         val printed = config.toString()
 
-        assertFalse("secret" in printed.lowercase().replace("adminTotpSecret".lowercase(), "").replace("stripeSecretKey".lowercase(), "").replace("stripeWebhookSecret".lowercase(), ""), "a secret reached toString: $printed")
+        assertFalse("secret" in printed.lowercase().replace("adminTotpSecret".lowercase(), "").replace("stripeSecretKey".lowercase(), "").replace("stripeWebhookSecret".lowercase(), "").replace("turnstileSecretKey".lowercase(), ""), "a secret reached toString: $printed")
         assertFalse(digest in printed, "a review digest reached toString")
         assertFalse(env.getValue("ISSUER_SEED") in printed, "the issuer seed reached toString")
         assertFalse(seed.contentToString() in printed)
@@ -43,6 +44,7 @@ class CommerceConfigToStringTest {
         assertTrue("smtp.example.com" in printed)
         assertTrue("adminToken=set" in printed)
         assertTrue("reviewSignInAccounts=set(1)" in printed)
+        assertTrue("turnstileSecretKey=set" in printed)
         assertTrue("issuerSeed=set" in printed)
     }
 }

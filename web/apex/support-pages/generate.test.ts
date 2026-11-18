@@ -32,7 +32,7 @@ import { PRIVACY, PRIVACY_POLICY_DATE } from './privacy.ts'
 import { TERMS, TERMS_DATE } from './terms.ts'
 import { ROADMAP, ROADMAP_DATE } from './roadmap.ts'
 import { PRICING, START_HREF, planStorage } from './pricing.ts'
-import { APP_PAGES, BUTTON_PRIMARY } from './appPages.ts'
+import { APP_PAGES, BUTTON_DETECTED, BUTTON_PRIMARY } from './appPages.ts'
 import { HUB_SCRIPT_BODY } from './hub.ts'
 import { PLANS, formatEuro } from '../src/control/services/plans.ts'
 
@@ -569,7 +569,7 @@ describe('support pages', () => {
   })
 
   // Runs the page's own inline script against its own markup, with the user agent stubbed.
-  it('the download script moves an available system first as primary, only hints at a coming one, and leaves the closing row alone', () => {
+  it('the download script turns an available system into a large "Download for" button, only hints at a coming one, and leaves the closing row alone', () => {
     const html = site.files.find((f) => f.file === 'apps/drive/en/index.html')!.content
     const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]!).find((body) => body.includes('data-download'))!
     const main = html.slice(html.indexOf('<main'), html.indexOf('</main>') + '</main>'.length)
@@ -581,38 +581,52 @@ describe('support pages', () => {
       const document = dom.window.document
       const [hero, closing] = [...document.querySelectorAll('main ul.flex')] as unknown as HTMLElement[]
       const order = (ul: HTMLElement) => [...ul.querySelectorAll('li')].map((li) => li.dataset.os)
-      const primary = (ul: HTMLElement) => [...ul.querySelectorAll('a')].filter((a) => a.className === BUTTON_PRIMARY).map((a) => a.closest('li')!.dataset.os)
-      return { hero: order(hero!), primary: primary(hero!), closing: order(closing!), closingPrimary: primary(closing!), hint: document.querySelector('[data-download-hint]')!.textContent }
+      const withClass = (ul: HTMLElement, cls: string) => [...ul.querySelectorAll('a')].filter((a) => a.className === cls).map((a) => a.closest('li')!.dataset.os)
+      const detected = hero!.querySelector('a')!
+      return {
+        hero: order(hero!),
+        primary: withClass(hero!, BUTTON_PRIMARY),
+        detected: withClass(hero!, BUTTON_DETECTED),
+        label: detected.className === BUTTON_DETECTED ? detected.textContent : null,
+        closing: order(closing!),
+        closingPrimary: withClass(closing!, BUTTON_PRIMARY),
+        hint: document.querySelector('[data-download-hint]')!.textContent,
+      }
     }
     const built = ['android', 'ios', 'macos', 'windows', 'web']
-    const android = run('Mozilla/5.0 (Linux; Android 15; Pixel 8)')
-    expect(android).toEqual({ hero: built, primary: ['android'], closing: built, closingPrimary: [], hint: 'We think you’re on Android.' })
-    const iphone = run('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)')
-    expect(iphone).toEqual({ hero: built, primary: ['android'], closing: built, closingPrimary: [], hint: 'We think you’re on iPhone and iPad. Tenshu Drive for it is coming soon.' })
+    const unchanged = { hero: built, primary: ['android'], detected: [], label: null, closing: built, closingPrimary: [] }
+    // Android: its button is first already, and becomes the large one; no "we think" line.
+    expect(run('Mozilla/5.0 (Linux; Android 15; Pixel 8)')).toEqual({ ...unchanged, primary: [], detected: ['android'], label: 'Download for Android', hint: '' })
+    // iPhone: Drive is not there yet, so nothing moves and the line says it is coming.
+    expect(run('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)')).toEqual({ ...unchanged, hint: 'We think you’re on iPhone and iPad. Tenshu Drive for it is coming soon.' })
     // iPadOS reports a Mac; touch points give it away.
     expect(run('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 5).hint).toContain('iPhone and iPad')
-    expect(run('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)').hint).toContain('on Mac.')
+    // Mac: moves first as the large button.
+    expect(run('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)')).toEqual({
+      hero: ['macos', 'android', 'ios', 'windows', 'web'], primary: [], detected: ['macos'], label: 'Download for Mac', closing: built, closingPrimary: [], hint: '',
+    })
     // Windows: a target, but Drive is not released there until store/windows-release.json carries it, so
-    // nothing moves and the line says it is coming. Once released it moves first like Mac.
+    // nothing moves and the line says it is coming. Once released it becomes the button like Mac.
     const windows = run('Mozilla/5.0 (Windows NT 10.0; Win64; x64)')
     if (loadWindowsRelease(STORE_DIR)?.apps.drive) {
-      expect(windows).toMatchObject({ hero: ['windows', 'android', 'ios', 'macos', 'web'], primary: ['windows'], hint: 'We think you’re on Windows.' })
+      expect(windows).toMatchObject({ hero: ['windows', 'android', 'ios', 'macos', 'web'], detected: ['windows'], label: 'Download for Windows', hint: '' })
     } else {
-      expect(windows).toEqual({ hero: built, primary: ['android'], closing: built, closingPrimary: [], hint: 'We think you’re on Windows. Tenshu Drive for it is coming soon.' })
+      expect(windows).toEqual({ ...unchanged, hint: 'We think you’re on Windows. Tenshu Drive for it is coming soon.' })
     }
     // Linux: no target at all, nothing moves, no hint.
-    expect(run('Mozilla/5.0 (X11; Linux x86_64)')).toEqual({ hero: built, primary: ['android'], closing: built, closingPrimary: [], hint: '' })
-    // Photos' Mac target is the macOS download page (macosDownload.ts): a Mac visitor gets it first, as the primary button.
-    const photos = site.files.find((f) => f.file === 'apps/photos/en/index.html')!.content
-    const photosMain = photos.slice(photos.indexOf('<main'), photos.indexOf('</main>') + '</main>'.length)
-    const dom = new JSDOM(`<!doctype html><body>${photosMain}</body>`, { runScripts: 'outside-only' })
+    expect(run('Mozilla/5.0 (X11; Linux x86_64)')).toEqual({ ...unchanged, hint: '' })
+    // Control's Mac target is the macOS download page (macosDownload.ts), and the German page says so in German.
+    const control = site.files.find((f) => f.file === 'apps/control/de/index.html')!.content
+    const controlMain = control.slice(control.indexOf('<main'), control.indexOf('</main>') + '</main>'.length)
+    const dom = new JSDOM(`<!doctype html><body>${controlMain}</body>`, { runScripts: 'outside-only' })
     Object.defineProperty(dom.window.navigator, 'userAgent', { get: () => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' })
     Object.defineProperty(dom.window.navigator, 'maxTouchPoints', { get: () => 0 })
     dom.window.eval(script)
-    expect([...dom.window.document.querySelectorAll('[data-download] li')].map((li: { dataset: { os: string } }) => li.dataset.os)).toEqual(['macos', 'android', 'ios', 'windows', 'web'])
-    expect(dom.window.document.querySelector('[data-download] li[data-os="macos"] a').className).toBe(BUTTON_PRIMARY)
-    expect(dom.window.document.querySelector('[data-download] li[data-os="macos"] a').getAttribute('href')).toBe('/apps/photos/download/macos')
-    expect(dom.window.document.querySelector('[data-download-hint]').textContent).toContain('on Mac.')
+    const mac = dom.window.document.querySelector('[data-download] li[data-os="macos"] a')
+    expect(dom.window.document.querySelector('[data-download] li').dataset.os).toBe('macos')
+    expect(mac.className).toBe(BUTTON_DETECTED)
+    expect(mac.textContent).toBe('Für Mac herunterladen')
+    expect(mac.getAttribute('href')).toBe('/apps/control/download/macos')
   })
 
   it('an app page translation keeps every row and question; the translations are unreviewed', () => {

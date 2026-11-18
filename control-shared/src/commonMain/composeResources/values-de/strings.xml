@@ -5,7 +5,7 @@
     <string name="home_recovery_affordance_title">Speichere deine Wiederherstellungsphrase</string>
     <string name="home_recovery_affordance_body">Wenn du dieses Gerät verlierst, ist sie der einzige Weg, auf einem neuen Gerät wieder die Kontrolle über deine Daten zu erlangen. Gekoppelte Geräte erhalten keine Kopie davon.</string>
     <string name="home_recovery_affordance_local_only_title">Deine Daten sind nur auf diesem Gerät</string>
-    <string name="home_recovery_affordance_local_only_body">Noch wird nichts synchronisiert – verlierst du dieses Gerät, sind auch deine Daten weg. Richte die Synchronisierung ein, um eine Kopie an anderer Stelle zu haben, und speichere deine Wiederherstellungsphrase, damit du wieder hineinkommst.</string>
+    <string name="home_recovery_affordance_local_only_body">Noch wird nichts synchronisiert. Verlierst du dieses Gerät, sind auch deine Daten weg. Richte die Synchronisierung ein, um eine Kopie an anderer Stelle zu haben, und speichere deine Wiederherstellungsphrase, damit du wieder hineinkommst.</string>
     <string name="home_recovery_affordance_save_phrase">Wiederherstellungsphrase speichern</string>
     <string name="home_recovery_affordance_set_up_sync">Synchronisierung einrichten</string>
     <string name="home_recovery_affordance_dismiss">Später</string>
@@ -59,7 +59,7 @@
     <string name="home_event_title_app_removed">App entfernt</string>
 
     <string name="locked_welcome_back">Willkommen zurück</string>
-    <string name="locked_too_many_tries">Zu viele Versuche – am besten stellst du dein Realm jetzt mit deiner Phrase wieder her.</string>
+    <string name="locked_too_many_tries">Zu viele Versuche. Am besten stellst du dein Realm jetzt mit deiner Phrase wieder her.</string>
     <string name="locked_biometric_body">Dein Tenshu-Realm ist gesperrt. Entsperre es mit der Biometrie deines Geräts.</string>
     <string name="locked_biometric_waiting">Warte auf Biometrie…</string>
     <string name="locked_biometric_cta">Mit Biometrie entsperren</string>
@@ -75,19 +75,19 @@
     <string name="recovery_title_processing">Wird wiederhergestellt…</string>
     <string name="recovery_title_success">Willkommen zurück</string>
     <string name="recovery_entry_body">Wenn du den Zugriff auf alle deine Geräte verloren hast, gib unten deine 24-Wörter-Wiederherstellungsphrase ein, um dein Realm wiederherzustellen.</string>
-    <string name="recovery_entry_slow_note">Dieser Vorgang ist absichtlich langsam – es dauert einige Sekunden, deinen Hauptschlüssel aus deiner Wiederherstellungsphrase abzuleiten. Diese Verzögerung schützt deine Phrase vor Brute-Force-Angriffen.</string>
+    <string name="recovery_entry_slow_note">Dieser Vorgang ist absichtlich langsam: Es dauert einige Sekunden, deinen Hauptschlüssel aus deiner Wiederherstellungsphrase abzuleiten. Diese Verzögerung schützt deine Phrase vor Brute-Force-Angriffen.</string>
     <string name="recovery_entry_word_count">%1$d von 24 Wörtern</string>
-    <string name="recovery_entry_warning">Gib diese Phrase an niemanden weiter – auch nicht an Tenshu.</string>
+    <string name="recovery_entry_warning">Gib diese Phrase an niemanden weiter, auch nicht an Tenshu.</string>
     <string name="recovery_entry_recover">Wiederherstellen</string>
     <string name="recovery_entry_troubleshooting">Probleme bei der Wiederherstellung? Sieh dir die Anleitung zur Fehlerbehebung an.</string>
     <string name="recovery_error_unknown_word">„%1$s“ ist kein gültiges Wiederherstellungswort. Prüfe die Schreibweise oder wähle einen Vorschlag aus der Autovervollständigung.</string>
     <string name="recovery_error_invalid_length">Wiederherstellungsphrasen bestehen aus 24 Wörtern. Du hast %1$d eingegeben.</string>
     <string name="recovery_error_phrase_rejected">Diese Phrase wurde nicht akzeptiert. Prüfe jedes Wort und versuche es erneut.</string>
-    <string name="recovery_error_checksum_mismatch">Diese Phrase scheint nicht zu stimmen. Prüfe jedes Wort genau – schon ein falsches Wort verhindert die Wiederherstellung.</string>
+    <string name="recovery_error_checksum_mismatch">Diese Phrase scheint nicht zu stimmen. Prüfe jedes Wort genau. Schon ein falsches Wort verhindert die Wiederherstellung.</string>
     <string name="recovery_processing_heading">Dein Realm wird wiederhergestellt…</string>
     <string name="recovery_processing_body">Das kann 5–10 Sekunden dauern.</string>
     <string name="recovery_success_heading">Willkommen zurück</string>
-    <string name="recovery_success_body">Dein Realm ist wiederhergestellt. Dieses Gerät ist jetzt dein einziges Realm-Gerät – wenn du deine anderen Geräte später wiederfindest, musst du sie erneut koppeln.</string>
+    <string name="recovery_success_body">Dein Realm ist wiederhergestellt. Dieses Gerät ist jetzt dein einziges Realm-Gerät. Wenn du deine anderen Geräte später wiederfindest, musst du sie erneut koppeln.</string>
     <string name="recovery_success_sync_note">Deine Geräte und Apps erscheinen in den nächsten Minuten wieder, während synchronisiert wird.</string>
     <string name="recovery_success_continue">Weiter</string>
 
@@ -95,7 +95,7 @@
     <string name="mnemonic_word_label">%1$d</string>
 
     <string name="welcome_title">Willkommen bei Tenshu</string>
-    <string name="welcome_body">Tenshu ist ein privater Ort für deine Dateien. Alles wird auf diesem Gerät verschlüsselt – niemand sonst kann es lesen, auch wir nicht.</string>
+    <string name="welcome_body">Tenshu ist ein privater Ort für deine Dateien. Alles wird auf diesem Gerät verschlüsselt. Niemand sonst kann es lesen, auch wir nicht.</string>
     <string name="welcome_start_fresh">Auf diesem Gerät neu beginnen</string>
     <string name="welcome_existing_device">Ich habe Tenshu auf einem anderen Gerät</string>
     <string name="welcome_recover_phrase">Mit Wiederherstellungsphrase wiederherstellen</string>
@@ -106,22 +106,22 @@
 
     <string name="new_user_registering">Dein Realm wird registriert</string>
     <string name="new_user_youre_set_up">Alles eingerichtet</string>
-    <string name="new_user_youre_set_up_body">Dein Realm ist auf diesem Gerät bereit. Bis du die Synchronisierung einschaltest, bleibt alles hier – nichts verlässt dieses Gerät.</string>
+    <string name="new_user_youre_set_up_body">Dein Realm ist auf diesem Gerät bereit. Bis du die Synchronisierung einschaltest, bleibt alles hier. Nichts verlässt dieses Gerät.</string>
     <string name="new_user_turn_on_sync">Sync einschalten</string>
     <string name="new_user_continue">Weiter</string>
 
     <string name="device_protection_title">Durch dein Gerät geschützt</string>
-    <string name="device_protection_body">Tenshu schützt deine Schlüssel mit dem sicheren Speicher dieses Geräts, sodass die Synchronisierung deiner Dateien sofort beginnt – auch nach einem Neustart und ohne Passphrase, die du dir merken musst.</string>
+    <string name="device_protection_body">Tenshu schützt deine Schlüssel mit dem sicheren Speicher dieses Geräts, sodass die Synchronisierung deiner Dateien sofort beginnt, auch nach einem Neustart und ohne Passphrase, die du dir merken musst.</string>
     <string name="device_protection_add_lock">Passphrase für zusätzliche Sicherheit hinzufügen</string>
     <string name="device_protection_continue">Weiter</string>
     <string name="device_protection_back">Stattdessen Geräteschutz verwenden</string>
 
     <string name="setup_unlock_title">Tenshu sperren, wenn du es nicht nutzt</string>
-    <string name="setup_unlock_biometric_body">Nutze die Biometrie deines Geräts, um Tenshu zu sperren und zu entsperren. Deine biometrischen Daten bleiben auf diesem Gerät – Tenshu sieht sie nie.</string>
+    <string name="setup_unlock_biometric_body">Nutze die Biometrie deines Geräts, um Tenshu zu sperren und zu entsperren. Deine biometrischen Daten bleiben auf diesem Gerät. Tenshu sieht sie nie.</string>
     <string name="setup_unlock_biometric_waiting">Warte auf Biometrie…</string>
     <string name="setup_unlock_biometric_cta">Biometrisches Entsperren einrichten</string>
     <string name="setup_unlock_use_passphrase_instead">Stattdessen Passphrase festlegen</string>
-    <string name="setup_unlock_skip">Überspringen – durch dieses Gerät geschützt</string>
+    <string name="setup_unlock_skip">Überspringen (durch dieses Gerät geschützt)</string>
     <string name="setup_unlock_passphrase_body">Wähle eine Passphrase, um dein Realm auf diesem Gerät zu versiegeln. Du gibst sie ein, wenn Tenshu sich sperrt.</string>
     <string name="setup_unlock_passphrase_label">Passphrase</string>
     <string name="setup_unlock_confirm_label">Passphrase bestätigen</string>
@@ -130,7 +130,7 @@
     <string name="setup_unlock_choice_body">Wähle, wie du Tenshu entsperren möchtest. Biometrie ist am schnellsten; zusätzlich legst du eine Wiederherstellungs-Passphrase als Rückfalloption fest.</string>
     <string name="setup_unlock_choice_biometric">Biometrisch entsperren</string>
     <string name="setup_unlock_choice_passphrase">Passphrase verwenden</string>
-    <string name="setup_unlock_recovery_body">Lege eine Entsperr-Passphrase fest. Im Alltag nutzt du Biometrie – aber falls sie einmal nicht mehr funktioniert, nach einem App-Update oder auf einem neuen Gerät, entsperrt diese Passphrase Tenshu hier. Sie kann nicht zurückgesetzt werden, also wähle etwas, das du dir merken kannst. Deine Wiederherstellungsphrase ist etwas anderes: Mit ihr stellst du dein Realm wieder her, wenn du dieses Gerät verlierst.</string>
+    <string name="setup_unlock_recovery_body">Lege eine Entsperr-Passphrase fest. Im Alltag nutzt du Biometrie, aber falls sie einmal nicht mehr funktioniert, nach einem App-Update oder auf einem neuen Gerät, entsperrt diese Passphrase Tenshu hier. Sie kann nicht zurückgesetzt werden, also wähle etwas, das du dir merken kannst. Deine Wiederherstellungsphrase ist etwas anderes: Mit ihr stellst du dein Realm wieder her, wenn du dieses Gerät verlierst.</string>
     <string name="setup_unlock_back">Zurück</string>
 
     <string name="recovery_phrase_title">Wiederherstellungsphrase</string>
@@ -140,7 +140,7 @@
     <string name="recovery_phrase_show">Anzeigen</string>
     <string name="recovery_phrase_copy">Kopieren</string>
     <string name="recovery_phrase_absent_title">Dieses Gerät hat deine Wiederherstellungsphrase nicht</string>
-    <string name="recovery_phrase_absent_body">Nur ein Gerät, das mit der Phrase eingerichtet wurde – oder eines, das das Realm erstellt hat – bewahrt eine Kopie auf. Ein durch Kopplung hinzugefügtes Gerät erhält sie nie. Öffne diesen Bildschirm auf einem Gerät, das sie hat, und schreib die Phrase auf: Sie ist das Einzige, was den Verlust aller Geräte übersteht.</string>
+    <string name="recovery_phrase_absent_body">Nur ein Gerät, das mit der Phrase eingerichtet wurde, oder eines, das das Realm erstellt hat, bewahrt eine Kopie auf. Ein durch Kopplung hinzugefügtes Gerät erhält sie nie. Öffne diesen Bildschirm auf einem Gerät, das sie hat, und schreib die Phrase auf: Sie ist das Einzige, was den Verlust aller Geräte übersteht.</string>
     <string name="recovery_phrase_copied">Wiederherstellungsphrase kopiert</string>
 
     <string name="recovery_phrase_mark_saved">Ich habe sie aufgeschrieben</string>
@@ -149,8 +149,8 @@
     <string name="forget_device_headline">Dieses Gerät vergessen</string>
     <string name="forget_device_support">Dieses Gerät aus deinem Realm entfernen und hier neu beginnen.</string>
     <string name="forget_device_title">Dieses Gerät vergessen?</string>
-    <string name="forget_device_body">Dieses Gerät verlässt dein Realm und vergisst, wer es war. Du kannst es später erneut einrichten, aber es tritt als neues Gerät bei – seinen Namen und seine Einstellungen hier erhält es nicht zurück.</string>
-    <string name="forget_device_phrase_warning">Dieses Gerät enthält deine Wiederherstellungsphrase. Möglicherweise ist das die einzige Kopie. Schreib sie auf, bevor du fortfährst – ohne sie lässt sich dein Realm nicht wiederherstellen, sobald deine anderen Geräte weg sind.</string>
+    <string name="forget_device_body">Dieses Gerät verlässt dein Realm und vergisst, wer es war. Du kannst es später erneut einrichten, aber es tritt als neues Gerät bei. Seinen Namen und seine Einstellungen hier erhält es nicht zurück.</string>
+    <string name="forget_device_phrase_warning">Dieses Gerät enthält deine Wiederherstellungsphrase. Möglicherweise ist das die einzige Kopie. Schreib sie auf, bevor du fortfährst. Ohne sie lässt sich dein Realm nicht wiederherstellen, sobald deine anderen Geräte weg sind.</string>
     <string name="forget_device_acknowledge">Ich habe meine Wiederherstellungsphrase notiert</string>
     <string name="forget_device_confirm">Gerät vergessen</string>
     <string name="forget_device_cancel">Abbrechen</string>
@@ -171,7 +171,7 @@
     <string name="pairing_scan_enter_code">Stattdessen Code eingeben</string>
     <string name="pairing_scan_error_unknown_role">Dieser Kopplungscode erfordert eine neuere Version von Tenshu. Aktualisiere deine App und versuche es erneut.</string>
     <string name="pairing_scan_error_malformed">Das ist kein gültiger Tenshu-Kopplungscode. Scanne den Code, der auf deinem anderen Gerät angezeigt wird.</string>
-    <string name="pairing_scan_error_hub_verify_failed">Dieser Code passt nicht zu diesem Hub. Das Kopplungsangebot hat die Prüfung gegen den aufgedruckten Code nicht bestanden – kopple ihn nicht.</string>
+    <string name="pairing_scan_error_hub_verify_failed">Dieser Code passt nicht zu diesem Hub. Das Kopplungsangebot hat die Prüfung gegen den aufgedruckten Code nicht bestanden. Kopple ihn nicht.</string>
     <string name="pairing_scan_error_hub_not_armed">Kein Kopplungsangebot gefunden. Versetze den Hub in den Kopplungsmodus (starte ihn ungekoppelt) und scanne dann erneut.</string>
     <string name="pairing_scan_error_hub_unsupported">Dein Sync-Relay unterstützt die Hub-Kopplung noch nicht.</string>
     <string name="pairing_manual_heading">Kopplungscode eingeben</string>
@@ -179,7 +179,7 @@
     <string name="pairing_manual_placeholder">tenshu://join...</string>
     <string name="pairing_manual_continue">Weiter</string>
     <string name="pairing_name_heading">Gerät benennen</string>
-    <string name="pairing_name_body">Wähle einen Namen für dieses Gerät. Du siehst ihn in der Geräteliste deines Realms – „Sarahs MacBook“, „Wohnzimmer-Hub“, alles, was du wiedererkennst.</string>
+    <string name="pairing_name_body">Wähle einen Namen für dieses Gerät. Du siehst ihn in der Geräteliste deines Realms: „Sarahs MacBook“, „Wohnzimmer-Hub“, alles, was du wiedererkennst.</string>
     <string name="pairing_name_label">Gerätename</string>
     <string name="pairing_name_placeholder">z. B. Arbeitslaptop</string>
     <string name="pairing_name_rename_later">Du kannst das Gerät später unter Einstellungen → Realm-Geräte umbenennen.</string>
@@ -203,7 +203,7 @@
     <string name="pairing_responder_body">Dieses Gerät hat einen Kopplungscode angezeigt. Bestätige nur, wenn du es selbst hinzufügst.</string>
     <string name="pairing_responder_match_note">Prüfe, ob dieser Code mit dem auf dem anderen Gerät übereinstimmt, bevor du bestätigst.</string>
     <string name="pairing_responder_success_match_note">Prüfe, ob dieser Code mit dem übereinstimmt, der jetzt auf dem neuen Gerät angezeigt wird. Falls nicht, entferne dieses Gerät und versuche es erneut.</string>
-    <string name="pairing_responder_hub_verified_note">Gegen den gescannten aufgedruckten Code geprüft – kein Bestätigungscode nötig. Bestätige nur, wenn du diesen Hub selbst einrichtest.</string>
+    <string name="pairing_responder_hub_verified_note">Gegen den gescannten aufgedruckten Code geprüft, daher ist kein Bestätigungscode nötig. Bestätige nur, wenn du diesen Hub selbst einrichtest.</string>
     <string name="pairing_responder_approve">Bestätigen</string>
     <string name="pairing_responder_deny">Ablehnen</string>
     <string name="pairing_responder_adding">Gerät wird hinzugefügt…</string>
@@ -215,16 +215,16 @@
     <string name="add_device_show_heading">Mit deinem neuen Gerät scannen</string>
     <string name="add_device_show_body">Scanne diesen Code mit dem Gerät, das du hinzufügen möchtest.</string>
     <string name="add_device_show_stop">Beenden</string>
-    <string name="add_device_connection_lost">Relay nicht erreichbar – neuer Versuch läuft…</string>
-    <string name="add_device_not_recognized">Dieses Gerät wird von deinem Konto nicht mehr erkannt – sein Zugriff wurde entfernt oder die Kontodaten wurden zurückgesetzt. Kopple dieses Gerät erneut, um es wiederherzustellen. Deine lokalen Daten sind sicher.</string>
+    <string name="add_device_connection_lost">Relay nicht erreichbar. Neuer Versuch läuft…</string>
+    <string name="add_device_not_recognized">Dieses Gerät wird von deinem Konto nicht mehr erkannt. Sein Zugriff wurde entfernt oder die Kontodaten wurden zurückgesetzt. Kopple dieses Gerät erneut, um es wiederherzustellen. Deine lokalen Daten sind sicher.</string>
     <string name="unfunded_realm_heading">Noch wird nichts synchronisiert</string>
-    <string name="unfunded_realm_body">Dieses Realm hat keinen Speicherplan, daher lehnt das Relay Schreibvorgänge ab. Alles bleibt auf deinen Geräten und nichts geht verloren – aber Änderungen erreichen deine anderen Geräte erst, wenn Speicher eingerichtet ist.</string>
+    <string name="unfunded_realm_body">Dieses Realm hat keinen Speicherplan, daher lehnt das Relay Schreibvorgänge ab. Alles bleibt auf deinen Geräten und nichts geht verloren, aber Änderungen erreichen deine anderen Geräte erst, wenn Speicher eingerichtet ist.</string>
     <string name="unfunded_realm_cta">Speicher einrichten</string>
-    <string name="unfunded_realm_host_note">Noch wird nichts dorthin synchronisiert – dieses Realm hat keinen Speicherplan.</string>
+    <string name="unfunded_realm_host_note">Noch wird nichts dorthin synchronisiert, denn dieses Realm hat keinen Speicherplan.</string>
     <string name="add_device_show_success_heading">Gerät hinzugefügt</string>
     <string name="add_device_show_success_body">Das neue Gerät wurde gekoppelt. Deine Daten werden in den nächsten Minuten darauf synchronisiert.</string>
     <string name="add_device_offer_heading">Mit deinem anderen Gerät scannen</string>
-    <string name="add_device_offer_body">Öffne auf einem Gerät, auf dem Tenshu bereits läuft, Control, wähle „Gerät hinzufügen“ und scanne diesen Code – bestätige die Anfrage dann dort.</string>
+    <string name="add_device_offer_body">Öffne auf einem Gerät, auf dem Tenshu bereits läuft, Control, wähle „Gerät hinzufügen“ und scanne diesen Code. Bestätige die Anfrage dann dort.</string>
     <string name="add_device_offer_sas_label">Auf beiden Geräten angezeigter Code</string>
     <string name="add_device_offer_scanned_heading">Code gescannt</string>
     <string name="add_device_offer_scanned_body">Prüfe, ob dieser Code mit dem auf deinem anderen Gerät übereinstimmt, und bestätige dann dort.</string>
@@ -247,15 +247,15 @@
     <string name="sync_dashboard_dialog_cancel">Abbrechen</string>
     <string name="sync_dashboard_join_request">Das Gerät „%1$s“ möchte deinem Realm beitreten.</string>
     <string name="sync_dashboard_sas_prompt">Bestätige, dass dieser Code auf dem anderen Gerät übereinstimmt:</string>
-    <string name="pairing_sas_version_hint">Wenn die Codes nicht übereinstimmen, fahre nicht fort – stelle sicher, dass auf beiden Geräten die neueste Version von Tenshu läuft.</string>
+    <string name="pairing_sas_version_hint">Wenn die Codes nicht übereinstimmen, fahre nicht fort. Stelle sicher, dass auf beiden Geräten die neueste Version von Tenshu läuft.</string>
     <string name="sync_dashboard_manual_code_label">Manueller Code:</string>
     <string name="sync_dashboard_copy_clipboard">In Zwischenablage kopieren</string>
     <string name="sync_dashboard_pairing_error">Fehler beim Erstellen des Kopplungscodes</string>
-    <string name="sync_dashboard_pairing_connection_lost">Der Sync-Server ist nicht erreichbar, um nach Kopplungsanfragen zu suchen. Dieses Gerät muss sich eventuell neu verbinden – wenn das Problem bestehen bleibt, wurde das Relay möglicherweise neu gestartet.</string>
+    <string name="sync_dashboard_pairing_connection_lost">Der Sync-Server ist nicht erreichbar, um nach Kopplungsanfragen zu suchen. Dieses Gerät muss sich eventuell neu verbinden. Wenn das Problem bestehen bleibt, wurde das Relay möglicherweise neu gestartet.</string>
     <string name="sync_dashboard_scan_qr_body">Scanne diesen QR-Code mit der Tenshu-App auf deinem anderen Gerät.</string>
-    <string name="sync_dashboard_pairing_waiting">Kopplung läuft – noch %1$s</string>
+    <string name="sync_dashboard_pairing_waiting">Kopplung läuft (noch %1$s)</string>
     <string name="sync_dashboard_pairing_waiting_no_countdown">Kopplung läuft</string>
-    <string name="sync_dashboard_pairing_request">Ein Gerät möchte beitreten – zum Prüfen tippen</string>
+    <string name="sync_dashboard_pairing_request">Ein Gerät möchte beitreten. Zum Prüfen tippen</string>
 
     <string name="device_item_this_device">Dieses Gerät</string>
     <string name="device_item_pending_approval">Bestätigung ausstehend</string>
@@ -264,6 +264,7 @@
     <string name="device_item_approve">Gerät bestätigen</string>
     <string name="device_item_revoke">Gerät entfernen</string>
     <string name="sync_dashboard_removed_header">Entfernte Geräte</string>
+    <string name="sync_dashboard_no_phrase_note">Dieses Gerät hat deine Wiederherstellungsphrase nicht und kann daher keine anderen Geräte entfernen. Um ein anderes Gerät zu entfernen, verwende eines mit der Phrase oder tenshu.app, nachdem du mit der Phrase entsperrt hast.</string>
     <string name="removed_device_unnamed">Gerät %1$s</string>
     <string name="removed_device_today">Heute entfernt</string>
     <string name="removed_device_yesterday">Gestern entfernt</string>
@@ -273,11 +274,11 @@
     <string name="device_item_added_by">Hinzugefügt von %1$s</string>
     <string name="device_item_readmit">Zugriff wiederherstellen</string>
     <string name="device_item_previous_identity">Frühere Identität dieses Geräts</string>
-    <string name="device_item_previous_identity_detail">Gleicher Sicherheitsschlüssel wie dieses Gerät, aber unter einer älteren ID. Nichts läuft mehr unter dieser Identität, daher kann sie nie bestätigen, dass sie Änderungen erhalten hat – das blockiert das Aufräumen des Speichers für alle Geräte. Das Entfernen ist sicher, es sei denn, es handelt sich um einen anderen Rechner, der aus einer Sicherung wiederhergestellt wurde.</string>
+    <string name="device_item_previous_identity_detail">Gleicher Sicherheitsschlüssel wie dieses Gerät, aber unter einer älteren ID. Nichts läuft mehr unter dieser Identität, daher kann sie nie bestätigen, dass sie Änderungen erhalten hat. Das blockiert das Aufräumen des Speichers für alle Geräte. Das Entfernen ist sicher, es sei denn, es handelt sich um einen anderen Rechner, der aus einer Sicherung wiederhergestellt wurde.</string>
     <string name="sync_dashboard_message_dismiss">OK</string>
     <string name="device_revoke_dialog_title">Dieses Gerät entfernen?</string>
-    <string name="device_revoke_dialog_body">„%1$s“ verliert sofort den Zugriff auf deine Dateien, und das kann nicht rückgängig gemacht werden. Du kannst das Gerät später erneut einrichten, aber es tritt als neues Gerät bei – seinen Namen und seine Einstellungen hier erhält es nicht zurück.</string>
-    <string name="device_revoke_dialog_admittees_intro">Diese Geräte geben an, dass „%1$s“ sie hinzugefügt hat. Willst du ihnen weiter vertrauen? Entferne das Häkchen, um ein Gerät ebenfalls zu entfernen. Jedes Gerät meldet das selbst – die Liste ist ein Anhaltspunkt, keine Garantie.</string>
+    <string name="device_revoke_dialog_body">„%1$s“ verliert sofort den Zugriff auf deine Dateien, und das kann nicht rückgängig gemacht werden. Du kannst das Gerät später erneut einrichten, aber es tritt als neues Gerät bei. Seinen Namen und seine Einstellungen hier erhält es nicht zurück.</string>
+    <string name="device_revoke_dialog_admittees_intro">Diese Geräte geben an, dass „%1$s“ sie hinzugefügt hat. Willst du ihnen weiter vertrauen? Entferne das Häkchen, um ein Gerät ebenfalls zu entfernen. Jedes Gerät meldet das selbst. Die Liste ist ein Anhaltspunkt, keine Garantie.</string>
     <string name="device_revoke_dialog_keep_admittee">„%1$s“ behalten</string>
     <string name="device_revoke_dialog_unlisted">%1$d weitere Geräte geben nicht an, wer sie hinzugefügt hat, oder nennen ein Gerät, das hier nicht ist, und stehen deshalb nicht in der Liste. Du kannst jedes davon in der Geräteliste entfernen.</string>
     <string name="device_revoke_dialog_acknowledge">Mir ist klar, dass das nicht rückgängig gemacht werden kann</string>
@@ -294,7 +295,7 @@
 
     <string name="data_delete_all_action">Alle löschen…</string>
     <string name="data_delete_dialog_title">Alle %1$s löschen?</string>
-    <string name="data_delete_dialog_body">Dadurch werden deine %1$s von allen deinen Geräten entfernt, und das kann nicht rückgängig gemacht werden. Apps, die diese Daten anzeigen, verlieren sie ebenfalls – die Daten gehören dir, nicht einer einzelnen App.</string>
+    <string name="data_delete_dialog_body">Dadurch werden deine %1$s von allen deinen Geräten entfernt, und das kann nicht rückgängig gemacht werden. Apps, die diese Daten anzeigen, verlieren sie ebenfalls. Die Daten gehören dir, nicht einer einzelnen App.</string>
     <string name="data_delete_dialog_confirm">Alle löschen</string>
     <string name="data_delete_dialog_cancel">Abbrechen</string>
     <string name="data_delete_result_one">1 Element von allen deinen Geräten gelöscht</string>
@@ -303,7 +304,7 @@
     <string name="data_delete_stop_action">Beenden</string>
     <string name="data_delete_result_stopped">Beendet. Einige %1$s wurden von allen deinen Geräten gelöscht; führe den Vorgang erneut aus, um ihn abzuschließen.</string>
     <string name="data_delete_error_unsupported">%1$s können hier nicht gelöscht werden</string>
-    <string name="data_delete_error_failed">Deine %1$s konnten nicht gelöscht werden. Es wurde nichts entfernt – bitte versuche es erneut.</string>
+    <string name="data_delete_error_failed">Deine %1$s konnten nicht gelöscht werden. Es wurde nichts entfernt. Bitte versuche es erneut.</string>
 
     <string name="shares_title">Freigaben</string>
     <string name="shares_empty_title">Noch nichts geteilt</string>
@@ -339,7 +340,7 @@
     <string name="apps_open_with_type_place">Orte</string>
 
     <string name="epc_pairing_title">App verbinden</string>
-    <string name="epc_pairing_instruction">Scanne diesen Code mit der App auf deinem anderen Gerät. Deine Schlüssel bleiben hier – die App greift über dieses Control auf sie zu.</string>
+    <string name="epc_pairing_instruction">Scanne diesen Code mit der App auf deinem anderen Gerät. Deine Schlüssel bleiben hier, und die App greift über dieses Control auf sie zu.</string>
     <string name="epc_pairing_waiting">Warte, bis sich die App verbindet…</string>
     <string name="epc_pairing_manual_label">Oder füge diesen Link in die App ein:</string>
     <string name="epc_pairing_sas_title">Prüfen, ob die Codes übereinstimmen</string>
@@ -371,7 +372,7 @@
 
     <string name="services_title">Dienste</string>
     <string name="services_relay_title">Tenshu-Speicher</string>
-    <string name="services_relay_empty_body">Auf diesem Gerät nicht angemeldet. Um geräteübergreifend zu synchronisieren, melde dich bei deinem Tenshu-Konto an – oder erstelle ein kostenloses.</string>
+    <string name="services_relay_empty_body">Auf diesem Gerät nicht angemeldet. Um geräteübergreifend zu synchronisieren, melde dich bei deinem Tenshu-Konto an, oder erstelle ein kostenloses.</string>
     <string name="services_sign_up">Anmelden oder Konto erstellen</string>
     <string name="services_plan_label">Plan: %1$s</string>
     <string name="services_plan_free">Free</string>
@@ -393,7 +394,7 @@
 
     <string name="rei_key_top_title">Code einlösen</string>
     <string name="rei_key_heading">Hast du einen Code?</string>
-    <string name="rei_key_body">Gib einen Einlösecode ein, um Speicher freizuschalten. Keine E-Mail nötig – Codes sind anonym.</string>
+    <string name="rei_key_body">Gib einen Einlösecode ein, um Speicher freizuschalten. Keine E-Mail nötig: Codes sind anonym.</string>
     <string name="rei_key_label">Einlösecode</string>
     <string name="rei_key_checking">Wird eingelöst…</string>
     <string name="rei_key_continue">Einlösen</string>
@@ -403,7 +404,7 @@
     <string name="free_signup_heading">Melde dich an oder erstelle dein kostenloses Tenshu-Konto</string>
     <string name="free_signup_resend">Neuen Code senden</string>
     <string name="free_signup_resent">Ein neuer Code ist unterwegs.</string>
-    <string name="free_signup_body">Du hast schon ein Tenshu-Konto? Gib dieselbe E-Mail-Adresse ein – du wirst auf diesem Gerät wieder angemeldet, Plan und Speicher bleiben unverändert. Wir nutzen deine E-Mail-Adresse nur, um zu prüfen, dass du ein echter Mensch bist, und um dein Konto wiederherzustellen, wenn du deine Geräte verlierst. Deine Dateien sehen wir nie.</string>
+    <string name="free_signup_body">Du hast schon ein Tenshu-Konto? Gib dieselbe E-Mail-Adresse ein. Du wirst auf diesem Gerät wieder angemeldet, Plan und Speicher bleiben unverändert. Wir nutzen deine E-Mail-Adresse nur, um zu prüfen, dass du ein echter Mensch bist, und um dein Konto wiederherzustellen, wenn du deine Geräte verlierst. Deine Dateien sehen wir nie.</string>
     <string name="free_signup_email_label">E-Mail-Adresse</string>
     <string name="free_signup_display_name_label">Anzeigename (optional)</string>
     <string name="free_signup_sending">Wird gesendet…</string>
@@ -426,8 +427,8 @@
 
     <string name="account_picker_title">Plan wählen</string>
     <string name="account_picker_heading">Wähle einen Plan, um deine Daten zu synchronisieren</string>
-    <string name="account_picker_body">Tenshu synchronisiert deine Daten über unseren Relay-Server zwischen deinen Geräten. Deine Dateien sehen wir nie – sie werden zuerst auf deinem Gerät verschlüsselt.</string>
-    <string name="account_picker_returning">Du hast schon ein Konto? Wähle „Free“, um dich anzumelden – dein bestehender Plan bleibt erhalten.</string>
+    <string name="account_picker_body">Tenshu synchronisiert deine Daten über unseren Relay-Server zwischen deinen Geräten. Deine Dateien sehen wir nie, denn sie werden zuerst auf deinem Gerät verschlüsselt.</string>
+    <string name="account_picker_returning">Du hast schon ein Konto? Wähle „Free“, um dich anzumelden. Dein bestehender Plan bleibt erhalten.</string>
     <string name="account_picker_cancel">Abbrechen</string>
     <string name="account_picker_free_title">Free</string>
     <string name="account_picker_free_body">5 GB. E-Mail-Adresse bestätigen. Für immer kostenlos.</string>
@@ -470,8 +471,8 @@
     <string name="disconnect_confirm">Ja, trennen</string>
 
     <string name="lifetime_title">Einmalkauf</string>
-    <string name="lifetime_heading">Einmalkauf – 50 GB</string>
-    <string name="lifetime_body">Einmalzahlung. Tenshu erhebt keine E-Mail-Adresse – deine Identität verwaltet der Store.</string>
+    <string name="lifetime_heading">Einmalkauf: 50 GB</string>
+    <string name="lifetime_body">Einmalzahlung. Tenshu erhebt keine E-Mail-Adresse. Deine Identität verwaltet der Store.</string>
     <string name="lifetime_processing">Wird verarbeitet…</string>
     <string name="lifetime_buy">Über Stripe kaufen</string>
     <string name="lifetime_cancel">Abbrechen</string>
@@ -507,7 +508,7 @@
     <string name="reauth_recovery_phrase_subtitle">Deine Wiederherstellungsphrase gewährt vollen Zugriff auf deine Daten.</string>
     <string name="reauth_forget_device_subtitle">Wenn du dieses Gerät vergisst, verliert es den Zugriff auf dein Konto.</string>
     <string name="reauth_disable_encryption_subtitle">Dadurch wird die Passphrase entfernt, die deine Schlüssel auf diesem Gerät schützt.</string>
-    <string name="reauth_revoke_device_subtitle">Das Entfernen eines Geräts ist endgültig – es kann nicht unter derselben Identität wieder beitreten.</string>
+    <string name="reauth_revoke_device_subtitle">Das Entfernen eines Geräts ist endgültig. Es kann nicht unter derselben Identität wieder beitreten.</string>
     <string name="app_lock_subtitle">Bestätige, dass du es bist, um Control zu öffnen.</string>
     <!-- macOS system auth sheet: completes „„Tenshu Control“ versucht, ___.“ — an infinitive clause with „zu“, lowercase, no full stop, never repeat the app name. -->
     <string name="app_lock_system_reason">deine Identität zu bestätigen</string>
@@ -557,7 +558,7 @@
 
     <string name="background_ingest_title">Hintergrundsicherung</string>
     <string name="background_ingest_empty_headline">Noch keine Hintergrundsicherung</string>
-    <string name="background_ingest_empty_support">Apps, die Gerätedaten sichern – wie die Foto-Sicherung in Drive –, werden hier angezeigt.</string>
+    <string name="background_ingest_empty_support">Apps, die Gerätedaten sichern, wie die Foto-Sicherung in Drive, werden hier angezeigt.</string>
     <string name="background_ingest_status_idle">Inaktiv</string>
     <string name="background_ingest_status_running">Wird gesichert…</string>
     <string name="background_ingest_status_up_to_date">Aktuell</string>
@@ -575,19 +576,19 @@
     <string name="locked_error_biometric_enrollment_changed">Deine biometrischen Daten haben sich geändert. Entsperre mit deiner Passphrase und aktiviere die Biometrie dann in den Einstellungen erneut.</string>
     <string name="locked_error_recovery_phrase_unreadable">Dieses Gerät kann seine gespeicherte Wiederherstellungsphrase nicht lesen, daher kann das Entsperren nicht gelingen. Verwende „Dieses Gerät hinzufügen“ auf einem anderen Gerät, das noch angemeldet ist.</string>
 
-    <string name="new_user_error_local_unlock_setup_failed">Lokales Entsperren konnte nicht eingerichtet werden – versuche es erneut.</string>
+    <string name="new_user_error_local_unlock_setup_failed">Lokales Entsperren konnte nicht eingerichtet werden. Versuche es erneut.</string>
     <string name="new_user_error_biometric_finalize_failed">Biometrische Einrichtung konnte nicht abgeschlossen werden. Lege stattdessen eine Passphrase fest.</string>
     <string name="new_user_error_biometric_enroll_failed">Biometrische Einrichtung fehlgeschlagen. Lege stattdessen eine Passphrase fest.</string>
     <string name="new_user_error_realm_bootstrap_failed">Das Realm konnte nicht initialisiert werden.</string>
 
-    <string name="setup_unlock_error_local_unlock_setup_failed">Lokales Entsperren konnte nicht eingerichtet werden – versuche es erneut oder überspringe es vorerst.</string>
+    <string name="setup_unlock_error_local_unlock_setup_failed">Lokales Entsperren konnte nicht eingerichtet werden. Versuche es erneut oder überspringe es vorerst.</string>
     <string name="setup_unlock_error_biometric_setup_failed">Biometrisches Entsperren konnte nicht eingerichtet werden. Versuche es erneut oder lege stattdessen eine Passphrase fest.</string>
     <string name="setup_unlock_error_biometric_enroll_failed">Biometrische Einrichtung fehlgeschlagen. Lege stattdessen eine Passphrase fest.</string>
 
     <string name="unlock_settings_error_biometric_unavailable">Biometrisches Entsperren ist auf diesem Gerät nicht verfügbar.</string>
     <string name="unlock_settings_error_enable_biometric_failed">Biometrisches Entsperren konnte nicht aktiviert werden. Entsperre zuerst erneut.</string>
     <string name="unlock_settings_error_biometric_enroll_failed">Biometrische Einrichtung fehlgeschlagen.</string>
-    <string name="unlock_settings_error_passphrase_required">Lege zuerst eine Wiederherstellungs-Passphrase fest – biometrisches Entsperren braucht sie als Rückfalloption.</string>
+    <string name="unlock_settings_error_passphrase_required">Lege zuerst eine Wiederherstellungs-Passphrase fest. Biometrisches Entsperren braucht sie als Rückfalloption.</string>
 
     <string name="biometric_prompt_setup_title">Biometrisches Entsperren einrichten</string>
     <string name="biometric_prompt_setup_subtitle">Nutze die Biometrie deines Geräts, um Tenshu zu sperren und zu entsperren.</string>
@@ -636,8 +637,8 @@
     <!-- What the relay has done with a removal this device made (GetDeviceAccessRevocations): never shown as
          plainly "removed" while the relay has not applied it (maintainer decision 2026-11-12). -->
     <string name="removed_device_relay_owed">Warte darauf, dass das Relay das Entfernen bestätigt.</string>
-    <string name="removed_device_relay_unknown">Nicht bestätigt: Das Relay kennt dieses Konto nicht (es wurde evtl. zurückgesetzt oder ist noch nicht aktualisiert). Wird erneut versucht – bis dahin kann sich das Gerät noch verbinden.</string>
-    <string name="removed_device_relay_needs_update">Nicht bestätigt: Diese App und das Relay haben verschiedene Versionen. Nach einem Update geht es durch – bis dahin kann sich das Gerät noch verbinden.</string>
-    <string name="removed_device_relay_refused">Am Relay nicht entfernt – es hat die Anfrage abgelehnt (%1$s). Das Gerät kann sich weiter verbinden. Aktualisiere Tenshu auf deinen Geräten – eine neuere Version wird evtl. angenommen.</string>
+    <string name="removed_device_relay_unknown">Nicht bestätigt: Das Relay kennt dieses Konto nicht (es wurde evtl. zurückgesetzt oder ist noch nicht aktualisiert). Wird erneut versucht. Bis dahin kann sich das Gerät noch verbinden.</string>
+    <string name="removed_device_relay_needs_update">Nicht bestätigt: Diese App und das Relay haben verschiedene Versionen. Nach einem Update geht es durch. Bis dahin kann sich das Gerät noch verbinden.</string>
+    <string name="removed_device_relay_refused">Am Relay nicht entfernt: Es hat die Anfrage abgelehnt (%1$s). Das Gerät kann sich weiter verbinden. Aktualisiere Tenshu auf deinen Geräten. Eine neuere Version wird evtl. angenommen.</string>
     <string name="removed_device_relay_superseded">Seitdem wieder hinzugefügt: Das Relay hat eine spätere Aufnahme dieses Geräts, daher gilt dieses Entfernen nicht mehr.</string>
 </resources>

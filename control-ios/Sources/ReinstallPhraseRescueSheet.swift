@@ -216,10 +216,10 @@ struct ReinstallPhraseRescueSheet: View {
 
 enum PhraseRescueStrings {
     static let title = "Start fresh on this device?"
-    static let irreversible = "This device's identity and its access to your realm are removed. To use Tenshu here again you'll set this device up as a new one — with your recovery phrase, or from another device that's still signed in. This can't be undone."
+    static let irreversible = "This device's identity and its access to your realm are removed. To use Tenshu here again you'll set this device up as a new one, with your recovery phrase or from another device that's still signed in. This can't be undone."
     // ⚠ "may be", not "is": a joiner has the same unlock wrapper and never held a phrase, and
     // nothing tells the two apart until the realm is unlocked.
-    static let behindLock = "Your recovery phrase may be stored behind this device's lock. Unlock to check before discarding — if it is here and you have no other copy, it goes with the identity."
+    static let behindLock = "Your recovery phrase may be stored behind this device's lock. Unlock to check before discarding. If it is here and you have no other copy, it goes with the identity."
     static let neverHeld = "This device doesn't hold your recovery phrase, so discarding it here loses nothing you can't get back from another device that's still signed in."
     static let lastChance = "Write this down now. After you discard this identity it is gone from this device."
     static let unlockAndShow = "Unlock and show my phrase"

@@ -86,7 +86,16 @@ object EventTimeGrammar {
      * one with tom" are title because the grammar did not read them as time, whatever they look
      * like.
      */
-    data class EventTime(val start: LocalDateTime, val consumed: Set<Int>)
+    data class EventTime(
+        val start: LocalDateTime,
+        val consumed: Set<Int>,
+        /**
+         * The other half of the day for a **bare** hour (§25, CL-D6): "dinner at 8" is 08:00 by the
+         * convention, with 20:00 offered as one tap on the card. `null` whenever the words settled
+         * it: am/pm, a part of day, a clock time ("18:30"), a relative time.
+         */
+        val alternative: LocalDateTime? = null,
+    )
 
     /**
      * Resolves the time expression in [words], or `null` when there is none — in which case
@@ -102,11 +111,128 @@ object EventTimeGrammar {
 
         val (time, timeWords) = timeOfDay(words) ?: return null
         val (date, dateWords) = date(words, now.date) ?: (now.date to emptySet())
+        val start = LocalDateTime(date.year, date.month, date.day, time.first, time.second)
         return EventTime(
-            start = LocalDateTime(date.year, date.month, date.day, time.first, time.second),
+            start = start,
             consumed = timeWords + dateWords + dayPartWords(words),
+            alternative = if (isBareHour(words, timeWords)) otherHalf(start) else null,
         )
     }
+
+    /**
+     * Whether the hour was said with nothing to settle its half of the day: a bare 1–11, digit or
+     * word, with no am/pm, no bound part of day and no clock form. ⚠ 12 is left alone: "at 12" is
+     * noon far more often than midnight, and offering midnight would be noise.
+     */
+    private fun isBareHour(words: List<String>, timeWords: Set<Int>): Boolean {
+        if (boundDayParts(words).isNotEmpty()) return false
+        val used = timeWords.map { words[it] }
+        if (used.any { it == "am" || it == "pm" || it.endsWith("am") || it.endsWith("pm") || ':' in it || '.' in it }) return false
+        val hour = used.firstNotNullOfOrNull { it.toIntOrNull() ?: NUMBER_WORDS[it] } ?: return false
+        return hour in 1..11
+    }
+
+    private fun otherHalf(start: LocalDateTime): LocalDateTime =
+        LocalDateTime(start.date.year, start.date.month, start.date.day, (start.hour + 12) % 24, start.minute)
+
+    /**
+     * What an utterance said about the start **without** a time: the day and the part of day it
+     * named, and the positions they used (§25, CL-D1). "add dentist tomorrow morning" → tomorrow,
+     * morning. The planner asks for the rest instead of refusing, and the title still loses only
+     * these positions.
+     */
+    data class Partial(val day: LocalDate?, val dayPart: String?, val consumed: Set<Int>)
+
+    fun partial(words: List<String>, nowMs: Long, zone: TimeZone): Partial {
+        val today = Instant.fromEpochMilliseconds(nowMs).toLocalDateTime(zone).date
+        val date = date(words, today)
+        return Partial(
+            day = date?.first,
+            dayPart = boundDayParts(words).minOrNull()?.let { words[it] },
+            consumed = date?.second.orEmpty() + dayPartWords(words),
+        )
+    }
+
+    /**
+     * A reply read **only** as the start's time (§25, CL-D5), or `null` when it is not one, in
+     * which case the reply is a new question.
+     *
+     * [day] and [dayPart] are what the question already knew: "9" answering *"What time tomorrow
+     * morning?"* is 09:00 tomorrow, and "8" answering *"What time this evening?"* is 20:00. A
+     * canonical chip reply (`2026-11-17T09:00`) is taken as it is.
+     *
+     * ⚠ A bare reply is read as if it followed "at" ("9", "nine"), because that is the question's
+     * own grammar. The reply's own day or part of day still wins over the question's.
+     */
+    fun resolveReply(reply: List<String>, day: LocalDate?, dayPart: String?, nowMs: Long, zone: TimeZone): LocalDateTime? =
+        resolveReplyTime(reply, day, dayPart, nowMs, zone)?.start
+
+    /**
+     * [resolveReply] with what it consumed and, for a bare hour, the other half of the day: a typed
+     * "8" answering *"What time tomorrow?"* is as ambiguous as "dinner at 8" (CL-D6). ⚠ Not when the
+     * question already knew the part of day ("What time this evening?" → "8" is 20:00).
+     */
+    fun resolveReplyTime(reply: List<String>, day: LocalDate?, dayPart: String?, nowMs: Long, zone: TimeZone): EventTime? {
+        reply.singleOrNull()?.let { only ->
+            runCatching { LocalDateTime.parse(only) }.getOrNull()?.let { return EventTime(it, setOf(0)) }
+        }
+        // ⚠ Trailing filler means nothing in a reply, so it goes before parsing: "nine please" is
+        // "nine". Kept, it failed the spoken hour's end-of-time check (Codex review). The request
+        // grammar keeps that check whole, which is what tells "at five guys" from "at five".
+        val words = reply.dropLastWhile { it in REPLY_FILLERS && it != "at" }
+        if (words.isEmpty()) return null
+        val now = Instant.fromEpochMilliseconds(nowMs).toLocalDateTime(zone)
+
+        // ⚠ Relative first, as `resolve` does: "in 10 minutes" is ten minutes from now, and read as a
+        // clock it would be 10:00 (Codex review).
+        relativeOffset(words)?.let { (minutes, used) ->
+            if (!onlyTime(words, used)) return null
+            return EventTime(Instant.fromEpochMilliseconds(nowMs + minutes * 60_000L).toLocalDateTime(zone), used)
+        }
+
+        // The question's own grammar: a bare reply reads as if it followed "at", so an "at" goes
+        // straight before the first hour-like word ("how about nine" → "how about at nine").
+        val hourAt = words.indexOfFirst { isHourToken(it) || it == "noon" }
+        val asked = if ("at" in words || hourAt < 0) words else words.take(hourAt) + "at" + words.drop(hourAt)
+        // ⚠ In a reply the whole utterance is the time, so a part of day counts wherever it sits:
+        // a typed chip label ("Evening 19:00") must parse like the chip.
+        val dayParts = asked.indices.filter { asked[it] in DAY_PARTS }
+        val afternoon = dayParts.firstOrNull()?.let { DAY_PARTS[asked[it]] } ?: dayPart?.let { DAY_PARTS[it] }
+        val (time, timeUsed) = timeOfDay(asked, defaultAfternoon = afternoon) ?: return null
+        val dated = date(asked, now.date)
+        // With their lead-ins, as [dayPartWords] has for a request: "in the evening", "this evening".
+        val partWords = dayParts.flatMap { i ->
+            when {
+                asked.getOrNull(i - 1) == "the" && asked.getOrNull(i - 2) == "in" -> listOf(i - 2, i - 1, i)
+                asked.getOrNull(i - 1) == "this" -> listOf(i - 1, i)
+                else -> listOf(i)
+            }
+        }
+        val used = timeUsed + dated?.second.orEmpty() + partWords
+        if (!onlyTime(asked, used)) return null
+
+        // ⚠ "this evening" names today, over the question's stored day: answering "What time
+        // tomorrow?" with "this evening at 8" moves the event to tonight (Codex review).
+        val thisDay = dayParts.any { asked.getOrNull(it - 1) == "this" }
+        val date = dated?.first ?: (if (thisDay) now.date else null) ?: day ?: now.date
+        val start = LocalDateTime(date.year, date.month, date.day, time.first, time.second)
+        val bare = dayPart == null && dayParts.isEmpty() && isBareHour(asked, timeUsed)
+        return EventTime(start, used, alternative = if (bare) otherHalf(start) else null)
+    }
+
+    /**
+     * ⚠⚠ Whether a reply is a time and nothing else. Every word must be part of the time
+     * expression or harmless filler ("make it 9", "how about nine"). Anything more and the reply
+     * is a new question: "actually, what's on my calendar tomorrow at 3pm" holds a time, and
+     * reading it as the answer booked the dentist for 15:00 (Codex review).
+     */
+    private fun onlyTime(words: List<String>, used: Set<Int>): Boolean =
+        words.indices.all { it in used || words[it] in REPLY_FILLERS }
+
+    private val REPLY_FILLERS = setOf(
+        "at", "around", "about", "maybe", "make", "it", "let's", "lets", "say", "how", "um", "uh",
+        "ok", "okay", "please", "then", "sharp", "oclock", "o'clock", "the",
+    )
 
     /** "in an hour", "in 30 minutes", with the three positions it used. */
     private fun relativeOffset(words: List<String>): Pair<Long, Set<Int>>? {
@@ -157,12 +283,13 @@ object EventTimeGrammar {
     }.toSet()
 
     /** `(hour, minute)` in 24h with the positions it used, or `null` when no time was given. */
-    private fun timeOfDay(words: List<String>): Pair<Pair<Int, Int>, Set<Int>>? {
+    private fun timeOfDay(words: List<String>, defaultAfternoon: Boolean? = null): Pair<Pair<Int, Int>, Set<Int>>? {
         val at = words.indexOfFirst { it == "at" }
         val offset = if (at >= 0) at + 1 else 0
         // ⚠⚠ An explicit part of day outranks the bare-hour convention below: "at 8 in the
         // evening" is 20:00, and the convention (8 → morning) used to win over the words.
-        val afternoon = boundDayParts(words).minOrNull()?.let { DAY_PARTS[words[it]] }
+        // [defaultAfternoon] is a part of day the question already knew (a reply, §25).
+        val afternoon = boundDayParts(words).minOrNull()?.let { DAY_PARTS[words[it]] } ?: defaultAfternoon
 
         // ⚠⚠ A clock time anywhere wins over a spoken one: in "add lunch at five guys tomorrow at
         // 8pm", "five" is a venue and "8pm" the time (Codex review). A number word is the hour

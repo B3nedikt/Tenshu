@@ -23,6 +23,9 @@ export interface Device {
 
 export type DeviceRevokeError =
   | { readonly kind: 'network' }
+  // Removing ANOTHER device needs the realm's master key, which this browser holds only after an
+  // unlock with the recovery phrase (or a passkey that wraps it). Never returned by `revokeSelf`.
+  | { readonly kind: 'needsRecoveryPhrase' }
   | { readonly kind: 'other'; readonly message: string }
 
 export type TResult<T, E = string> =

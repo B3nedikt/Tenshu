@@ -1444,6 +1444,8 @@ internal class FakeSyncRepository(
     // `ReadmitDevice`'s guards report as THROWS carrying the sentence that says what to do
     // instead, so a fake that only ever returns a Failure cannot reach the unwrap under test.
     private val readmitThrows: Throwable? = null,
+    // What `getRecoveryPhrase` reports. Null = this device holds no phrase (a paired joiner).
+    private val recoveryPhrase: String? = null,
 ) : SyncRepository {
 
     var revokedDeviceIds: MutableList<String> = mutableListOf()
@@ -1596,7 +1598,8 @@ internal class FakeSyncRepository(
     // only 'additive' from the caller's side.
     override suspend fun forgetThisDevice(): TResult<TString> = error("not used")
 
-    override suspend fun getRecoveryPhrase(): TResult<TString> = ResultSuccessDto(null)
+    override suspend fun getRecoveryPhrase(): TResult<TString> =
+        ResultSuccessDto(recoveryPhrase?.let { org.tenshu.core.common.impl.TStringDto(it) })
     override suspend fun getSyncStatus(): TResult<SyncStatus> = ResultSuccessDto(syncStatus)
     /** The relay ANSWERS and refuses this device's identity — built from the op's own constant. */
     var pollRefusesDevice: Boolean = false

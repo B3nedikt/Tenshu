@@ -171,19 +171,18 @@ A browser profile is not a *user identity* — it's a **storage scope** managed 
 it gives Tenshu is reliable storage isolation, not a cryptographic claim about who the user is. The
 cryptographic identity comes from the device signing key generated within that scope.
 
-### 4.2 The Browser-Sync Caveat
+### 4.2 Browser Sync Does Not Carry the Device Key
 
-If the user has Chrome Sync (or Firefox Sync) enabled with `tenshu.app` IndexedDB syncing, the same
-device key is reachable from any browser signed into that sync account. Functionally, those become
-*one realm device*, not several — even though they're on different physical machines.
+*(Rewritten 2026-11-18.)* This section used to warn that Chrome Sync or Firefox Sync could
+replicate the `tenshu.app` IndexedDB, making every browser in a sync set *one* realm device. They
+do not: browser sync carries bookmarks, history, passwords and passkeys and settings, never a
+site's IndexedDB or `localStorage`. Each browser profile therefore holds its own device key and
+joins the realm by pairing, as its own device.
 
-Tenshu does not unilaterally decide what to do here. The control plane surfaces the situation
-explicitly:
-
-- *"This realm device is shared via Chrome Sync. Revoking it will affect all browsers signed into
-  your Google account."*
-- An onboarding step (see §8) explains how to exclude `tenshu.app` from sync if the user wants
-  per-machine granularity, with a link to the browser-specific instructions.
+The apex therefore says nothing about browser sync: the onboarding screens, the device-list
+warning and the per-browser exclusion instructions are all gone. A synced
+**passkey** does cross machines; why that does not reach A1 on its own is in
+[`threat-model.md`](../sync/threat-model.md) §10, *Browser sync as a key-distribution channel*.
 
 ### 4.3 Master-Key Storage: IndexedDB Only
 

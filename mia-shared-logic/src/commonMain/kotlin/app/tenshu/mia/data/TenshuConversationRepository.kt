@@ -18,6 +18,8 @@ import org.tenshu.mia.MiaHit
 import org.tenshu.mia.MiaService
 import org.tenshu.mia.askMia
 import org.tenshu.mia.confirmMiaAction
+import org.tenshu.mia.replyToMia
+import org.tenshu.mia.MiaChoice
 import kotlin.time.Clock
 
 /**
@@ -52,6 +54,15 @@ class TenshuConversationRepository(
     private val messagesFlow = MutableStateFlow<List<MiaMessage>>(emptyList())
     private val replyingFlow = MutableStateFlow(false)
     private val historyFlow = MutableStateFlow<List<Conversation>>(emptyList())
+
+    /**
+     * The token of the clarification Mia is waiting on, or `null` (`mia-query-layer.md` §25).
+     *
+     * ⚠⚠ While set, the next send goes to `replyToMia`, never `askMia`: the reply is read only as
+     * the param asked for, and an ordinary question is never read against an open clarification.
+     * Every answer resets it, and so does a confirmation, so at most the latest question is open.
+     */
+    private var openClarification: String? = null
     private var nextId = 1
 
     override fun messages(): Flow<List<MiaMessage>> = messagesFlow
@@ -63,13 +74,58 @@ class TenshuConversationRepository(
     override suspend fun send(text: String) {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return
-        append(fromUser = true, body = MessageBody.Text(trimmed))
+        turn(shown = trimmed, utterance = trimmed)
+    }
+
+    /**
+     * A chip: the user is shown to have said [label], and [reply] is what goes to the proxy.
+     * ⚠⚠ Ignored unless [token] is the open question, so a stale chip can never answer a newer
+     * question it was never about.
+     */
+    override suspend fun answer(token: String, label: String, reply: String) {
+        if (token != openClarification) return
+        turn(shown = label, utterance = reply)
+    }
+
+    /**
+     * "20:00 instead?" on a card (CL-D6): the reply goes against the card's own token, and the card
+     * is marked replaced before the new one arrives, so it cannot be confirmed beside it.
+     */
+    override suspend fun alternative(token: String, label: String, reply: String) {
+        messagesFlow.update { messages ->
+            messages.map { message ->
+                val body = message.body
+                if (body is MessageBody.Confirmation && body.token == token) message.copy(body = body.copy(replaced = true)) else message
+            }
+        }
+        openClarification = token
+        turn(shown = label, utterance = reply)
+    }
+
+    private suspend fun turn(shown: String, utterance: String) {
+        append(fromUser = true, body = MessageBody.Text(shown))
         replyingFlow.value = true
         try {
-            append(fromUser = false, body = ask(trimmed))
+            append(fromUser = false, body = ask(utterance))
         } finally {
+            closeAnsweredQuestions()
             replyingFlow.value = false
             recordHistory()
+        }
+    }
+
+    /** Every question but the open one renders its chips disabled (CL-Q3). */
+    private fun closeAnsweredQuestions() {
+        val open = openClarification
+        messagesFlow.update { messages ->
+            messages.map { message ->
+                val body = message.body
+                if (body is MessageBody.Clarification && body.open && body.token != open) {
+                    message.copy(body = body.copy(open = false))
+                } else {
+                    message
+                }
+            }
         }
     }
 
@@ -77,8 +133,14 @@ class TenshuConversationRepository(
         val service = runCatching { client.getService<MiaService>(MiaService.ID) }
             .getOrElse { return MessageBody.Text(couldNotLook) }
 
+        val replyTo = openClarification
+        openClarification = null
         val result = runCatchingCancellable {
-            service.askMia(utterance, now(), timeZoneId())
+            if (replyTo != null) {
+                service.replyToMia(replyTo, utterance, now(), timeZoneId())
+            } else {
+                service.askMia(utterance, now(), timeZoneId())
+            }
         }.getOrElse { return MessageBody.Text(couldNotLook) }
 
         val answer = (result as? TResult.Success<*>)?.value as? MiaAnswer
@@ -91,6 +153,9 @@ class TenshuConversationRepository(
         val service = runCatching { client.getService<MiaService>(MiaService.ID) }.getOrNull()
             ?: return
         replyingFlow.value = true
+        // ⚠ A confirmation closes any open question: the user has moved on to the card.
+        openClarification = null
+        closeAnsweredQuestions()
         try {
             val result = runCatchingCancellable { service.confirmMiaAction(token) }.getOrNull()
             val answer = (result as? TResult.Success<*>)?.value as? MiaAnswer
@@ -133,11 +198,26 @@ class TenshuConversationRepository(
                 )
             }
 
+        // §25: Mia asks back, and the next send is the reply while the question is open.
+        answer.clarification?.let { clarification ->
+            openClarification = clarification.token.get()
+            return MessageBody.Clarification(
+                question = clarification.question.get(),
+                choices = clarification.choices.toList().filterIsInstance<MiaChoice>().map {
+                    MessageBody.Choice(label = it.label.get(), reply = it.reply.get())
+                },
+                token = clarification.token.get(),
+            )
+        }
+
         answer.action?.let { action ->
             return MessageBody.Confirmation(
                 title = action.title.get(),
                 detail = action.detail.get(),
                 token = action.token.get(),
+                alternatives = action.alternatives.toList().filterIsInstance<MiaChoice>().map {
+                    MessageBody.Choice(label = it.label.get(), reply = it.reply.get())
+                },
             )
         }
 

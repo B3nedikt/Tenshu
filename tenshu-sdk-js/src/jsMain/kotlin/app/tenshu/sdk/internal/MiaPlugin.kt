@@ -3,6 +3,7 @@ package app.tenshu.sdk.internal
 import org.tenshu.core.common.proxy.executor.OperationImplementationFactory
 import org.tenshu.mia.AskMia
 import org.tenshu.mia.ConfirmMiaAction
+import org.tenshu.mia.ReplyToMia
 import org.tenshu.mia.client.miaServiceClientModule
 import org.tenshu.mia.common.miaServiceCommonModule
 import org.tenshu.mia.plan.MiaActionOffer
@@ -54,8 +55,12 @@ internal object MiaPlugin : JsRuntimePlugin {
     override fun operationFactory(ctx: RuntimeContext) =
         OperationImplementationFactory { id -> miaWebOperation(id) }
 
-    /** The ops a tab must never run: the one write Mia has (see the KDoc). */
-    internal val EXCLUDED_OPS: Set<String> = setOf(ConfirmMiaAction.ID)
+    /**
+     * The ops a tab must never run: the one write Mia has (see the KDoc), and the reply to a
+     * clarification. ⚠ A tab is WITHHELD, so it never asks one (§25, CL-D7), and a reply op with
+     * nothing to answer would only be a second door into the action path.
+     */
+    internal val EXCLUDED_OPS: Set<String> = setOf(ConfirmMiaAction.ID, ReplyToMia.ID)
 
     internal fun miaWebOperation(id: String) =
         if (id in EXCLUDED_OPS) {

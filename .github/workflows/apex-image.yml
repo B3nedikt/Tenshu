@@ -128,6 +128,10 @@ jobs:
         env:
           RELAY_URL: ${{ github.event.inputs.relay_url != '' && github.event.inputs.relay_url || 'https://relay.tenshu.app' }}
           CONSTRUCTION_CODE: ${{ github.event.inputs.construction_code }}
+          # ⚠⚠ This publishes `latest`, which production may run, and production commerce refuses web
+          # sign-ups without a Turnstile token (D16). The site key is public, so it is a repository
+          # VARIABLE, not a secret; unset, the build script refuses and this job fails, which is the point.
+          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
         run: ./deploy/build-apex-image.sh --dist-only
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3

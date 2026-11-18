@@ -11,6 +11,8 @@
 #   RELAY_URL=https://relay.example.com ./deploy/build-apex-image.sh   # non-default relay
 #   CONSTRUCTION_CODE=424242 ./deploy/build-apex-image.sh              # bake the pre-launch gate
 #   SIGNUP_DISABLED=1 ./deploy/build-apex-image.sh                      # close signup (site stays public)
+#   TURNSTILE_SITE_KEY=0x4AAA… ./deploy/build-apex-image.sh             # Turnstile site key (D16; else Keychain)
+#   TURNSTILE_SITE_KEY=off ./deploy/build-apex-image.sh                 # deliberately NO widget (dev lab, tests)
 #
 # ## Why this exists
 #
@@ -21,7 +23,7 @@
 # ⚠⚠ A built SPA is static text: nothing in it needs amd64 EXECUTION, only the Caddy base layer
 # does. So build it natively, then assemble an image whose only instructions are COPY and metadata.
 #
-# ⚠⚠ RELAY_URL, CONSTRUCTION_CODE and SIGNUP_DISABLED are inlined by Vite at BUILD time, so here they
+# ⚠⚠ RELAY_URL, CONSTRUCTION_CODE, SIGNUP_DISABLED and TURNSTILE_SITE_KEY are inlined by Vite at BUILD time, so here they
 # are read by the NATIVE build below — the Dockerfile's ARGs never see them on this path. Changing
 # any of them means rebuilding the SPA, not just re-running the image assembly.
 #
@@ -89,6 +91,10 @@ WEB_APPS="$(web_app_ids | tr '\n' ' ')"
 APPS_DIST="web/.apps-dist"
 CONSTRUCTION_CODE="${CONSTRUCTION_CODE:-}"
 SIGNUP_DISABLED="${SIGNUP_DISABLED:-}"
+# Cloudflare Turnstile site key (public, not a secret; commerce-accounts-and-sessions.md D16): the
+# key, or `off` for a build that deliberately has no widget. Unset = the Keychain's
+# `apex-turnstile-site-key`, else a refusal — see the guard below the argument parsing.
+TURNSTILE_SITE_KEY="${TURNSTILE_SITE_KEY:-}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -105,6 +111,41 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# ⚠⚠ The Turnstile guard. Production commerce holds TURNSTILE_SECRET_KEY, and from then on it refuses
+# every web sign-up and web deletion request that carries no token — so an apex built WITHOUT the
+# site key ships a site whose sign-up is broken, and nothing in the build would say so. Hence no
+# silent default: the key (given, or from the maintainer's Keychain), or an explicit `off` for a
+# build whose commerce has no secret (the dev lab). Checked here, before minutes of Gradle and Vite.
+TURNSTILE_SOURCE="TURNSTILE_SITE_KEY"
+if [[ -z "$TURNSTILE_SITE_KEY" ]] && command -v security >/dev/null 2>&1; then
+  TURNSTILE_SITE_KEY="$(security find-generic-password -a tenshu -s apex-turnstile-site-key -w 2>/dev/null || true)"
+  TURNSTILE_SOURCE="Keychain apex-turnstile-site-key"
+fi
+case "$TURNSTILE_SITE_KEY" in
+  off)
+    TURNSTILE_SITE_KEY=""
+    TURNSTILE_STATE="off (TURNSTILE_SITE_KEY=off)" ;;
+  "")
+    {
+      echo "Refusing to build: no Turnstile site key (commerce-accounts-and-sessions.md D16)."
+      echo "  Production commerce refuses web sign-ups that carry no Turnstile token, so this image"
+      echo "  would ship a broken sign-up. Either:"
+      echo "    - store it once:   security add-generic-password -a tenshu -s apex-turnstile-site-key -w"
+      echo "    - or pass it:      TURNSTILE_SITE_KEY=<site key> $0 …"
+      echo "    - or, for a build whose commerce has NO secret (dev lab, tests):  TURNSTILE_SITE_KEY=off $0 …"
+      echo "  Keys: docs/how-to/set-up-otp-email.md §8.1."
+    } >&2
+    exit 1 ;;
+  *)
+    # A site key is `0x` + base62-ish; anything with spaces or quotes is a paste accident, and it
+    # would be inlined into the bundle verbatim.
+    [[ "$TURNSTILE_SITE_KEY" =~ ^[A-Za-z0-9_-]{10,}$ ]] || {
+      echo "Refusing to build: TURNSTILE_SITE_KEY (from $TURNSTILE_SOURCE) does not look like a site key." >&2
+      exit 1
+    }
+    TURNSTILE_STATE="on (from $TURNSTILE_SOURCE)" ;;
+esac
+
 if [[ -z "$TAG" && "$DIST_ONLY" == 0 ]]; then
   TAG="$(git rev-parse --short=8 HEAD)"
   if ! git diff --quiet || ! git diff --cached --quiet; then
@@ -117,7 +158,7 @@ fi
 echo "==> Building the Kotlin→JS SDK bundle natively (extra issuer: ${TENSHU_EXTRA_ISSUER:-none})…"
 ./gradlew --console=plain :tenshu-sdk-js:jsBrowserDistribution
 
-echo "==> Building the apex SPA + ${WEB_APPS% } natively (relay=$RELAY_URL, commerce=$COMMERCE_URL, apex=$APEX_ORIGIN, signup=$([[ -n "$SIGNUP_DISABLED" ]] && echo CLOSED || echo open))…"
+echo "==> Building the apex SPA + ${WEB_APPS% } natively (relay=$RELAY_URL, commerce=$COMMERCE_URL, apex=$APEX_ORIGIN, signup=$([[ -n "$SIGNUP_DISABLED" ]] && echo CLOSED || echo open), turnstile=$TURNSTILE_STATE)…"
 for APP in $WEB_APPS; do echo "    $APP=$(web_app_origin "$APP")"; done
 corepack enable >/dev/null 2>&1 || true
 (
@@ -128,6 +169,7 @@ corepack enable >/dev/null 2>&1 || true
     VITE_TENSHU_RELAY_URL="$RELAY_URL" VITE_TENSHU_COMMERCE_URL="$COMMERCE_URL" \
     VITE_CONSTRUCTION_CODE="$CONSTRUCTION_CODE" \
     VITE_SIGNUP_DISABLED="$SIGNUP_DISABLED" \
+    VITE_TURNSTILE_SITE_KEY="$TURNSTILE_SITE_KEY" \
     pnpm -F apex build
   for APP in $WEB_APPS; do
     VITE_APEX_ORIGIN="$APEX_ORIGIN" pnpm -F "$APP" build

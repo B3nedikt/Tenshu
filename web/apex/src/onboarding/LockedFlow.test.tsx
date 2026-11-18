@@ -49,6 +49,7 @@ interface SessionStubs {
   readonly detect?: SessionState | Promise<SessionState>
   readonly unlock?: TResult<SessionToken, UnlockError>
   readonly passkeyCredentialId?: () => Promise<Int8Array | null>
+  readonly unlockWithPhrase?: SessionApi['unlockWithPhrase']
 }
 
 function stubSdk(overrides: SessionStubs = {}): {
@@ -66,7 +67,10 @@ function stubSdk(overrides: SessionStubs = {}): {
         overrides.detect ?? { kind: 'locked', deviceName: 'Pixel 9' },
       ),
     unlock: unlock as SessionApi['unlock'],
-    passkeyCredentialId: overrides.passkeyCredentialId ?? (() => Promise.resolve(null)),
+    // Default: this browser has a passkey stored. `null` is the "none stored" case.
+    passkeyCredentialId:
+      overrides.passkeyCredentialId ?? (() => Promise.resolve(new Int8Array([9, 9]))),
+    ...(overrides.unlockWithPhrase !== undefined ? { unlockWithPhrase: overrides.unlockWithPhrase } : {}),
     persist: persist as SessionApi['persist'],
     clear: clear as SessionApi['clear'],
   }
@@ -257,5 +261,59 @@ describe('LockedFlow', () => {
     await user.type(textarea, phrase)
     expect(screen.getByText('24/24')).toBeInTheDocument()
     expect(submit).not.toBeDisabled()
+  })
+
+  // A browser with a device name but no stored passkey (setup skipped, or the save never landed).
+  // The picker would list every passkey the user owns and each would fail with "isn't registered",
+  // so the welcome card offers the phrase instead and never opens the ceremony.
+  it('offers only the recovery phrase when this browser has no passkey stored', async () => {
+    const { sdk } = stubSdk({ passkeyCredentialId: () => Promise.resolve(null) })
+    renderFlow(sdk)
+    expect(await screen.findByText(/this browser has no passkey set up/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Unlock with passkey' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Use recovery phrase' })).toBeInTheDocument()
+  })
+
+  it('does not open the passkey picker when the lookup finds none at unlock time', async () => {
+    const user = userEvent.setup()
+    let stored: Int8Array | null = new Int8Array([1])
+    const { sdk, unlock } = stubSdk({ passkeyCredentialId: () => Promise.resolve(stored) })
+    renderFlow(sdk)
+    const button = await screen.findByRole('button', { name: 'Unlock with passkey' })
+    stored = null
+    getPasskeyAssertionMock.mockClear()
+    await user.click(button)
+    expect(await screen.findByText(/none of your passkeys can unlock it/i)).toBeInTheDocument()
+    expect(getPasskeyAssertionMock).not.toHaveBeenCalled()
+    expect(unlock).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument()
+  })
+
+  it("names the missing passkey when Session.unlock reports noPasskey, not a wrong key", async () => {
+    const user = userEvent.setup()
+    getPasskeyAssertionMock.mockResolvedValueOnce({ ok: true, value: {} as WebAuthnAssertion })
+    const { sdk } = stubSdk({ unlock: { ok: false, error: { kind: 'noPasskey' } } })
+    renderFlow(sdk)
+    await user.click(await screen.findByRole('button', { name: 'Unlock with passkey' }))
+    expect(await screen.findByText(/none of your passkeys can unlock it/i)).toBeInTheDocument()
+    expect(screen.queryByText(/isn't registered for this browser/i)).not.toBeInTheDocument()
+  })
+
+  it('offers a new passkey after a phrase unlock, and Skip still routes on', async () => {
+    const user = userEvent.setup()
+    const unlockWithPhrase = vi.fn(async () => defaultUnlockOk())
+    const { sdk, persist } = stubSdk({
+      passkeyCredentialId: () => Promise.resolve(null),
+      unlockWithPhrase: unlockWithPhrase as SessionApi['unlockWithPhrase'],
+    })
+    renderFlow(sdk)
+    await user.click(await screen.findByRole('button', { name: 'Use recovery phrase' }))
+    await user.type(screen.getByLabelText('Recovery phrase'), Array<string>(24).fill('abandon').join(' '))
+    await user.click(screen.getByRole('button', { name: 'Unlock' }))
+    expect(await screen.findByText('Add a passkey for this browser')).toBeInTheDocument()
+    expect(persist).toHaveBeenCalledTimes(1)
+    expect(unlockWithPhrase).toHaveBeenCalledTimes(1)
+    await user.click(screen.getByRole('button', { name: 'Skip' }))
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/overview'))
   })
 })

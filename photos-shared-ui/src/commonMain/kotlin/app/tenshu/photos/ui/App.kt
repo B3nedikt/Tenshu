@@ -438,8 +438,13 @@ fun App(modifier: Modifier = Modifier) {
         AdaptiveNavScaffold(
             navItems = navItems,
             // ⚠ The viewer is full-bleed: nav chrome over a photograph is the one place this app must
-            // not put a bar. Everything that is not a tab hides it.
-            showNav = current is Destination.TopLevel,
+            // not put a bar. Everything that is not a tab hides it — except Search beside a rail: on
+            // a wide window search is a view of the library, not a detour away from it, and losing
+            // the rail on clicking the lens emptied the whole window. A phone still gives it the
+            // screen, where the floating pill would sit over the results.
+            showNav = current is Destination.TopLevel ||
+                (current is Destination.Search &&
+                    LocalWindowWidthSizeClass.current != WindowWidthSizeClass.Compact),
             // Two tabs: a docked 80dp bar spends a strip of photographs on two buttons.
             compactNavStyle = CompactNavStyle.Floating,
             modifier = modifier,

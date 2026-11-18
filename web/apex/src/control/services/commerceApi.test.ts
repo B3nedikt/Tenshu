@@ -59,6 +59,24 @@ describe('register', () => {
       privacyVersion: PRIVACY_VERSION,
     })
   })
+
+  // Commerce D16. ⚠ Omitted, not null, without one: commerce decodes strictly.
+  it('carries the Turnstile token only when there is one', async () => {
+    respond(202)
+    await commerceApi.register('a@example.com', 'tok')
+    await commerceApi.register('a@example.com', null)
+    expect(sent[0]?.body).toMatchObject({ turnstileToken: 'tok' })
+    expect(sent[1]?.body).not.toHaveProperty('turnstileToken')
+  })
+
+  it.each([
+    [403, 'challenge_failed', 'challengeFailed'],
+    [503, 'challenge_unavailable', 'challengeFailed'],
+    [503, 'send_failed', 'error'],
+  ] as const)('reads %i %s as %s', async (status, error, kind) => {
+    respond(status, { error })
+    expect((await commerceApi.register('a@example.com', 'tok')).kind).toBe(kind)
+  })
 })
 
 describe('verify', () => {
@@ -216,6 +234,7 @@ describe('account deletion: request', () => {
     [400, 'invalidEmail'],
     [429, 'rateLimited'],
     [503, 'sendFailed'],
+    [403, 'challengeFailed'],
     [500, 'error'],
     [200, 'error'],
   ] as const)('reads %i as %s', async (status, kind) => {
@@ -226,6 +245,12 @@ describe('account deletion: request', () => {
   it('reads a network or CORS failure as unreachable', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new TypeError('Failed to fetch'))))
     expect((await accountDeletionApi.request('a@example.com')).kind).toBe('unreachable')
+  })
+
+  it('carries the Turnstile token, and reads 503 challenge_unavailable apart from a send failure', async () => {
+    respond(503, { error: 'challenge_unavailable' })
+    expect((await accountDeletionApi.request('a@example.com', 'tok')).kind).toBe('challengeFailed')
+    expect(sent[0]?.body).toEqual({ email: 'a@example.com', turnstileToken: 'tok' })
   })
 })
 

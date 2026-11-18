@@ -325,7 +325,8 @@
       "sendFailed": "We couldn't send the email just now. Please try again in a few minutes.",
       "invalidCode": "That code didn't work. Check it and try again, or send a new code.",
       "unreachable": "Couldn't reach the account service. Check your connection and try again.",
-      "generic": "Something went wrong. Please try again."
+      "generic": "Something went wrong. Please try again.",
+      "challenge": "We couldn't confirm this request came from a person. Wait for the check below to finish, then try again."
     },
     "help": "Questions, or no code arriving? Write to <mail>support@tenshu.app</mail>."
   }

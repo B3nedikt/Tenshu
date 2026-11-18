@@ -11,7 +11,8 @@
     "years": "Years",
     "collections": "Collections",
     "videos": "Videos",
-    "search": "Search"
+    "search": "Search",
+    "people": "People"
   },
   "common": {
     "cancel": "Cancel",
@@ -194,5 +195,12 @@
     "larger": "Larger photos",
     "perRow": "{count, plural, one {# photo per row} other {# photos per row}}",
     "years": "Size is fixed in the Years view"
+  },
+  "people": {
+    "count": "{count, plural, one {# photo} other {# photos}}",
+    "back": "← People",
+    "empty": "No named people yet.",
+    "hint": "People are grouped and named in the Photos app on your phone. Names you give there show here.",
+    "emptyPerson": "No photos of {name} are in your library."
   }
 }

@@ -83,6 +83,7 @@ write_files:
       # commerce rows and inbox messages without limit until the disk decided otherwise.
       OTP_SEND_PER_IP_PER_HOUR=300
       OTP_SEND_PER_EMAIL_PER_HOUR=60
+      OTP_SEND_GLOBAL_PER_DAY=2000
 
       # The browser origin allowed to reach the relay and commerce: this plane's own apex.
       CORS_ALLOWED_ORIGINS=https://${apex_domain}

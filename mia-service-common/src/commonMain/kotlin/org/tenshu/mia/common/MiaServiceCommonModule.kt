@@ -1,14 +1,20 @@
 package org.tenshu.mia.common
 
 import org.tenshu.core.common.module.composite
+import org.tenshu.core.common.module.schemaMigration
 import org.tenshu.core.common.module.service
 import org.tenshu.core.common.module.tModule
+import org.tenshu.core.common.schema.migration.schemaMigration
 import org.tenshu.mia.MiaAnswer
 import org.tenshu.mia.MiaAction
+import org.tenshu.mia.MiaChoice
+import org.tenshu.mia.MiaClarification
 import org.tenshu.mia.MiaHit
 import org.tenshu.mia.MiaService
 import org.tenshu.mia.common.impl.MiaActionDto
 import org.tenshu.mia.common.impl.MiaAnswerDto
+import org.tenshu.mia.common.impl.MiaChoiceDto
+import org.tenshu.mia.common.impl.MiaClarificationDto
 import org.tenshu.mia.common.impl.MiaHitDto
 
 /**
@@ -35,6 +41,19 @@ val miaServiceCommonModule = tModule {
         dtoFactory = ::MiaHitDto,
     )
 
+    // ⚠ Before MiaAction and MiaAnswer, which carry them (§25).
+    composite(
+        interfaceClass = MiaChoice::class,
+        dataSchema = MiaChoice.Schema,
+        dtoFactory = ::MiaChoiceDto,
+    )
+
+    composite(
+        interfaceClass = MiaClarification::class,
+        dataSchema = MiaClarification.Schema,
+        dtoFactory = ::MiaClarificationDto,
+    )
+
     composite(
         interfaceClass = MiaAction::class,
         dataSchema = MiaAction.Schema,
@@ -48,4 +67,10 @@ val miaServiceCommonModule = tModule {
     )
 
     service(MiaService.Schema)
+
+    // HR #9: v2 (the clarify turn, `mia-query-layer.md` §25). Empty because Mia stores no rows:
+    // every Mia composite is a return shape computed per call, so there is nothing at rest to
+    // rewrite. The registration is what keeps a v1 store migrating instead of wiping
+    // (`ServiceMigrationChainsReachTheirVersionTest`). ⚠ Never delete it.
+    schemaMigration(schemaMigration(MiaService.ID, fromVersion = 1) {})
 }

@@ -73,7 +73,7 @@ function Item({ cx, cy, s = G }: { readonly cx: number; readonly cy: number; rea
 export function RealmArt() {
   return (
     <Canvas
-      label="Four of your devices — laptop, phone, desktop, tablet — arranged in a ring around the Tenshu cat, each showing the same photo, kept in sync"
+      label="Four of your devices (laptop, phone, desktop and tablet) arranged in a ring around the Tenshu cat, each showing the same photo, kept in sync"
       // The composition is square (ring + devices); a square frame
       // tight to the content makes it render as tall as the copy
       // beside it on desktop, rather than a small left-shifted band in

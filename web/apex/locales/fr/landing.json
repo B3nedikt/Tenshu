@@ -325,7 +325,8 @@
       "sendFailed": "Nous n'avons pas pu envoyer l'e-mail pour le moment. Veuillez réessayer dans quelques minutes.",
       "invalidCode": "Ce code n'a pas fonctionné. Vérifiez-le et réessayez, ou demandez un nouveau code.",
       "unreachable": "Impossible de joindre le service de compte. Vérifiez votre connexion et réessayez.",
-      "generic": "Une erreur s'est produite. Veuillez réessayer."
+      "generic": "Une erreur s'est produite. Veuillez réessayer.",
+      "challenge": "Nous n'avons pas pu confirmer que cette demande provient d'une personne. Attendez la fin de la vérification ci-dessous, puis réessayez."
     },
     "help": "Des questions, ou le code n'arrive pas ? Écrivez à <mail>support@tenshu.app</mail>."
   }

@@ -145,6 +145,7 @@ services:
       # these are what stop it becoming unmetered outbound mail. `<= 0` disables a budget.
       OTP_SEND_PER_IP_PER_HOUR: "${OTP_SEND_PER_IP_PER_HOUR:-20}"
       OTP_SEND_PER_EMAIL_PER_HOUR: "${OTP_SEND_PER_EMAIL_PER_HOUR:-5}"
+      OTP_SEND_GLOBAL_PER_DAY: "${OTP_SEND_GLOBAL_PER_DAY:-200}"
       OTP_VERIFY_PER_EMAIL_PER_HOUR: "${OTP_VERIFY_PER_EMAIL_PER_HOUR:-20}"
       # Per-address cap on FAILED one-time-code checks per rolling 24 h, across /verify and
       # /delete/confirm and every code issued (D15, T-CB-13). Persisted, so a restart does not reset
@@ -159,6 +160,10 @@ services:
       # Unset => off.
       REVIEW_SIGNIN_ACCOUNTS: "${REVIEW_SIGNIN_ACCOUNTS:-}"
       REVIEW_SIGNIN_HMAC_KEY: "${REVIEW_SIGNIN_HMAC_KEY:-}"
+      # Cloudflare Turnstile secret key (D16; docs/how-to/set-up-otp-email.md §8). Unset = no
+      # challenge. Set it only together with the apex's VITE_TURNSTILE_SITE_KEY, or every web
+      # sign-up and web deletion request is refused.
+      TURNSTILE_SECRET_KEY: "${TURNSTILE_SECRET_KEY:-}"
     # Not published to the host: only Caddy reaches commerce over the internal compose network.
     expose:
       - "8081"

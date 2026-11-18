@@ -5,12 +5,18 @@
 //
 // ⚠ This is a 6-digit CODE, typed here. The previous version described a
 // verification LINK to tap, which the commerce plane has never sent.
+//
+// ⚠ Turnstile (commerce D16): each `register` — first send and resend — carries a
+// fresh widget token when the build has a site key. The widget sits below both
+// steps for that reason. `verify` sends no mail and is not challenged.
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { Trans, useTranslation } from 'react-i18next'
 import { privacyPolicyUrl, termsOfUseUrl } from '@tenshu/web-tokens/legal'
 import { usePublisherClient } from './publisherContext'
+import { UNREACHABLE } from './commerceApi'
 import { purchasePath, tierForProductId } from './tiers'
+import { useTurnstile } from '../../lib/useTurnstile'
 
 type Step = 'email' | 'code'
 
@@ -36,21 +42,27 @@ export function FreeAccountSignupPage() {
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const challenge = useTurnstile('register')
 
   async function sendCode(e?: React.FormEvent) {
     e?.preventDefault()
-    if (busy) return
+    if (busy || !challenge.ready) return
     setBusy(true)
     setError(null)
-    const result = await client.register(email, displayName.trim() || null)
+    const result = await client.register(email, displayName.trim() || null, challenge.token)
+    // Single-use: spent whatever the answer, so the next send gets a fresh one.
+    challenge.consume()
     setBusy(false)
     if (result.kind === 'otpSent') {
       setStep('code')
       setCode('')
+    } else if (result.kind === 'challengeFailed') {
+      setError(t('services.signup.challengeFailed'))
     } else {
       setError(result.message)
     }
   }
+  const shownError = error ?? (challenge.failed ? UNREACHABLE : null)
 
   async function submitCode(e: React.FormEvent) {
     e.preventDefault()
@@ -95,7 +107,7 @@ export function FreeAccountSignupPage() {
               className="mt-1 w-full rounded-md border border-line bg-surface px-3 py-2 text-text"
             />
           </label>
-          {error !== null && <p className="text-sm text-error">{error}</p>}
+          {shownError !== null && <p className="text-sm text-error">{shownError}</p>}
           {/* Above the button: the acceptance must be read before the tap that gives it.
               `register` sends TOS_VERSION and PRIVACY_VERSION (commerceApi.ts), each the date of the
               page linked here. Continuing accepts the terms and confirms the minimum age (16,
@@ -116,7 +128,7 @@ export function FreeAccountSignupPage() {
           </p>
           <button
             type="submit"
-            disabled={busy}
+            disabled={busy || !challenge.ready}
             className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-on-primary disabled:opacity-60"
           >
             {busy ? t('services.signup.sending') : t('services.signup.send')}
@@ -137,7 +149,7 @@ export function FreeAccountSignupPage() {
               className="mt-1 w-full rounded-md border border-line bg-surface px-3 py-2 font-mono text-text"
             />
           </label>
-          {error !== null && <p className="text-sm text-error">{error}</p>}
+          {shownError !== null && <p className="text-sm text-error">{shownError}</p>}
           <div className="flex flex-wrap gap-3">
             <button
               type="submit"
@@ -150,7 +162,7 @@ export function FreeAccountSignupPage() {
                 per email AND per IP. A refused resend spends no budget. */}
             <button
               type="button"
-              disabled={busy}
+              disabled={busy || !challenge.ready}
               onClick={() => void sendCode()}
               className="rounded-md border border-line px-4 py-2 text-sm text-text-2 disabled:opacity-60"
             >
@@ -159,6 +171,7 @@ export function FreeAccountSignupPage() {
           </div>
         </form>
       )}
+      {challenge.widget !== null && <div className="mt-4">{challenge.widget}</div>}
       <div className="mt-4">
         <button
           type="button"

@@ -20,6 +20,7 @@ import org.tenshu.core.TResult
 import org.tenshu.core.TenshuException
 import org.tenshu.core.getOrNull
 import org.tenshu.core.messageOrNull
+import org.tenshu.sync.RecoveryPhraseRequiredError
 
 /**
  * Sync screen VM. Owns only the device-list + realm-bootstrap concerns.
@@ -109,6 +110,11 @@ class SyncDashboardViewModel(
         // Hardware models arrive on their own schedule — a newly joined peer publishes its row only
         // after it has joined — so they are collected separately and patched into the state rather
         // than read once per roster pass.
+        viewModelScope.launch {
+            val holds = runCatchingCancellable { syncRepository.getRecoveryPhrase().getOrNull() != null }
+                .getOrNull()
+            _uiState.update { it.copy(holdsRecoveryPhrase = holds) }
+        }
         viewModelScope.launch {
             syncRepository.deviceHardwareNames.collect { names ->
                 _uiState.update { it.copy(deviceHardwareNames = names) }
@@ -345,16 +351,24 @@ class SyncDashboardViewModel(
      * exactly this moment. `ReadmitDevice` reports all three of its guards as throws, so
      * unwrapping is what makes the action explain itself instead of failing cryptically.
      */
+    // ⚠ A typed error with no message is mapped by TYPE here — `RecoveryPhraseRequiredError` has no
+    // fields, so falling through to [fallback] told a user without the phrase only that removal
+    // "could not" happen, with no way to learn why or what would work instead.
     private fun failureMessage(outcome: Result<TResult<*>>, fallback: String): String =
         outcome.fold(
             onSuccess = { result ->
-                if (result is TResult.Failure) result.error.messageOrNull() ?: fallback
+                if (result is TResult.Failure) describe(result.error) ?: fallback
                 else NO_FAILURE
             },
             onFailure = { thrown ->
-                (thrown as? TenshuException)?.error?.messageOrNull() ?: thrown.message ?: fallback
+                (thrown as? TenshuException)?.error?.let(::describe) ?: thrown.message ?: fallback
             },
         )
+
+    private fun describe(error: org.tenshu.core.TError): String? = when (error) {
+        is RecoveryPhraseRequiredError -> REVOKE_NEEDS_PHRASE
+        else -> error.messageOrNull()
+    }
 
     /** Dismiss a surfaced [SyncDashboardUiState.error] (the iOS roster's alert "OK"). */
     fun clearError() {
@@ -370,6 +384,10 @@ class SyncDashboardViewModel(
         /** Sentinel for "the call succeeded" — distinct from a Failure carrying no message. */
         const val NO_FAILURE = ""
         const val REVOKE_FAILED = "Could not remove the device"
+        const val REVOKE_NEEDS_PHRASE =
+            "Removing another device needs your recovery phrase, and this device doesn't have it. " +
+                "A device added by pairing never receives it. Remove the device from one that has " +
+                "the phrase, or from tenshu.app after unlocking with the phrase."
         const val READMIT_FAILED = "Could not restore access for that device"
         const val READMIT_DONE =
             "Access restored. That device starts syncing again on its next check — it needs no " +

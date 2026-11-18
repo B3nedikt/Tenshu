@@ -21,10 +21,10 @@ import org.tenshu.core.schema.service
  * sensitive artifact on the wire — what someone *asks* is routinely more revealing than
  * what they are shown — so it does not become one by accident here.
  *
- * The only operation is [AskMia]. It is a **read**: MQ-D10's validator enforces that
+ * [AskMia] is a **read**: MQ-D10's validator enforces that
  * (the same callstack shape carries every write in the platform, so read-only is
  * something we check, never something the DSL grants). A mutating plan needs MQ-D7's
- * confirmation cell.
+ * confirmation cell, run by [ConfirmMiaAction]; [ReplyToMia] answers a clarification (§25).
  */
 interface MiaService : Service {
 
@@ -39,6 +39,10 @@ interface MiaService : Service {
          * insertion point rather than ignoring it. HR #9.
          */
         // v1 is the release baseline (`core-schema-evolution.md` Appendix A).
-        val Schema: ServiceSchema = service(id = ID, version = 1)
+        // v2 — the clarify turn (`mia-query-layer.md` §25): `MiaAnswer.clarification`,
+        // `MiaAction.alternatives`, the `MiaClarification`/`MiaChoice` composites and the
+        // `replyToMia` op. Its migration is empty because Mia stores no rows (see the KDoc above);
+        // the bump is for the wire, which every client crosses in lockstep.
+        val Schema: ServiceSchema = service(id = ID, version = 2)
     }
 }

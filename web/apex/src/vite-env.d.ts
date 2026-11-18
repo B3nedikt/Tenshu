@@ -12,6 +12,12 @@ interface ImportMetaEnv {
    * working. Unset → signup open. A curtain, not security.
    */
   readonly VITE_SIGNUP_DISABLED?: string
+  /**
+   * Cloudflare Turnstile site key (see `lib/turnstileScript.ts`, commerce D16). Unset → no widget
+   * and no token on the sign-up and account-deletion forms. Set only together with commerce's
+   * `TURNSTILE_SECRET_KEY`.
+   */
+  readonly VITE_TURNSTILE_SITE_KEY?: string
   // Each hosted app's `VITE_<ID>_ORIGIN` is declared in its own registry file
   // (`apps/registry/apps/<id>.ts`), so adding an app edits nothing here.
 }

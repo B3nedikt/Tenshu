@@ -41,6 +41,7 @@ import org.tenshu.inference.ClassifyIntent
 import org.tenshu.inference.PhotosLike
 import org.tenshu.mia.AskMia
 import org.tenshu.mia.ConfirmMiaAction
+import org.tenshu.mia.ReplyToMia
 import org.tenshu.mia.MiaSource
 import org.tenshu.place.client.placeService
 import org.tenshu.preference.ClearSetting
@@ -250,8 +251,9 @@ class MiaWebContractTest : SdkRuntimeTest() {
         JsRuntime.awaitReady()
         assertNotNull(MiaPlugin.miaWebOperation(AskMia.ID))
         assertNull(MiaPlugin.miaWebOperation(ConfirmMiaAction.ID), "confirmMiaAction is excluded")
-        // Nothing else in the chain maps the action op, the model planner or visual search.
-        for (id in listOf(ConfirmMiaAction.ID, ClassifyIntent.ID, PhotosLike.ID)) {
+        assertNull(MiaPlugin.miaWebOperation(ReplyToMia.ID), "replyToMia is excluded")
+        // Nothing else in the chain maps the action op, the reply op, the model planner or visual search.
+        for (id in listOf(ConfirmMiaAction.ID, ReplyToMia.ID, ClassifyIntent.ID, PhotosLike.ID)) {
             assertNull(implementationFactory(id), "core maps no $id")
             val mapped = JsRuntimeBuilder.orderedPlugins.filter { it.operationFactory(JsRuntime)?.invoke(id) != null }
             assertTrue(mapped.isEmpty(), "no plugin maps $id; got ${mapped.map { it.id }}")

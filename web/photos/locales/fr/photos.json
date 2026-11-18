@@ -11,7 +11,8 @@
     "years": "Années",
     "collections": "Collections",
     "videos": "Vidéos",
-    "search": "Recherche"
+    "search": "Recherche",
+    "people": "Personnes"
   },
   "common": {
     "cancel": "Annuler",
@@ -194,5 +195,12 @@
     "larger": "Photos plus grandes",
     "perRow": "{count, plural, one {# photo par rangée} other {# photos par rangée}}",
     "years": "La taille est fixe dans la vue Années"
+  },
+  "people": {
+    "count": "{count, plural, one {# photo} other {# photos}}",
+    "back": "← Personnes",
+    "empty": "Aucune personne nommée pour l’instant.",
+    "hint": "Les personnes sont regroupées et nommées dans l’app Photos de votre téléphone. Les noms que vous y donnez apparaissent ici.",
+    "emptyPerson": "Aucune photo de {name} dans votre photothèque."
   }
 }

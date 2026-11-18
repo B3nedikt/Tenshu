@@ -26,7 +26,7 @@
     "modified": "Geändert",
     "loading": "Vorschau wird geladen…",
     "download": "Herunterladen",
-    "notAnImage": "kein Bild – keine Vorschau verfügbar"
+    "notAnImage": "kein Bild, daher keine Vorschau"
   },
   "status": {
     "uploading": "{name} wird hochgeladen…",
