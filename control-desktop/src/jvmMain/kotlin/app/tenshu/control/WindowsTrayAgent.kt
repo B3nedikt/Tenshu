@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit
  * Where it lives:
  *  - **Packaged:** `tray-agent\tray-agent.exe` beside Control's launcher inside the MSIX (`packageMsix` puts it
  *    there). ⚠ Started by this packaged process, it runs in the **same package context**, so the bridge gate
- *    admits it as `Tenshu.Control` and its notifications carry the package's identity.
+ *    admits it as Control's package (`FirstPartyDesktopPeers.WINDOWS_CONTROL_PACKAGES`) and its notifications carry the package's identity.
  *  - **Dev run:** only when `TENSHU_TRAY_AGENT` names a built `tray-agent.exe` — developer mode then admits the
  *    identity-less agent on the bridge, and it needs `TENSHU_TRAY_DEV=1`, which is passed along.
  *

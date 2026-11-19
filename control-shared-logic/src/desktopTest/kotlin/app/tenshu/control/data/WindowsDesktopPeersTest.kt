@@ -15,7 +15,7 @@ class WindowsDesktopPeersTest {
         }
         assertTrue(declared.isNotEmpty(), "Drive declares a Windows package")
         declared.forEach { (name, _) -> assertTrue(name in FirstPartyDesktopPeers.WINDOWS_PACKAGES, "$name must be admissible") }
-        assertTrue(("Tenshu.Drive" to "app.tenshu.drive") in declared)
+        assertTrue(("62647B3nedikt.TenshuDrive" to "app.tenshu.drive") in declared)
     }
 
     /** ⚠ Control is bridge-only: it must never register as an app on ipc.sock. */

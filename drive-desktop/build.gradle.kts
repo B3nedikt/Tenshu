@@ -107,12 +107,11 @@ val qrImpl: String? = (project.findProperty("tenshu.qr.impl") as String?)?.takeI
 val desktopMarketingVersion = "1.0.1"
 
 // Windows MSIX (desktop-windows-port.md §5.2, D1): `:drive-desktop:packageMsix`; the Store build is
-// docs/how-to/windows-store-submission.md. ⚠ The identity name is provisional until the Partner Center
-// reservation, and must equal Drive's ClientBinding.WindowsPackage in BundledAppCatalogue, or Control's peer
-// gate will not admit this package (packageMsix checks the pin).
-extra["tenshu.msix.identityName"] = "Tenshu.Drive"
-// ⚠⚠ false until the name above IS Partner Center's Package/Identity/Name; a Store build refuses until then.
-extra["tenshu.msix.identityReserved"] = false
+// docs/how-to/windows-store-submission.md. The identity name is Partner Center's Package/Identity/Name (Store ID
+// 9NMC0PNRG2HH, reserved 2026-11-18), and must equal Drive's ClientBinding.WindowsPackage in BundledAppCatalogue,
+// or Control's peer gate will not admit this package (packageMsix checks the pin).
+extra["tenshu.msix.identityName"] = "62647B3nedikt.TenshuDrive"
+extra["tenshu.msix.identityReserved"] = true
 extra["tenshu.msix.identityPins"] = listOf(
     "control-shared-logic/src/commonMain/kotlin/app/tenshu/control/data/BundledAppCatalogue.kt",
 )

@@ -39,10 +39,10 @@ object ControlServerCheck {
      * Control's MSIX package name on Windows (`desktop-windows-port.md` §3.2, D1).
      *
      * ⚠⚠ Spelled twice on purpose — here and in `FirstPartyDesktopPeers.WINDOWS_CONTROL_PACKAGES`
-     * (`:control-shared-logic`, which this module cannot depend on) — and both are provisional until
-     * the Partner Center reservation. They must move together; a mismatch fails closed.
+     * (`:control-shared-logic`, which this module cannot depend on) — Partner Center's reserved
+     * Package/Identity/Name. They must move together; a mismatch fails closed.
      */
-    const val WINDOWS_CONTROL_PACKAGE = "Tenshu.Control"
+    const val WINDOWS_CONTROL_PACKAGE = "62647B3nedikt.TenshuControl"
 
     /** On Windows: only [WINDOWS_CONTROL_PACKAGE] is vouched for, and only by [publishers]. */
     fun windowsPolicy(publishers: Set<String>): PeerPublisherPolicy =

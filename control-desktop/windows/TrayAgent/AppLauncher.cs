@@ -64,7 +64,7 @@ internal static class AppLauncher
         }
     }
 
-    /// <summary><c>Tenshu.Control_asmrhn1bb0j6y</c> → <c>asmrhn1bb0j6y</c>.</summary>
+    /// <summary><c>62647B3nedikt.TenshuControl_1pr1nmnfah2xa</c> → <c>1pr1nmnfah2xa</c>.</summary>
     private static string? OwnPublisherId()
     {
         var family = PeerPackage.OwnFamilyName();

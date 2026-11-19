@@ -44,8 +44,8 @@ Set-Location $root
 
 # app key -> Gradle module, launcher/package base name, MSIX Identity/@Name (= the module's tenshu.msix.identityName)
 $apps = [ordered]@{
-    control = @{ module = ':control-desktop'; exe = 'TenshuControl'; identity = 'Tenshu.Control' }
-    drive   = @{ module = ':drive-desktop';   exe = 'TenshuDrive';   identity = 'Tenshu.Drive' }
+    control = @{ module = ':control-desktop'; exe = 'TenshuControl'; identity = '62647B3nedikt.TenshuControl' }
+    drive   = @{ module = ':drive-desktop';   exe = 'TenshuDrive';   identity = '62647B3nedikt.TenshuDrive' }
 }
 
 # ── The publisher id: the half of the package family name after '_', what the peer gates pin ──

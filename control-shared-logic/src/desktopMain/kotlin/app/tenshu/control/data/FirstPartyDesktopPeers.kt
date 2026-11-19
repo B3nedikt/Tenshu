@@ -68,9 +68,10 @@ object FirstPartyDesktopPeers {
 
     /**
      * Control's own package name, for `bridge.sock` only — a second Control asking the first to show
-     * its window, as on macOS. ⚠ Provisional until the Partner Center reservation.
+     * its window, as on macOS. Partner Center's reserved Package/Identity/Name; must equal
+     * `tenshu.msix.identityName` in `control-desktop/build.gradle.kts` (`packageMsix` checks it).
      */
-    val WINDOWS_CONTROL_PACKAGES: Set<String> = setOf("Tenshu.Control")
+    val WINDOWS_CONTROL_PACKAGES: Set<String> = setOf("62647B3nedikt.TenshuControl")
 
     /** What `bridge.sock` admits on Windows. */
     val WINDOWS_BRIDGE_PACKAGES: Set<String> get() = WINDOWS_PACKAGES + WINDOWS_CONTROL_PACKAGES

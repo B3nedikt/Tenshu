@@ -40,7 +40,8 @@ const release = (apps: Record<string, unknown>, extra: Record<string, unknown> =
   ...extra,
 })
 const entry = (app: string, c = 'a', bytes = 311_000_000) => ({
-  identityName: `Tenshu.${app[0]!.toUpperCase()}${app.slice(1)}`,
+  // Partner Center's reserved Package/Identity/Name (desktop-windows-port.md D7).
+  identityName: `62647B3nedikt.${NAME(app)}`,
   file: `${NAME(app)}-1.0.1.msix`,
   url: `${BASE}${HEX(c)}.msix`,
   sha256: HEX(c),

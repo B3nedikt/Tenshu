@@ -36,8 +36,8 @@ const NAMES: Record<WindowsApp, string> = {
 
 /** The MSIX Identity/@Name each packaged app carries: what the peer gate admits (scripts/lib/windows_publish.py APPS). */
 const IDENTITY: Partial<Record<WindowsApp, string>> = {
-  control: 'Tenshu.Control',
-  drive: 'Tenshu.Drive',
+  control: '62647B3nedikt.TenshuControl',
+  drive: '62647B3nedikt.TenshuDrive',
 }
 
 export const WINDOWS_DOWNLOAD_LANGUAGES = ['en', 'de', 'fr'] as const

@@ -210,12 +210,11 @@ val qrImpl: String? = (project.findProperty("tenshu.qr.impl") as String?)?.takeI
 val desktopMarketingVersion = "1.0.1"
 
 // Windows MSIX (desktop-windows-port.md §5.2, D1): `:control-desktop:packageMsix`; the Store build is
-// docs/how-to/windows-store-submission.md. ⚠ The identity name is provisional until the Partner Center
-// reservation, and must equal FirstPartyDesktopPeers.WINDOWS_CONTROL_PACKAGES and
+// docs/how-to/windows-store-submission.md. The identity name is Partner Center's Package/Identity/Name (Store ID
+// 9N7HTCGVX8PV, reserved 2026-11-18), and must equal FirstPartyDesktopPeers.WINDOWS_CONTROL_PACKAGES and
 // ControlServerCheck.WINDOWS_CONTROL_PACKAGE, or no app can reach this Control (packageMsix checks the pins).
-extra["tenshu.msix.identityName"] = "Tenshu.Control"
-// ⚠⚠ false until the name above IS Partner Center's Package/Identity/Name; a Store build refuses until then.
-extra["tenshu.msix.identityReserved"] = false
+extra["tenshu.msix.identityName"] = "62647B3nedikt.TenshuControl"
+extra["tenshu.msix.identityReserved"] = true
 extra["tenshu.msix.identityPins"] = listOf(
     "control-shared-logic/src/desktopMain/kotlin/app/tenshu/control/data/FirstPartyDesktopPeers.kt",
     "ui-core/src/desktopMain/kotlin/app/tenshu/ui/ipc/ControlServerCheck.kt",
