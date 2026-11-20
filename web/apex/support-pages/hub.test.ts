@@ -281,7 +281,7 @@ describe('Getting started', () => {
       const control = page.html.indexOf('id="control"')
       expect(control, page.url).toBeGreaterThan(0)
       expect(control).toBeLessThan(page.html.indexOf('id="apps-and-devices"'))
-      for (const platform of ['ios', 'android', 'macos', 'web']) {
+      for (const platform of ['ios', 'android', 'macos', 'windows', 'web']) {
         expect(page.html).toContain(`href="/apps/control/support/${platform}/${page.lang}"`)
         expect(page.html).toContain(`href="/apps/drive/support/${platform}/${page.lang}"`)
       }

@@ -11,7 +11,7 @@ lang: fr
 reviewed: false
 title: Assistance Tenshu Drive
 description: Aide pour Tenshu Drive sur {platform} : bien démarrer, comment vos fichiers restent confidentiels, réponses aux problèmes courants et comment contacter l’assistance.
-platforms: ios, android, macos, web
+platforms: ios, android, macos, windows, web
 defaultPlatform: web
 ---
 
@@ -87,6 +87,37 @@ avec Tenshu Control, qui conserve vos clés et relie vos appareils. Configurez d
    (Ajouter un appareil). Vérifiez que les deux appareils affichent le même code. Ouvrez Drive sur
    l’autre appareil. Votre fichier apparaît en quelques minutes.
    ![Fenêtre « Add a device » (Ajouter un appareil) de Tenshu Control, avec « Scan a code » (Scanner un code) et « Show a code » (Afficher un code)](shot:control/09-add-device)
+:::
+
+::: windows
+1. **Installez Tenshu Control** depuis le Microsoft Store ou depuis la
+   [page de téléchargement Windows](/apps/control/download/windows/fr), puis ouvrez-le. Control se
+   trouve dans la zone de notification, à côté de l’horloge.
+   ![Fenêtre d’accueil de Tenshu Control sous Windows, avec les boutons « Start fresh on this device », « I have Tenshu on another device » et « Recover from a recovery phrase »](shot:control/01-welcome)
+2. **Configurez Control.** Cliquez sur **Start fresh on this device** (Repartir de zéro sur cet
+   appareil). Ouvrez ensuite **Services** et choisissez une offre de stockage, pour que vos
+   fichiers puissent atteindre vos autres appareils. Sans offre, vos fichiers restent sur ce PC.
+   Notez votre phrase de récupération quand Control l’affiche, et gardez-la en lieu sûr.
+   ![Écran « Services » de Tenshu Control avec les offres Free, Basic et Premium](shot:control/10-services)
+3. **Installez Tenshu Drive** de la même façon, puis ouvrez-le. Drive se connecte à Control tout
+   seul. S’il affiche **Set up Tenshu Control** (Configurer Tenshu Control), terminez d’abord
+   l’étape 2.
+   ![La liste de fichiers vide de Tenshu Drive sous Windows, avec « No files here yet » (Aucun fichier ici pour l’instant)](shot:07-empty)
+4. **Importez un fichier.** Cliquez sur **Upload** (Importer), puis sur **File** (Fichier).
+   ![Le menu d’import de Tenshu Drive, avec « File », « Folder upload » (Importer un dossier) et « Images »](shot:05-add)
+5. **Retrouvez-le sur un autre appareil.** Configurez Tenshu Control sur votre autre appareil et
+   choisissez **I have Tenshu on another device** (J’ai Tenshu sur un autre appareil). Sur ce PC,
+   ouvrez Control et allez dans **Realm Devices** (Appareils du realm) → **Add new device**
+   (Ajouter un appareil). Vérifiez que les deux appareils affichent le même code. Ouvrez Drive sur
+   l’autre appareil. Votre fichier apparaît en quelques minutes.
+   ![Fenêtre « Add a device » (Ajouter un appareil) de Tenshu Control, avec « Scan a code » (Scanner un code) et « Show a code » (Afficher un code)](shot:control/09-add-device)
+
+Pour accéder aussi à vos fichiers depuis l’Explorateur de fichiers, ouvrez **Settings**
+(Paramètres) dans Tenshu Control et activez **Show Drive in File Explorer** (Afficher Drive dans
+l’Explorateur de fichiers). Un dossier **Tenshu Drive** apparaît dans l’Explorateur. Ses fichiers
+se téléchargent quand vous les ouvrez, vos modifications y sont synchronisées, et les fichiers que
+vous y supprimez vont dans le dossier **Trash** (Corbeille) de Drive, d’où vous pouvez encore les
+restaurer.
 :::
 
 ::: web
@@ -171,7 +202,7 @@ uniquement), ce realm n’a pas encore d’offre de stockage : rien ne quitte d
 vérifiée. Un code d’activation fonctionne sans.
 :::
 
-::: android macos
+::: android macos windows
 ### Drive affiche « Not syncing — this device has no storage plan »
 
 (« Pas de synchronisation — cet appareil n’a pas d’offre de stockage ».) Vos fichiers sont en
@@ -220,7 +251,7 @@ besoin de stockage), ajoutez du stockage dans Tenshu Control. Si l’état de la
 **Resume** (Reprendre). Activer un seul dossier ne lève pas la pause.
 :::
 
-::: android macos
+::: android macos windows
 ### Drive affiche « Storage full »
 
 (« Stockage plein ».) Vos fichiers restent sur cet appareil et rien n’est supprimé, mais les
@@ -258,6 +289,11 @@ toujours sur vos autres appareils. Choisissez **I have Tenshu already** (J’ai 
 ::: macos
 - Un Mac sous macOS 13 Ventura ou version ultérieure.
 - Tenshu Control, installé et configuré sur le même Mac.
+:::
+
+::: windows
+- Windows 10 version 1809 ou ultérieure, ou Windows 11, sur un PC 64 bits (x64).
+- Tenshu Control, installé et configuré sur le même PC.
 :::
 
 ::: web

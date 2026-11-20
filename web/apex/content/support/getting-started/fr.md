@@ -29,14 +29,16 @@ Tenshu Drive, ont besoin que Control soit configuré sur le même appareil.
 
 La page d’assistance de Control détaille chaque étape, avec des captures d’écran, pour
 [iPhone et iPad](/apps/control/support/ios/fr), [Android](/apps/control/support/android/fr),
-[Mac](/apps/control/support/macos/fr) et le [Web](/apps/control/support/web/fr).
+[Mac](/apps/control/support/macos/fr), [Windows](/apps/control/support/windows/fr) et le
+[Web](/apps/control/support/web/fr).
 
 ## Ajoutez des applis et vos autres appareils {#apps-and-devices}
 
 - **Ajouter des applis.** Installez les applis Tenshu de votre choix sur le même appareil, comme
   Tenshu Drive. Drive trouve Control tout seul. La page d’assistance de Drive montre comment
   envoyer votre premier fichier, pour [iPhone et iPad](/apps/drive/support/ios/fr),
-  [Android](/apps/drive/support/android/fr), [Mac](/apps/drive/support/macos/fr) et le
+  [Android](/apps/drive/support/android/fr), [Mac](/apps/drive/support/macos/fr),
+  [Windows](/apps/drive/support/windows/fr) et le
   [Web](/apps/drive/support/web/fr).
 - **Ajouter vos autres appareils.** Installez-y Tenshu Control et choisissez **I have Tenshu on
   another device** (J’ai Tenshu sur un autre appareil). Un appareil affiche un code et l’autre le

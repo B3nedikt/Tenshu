@@ -12,7 +12,7 @@ lang: de
 reviewed: false
 title: Tenshu Control – Support
 description: Hilfe zu Tenshu Control auf {platform}: Tenshu einrichten, deine Geräte hinzufügen, deine Wiederherstellungsphrase sicher aufbewahren und häufige Probleme lösen.
-platforms: ios, android, macos, web
+platforms: ios, android, macos, windows, web
 defaultPlatform: web
 ---
 
@@ -80,6 +80,26 @@ Tenshu-Apps wie Tenshu Drive brauchen Control, eingerichtet auf demselben Gerät
    ![Fenster „Dienste“ von Tenshu Control mit den Plänen Free, Basic und Premium](shot:10-services)
 5. **Füge dein anderes Gerät hinzu.** Installiere dort Tenshu Control und wähle **Ich habe Tenshu
    auf einem anderen Gerät**. Gehe auf diesem Mac zu **Realm-Geräte** → **Neues Gerät
+   hinzufügen**. Prüfe, dass beide Geräte denselben Bestätigungscode anzeigen.
+   ![Fenster „Gerät hinzufügen“ von Tenshu Control mit einem Kopplungscode](shot:09-add-device)
+:::
+
+::: windows
+1. **Installiere Tenshu Control** aus dem Microsoft Store oder von der
+   [Windows-Downloadseite](/apps/control/download/windows/de) und öffne es. Control lebt im
+   Infobereich der Taskleiste, neben der Uhr. Zum Beenden klicke mit der rechten Maustaste auf
+   sein Symbol und wähle **Tenshu Control beenden**.
+   ![Willkommensfenster von Tenshu Control unter Windows, mit den Schaltflächen „Auf diesem Gerät neu beginnen“, „Ich habe Tenshu auf einem anderen Gerät“ und „Mit Wiederherstellungsphrase wiederherstellen“](shot:01-welcome)
+2. **Erstelle dein Realm.** Klicke auf **Auf diesem Gerät neu beginnen** und dann auf **Weiter**.
+   ![Fenster „Durch dein Gerät geschützt“ von Tenshu Control, mit der Schaltfläche „Weiter“](shot:02-protected)
+3. **Sichere deine Wiederherstellungsphrase.** Öffne **Wiederherstellungsphrase** und schreib die
+   24 Wörter auf. Bewahre sie offline an einem sicheren Ort auf.
+   ![Fenster „Wiederherstellungsphrase“ von Tenshu Control](shot:03-recovery-phrase)
+4. **Schalte die Synchronisierung ein.** Öffne **Dienste** und wähle einen Speicherplan. Bis
+   dahin bleibt alles auf diesem PC.
+   ![Fenster „Dienste“ von Tenshu Control mit den Plänen Free, Basic und Premium](shot:10-services)
+5. **Füge dein anderes Gerät hinzu.** Installiere dort Tenshu Control und wähle **Ich habe Tenshu
+   auf einem anderen Gerät**. Gehe auf diesem PC zu **Realm-Geräte** → **Neues Gerät
    hinzufügen**. Prüfe, dass beide Geräte denselben Bestätigungscode anzeigen.
    ![Fenster „Gerät hinzufügen“ von Tenshu Control mit einem Kopplungscode](shot:09-add-device)
 :::
@@ -158,12 +178,32 @@ Gerät. Es geht nichts verloren. Wähle einen Plan unter **Dienste**, auf dem iP
 In den **Einstellungen** wird ein Realm ohne Plan als **Local only** (Nur lokal) angezeigt.
 :::
 
-::: ios android macos
+::: ios android macos windows
 ### Ich habe meine Passphrase vergessen
 
 Wenn du eine Passphrase hinzugefügt hast, lässt sie sich nicht zurücksetzen. Deine
 Wiederherstellungsphrase stellt dein Realm wieder her: Wähle auf diesem Gerät **Mit
 Wiederherstellungsphrase wiederherstellen** (auf dem iPhone: **Recover from a recovery phrase**).
+:::
+
+::: windows
+1. **Installiere Tenshu Control** aus dem Microsoft Store oder von der
+   [Windows-Downloadseite](/apps/control/download/windows/de) und öffne es. Control lebt im
+   Infobereich der Taskleiste, neben der Uhr. Zum Beenden klicke mit der rechten Maustaste auf
+   sein Symbol und wähle **Tenshu Control beenden**.
+   ![Willkommensfenster von Tenshu Control unter Windows, mit den Schaltflächen „Auf diesem Gerät neu beginnen“, „Ich habe Tenshu auf einem anderen Gerät“ und „Mit Wiederherstellungsphrase wiederherstellen“](shot:01-welcome)
+2. **Erstelle dein Realm.** Klicke auf **Auf diesem Gerät neu beginnen** und dann auf **Weiter**.
+   ![Fenster „Durch dein Gerät geschützt“ von Tenshu Control, mit der Schaltfläche „Weiter“](shot:02-protected)
+3. **Sichere deine Wiederherstellungsphrase.** Öffne **Wiederherstellungsphrase** und schreib die
+   24 Wörter auf. Bewahre sie offline an einem sicheren Ort auf.
+   ![Fenster „Wiederherstellungsphrase“ von Tenshu Control](shot:03-recovery-phrase)
+4. **Schalte die Synchronisierung ein.** Öffne **Dienste** und wähle einen Speicherplan. Bis
+   dahin bleibt alles auf diesem PC.
+   ![Fenster „Dienste“ von Tenshu Control mit den Plänen Free, Basic und Premium](shot:10-services)
+5. **Füge dein anderes Gerät hinzu.** Installiere dort Tenshu Control und wähle **Ich habe Tenshu
+   auf einem anderen Gerät**. Gehe auf diesem PC zu **Realm-Geräte** → **Neues Gerät
+   hinzufügen**. Prüfe, dass beide Geräte denselben Bestätigungscode anzeigen.
+   ![Fenster „Gerät hinzufügen“ von Tenshu Control mit einem Kopplungscode](shot:09-add-device)
 :::
 
 ::: web
@@ -185,8 +225,33 @@ hinzuzufügen, oder stelle mit deiner Wiederherstellungsphrase wieder her.
 - Android 7.0 oder neuer.
 :::
 
+::: windows
+- Windows 10 ab Version 1809 oder Windows 11, auf einem 64-Bit-PC (x64).
+- Tenshu Control läuft im Infobereich der Taskleiste.
+:::
+
 ::: macos
 - Ein Mac. Tenshu Control läuft in der Menüleiste.
+:::
+
+::: windows
+1. **Installiere Tenshu Control** aus dem Microsoft Store oder von der
+   [Windows-Downloadseite](/apps/control/download/windows/de) und öffne es. Control lebt im
+   Infobereich der Taskleiste, neben der Uhr. Zum Beenden klicke mit der rechten Maustaste auf
+   sein Symbol und wähle **Tenshu Control beenden**.
+   ![Willkommensfenster von Tenshu Control unter Windows, mit den Schaltflächen „Auf diesem Gerät neu beginnen“, „Ich habe Tenshu auf einem anderen Gerät“ und „Mit Wiederherstellungsphrase wiederherstellen“](shot:01-welcome)
+2. **Erstelle dein Realm.** Klicke auf **Auf diesem Gerät neu beginnen** und dann auf **Weiter**.
+   ![Fenster „Durch dein Gerät geschützt“ von Tenshu Control, mit der Schaltfläche „Weiter“](shot:02-protected)
+3. **Sichere deine Wiederherstellungsphrase.** Öffne **Wiederherstellungsphrase** und schreib die
+   24 Wörter auf. Bewahre sie offline an einem sicheren Ort auf.
+   ![Fenster „Wiederherstellungsphrase“ von Tenshu Control](shot:03-recovery-phrase)
+4. **Schalte die Synchronisierung ein.** Öffne **Dienste** und wähle einen Speicherplan. Bis
+   dahin bleibt alles auf diesem PC.
+   ![Fenster „Dienste“ von Tenshu Control mit den Plänen Free, Basic und Premium](shot:10-services)
+5. **Füge dein anderes Gerät hinzu.** Installiere dort Tenshu Control und wähle **Ich habe Tenshu
+   auf einem anderen Gerät**. Gehe auf diesem PC zu **Realm-Geräte** → **Neues Gerät
+   hinzufügen**. Prüfe, dass beide Geräte denselben Bestätigungscode anzeigen.
+   ![Fenster „Gerät hinzufügen“ von Tenshu Control mit einem Kopplungscode](shot:09-add-device)
 :::
 
 ::: web
