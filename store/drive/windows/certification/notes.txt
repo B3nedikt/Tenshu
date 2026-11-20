@@ -1,0 +1,10 @@
+Tenshu Drive needs Tenshu Control installed and set up on the same PC first: https://apps.microsoft.com/detail/9N7HTCGVX8PV. Control holds the encryption keys; Drive cannot open without it, and shows "Set up Tenshu Control" until it is set up.
+
+To review:
+1. Install Tenshu Control and start it. Click "Start fresh on this device", then "Continue".
+2. Start Tenshu Drive. It finds Control on its own and shows an empty file list.
+3. Click "Upload" to upload a file or a folder, or create a folder. Open a file to view it; a file's actions include Rename, Move and Share link.
+
+Without a storage plan in Control, files stay on the PC and Drive shows that it is not syncing; that is expected. To try sync, open Services in Control: it asks for an email address and then a 6-digit code. Enter <DEMO EMAIL> as the email address and <DEMO CODE> as the code (no email is sent to that address).
+
+All files are end-to-end encrypted on the device before they reach our servers; the servers cannot read them.

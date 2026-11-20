@@ -1,0 +1,29 @@
+Tenshu Control ist die Begleit-App, die die anderen Tenshu-Apps brauchen. Installiere sie zuerst. Sie erstellt dein Realm, den privaten Bereich, den sich deine Tenshu-Apps teilen. Sie verwahrt deine Schlüssel und verbindet deine Geräte. Tenshu Drive und die anderen Tenshu-Apps funktionieren nur, wenn Control auf demselben PC eingerichtet ist.
+
+Control lebt im Infobereich der Taskleiste, neben der Uhr, und hält deine Geräte synchron, während du arbeitest.
+
+TENSHU EINRICHTEN
+- Klicke auf „Auf diesem Gerät neu beginnen“ und dann auf „Weiter“.
+- Schreib deine Wiederherstellungsphrase auf: 24 Wörter, die dein Realm wiederherstellen, wenn du alle Geräte verlierst. Öffne „Wiederherstellungsphrase“, um sie zu sehen, und bewahre sie offline an einem sicheren Ort auf.
+- Öffne „Dienste“ und wähle einen Speicherplan, wenn du deine Daten auf mehr als einem Gerät haben willst. Ein neues Konto startet im kostenlosen Plan mit 5 GB. Bis dahin bleibt alles auf diesem PC.
+
+DEINE ANDEREN GERÄTE HINZUFÜGEN
+Installiere Tenshu Control auf deinem anderen Gerät und wähle „Ich habe Tenshu auf einem anderen Gerät“. Öffne auf diesem PC „Realm-Geräte“ und dann „Neues Gerät hinzufügen“. Ein Gerät zeigt einen Code an, das andere scannt ihn oder du tippst ihn ein. Prüfe, dass beide denselben Bestätigungscode anzeigen, und bestätige dann.
+
+WIE CONTROL DEINE DATEN PRIVAT HÄLT
+- Deine Schlüssel entstehen auf deinen Geräten und verlassen sie nie unverschlüsselt. Wenn du ein Gerät hinzufügst, verschlüsselt dein vorhandenes Gerät die Schlüssel für das neue, bevor sie unseren Server passieren.
+- Die Server von Tenshu können deine Daten nicht lesen. Sie leiten nur verschlüsselte Daten weiter und speichern nur solche. Einige Fakten, die sie zum Arbeiten brauchen, sehen sie aber: wie viel du speicherst, wie viele Geräte du hast und wann sie synchronisieren.
+- Deine Wiederherstellungsphrase gehört nur dir. Niemand sonst hat eine Kopie, deshalb kann niemand, auch wir nicht, dein Realm ohne sie wiederherstellen. Wer sie hat, kann alles öffnen, also bewahre sie offline auf.
+- Du kannst Tenshu ohne Konto nutzen. Auf einem einzelnen Gerät funktioniert Tenshu ohne Konto und sendet nichts an unsere Server.
+
+AUCH IN CONTROL
+- „Drive im Datei-Explorer anzeigen“: ein Ordner „Tenshu Drive“, dessen Dateien beim Öffnen geladen werden.
+- „Bei Anmeldung starten“, damit deine Geräte synchron bleiben, ohne dass du Control öffnest.
+- Sieh deine Geräte, deinen Speicherplan und wie viel du nutzt.
+
+VORAUSSETZUNGEN
+- Windows 10 ab Version 1809 oder Windows 11, auf einem 64-Bit-PC (x64).
+- Zum Synchronisieren zwischen Geräten: ein Speicherplan. Der kostenlose Plan hat 5 GB.
+
+Hilfe und häufige Probleme: tenshu.app/apps/control/support/windows/de
+Der Support fragt dich nie nach deiner Wiederherstellungsphrase.

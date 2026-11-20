@@ -1,0 +1,25 @@
+Tenshu Drive keeps your files encrypted and in sync across your devices. Your files are encrypted on your PC before they are uploaded, and only your own devices can read them.
+
+TENSHU DRIVE NEEDS TENSHU CONTROL
+Tenshu Control holds your keys and connects your devices. Install Tenshu Control from the Microsoft Store and set it up first, then open Drive. Drive finds Control on its own.
+
+WHAT YOU CAN DO
+- Upload files and whole folders, and keep them in folders.
+- Open photos and PDFs in the app.
+- Rename and move your files.
+- See your files in File Explorer too: turn on Show Drive in File Explorer in Tenshu Control. Files download when you open them, and what you change there syncs.
+- Share a file with a link. Anyone with the link can view the file until you revoke it.
+- Open Drive on your other devices and find your files there.
+
+HOW DRIVE KEEPS YOUR FILES PRIVATE
+- Your files are encrypted on your PC before they are uploaded. Tenshu's servers store only encrypted data, and they don't have the keys to read it.
+- File and folder names are encrypted too, except the name of a file you share by link (see below). The server can still see some facts it needs to sync: how much you store, how many devices you have, and when they sync.
+- A share link carries its own key, in the part of the link after #k=. Your browser never sends that part to our server, so the server can deliver the file but cannot open it. When you share a file by link, the server stores that file's name, type and size with it.
+- Without a storage plan, nothing leaves your PC. Your files only go to Tenshu's servers, encrypted, once you pick a storage plan in Tenshu Control.
+
+REQUIREMENTS
+- Windows 10 version 1809 or later, or Windows 11, on a 64-bit (x64) PC.
+- Tenshu Control, set up on the same PC.
+- To sync between devices: a storage plan. The free plan has 5 GB.
+
+Help and common problems: tenshu.app/apps/drive/support/windows/en

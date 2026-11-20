@@ -197,8 +197,8 @@ publish after certification is the safe choice for the first one.
   address for sync sign-in). Use the one the other stores use: `https://tenshu.app/legal/privacy`
   (`store/shared/en-US/privacy_url.txt`; it 302s by browser language). ⚖️ The policy is **not yet counsel-reviewed**
   (`store-listings.md`), and it must cover the Windows apps — counsel and maintainer confirm before submitting.
-- Website `https://tenshu.app`. Support contact: TODO 🔑 — the existing support URLs are the iOS pages
-  (`https://tenshu.app/apps/<app>/support/ios/en`); a Windows support page, or a generic one, is owed.
+- Website `https://tenshu.app`. Support contact: the Windows support page,
+  `https://tenshu.app/apps/<app>/support/windows/en` (`/de`, `/fr`) — not the iOS one `support_url.txt` names.
 - System requirements: Windows 10 version 1809 (build 17763) or later, x64 — the manifest's MinVersion. Optional.
 
 **Age ratings** — the IARC questionnaire. The answers for the other stores are in `store/<app>/age_rating.json`
@@ -208,29 +208,24 @@ publish after certification is the safe choice for the first one.
 **Packages** — upload the `.msix` from §4. Device family: Windows 10/11 Desktop only (the manifest targets
 `Windows.Desktop`).
 
-**Store listings** (en-US and de-DE) — text from `store/<app>/<lang>/` (`description.txt`, `keywords.txt` →
-search terms, `release_notes.txt` → What's new). Needed:
+**Store listings** (en-US and de-DE) — text from `store/<app>/windows/<lang>/`: `description.txt`,
+`search_terms.txt` (one per line, ≤ 7) and `release_notes.txt` → What's new. ⚠ Not `store/<app>/<lang>/`: that is
+the App Store listing (fastlane deliver) and says iPhone, Face ID and the App Store throughout; `play/` is Google
+Play's. The Windows copy is a sibling of those, not generated from them, so a change to a shared claim (privacy,
+the free plan's size) is made in all three. `store-listing.py` reads only locale-named folders and so skips
+`windows/`; nothing lints it yet. Needed:
 - ❓ **Screenshots: at least one desktop screenshot** (PNG, 1366×768 or larger recommended), up to 10. None of the
   Windows apps has screenshots yet — TODO 🛠: capture Control and Drive on Windows (`store-screenshots.md` is the
   macOS/iOS pipeline and does not cover Windows).
 - Store logos (1:1 box art / poster art) are optional ❓; the package's `StoreLogo` is used otherwise.
-- TODO 🔑: listing copy review for Windows (the iOS text mentions iPhone-only features in places).
+- 🔑 Read the Windows copy once before the first submission (it was drafted from the iOS text, 2026-11-20).
 
 **Submission options**
-- **Restricted capability `runFullTrust` — justification** (draft, 🔑 to confirm):
-
-  > Tenshu Control is a desktop (Win32) application packaged with MSIX; `runFullTrust` is the capability every
-  > packaged desktop app needs to run. It is written in Kotlin and runs on a Java runtime bundled in the package.
-  > Control stays resident to sync the user's end-to-end-encrypted data between their own devices, shows a
-  > notification-area icon through a small companion process in the same package, and serves the other Tenshu apps
-  > (such as Tenshu Drive) over a local socket in the user's profile. All user data is encrypted on the device
-  > before it leaves it; our servers cannot read it. The app does not install drivers or services, does not require
-  > administrator rights, and writes only to the user's profile.
-
-  For Drive, the same with: "Tenshu Drive is a desktop (Win32) file-management app … It connects to Tenshu Control
-  on the same PC over a local socket in the user's profile and requires Control to be installed."
-- **Notes for certification** — adapt `store/<app>/review/notes.txt` (the App Store notes: how to start without an
-  account, the demo sign-in for sync). Add for Drive: *"Install Tenshu Control first (link); Drive connects to it."*
+- **Restricted capability `runFullTrust` — justification**: `store/<app>/windows/certification/full_trust_justification.txt`
+  (draft, 🔑 to confirm).
+- **Notes for certification**: `store/<app>/windows/certification/notes.txt` — how to start without an account,
+  and the demo sign-in for sync. 🔑 Replace `<DEMO EMAIL>` / `<DEMO CODE>` at submission with the values App Review
+  Information uses (App Store Connect holds them, not the repo): Partner Center has no separate sign-in field. Drive's notes link Control's Store page.
   ⚠ The certification tester installs from the Store, so Control must be **published (or in the same certification
   window)** before Drive's notes make sense — submit Drive after Control is live.
 
@@ -263,8 +258,9 @@ Then open Control, start fresh, open Drive, and check `%USERPROFILE%\.tenshu\…
 `peer attested: <Drive identity name> (publisher <id>)`. A Drive that cannot connect, with a "not attested" line, is
 the publisher-id coupling of §4 — the build was not made with the Store id.
 
-The public Store link is `https://apps.microsoft.com/detail/<Store ID>` — the value `tenshu.control.microsoftStoreUrl`
-will take (ADR 0025 row, still owed: `desktop-windows-port.md` §5.2).
+The public Store link is `https://apps.microsoft.com/detail/<Store ID>`. A Store copy of Drive with no Control should
+offer exactly that as **Get Control** (ADR 0025 §6, Windows row): install Drive first once to check it, as no test
+can reach that half of the row.
 
 ## 10. ⚖️ Commerce
 

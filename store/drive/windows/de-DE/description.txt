@@ -1,0 +1,25 @@
+Tenshu Drive hält deine Dateien verschlüsselt und auf all deinen Geräten synchron. Deine Dateien werden auf deinem PC verschlüsselt, bevor sie hochgeladen werden, und nur deine eigenen Geräte können sie lesen.
+
+TENSHU DRIVE BRAUCHT TENSHU CONTROL
+Tenshu Control verwahrt deine Schlüssel und verbindet deine Geräte. Installiere Tenshu Control aus dem Microsoft Store und richte es zuerst ein, dann öffne Drive. Drive findet Control von selbst.
+
+WAS DU TUN KANNST
+- Dateien und ganze Ordner hochladen und in Ordnern ablegen.
+- Fotos und PDFs in der App öffnen.
+- Deine Dateien umbenennen und verschieben.
+- Deine Dateien auch im Datei-Explorer sehen: Schalte in Tenshu Control „Drive im Datei-Explorer anzeigen“ ein. Dateien werden beim Öffnen geladen, und was du dort änderst, wird synchronisiert.
+- Eine Datei per Link teilen. Jede Person mit dem Link kann die Datei ansehen, bis du ihn widerrufst.
+- Drive auf deinen anderen Geräten öffnen und deine Dateien dort wiederfinden.
+
+WIE DRIVE DEINE DATEIEN PRIVAT HÄLT
+- Deine Dateien werden auf deinem PC verschlüsselt, bevor sie hochgeladen werden. Die Server von Tenshu speichern nur verschlüsselte Daten und haben nicht die Schlüssel, um sie zu lesen.
+- Auch Datei- und Ordnernamen werden verschlüsselt, außer dem Namen einer Datei, die du per Link teilst (siehe unten). Einige Fakten, die der Server zum Synchronisieren braucht, sieht er trotzdem: wie viel du speicherst, wie viele Geräte du hast und wann sie synchronisieren.
+- Ein Freigabelink trägt seinen eigenen Schlüssel, im Teil des Links nach #k=. Dein Browser sendet diesen Teil nie an unseren Server, deshalb kann der Server die Datei ausliefern, sie aber nicht öffnen. Wenn du eine Datei per Link teilst, speichert der Server Name, Typ und Größe dieser Datei mit ihr.
+- Ohne Speicherplan verlässt nichts deinen PC. Erst wenn du in Tenshu Control einen Speicherplan wählst, gehen deine Dateien verschlüsselt an die Server von Tenshu.
+
+VORAUSSETZUNGEN
+- Windows 10 ab Version 1809 oder Windows 11, auf einem 64-Bit-PC (x64).
+- Tenshu Control, eingerichtet auf demselben PC.
+- Zum Synchronisieren zwischen Geräten: ein Speicherplan. Der kostenlose Plan hat 5 GB.
+
+Hilfe und häufige Probleme: tenshu.app/apps/drive/support/windows/de

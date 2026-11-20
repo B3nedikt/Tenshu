@@ -671,10 +671,10 @@ What MSIX changes, all *not verified* until the W4 spike:
   the spike must prove Drive-MSIX ↔ Control-MSIX over `ipc.sock`.
 - **Bundled JVM** — no JIT entitlement problem as on the MAS (Windows has no equivalent), but the package
   size and the `runFullTrust` restricted capability need review sign-off.
-- **ADR 0025 channel detection:** today Windows always answers `SameChannelAsThisApp`. A Store build can
-  tell it is one (package identity + the Store as installer source) and offer the Store link —
-  `tenshu.control.microsoftStoreUrl` beside the existing `playUrl`/`macAppStoreUrl` keys, and a new row in
-  ADR 0025 §6's table (amend the ADR in the same change).
+- **ADR 0025 channel detection:** ✅ (2026-11-20). A copy whose package origin is the Store offers the
+  Store link; everything else keeps `SameChannelAsThisApp`. ⚠ Built differently from the plan here: the
+  Store ids are fixed in code (`WINDOWS_STORE_IDS`), not a `tenshu.control.microsoftStoreUrl` setting —
+  the reasoning is ADR 0025's 2026-11-20 amendment under §6.
 - ⚖️ **Commerce.** Microsoft Store policy has allowed non-game apps to use their own payment rail; if that
   still holds, Store Control keeps Stripe (`commerce-store-link-out.md` D3 would need no Microsoft rail).
   Check the current policy text and get counsel sign-off before the listing — same gate as the other stores.
@@ -689,7 +689,7 @@ What MSIX changes, all *not verified* until the W4 spike:
 | **W1** | Defects §3.4 (close quits, hide autostart switch off macOS); §3.3 transport leftovers; Windows `desktopTest` CI lane; correct `desktop-ipc.md` §4 and the threat model's named-pipe wording | the four red tests green on Windows — ✅ 2026-11-09, plus the lane; socket-directory DACL moved to W2 (it is part of the peer-gate posture) |
 | **W2** | DPAPI key store (§3.1) ✅; Windows peer gate by **package family name**, both halves (§3.2) ✅; socket-directory DACL (§3.3) ✅; threat-model amendment (A14/T-C-11) ✅, ⚠ amended after review: the gate also requires a signed package origin (a loose registration can claim our family name), and states that it cannot stop same-user malware borrowing a running package; certificate decision ✅ D1–D4 | ✅ a side-loaded Drive MSIX connects to a strict side-loaded Control MSIX (2026-11-10). ⚠ "pair, restart, still paired" not yet run end to end |
 | **W3** | In-process tray (§3.4) ✅ verified by the maintainer 2026-11-10; native tray agent T0–T3 (§3.9, D5) incl. toasts + scheduled reminders (§3.7/§3.6); `StartupTask` autostart (§3.5); power/idle + metered probes (§3.6) ✅ | closed-window Control reachable from the tray; a reminder fires with Control quit — verified from a side-loaded MSIX |
-| **W4** | Microsoft Store: spike, then MSIX per app, lockstep version, ADR 0025 Store row, uninstall (§4.3, §5.2). Store-mode `packageMsix` + runbook ✅ (§5.2 as-built); Partner Center, WACK, submission owed by the maintainer; ADR 0025 row and uninstall still open | the Store build passes certification; `winget install --source msstore` installs it on a clean VM |
+| **W4** | Microsoft Store: spike, then MSIX per app, lockstep version, ADR 0025 Store row, uninstall (§4.3, §5.2). Store-mode `packageMsix` + runbook ✅ (§5.2 as-built); Partner Center, WACK, submission owed by the maintainer; ADR 0025 row ✅ (unverified until a Store install); uninstall still open | the Store build passes certification; `winget install --source msstore` installs it on a clean VM |
 | **W5** | The other desktop apps over the same pipeline | each passes the W4 check |
 | **W6** | Side channel, revised by D6: the MSIX signed with A45 on `releases.tenshu.app` ✅ built 2026-11-17, unpublished (§5.1 as-built); then SignPath as the signer, `.appinstaller` updates, winget-pkgs manifests. (D2's MSI and the gate's SignPath + `%ProgramFiles%` arm are not needed while the channel is MSIX.) | a downloaded Drive connects to a downloaded Control on a clean VM, the tray and a toast work, no Store involved |
 | **W7** | (merged into W4 — kept so phase numbers in other docs stay valid) | — |
