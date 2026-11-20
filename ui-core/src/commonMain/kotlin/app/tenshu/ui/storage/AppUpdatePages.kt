@@ -9,8 +9,9 @@ import app.tenshu.reachability.UpdateTarget
  * `android-direct-apk-distribution.md` D4 / Phase 1 item 11).
  *
  * Per channel: a downloaded Android copy → its download page on tenshu.app; a Play copy → its Play
- * listing, when one is configured; iOS → its App Store page, when its id is configured. Store
- * clients, an unknown installer, debug builds and desktop → none.
+ * listing, when one is configured; iOS → its App Store page, when its id is configured; a Windows
+ * copy from the Microsoft Store → its Store page (`WindowsStoreRoutes.kt`). Store clients, an unknown
+ * installer, debug builds, side-loaded Windows copies, macOS and Linux → none.
  *
  * ⚠⚠ **The app to name is not the app the banner is in.** On Android one Control-owned proxy serves
  * every app, so most skews are Control's to fix: Drive's banner then needs *Control's* page, and only
@@ -39,14 +40,15 @@ data class AppUpdatePages(
     }
 
     companion object {
-        /** No update route at all: desktop, and every copy whose channel has no page. */
+        /** No update route at all: macOS and Linux, and every copy whose channel has no page. */
         val NONE = AppUpdatePages(thisApp = null, control = null)
     }
 }
 
 /**
- * This device's update pages: [androidUpdatePage] per copy on Android, [appStorePageFor] on iOS, and
- * [AppUpdatePages.NONE] on desktop (Developer-ID bundles, no store and no updater).
+ * This device's update pages: [androidUpdatePage] per copy on Android, [appStorePageFor] on iOS, the
+ * Microsoft Store page per Store copy on Windows, and [AppUpdatePages.NONE] on macOS and Linux
+ * (Developer-ID bundles, no store and no updater).
  */
 @Composable
 expect fun rememberAppUpdatePages(): AppUpdatePages
