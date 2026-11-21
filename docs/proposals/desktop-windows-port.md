@@ -905,8 +905,13 @@ window may need F5). If it stays: `cfapiSpike -PspikeArgs=--cleanup`. ✅ (1) se
 ### 7.8 X1 as built — the read path
 
 `ExplorerSyncRoot` (`:control-shared`, `bridge/`) behind `ExplorerIntegration`; the rules are
-`ExplorerMirror` (pure, `ExplorerMirrorTest`). Control's **Settings → Show Drive in File Explorer** turns it on;
-off by default while the folder is read-only. Log: `diagnostics/explorer.log`.
+`ExplorerMirror` (pure, `ExplorerMirrorTest`). Control's **Settings → Show Drive in File Explorer** turns it on.
+Log: `diagnostics/explorer.log`.
+
+**Off by default, decided by the maintainer 2026-11-21**, now that the folder is writable too: with it on, any
+same-user process can make Control decrypt a file (threat model T-C-21), and names and downloaded files are plaintext
+in the profile. ⚠ Turning it on by default, or asking during setup, needs a threat-model amendment, and it must not
+start until setup is finished: an enabled switch starts at Control's launch, before a realm exists.
 
 - **Where**: `%USERPROFILE%\Tenshu Drive`, registered as `TenshuDrive!<user SID>!default` by
   `StorageProviderSyncRootManager.Register` on every start (idempotent), then connected with
