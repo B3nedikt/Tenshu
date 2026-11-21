@@ -21,7 +21,6 @@ export const MIA_ERROR_KINDS = [
   'error_mia_session_cleared',
   'error_mia_unexpected_action',
   'error_mia_unknown_source',
-  'error_mia_no_write_grant',
 ] as const
 
 // Every `error_…` key the catalogue can name: the generic service keys (a failed grant write

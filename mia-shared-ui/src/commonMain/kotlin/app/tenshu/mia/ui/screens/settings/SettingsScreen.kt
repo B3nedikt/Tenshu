@@ -47,7 +47,6 @@ import app.tenshu.mia.shared.resources.mia_settings_grants_labels
 import app.tenshu.mia.shared.resources.mia_settings_grants_fitness
 import app.tenshu.mia.shared.resources.mia_settings_grants_places
 import app.tenshu.mia.shared.resources.mia_settings_grants_timeline
-import app.tenshu.mia.shared.resources.mia_settings_grants_write
 import app.tenshu.mia.shared.resources.mia_settings_grants_title
 import app.tenshu.mia.shared.resources.mia_settings_grants_visual_search
 import app.tenshu.mia.shared.resources.mia_settings_model_body
@@ -169,29 +168,6 @@ private fun GrantsEntry() {
                         enabled = state.editable,
                         onCheckedChange = { viewModel.setGranted(source, it) },
                     )
-                }
-                // ⚠⚠ The write tier, and only where something can actually write. A switch
-                // nothing consults would imply a capability the system does not have.
-                if (source.writable) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, bottom = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            stringResource(Res.string.mia_settings_grants_write),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Switch(
-                            checked = source in state.writable,
-                            // ⚠ Write without read is unsatisfiable, so the line goes dead
-                            // when the source itself is off rather than offering a grant that
-                            // could never be used.
-                            enabled = state.editable && source in state.granted,
-                            onCheckedChange = { viewModel.setWritable(source, it) },
-                        )
-                    }
                 }
             }
         }

@@ -18,7 +18,7 @@ declare global {
 // any `mia.*`).
 // ⚠⚠ Threat model A39: `mia.ask` reads, through questions, every source the grants allow — files,
 // timeline, workouts, places, calendar, devices, routines, labels. That is why only this origin may
-// call it. Every action is withheld in the tab, so no answer writes; the grant switches write the
+// call it. Every action is withheld in the tab, so no answer writes; the grant switch writes the
 // realm's Mia grant rows and nothing else.
 const METHODS: ProxyMethodAllowlist = [
   ...SESSION_METHODS,
@@ -32,7 +32,6 @@ const METHODS: ProxyMethodAllowlist = [
   'mia.grants',
   'mia.grants.observe',
   'mia.grants.setGranted',
-  'mia.grants.setWritable',
 ]
 
 const PROD_ORIGIN = 'https://mia.tenshu.app'

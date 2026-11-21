@@ -48,6 +48,10 @@ private val harnessProperties = listOf(
     // artifact, and COCO val2017 (images + instances_val2017.json) to score it on.
     "tenshu.inference.animalDetector",
     "tenshu.inference.coco",
+    // Pets PT-3: `OnnxPetEmbedderRealTest` — the embedder, the M2 script's reference vectors, and their photographs.
+    "tenshu.inference.petEmbedder",
+    "tenshu.inference.petReferences",
+    "tenshu.inference.petPhotos",
 )
 
 tasks.withType<Test>().configureEach {
@@ -87,6 +91,8 @@ tasks.withType<org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeSimu
         "tenshu.inference.coremlExport" to "TENSHU_COREML_EXPORT",
         // A directory `scripts/inference/export-coreml-face-embedder.py` wrote (ios-face-grouping.md §12).
         "tenshu.inference.coremlFaceExport" to "TENSHU_COREML_FACE_EXPORT",
+        // A directory `scripts/inference/export-coreml-pets.py` wrote (`photos-pets.md` PT-4, `CoreMlPetModelsRealTest`).
+        "tenshu.inference.coremlPetsExport" to "TENSHU_COREML_PETS_EXPORT",
         // The iOS animal-veto pass (`photos-pets.md` §10.4, `VisionAnimalVetoMeasurementTest`): a photo
         // directory, its orientation manifest, and where to write the report. Never committed.
         "tenshu.inference.vetoPhotos" to "TENSHU_VETO_PHOTOS",

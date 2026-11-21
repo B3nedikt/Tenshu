@@ -163,7 +163,7 @@ fun HorizontalFileItem(
             if (isSelectionMode) onToggleSelection(item) else onItemClicked(item)
         },
         onLongClick = { onItemLongClicked(item) },
-        supportingText = item.subLine,
+        supportingText = item.supportingText(),
         leadingContent = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,

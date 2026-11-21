@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.tenshu.ui.chrome.AppListItem
 import app.tenshu.ui.chrome.AppTopAppBar
+import app.tenshu.ui.format.LocaleNumbers
 import app.tenshu.ui.layout.appContentWidth
 import androidx.compose.ui.tooling.preview.Preview
 
@@ -99,7 +100,7 @@ fun OfflineMapsScreenContent(
                 // Names the region AND the size, because the size is the whole reason to hesitate.
                 Text(
                     "You're not on Wi-Fi. Downloading ${region.name} will use about " +
-                        "${formatBytes(region.byteSize)} of mobile data.",
+                        "${LocaleNumbers.bytes(region.byteSize)} of mobile data.",
                 )
             },
             confirmButton = { TextButton(onClick = onConfirmMetered) { Text("Download anyway") } },
@@ -214,12 +215,12 @@ private fun RegionRow(
         supportingText = when {
             // The whole point of the slice: a multi-minute, hundreds-of-MB action says how far along
             // it is, and names the total so the remaining wait is legible.
-            percent != null -> "Downloading… $percent% of ${formatBytes(region.byteSize)}"
+            percent != null -> "Downloading… $percent% of ${LocaleNumbers.bytes(region.byteSize)}"
             // A newer build of the bytes is published (track 3b) — offer the update, and say what it
             // costs, since re-downloading a region is not a small thing.
-            region.updateAvailable -> "Update available · ${formatBytes(region.byteSize)}"
-            region.installed -> "Available offline · ${formatBytes(region.byteSize)}"
-            else -> "${formatBytes(region.byteSize)} download"
+            region.updateAvailable -> "Update available · ${LocaleNumbers.bytes(region.byteSize)}"
+            region.installed -> "Available offline · ${LocaleNumbers.bytes(region.byteSize)}"
+            else -> "${LocaleNumbers.bytes(region.byteSize)} download"
         },
         leadingContent = { Icon(Icons.Default.Map, contentDescription = null) },
         trailingContent = {
@@ -352,17 +353,6 @@ private fun RetryButton(onRetry: () -> Unit) {
  */
 internal fun downloadPercent(writtenBytes: Long, totalBytes: Long): Int =
     if (totalBytes <= 0L) 0 else ((writtenBytes * 100) / totalBytes).toInt().coerceIn(0, 100)
-
-/** Coarse, honest size — GiB (one decimal) above 1024 MiB, else whole MiB. */
-internal fun formatBytes(bytes: Long): String {
-    val mib = bytes / (1024.0 * 1024.0)
-    return if (mib >= 1024.0) {
-        val gib = mib / 1024.0
-        "${kotlin.math.round(gib * 10) / 10.0} GB"
-    } else {
-        "${mib.toLong()} MB"
-    }
-}
 
 @Preview
 @Composable

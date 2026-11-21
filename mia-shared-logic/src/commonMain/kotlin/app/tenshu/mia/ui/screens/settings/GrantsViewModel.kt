@@ -21,7 +21,6 @@ class GrantsViewModel(
     private val state = MutableStateFlow(
         GrantsUiState(
             granted = MiaSource.entries.toSet(),
-            writable = emptySet(),
             editable = repository != null,
         ),
     )
@@ -35,11 +34,6 @@ class GrantsViewModel(
                     state.value = state.value.copy(granted = granted)
                 }
             }
-            viewModelScope.launch {
-                repository.writable().collect { writable ->
-                    state.value = state.value.copy(writable = writable)
-                }
-            }
         }
     }
 
@@ -47,17 +41,10 @@ class GrantsViewModel(
         val repo = repository ?: return
         viewModelScope.launch { repo.setGranted(source, granted) }
     }
-
-    fun setWritable(source: MiaSource, granted: Boolean) {
-        val repo = repository ?: return
-        viewModelScope.launch { repo.setWritable(source, granted) }
-    }
 }
 
 data class GrantsUiState(
     val granted: Set<MiaSource>,
-    /** ⚠ Always a subset of [granted]: the write line is disabled when read is off. */
-    val writable: Set<MiaSource>,
     /** False with no proxy: the switches render but cannot be meaningfully changed. */
     val editable: Boolean,
 )

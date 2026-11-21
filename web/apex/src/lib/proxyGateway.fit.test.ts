@@ -77,7 +77,6 @@ vi.mock('@tenshu/sdk/mia', () => ({
     Grants: 'mia.grants',
     GrantsObserve: 'mia.grants.observe',
     SetGranted: 'mia.grants.setGranted',
-    SetWritable: 'mia.grants.setWritable',
   },
 }))
 vi.mock('@tenshu/sdk/photos', () => ({ Photos: {}, MAX_FEED_PAGE_SIZE: 500 }))

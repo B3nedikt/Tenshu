@@ -161,7 +161,20 @@ class TenshuConversationRepository(
             val answer = (result as? TResult.Success<*>)?.value as? MiaAnswer
             // ⚠ Mark the confirmation spent BEFORE appending the acknowledgement, so the
             // button cannot be pressed again while the reply is in flight.
-            markConfirmed(token)
+            // ⚠⚠ Three outcomes, and the card spends itself on each (§25.13):
+            //  - `answered`: the action ran → "Done";
+            //  - any other verdict: the proxy said nothing was written → "Not done";
+            //  - no answer at all: the call failed in transport, possibly AFTER the write (a
+            //    proxy dying mid-call, a dropped connection) → "Unknown". Reading that as "Not
+            //    done" would invite the user to repeat an action that already ran (Codex review).
+            markConfirmed(
+                token,
+                when (answer?.verdict?.get()) {
+                    null -> ConfirmOutcome.UNKNOWN
+                    MiaAnswer.VERDICT_ANSWERED -> ConfirmOutcome.DONE
+                    else -> ConfirmOutcome.REFUSED
+                },
+            )
             append(
                 fromUser = false,
                 body = answer?.let { MessageBody.Text(it.explanation.get()) }
@@ -173,12 +186,20 @@ class TenshuConversationRepository(
         }
     }
 
-    private fun markConfirmed(token: String) {
+    private enum class ConfirmOutcome { DONE, REFUSED, UNKNOWN }
+
+    private fun markConfirmed(token: String, outcome: ConfirmOutcome) {
         messagesFlow.update { messages ->
             messages.map { message ->
                 val body = message.body
                 if (body is MessageBody.Confirmation && body.token == token) {
-                    message.copy(body = body.copy(done = true))
+                    message.copy(
+                        body = when (outcome) {
+                            ConfirmOutcome.DONE -> body.copy(done = true)
+                            ConfirmOutcome.REFUSED -> body.copy(refused = true)
+                            ConfirmOutcome.UNKNOWN -> body.copy(outcomeUnknown = true)
+                        },
+                    )
                 } else {
                     message
                 }

@@ -79,7 +79,6 @@ vi.mock('@tenshu/sdk/mia', () => ({
     Grants: 'mia.grants',
     GrantsObserve: 'mia.grants.observe',
     SetGranted: 'mia.grants.setGranted',
-    SetWritable: 'mia.grants.setWritable',
   },
 }))
 

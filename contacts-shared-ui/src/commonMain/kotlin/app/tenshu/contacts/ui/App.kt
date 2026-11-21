@@ -83,6 +83,15 @@ import app.tenshu.ui.storage.ControlInstallRoute
 import app.tenshu.ui.storage.rememberControlInstallRoute
 import app.tenshu.ui.layout.AdaptiveNavItem
 import app.tenshu.ui.layout.AdaptiveNavScaffold
+import app.tenshu.ui.layout.LocalWindowWidthSizeClass
+import app.tenshu.ui.layout.showsListDetail
+import app.tenshu.contacts.ui.navigation.ContactPanes
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.key
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import app.tenshu.ui.navigation.KmpNavHost
 import app.tenshu.ui.navigation.kmpEntryProvider
 import org.jetbrains.compose.resources.stringResource
@@ -104,15 +113,19 @@ fun App(repository: ContactsRepository = koinInject()) {
     AnnounceAtLaunch { GlobalContext.get().get<TenshuClient>() }
     val backStack = remember { mutableStateListOf<Destination>(Destination.Contacts) }
     fun pop() { if (backStack.size > 1) backStack.removeLastOrNull() }
+    val topLevel = remember { listOf(Destination.Contacts, Destination.Profile) }
+    // On a wide window a selected contact is drawn beside the list, not over it, so the screen
+    // on top — which decides the rail and the selected tab — is the list (`ContactPanes`).
+    val twoPane = LocalWindowWidthSizeClass.current.showsListDetail
+    val current = ContactPanes.paneStack(backStack, twoPane).last()
     fun selectTop(destination: Destination.TopLevel) {
-        if (backStack.lastOrNull() != destination) {
+        // ⚠ The rendered top, not the raw one: on a wide window a selected contact is folded into
+        // the list, so the Contacts tab is already current and tapping it must not clear the pane.
+        if (current != destination) {
             backStack.clear()
             backStack.add(destination)
         }
     }
-
-    val topLevel = remember { listOf(Destination.Contacts, Destination.Profile) }
-    val current = backStack.last()
 
     // Read at the shell, not in the list's view model: that VM only exists while the
     // Contacts tab is composed, and the badge's whole job is to be visible from the other
@@ -350,17 +363,35 @@ private fun NavContent(
     onConfirmInvite: (String) -> Unit,
     onImport: () -> Unit,
 ) {
+    val twoPane = LocalWindowWidthSizeClass.current.showsListDetail
     KmpNavHost(
-        backStack = backStack,
+        // ⚠ Folded, not the raw stack: wide, a selected contact lives in the list entry's detail
+        // pane, and the host must not also render it as a screen of its own.
+        backStack = ContactPanes.paneStack(backStack, twoPane),
         onBack = pop,
         entryProvider = kmpEntryProvider {
             entry<Destination.Contacts> {
+                // ⚠ Read here, inside the entry, never captured from `NavContent`: Android's
+                // `NavDisplay` caches the entry, so a by-value capture would freeze the layout at
+                // the width the app launched with (`KmpNavHost` KDoc).
+                val wide = LocalWindowWidthSizeClass.current.showsListDetail
                 ContactListScreen(
                     viewModel = koinViewModel<ContactListViewModel>(),
-                    onOpenContact = { push(Destination.ContactDetail(it)) },
+                    onOpenContact = { ContactPanes.open(backStack, it, wide) },
                     onConfirmInvite = onConfirmInvite,
                     onImport = onImport,
                     onReviewDuplicates = { push(Destination.Merge) },
+                    selectedPersonId = ContactPanes.selectedPersonId(backStack),
+                    detailPane = if (wide) {
+                        { personId ->
+                            ContactDetailPane(
+                                personId = personId,
+                                onGone = { ContactPanes.clearSelection(backStack) },
+                            )
+                        }
+                    } else {
+                        null
+                    },
                 )
             }
             entry<Destination.Profile> {
@@ -388,6 +419,30 @@ private fun NavContent(
             }
         },
     )
+}
+
+/**
+ * The contact beside the list on a wide window. Its view model lives in a store of its own,
+ * cleared the moment another contact is shown: in the list entry's store, keyed by person, every
+ * contact the user clicked through would keep a live detail view model until the app closed.
+ */
+@Composable
+private fun ContactDetailPane(personId: String, onGone: () -> Unit) {
+    key(personId) {
+        val owner = remember {
+            object : ViewModelStoreOwner {
+                override val viewModelStore = ViewModelStore()
+            }
+        }
+        DisposableEffect(owner) { onDispose { owner.viewModelStore.clear() } }
+        CompositionLocalProvider(LocalViewModelStoreOwner provides owner) {
+            ContactDetailScreen(
+                viewModel = koinViewModel<ContactDetailViewModel>(parameters = { parametersOf(personId) }),
+                onBack = onGone,
+                showBack = false,
+            )
+        }
+    }
 }
 
 private fun navIcon(destination: Destination.TopLevel): ImageVector = when (destination) {

@@ -37,7 +37,6 @@ export const ProxyMethod = {
   Grants: 'mia.grants',
   GrantsObserve: 'mia.grants.observe',
   SetGranted: 'mia.grants.setGranted',
-  SetWritable: 'mia.grants.setWritable',
 } as const
 
 // The gateway's bound on an utterance (`MAX_UTTERANCE_CHARS` in `@tenshu/sdk/mia`, measured on the
@@ -95,13 +94,9 @@ export function subscribeGrants(onValue: (v: GrantsResult) => void, onError: (e:
   return bridge.subscribe<GrantsResult>(ProxyMethod.GrantsObserve, {}, onValue, onError)
 }
 
-// Native Settings' switches. On success the WHOLE set, read back after the write — draw that.
+// Native Settings' switch. On success the WHOLE set, read back after the write — draw that.
 export function setGranted(source: MiaSource, granted: boolean): Promise<SetGrantResult> {
   return bridge.call<SetGrantResult>(ProxyMethod.SetGranted, { source, granted })
-}
-
-export function setWritable(source: MiaSource, granted: boolean): Promise<SetGrantResult> {
-  return bridge.call<SetGrantResult>(ProxyMethod.SetWritable, { source, granted })
 }
 
 export const APEX = bridge.apexOrigin

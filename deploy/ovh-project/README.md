@@ -26,8 +26,9 @@ project, not `/*`: the same token type can order services and change the account
 
 ⚠ **A new OVH project has outgoing SMTP (port 25) restricted, and while it is, the API refuses
 every security-group change** (403 `SMTPPort25Restricted`). The hosts cannot be created until OVH
-support lifts it. Our mail goes to Scaleway TEM on a submission port, not 25; the restriction
-matters only because it blocks the security groups.
+support lifts it. Our mail goes out on an off-list submission port, never 25 — the box also gets no answer on
+587, so it is Mailgun's 2525 since 2026-11-19 (`docs/how-to/set-up-otp-email.md` §A.5); the
+restriction matters only because it blocks the security groups.
 
 ## Use
 

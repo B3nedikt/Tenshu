@@ -12,10 +12,12 @@ import org.tenshu.core.common.proxy.WriteOrigin
 import org.tenshu.core.common.proxy.externalPropertyWriter
 import org.tenshu.core.common.util.compare
 import org.tenshu.core.core.dataFactory
+import org.tenshu.core.entity.DataId
 import org.tenshu.core.entity.DataId.StringDataId
 import org.tenshu.core.entity.Entity
 import org.tenshu.core.entity.getDataIdHash
 import org.tenshu.core.id
+import org.tenshu.core.schema.isSubtypeOf
 import org.tenshu.core.number.TInteger
 import org.tenshu.core.security.SyncCryptoManager
 import org.tenshu.core.trait.ConflictStrategy
@@ -303,9 +305,66 @@ class SyncProcessor(
             localHlc == null -> ingestedHlc
             else -> if (localHlc.compare(ingestedHlc) > 0) localHlc else ingestedHlc
         }
-        if (existingHlc != null && existingHlc.compare(block.hlc) > 0) return@transaction
+        if (existingHlc != null && existingHlc.compare(block.hlc) > 0) {
+            reapSupersededMembers(dataId, block.hlc)
+            return@transaction
+        }
 
         executionContext.deleteData(dataId, origin = WriteOrigin.SYNC_INGEST)
+    }
+
+    /**
+     * Whether some container of [element] — up its chain of entity-field relations (`Folder.FILES`) —
+     * was deleted at or after [hlc]: a tombstone for it, or the point it was reaped at in a cascade.
+     *
+     * This is the `SubtreeReapOrdering` rule, applied at the gate rather than only by a reaper: a
+     * descendant at or below its container's deletion point T is dead, on every device and in every
+     * order. A reaper alone covers only the members a device already holds when the tombstone lands;
+     * a member whose block arrives afterwards — the common case for a joiner, and the old children of a
+     * folder re-created at the same path — has nothing else to refuse it.
+     *
+     * ⚠ Cheap when it matters: a container type no tombstone has ever targeted ends the walk with one
+     * in-memory count, so a realm that never deleted a folder pays nothing per block.
+     */
+    private fun diedWithAContainer(element: Data, hlc: HybridLogicalClock): Boolean {
+        var current: Data = element
+        var typeId = if (element is Entity<*>) element.type.get() else element.id
+        repeat(MAX_CONTAINER_DEPTH) {
+            val parent = containerOf(current, typeId) ?: return false
+            if (tombstoneRegistry.tombstoneCountForType(parent.type.get()) == 0) return false
+            val point = tombstoneRegistry.deletionPointOf(parent)
+            if (point != null && point.compare(hlc) >= 0) return true
+            current = parent
+            typeId = parent.type.get()
+        }
+        return false
+    }
+
+    private fun containerOf(element: Data, typeId: String): DataId.EntityDataId? {
+        val schema = executionContext.schemaProvider.getSchema(typeId) ?: return null
+        return executionContext.relationRegistry.specs.firstNotNullOfOrNull { spec ->
+            val scope = spec.scope as? org.tenshu.core.common.relation.RelationScope.EntityField
+                ?: return@firstNotNullOfOrNull null
+            if (!schema.isSubtypeOf(spec.elementTypeId)) return@firstNotNullOfOrNull null
+            runCatching { scope.parentOf(executionContext, element) }.getOrNull()
+        }
+    }
+
+    /**
+     * The tombstone lost to a newer re-create of [dataId], so the entity stays — but what it held at
+     * [point] was deleted with it, and that half of the tombstone still applies here.
+     *
+     * ⚠⚠ Returning without this resurrected a deleted folder's children on every peer that applied
+     * the tombstone after the re-create (incident 2026-11-20: a folder `rm -rf`'d and re-`rsync`'d
+     * through the macOS File Provider showed its old files again on a phone). The deleting device
+     * cascades locally and emits one tombstone (ADR 0006 #7); this is the peer's replay of that
+     * cascade for the order in which the tombstone deletes nothing. The merger owns what "held"
+     * means (`SemanticMerger.reapMembersDeletedAt`); the registry supplies versions and reap points.
+     */
+    private fun reapSupersededMembers(dataId: DataId, point: HybridLogicalClock) {
+        val row = executionContext.database.getData(dataId, asEntity = true) ?: return
+        val typeId = if (row is Entity<*>) row.type.get() else row.id
+        mergerRegistry.getMerger(typeId)?.reapMembersDeletedAt(executionContext, row, point, tombstoneRegistry)
     }
 
     /**
@@ -776,6 +835,11 @@ class SyncProcessor(
         val exemptFromTombstones = dataId.type.get() == org.tenshu.identity.DeviceRecord.ID ||
             dataId.type.get() == org.tenshu.identity.MembershipRecord.ID
         if (!exemptFromTombstones && tombstoneHlc != null && tombstoneHlc.compare(hlc) >= 0) return@transaction
+        // ⚠⚠ …and dead when a CONTAINER was deleted at or after this HLC: a folder delete emits one
+        // tombstone, for the folder (ADR 0006 #7), so a child's block names no tombstone of its own.
+        // Accepting it under a folder re-created at the same path re-listed the old child there
+        // (`FolderFilesMembership` lists by path) — incident 2026-11-20.
+        if (!exemptFromTombstones && diedWithAContainer(incomingData, hlc)) return@transaction
 
         // Stale-epoch rejection (T-K-02 in `docs/sync/threat-model.md`): a `Device` entity
         // block whose `admittedAtEpoch` is older than this receiver's `currentRealmEpoch`
@@ -1102,3 +1166,6 @@ class SyncProcessor(
         return merger?.merge(executionContext, existing, incoming) ?: incoming
     }
 }
+
+/** A bound on [SyncProcessor]'s container walk: deeper than any real tree, and no cycle can spin it. */
+private const val MAX_CONTAINER_DEPTH = 256

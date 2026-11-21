@@ -7,6 +7,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
@@ -560,6 +561,48 @@ class QueryPlannerTest {
         assertEquals("evening", plan.text)
     }
 
+    /**
+     * ⚠⚠ **A run verb names a routine without the noun** (§25.15): a routine's name is the user's,
+     * and "run evening lights" planned as a device command that could only ask "on or off?".
+     */
+    @Test
+    fun aRunVerbNamesARoutineWithoutARoutineNoun() {
+        for ((utterance, name) in listOf(
+            "run evening lights" to "evening lights",
+            "please start lights out" to "lights out",
+            "can you activate movie night" to "movie night",
+            "trigger the kitchen light" to "kitchen light",
+            // ⚠ The lead-ins that open a command are no part of its name (Codex review).
+            "would you start lights out" to "lights out",
+            "hey mia run evening lights" to "evening lights",
+        )) {
+            val plan = plan(utterance)
+            assertIs<QueryPlan.RunRoutine>(plan, utterance)
+            assertEquals(name, plan.text, utterance)
+        }
+        // ⚠⚠ A verb inside quotes is part of a name, not a command (Codex review).
+        assertEquals("Trigger Warning", assertIs<QueryPlan.FindFilesNamed>(plan("\"Trigger Warning\"")).text)
+        assertIs<QueryPlan.FindFilesNamed>(plan("\"Start Here\" notes"))
+        assertEquals("evening lights", assertIs<QueryPlan.RunRoutine>(plan("run \"evening lights\"")).text)
+        // ⚠ Another source's noun keeps its reading; nothing left to name is no routine.
+        assertIs<QueryPlan.FindWorkouts>(plan("start a workout"))
+        assertIs<QueryPlan.FindWorkouts>(plan("run yesterday"))
+        assertTrue(plan("run the photo backup") !is QueryPlan.RunRoutine)
+        // ⚠ Only an OPENING verb commands: "how far did I run" is a question.
+        assertTrue(plan("how far did I run last week") !is QueryPlan.RunRoutine)
+        assertTrue(plan("show the lights I start") !is QueryPlan.RunRoutine)
+    }
+
+    /** ⚠ The device twin of the lead-in rule: "hey mia" names no device. */
+    @Test
+    fun aCommandsLeadInIsNoPartOfTheDevicesName() {
+        for (utterance in listOf("hey mia turn on the bulb", "ok would you switch off the bulb")) {
+            val plan = plan(utterance)
+            assertIs<QueryPlan.ControlDevice>(plan, utterance)
+            assertEquals("bulb", plan.text, utterance)
+        }
+    }
+
     // ---- a runtime that offers no action (`MiaActionOffer.WITHHELD`, §19) -------
 
     /**
@@ -704,6 +747,67 @@ class QueryPlannerTest {
      * ⚠⚠ A title is the utterance minus what the time grammar CONSUMED, never minus a word list:
      * each case below lost a word when titles were stripped of anything that looked like time.
      */
+    /**
+     * ⚠⚠ The title is what the card shows and the calendar keeps, so it is the user's own words in
+     * their own case. Found on the first phone pass (§25.13): "add dinner with Anna tomorrow at 8"
+     * proposed "dinner with anna". Matching stays case-blind: "Add Dentist Tomorrow" still asks.
+     */
+    @Test
+    fun aTitleKeepsTheUsersCase() {
+        assertEquals("dinner with Anna", event("Add dinner with Anna tomorrow at 8").title)
+        assertEquals("Call Mum", event("Remind me to Call Mum Tomorrow at 5").title)
+        assertEquals("NOPA", event("book a table at NOPA tomorrow at 7").title.substringAfterLast(' '))
+        val asked = assertIs<QueryPlan.Clarify>(plan("Add Dentist Tomorrow"))
+        assertEquals("Dentist", asked.heard[org.tenshu.calendar.SaveEvent.Params.TITLE])
+    }
+
+    /** ⚠ Politeness before the verb is not title (§25.13): "please a dentist appointment" was stored. */
+    @Test
+    fun aTitleDropsPoliteness() {
+        assertEquals("dentist appointment", event("please add a dentist appointment tomorrow at 9").title)
+        assertEquals("lunch with Tom", event("can you please add lunch with Tom tomorrow at 1pm").title)
+        // ⚠⚠ After the verb it is title (Codex review).
+        assertEquals("Can we talk", event("add Can we talk tomorrow at 9").title)
+        assertEquals("please call back", event("add please call back tomorrow at 9").title)
+    }
+
+    /** ⚠⚠ The whole reply declines, never a word in it (§25.13). */
+    @Test
+    fun aDismissalIsTheWholeReply() {
+        listOf("never mind", "Never mind.", "cancel", "forget it", "no").forEach {
+            assertTrue(QueryPlanner.isDismissal(it), it)
+        }
+        listOf("no, at 9", "cancel my dentist", "9", "never mind the time, at 10").forEach {
+            assertFalse(QueryPlanner.isDismissal(it), it)
+        }
+    }
+
+    /** ⚠ The generic noun names no device (§25.13), and a command still needs a name. */
+    @Test
+    fun theGenericDeviceNounNamesNothing() {
+        val listed = assertIs<QueryPlan.FindDevices>(plan("what devices do I have"))
+        assertEquals("", listed.text)
+        assertIs<QueryPlan.NoMatch>(plan("turn on the device"))
+        assertIs<QueryPlan.NoMatch>(plan("dim the device to 30 percent"))
+        assertEquals("kitchen light", assertIs<QueryPlan.ControlDevice>(plan("turn on the kitchen light")).text)
+    }
+
+    /** ⚠⚠ The emulator pass (§25.14): a device named outside the noun list is still a device. */
+    @Test
+    fun aCommandNamesItsDeviceWithoutADeviceNoun() {
+        assertEquals("bulb", assertIs<QueryPlan.ControlDevice>(plan("turn on the bulb")).text)
+        assertEquals("fan", assertIs<QueryPlan.ControlDevice>(plan("please switch the fan off")).text)
+        val dim = assertIs<QueryPlan.ControlDevice>(plan("dim the desk bulb to 30 percent"))
+        assertEquals("desk bulb" to 30, dim.text to dim.level)
+        assertEquals(40, assertIs<QueryPlan.ControlDevice>(plan("set the heater to 40%")).level)
+        assertIs<QueryPlan.NoMatch>(plan("brighten the bulb"), "no level heard is asked for, never guessed")
+        // Not a command shape: no verb, both on and off, or a "set" with no level.
+        assertIs<QueryPlan.FindFilesNamed>(plan("show me the bulb manual"))
+        assertFalse(plan("turn on and off the bulb") is QueryPlan.ControlDevice)
+        assertFalse(plan("set a reminder for the bulb") is QueryPlan.ControlDevice)
+        assertFalse(plan("put on some music") is QueryPlan.ControlDevice)
+    }
+
     @Test
     fun aTitleKeepsEveryWordTheTimeDidNotUse() {
         assertEquals("lunch at five guys", event("add lunch at five guys tomorrow at 8pm").title)

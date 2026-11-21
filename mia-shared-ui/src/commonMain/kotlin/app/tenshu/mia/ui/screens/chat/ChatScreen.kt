@@ -39,6 +39,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -48,8 +49,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -90,6 +100,7 @@ fun ChatScreen(viewModel: ChatViewModel) {
     val capabilities = remember(koin) { koin.getOrNull<MiaCapabilities>() ?: MiaCapabilities() }
     // §25: "Other…" on Mia's question puts the cursor in the composer, whose next send is the reply.
     val composer = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
     val asking = state.messages.lastOrNull()?.body.let { it is MessageBody.Clarification && it.open }
 
     // Keep the newest message in view as the thread grows.
@@ -125,7 +136,9 @@ fun ChatScreen(viewModel: ChatViewModel) {
                         onOpen = viewModel::openHit,
                         onChoose = viewModel::answer,
                         onAlternative = viewModel::alternative,
-                        onOther = { composer.requestFocus() },
+                        // ⚠ Focus alone leaves a phone's keyboard down when the field had it already
+                        // (it keeps focus after a send), so "Other…" took a second tap (§25.13).
+                        onOther = { composer.requestFocus(); keyboard?.show() },
                     )
                 }
                 if (state.replying) {
@@ -160,7 +173,17 @@ fun ChatScreen(viewModel: ChatViewModel) {
                     )
                 },
                 singleLine = true,
-                modifier = Modifier.weight(1f).focusRequester(composer),
+                // ⚠ Enter sends, as the Send button does: a hardware Enter on desktop (and on a
+                // phone's keyboard), the Send action on a soft keyboard. The key is consumed here so
+                // the field's own single-line Enter handling cannot send a second time. ⚠ Shift is not
+                // exempt: a single-line field has no newline to keep it for.
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(onSend = { viewModel.send() }),
+                modifier = Modifier.weight(1f).focusRequester(composer).onPreviewKeyEvent { event ->
+                    val enter = event.key == Key.Enter || event.key == Key.NumPadEnter
+                    if (enter && event.type == KeyEventType.KeyDown) viewModel.send()
+                    enter
+                },
             )
             // AV-1: shown only where a platform bound an ON-DEVICE recogniser (IN-D11). The
             // capability flag and the binding move together, so a mic can never appear without
@@ -268,32 +291,38 @@ private fun ConfirmationCell(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            TextButton(
-                onClick = { onConfirm(body.token) },
-                // ⚠ Spent confirmations cannot be re-tapped. The proxy refuses a used token
-                // too, so this is politeness rather than the control. A replaced card (CL-D6)
-                // cannot be confirmed either: its alternative minted the card that can.
-                enabled = interactive && !body.done && !body.replaced,
-            ) {
-                Text(
-                    when {
-                        body.done -> "Done"
-                        body.replaced -> "Changed"
-                        else -> "Confirm"
-                    },
-                )
-            }
             // ⭐ §25 CL-D6: "20:00 instead?" for a bare hour. A tap replaces this card, never writes.
-            if (body.alternatives.isNotEmpty() && !body.done && !body.replaced) {
+            // ⚠ Above Confirm (§25.13): the row reads as a question about the time, then the
+            // action ends the card, so the last thing on it is the one that commits.
+            if (body.alternatives.isNotEmpty() && !body.spent) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     body.alternatives.forEach { choice ->
                         SuggestionChip(
                             onClick = { onAlternative(choice) },
                             label = { Text(choice.label) },
                             enabled = interactive,
+                            border = chipBorder(interactive),
                         )
                     }
                 }
+            }
+            TextButton(
+                onClick = { onConfirm(body.token) },
+                // ⚠ Spent confirmations cannot be re-tapped. The proxy refuses a used token
+                // too, so this is politeness rather than the control. A replaced card (CL-D6)
+                // cannot be confirmed either: its alternative minted the card that can.
+                enabled = interactive && !body.spent,
+            ) {
+                Text(
+                    when {
+                        body.done -> "Done"
+                        body.refused -> "Not done"
+                        // ⚠ No answer came back: it may have run. Never "Not done" (Codex review).
+                        body.outcomeUnknown -> "Unknown"
+                        body.replaced -> "Changed"
+                        else -> "Confirm"
+                    },
+                )
             }
         }
     }
@@ -326,18 +355,30 @@ private fun ClarificationCell(
                             onClick = { onChoose(choice) },
                             label = { Text(choice.label) },
                             enabled = open,
+                            border = chipBorder(open),
                         )
                     }
                     SuggestionChip(
                         onClick = onOther,
                         label = { Text(stringResource(Res.string.mia_chat_clarify_other)) },
                         enabled = open,
+                        border = chipBorder(open),
                     )
                 }
             }
         }
     }
 }
+
+/**
+ * ⚠⚠ A chip that can still be tapped must look it. The default enabled border is
+ * `outlineVariant`, which on the cell's `surfaceVariant` is invisible, while the disabled one is
+ * not: on a phone the live chips read as plain text and only the spent ones had an outline
+ * (§25.13). `outline` keeps the live border visible; disabled keeps Material's own.
+ */
+@Composable
+private fun chipBorder(enabled: Boolean) =
+    SuggestionChipDefaults.suggestionChipBorder(enabled = enabled, borderColor = MaterialTheme.colorScheme.outline)
 
 @Composable
 private fun TextBubble(text: String, fromUser: Boolean) {

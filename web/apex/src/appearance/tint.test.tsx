@@ -112,7 +112,7 @@ describe('picker', () => {
   it('a stored colour is drawn, checked and mirrored', async () => {
     renderPicker(fakeShownApps(['teal']))
     expect(await screen.findByRole('radio', { name: 'Teal' })).toBeChecked()
-    expect(root.style.getPropertyValue('--tint-h')).toBe('195')
+    await waitFor(() => expect(root.style.getPropertyValue('--tint-h')).toBe('195'))
     expect(localStorage.getItem(TINT_STORAGE_KEY)).toBe('h195c100')
   })
 

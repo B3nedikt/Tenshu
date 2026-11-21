@@ -29,6 +29,8 @@ import app.tenshu.photos.shared.resources.photos_control_unreachable
 import app.tenshu.photos.shared.resources.photos_control_wall_title
 import app.tenshu.photos.shared.resources.photos_update_action
 import org.jetbrains.compose.resources.stringResource
+import app.tenshu.photos.shared.resources.photos_feed_search
+import app.tenshu.photos.shared.resources.photos_feed_settings
 import app.tenshu.ui.legal.OpenSourceLicencesScreen
 import app.tenshu.ui.feedback.appControlCheckingLabel
 import app.tenshu.photos.time.PhotoDates
@@ -250,6 +252,8 @@ fun App(modifier: Modifier = Modifier) {
      * quietly construct a second one and re-read. Captured at the tap, which keeps a `List<Photo>`
      * out of the navigation route.
      */
+    // The feed's headers, scrubber and viewer dates, in the app's language.
+    val dateWords = rememberDateWords()
     var viewerPhotos: List<Photo> by remember { mutableStateOf(emptyList()) }
     /** The photograph the editor is open on, and the copy it saved (ED-1) — see `Destination.Editor`. */
     var editingPhoto: Photo? by remember { mutableStateOf(null) }
@@ -320,6 +324,15 @@ fun App(modifier: Modifier = Modifier) {
         .filterIsInstance<FeedItem.Tile>()
         .map { it.photo }
     val collectionsState by collectionsViewModel.state.collectAsStateWithLifecycle()
+    // ⚠⚠ What lets a change Collections is told of (`indexChanges`, `photos-pets.md` §10.19) be walked
+    // for while it is on screen, and owed to the return while it is not: without a surface the view
+    // model holds every such change until the next tap. Every page that draws its state counts, and
+    // only while the app is resumed — a backgrounded app walks for nobody.
+    val collectionsOnScreen = current == Destination.Collections || current is Destination.Section || current is Destination.Smart
+    LifecycleResumeEffect(collectionsOnScreen) {
+        collectionsViewModel.setShown(COLLECTIONS_SURFACE, collectionsOnScreen)
+        onPauseOrDispose { collectionsViewModel.setShown(COLLECTIONS_SURFACE, false) }
+    }
 
     val navItems = photosNavItems(current) { destination ->
         selectTop(destination)
@@ -544,7 +557,7 @@ fun App(modifier: Modifier = Modifier) {
                                 onRetry = feedItems::refresh,
                                 reason = unreachableReason,
                                 modifier = Modifier.padding(padding),
-                                sectionLabel = PhotoDates::sectionLabel,
+                                sectionLabel = { d, ms -> PhotoDates.sectionLabel(d, ms, dateWords) },
                                 density = feedDensity,
                                 yearMarks = feedYearMarks,
                                 selected = feedSelection.keys,
@@ -907,9 +920,9 @@ fun App(modifier: Modifier = Modifier) {
                                 },
                                 // ED-3: asks first — the edit's recipe goes with it.
                                 onRevertEdit = { photo -> revertingPhoto = photo to viewerViewModel },
-                                formatDate = PhotoDates::shortDate,
+                                formatDate = { PhotoDates.shortDate(it, dateWords) },
                                 formatTime = PhotoDates::timeOfDay,
-                                formatCapturedAt = PhotoDates::capturedAt,
+                                formatCapturedAt = { PhotoDates.capturedAt(it, dateWords) },
                                 // ⚠ Only the feed can serve another page; an album and a search result
                                 // are already whole, and offering them a callback would be a promise
                                 // nothing keeps.
@@ -1115,14 +1128,14 @@ internal fun PhotosFeedTopAppBar(
                     if (density.features) Icons.Outlined.AutoAwesomeMosaic else Icons.Outlined.GridView,
                     // ⚠ Names the CURRENT grouping, not the next one: a control that describes what
                     // it will become reads as a statement about what is on screen.
-                    contentDescription = density.description,
+                    contentDescription = density.label(),
                 )
             }
             IconButton(onClick = onSearch) {
-                Icon(Icons.Outlined.Search, contentDescription = "Search")
+                Icon(Icons.Outlined.Search, contentDescription = stringResource(Res.string.photos_feed_search))
             }
             IconButton(onClick = onSettings, modifier = Modifier.testTag(FEED_SETTINGS_TAG)) {
-                Icon(Icons.Outlined.Settings, contentDescription = "Settings")
+                Icon(Icons.Outlined.Settings, contentDescription = stringResource(Res.string.photos_feed_settings))
             }
         },
     )
@@ -1277,3 +1290,6 @@ private fun List<Photo>.withPhoto(photo: Photo): List<Photo> =
 
 /** The confirm button of *Revert to original* (ED-3). */
 const val REVERT_CONFIRM_TAG = "viewer-revert-confirm"
+
+/** The Compose shell's name for itself in `CollectionsViewModel.setShown`: one surface, whichever page draws the state. */
+private const val COLLECTIONS_SURFACE = "compose"

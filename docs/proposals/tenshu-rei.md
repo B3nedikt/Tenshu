@@ -234,6 +234,12 @@ count.
 > *request templates* (the exact chain, placeholders in value positions only), and dynamic
 > planners such as Mia hold *capability grants* (which services, ops, and fields by use). Both
 > render to consent sentences derived from the schema.
+>
+> ⚠ **Amended 2026-11-20 — `core-semantic-permissions.md` SP-D5/SP-D6.** The permission set is no
+> longer *derived from a static scan*. An app writes its templates once, in a Kotlin file it also
+> calls, and a Gradle plugin evaluates them into the manifest. Once the proxy enforces templates,
+> the manifest is the boundary, so the scan above becomes an evaluator's aid, not the source. The
+> signed artifact is the manifest's canonical `BinarySerializer` encoding, versioned per service.
 
 ### 2.3 Shared realms are modelled as their own realms, identity gains an encryption sub-key
 

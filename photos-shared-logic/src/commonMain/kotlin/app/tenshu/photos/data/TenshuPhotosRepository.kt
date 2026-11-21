@@ -133,6 +133,9 @@ import org.tenshu.inference.filePath
 import org.tenshu.inference.label
 import org.tenshu.inference.faceGroups
 import org.tenshu.inference.nameFaceGroup
+import org.tenshu.inference.namePetGroup
+import org.tenshu.inference.peopleIndexChanges
+import org.tenshu.inference.petGroups
 import org.tenshu.inference.faceSuggestionRejections
 import org.tenshu.inference.rejectFaceSuggestion
 import org.tenshu.inference.photosLike
@@ -319,6 +322,14 @@ class TenshuPhotosRepository(
      *
      * `null` without a [watchScope]: nowhere to keep the observers, so nothing is promised.
      */
+    /**
+     * Control's *People & pets* revision (`peopleIndexChanges`), as changes: the first value of a
+     * subscription is its baseline, and every value unlike the last is a change. ⚠⚠ Compared, not
+     * counted: a Control restart starts the counter again from 0 and the stream resubscribes, so the
+     * first value after it differs and is walked for — a restart may have lost a change.
+     */
+    override fun peopleIndexChanges(): Flow<Unit> = client.inferenceService.peopleIndexChanges().asRevisionChanges()
+
     override fun libraryWatch(): LibraryWatch? {
         val scope = watchScope ?: return null
         if (watchStarted.compareAndSet(expect = false, update = true)) {
@@ -1586,9 +1597,21 @@ class TenshuPhotosRepository(
      * two rows with the same path under different ids. Grouping by id — never by path — is what
      * keeps both people's copy of that photograph.
      */
-    override suspend fun faceGroups(limit: Int): Pair<List<FaceGroup>, PeopleStatus> {
+    override suspend fun faceGroups(limit: Int): Pair<List<FaceGroup>, PeopleStatus> =
+        groups { client.inferenceService.faceGroups(limit) }
+
+    /**
+     * Pets PT-3d: [faceGroups]' read over `petGroups` — the same rows, the same refusal, so the same code.
+     * ⚠ An older Control without the op answers a failure, which reads as `Failed`: no pets, People intact.
+     */
+    override suspend fun petGroups(limit: Int): Pair<List<FaceGroup>, PeopleStatus> =
+        groups { client.inferenceService.petGroups(limit) }
+
+    private suspend fun groups(
+        read: suspend () -> TResult<org.tenshu.core.collection.list.TList<org.tenshu.inference.GroupedFace>>,
+    ): Pair<List<FaceGroup>, PeopleStatus> {
         edits() ?: return emptyList<FaceGroup>() to PeopleStatus.Failed
-        return when (val result = client.inferenceService.faceGroups(limit)) {
+        return when (val result = read()) {
             is TResult.Success -> {
                 val groups = result.value?.toList()
                     ?.groupBy { it.groupId.get() }
@@ -1672,7 +1695,18 @@ class TenshuPhotosRepository(
 
     override suspend fun editedContentIds(): Set<String>? = edits()?.keys
 
-    override suspend fun nameFaceGroup(filePaths: List<String>, name: String): NamingOutcome {
+    override suspend fun nameFaceGroup(filePaths: List<String>, name: String): NamingOutcome =
+        nameInChunks(filePaths, name) { chunk, typed -> client.inferenceService.nameFaceGroup(chunk, typed) }
+
+    /** Pets PT-3d: [nameFaceGroup]'s chunking and verdicts over `namePetGroup` (A40's second realm write). */
+    override suspend fun namePetGroup(filePaths: List<String>, name: String): NamingOutcome =
+        nameInChunks(filePaths, name) { chunk, typed -> client.inferenceService.namePetGroup(chunk, typed) }
+
+    private suspend fun nameInChunks(
+        filePaths: List<String>,
+        name: String,
+        write: suspend (List<String>, String) -> TResult<org.tenshu.core.number.TInteger>,
+    ): NamingOutcome {
         // ⚠⚠ **Chunked, because one Binder transaction is ~1 MB** (the ceiling this class
         // documents for listings). A heavily photographed person can hold tens of thousands of
         // paths, and an unbounded list would make exactly the people most worth naming the ones
@@ -1688,7 +1722,7 @@ class TenshuPhotosRepository(
 
         var savedAny = false
         chunkWithinTransaction(filePaths, name).forEach { chunk ->
-            when (val result = client.inferenceService.nameFaceGroup(chunk, name)) {
+            when (val result = write(chunk, name)) {
                 is TResult.Success -> {
                     // ⚠⚠ Compared to the CHUNK, not to zero. The proxy deliberately returns a
                     // short count when its own write tore, so "it returned a positive number" would
@@ -2538,4 +2572,15 @@ internal fun citableLabelMatches(
  */
 internal fun trashPathFor(contentId: String, name: String): String = "$TRASH_ROOT/$contentId-$name"
 
-
+/**
+ * A revision counter as changes: the first value is the baseline, every value unlike the last is one
+ * change ([TenshuPhotosRepository.peopleIndexChanges]). ⚠ Compared, never counted — a restarted
+ * Control's counter starts again from 0, and lower is still different.
+ */
+internal fun Flow<Long>.asRevisionChanges(): Flow<Unit> = flow {
+    var last: Long? = null
+    collect { value ->
+        if (last != null && value != last) emit(Unit)
+        last = value
+    }
+}

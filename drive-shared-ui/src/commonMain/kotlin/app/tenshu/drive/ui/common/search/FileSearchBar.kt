@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.focus.FocusRequester
 import app.tenshu.drive.shared.resources.Res
 import app.tenshu.drive.shared.resources.file_search_close
+import app.tenshu.drive.shared.resources.file_search_placeholder
 import app.tenshu.drive.shared.resources.file_search_settings
 import app.tenshu.drive.shared.resources.search_results_error_body
 import app.tenshu.drive.shared.resources.search_results_error_title
@@ -107,6 +108,7 @@ fun FilesSearchBarContent(
         onActiveChange = onActiveChanged,
         onSearch = onSearchClicked,
         enabled = enabled,
+        placeholder = stringResource(Res.string.file_search_placeholder),
         inputFocusRequester = inputFocusRequester,
         trailingIcon = {
             if (uiState.isActive) {

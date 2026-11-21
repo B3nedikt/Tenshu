@@ -33,6 +33,13 @@ import org.tenshu.inference.ModelProvenance
 class DefaultFaceTemplateStore(
     private val fileDatabase: FileDatabase,
     private val path: String,
+    /**
+     * ⚠⚠ What the log is — [FACES_MAGIC] for `faces.log`, [PETS_MAGIC] for Pets' `pets.log`
+     * (`photos-pets.md` §2). The record format is shared (a box, a confidence, a vector per animal fits
+     * it exactly), the file is not: withdrawing one capability deletes only its own log, and a log
+     * opened under the other's magic reads as empty rather than as the other's templates.
+     */
+    private val magic: ByteArray = FACES_MAGIC,
 ) : FaceTemplateStore {
 
     /** ⚠ Guards the map AND the append offset: two appends racing would interleave two records. */
@@ -297,10 +304,10 @@ class DefaultFaceTemplateStore(
 
     private fun writeHeader(producedBy: ModelProvenance) {
         val stampBytes = producedBy.asString().encodeToByteArray()
-        val header = ByteArray(MAGIC.size + 2 + stampBytes.size)
-        MAGIC.copyInto(header)
-        writeShort(header, MAGIC.size, stampBytes.size)
-        stampBytes.copyInto(header, MAGIC.size + 2)
+        val header = ByteArray(magic.size + 2 + stampBytes.size)
+        magic.copyInto(header)
+        writeShort(header, magic.size, stampBytes.size)
+        stampBytes.copyInto(header, magic.size + 2)
         replaceLog(header)
         // ⚠ The file was just replaced, so every extent recorded against the old one is void — a
         // strike aimed at one would flip a byte in whatever is written there next.
@@ -411,13 +418,13 @@ class DefaultFaceTemplateStore(
         if (size <= 0L) return
         val bytes = fileDatabase.readBytesRange(path, 0, size.toInt())
         check(bytes != null && bytes.size.toLong() == size) { "the log at $path could not be read" }
-        if (bytes.size < MAGIC.size + 2) return
-        if (!MAGIC.indices.all { bytes[it] == MAGIC[it] }) return
+        if (bytes.size < magic.size + 2) return
+        if (!magic.indices.all { bytes[it] == magic[it] }) return
 
-        val stampLength = readShort(bytes, MAGIC.size)
-        var at = MAGIC.size + 2 + stampLength
+        val stampLength = readShort(bytes, magic.size)
+        var at = magic.size + 2 + stampLength
         if (at > bytes.size) return
-        stamp = ModelProvenance.parse(bytes.decodeToString(MAGIC.size + 2, at)) ?: return
+        stamp = ModelProvenance.parse(bytes.decodeToString(magic.size + 2, at)) ?: return
 
         while (at < bytes.size) {
             // ⚠ A struck record keeps its shape and loses its meaning: it is parsed for its
@@ -579,15 +586,19 @@ class DefaultFaceTemplateStore(
             ((bytes[at + 2].toInt() and 0xFF) shl 16) or
             ((bytes[at + 3].toInt() and 0xFF) shl 24)
 
-    private companion object {
+    companion object {
         /** ⚠ Its own magic: a face log and an embedding log must never be read as each other. */
-        val MAGIC = "TSHUFAC1".encodeToByteArray()
-        const val PUT: Byte = 1
+        val FACES_MAGIC: ByteArray get() = "TSHUFAC1".encodeToByteArray()
+
+        /** Pets' `pets.log` (`photos-pets.md` §2): the same records, never readable as faces. */
+        val PETS_MAGIC: ByteArray get() = "TSHUPET1".encodeToByteArray()
+
+        private const val PUT: Byte = 1
 
         /** ⚠ Read, never written: a removal strikes the record now ([LogStrikes]). Older logs hold it. */
-        const val REMOVE: Byte = 2
+        private const val REMOVE: Byte = 2
 
         /** left, top, right, bottom, confidence. */
-        const val FACE_GEOMETRY_BYTES = 5 * 4
+        private const val FACE_GEOMETRY_BYTES = 5 * 4
     }
 }

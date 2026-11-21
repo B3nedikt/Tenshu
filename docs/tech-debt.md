@@ -8,6 +8,20 @@ architectural conventions — they are things that should be fixed or revisited 
 
 ## Platform / client wiring
 
+### ⚠ Nine packaged desktop apps ship no locale data, so `java.text` dates fall back to CLDR root (2026-11-20)
+
+**Files**: every `*-desktop/build.gradle.kts` `nativeDistributions` except `:calendar-desktop`.
+
+jpackage bundles a jlinked runtime of the Compose plugin's default modules, and `java.base` carries
+only English and root. In a German launch of the **packaged** app, `DateFormat`/`DateFormatSymbols`
+therefore return CLDR root forms — Calendar read *"Nov 2026"* and *"2026 Nov 20"* — while
+`./gradlew :<app>-desktop:run`, on a full JDK, reads German. ⚠ So a dev-run check of German dates
+proves nothing about the shipped app; read the bundle's `Contents/runtime/Contents/Home/release`
+`MODULES` line. Calendar now declares `modules("jdk.localedata")`; the other apps (Drive, Control,
+Contacts, Fit, Home, Maps, Mia, Photos, Timeline) still need an audit of what they format through
+`java.text`/`java.time` and the same line (≈ +10 MB per bundle unless jlink's `--include-locales`
+becomes reachable through the plugin).
+
 ### Benign check-then-acts the `@Volatile` audit left (2026-11-15)
 
 A repo-wide audit of all 179 `@Volatile` / `@kotlin.concurrent.Volatile` annotations fixed two broken
@@ -2455,8 +2469,8 @@ Calendar has one top-level surface; `CalendarPane` gates its own 220 dp sidebar 
 promoting *Calendars* from a pushed screen to a tab is the honest move; ⚠ it would then duplicate the
 sidebar's *Manage* button at `Large`.
 
-⭐ **Photos and Calendar are also the pair that ship no `composeResources` catalogue** (see the plurals
-entry below): the two newest apps picked up the shared conventions late — worth a checklist for the
+⭐ **Photos and Calendar were also the pair that shipped no `composeResources` catalogue** (see the plurals
+entry below; Calendar's UI is now all in one, en + de): the two newest apps picked up the shared conventions late — worth a checklist for the
 next new app.
 
 ### Plurals: the CMP constraint that justified the workaround is stale, and two apps have no catalogue at all (2026-08-31)
@@ -7382,11 +7396,14 @@ Also not reproduced: whatever depends on x86-64 specifically, since the containe
   - **`FolderMerger`** (`file-service-proxy`): `resolveListField(FILES)` loads every child `File` of
     both sides, then `purgeDeadMembers` does a tombstone lookup + `getData` per child — O(children)
     per ingested `Folder` block. A camera folder holds thousands.
-  - **`FileHistoryPolicyObserver.cascadeDeleteHistory`** (`FileServiceProxyInitialization.kt`):
-    reads the whole realm-wide `MODIFICATIONS` relation once per `File` delete, ingested tombstones
-    included; `enforceRetention` does the same read on every local USER modification save.
+  - ✅ **`FileHistoryPolicyObserver` — FIXED 2026-11-20, measured on a device first.** Both policies
+    read the realm-wide `MODIFICATIONS` relation per file; they now read the file's own
+    `File.FileHistory` array. ⚠⚠ It was not hypothetical: an iPhone joining a realm whose folder had
+    been deleted fenced the replica `COMMIT_FAILED` inside `applyVerifiedDeleteBlock` →
+    `DeletedFolderSubtreeReaper` → `cascadeDeleteHistory` on every pull, for good ("Storage isn't
+    ready"; `photos-pets.md` §10.18). Pinned by `FileHistoryRelationTest`'s `…NotTheRealmWideLog` cases.
   - **`DeletedFolderSubtreeReaper`** (same file): reads all children and deletes recursively inside
-    the delete — and each child delete repeats the `MODIFICATIONS` read above.
+    the delete — O(children) in one transaction (the per-child `MODIFICATIONS` read is gone, above).
   - **`RelationMaintainer.memberCount`** (`core-common`): reads the relation's whole member-hash list
     per saved member (and `addToArray` rewrites it) — cheap per row, but linear in `MOMENTS` /
     `HEALTH_SAMPLES` / `WORKOUTS` on every ingested row.

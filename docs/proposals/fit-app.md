@@ -87,6 +87,8 @@ no live import, no real sensors. The seam is real; the data is mock.
   Profile. Record is the emphasized center item **inline in the NavigationBar** (M3: a
   bar takes a destination; the docked FAB belongs to a Bottom App Bar). Implemented as a
   strictly additive, default-off `emphasized` flag on `AdaptiveNavItem`.
+  ⚠ **Phone only, since 2026-11-20 (§18.20):** at the rail size classes Record is not a
+  rail destination but a bottom-end "+ Record" extended FAB on Home and History.
 - **D3 — Sans-serif only.** The editorial italic serif is Timeline's exclusive voice
   (ADR 0021). Fit's one type addition is **tabular numerals** for metrics
   (`fontFeatureSettings = "tnum"`).
@@ -198,6 +200,20 @@ storage is SI.
 ADR 0016: every user-facing string via `stringResource` from
 `app.tenshu.fit.shared.resources.Res`; logic emits enums/ints, UI picks templates.
 Apostrophes: bare `'`, not `\'` (CMP 1.7.3 formatter).
+
+**Figures format through `LocaleNumbers` (`:ui-core` `app.tenshu.ui.format`)** — `groupThousands`,
+`oneDecimal`, `kmTenthsText` in `FitFormatting.kt` wrap it. It is the platform's CLDR formatter
+(`java.text` on Android/desktop, `NSNumberFormatter` on iOS) in Compose's `Locale.current`: English
+`4,315` steps / `3.2 km`, German `4.315` Schritte / `3,2 km`, French `4 315` / `3,2 km`, with no
+per-language strings to translate. ⚠ Never `"$whole.$tenth"` or a literal `,` between thousands —
+that is English everywhere (German Fit showed `4,315` / `3.2 km` until 2026-11-20). ⚠ Desktop needs
+`jdk.localedata` in the packaged runtime (root `build.gradle.kts`); without it `java.text` answers
+every locale in English. The SwiftUI app (`fit-ios`) has the twin, `FitUnitFormat.number` /
+`.oneDecimal` over `Locale.autoupdatingCurrent`; ⚠ never `String(format: "%.1f")` (POSIX) or a bare
+`"\(n)"` (no grouping) there. Sizes go through the one byte formatter, `LocaleNumbers.bytes` →
+`formatStorageBytes` (binary; Fit's own decimal `formatBytes` is gone). The formatter itself now
+lives in `:core-common` so Compose-free logic can reach it — the platform-wide rule and its call
+sites are `locale-number-formatting.md`.
 
 ## 8. Deferred (affordance catalogued, not built)
 
@@ -3784,6 +3800,49 @@ ported by hand:
   `-mockHome` launch argument (the real `MainShell`, no onboarding gate): plot tap opens the right
   series and pops in one step, hold-and-slide scrubs without opening, light + dark. ⚠ Not seen: the
   status-bar strip with the not-connected banner gone — the mock always shows the banner.
+
+### 18.20 Record leaves the rail on wide windows — a FAB, not a place (2026-11-20)
+
+Raised reviewing the desktop store captures: in the desktop rail, D2's emphasized centre
+*Record* item reads as a **place** among places — a filled pill between History and Browse that
+selects like a tab — not as an action. On a phone's bottom bar the centred "+" is idiomatic and
+stays exactly as it was. Drive, Calendar and Contacts already put their primary action in a
+bottom-end FAB on desktop; Fit was the one app that didn't.
+
+**Decision.**
+
+- **Compact (phone):** unchanged — Record is the emphasized centre `NavigationBar` item (D2).
+- **Every rail class (Medium and up — tablet, desktop):** Record is **not a rail destination**.
+  An **extended** FAB, "+ Record" (`fit_record_title`, so *Aufzeichnen* in German; the same
+  `FitIcons.Plus` glyph), sits bottom-end over the content at `appFabInset()` and opens the same
+  Record flow (`selectTop(Destination.Record)`, the pre-start screen). Extended rather than the
+  icon-only FAB of Drive/Calendar/Contacts because a bare "+" over a list of workouts does not say
+  *what* it adds — the `AppExtendedFab` rule Home's *Add device* already follows.
+- **Which screens show it — Home and History only.** Those are the screens about workouts, where
+  starting one is the screen's natural next act. **Not Browse** (imported health categories —
+  body, sleep, vitals — where recording a workout is not what the screen is for) and **not
+  Profile** (settings and data sources); a FAB there would cover their last row and claim a
+  purpose the screen does not have. Not on Record itself, which is where it leads.
+- On a wide window the Record pre-start screen therefore shows the rail with **no item
+  selected** — it is an action's screen, not a place. Accepted: the rail is still there to leave by.
+
+**The seam is general, not Fit-only.** `AdaptiveNavItem.primaryAction` marks an item as the app's
+primary action: the scaffold keeps it in the bar on compact (drawn emphasized) and, at every wider
+class, drops it from the rail and draws it as the `AppExtendedFab`; the caller only says per screen
+whether the FAB shows (`showPrimaryActionFab`). The FAB is a sibling *after* `content()`, so the
+one-call-site rule (`AdaptiveNavContentIdentityTest`) is untouched. `AdaptivePrimaryActionTest`
+pins which layout shows the bar item, the rail item and the FAB. `emphasized` stays for a caller
+that wants the look without the relocation.
+
+⚠ **A FAB over a list owes the list its footprint.** The scaffold publishes the FAB's measured
+height plus inset as `LocalPrimaryActionClearance` (`0.dp` wherever no FAB is drawn), and Home and
+History add it to their bottom padding — without it the last workout row's chevron sat under the
+button and a tap there started a recording (Codex review). A new screen that opts into the FAB
+must do the same. It is deliberately not `LocalNavBarClearance`, which Photos reads as "the
+floating pill is showing".
+
+⚠ The desktop Fit store captures (`scripts/store-screenshots-desktop.sh fit`) predate this and
+show the old rail pill — retake them. iOS is its own SwiftUI shell (D7) and is not changed here.
 
 ## 19. Home read 0 steps — the record ceiling truncated the *newest* records (fixed 2026-08-11)
 

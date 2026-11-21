@@ -502,18 +502,24 @@ class SchemaRegistry(
     /**
      * The index, built on first use and dropped whenever a config is registered.
      *
-     * ⚠⚠ **Precedence is load-bearing and inverted from the loop it replaces.** The old code was
-     * `configs.asReversed().firstNotNullOfOrNull { … }` — i.e. the **last-registered** config wins
-     * a duplicate. Building the map in forward order with plain overwrite reproduces exactly that
-     * (later writes clobber earlier ones). Building it reversed would silently resolve a duplicated
-     * type id to the *wrong* type, and nothing about the failure would point here.
+     * ⚠⚠ **Two ids on one set of bytes are refused, never resolved.** Every mapping is
+     * `idToUuid(id) → id`, so the same id registered by two modules is harmless, and two
+     * *different* ids on the same 16 bytes can only be an MD5 collision. The wire could no longer
+     * tell them apart, and neither could a manifest signed over it
+     * (`core-semantic-permissions.md` SP-D6, threat model T-SP-02). This used to resolve to the
+     * last-registered id, silently.
      */
     private fun typeIdIndex(): Map<TypeIdKey, String> {
         typeIdIndexRef.load()?.let { return it }
         val built = HashMap<TypeIdKey, String>()
-        // Forward order + overwrite == asReversed().first — see the KDoc above.
         configs.forEach { config ->
-            config.typeMapping.forEach { (bytes, id) -> built[TypeIdKey(bytes)] = id }
+            config.typeMapping.forEach { (bytes, id) ->
+                val existing = built.put(TypeIdKey(bytes), id)
+                check(existing == null || existing == id) {
+                    "Type ids \"$existing\" and \"$id\" encode to the same wire bytes " +
+                        "${bytes.toHexString()}: the wire cannot tell them apart. Rename one."
+                }
+            }
         }
         // A CAS race costs one duplicate build, never a wrong answer — the `getOrCreate` pattern.
         typeIdIndexRef.compareAndSet(null, built)

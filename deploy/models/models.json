@@ -48,9 +48,9 @@
     },
     {
       "id": "rfdetr-nano-coco-int8",
-      "name": "People: cat and dog filter (RF-DETR Nano)",
+      "name": "Cat and dog detector (RF-DETR Nano)",
       "version": 1,
-      "capabilities": ["faceClustering"],
+      "capabilities": ["faceClustering", "petRecognition"],
       "runtime": "onnx+mediapipe",
       "artifactVersion": 1,
       "licence": "Apache-2.0",
@@ -60,6 +60,127 @@
           "path": "rfdetr-nano-coco-int8/1/rfdetr_nano_int8.onnx",
           "sha256": "e3523f7581daa4e20469e853488e04cc70a70856898c04cb57439867363dd167",
           "byteSize": 28806262
+        }
+      ]
+    },
+    {
+      "id": "rfdetr-nano-coco-int8",
+      "name": "Cat and dog detector (RF-DETR Nano, macOS)",
+      "version": 1,
+      "capabilities": ["petRecognition"],
+      "runtime": "onnx+vision",
+      "artifactVersion": 1,
+      "licence": "Apache-2.0",
+      "artifacts": [
+        {
+          "role": "animalDetector",
+          "path": "rfdetr-nano-coco-int8/1/rfdetr_nano_int8.onnx",
+          "sha256": "e3523f7581daa4e20469e853488e04cc70a70856898c04cb57439867363dd167",
+          "byteSize": 28806262
+        }
+      ]
+    },
+    {
+      "id": "dinov2-small-zeroshot",
+      "name": "Pets (DINOv2-S)",
+      "version": 1,
+      "capabilities": ["petRecognition"],
+      "runtime": "onnx+mediapipe",
+      "artifactVersion": 1,
+      "licence": "Apache-2.0",
+      "source": {
+        "repo": "facebook/dinov2-small",
+        "revision": "ed25f3a31f01632728cabb09d1542f84ab7b0056",
+        "files": {
+          "config.json": "1809f83e3bdb1609a501a610ad4a742f4fd8ae44d72ca4aa0df52d1f2ac8628d",
+          "model.safetensors": "ae1e99fcefd534ed978cdeb8326f08030c96e28b7a81ffcbc98a857c84d14be1"
+        }
+      },
+      "artifacts": [
+        {
+          "role": "petEmbedder",
+          "path": "dinov2-small-zeroshot/1/dinov2_small_cls_mean.onnx",
+          "sha256": "b44ac8be8472aba15a44552b2b35a1e427e23006c8d48d092e905fe97de96a55",
+          "byteSize": 88441580
+        }
+      ]
+    },
+    {
+      "id": "dinov2-small-zeroshot",
+      "name": "Pets (DINOv2-S, macOS)",
+      "version": 1,
+      "capabilities": ["petRecognition"],
+      "runtime": "onnx+vision",
+      "artifactVersion": 1,
+      "licence": "Apache-2.0",
+      "source": {
+        "repo": "facebook/dinov2-small",
+        "revision": "ed25f3a31f01632728cabb09d1542f84ab7b0056",
+        "files": {
+          "config.json": "1809f83e3bdb1609a501a610ad4a742f4fd8ae44d72ca4aa0df52d1f2ac8628d",
+          "model.safetensors": "ae1e99fcefd534ed978cdeb8326f08030c96e28b7a81ffcbc98a857c84d14be1"
+        }
+      },
+      "artifacts": [
+        {
+          "role": "petEmbedder",
+          "path": "dinov2-small-zeroshot/1/dinov2_small_cls_mean.onnx",
+          "sha256": "b44ac8be8472aba15a44552b2b35a1e427e23006c8d48d092e905fe97de96a55",
+          "byteSize": 88441580
+        }
+      ]
+    },
+    {
+      "id": "dinov2-small-zeroshot",
+      "name": "Pets (DINOv2-S, iPhone)",
+      "version": 1,
+      "capabilities": ["petRecognition"],
+      "runtime": "coreml",
+      "artifactVersion": 1,
+      "licence": "Apache-2.0",
+      "source": {
+        "repo": "facebook/dinov2-small",
+        "revision": "ed25f3a31f01632728cabb09d1542f84ab7b0056",
+        "files": {
+          "config.json": "1809f83e3bdb1609a501a610ad4a742f4fd8ae44d72ca4aa0df52d1f2ac8628d",
+          "model.safetensors": "ae1e99fcefd534ed978cdeb8326f08030c96e28b7a81ffcbc98a857c84d14be1"
+        },
+        "toolchain": {
+          "coremltools": "9.0",
+          "numpy": "2.3.5",
+          "pillow": "13.0.0",
+          "pinned": true,
+          "python": "3.13.7",
+          "rfdetr": "1.8.3",
+          "torch": "2.7.0",
+          "torchvision": "0.22.0",
+          "transformers": "5.23.0"
+        },
+        "exportManifestSha256": "7a51beddb4b2d5f3dc0e2000c8b8f0c5eb5bf9fec70184cef3f434e209f3161c"
+      },
+      "artifacts": [
+        {
+          "role": "petEmbedder",
+          "path": "dinov2-small-zeroshot/1/coreml/dinov2_small_cls_mean_fp16.mlpackage.tar",
+          "sha256": "00c9cd864a385d955f26da0c26bd3a37adfa99ccce3e2f6c0a1f15735915d8b5",
+          "byteSize": 43417600
+        }
+      ]
+    },
+    {
+      "id": "rfdetr-nano-coco-int8",
+      "name": "Cat and dog detector (RF-DETR Nano, iPhone)",
+      "version": 1,
+      "capabilities": ["petRecognition"],
+      "runtime": "coreml",
+      "artifactVersion": 1,
+      "licence": "Apache-2.0",
+      "artifacts": [
+        {
+          "role": "animalDetector",
+          "path": "rfdetr-nano-coco-int8/1/coreml/rfdetr_nano_fp16.mlpackage.tar",
+          "sha256": "ed3df77920ca3f235ae82451e32770dc15188f0def52f8ca6b39452dca63b8ce",
+          "byteSize": 54077440
         }
       ]
     },

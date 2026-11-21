@@ -120,5 +120,5 @@ fun createFileProxy(
         // but stay invisible to anything querying the relation (which is
         // what `CreateFolderNotificationUnitTest` and
         // `NotificationStreamingTest` do).
-        executionContext.initNotificationService()
+        executionContext.initNotificationService(tombstoneEmitterHolder = null)
     }

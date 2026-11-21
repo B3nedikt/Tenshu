@@ -106,9 +106,8 @@ enum class RecurrencePreset {
  * SwiftUI one would have had a second copy — two lists of user-visible words that can disagree,
  * which is how "Yearly" becomes "Annually" on one platform.
  *
- * ⚠ Not localised, the same known gap `ReminderPresets` records: this really is copy, so it
- * belongs in the ADR 0016 catalogue rather than a date formatter. Every string in Calendar is in
- * the same position.
+ * ⚠ English only, as `ReminderPresets` is: the SwiftUI editor's words. The Compose editor reads
+ * its own (`calendar_recurrence_*`), so keep the two lists' meanings in step.
  */
 fun RecurrencePreset.label(): String = when (this) {
     RecurrencePreset.NEVER -> "Never"

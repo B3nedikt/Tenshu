@@ -81,15 +81,6 @@ class AskMiaActionOfferTest {
                 value = "cal-1".toTString(tContext),
             )
         )
-        // ⚠ The write grant is ON: otherwise the event utterance is refused by the grant on both
-        // runtimes and the two halves could not be told apart.
-        executionContext.saveData(
-            RealmSetting.create(
-                context = tContext,
-                preferenceId = assertNotNull(MiaSource.CALENDAR.writePreference).id,
-                value = true.toTBoolean(tContext),
-            )
-        )
     }
 
     private val actionUtterances = listOf(

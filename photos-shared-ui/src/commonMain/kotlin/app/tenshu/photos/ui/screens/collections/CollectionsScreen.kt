@@ -151,7 +151,7 @@ fun CollectionsScreen(
             layout.people?.let { people ->
                 item(key = "people") {
                     SectionRow(
-                        title = CollectionSection.PEOPLE.title,
+                        title = people.title,
                         onViewAll = { onOpenSection(CollectionSection.PEOPLE) }.takeIf { people.viewAll },
                     ) {
                         if (people.pending) PlaceholderRow(circles = true)

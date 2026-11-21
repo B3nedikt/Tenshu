@@ -19,12 +19,10 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 sealed class Destination {
-    abstract val label: String
     abstract val icon: ImageVector
 
     @Serializable
     data object Home : Destination() {
-        override val label = "Home"
         override val icon = Icons.Default.Home
     }
 
@@ -32,29 +30,25 @@ sealed class Destination {
      *  Reached from the bell in Home's top bar, not a top-level nav item. */
     @Serializable
     data object Notifications : Destination() {
-        override val label = "Notifications"
         override val icon = Icons.Default.Notifications
     }
 
     @Serializable
     data object Apps : Destination() {
-        override val label = "Apps"
         override val icon = Icons.Default.Apps
     }
 
     @Serializable
     data object Data : Destination() {
-        override val label = "Data"
         override val icon = Icons.Default.Storage
     }
 
     /** Per-app detail (permissions, install info, uninstall). Carries the [appId]
-     *  argument, so it is a `data class` rather than a `data object`. `label` / `icon`
-     *  are getter-form (no backing field) so kotlinx-serialization serializes only
+     *  argument, so it is a `data class` rather than a `data object`. `icon` is
+     *  getter-form (no backing field) so kotlinx-serialization serializes only
      *  [appId] and doesn't trip over the non-serializable `ImageVector`. */
     @Serializable
     data class AppDetail(val appId: String) : Destination() {
-        override val label: String get() = "App"
         override val icon: ImageVector get() = Icons.Default.Apps
     }
 
@@ -63,13 +57,11 @@ sealed class Destination {
      *  This Control acts as the proxy and shows the QR; the app scans it to pair. */
     @Serializable
     data object EpcPairing : Destination() {
-        override val label = "Connect an app"
         override val icon = Icons.Default.Apps
     }
 
     @Serializable
     data object Services : Destination() {
-        override val label = "Services"
         override val icon = Icons.Default.Cloud
     }
 
@@ -80,31 +72,26 @@ sealed class Destination {
      */
     @Serializable
     data object Shares : Destination() {
-        override val label = "Shares"
         override val icon = Icons.Default.Share
     }
 
     @Serializable
     data object Settings : Destination() {
-        override val label = "Settings"
         override val icon = Icons.Default.Settings
     }
 
     @Serializable
     data object Sync : Destination() {
-        override val label = "Sync"
         override val icon = Icons.Default.Sync
     }
 
     @Serializable
     data object BackgroundSync : Destination() {
-        override val label = "Background sync"
         override val icon = Icons.Default.Sync
     }
 
     @Serializable
     data object BackgroundIngest : Destination() {
-        override val label = "Background ingest"
         override val icon = Icons.Default.Cloud
     }
 
@@ -115,13 +102,11 @@ sealed class Destination {
      */
     @Serializable
     data object Errors : Destination() {
-        override val label = "Errors"
         override val icon = Icons.Default.ErrorOutline
     }
 
     @Serializable
     data object SettingsUnlock : Destination() {
-        override val label = "Unlock"
         override val icon = Icons.Default.Lock
     }
 
@@ -132,7 +117,6 @@ sealed class Destination {
      */
     @Serializable
     data object OfflineMaps : Destination() {
-        override val label = "Offline maps"
         override val icon = Icons.Default.Map
     }
 
@@ -143,7 +127,6 @@ sealed class Destination {
      */
     @Serializable
     data object Models : Destination() {
-        override val label = "Models"
         override val icon = Icons.Default.Memory
     }
 
@@ -154,28 +137,24 @@ sealed class Destination {
      */
     @Serializable
     data class ModelFeature(val capabilityId: String) : Destination() {
-        override val label: String get() = "Feature"
         override val icon: ImageVector get() = Icons.Default.Memory
     }
 
     /** Settings → Advanced — expert settings hub (control-keep-device-unlocked.md §4.4). */
     @Serializable
     data object SettingsAdvanced : Destination() {
-        override val label = "Advanced"
         override val icon = Icons.Default.Settings
     }
 
     /** Settings → Open-source licences (`docs/oss-licences.md`) — `:ui-core`'s shared screen. */
     @Serializable
     data object SettingsLicences : Destination() {
-        override val label = "Open-source licences"
         override val icon = Icons.Default.Gavel
     }
 
     /** Settings → Advanced → Security — the soft app-lock toggle + hard-mode placeholder. */
     @Serializable
     data object SettingsSecurity : Destination() {
-        override val label = "Security"
         override val icon = Icons.Default.Lock
     }
 
@@ -186,62 +165,53 @@ sealed class Destination {
      */
     @Serializable
     data object SettingsEncryptSetup : Destination() {
-        override val label = "Encrypt on unlock"
         override val icon = Icons.Default.Lock
     }
 
     @Serializable
     data object RecoveryPhrase : Destination() {
-        override val label = "Recovery Phrase"
         override val icon = Icons.Default.Lock
     }
 
     @Serializable
     data object PairingWizard : Destination() {
-        override val label = "Add Device"
         override val icon = Icons.Default.Sync
     }
 
     @Serializable
     data object Welcome : Destination() {
-        override val label = "Welcome"
         override val icon = Icons.Default.Home
     }
 
     @Serializable
     data object NewUser : Destination() {
-        override val label = "New User"
         override val icon = Icons.Default.Home
     }
 
     @Serializable
     data object Recovery : Destination() {
-        override val label = "Recovery"
         override val icon = Icons.Default.Lock
     }
 
     @Serializable
     data object Locked : Destination() {
-        override val label = "Locked"
         override val icon = Icons.Default.Lock
     }
 
     @Serializable
     data object SetupUnlock : Destination() {
-        override val label = "Set up unlock"
         override val icon = Icons.Default.Lock
     }
 
     @Serializable
     data object AccountPicker : Destination() {
-        override val label = "Pick a plan"
         override val icon = Icons.Default.Cloud
     }
 
     /** The email-OTP account flow. [signIn] = false is *sign-up* (create the free account);
      *  [signIn] = true is *sign-in* (re-authenticate an existing account on this device —
      *  commerce-accounts-and-sessions.md §3.5 / D11). Carries an argument, so a `data class`;
-     *  `label`/`icon` are getter-form so kotlinx-serialization serializes only the arguments.
+     *  `icon` is getter-form so kotlinx-serialization serializes only the arguments.
      *
      *  [thenCheckout] is the paid tier the user was on the way to buying: a purchase is made
      *  signed in, so the email step comes first and carries on to that tier's checkout. */
@@ -250,33 +220,28 @@ sealed class Destination {
         val signIn: Boolean = false,
         val thenCheckout: String? = null,
     ) : Destination() {
-        override val label: String get() = if (signIn) "Sign in" else "Sign up"
         override val icon: ImageVector get() = Icons.Default.Cloud
     }
 
     /** Paid-tier checkout for [productId] (Stripe hosted). Carries an argument, so a `data class`;
-     *  `label`/`icon` are getter-form so kotlinx-serialization serializes only [productId]. */
+     *  `icon` is getter-form so kotlinx-serialization serializes only [productId]. */
     @Serializable
     data class Checkout(val productId: String) : Destination() {
-        override val label: String get() = "Checkout"
         override val icon: ImageVector get() = Icons.Default.Cloud
     }
 
     @Serializable
     data object ReiKey : Destination() {
-        override val label = "Have a code?"
         override val icon = Icons.Default.Cloud
     }
 
     @Serializable
     data object AccountDeletion : Destination() {
-        override val label = "Delete account"
         override val icon = Icons.Default.Cloud
     }
 
     @Serializable
     data object DisconnectConfirm : Destination() {
-        override val label = "Disconnect"
         override val icon = Icons.Default.Cloud
     }
 }

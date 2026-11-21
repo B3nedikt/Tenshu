@@ -1,5 +1,6 @@
 package app.tenshu.control.ui.screens.offlinemaps
 
+import app.tenshu.ui.format.LocaleNumbers
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -332,9 +333,11 @@ class OfflineMapsViewModelTest {
     }
 
     @Test
-    fun formatBytes_showsMbAndGb() {
-        assertEquals("90 MB", formatBytes(95_000_000L))
-        assertEquals("1.9 GB", formatBytes(2_040_109_465L))
+    fun regionSizes_readInTheLocale_withBinarySteps() {
+        assertEquals("90.6 MB", LocaleNumbers.bytes(95_000_000L, "en"))
+        assertEquals("1.9 GB", LocaleNumbers.bytes(2_040_109_465L, "en"))
+        assertEquals("90,6 MB", LocaleNumbers.bytes(95_000_000L, "de"))
+        assertEquals("1,9 GB", LocaleNumbers.bytes(2_040_109_465L, "de"))
     }
 
     @Test

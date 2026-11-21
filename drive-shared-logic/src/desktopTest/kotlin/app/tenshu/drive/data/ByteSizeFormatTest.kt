@@ -11,8 +11,8 @@ class ByteSizeFormatTest {
         assertEquals("1 B", formatByteSize(1))
         assertEquals("221 B", formatByteSize(221))
         assertEquals("999 B", formatByteSize(999))
-        assertEquals("1000 B", formatByteSize(1000))
-        assertEquals("1023 B", formatByteSize(1023))
+        assertEquals("1,000 B", formatByteSize(1000))
+        assertEquals("1,023 B", formatByteSize(1023))
     }
 
     @Test
@@ -35,7 +35,7 @@ class ByteSizeFormatTest {
     fun aValueThatRoundsUpToTheNextUnitShowsTheNextUnit() {
         // 1023.96 KB would otherwise print as "1024 KB".
         assertEquals("1 MB", formatByteSize(1024L * 1024 - 40))
-        assertEquals("1023.9 KB", formatByteSize(1024L * 1024 - 100))
+        assertEquals("1,023.9 KB", formatByteSize(1024L * 1024 - 100))
     }
 
     @Test

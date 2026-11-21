@@ -1,5 +1,6 @@
 package app.tenshu.fit.ui.components
 
+import app.tenshu.ui.format.LocaleNumbers
 import androidx.compose.runtime.Composable
 import app.tenshu.fit.model.DataSourceKind
 import app.tenshu.fit.model.DataSourceState
@@ -120,7 +121,7 @@ fun importRunDetail(entry: ImportRunEntry): String {
     } else if (entry.workoutCount > 0) {
         parts += stringResource(Res.string.fit_run_workouts, entry.workoutCount)
     }
-    entry.byteCount?.let { parts += formatBytes(it) }
+    entry.byteCount?.let { parts += LocaleNumbers.bytes(it) }
     entry.fileName?.let { parts += it }
     entry.deviceLabel?.let { parts += it }
     return parts.joinToString(" · ")
@@ -144,14 +145,3 @@ fun formatRunDate(epochMillis: Long): String {
 }
 
 private fun Int.pad(): String = if (this < 10) "0$this" else toString()
-
-/**
- * A size a person can read. ⚠ Decimal MB (10^6), matching what a file manager shows for the same
- * archive — a figure the user can cross-check is worth more than a binary-exact one.
- */
-fun formatBytes(bytes: Long): String = when {
-    bytes >= 1_000_000_000L -> "${bytes / 100_000_000L / 10.0} GB"
-    bytes >= 1_000_000L -> "${bytes / 1_000_000L} MB"
-    bytes >= 1_000L -> "${bytes / 1_000L} kB"
-    else -> "$bytes B"
-}

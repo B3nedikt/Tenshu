@@ -38,7 +38,7 @@ import org.tenshu.core.file.LastModifiedAt
 import org.tenshu.core.file.Size
 import org.tenshu.core.entity.getDataIdHash
 import org.tenshu.core.schema.isSubtypeOf
-import org.tenshu.core.common.relation.relationReference
+import org.tenshu.file.common.FileHistoryMembership
 
 /**
  * Initialises the file service's proxy-side observers.
@@ -330,11 +330,30 @@ private class FileHistoryPolicyObserver(
     private val tombstoneEmitterHolder: TombstoneEmitterHolder? = null,
 ) : DataObserver {
 
-    // Read-only: the generic maintainer owns writing this array. Derived from the
-    // relation's declared spec so the two cannot disagree about `isEntity` /
-    // `elementSchemaId` (`core-relation-system.md` D4).
-    private val modificationsRef: ArrayDatabaseReference by lazy {
-        executionContext.relationReference(FileService.Relations.MODIFICATIONS)
+    /**
+     * One file's own history: its per-file `File.FileHistory` array, O(that file's rows).
+     *
+     * ⚠⚠ Never the realm-wide `MODIFICATIONS` log. Both policies run inside the writer's
+     * transaction — a peer's delete block, a folder reap — so on the iOS SQLite replica every
+     * read here counts against `HOLD_MAX` (1 s). A whole-log read per deleted file made one
+     * folder delete O(files × all modifications): it fenced the replica on an iPhone joining a
+     * realm, on every pull, for good (`photos-pets.md` §10.18).
+     *
+     * Read-only: the generic maintainer owns writing this array. Derived from the spec it writes
+     * through, so the two cannot disagree about `isEntity` / `elementSchemaId`
+     * (`core-relation-system.md` D4).
+     */
+    private fun historyOf(filePath: String): List<Data> {
+        val file = DataId.StringDataId.create(
+            context = executionContext.context,
+            type = File.ID,
+            keyValue = filePath,
+        ) as DataId.EntityDataId
+        val reference = executionContext.relationRegistry
+            .referenceFor(FileHistoryMembership, executionContext.context, file)
+            ?: return emptyList()
+        return executionContext.database.getArrayData(reference)?.toList().orEmpty()
+            .filter { fileIdOf(it) == filePath }
     }
 
     override fun onDataSaved(data: Data, origin: WriteOrigin) {
@@ -355,9 +374,7 @@ private class FileHistoryPolicyObserver(
      * re-entrant-safe via the snapshot-iterate `ObserverRegistry`.
      */
     private fun enforceRetention(filePath: String) {
-        val forFile = (executionContext.database.getArrayData(modificationsRef)?.toList()
-            ?: return)
-            .filter { fileIdOf(it) == filePath }
+        val forFile = historyOf(filePath)
         var overBy = forFile.size - FileModification.RETENTION_CAP
         if (overBy <= 0) return
 
@@ -394,11 +411,9 @@ private class FileHistoryPolicyObserver(
     }
 
     private fun cascadeDeleteHistory(filePath: String, origin: WriteOrigin) {
-        // Snapshot the log (`.toList()`) so deleting rows below doesn't mutate the
-        // collection we're iterating.
-        val rows = executionContext.database.getArrayData(modificationsRef)?.toList() ?: return
-        rows.forEach { row ->
-            if (fileIdOf(row) != filePath) return@forEach
+        // A snapshot (`historyOf` lists it) so deleting rows below doesn't mutate the
+        // collection we're iterating. The array outlives the file row: nothing deletes it.
+        historyOf(filePath).forEach { row ->
             val key = compositeKeyOf(row) ?: return@forEach
             // `deleteData` fans back to every observer — re-entrant-safe via the
             // snapshot-iterate ObserverRegistry. No tombstone is emitted

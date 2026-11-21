@@ -34,7 +34,6 @@ vi.mock('@tenshu/sdk/mia', () => ({
     Grants: 'mia.grants',
     GrantsObserve: 'mia.grants.observe',
     SetGranted: 'mia.grants.setGranted',
-    SetWritable: 'mia.grants.setWritable',
   },
 }))
 vi.mock('@tenshu/sdk/mapRegion', () => ({ MapRegion: {}, MAX_REGION_RANGE_BYTES: 1 << 20 }))

@@ -46,6 +46,7 @@ custody) and **A44** (the release bucket, its publish key and the committed rele
 **macOS direct-release sub-amendment (2026-11-06, [`desktop-macos-distribution.md`](../proposals/desktop-macos-distribution.md) §2.7):** widens **A44** to the notarized Developer ID `.dmg` of the ten desktop apps and the committed `store/macos-release.json`, in the same bucket under the same publish key, widens attack surface #20, and adds threat group §8.24 (T-MD-01–02). No asset (A1–A4 / A9), relay surface or sync-protocol change: public installers on Cloudflare R2, nothing user-owned (House Rule #1).
 **Client-side gate sub-amendment (2026-11-06, [`desktop-ipc-client-identity.md`](../proposals/desktop-ipc-client-identity.md) §11):** amends **A14** — the binding now runs in both directions: every desktop app attests the process serving `ipc.sock` as Tenshu Control (`app.tenshu.control.ios`, a compiled-in team) before writing to it. **T-MD-01**'s residual drops to Medium. No asset (A1–A4 / A9), relay surface or sync-protocol change; device-local only (House Rule #1).
 **Windows direct-release sub-amendment (2026-11-17, [`desktop-windows-port.md`](../proposals/desktop-windows-port.md) §5.1, D6):** adds asset **A45** (the Windows release-signing certificate, self-signed, which every tester's PC is told to trust), widens **A44** to the signed `.msix` of Control and Drive, the public `.cer` and the committed `store/windows-release.json`, in the same bucket under the same publish key, widens attack surface #20, and adds threat group §8.25 (T-WD-01–04). No asset (A1–A4 / A9), relay surface or sync-protocol change: public installers on Cloudflare R2, nothing user-owned (House Rule #1).
+**Semantic-permissions sub-amendment (2026-11-20, [`core-semantic-permissions.md`](../proposals/core-semantic-permissions.md) SP-D5–D8):** adds threat group §8.26 (T-SP-01–03). Records the decided per-app boundary (a `Principal` set by the transport and a `RequestGuard` at the executor's entry) as **not yet in force**, the manifest id-collision risk of SP-D6's encoding (corrected the same day to **Low**, and refused by the registry), and a fixed defect: concurrent replies on one serializer could deliver one app's reply bytes to another app on Android. No asset (A1–A4 / A9), relay surface or sync-protocol change (House Rule #1).
 **Windows Explorer sub-amendment (2026-11-10, [`desktop-windows-port.md`](../proposals/desktop-windows-port.md) §7.8, X1):**
 adds **T-C-21** and a Windows paragraph to **T-C-16**. With the (off-by-default) *Show Drive in File Explorer*
 switch on, Control hosts a Cloud Files sync root: the OS asks Control to decrypt and serve a file whenever **any**
@@ -2333,6 +2334,20 @@ Explicitly not trusted:
   ⚠ **The browser renders names, read-only** (`photos-app.md` §42.7, 2026-11-17). A browser device
   already received these rows as a sync peer. Showing them adds no artifact and no write, and the
   tab never holds or derives a template: no model runs there, and no face op is mapped.
+
+  **Pets beside it (`photos-pets.md` PT-3b, 2026-11-19), not inside it.** Pet recognition copies this
+  split under its **own** capability, `PET_RECOGNITION`, with its own two switches (realm ∧ device,
+  absence = no, Settings only). ⚠ **Not special-category** — an animal is not a natural person — but a
+  pet's name on photographs of a home is still personal data about its owner, so it takes the same
+  custody. **Pet templates** (DINOv2-S vectors, one per cat or dog) live in a **separate** device-local
+  log, `/inference/pets.log` under its own magic: never realm data, never relay-visible, wiped with the
+  local store. `petGroups` returns this entry's shape — paths, an ephemeral group id, boxes and counts —
+  and no vector crosses IPC. **Pet names** are `MediaLabel` rows with capability `petRecognition`,
+  stamped `ModelProvenance.User`, sealed like every row (A2): House Rule #1 unchanged. ⚠⚠
+  **`namePetGroup` is a second realm-writing operation** beside `nameFaceGroup`, carrying a path and a
+  name and nothing else; widening it is a change to this entry. ⚠⚠ **Withdrawal is per switch**: an
+  explicit `PET_RECOGNITION` switch-off deletes `pets.log` (and its rejections) and never `faces.log`,
+  and a face switch-off never touches `pets.log` (`MediaIndexerPetsTest`, `PetOperationsTest`).
 
   **Acquisition is gated twice** (IN-D3): a realm switch and a per-device switch, both defaulting
   to *no*, offered in Settings only and never during onboarding, with consent re-read per file so a
@@ -8393,7 +8408,7 @@ is the user's evident intent, and also means the switch must follow the row rath
 its own taps. ⚠ Residual: unchanged from T-MQ-01 — per **service**, never per row or
 property, and the UI says exactly that rather than implying finer control. Severity: **Low**.
 *Web amendment (2026-10-28, `web-app-suite.md` §8):* the switches are also writable from the
-`web/mia` origin (`Mia.setGranted` / `setWritable`, the same `PreferenceService.set` native Settings
+`web/mia` origin (`Mia.setGranted`; `setWritable` went with the write tier 2026-11-19; the same `PreferenceService.set` native Settings
 calls), and a revocation there is effective and legible on the next question on **every** device —
 `MiaWebContractTest` turns a grant off through the web call and asserts the next question needing it
 is `noMatch` naming the source, with exactly one write dispatched (the grant row). ⚠ The web view is
@@ -8429,10 +8444,11 @@ Invariants: I4.
 `CreateEvent` is the first thing Mia does that **authors user data**, and it leaves MQ-D1's
 containment: a wrong *answer* is seen and ignored, a wrong *row* persists, syncs to every device
 and fires a reminder long after the utterance is forgotten. Two controls, answering different
-questions. (a) **A write grant** — `(service, read + write)`, defaulting to **off** while the
-read grant defaults on, because reading was already happening and writing never was; write
-without read is not offered, since a write intent resolves its slots against existing data
-first. (b) **A resolved-artifact confirmation** — the cell shows the row that will exist, with
+questions. (a) **The source grant** — the same Calendar switch that governs reading; turning it
+off refuses a write, and it is re-read when a clarification reply completes an event, so a
+revocation mid-conversation holds. ⚠ A separate write switch (`(service, read + write)`, default
+off) shipped in MQ-3b and was **removed 2026-11-19**: it sat in front of (b) and gated nothing
+the user's tap on (b) did not, so it asked twice without adding a control. (b) **A resolved-artifact confirmation** — the cell shows the row that will exist, with
 the service-owned calendar and end time resolved and displayed, and those resolved values travel
 with the pending action so a default changed in between cannot silently move the event.
 ⚠ A missing time is **asked for, never guessed**: an event with an invented time is precisely
@@ -8630,6 +8646,60 @@ checks each package's signer thumbprint, timestamp and manifest identity; the pu
 manifest inside each zip, that each signature carries the published certificate, the certificate's subject
 and thumbprint, the build's commit against the checkout, and refuses a downgrade, a published version with
 other bytes, and a publisher switch. Residual: **Low**.
+
+### 8.26 Semantic permissions (SP-D5–D8)
+
+Threats from [`core-semantic-permissions.md`](../proposals/core-semantic-permissions.md) SP-D5–D8:
+request templates written in a Kotlin `PermissionSet` and built into a manifest (SP-D5), a manifest
+signed over its canonical binary encoding (SP-D6), a `Principal` set by the transport with a
+`RequestGuard` at the executor's entry (SP-D7), and a planner's grant computed as the service's
+ceiling ∩ its needs ∩ the user's switches (SP-D8).
+
+**T-SP-01. The per-app boundary is decided, not built.**
+Actors: AD3 (an admitted app on the device). Assets: everything the proxy serves. Invariants: I1.
+⚠⚠ **Nothing below is in force.** No `Principal` or `RequestGuard` exists, and an admitted
+first-party app still reaches every operation (T-C-20 residual (b)). When the guard lands, it must
+hold three rules, or it is a boundary in name only: the whole request is checked **before** any of
+it runs (a step refused mid-evaluation runs after the earlier steps' side effects); an operation's
+own code runs as `Proxy` and never re-runs a caller-supplied request under that principal (which
+would launder it); and an `unattested-…` peer is an `App` with no templates, so it is refused.
+⚠ iOS route-1 sets `Proxy` by design: first-party apps there are realm co-owners (A4, Decision C).
+Residual: **unchanged from T-C-20** until the guard is built, and this entry is tightened then.
+
+**T-SP-02. Two manifests that encode to the same bytes.**
+Actors: a third-party developer who defines its own schema ids (post-Rei). Assets: what a
+developer signature vouches for (A11 for first-party manifests; a developer identity's key for
+third-party ones, §8.8). Invariants: I2, read for manifests: what a signature vouches for must be
+unambiguous.
+SP-D6 signs the manifest's `BinarySerializer` bytes, and those bytes carry no id strings: every id is
+a 16-byte **MD5** name-based UUID (`idToUuid`). ⚠ *Corrected 2026-11-20:* this entry first said a
+developer could pick an id that encodes like a **first-party** one. That is a second preimage, and MD5
+has no practical one (about 2¹²³ work). What MD5 does admit is a chosen-prefix collision, in which
+**both** inputs carry crafted binary blocks. A first-party id never carries them, so the attack can
+only make two of a developer's *own* ids collide: ids full of crafted bytes, constrained further by
+having to be valid UTF-8, that blur two ops of a service whose code the evaluator reviews anyway.
+Accidental collisions (122 bits) are negligible at our id count.
+*Mitigated:* `SchemaRegistry` refuses two different ids on the same 16 bytes, so a collision fails
+loudly instead of resolving to the last-registered id as it used to
+(`SchemaRegistryTypeIdLookupTest.twoIdsOnTheSameBytesAreRefused`). *Owed with the third-party
+registration path:* a third party may not register an id under `tenshu/`. That namespace rule matters
+more than the hash, and there is no third-party registration path yet to put it in. ⚠ Changing the id
+encoding itself would touch every stored and synced value, out of proportion to this residual.
+Residual: **Low**.
+
+**T-SP-03. One app's reply bytes delivered to another app (fixed 2026-11-20).**
+Actors: none hostile; a race between two apps' concurrent requests. Assets: file and blob plaintext
+in replies. Invariants: I1.
+`ProxyGateway` serializes every reply through **one** `BinarySerializer`, passing each reply its own
+connection's `tokenize`. On Android `tokenize` *delivers* a byte payload to that connection's app (a
+file as `receiveFile(PFD)`, a value as `receiveSharedMemory`) and writes a token in its place.
+`LinearSerializer` kept the per-call tokenizer in a field of the shared instance, so a reply written
+while another started finished with the other's tokenizer: app A's bytes went to app B's process, and
+A got back a token it could not resolve. Found by SP-D6's encoding audit. *Mitigated:* each call
+serializes on its own instance (`LinearSerializer.serialize`); `SharedSerializerConcurrencyTest`
+reproduced the race on its first round before the fix and holds it closed. Before the fix the leak
+was bounded by T-C-20 (b): any admitted first-party app could have requested those bytes itself.
+Under SP-D7 it would have crossed a real boundary. Residual: **Low**.
 
 ## 9. Security Invariants Revisited
 

@@ -45,6 +45,21 @@ import app.tenshu.calendar.data.CalendarSummary
 import app.tenshu.calendar.model.CalendarDateFormat
 import app.tenshu.calendar.model.CalendarMonthCells
 import app.tenshu.calendar.model.monthAndYear
+import app.tenshu.calendar.shared.resources.Res
+import app.tenshu.calendar.shared.resources.calendar_all_day
+import app.tenshu.calendar.shared.resources.calendar_new_event
+import app.tenshu.calendar.shared.resources.calendar_next
+import app.tenshu.calendar.shared.resources.calendar_no_events
+import app.tenshu.calendar.shared.resources.calendar_nothing_coming_up
+import app.tenshu.calendar.shared.resources.calendar_pick_a_day
+import app.tenshu.calendar.shared.resources.calendar_previous
+import app.tenshu.calendar.shared.resources.calendar_today
+import app.tenshu.calendar.shared.resources.calendar_today_heading
+import app.tenshu.calendar.shared.resources.calendar_untitled_event
+import app.tenshu.calendar.shared.resources.calendar_view_agenda
+import app.tenshu.calendar.shared.resources.calendar_view_day
+import app.tenshu.calendar.shared.resources.calendar_view_month
+import app.tenshu.calendar.shared.resources.calendar_view_week
 import app.tenshu.calendar.ui.CalendarUiState
 import app.tenshu.calendar.ui.CalendarView
 import app.tenshu.calendar.ui.CalendarViewModel
@@ -54,6 +69,7 @@ import app.tenshu.ui.layout.appContentWidth
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.number
+import org.jetbrains.compose.resources.stringResource
 import org.tenshu.calendar.common.recurrence.ResolvedOccurrence
 
 /**
@@ -128,7 +144,7 @@ fun CalendarCreateButton(state: CalendarUiState, onCreate: (LocalDate?) -> Unit)
         // next month and tapped the 14th means the 14th.
         onClick = { onCreate(state.selectedDate) },
     ) {
-        Icon(Icons.Default.Add, contentDescription = "New event")
+        Icon(Icons.Default.Add, contentDescription = stringResource(Res.string.calendar_new_event))
     }
 }
 
@@ -165,12 +181,12 @@ private fun CalendarHeader(
     // `CalendarViewModel.step` is the one entry point.
     val previous: @Composable () -> Unit = {
         IconButton(onPrevious, enabled = state.view.canPage) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous")
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.calendar_previous))
         }
     }
     val next: @Composable () -> Unit = {
         IconButton(onNext, enabled = state.view.canPage) {
-            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next")
+            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = stringResource(Res.string.calendar_next))
         }
     }
 
@@ -182,7 +198,7 @@ private fun CalendarHeader(
         ) {
             previous()
             next()
-            TextButton(onToday) { Text("Today") }
+            TextButton(onToday) { Text(stringResource(Res.string.calendar_today)) }
             Text(
                 text = state.headerTitle(),
                 style = MaterialTheme.typography.titleLarge,
@@ -207,7 +223,7 @@ private fun CalendarHeader(
                 modifier = Modifier.weight(1f),
             )
             next()
-            TextButton(onToday) { Text("Today") }
+            TextButton(onToday) { Text(stringResource(Res.string.calendar_today)) }
         }
 
         ViewSwitcher(state, onSelectView, Modifier.fillMaxWidth().padding(vertical = 4.dp))
@@ -338,7 +354,7 @@ private fun SelectedDayPane(
 private fun AgendaPane(state: CalendarUiState, onOpen: (ResolvedOccurrence) -> Unit) {
     if (state.occurrences.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Nothing coming up", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(Res.string.calendar_nothing_coming_up), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return
     }
@@ -392,7 +408,7 @@ private fun OccurrenceRow(
         Box(Modifier.size(10.dp).clip(CircleShape).background(colour))
         Column(Modifier.weight(1f)) {
             Text(
-                text = occurrence.title.ifBlank { "(No title)" },
+                text = occurrence.title.ifBlank { stringResource(Res.string.calendar_untitled_event) },
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium,
             )
@@ -407,7 +423,7 @@ private fun OccurrenceRow(
         Text(
             // ⚠ An all-day event has no meaningful time half — rendering
             // "00:00" for one is the classic all-day bug.
-            text = if (occurrence.allDay) "All day"
+            text = if (occurrence.allDay) stringResource(Res.string.calendar_all_day)
                    else CalendarDateFormat.shortTime(occurrence.startLocal.time),
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -419,7 +435,7 @@ private fun OccurrenceRow(
 private fun EmptyDay(day: LocalDate?) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Text(
-            text = if (day == null) "Pick a day" else "No events",
+            text = if (day == null) stringResource(Res.string.calendar_pick_a_day) else stringResource(Res.string.calendar_no_events),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(24.dp),
@@ -434,6 +450,7 @@ private fun EmptyDay(day: LocalDate?) {
  * showing only the month its Monday falls in is wrong for two days out of seven,
  * and wrong in a way nobody notices until they have booked the wrong week.
  */
+@Composable
 private fun CalendarUiState.headerTitle(): String = when (view) {
     CalendarView.MONTH, CalendarView.AGENDA ->
         CalendarDateFormat.monthAndYear(year, month)
@@ -459,15 +476,19 @@ private fun CalendarUiState.headerTitle(): String = when (view) {
     }
 }
 
-private fun CalendarView.label(): String = when (this) {
-    CalendarView.MONTH -> "Month"
-    CalendarView.WEEK -> "Week"
-    CalendarView.DAY -> "Day"
-    CalendarView.AGENDA -> "Agenda"
-}
+@Composable
+private fun CalendarView.label(): String = stringResource(
+    when (this) {
+        CalendarView.MONTH -> Res.string.calendar_view_month
+        CalendarView.WEEK -> Res.string.calendar_view_week
+        CalendarView.DAY -> Res.string.calendar_view_day
+        CalendarView.AGENDA -> Res.string.calendar_view_agenda
+    },
+)
 
+@Composable
 private fun dayLabel(date: LocalDate, today: LocalDate?): String =
-    if (date == today) "Today · ${CalendarDateFormat.mediumDate(date)}"
+    if (date == today) stringResource(Res.string.calendar_today_heading, CalendarDateFormat.mediumDate(date))
     else CalendarDateFormat.mediumDate(date)
 
 /**

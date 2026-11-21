@@ -3,6 +3,7 @@ package org.tenshu.inference.common
 import org.tenshu.core.common.module.composite
 import org.tenshu.core.common.module.operation
 import org.tenshu.core.common.module.service
+import org.tenshu.core.common.module.schemaMigration
 import org.tenshu.core.common.module.tModule
 import org.tenshu.core.common.module.trait
 import org.tenshu.core.entity.StringDataIdProviderSchema
@@ -55,13 +56,24 @@ import org.tenshu.inference.common.impl.SimilarPhotoDto
 /**
  * The inference service's registration (IN-3).
  *
- * ⚠ No `SchemaMigration` chain: `InferenceService` is at its v1 release baseline, so there is no
- * earlier version of it in any store to migrate from. The first bump — whenever a label's shape
- * changes — owes one.
+ * ⚠ The `SchemaMigration` chain starts at v1, the release baseline: every bump from here owes a step,
+ * even an empty one, or the bump wipes every store (HR #9).
  */
 val inferenceServiceCommonModule = tModule {
 
     service(InferenceService.Schema)
+    // v1 → v2 (Pets PT-3b, `photos-pets.md` §3): four new operations (`petGroups`, `namePetGroup`,
+    // `rejectPetSuggestion`, `petSuggestionRejections`) — nothing stored reshaped (a pet name is a
+    // `MediaLabel` with a new capability string, `InferenceCapability` is a plain enum), so the step is
+    // empty. It is registered because the chain is what the readable floor is derived from (HR #9).
+    schemaMigration(
+        org.tenshu.core.common.schema.migration.schemaMigration(InferenceService.ID, fromVersion = 1) {},
+    )
+    // v2 → v3 (`photos-pets.md` §10.19): one new stream operation, `peopleIndexChanges`, whose element
+    // is a bare integer. Nothing stored reshaped, so the step is empty (HR #9).
+    schemaMigration(
+        org.tenshu.core.common.schema.migration.schemaMigration(InferenceService.ID, fromVersion = 2) {},
+    )
 
     composite(
         interfaceClass = MediaLabel::class,
@@ -163,6 +175,13 @@ val inferenceServiceCommonModule = tModule {
     // IN-6 F6c name suggestions: the device-local "No" and its read. Neither writes realm data.
     operation(RejectFaceSuggestion.Schema)
     operation(FaceSuggestionRejections.Schema)
+    // Pets PT-3b (`photos-pets.md` §3): the face ops' four contracts over `pets.log` and
+    // `PET_RECOGNITION`, reusing their return shapes and their typed error. ⚠ New ops are a reshape of
+    // the service's wire surface: they arrived with the v1 → v2 bump below.
+    operation(org.tenshu.inference.PetGroups.Schema)
+    operation(org.tenshu.inference.NamePetGroup.Schema)
+    operation(org.tenshu.inference.RejectPetSuggestion.Schema)
+    operation(org.tenshu.inference.PetSuggestionRejections.Schema)
     operation(ClassifyIntent.Schema)
     // 1c-3. ⚠ The tick's payload — an unregistered stream element crosses as an unreadable blob,
     // and a progress bar that never moves is indistinguishable from a stalled download.
@@ -187,6 +206,8 @@ val inferenceServiceCommonModule = tModule {
     operation(DeleteModel.Schema)
     operation(DownloadProgress.Schema)
     operation(IndexProgress.Schema)
+    // v3: People & pets' revision stream (`photos-pets.md` §10.19).
+    operation(org.tenshu.inference.PeopleIndexChanges.Schema)
     // IN-D6 (1e). ⚠⚠ Registered here like any other op: `ScheduleService` refuses to schedule an
     // id it cannot resolve, so an unregistered pass would fail at REGISTRATION — loudly, at proxy
     // init — rather than silently never running. ⚠ No client RO: `HeadlessSafe` means only the

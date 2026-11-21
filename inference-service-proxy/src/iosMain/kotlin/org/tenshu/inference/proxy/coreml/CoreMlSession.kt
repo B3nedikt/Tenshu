@@ -77,6 +77,14 @@ interface CoreMlSessionPort {
     /** @throws CoreMlPredictionException on a failed prediction or an unusable output. */
     fun predict(ids: IntArray): FloatArray
 
+    /**
+     * Pets PT-4b: every output of a multi-output model ([CoreMlTowerSpec.extraOutputs]) by name, each
+     * checked. ⚠ Defaults to refusing, so a single-output fake owes nothing.
+     * @throws CoreMlPredictionException on a failed prediction or an unusable output.
+     */
+    fun predictAll(floats: FloatArray): Map<String, FloatArray> =
+        throw CoreMlPredictionException("this session answers one output only")
+
     fun close()
 }
 
@@ -107,6 +115,23 @@ class CoreMlSession private constructor(
         }
     }
 
+    override fun predictAll(floats: FloatArray): Map<String, FloatArray> {
+        requireInput(CoreMlElementType.FLOAT32, floats.size)
+        val names: List<String> = listOf(spec.outputName) + spec.extraOutputs.keys
+        val outputs: Map<String, FloatArray> = runAll(MLMultiArrayDataTypeFloat32, names) { target ->
+            floats.usePinned { pinned -> memcpy(target.dataPointer, pinned.addressOf(0), (floats.size * 4).convert()) }
+        }
+        spec.unusableReason(outputs.getValue(spec.outputName))?.let { reason ->
+            throw CoreMlPredictionException("the ${spec.role} model's output is unusable: $reason")
+        }
+        spec.extraOutputs.keys.forEach { name ->
+            spec.unusableExtraReason(name, outputs.getValue(name))?.let { reason ->
+                throw CoreMlPredictionException("the ${spec.role} model's output is unusable: $reason")
+            }
+        }
+        return outputs
+    }
+
     /** ⚠ Whether Core ML frees the model's memory and Neural Engine resources here is [I] (§8). */
     override fun close() {
         model = null
@@ -120,10 +145,19 @@ class CoreMlSession private constructor(
     }
 
     private fun run(dataType: MLMultiArrayDataType, fill: (MLMultiArray) -> Unit): FloatArray {
+        val vector: FloatArray = runAll(dataType, listOf(spec.outputName), fill).getValue(spec.outputName)
+        spec.unusableReason(vector)?.let { reason ->
+            throw CoreMlPredictionException("the ${spec.role} tower's output is unusable: $reason")
+        }
+        return vector
+    }
+
+    /** One prediction, [names]' outputs copied out of it — unchecked; the callers check. */
+    private fun runAll(dataType: MLMultiArrayDataType, names: List<String>, fill: (MLMultiArray) -> Unit): Map<String, FloatArray> {
         val loaded: MLModel = model ?: throw CoreMlPredictionException("the ${spec.role} session is closed")
         // ⚠ An index pass predicts in a loop on a thread with no run loop; without a pool every
         // input array and feature provider lives until the thread ends.
-        val vector: FloatArray = autoreleasepool {
+        return autoreleasepool {
             val input: MLMultiArray = withError("allocating the ${spec.role} input") { error ->
                 MLMultiArray.create(shape = spec.inputShape, dataType = dataType, error = error)
             }
@@ -137,14 +171,12 @@ class CoreMlSession private constructor(
             val result: MLFeatureProviderProtocol = withError("the ${spec.role} prediction") { error ->
                 loaded.predictionFromFeatures(features, error = error)
             }
-            val output: MLMultiArray = result.featureValueForName(spec.outputName)?.multiArrayValue
-                ?: throw CoreMlPredictionException("the ${spec.role} prediction has no '${spec.outputName}'")
-            floatsOf(output)
+            names.associateWith { name ->
+                val output: MLMultiArray = result.featureValueForName(name)?.multiArrayValue
+                    ?: throw CoreMlPredictionException("the ${spec.role} prediction has no '$name'")
+                floatsOf(output)
+            }
         }
-        spec.unusableReason(vector)?.let { reason ->
-            throw CoreMlPredictionException("the ${spec.role} tower's output is unusable: $reason")
-        }
-        return vector
     }
 
     /**

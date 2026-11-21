@@ -18,4 +18,28 @@
     <string name="photos_control_fenced_update_app">Dieses Gerät hinkt dem Rest deines Realms hinterher und empfängt keine Fotos mehr. Aktualisiere Photos, um aufzuholen.</string>
     <string name="photos_control_fenced_update_both">Dieses Gerät hinkt dem Rest deines Realms hinterher und empfängt keine Fotos mehr. Aktualisiere Photos und Tenshu Control, um aufzuholen.</string>
     <string name="photos_control_fenced_update_unknown">Dieses Gerät hinkt dem Rest deines Realms hinterher und empfängt keine Fotos mehr. Aktualisiere Tenshu auf diesem Gerät, um aufzuholen.</string>
+    <string name="photos_nav_photos">Photos</string>
+    <string name="photos_nav_collections">Sammlungen</string>
+    <string name="photos_density_mosaic">Nach Tag gruppiert, einige Fotos größer. Gruppierung ändern.</string>
+    <string name="photos_density_day">Nach Tag gruppiert. Gruppierung ändern.</string>
+    <string name="photos_density_month">Nach Monat gruppiert. Gruppierung ändern.</string>
+    <string name="photos_density_year">Nach Jahr gruppiert. Gruppierung ändern.</string>
+    <string name="photos_date_day">%1$d. %2$s %3$d</string>
+    <string name="photos_date_month">%1$s %2$d</string>
+    <string name="photos_date_short">%1$d. %2$s</string>
+    <string-array name="photos_months">
+        <item>Januar</item><item>Februar</item><item>März</item><item>April</item>
+        <item>Mai</item><item>Juni</item><item>Juli</item><item>August</item>
+        <item>September</item><item>Oktober</item><item>November</item><item>Dezember</item>
+    </string-array>
+    <string-array name="photos_months_short">
+        <item>Jan.</item><item>Feb.</item><item>März</item><item>Apr.</item>
+        <item>Mai</item><item>Juni</item><item>Juli</item><item>Aug.</item>
+        <item>Sept.</item><item>Okt.</item><item>Nov.</item><item>Dez.</item>
+    </string-array>
+    <string-array name="photos_weekdays_short">
+        <item>Mo.</item><item>Di.</item><item>Mi.</item><item>Do.</item><item>Fr.</item><item>Sa.</item><item>So.</item>
+    </string-array>
+    <string name="photos_feed_search">Suchen</string>
+    <string name="photos_feed_settings">Einstellungen</string>
 </resources>

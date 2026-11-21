@@ -5,6 +5,7 @@ import org.tenshu.core.Data
 import org.tenshu.core.common.proxy.ExecutionContext
 import org.tenshu.core.entity.DataId
 import org.tenshu.core.entity.Entity
+import org.tenshu.core.time.HybridLogicalClock
 
 /**
  * Interface for implementing custom semantic merging logic for specific data types.
@@ -58,6 +59,30 @@ interface SemanticMerger {
         data: Data,
         isDead: (DataId) -> Boolean,
     ): Data = data
+
+    /**
+     * [data]'s entity was deleted at [point] (a tombstone's HLC) and **re-created after it**, so the
+     * entity itself survives the tombstone — but what it *contained* at [point] does not. Remove every
+     * member written at or before [point], through [ordering], and keep every member written after it.
+     * Default: a type with no members has nothing to remove.
+     *
+     * ⚠⚠ Without this a delete-then-recreate at the same key resurrects the old members on every peer
+     * that applies the tombstone after the re-create (incident 2026-11-20: `rm -rf` + `rsync` of a
+     * folder through the macOS File Provider). The deleting device cascades locally and emits **one**
+     * tombstone, for the container (ADR 0006 #7); peers replay that cascade only when the tombstone
+     * deletes something, and a superseded one deleted nothing — while the union [merge] had already
+     * listed the old members in the new container.
+     *
+     * Called by the sync ingest path, inside the tombstone's transaction, for an incoming tombstone
+     * whose target is present and newer than it. [ordering] gives each member's version and records a
+     * reap point before a member's delete, exactly as for a deleted container's subtree.
+     */
+    fun reapMembersDeletedAt(
+        executionContext: ExecutionContext,
+        data: Data,
+        point: HybridLogicalClock,
+        ordering: SubtreeReapOrdering,
+    ) = Unit
 }
 
 /**

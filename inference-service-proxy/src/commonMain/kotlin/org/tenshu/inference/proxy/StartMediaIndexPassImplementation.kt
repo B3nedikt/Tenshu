@@ -52,7 +52,9 @@ internal class StartMediaIndexPassImplementation(
         // the pass then starts, refuses every file, and reports success. Unreachable while only one
         // capability is offered, and live the day a second one is.
         val runnable = MEDIA_INDEX_CAPABILITIES.filter { registry.isAvailable(it) }
-        if (runnable.isEmpty()) {
+        // ⚠ Pets run through their own backend, not the registry (`photos-pets.md` PT-3).
+        val petsRunnable = indexer.petsRunHere()
+        if (runnable.isEmpty() && !petsRunnable) {
             refuse(
                 executionContext,
                 IndexPassRefused.Reasons.NO_BACKEND,
@@ -62,7 +64,8 @@ internal class StartMediaIndexPassImplementation(
 
         // ⚠ Asked of the capabilities this device can actually run, so the reason the user is
         // given names the switch that would change the answer.
-        val consented = runnable.any { executionContext.hasInferenceConsent(it, deviceId) }
+        val consented = runnable.any { executionContext.hasInferenceConsent(it, deviceId) } ||
+            (petsRunnable && executionContext.hasInferenceConsent(InferenceCapability.PET_RECOGNITION, deviceId))
         if (!consented) {
             refuse(
                 executionContext,

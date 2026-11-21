@@ -665,7 +665,7 @@ function Placeholder({ entry, cards }: { readonly entry: CarouselEntry; readonly
  * screenshots), or a neutral tile with the name's initial when the app has none. Decorative: the
  * name is always beside it.
  */
-function AppIcon({ icon, name, className }: { readonly icon: CarouselIcon | null; readonly name: string; readonly className: string }) {
+export function AppIcon({ icon, name, className }: { readonly icon: CarouselIcon | null; readonly name: string; readonly className: string }) {
   if (!icon) {
     return (
       <span className={`hub-icon hub-icon--fallback ${className}`} aria-hidden="true">

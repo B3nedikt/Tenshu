@@ -1,0 +1,10 @@
+# The toolchain `export-coreml-pets.py` converts and self-checks Pets' two iOS models with (`photos-pets.md`
+# PT-4), and refuses to run outside of. Python 3.13.
+# ⚠ torch 2.7.0 is the newest torch coremltools 9.0 was tested with; rfdetr 1.8.3 is the detector export's.
+coremltools==9.0
+torch==2.7.0
+torchvision==0.22.0
+rfdetr==1.8.3
+transformers==5.23.0
+numpy==2.3.5
+pillow==13.0.0

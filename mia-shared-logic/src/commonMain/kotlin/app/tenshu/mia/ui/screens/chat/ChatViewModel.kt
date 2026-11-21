@@ -132,7 +132,7 @@ class ChatViewModel(
 
     /** "20:00 instead?" on a card (§25, CL-D6). ⚠ Never writes: the card is replaced by a new one. */
     fun alternative(card: MessageBody.Confirmation, choice: MessageBody.Choice) {
-        if (_uiState.value.replying || card.done || card.replaced) return
+        if (_uiState.value.replying || card.spent) return
         if (_uiState.value.listening) voice?.stop()
         viewModelScope.launch { repository.alternative(card.token, choice.label, choice.reply) }
     }

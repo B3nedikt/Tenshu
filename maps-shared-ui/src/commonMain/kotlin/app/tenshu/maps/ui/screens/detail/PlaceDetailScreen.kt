@@ -58,6 +58,7 @@ import app.tenshu.maps.ui.components.PhotoStrip
 import app.tenshu.maps.ui.components.SavedToggle
 import app.tenshu.maps.ui.components.VisitHistory
 import app.tenshu.maps.ui.text.mediumDateText
+import app.tenshu.ui.format.LocaleNumbers
 import app.tenshu.ui.theme.spacing
 import kotlin.math.roundToInt
 import kotlinx.datetime.LocalDate
@@ -347,19 +348,13 @@ private fun OfflineOfferRow(
                 !resident && !downloading -> Text(
                     // The size is the point: the map already works, so the user is buying independence
                     // from the network at a real cost in disk + data.
-                    text = stringResource(Res.string.maps_offline_keep_hint, formatRegionSize(offer.byteSize)),
+                    text = stringResource(Res.string.maps_offline_keep_hint, LocaleNumbers.bytes(offer.byteSize)),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
     }
-}
-
-/** Coarse, honest size for a region bundle — GB above 1024 MB, else whole MB. */
-private fun formatRegionSize(bytes: Long): String {
-    val mib = bytes / (1024.0 * 1024.0)
-    return if (mib >= 1024.0) "${kotlin.math.round(mib / 1024.0 * 10) / 10.0} GB" else "${mib.toLong()} MB"
 }
 
 @Composable

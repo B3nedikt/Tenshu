@@ -274,7 +274,7 @@ struct RecordView: View {
     private func summaryStats(_ w: Workout) -> some View {
         let bpm = w.avgHr.map { "\($0.intValue)" } ?? "—"
         let maxBpm = w.maxHr.map { "\($0.intValue)" } ?? "—"
-        let steps = w.steps.map { "\($0.intValue)" } ?? "—"
+        let steps = w.steps.map { FitUnitFormat.number($0.intValue) } ?? "—"
         return VStack(spacing: 12) {
             HStack {
                 summaryStat(FitUnitFormat.duration(Int(w.durationSec)), "duration")

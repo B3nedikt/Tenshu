@@ -255,6 +255,66 @@ class PhotosIndexingSectionTest {
         assertEquals("1,310 of 1,310 photos on this iPhone can be searched.", line(StoredIndex(1_310, clearedByOsUpdate = true), IndexCoverage(1_310, 0)))
     }
 
+    /**
+     * ⚠⚠ Search off, pets on (the iPhone pass, `photos-pets.md` §10.18): the stored index is search's
+     * store, untouched by a pets pass, so *0 of 113 … can be searched* after a pass that found every
+     * pet read as a pass that did nothing. Only the pass's reach is said, and the prompt promises
+     * no search.
+     */
+    @Test
+    fun withSearchOffTheSectionPromisesNoSearch() {
+        val pets = InferenceCapability.PET_RECOGNITION
+        val detector = HeldModel("pets", "Pets", 1, onDeviceBytes = 90_000_000, licence = "Apache-2.0")
+        val both = ModelsAvailability.Listed(
+            ModelsAvailability.Catalog.READ, ModelsAvailability.Downloads.KNOWN,
+            listOf(
+                ModelRow("siglip", "SigLIP", ModelSetup.Held(model, ModelSetup.Standing.Ready, ModelSetup.Update.None)),
+                ModelRow("pets", "Pets", ModelSetup.Held(detector, ModelSetup.Standing.Ready, ModelSetup.Update.None)),
+            ),
+        )
+        fun petsOnly(change: (ModelsUiState) -> ModelsUiState = { it }) = section(
+            change(
+                ModelsUiState(
+                    capabilities = OnDeviceModelsCapabilities.copy(
+                        features = listOf(search, pets),
+                        modelFeatures = mapOf("siglip" to search, "pets" to pets),
+                    ),
+                    availability = both,
+                    consents = listOf(CapabilityConsent(search, realm = false, device = false), CapabilityConsent(pets, realm = true, device = true)),
+                    consentsRead = true,
+                ),
+            ),
+        )
+
+        val idle = petsOnly()
+        assertEquals("Index your photos for \"${copy.PETS_FEATURE}\".", idle.status)
+        assertEquals(listOf(Kind.INDEX_NOW), idle.kinds)
+        // The device's line: what the pass can look at, never search's empty store.
+        assertEquals(
+            "113 photos on this iPhone can be indexed.",
+            petsOnly { it.copy(storedIndex = StoredIndex(0), coverage = IndexCoverage(113, 0)) }.status,
+        )
+        assertEquals(
+            "113 photos on this iPhone can be indexed.",
+            petsOnly { it.copy(storedIndex = StoredIndex(0), coverage = IndexCoverage(113, 0), foregroundIndex = Stopped(Stopped.Why.LEFT_THE_APP)) }.coverage,
+        )
+        // ⚠ Nor the update's line: that is search's index too.
+        assertEquals(idle, petsOnly { it.copy(storedIndex = StoredIndex(0, clearedByOsUpdate = true)) })
+        for (s in listOf(idle, petsOnly { it.copy(storedIndex = StoredIndex(0), coverage = IndexCoverage(113, 0)) })) {
+            assertFalse("search" in (s.status + s.coverage).lowercase(), "search promised with search off: $s")
+        }
+
+        // Search switched on beside pets: its count again.
+        val withSearch = petsOnly {
+            it.copy(
+                consents = listOf(CapabilityConsent(search, realm = true, device = true), CapabilityConsent(pets, realm = true, device = true)),
+                storedIndex = StoredIndex(40),
+                coverage = IndexCoverage(113, 0),
+            )
+        }
+        assertEquals("40 of 113 photos on this iPhone can be searched.", withSearch.status)
+    }
+
     // ─── The repository behind it ────────────────────────────────────────────────────────────
 
     private class Index : OnDeviceIndexSource {

@@ -31,9 +31,15 @@
         android:label="@string/app_name"
         android:theme="@style/AppTheme">
 
+        <!-- ⚠⚠ adjustResize, declared. Left unspecified, Android picks per focus event, and after the
+             keyboard was hidden and reopened it PANNED the edge-to-edge window up on top of the
+             chat's imePadding(): the composer floated half a screen above the keyboard and the
+             thread slid under the status bar (mia-query-layer.md §25.13). With adjustResize the
+             system only delivers the IME inset, and imePadding() is the one thing that applies it. -->
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

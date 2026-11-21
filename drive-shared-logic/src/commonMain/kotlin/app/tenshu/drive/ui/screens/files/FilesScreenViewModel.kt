@@ -156,8 +156,8 @@ class FilesScreenViewModel(
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /**
-     * ⭐ CR-2 B4 P3 (`content-plane-cr2-b4-spec.md` §2.4): the newest change-lost notice this run has
-     * not dismissed, shown once as a dismissable message — "<file> was deleted on another device while
+     * ⭐ CR-2 B4 P3 (`content-plane-cr2-b4-spec.md` §2.4): the newest change-lost notice no device has
+     * dismissed, shown once as a dismissable message — "<file> was deleted on another device while
      * your change was waiting". `null` ⇒ nothing to say.
      */
     val changeLost: StateFlow<ChangeLostModel?> =
@@ -166,7 +166,14 @@ class FilesScreenViewModel(
         }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    fun dismissChangeLost(id: String) = ChangeLostDismissals.dismiss(id)
+    /**
+     * Hidden at once from the in-memory set; the synced record is what keeps it hidden after a
+     * restart and on every other device (`control-central-notifications.md` §10 D1).
+     */
+    fun dismissChangeLost(id: String) {
+        ChangeLostDismissals.dismiss(id)
+        viewModelScope.launch { filesRepository.dismissChangeLost(id) }
+    }
 
     /**
      * "Sync now over cellular" — the escape hatch on the [SyncBannerState.Deferred] banner

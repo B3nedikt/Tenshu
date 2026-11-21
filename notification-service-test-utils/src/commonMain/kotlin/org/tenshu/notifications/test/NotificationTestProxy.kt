@@ -2,6 +2,7 @@ package org.tenshu.notifications.test
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.test.TestScope
 import org.tenshu.core.common.TestProxy
 import org.tenshu.notifications.proxy.initNotificationService
 import org.tenshu.notifications.proxy.notificationServiceProxyImplementationFactory
@@ -19,5 +20,10 @@ fun createNotificationProxy(coroutineScope: CoroutineScope = CoroutineScope(Disp
         // on every saved `Notification`. Without it, `SendNotification`'s
         // `saveData` lands the entity in the DB but never in the relation,
         // so notification streams return nothing.
-        it.executionContext.initNotificationService()
+        // Retention passes ride the test's scheduler, so `advanceUntilIdle` waits for them.
+        it.executionContext.initNotificationService(
+            // No sync in this proxy: a prune is local, which is all there is.
+            tombstoneEmitterHolder = null,
+            retentionScope = (coroutineScope as? TestScope)?.backgroundScope ?: coroutineScope,
+        )
     }

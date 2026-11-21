@@ -48,7 +48,9 @@ object PinnedServiceVersions {
         "tenshu/hub/management/service" to 1,
         // v2: `DeviceRecord` + membership records, MR-3's `Member` reshape (`sync-entity-identity.md` §5b R6).
         "tenshu/identity" to 2,
-        "tenshu/inference/service" to 1,
+        // v2: the four pet operations (Pets PT-3b, `photos-pets.md` §10.10); empty migration step.
+        // v3: `peopleIndexChanges`, People & pets' revision stream (`photos-pets.md` §10.19); empty step.
+        "tenshu/inference/service" to 3,
         "tenshu/ingest/service" to 1,
         "tenshu/logging/service" to 1,
         "tenshu/mapRegion/service" to 1,

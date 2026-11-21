@@ -40,6 +40,60 @@ import app.tenshu.calendar.ui.ExternalCopyStep
 import app.tenshu.calendar.ui.ExternalCopyViewModel
 import app.tenshu.calendar.ui.MirroredSource
 import app.tenshu.calendar.ui.external.DeviceCalendarAccess
+import app.tenshu.calendar.shared.resources.Res
+import app.tenshu.calendar.shared.resources.calendar_back
+import app.tenshu.calendar.shared.resources.calendar_cancel
+import app.tenshu.calendar.shared.resources.calendar_copied_all
+import app.tenshu.calendar.shared.resources.calendar_copied_empty
+import app.tenshu.calendar.shared.resources.calendar_copied_some
+import app.tenshu.calendar.shared.resources.calendar_copied_up_to_date
+import app.tenshu.calendar.shared.resources.calendar_copy_add_account
+import app.tenshu.calendar.shared.resources.calendar_copy_already_elsewhere
+import app.tenshu.calendar.shared.resources.calendar_copy_already_here
+import app.tenshu.calendar.shared.resources.calendar_copy_copied_before
+import app.tenshu.calendar.shared.resources.calendar_copy_copying
+import app.tenshu.calendar.shared.resources.calendar_copy_denied
+import app.tenshu.calendar.shared.resources.calendar_copy_failed
+import app.tenshu.calendar.shared.resources.calendar_copy_keep_in_sync
+import app.tenshu.calendar.shared.resources.calendar_copy_keep_in_sync_beside_copy
+import app.tenshu.calendar.shared.resources.calendar_copy_keep_in_sync_detail
+import app.tenshu.calendar.shared.resources.calendar_copy_new
+import app.tenshu.calendar.shared.resources.calendar_copy_none
+import app.tenshu.calendar.shared.resources.calendar_copy_not_synced
+import app.tenshu.calendar.shared.resources.calendar_copy_nothing
+import app.tenshu.calendar.shared.resources.calendar_copy_on_device
+import app.tenshu.calendar.shared.resources.calendar_copy_once
+import app.tenshu.calendar.shared.resources.calendar_copy_once_new
+import app.tenshu.calendar.shared.resources.calendar_copy_once_update
+import app.tenshu.calendar.shared.resources.calendar_copy_pick_once
+import app.tenshu.calendar.shared.resources.calendar_copy_pick_sync
+import app.tenshu.calendar.shared.resources.calendar_copy_reading
+import app.tenshu.calendar.shared.resources.calendar_copy_remind_too
+import app.tenshu.calendar.shared.resources.calendar_copy_remind_too_detail
+import app.tenshu.calendar.shared.resources.calendar_copy_take_over
+import app.tenshu.calendar.shared.resources.calendar_copy_take_over_detail
+import app.tenshu.calendar.shared.resources.calendar_copy_title
+import app.tenshu.calendar.shared.resources.calendar_copy_unreadable
+import app.tenshu.calendar.shared.resources.calendar_copy_update_now
+import app.tenshu.calendar.shared.resources.calendar_copy_update_now_detail
+import app.tenshu.calendar.shared.resources.calendar_done
+import app.tenshu.calendar.shared.resources.calendar_events_one
+import app.tenshu.calendar.shared.resources.calendar_events_other
+import app.tenshu.calendar.shared.resources.calendar_events_skipped_one
+import app.tenshu.calendar.shared.resources.calendar_events_skipped_other
+import app.tenshu.calendar.shared.resources.calendar_mirror_note_elsewhere
+import app.tenshu.calendar.shared.resources.calendar_mirror_note_here
+import app.tenshu.calendar.shared.resources.calendar_mirrored_empty
+import app.tenshu.calendar.shared.resources.calendar_mirrored_pending
+import app.tenshu.calendar.shared.resources.calendar_mirrored_synced
+import app.tenshu.calendar.shared.resources.calendar_quoted
+import app.tenshu.calendar.shared.resources.calendar_sync_failed
+import app.tenshu.calendar.ui.external.DeviceKind
+import app.tenshu.calendar.ui.external.permissionHint
+import app.tenshu.calendar.ui.external.syncCadence
+import app.tenshu.calendar.ui.external.word
+import app.tenshu.calendar.ui.i18n.countOf
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * *Copy from this phone* (`calendar-external-sources.md` CX-1): the calendars the OS already
@@ -63,16 +117,16 @@ fun ExternalCopySheet(viewModel: ExternalCopyViewModel, access: DeviceCalendarAc
             Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text("Copy from this ${access.deviceName}", style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(Res.string.calendar_copy_title, access.deviceKind.word()), style = MaterialTheme.typography.titleLarge)
 
             when (val step = state.step) {
                 ExternalCopyStep.Closed -> Unit
-                ExternalCopyStep.Loading -> Working("Reading this ${access.deviceName}'s calendars…")
+                ExternalCopyStep.Loading -> Working(stringResource(Res.string.calendar_copy_reading, access.deviceKind.word()))
                 is ExternalCopyStep.Choosing -> Chooser(step, viewModel, access)
                 is ExternalCopyStep.Deciding -> Decision(step, viewModel, access)
-                is ExternalCopyStep.Copying -> Working("Copying “${step.calendar.name}”…")
+                is ExternalCopyStep.Copying -> Working(stringResource(Res.string.calendar_copy_copying, step.calendar.name))
                 is ExternalCopyStep.Done -> Finished(step.result.message(), viewModel)
-                is ExternalCopyStep.Mirrored -> Finished(mirroredMessage(step, access.deviceName), viewModel)
+                is ExternalCopyStep.Mirrored -> Finished(mirroredMessage(step, access.deviceKind), viewModel)
                 is ExternalCopyStep.Failed -> Finished(step.problem.message(access), viewModel)
             }
         }
@@ -102,11 +156,9 @@ private fun Chooser(
     // expected a live calendar must not find out a week later.
     Text(
         if (viewModel.canKeepInSync) {
-            "Pick a calendar to bring into Tenshu. Next you choose whether to copy it once or " +
-                "keep it in sync."
+            stringResource(Res.string.calendar_copy_pick_sync)
         } else {
-            "Pick a calendar to copy into Tenshu. It is copied once — changes made later in the " +
-                "other app are not."
+            stringResource(Res.string.calendar_copy_pick_once)
         },
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -114,8 +166,7 @@ private fun Chooser(
 
     if (accounts.isEmpty()) {
         Text(
-            "There are no calendars on this ${access.deviceName} yet. Add your Google or work account, let it " +
-                "sync, then come back here.",
+            stringResource(Res.string.calendar_copy_none, access.deviceKind.word()),
             style = MaterialTheme.typography.bodyLarge,
         )
     } else {
@@ -123,7 +174,7 @@ private fun Chooser(
             accounts.forEach { account ->
                 item(key = "account:${account.accountType}|${account.accountName}") {
                     Text(
-                        account.accountName.ifBlank { "On this ${access.deviceName}" },
+                        account.accountName.ifBlank { stringResource(Res.string.calendar_copy_on_device, access.deviceKind.word()) },
                         Modifier.padding(top = 12.dp, bottom = 4.dp),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary,
@@ -134,7 +185,7 @@ private fun Chooser(
                         calendar,
                         copiedInto = step.copiedInto[calendar.sourceKey],
                         mirrored = step.mirroredInto[calendar.sourceKey],
-                        deviceName = access.deviceName,
+                        deviceKind = access.deviceKind,
                     ) { viewModel.choose(calendar) }
                 }
             }
@@ -149,8 +200,8 @@ private fun Chooser(
                 viewModel.dismiss()
                 access.addAccount()
             },
-        ) { Text("Add an account") }
-        TextButton(onClick = viewModel::dismiss) { Text("Cancel") }
+        ) { Text(stringResource(Res.string.calendar_copy_add_account)) }
+        TextButton(onClick = viewModel::dismiss) { Text(stringResource(Res.string.calendar_cancel)) }
     }
 }
 
@@ -159,7 +210,7 @@ private fun CalendarRow(
     calendar: ExternalCalendar,
     copiedInto: String?,
     mirrored: MirroredSource?,
-    deviceName: String,
+    deviceKind: DeviceKind,
     onClick: () -> Unit,
 ) {
     val enabled = calendar.holdsEvents
@@ -187,14 +238,14 @@ private fun CalendarRow(
                 // cannot be copied rather than conclude it is missing.
                 when {
                     // ⚠ Android-only: EventKit has no visible-but-unsynced calendar.
-                    !enabled -> "Not synced to this phone — turn on sync for it in the account's settings"
+                    !enabled -> stringResource(Res.string.calendar_copy_not_synced)
                     // ⚠⚠ Before the copy line: a source a mirror already brings in must not read as
                     // new, or the user copies it and gets every event twice.
-                    mirrored != null -> mirroredNote(mirrored, deviceName)
+                    mirrored != null -> mirroredNote(mirrored, deviceKind)
                     // ⚠ *Copy once* again updates that calendar; "new" would make the user
                     // expect a duplicate.
-                    copiedInto != null -> "Copied before into “$copiedInto”"
-                    else -> "Bring into a new Tenshu calendar"
+                    copiedInto != null -> stringResource(Res.string.calendar_copy_copied_before, copiedInto)
+                    else -> stringResource(Res.string.calendar_copy_new)
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -217,49 +268,50 @@ private fun Decision(step: ExternalCopyStep.Deciding, viewModel: ExternalCopyVie
     // ⚠ A rebind keeps the mirror's own switch: starting from "off" would turn it off.
     var remind by remember(calendar) { mutableStateOf(mirrored?.remindersEnabled ?: false) }
 
-    Text("\u201C${calendar.name}\u201D", style = MaterialTheme.typography.titleMedium)
+    Text(stringResource(Res.string.calendar_quoted, calendar.name), style = MaterialTheme.typography.titleMedium)
 
     when {
         // ⚠⚠ No *Copy once* for a mirrored source — the view model refuses it too. A copy beside the
         // mirror would hold every event a second time.
         mirrored != null && mirrored.boundHere -> {
             Text(
-                "Already kept in sync from this ${access.deviceName}, in \u201C${mirrored.calendarName}\u201D.",
+                stringResource(Res.string.calendar_copy_already_here, access.deviceKind.word(), mirrored.calendarName),
                 style = MaterialTheme.typography.bodyMedium,
             )
             OptionRow(
-                title = "Update now",
-                detail = "Reads it again from this ${access.deviceName}.",
+                title = stringResource(Res.string.calendar_copy_update_now),
+                detail = stringResource(Res.string.calendar_copy_update_now_detail, access.deviceKind.word()),
                 onClick = { viewModel.keepInSync(calendar, remindersEnabled = remind) },
             )
         }
         mirrored != null -> {
             Text(
-                "Already kept in sync from another device, in \u201C${mirrored.calendarName}\u201D. " +
-                    "Its events are in Tenshu already.",
+                stringResource(Res.string.calendar_copy_already_elsewhere, mirrored.calendarName),
                 style = MaterialTheme.typography.bodyMedium,
             )
             OptionRow(
-                title = "Keep in sync from this ${access.deviceName} instead",
-                detail = "The same calendar, updated ${access.syncCadence} instead of from the other " +
-                    "device. Nothing is copied twice.",
+                title = stringResource(Res.string.calendar_copy_take_over, access.deviceKind.word()),
+                detail = stringResource(Res.string.calendar_copy_take_over_detail, access.deviceKind.syncCadence()),
                 onClick = { viewModel.keepInSync(calendar, remindersEnabled = remind) },
             )
         }
         else -> {
             OptionRow(
-                title = "Copy once",
-                detail = step.copiedInto?.let { "Updates your earlier copy, \u201C$it\u201D. Changes made later in the other app are not copied." }
-                    ?: "An editable copy in Tenshu. Changes made later in the other app are not copied.",
+                title = stringResource(Res.string.calendar_copy_once),
+                detail = step.copiedInto?.let { stringResource(Res.string.calendar_copy_once_update, it) }
+                    ?: stringResource(Res.string.calendar_copy_once_new),
                 onClick = { viewModel.copy(calendar) },
             )
             OptionRow(
-                title = "Keep in sync",
-                detail = "Read-only in Tenshu, and updated ${access.syncCadence}. It " +
-                    "stays up to date only while this ${access.deviceName} has the account." +
+                title = stringResource(Res.string.calendar_copy_keep_in_sync),
+                detail = stringResource(
+                    Res.string.calendar_copy_keep_in_sync_detail,
+                    access.deviceKind.syncCadence(),
+                    access.deviceKind.word(),
+                ) +
                     // ⚠ The copy is never turned into the mirror (its first refresh would sweep what
                     // the user added), so say that both will exist.
-                    (step.copiedInto?.let { " It is a new calendar: your copy \u201C$it\u201D stays, and you can delete it afterwards." } ?: ""),
+                    (step.copiedInto?.let { " " + stringResource(Res.string.calendar_copy_keep_in_sync_beside_copy, it) } ?: ""),
                 onClick = { viewModel.keepInSync(calendar, remindersEnabled = remind) },
             )
         }
@@ -270,24 +322,26 @@ private fun Decision(step: ExternalCopyStep.Deciding, viewModel: ExternalCopyVie
     ) {
         Checkbox(checked = remind, onCheckedChange = { remind = it })
         Column(Modifier.weight(1f)) {
-            Text("Also remind me from Tenshu", style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(Res.string.calendar_copy_remind_too), style = MaterialTheme.typography.bodyMedium)
             // ⚠ Off by default, and the copy says why (§5.7): reminders on would arrive twice.
             Text(
-                "For a kept-in-sync calendar. Your other calendar app already reminds you, so " +
-                    "this is usually off.",
+                stringResource(Res.string.calendar_copy_remind_too_detail),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
-    TextButton(onClick = viewModel::backToList) { Text("Back") }
+    TextButton(onClick = viewModel::backToList) { Text(stringResource(Res.string.calendar_back)) }
 }
 
 /** "Kept in sync from another device, in “Arbeit”" — the chooser row's line for a mirrored source. */
-private fun mirroredNote(mirrored: MirroredSource, deviceName: String): String {
-    val from = if (mirrored.boundHere) "this $deviceName" else "another device"
-    return "Kept in sync from $from, in \u201C${mirrored.calendarName}\u201D"
-}
+@Composable
+private fun mirroredNote(mirrored: MirroredSource, deviceKind: DeviceKind): String =
+    if (mirrored.boundHere) {
+        stringResource(Res.string.calendar_mirror_note_here, deviceKind.word(), mirrored.calendarName)
+    } else {
+        stringResource(Res.string.calendar_mirror_note_elsewhere, mirrored.calendarName)
+    }
 
 @Composable
 private fun OptionRow(title: String, detail: String, onClick: () -> Unit) {
@@ -301,19 +355,21 @@ private fun OptionRow(title: String, detail: String, onClick: () -> Unit) {
     }
 }
 
-private fun mirroredMessage(step: ExternalCopyStep.Mirrored, device: String): String {
-    val name = "\u201C${step.calendarName}\u201D"
+@Composable
+private fun mirroredMessage(step: ExternalCopyStep.Mirrored, deviceKind: DeviceKind): String {
+    val name = stringResource(Res.string.calendar_quoted, step.calendarName)
+    val device = deviceKind.word()
     return when (val outcome = step.outcome) {
         is MirrorRefreshOutcome.Synced -> {
             val total = outcome.result.written + outcome.result.unchanged
             val skipped = outcome.result.skipped
-            "$name is now kept in sync from this $device — ${count(total)} so far." +
-                if (skipped > 0) " ${count(skipped)} could not be read and were left out." else ""
+            stringResource(Res.string.calendar_mirrored_synced, name, device, count(total)) +
+                if (skipped > 0) " " + skippedEvents(skipped) else ""
         }
         is MirrorRefreshOutcome.NotApplied ->
-            "$name is now kept in sync from this $device. It has no events to show yet."
+            stringResource(Res.string.calendar_mirrored_empty, name, device)
         else ->
-            "$name is now kept in sync from this $device. Its events will arrive with the next update."
+            stringResource(Res.string.calendar_mirrored_pending, name, device)
     }
 }
 
@@ -321,7 +377,7 @@ private fun mirroredMessage(step: ExternalCopyStep.Mirrored, device: String): St
 private fun Finished(message: String, viewModel: ExternalCopyViewModel) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(message, style = MaterialTheme.typography.bodyLarge)
-        TextButton(onClick = viewModel::dismiss) { Text("Done") }
+        TextButton(onClick = viewModel::dismiss) { Text(stringResource(Res.string.calendar_done)) }
     }
 }
 
@@ -330,30 +386,34 @@ private fun Finished(message: String, viewModel: ExternalCopyViewModel) {
  * claiming "copied 412 events" again would make a user wonder whether they now have two of each;
  * skipped events are named, never swallowed (the CA-6 rule).
  */
+@Composable
 private fun ExternalCopyResult.message(): String {
-    val name = "“$calendarName”"
+    val name = stringResource(Res.string.calendar_quoted, calendarName)
     val main = when {
-        copied == 0 -> "$name has no events to copy yet. It was added, empty."
-        added == 0 -> "$name is up to date — ${count(copied)} checked, none new."
-        added < copied -> "Copied ${count(added)} into $name (${copied - added} were already there)."
-        else -> "Copied ${count(copied)} into $name."
+        copied == 0 -> stringResource(Res.string.calendar_copied_empty, name)
+        added == 0 -> stringResource(Res.string.calendar_copied_up_to_date, name, count(copied))
+        added < copied -> stringResource(Res.string.calendar_copied_some, count(added), name, copied - added)
+        else -> stringResource(Res.string.calendar_copied_all, count(copied), name)
     }
-    return if (skipped > 0) "$main ${count(skipped)} could not be read and were left out." else main
+    return if (skipped > 0) "$main ${skippedEvents(skipped)}" else main
 }
 
-private fun count(n: Int) = if (n == 1) "1 event" else "$n events"
+@Composable
+private fun count(n: Int) = countOf(n, Res.string.calendar_events_one, Res.string.calendar_events_other)
 
+@Composable
+private fun skippedEvents(n: Int) =
+    countOf(n, Res.string.calendar_events_skipped_one, Res.string.calendar_events_skipped_other)
+
+@Composable
 private fun ExternalCopyProblem.message(access: DeviceCalendarAccess): String = when (this) {
-    ExternalCopyProblem.PermissionDenied ->
-        "Calendar is not allowed to read this ${access.deviceName}'s calendars. You can allow it in " +
-            "${access.permissionHint}."
-    ExternalCopyProblem.Unreadable -> "This ${access.deviceName}'s calendars could not be read."
-    ExternalCopyProblem.NothingToCopy ->
-        "None of this calendar's events could be read, so nothing was copied."
-    ExternalCopyProblem.CopyFailed ->
-        "The events could not be saved. Check that Tenshu Control is set up and running, then " +
-            "try again."
-    ExternalCopyProblem.SyncFailed ->
-        "Keeping this calendar in sync could not start. Check that Tenshu Control is set up and " +
-            "running, then try again."
+    ExternalCopyProblem.PermissionDenied -> stringResource(
+        Res.string.calendar_copy_denied,
+        access.deviceKind.word(),
+        access.deviceKind.permissionHint(),
+    )
+    ExternalCopyProblem.Unreadable -> stringResource(Res.string.calendar_copy_unreadable, access.deviceKind.word())
+    ExternalCopyProblem.NothingToCopy -> stringResource(Res.string.calendar_copy_nothing)
+    ExternalCopyProblem.CopyFailed -> stringResource(Res.string.calendar_copy_failed)
+    ExternalCopyProblem.SyncFailed -> stringResource(Res.string.calendar_sync_failed)
 }

@@ -383,6 +383,7 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
                     embeddings = get(),
                     faces = get(),
                     arrivals = get(),
+                    pets = petTemplatesIfPetsRunHere(),
                 )
             },
             cryptoManager = get(),
@@ -403,7 +404,7 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
 
     single<SemanticMergerRegistry> {
         SemanticMergerRegistry().apply {
-            register(FolderMerger())
+            register(FolderMerger(fileDatabase = get<FileDatabase>()))
             register(DailyActivityMerger())
             // Calendar: the union of a series' deleted occurrences, and a
             // dismissal that a concurrent snooze cannot undo.
@@ -714,6 +715,26 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
         )
     }
 
+    // Pets PT-3 on macOS (`photos-pets.md` §2): the face path's ImageIO decode, RF-DETR and DINOv2-S
+    // on ORT. ⚠ Bound everywhere but AVAILABLE only where `MacFaces.runsHere` — Windows and Linux have
+    // no upright decoder here — and asked lazily, so no desktop starts up differently. ⚠ No catalog
+    // entry serves desktop yet (the detector's runtime is Android's): side-loaded models only.
+    single<org.tenshu.inference.proxy.PetBackend> {
+        val contentRoot = desktopContentRoot(get(named("platformPackageName")))
+        val pixel = org.tenshu.inference.proxy.PixelPetBackend(
+            decoder = MacFaces.Decoder,
+            detector = org.tenshu.inference.proxy.onnx.OnnxAnimalDetector(
+                locate = OnnxModelFiles.animalDetectorStoreLocator(get(), contentRoot),
+            ),
+            embedder = org.tenshu.inference.proxy.onnx.OnnxPetEmbedder(
+                locate = OnnxModelFiles.petEmbedderStoreLocator(get(), contentRoot),
+            ),
+        )
+        object : org.tenshu.inference.proxy.PetBackend by pixel {
+            override fun available(): Boolean = MacFaces.runsHere && pixel.available()
+        }
+    }
+
     // Server-side preview cache (`docs/tech-debt.md` §"File Previews Are
     // Regenerated From the Full File on Every Access"). Desktop's cache is
     // in-memory and process-lifetime only; Android wires the persistent
@@ -887,7 +908,7 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
                 },
             )
             initIdentityService()
-            initNotificationService()
+            initNotificationService(tombstoneEmitterHolder = emitterHolder)
             initTimelineService(mergerRegistry)
             initHealthService()
             // ⚠ The corroboration source is the timeline's moments (§10.12): a pair of adjacent
@@ -1355,6 +1376,10 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
                     // `ProxyModule`); while its clustering is `Uncalibrated`, `faceGroups`
                     // answers `UNCALIBRATED` rather than "nobody is here".
                     faceGrouping = get(),
+                    // Pets PT-3b: the pet ops over the SAME `pets.log` the indexer writes; absent where pets
+                    // cannot run, so there is no `petGroups` op rather than an empty one.
+                    petGrouping = petGroupingIfPetsRunHere(),
+                    petBackend = getOrNull(),
                 )
                 // Cross-app open (control-cross-app-open.md). ⭐ Unlike Android, Control
                 // launches AND raises here: macOS has no background-activity-launch rule and the

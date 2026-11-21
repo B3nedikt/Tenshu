@@ -148,6 +148,30 @@ class InferenceStoreCustodyTest {
         assertTrue(custody.usable())
     }
 
+    /**
+     * Pets PT-4b2: `pets.log` is keyed by path like the face templates, so it leaves with the realm too —
+     * on a change and on a relinquish — and ⚠ a graph that passes none clears nothing more.
+     */
+    @Test
+    fun petsLeaveWithTheRealm_onAChangeAndOnRelinquish() = runTest {
+        val petsPath = "/inference/pets.log"
+        fun pets() = DefaultFaceTemplateStore(disk, petsPath, DefaultFaceTemplateStore.PETS_MAGIC)
+        fun withPets() = InferenceStoreCustody(
+            files = disk, embeddings = embeddings(), faces = faces(), cancelPass = {},
+            readRealm = { realm?.let { RealmReading.Of(it) } ?: RealmReading.None }, pets = pets(),
+        )
+        assertTrue(withPets().ensureCurrentRealm())
+        assertTrue(pets().put("/a.jpg", listOf(face()), model))
+
+        realm = InferenceRealm("owner-b")
+        assertTrue(withPets().ensureCurrentRealm())
+        assertEquals(0, pets().size(), "another realm's pets are gone")
+
+        assertTrue(pets().put("/b.jpg", listOf(face()), model))
+        withPets().relinquish()
+        assertEquals(0, pets().size(), "and a relinquish takes them")
+    }
+
     @Test
     fun aMismatchStopsThePassBeforeItClears() = runTest {
         indexedForOwnerA()

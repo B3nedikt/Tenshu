@@ -18,6 +18,7 @@ import app.tenshu.photos.ui.navigation.Destination
 import app.tenshu.photos.ui.navigation.photosNavItems
 import app.tenshu.photos.ui.navigation.selectTop
 import app.tenshu.photos.ui.screens.feed.FeedDensity
+import app.tenshu.ui.layout.AdaptiveNavItem
 import app.tenshu.ui.layout.AdaptiveNavScaffold
 import app.tenshu.ui.navigation.KmpNavHost
 import app.tenshu.ui.navigation.kmpEntryProvider
@@ -40,9 +41,13 @@ class PhotosBarAndSettingsGearTest {
 
     @Test
     fun theBarIsPhotosCollections_andSettingsIsNoTab() {
-        val items = photosNavItems(Destination.Feed) {}
-        assertEquals(listOf("Photos", "Collections"), items.map { it.label })
-        assertEquals(listOf<Any>(Destination.Feed, Destination.Collections), items.map { it.key })
+        runDesktopComposeUiTest {
+            var items = emptyList<AdaptiveNavItem>()
+            setContent { items = photosNavItems(Destination.Feed) {} }
+            waitForIdle()
+            assertEquals(listOf("Photos", "Collections"), items.map { it.label })
+            assertEquals(listOf<Any>(Destination.Feed, Destination.Collections), items.map { it.key })
+        }
         // ⚠⚠ Not a TopLevel: a tab selection would clear the stack, and Back would leave the app.
         assertFalse((Destination.Settings as Destination) is Destination.TopLevel)
     }

@@ -119,6 +119,9 @@ targets:
         # reads. Only the exact string YES binds the face backend, and only over an admitted
         # on-device AI graph (the flag above AND its static gates); the setting below is NO.
         TenshuPhotosFaces: $(TENSHU_PHOTOS_FACES)
+        # Pets (`photos-pets.md` PT-4b2): the build flag `PhotosLocalRuntime.petsBuildFlag` reads. Only the
+        # exact string YES binds the pet backend, and only over an admitted on-device AI graph; NO below.
+        TenshuPhotosPets: $(TENSHU_PHOTOS_PETS)
         # *Index now* goes on after Photos is left (PIO-7 PR-7, `ios-on-device-inference.md` §15):
         # a `BGContinuedProcessingTask`, iOS 26+. ⚠ Only the wildcard is declared; each press
         # registers and submits `app.tenshu.photos.ios.indexnow.<uuid>`. ⚠ The base begins with the
@@ -148,6 +151,10 @@ targets:
         # after the flag above (FD10). It needs that flag too: alone it binds nothing. Try it with
         # `xcodebuild … TENSHU_PHOTOS_ON_DEVICE_AI=YES TENSHU_PHOTOS_FACES=YES`, never by editing this line.
         TENSHU_PHOTOS_FACES: "NO"
+        # ON since Pets' iOS device pass (`photos-pets.md` §10.18, 2026-11-20: the probe passes on an
+        # iPhone 17e's Neural Engine, real cats grouped). ⚠⚠ It still binds NOTHING alone: pets ride the
+        # on-device AI graph, so they reach a user only when TENSHU_PHOTOS_ON_DEVICE_AI flips (FD10).
+        TENSHU_PHOTOS_PETS: "YES"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_ENTITLEMENTS: Photos.entitlements
         TENSHU_SHARED_KEYCHAIN_GROUP: app.tenshu.shared

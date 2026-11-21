@@ -132,6 +132,18 @@ object PhotosLocalRuntime {
     ): Boolean = (raw as? String)?.trim() == "YES"
 
     /**
+     * Pets' build flag (`photos-pets.md` PT-4b2): `photos-ios/project.yml` writes `TENSHU_PHOTOS_PETS`, and
+     * that setting is `NO`. ⚠ Like faces', never a widening of the AI flag: it binds the pet backend only
+     * where the AI flag and both static gates already admitted the phone. Off until Pets' iOS device pass.
+     */
+    const val PETS_INFO_KEY: String = "TenshuPhotosPets"
+
+    /** Whether [raw], the Info.plist value, switches pets on. ⚠ Only the exact `YES`. */
+    internal fun petsBuildFlag(
+        raw: Any? = NSBundle.mainBundle.objectForInfoDictionaryKey(PETS_INFO_KEY),
+    ): Boolean = (raw as? String)?.trim() == "YES"
+
+    /**
      * A test's stand-in for the build flags and the phone the static gates read.
      *
      * @param facesBuildFlag the face flag; off unless a case says otherwise, as in production.
@@ -141,6 +153,8 @@ object PhotosLocalRuntime {
         val osMajorVersion: Int,
         val physicalMemoryBytes: Long,
         val facesBuildFlag: Boolean = false,
+        /** Pets' flag; off unless a case says otherwise, as in production. */
+        val petsBuildFlag: Boolean = false,
     )
 
     private val runtime = FirstPartyLocalRuntime(
@@ -232,6 +246,8 @@ object PhotosLocalRuntime {
             } else {
                 PhotosOnDeviceAi.facesAdmitted(onDeviceAiBuildFlag(), facesBuildFlag())
             }
+        // Pets: their own flag AND the AI admission — the same static gates (`photos-pets.md` PT-4b2).
+        val petsAdmitted: Boolean = aiAdmitted && (onDeviceAi?.petsBuildFlag ?: petsBuildFlag())
         // The one thing that makes this app, and no other, the device's inference owner.
         val ownedStores: Module = ownedInferenceStoresModule(
             root = ownedRoot,
@@ -246,7 +262,7 @@ object PhotosLocalRuntime {
             relayBaseUrl = relayBaseUrl,
             // ⚠ Not admitted: the very module this graph had before the flag existed.
             appOverrides = if (aiAdmitted) {
-                module { includes(listOfNotNull(ownedStores, photosOnDeviceAiModule(ownedRoot, faces = facesAdmitted), onDeviceAiOverrides)) }
+                module { includes(listOfNotNull(ownedStores, photosOnDeviceAiModule(ownedRoot, faces = facesAdmitted, pets = petsAdmitted), onDeviceAiOverrides)) }
             } else {
                 ownedStores
             },

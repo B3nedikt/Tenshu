@@ -450,6 +450,24 @@ class MockPhotosRepository(
     override suspend fun editedContentIds(): Set<String>? =
         all.filter { it.isEdited }.map { it.contentId }.toSet()
 
+    /**
+     * Pets PT-3d. ⚠ `null` by default — a repository that cannot ask, which is what an older Control
+     * looks like — so every existing People test sees no pets.
+     */
+    var petsOutcome: Pair<List<FaceGroup>, PeopleStatus>? = null
+
+    override suspend fun petGroups(limit: Int): Pair<List<FaceGroup>, PeopleStatus>? =
+        petsOutcome?.let { (groups, status) -> groups.take(limit) to status }
+
+    /** Every (paths, name) written as a PET — never mixed into [namedGroups], which are people. */
+    val namedPets = mutableListOf<Pair<List<String>, String>>()
+
+    override suspend fun namePetGroup(filePaths: List<String>, name: String): NamingOutcome {
+        if (namingOutcome != NamingOutcome.Saved) return namingOutcome
+        namedPets += filePaths to name
+        return NamingOutcome.Saved
+    }
+
     /** Every (paths, name) the caller asked to write, in order. */
     val namedGroups = mutableListOf<Pair<List<String>, String>>()
 

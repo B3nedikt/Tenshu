@@ -1,12 +1,15 @@
 package app.tenshu.contacts.ui.screens.list
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MergeType
 import androidx.compose.material.icons.filled.PersonAdd
@@ -44,6 +47,8 @@ import app.tenshu.ui.feedback.AppLoadingIndicator
 import app.tenshu.ui.feedback.ErrorBanner
 import app.tenshu.ui.input.AppShortcuts
 import app.tenshu.ui.input.keyboardShortcuts
+import app.tenshu.ui.layout.AppListDetailLayout
+import app.tenshu.contacts.ui.navigation.ContactPanes
 import app.tenshu.ui.layout.appContentWidth
 import app.tenshu.ui.theme.spacing
 import org.jetbrains.compose.resources.stringResource
@@ -58,6 +63,14 @@ import org.jetbrains.compose.resources.stringResource
  * ways of acquiring a contact. What this replaced — a title bar with two icon-button actions
  * and a text field filtering the list underneath — worked, but it was a second idiom for
  * surfaces the design system had already settled.
+ *
+ * ### List-detail
+ *
+ * With a [detailPane] (the shell passes one on Expanded-and-wider windows) the list sits in
+ * `AppListDetailLayout`'s fixed-width pane against the rail, and the rest of the window shows
+ * [selectedPersonId] — or, with nothing selected, the first contact ([ContactPanes.shownPersonId]
+ * says why). Without one, this is the one-screen list it always was, capped and centred by
+ * `appContentWidth`, and a tapped row navigates.
  */
 @Composable
 fun ContactListScreen(
@@ -66,9 +79,14 @@ fun ContactListScreen(
     onConfirmInvite: (String) -> Unit = {},
     onImport: () -> Unit = {},
     onReviewDuplicates: () -> Unit = {},
+    selectedPersonId: String? = null,
+    detailPane: (@Composable (personId: String) -> Unit)? = null,
 ) {
     val state by viewModel.uiState.collectAsState()
     val searchFocusRequester = remember { FocusRequester() }
+    // Hoisted above the narrow/wide branch: the two build different trees, so a state remembered
+    // inside the list would restart at the top every time the window crossed the breakpoint.
+    val listState = rememberLazyListState()
 
     if (state.addingContact) {
         // D5: manual entry is not a third acquisition path — it is a petname and no key, so
@@ -85,109 +103,176 @@ fun ContactListScreen(
         )
     }
 
-    Box(
-        // Ctrl+F / Cmd+F, from `:ui-core`'s shortcut catalogue — the same binding Drive's
-        // Files screen carries, so the gesture transfers between apps.
-        modifier = Modifier.fillMaxSize().keyboardShortcuts(
-            AppShortcuts.focusSearch {
-                viewModel.onSearchActiveChange(true)
-                runCatching { searchFocusRequester.requestFocus() }
+    val shownPersonId = detailPane?.let {
+        ContactPanes.shownPersonId(selectedPersonId, state.contacts.map { it.personId }, state.loaded)
+    }
+
+    // Ctrl+F / Cmd+F, from `:ui-core`'s shortcut catalogue — the same binding Drive's Files
+    // screen carries, so the gesture transfers between apps. On the root, not the list pane, so
+    // it still fires while focus is in the detail pane beside it.
+    val shortcuts = Modifier.fillMaxSize().keyboardShortcuts(
+        AppShortcuts.focusSearch {
+            viewModel.onSearchActiveChange(true)
+            runCatching { searchFocusRequester.requestFocus() }
+        },
+    )
+
+    if (detailPane == null) {
+        Box(shortcuts, contentAlignment = Alignment.TopCenter) {
+            ContactListPane(
+                state = state,
+                viewModel = viewModel,
+                // ⚠ BEFORE the fill — `ContentWidthOrderTest`.
+                columnModifier = Modifier.appContentWidth().fillMaxSize(),
+                listState = listState,
+                shownPersonId = null,
+                searchFocusRequester = searchFocusRequester,
+                onOpenContact = onOpenContact,
+                onConfirmInvite = onConfirmInvite,
+                onImport = onImport,
+                onReviewDuplicates = onReviewDuplicates,
+            )
+        }
+    } else {
+        AppListDetailLayout(
+            modifier = shortcuts,
+            list = {
+                Box(Modifier.fillMaxSize()) {
+                    ContactListPane(
+                        state = state,
+                        viewModel = viewModel,
+                        columnModifier = Modifier.fillMaxSize(),
+                        listState = listState,
+                        shownPersonId = shownPersonId,
+                        searchFocusRequester = searchFocusRequester,
+                        onOpenContact = onOpenContact,
+                        onConfirmInvite = onConfirmInvite,
+                        onImport = onImport,
+                        onReviewDuplicates = onReviewDuplicates,
+                    )
+                }
             },
-        ),
-        contentAlignment = Alignment.TopCenter,
-    ) {
-        Column(Modifier.appContentWidth().fillMaxSize()) {
-            ContactSearchBar(
-                query = state.query,
-                onQueryChange = viewModel::onQueryChange,
-                active = state.searchActive,
-                onActiveChange = viewModel::onSearchActiveChange,
-                results = state.searchResults,
-                isEmptySearch = state.isEmptySearch,
-                onResultClicked = { personId ->
-                    // Collapse as we hand off, so the full-screen results do not stay on top
-                    // of the contact the user just opened.
-                    viewModel.onSearchActiveChange(false)
-                    onOpenContact(personId)
+            // Nothing to show (still loading, or no contacts at all): the list pane's own
+            // spinner or empty state is the whole story, and a second one beside it would only
+            // repeat it.
+            detail = { shownPersonId?.let { detailPane(it) } },
+        )
+    }
+}
+
+/**
+ * The list itself — search bar, banners, rows and the FAB — inside the caller's `Box`, so the
+ * FAB lands bottom-end of the list pane in list-detail rather than over the contact beside it.
+ */
+@Composable
+private fun BoxScope.ContactListPane(
+    state: ContactListUiState,
+    viewModel: ContactListViewModel,
+    columnModifier: Modifier,
+    listState: LazyListState,
+    shownPersonId: String?,
+    searchFocusRequester: FocusRequester,
+    onOpenContact: (String) -> Unit,
+    onConfirmInvite: (String) -> Unit,
+    onImport: () -> Unit,
+    onReviewDuplicates: () -> Unit,
+) {
+    Column(columnModifier) {
+        ContactSearchBar(
+            query = state.query,
+            onQueryChange = viewModel::onQueryChange,
+            active = state.searchActive,
+            onActiveChange = viewModel::onSearchActiveChange,
+            results = state.searchResults,
+            isEmptySearch = state.isEmptySearch,
+            onResultClicked = { personId ->
+                // Collapse as we hand off, so the full-screen results do not stay on top
+                // of the contact the user just opened.
+                viewModel.onSearchActiveChange(false)
+                onOpenContact(personId)
+            },
+            inputFocusRequester = searchFocusRequester,
+        )
+
+        state.errorCopyKey?.let { key -> ErrorBanner(key.contactsLabel()) }
+
+        // Somebody accepted an invitation and is waiting to be saved. This sits above the
+        // list — including above the empty state, since the very first contact often
+        // arrives exactly this way, and a "No contacts yet" screen with a pending
+        // confirmation hidden below it would be actively misleading.
+        state.pendingConfirmations.forEach { confirmation ->
+            AppListItem(
+                headline = stringResource(
+                    Res.string.contacts_confirm_banner,
+                    confirmation.claimedName.ifBlank {
+                        stringResource(Res.string.contacts_confirm_unnamed)
+                    },
+                ),
+                supportingText = stringResource(Res.string.contacts_confirm_banner_action),
+                onClick = { onConfirmInvite(confirmation.inviteId) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ListItemDefaults.colors(
+                    // Accented, not ghosted: this is the only row demanding action, and
+                    // `drive-manage-access-ux.md` §10.2's ramp says it must pop.
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                ),
+                leadingContent = {
+                    Icon(Icons.Default.PersonAdd, contentDescription = null)
                 },
-                inputFocusRequester = searchFocusRequester,
+            )
+        }
+
+        // Ph9: a quiet, dismissable-by-fixing prompt rather than a tab. It is absent for
+        // almost everyone almost always, and it sits BELOW the invite confirmations —
+        // somebody waiting to be saved is the more urgent of the two.
+        if (state.duplicateCount > 0) {
+            AppListItem(
+                headline = stringResource(
+                    Res.string.contacts_merge_banner,
+                    state.duplicateCount,
+                ),
+                supportingText = stringResource(Res.string.contacts_merge_banner_action),
+                onClick = onReviewDuplicates,
+                modifier = Modifier.fillMaxWidth(),
+                leadingContent = { Icon(Icons.AutoMirrored.Filled.MergeType, contentDescription = null) },
+            )
+        }
+
+        when {
+            !state.loaded -> AppLoadingIndicator(Modifier.padding(MaterialTheme.spacing.xxl))
+
+            state.isEmpty -> AppEmptyState(
+                title = stringResource(Res.string.contacts_list_empty_title),
+                body = stringResource(Res.string.contacts_list_empty_body),
+                icon = Icons.Outlined.PersonOutline,
+                // Now that manual add is real, the empty state can do something about
+                // itself rather than only describing the situation.
+                actionLabel = stringResource(Res.string.contacts_add_title),
+                onAction = viewModel::onAddClicked,
             )
 
-            state.errorCopyKey?.let { key -> ErrorBanner(key.contactsLabel()) }
-
-            // Somebody accepted an invitation and is waiting to be saved. This sits above the
-            // list — including above the empty state, since the very first contact often
-            // arrives exactly this way, and a "No contacts yet" screen with a pending
-            // confirmation hidden below it would be actively misleading.
-            state.pendingConfirmations.forEach { confirmation ->
-                AppListItem(
-                    headline = stringResource(
-                        Res.string.contacts_confirm_banner,
-                        confirmation.claimedName.ifBlank {
-                            stringResource(Res.string.contacts_confirm_unnamed)
-                        },
-                    ),
-                    supportingText = stringResource(Res.string.contacts_confirm_banner_action),
-                    onClick = { onConfirmInvite(confirmation.inviteId) },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ListItemDefaults.colors(
-                        // Accented, not ghosted: this is the only row demanding action, and
-                        // `drive-manage-access-ux.md` §10.2's ramp says it must pop.
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    ),
-                    leadingContent = {
-                        Icon(Icons.Default.PersonAdd, contentDescription = null)
-                    },
-                )
-            }
-
-            // Ph9: a quiet, dismissable-by-fixing prompt rather than a tab. It is absent for
-            // almost everyone almost always, and it sits BELOW the invite confirmations —
-            // somebody waiting to be saved is the more urgent of the two.
-            if (state.duplicateCount > 0) {
-                AppListItem(
-                    headline = stringResource(
-                        Res.string.contacts_merge_banner,
-                        state.duplicateCount,
-                    ),
-                    supportingText = stringResource(Res.string.contacts_merge_banner_action),
-                    onClick = onReviewDuplicates,
-                    modifier = Modifier.fillMaxWidth(),
-                    leadingContent = { Icon(Icons.AutoMirrored.Filled.MergeType, contentDescription = null) },
-                )
-            }
-
-            when {
-                !state.loaded -> AppLoadingIndicator(Modifier.padding(MaterialTheme.spacing.xxl))
-
-                state.isEmpty -> AppEmptyState(
-                    title = stringResource(Res.string.contacts_list_empty_title),
-                    body = stringResource(Res.string.contacts_list_empty_body),
-                    icon = Icons.Outlined.PersonOutline,
-                    // Now that manual add is real, the empty state can do something about
-                    // itself rather than only describing the situation.
-                    actionLabel = stringResource(Res.string.contacts_add_title),
-                    onAction = viewModel::onAddClicked,
-                )
-
-                else -> LazyColumn(Modifier.fillMaxSize()) {
-                    items(state.contacts, key = { it.personId }) { contact ->
-                        ContactRow(contact = contact, onClick = { onOpenContact(contact.personId) })
-                    }
+            else -> LazyColumn(Modifier.fillMaxSize(), state = listState) {
+                items(state.contacts, key = { it.personId }) { contact ->
+                    ContactRow(
+                        contact = contact,
+                        onClick = { onOpenContact(contact.personId) },
+                        // `null` when no row can be selected — see `ContactRow`.
+                        selected = shownPersonId?.let { it == contact.personId },
+                    )
                 }
             }
         }
-
-        AddContactFab(
-            modifier = Modifier.align(Alignment.BottomEnd).appFabInset(),
-            sheetVisible = state.actionsSheetVisible,
-            onClicked = viewModel::onAddActionsClicked,
-            onDismissed = viewModel::onAddActionsDismissed,
-            onAddByHand = viewModel::onAddClicked,
-            onImport = {
-                viewModel.onAddActionsDismissed()
-                onImport()
-            },
-        )
     }
+
+    AddContactFab(
+        modifier = Modifier.align(Alignment.BottomEnd).appFabInset(),
+        sheetVisible = state.actionsSheetVisible,
+        onClicked = viewModel::onAddActionsClicked,
+        onDismissed = viewModel::onAddActionsDismissed,
+        onAddByHand = viewModel::onAddClicked,
+        onImport = {
+            viewModel.onAddActionsDismissed()
+            onImport()
+        },
+    )
 }

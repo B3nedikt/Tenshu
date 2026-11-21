@@ -8931,8 +8931,9 @@ graph are completed at once with `false`; a graph torn down under a live task co
 6. **The progress during the walk is `0 of 0`** (the holder's placeholder until the indexer knows
    the total). Whether the system reads an indeterminate progress over a long walk as a stall is 📱
    (§15.6).
-7. **Copy placeholders (M11):** the request's title *"Indexing your photos"* and subtitle *"So you can
-   search them by what's in them"* (`PhotosIndexNowTask`). The section's running line said
+7. **Copy placeholders (M11):** the request's title *"Indexing your photos"* and subtitle *"So Photos can
+   find what's in them"* (`PhotosIndexNowTask`; it said *search*, false for a pets-only pass —
+   `photos-pets.md` §10.18). The section's running line said
    *"Keep Photos open. Indexing stops when you leave."*, which was wrong on iOS 26 when a task was
    accepted: Q2, ✅ done (§14.18.16 item 15).
 8. **No `UIBackgroundModes` entry.** Nothing in the SDK's headers ties a continued-processing request

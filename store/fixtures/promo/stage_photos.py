@@ -23,7 +23,9 @@ The file's mtime is set to the capture date: Drive shows it as the file's date, 
 by it. Needs `sips` (macOS) and `exiftool`.
 
 ⚠ Nothing here is ever committed (build/ is gitignored), and the photos are the maintainer's own:
-the review sheets exist so a person on a photo is caught before it reaches a realm or a video.
+the review sheets exist so a person on a photo is caught before it reaches a realm or a video. The
+only faces allowed are the generated people's albums (docs/proposals/store-screenshot-stories.md
+§4.1a); a generated image has no capture date, so give it an mtime before staging.
 """
 import argparse
 import os

@@ -138,6 +138,9 @@ class CoreMlCompiledModels(
             ModelArtifactRole.VISION -> CoreMlTowerSpec.vision(model)
             ModelArtifactRole.TEXT -> CoreMlTowerSpec.text(model)
             ModelArtifactRole.FACE_EMBEDDER -> CoreMlTowerSpec.faceEmbedder(face)
+            // Pets PT-4b: the two models of `export-coreml-pets.py`.
+            ModelArtifactRole.PET_EMBEDDER -> CoreMlTowerSpec.petEmbedder()
+            ModelArtifactRole.ANIMAL_DETECTOR -> CoreMlTowerSpec.animalDetector()
             else -> throw CoreMlPrepareException("'$role' is not a tower")
         }
         // ⚠⚠ [proceed] before EVERY step, the marker's included.

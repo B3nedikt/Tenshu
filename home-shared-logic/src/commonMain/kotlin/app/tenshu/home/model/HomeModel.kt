@@ -1,5 +1,6 @@
 package app.tenshu.home.model
 
+import org.tenshu.core.common.format.LocaleNumbers
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
@@ -112,8 +113,16 @@ data class Device(
  * Formats a byte count for the storage row — "618 GB", "1 TB", "412 MB". Decimal units
  * (matching how storage products are sold), one decimal only when it adds signal.
  * Unit suffixes stay code-side like Timeline's "km" (punctuation-grade, ADR 0016 n=1).
+ *
+ * ⚠ The deliberate exception to the binary `formatStorageBytes`: this is the hub's own disk, a
+ * piece of hardware read as its label reads, never set beside a plan figure. The digits still
+ * follow the locale — "2,5 TB" in German (`docs/proposals/locale-number-formatting.md`). The
+ * one-argument form (the one Swift reaches) uses the platform's current language.
  */
-fun formatByteSize(bytes: Long): String {
+fun formatByteSize(bytes: Long): String = formatByteSize(bytes, LocaleNumbers.defaultLanguageTag())
+
+/** [formatByteSize] in [languageTag]. */
+fun formatByteSize(bytes: Long, languageTag: String): String {
     if (bytes < 0) return "0 B"
     val units = listOf("B", "KB", "MB", "GB", "TB", "PB")
     var value = bytes.toDouble()
@@ -124,8 +133,8 @@ fun formatByteSize(bytes: Long): String {
     }
     val whole = value.toInt()
     val tenth = ((value - whole) * 10).toInt()
-    return if (unit == 0 || tenth == 0 || whole >= 10) "$whole ${units[unit]}"
-    else "$whole.$tenth ${units[unit]}"
+    return if (unit == 0 || tenth == 0 || whole >= 10) "${LocaleNumbers.integer(whole, languageTag)} ${units[unit]}"
+    else "${LocaleNumbers.decimal(whole + tenth / 10.0, 1, languageTag)} ${units[unit]}"
 }
 
 /**
@@ -145,9 +154,12 @@ fun formatAsOfTime(
     return if (local.date == today) time else "${local.date} $time"
 }
 
-/** Formats tenths-of-°C as "21.5°" — the thermostat row's compact reading. */
-fun formatDeciC(deciC: Int): String {
-    val whole = deciC / 10
-    val tenth = (if (deciC < 0) -deciC else deciC) % 10
-    return if (tenth == 0) "$whole°" else "$whole.$tenth°"
-}
+/**
+ * Formats tenths-of-°C as "21.5°" / "21,5°" — the thermostat row's compact reading, the tenth
+ * dropped when it is zero. The one-argument form (the one Swift reaches) uses the platform's
+ * current language.
+ */
+fun formatDeciC(deciC: Int): String = formatDeciC(deciC, LocaleNumbers.defaultLanguageTag())
+
+/** [formatDeciC] in [languageTag]. A tenth below zero keeps its sign: `-5` → "-0.5°". */
+fun formatDeciC(deciC: Int, languageTag: String): String = "${LocaleNumbers.upTo(deciC / 10.0, 1, languageTag)}°"

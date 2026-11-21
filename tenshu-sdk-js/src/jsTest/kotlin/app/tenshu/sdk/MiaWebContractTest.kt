@@ -220,12 +220,9 @@ class MiaWebContractTest : SdkRuntimeTest() {
         JsRuntime.awaitReady()
         val day = farDay()
         val now = day.plusDays(-1).atUtc(12)
-        // Granting the calendar write would make "add …" a confirmation on Android; the tab must
-        // still refuse it — the refusal is the runtime's, not the grant's.
-        val prefs = client.preferenceService
-        val write = MiaSource.CALENDAR.writePreference!!
-        assertOk(prefs.set(write, true), "grant calendar write")
-        try {
+        // The calendar grant is on (the default), so "add …" would be a confirmation on Android;
+        // the tab must still refuse it — the refusal is the runtime's, not the grant's.
+        run {
             // ⚠⚠ A device and a routine the utterances name, so each would resolve where actions are
             // offered: without them "no such device" is also a `noMatch`, and dropping WITHHELD stayed green.
             val seeded = MiaWithheldFixture.seed()
@@ -241,8 +238,6 @@ class MiaWebContractTest : SdkRuntimeTest() {
             val agenda = ok(Calendar.occurrences(day.toString(), day.toString(), false, "UTC"), "occurrences")
                 .occurrences.unsafeCast<Array<dynamic>>()
             assertTrue(agenda.none { it.title == seeded.eventTitle }, "no event was written")
-        } finally {
-            assertOk(prefs.clear(write), "restore")
         }
     }
 
@@ -418,11 +413,9 @@ class MiaWebContractTest : SdkRuntimeTest() {
         JsRuntime.awaitReady()
         val grants = ok(Mia.grants(), "grants").grants.unsafeCast<Array<dynamic>>()
         assertEquals(MiaSource.entries.map { it.name }, grants.map { it.source as String })
-        // Untouched (every test restores what it flips): reads on, the one write off, only Calendar
-        // has a write line at all.
+        // Untouched (every test restores what it flips): every source on, and one switch each.
         grants.forEach { assertEquals(true, it.read, it.source as String) }
-        assertEquals(false, grants.first { it.source == "CALENDAR" }.write)
-        assertTrue(grants.filter { it.source != "CALENDAR" }.all { it.write == null })
+        assertTrue(grants.all { it.write == undefined }, "no write switch survives (removed 2026-11-19)")
     }
 
     @Test
@@ -487,28 +480,13 @@ class MiaWebContractTest : SdkRuntimeTest() {
         assertTrue(title in titles(ask("workouts yesterday", now)), "switched on again, the next question answers")
     }
 
+    /** ⚠ A switch naming a source that does not exist is refused by key, and writes nothing. */
     @Test
-    fun theWriteSwitch_mirrorsNativesWriteTier_andRefusesWhatHasNone() = GlobalScope.promise {
+    fun aSwitchOnAnUnknownSource_isRefused_andWritesNothing() = GlobalScope.promise {
         JsRuntime.awaitReady()
-        try {
-            val on = ok(Mia.setWritable("CALENDAR", true), "setWritable")
-            assertEquals(true, on.grants.unsafeCast<Array<dynamic>>().first { it.source == "CALENDAR" }.write)
-        } finally {
-            val off = ok(Mia.setWritable("CALENDAR", false), "setWritable(off)")
-            assertEquals(false, off.grants.unsafeCast<Array<dynamic>>().first { it.source == "CALENDAR" }.write)
-        }
         val before = realmSettingValues()
-        val (refused, writes) = writesDuring {
-            listOf(
-                Mia.setWritable("FITNESS", true).await(),
-                Mia.setGranted("WEATHER", false).await(),
-                Mia.setWritable("WEATHER", true).await(),
-            )
-        }
-        assertEquals(
-            listOf("error_mia_no_write_grant", "error_mia_unknown_source", "error_mia_unknown_source"),
-            refused.map { it.error.kind as String },
-        )
+        val (refused, writes) = writesDuring { listOf(Mia.setGranted("WEATHER", false).await()) }
+        assertEquals(listOf("error_mia_unknown_source"), refused.map { it.error.kind as String })
         assertEquals(emptyMap(), writes, "a refused switch writes nothing")
         assertEquals(before, realmSettingValues())
     }

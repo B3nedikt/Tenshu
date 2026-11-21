@@ -30,12 +30,15 @@ class MediaLibraryWiringTest {
     fun `the common module binds the live-path predicate and the vouching source`() {
         val text = file("src/commonMain/kotlin/app/tenshu/control/di/ProxyModule.kt").readText()
 
+        // People's grouping and Pets' (PT-3b) — exactly these two, and BOTH with the read filter.
         val faceGrouping = calls(text, "FaceGroupingComponents(")
-        assertTrue(faceGrouping.size == 1, "expected exactly one FaceGroupingComponents(...) in ProxyModule, found $faceGrouping")
-        assertTrue(
-            Regex("""livePaths\s*=\s*get\(\)""").containsMatchIn(faceGrouping.single()),
-            "FaceGroupingComponents is built without `livePaths = get()`: People keeps counting deleted photographs",
-        )
+        assertTrue(faceGrouping.size == 2, "expected People's and Pets' FaceGroupingComponents(...) in ProxyModule, found $faceGrouping")
+        faceGrouping.forEach { grouping ->
+            assertTrue(
+                Regex("""livePaths\s*=\s*get\(\)""").containsMatchIn(grouping),
+                "a FaceGroupingComponents is built without `livePaths = get()`: it keeps counting deleted photographs — $grouping",
+            )
+        }
         assertTrue(
             Regex("""single<LivePaths>\s*\{\s*fileLivePaths\s*}""").containsMatchIn(text),
             "ProxyModule must bind `single<LivePaths> { fileLivePaths }`",
@@ -79,6 +82,10 @@ class MediaLibraryWiringTest {
                     }
                     if (!Regex("""mediaSource\s*=\s*get\(\)""").containsMatchIn(call)) {
                         add("$platform: does not pass `mediaSource = get()` — the pass loses B1")
+                    }
+                    // Pets PT-3b: where a pet backend is bound, the pet ops must read the common pets grouping.
+                    if (platform != "ios" && !Regex("""petGrouping\s*=\s*petGroupingIfPetsRunHere\(\)""").containsMatchIn(call)) {
+                        add("$platform: does not pass `petGrouping = petGroupingIfPetsRunHere()` — the pet ops would not exist")
                     }
                     if (Regex("""livePaths\s*=""").containsMatchIn(call)) {
                         add("$platform: overrides `livePaths` — search and People would answer different realms")

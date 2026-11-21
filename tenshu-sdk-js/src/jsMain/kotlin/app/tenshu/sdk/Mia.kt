@@ -52,7 +52,7 @@ import kotlin.time.Clock
  * proxy withholds every action (`MiaActionOffer.WITHHELD`, so "turn off the light" / "add lunch …"
  * / "run my routine" answer `noMatch` with nothing resolved), and `confirmMiaAction` is not mapped.
  * This surface writes two things: the conversation, in memory (rule 1), and — since run B — the
- * grant switches native Settings writes ([setGranted] / [setWritable]), the same realm rows through
+ * grant switch native Settings writes ([setGranted]), the same realm rows through
  * the same `PreferenceService.set`. Nothing else.
  *
  * Every call resolves `{ ok: true, … }` or `{ ok: false, error: { kind, message } }`, `kind` a
@@ -194,8 +194,8 @@ object Mia {
      * grant **off**, and write without read counts as off. These are the switches the planner
      * consults per question, so this view cannot drift from what the next answer does.
      *
-     * ⚠ Per service, because that is the only granularity there is (MQ-D6). [setGranted] /
-     * [setWritable] change one, as native Settings does; a change on any device syncs here.
+     * ⚠ Per service, because that is the only granularity there is (MQ-D6). [setGranted] changes
+     * one, as native Settings does; a change on any device syncs here.
      */
     fun grants(): Promise<dynamic> = GlobalScope.promise {
         JsRuntime.awaitReady()
@@ -231,26 +231,6 @@ object Mia {
         val miaSource = sourceOrNull(source)
             ?: return@promise miaFailure(MiaWebErrorKeys.UNKNOWN_SOURCE.value, source)
         writeGrant(miaSource.preference, granted)
-    }
-
-    /**
-     * Native Settings' write switch (`MiaGrantsRepository.setWritable`): the `read + write` tier of a
-     * source that has one (only `CALENDAR`). `{ ok, grants }` as [setGranted].
-     *
-     * ⚠⚠ It changes what NATIVE Mia may propose, not what a tab can do: every action stays withheld
-     * here (`MiaPlugin`), and a native write still needs MQ-D7's confirmation tap on that device.
-     * ⚠ Native skips a source with no write tier silently; a bridge call cannot be answered with a
-     * silent success, so that is `error_mia_no_write_grant` here, and nothing is written. Write
-     * without read is stored as asked and read as off (`GrantRows`), exactly as natively — the app
-     * disables the line instead, as native Settings does.
-     */
-    fun setWritable(source: String, granted: Boolean): Promise<dynamic> = GlobalScope.promise {
-        JsRuntime.awaitReady()
-        val miaSource = sourceOrNull(source)
-            ?: return@promise miaFailure(MiaWebErrorKeys.UNKNOWN_SOURCE.value, source)
-        val preference = miaSource.writePreference
-            ?: return@promise miaFailure(MiaWebErrorKeys.NO_WRITE_GRANT.value, source)
-        writeGrant(preference, granted)
     }
 
     private fun sourceOrNull(name: String): MiaSource? = MiaSource.entries.firstOrNull { it.name == name }
@@ -316,16 +296,11 @@ internal fun miaFailure(error: TError): dynamic = failureResult(error.errorCopyK
 /** The realm's preference rows the grants are read from, once. */
 internal class GrantRows(private val read: (Preference<Boolean>) -> Boolean) {
     /**
-     * ⚠⚠ Mirrors `readMiaGrants` + `canWrite` (`ProxyMiaGrants.kt`) rule for rule — a view that
-     * disagreed with the proxy would tell the user a source is off while Mia reads it.
+     * ⚠⚠ Mirrors `readMiaGrants` (`ProxyMiaGrants.kt`) rule for rule — a view that disagreed with
+     * the proxy would tell the user a source is off while Mia reads it.
      */
     fun grants(): List<MiaGrantJs> = MiaSource.entries.map { source ->
-        val readGranted = read(source.preference)
-        MiaGrantJs(
-            source = source.name,
-            read = readGranted,
-            write = source.writePreference?.let { readGranted && read(it) },
-        )
+        MiaGrantJs(source = source.name, read = read(source.preference))
     }
 }
 

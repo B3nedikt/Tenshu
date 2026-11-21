@@ -34,7 +34,7 @@ import kotlin.random.Random
 //    `answered` (§14.1). The web adds nothing to the set: `confirm` cannot occur, because the tab's
 //    proxy withholds every action (`MiaPlugin`).
 // 5. **The grants are native Settings' switches** (run B, `web-app-suite.md` §8, 2026-10-28):
-//    `Mia.setGranted` / `setWritable` write the same realm rows `TenshuMiaGrantsRepository` writes,
+//    `Mia.setGranted` writes the same realm rows `TenshuMiaGrantsRepository` writes,
 //    through the same `PreferenceService.set`, and answer with the set read back. A revoked source
 //    makes the next question that needs it `noMatch`, naming it (rule 4) — on every device.
 
@@ -61,8 +61,6 @@ internal object MiaWebErrorKeys {
     val UNEXPECTED_ACTION = ErrorCopyKey("error_mia_unexpected_action")
     /** A grant switch named a source `MiaSource` does not have. Nothing was written. */
     val UNKNOWN_SOURCE = ErrorCopyKey("error_mia_unknown_source")
-    /** A write switch on a source with no write tier (everything but `CALENDAR`). Nothing was written. */
-    val NO_WRITE_GRANT = ErrorCopyKey("error_mia_no_write_grant")
 }
 
 /**
@@ -130,9 +128,11 @@ class MiaConversationJs(
 class MiaGrantJs(
     /** `MiaSource`'s name: `FILES`, `TIMELINE`, `FITNESS`, `PLACES`, `DEVICES`, `ROUTINES`, … */
     val source: String,
+    /**
+     * ⚠ One switch per source (2026-11-19): it covers what Mia may do there too. A native write
+     * still needs the confirmation tap, and a tab offers none.
+     */
     val read: Boolean,
-    /** `null` where nothing can write the source; else whether Mia may (only Calendar today). */
-    val write: Boolean?,
 )
 
 internal fun MiaAnswer.toJs(): MiaAnswerJs = MiaAnswerJs(

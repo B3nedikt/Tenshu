@@ -36,12 +36,6 @@ import app.tenshu.fit.shared.resources.fit_updated_prefix
 import app.tenshu.fit.shared.resources.fit_updated_today
 import org.jetbrains.compose.resources.stringResource
 
-/** One-decimal number without a locale format dependency (weights, etc.). */
-fun oneDecimal(value: Double): String {
-    val scaled = kotlin.math.round(value * 10).toInt()
-    return "${scaled / 10}.${kotlin.math.abs(scaled % 10)}"
-}
-
 @Composable
 fun categoryName(id: CategoryId): String = stringResource(
     when (id) {

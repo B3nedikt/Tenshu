@@ -374,6 +374,13 @@ interface FilesRepository : BackupDataPlane {
     fun changesLost(): Flow<List<ChangeLostModel>> = flowOf(emptyList())
 
     /**
+     * Dismiss change-lost notice [id] on every device: a synced per-notice "seen" record
+     * (`control-central-notifications.md` §10 D1), which [changesLost] then leaves out. Defaulted
+     * like [changesLost].
+     */
+    suspend fun dismissChangeLost(id: String) = Unit
+
+    /**
      * User-initiated "Sync now over cellular" override (`sync-metered-deferred-status.md`
      * §2.3): drain the deferred backlog once past the `WifiOnly` policy. Fire-and-forget —
      * signals the proxy's one-shot override; the [syncHealth] banner clears as the backlog

@@ -799,6 +799,33 @@ class MediaIndexerFacesTest {
         assertEquals(null, store.provenance())
     }
 
+    /**
+     * ⚠⚠ A `faceGroups` read that sees the switch-off WHILE the model runs clears the store; the
+     * write that follows must not recreate it. The last photograph on purpose: no later file's
+     * check is left to catch it.
+     */
+    @Test
+    fun aWriteThatLandsAfterAConcurrentWithdrawalCleanupDoesNotRecreateTheStore() = runTest {
+        val store = InMemoryFaceTemplateStore()
+        val proxy = proxy().apply { consentTo(faceCapability) }
+        val fake = FakeInferenceBackend()
+        val withdrawnWhileDetecting = object : InferenceBackend by fake {
+            override suspend fun detectFaces(bytes: ByteArray, orientation: Int?): FaceDetectionOutcome {
+                proxy.write(faceCapability.deviceConsent, false, deviceId = thisDevice)
+                store.clear() // the concurrent read's withdrawal cleanup
+                return fake.detectFaces(bytes)
+            }
+        }
+
+        val result = indexerWith(withdrawnWhileDetecting, store)
+            .index(proxy.executionContext, media("/a.jpg" to "anna"), capability = faceCapability)
+
+        assertEquals(1, result.faceRecordsWritten, "the write itself did land")
+        assertEquals(null, store.provenance(), "and the re-check after it deleted it again")
+        assertEquals(0, store.size())
+        assertTrue(result.facesCleared)
+    }
+
     // ---- indexing from a preview when the original is not here ----------------------------------
 
     /** Records the orientation each face call was given, and answers like the fake. */

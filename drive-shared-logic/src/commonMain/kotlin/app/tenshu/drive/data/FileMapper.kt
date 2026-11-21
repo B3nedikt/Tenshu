@@ -29,7 +29,6 @@ import org.tenshu.core.file.path
 import org.tenshu.core.time.Instant
 import kotlin.math.log10
 import kotlin.math.pow
-import kotlin.math.roundToLong
 
 class FileMapper {
 
@@ -40,6 +39,7 @@ class FileMapper {
 
         return when (typeId) {
             Folder.ID -> {
+                val childCount = file.get(Folder.FileCount)?.get() ?: 0L
                 FileModel.Folder(
                     path = path,
                     name = name,
@@ -49,8 +49,11 @@ class FileMapper {
                     // ships every child entity just for `.size` (a full-array
                     // deserialisation per folder row + the whole child list
                     // over IPC).
-                    subLine = (file.get(Folder.FileCount)?.get() ?: 0L).toString() + " files",
+                    // ⚠ English, for SwiftUI only (drive-ios reads `subLine`). Compose words the
+                    // count from [childCount] in the app's language (`FileUiModel.supportingText`).
+                    subLine = "$childCount files",
                     previewIcon = FileIcon.Folder,
+                    childCount = childCount,
                 )
             }
 
@@ -161,16 +164,4 @@ class FileMapper {
     }
 
     private fun formatFileSize(sizeInBytes: Long): String = formatByteSize(sizeInBytes)
-
-    /**
-     * KMP-friendly replacement for the JVM `DecimalFormat("#,##0.#")`: rounds to
-     * at most one decimal place and drops a trailing `.0`. (No grouping
-     * separators — file-size values are small enough that grouping never showed.)
-     */
-    private fun formatUpToOneDecimal(value: Double): String {
-        val scaled = (value * 10).roundToLong()
-        val whole = scaled / 10
-        val frac = (scaled % 10).toInt()
-        return if (frac == 0) whole.toString() else "$whole.$frac"
-    }
 }

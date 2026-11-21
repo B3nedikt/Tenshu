@@ -67,35 +67,44 @@ class AskMiaCreateEventTest {
         )
     }
 
-    private fun TestProxy.grantWrite(granted: Boolean = true) {
+    /** The calendar grant: since 2026-11-19 the only switch a calendar write needs (MQ-D6). */
+    private fun TestProxy.grantCalendar(granted: Boolean) {
         executionContext.saveData(
             RealmSetting.create(
                 context = tContext,
-                preferenceId = assertNotNull(MiaSource.CALENDAR.writePreference).id,
+                preferenceId = MiaSource.CALENDAR.preference.id,
                 value = granted.toTBoolean(tContext),
             )
         )
     }
 
+    /**
+     * ⚠⚠ There is no second switch (removed 2026-11-19): the calendar grant alone offers the card,
+     * and MQ-D7's tap is the gate. A `mia.grant.calendar.write = false` row left from before the
+     * removal must not block anything.
+     */
     @Test
-    fun withoutTheWriteGrantNothingIsEvenOffered() = runTest {
+    fun theCalendarGrantAloneOffersTheCard_evenOverAnOldWriteRow() = runTest {
         val proxy = createMiaProxy(backgroundScope)
         proxy.seedCalendar()
+        proxy.executionContext.saveData(
+            RealmSetting.create(
+                context = proxy.tContext,
+                preferenceId = "mia.grant.calendar.write",
+                value = false.toTBoolean(proxy.tContext),
+            )
+        )
 
         val answer = ask(proxy, "add lunch with anna tomorrow at 1pm")
 
-        // ⚠⚠ Write is opt-in — the read grant defaults on, this one does not.
-        assertEquals(MiaAnswer.VERDICT_NO_MATCH, answer.verdict.get())
-        assertNull(answer.action)
-        assertTrue(answer.explanation.get().contains("settings"), answer.explanation.get())
-        assertTrue(proxy.events().isEmpty())
+        assertEquals(MiaAnswer.VERDICT_CONFIRM, answer.verdict.get(), answer.explanation.get())
+        assertTrue(proxy.events().isEmpty(), "still nothing written before the tap")
     }
 
     @Test
     fun theConfirmationShowsTheResolvedRowNotTheUtterance() = runTest {
         val proxy = createMiaProxy(backgroundScope)
         proxy.seedCalendar()
-        proxy.grantWrite()
 
         val answer = ask(proxy, "add lunch with anna tomorrow at 1pm")
 
@@ -115,7 +124,6 @@ class AskMiaCreateEventTest {
     fun theTapWritesExactlyWhatWasShown() = runTest {
         val proxy = createMiaProxy(backgroundScope)
         proxy.seedCalendar()
-        proxy.grantWrite()
         val token = assertNotNull(ask(proxy, "add lunch with anna tomorrow at 1pm").action).token.get()
 
         val ack = confirm(proxy, token)
@@ -132,7 +140,6 @@ class AskMiaCreateEventTest {
     fun aMissingTimeIsAskedForRatherThanGuessed() = runTest {
         val proxy = createMiaProxy(backgroundScope)
         proxy.seedCalendar()
-        proxy.grantWrite()
 
         val answer = ask(proxy, "add lunch with anna")
 
@@ -148,7 +155,6 @@ class AskMiaCreateEventTest {
     @Test
     fun noDefaultCalendarIsRefusedBeforeAnythingIsOffered() = runTest {
         val proxy = createMiaProxy(backgroundScope)
-        proxy.grantWrite()
 
         val answer = ask(proxy, "add lunch with anna tomorrow at 1pm")
 
@@ -163,7 +169,6 @@ class AskMiaCreateEventTest {
     fun aNamedWeekdayResolvesFORWARD() = runTest {
         val proxy = createMiaProxy(backgroundScope)
         proxy.seedCalendar()
-        proxy.grantWrite()
 
         // ⚠⚠ 15 July 2026 is a Wednesday. The SEARCH grammar resolves "friday" backwards to
         // the most recent one; a scheduling grammar must go forwards or every event lands in
@@ -178,7 +183,6 @@ class AskMiaCreateEventTest {
     fun relativeOffsetsWork() = runTest {
         val proxy = createMiaProxy(backgroundScope)
         proxy.seedCalendar()
-        proxy.grantWrite()
 
         val token = assertNotNull(ask(proxy, "add coffee in an hour").action).token.get()
         confirm(proxy, token)
@@ -190,7 +194,6 @@ class AskMiaCreateEventTest {
     fun aSpentTokenCannotWriteTwice() = runTest {
         val proxy = createMiaProxy(backgroundScope)
         proxy.seedCalendar()
-        proxy.grantWrite()
         val token = assertNotNull(ask(proxy, "add lunch tomorrow at 1pm").action).token.get()
 
         confirm(proxy, token)
@@ -200,23 +203,17 @@ class AskMiaCreateEventTest {
     }
 
     @Test
-    fun revokingTheREADGrantAlsoStopsTheWrite() = runTest {
+    fun revokingTheCalendarGrantStopsTheWrite() = runTest {
         val proxy = createMiaProxy(backgroundScope)
         proxy.seedCalendar()
-        proxy.grantWrite()
-        proxy.executionContext.saveData(
-            RealmSetting.create(
-                context = proxy.tContext,
-                preferenceId = MiaSource.CALENDAR.preference.id,
-                value = false.toTBoolean(proxy.tContext),
-            )
-        )
+        proxy.grantCalendar(false)
 
         val answer = ask(proxy, "add lunch with anna tomorrow at 1pm")
 
-        // ⚠ Write implies read: a write intent resolves against existing data, so a write
-        // grant without the read one is unsatisfiable and reads as absent.
+        // ⚠ Turning the calendar off stops both reading it and adding to it.
         assertEquals(MiaAnswer.VERDICT_NO_MATCH, answer.verdict.get())
         assertNull(answer.action)
+        assertTrue(answer.explanation.get().contains("settings"), answer.explanation.get())
+        assertTrue(proxy.events().isEmpty())
     }
 }

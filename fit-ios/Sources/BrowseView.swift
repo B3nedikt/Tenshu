@@ -79,10 +79,10 @@ private struct CategoryCard: View {
     private var teaserText: String {
         switch onEnum(of: summary.teaser) {
         case .activeMinutesToday(let t): return "\(Int(t.minutes)) active min today"
-        case .weight(let t): return String(format: "%.1f kg", t.kg)
+        case .weight(let t): return "\(FitUnitFormat.oneDecimal(t.kg)) kg"
         case .restingHeartRate(let t): return "\(Int(t.bpm)) bpm resting"
         case .bloodOxygen(let t): return "\(Int(t.percent))% blood oxygen"
-        case .respiratoryRate(let t): return String(format: "%.1f breaths/min", t.perMinute)
+        case .respiratoryRate(let t): return "\(FitUnitFormat.oneDecimal(t.perMinute)) breaths/min"
         case .sleepDuration(let t): return FitUnitFormat.duration(Int(t.minutes) * 60)
         case .energy(let t): return "\(FitUnitFormat.energy(Int(t.kj))) today"
         case .cycleDay(let t): return "Cycle day \(Int(t.day))"

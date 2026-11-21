@@ -194,7 +194,7 @@ fun VerticalFileItem(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = item.subLine,
+                    text = item.supportingText(),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,

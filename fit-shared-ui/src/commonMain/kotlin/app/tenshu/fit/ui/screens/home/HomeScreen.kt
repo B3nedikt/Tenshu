@@ -1,5 +1,6 @@
 package app.tenshu.fit.ui.screens.home
 
+import app.tenshu.ui.layout.LocalPrimaryActionClearance
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -208,7 +209,8 @@ private fun HomeContent(
     // 8/4 padding is unchanged — moving it in must not move anything beneath it.
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp).padding(bottom = 16.dp),
+            // Inside the scroll, so the last card scrolls clear of the wide-window Record FAB.
+            .padding(horizontal = 16.dp).padding(bottom = 16.dp + LocalPrimaryActionClearance.current),
     ) {
         Column(Modifier.padding(top = 8.dp, bottom = 4.dp)) {
             Eyebrow(stringResource(Res.string.fit_home_today_eyebrow))

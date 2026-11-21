@@ -282,6 +282,8 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
                     embeddings = get(),
                     faces = get(),
                     arrivals = get(),
+                    // Pets, where this graph runs them (Photos with the pets flag); none elsewhere.
+                    pets = petTemplatesIfPetsRunHere(),
                 )
             },
             cryptoManager = get(),
@@ -296,7 +298,7 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
 
     single<SemanticMergerRegistry> {
         SemanticMergerRegistry().apply {
-            register(FolderMerger())
+            register(FolderMerger(fileDatabase = get<FileDatabase>()))
             register(DailyActivityMerger())
             // Calendar (CA-2j): the union of a series' deleted occurrences, and a
             // dismissal that a concurrent snooze cannot undo.
@@ -545,6 +547,8 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
     // container, last (`ownedInferenceStoresModule`, `ios-on-device-inference.md` §3.1).
     single<EmbeddingStore> { UnownedEmbeddingStore }
     single<FaceTemplateStore> { UnownedFaceTemplateStore }
+    // Pets (`photos-pets.md` PT-4b2): the same rule for `pets.log` — no graph but the owner's holds one.
+    single<FaceTemplateStore>(named(PET_TEMPLATE_STORE)) { UnownedFaceTemplateStore }
 
     single<PreviewCache> { InMemoryPreviewCache() }
 
@@ -636,7 +640,7 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
             // dispatched by every route-1 process's drain loop. The app that owns inference on iOS
             // drives its passes itself (`ios-on-device-inference.md` §3.1).
             initIdentityService()
-            initNotificationService()
+            initNotificationService(tombstoneEmitterHolder = emitterHolder)
             initTimelineService(mergerRegistry)
             initHealthService()
             // ⚠ The corroboration source is the timeline's moments (§10.12): a pair of adjacent
@@ -1086,6 +1090,10 @@ fun buildPlatformProxyModule(): org.koin.core.module.Module = module {
                     // `ProxyModule`); while its clustering is `Uncalibrated`, `faceGroups`
                     // answers `UNCALIBRATED` rather than "nobody is here".
                     faceGrouping = get(),
+                    // Pets (PT-4b2): the pet ops where this graph binds a pet backend (Photos with the
+                    // pets flag) — no `petGroups` op elsewhere rather than an empty one.
+                    petGrouping = petGroupingIfPetsRunHere(),
+                    petBackend = getOrNull(),
                     // ⚠ Resolved per query: open everywhere but in the graph that owns the stores,
                     // where it is the realm-stamp check.
                     storeGate = { get<InferenceStoreGate>().open(fromPass = false) },

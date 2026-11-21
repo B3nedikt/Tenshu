@@ -156,6 +156,10 @@ internal object QuestionSet {
             event("dinner with anna", at = at(17, 8), alternative = at(17, 20)),
             note = "CL-D6: the convention's 08:00 on the card, with 20:00 offered",
         ),
+        // ⚠ §25.14/§25.15: a name is the user's, so the command's shape names the source.
+        Case("turn on the bulb", device("bulb", on = true)),
+        Case("run evening lights", Expected(Src.ROUTINES, action = Action(Act.RUN_ROUTINE, "evening lights"))),
+        Case("please start lights out", Expected(Src.ROUTINES, action = Action(Act.RUN_ROUTINE, "lights out"))),
         // gaps
         Case(
             "dim the bedroom light to 30 percent",

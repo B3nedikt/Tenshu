@@ -115,7 +115,8 @@ class CoreMlCatalogEntryTest {
 
         assertEquals(listOf(id to "onnx"), desktop.map { it.modelId to it.runtime })
         assertEquals(listOf("onnx"), android.filter { it.modelId == id }.map { it.runtime })
-        assertEquals(listOf(id to "coreml"), ios.map { it.modelId to it.runtime })
+        // ⚠ SigLIP's id only: iOS also sees Pets' two `coreml` entries (PT-4c), other ids, other models.
+        assertEquals(listOf(id to "coreml"), ios.filter { it.modelId == id }.map { it.modelId to it.runtime })
         // ⚠ The build claim itself. If `SUPPORTED_RUNTIMES` ever gains `coreml`, Android and
         // desktop keep both entries for one id, and the two assertions above say so first.
         assertTrue("coreml" !in SUPPORTED_RUNTIMES + FaceModel.RUNTIME)
