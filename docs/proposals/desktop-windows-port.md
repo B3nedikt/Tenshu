@@ -301,6 +301,10 @@ only *start at logon, hidden*. The docs disagree on the mechanism (`tenshu-rei.m
 > - ⚠ **Every call starts a process**, so Settings makes them on `Dispatchers.IO` with the switch disabled
 >   meanwhile, and `runAgent` waits for the exit (15 s bound) before reading the one-word answer. A failed agent
 >   reads as *unavailable*, and a disable that ends there is reported as failed, not done.
+> - **Consent is asked once (2026-11-21).** The task stays `Enabled="false"`, so without an answer a reboot silently
+>   ends sync. `StartAtLoginPrompt` therefore asks on Home after setup, once: never over a lock or a pairing request,
+>   and never from a hidden window. A no or a dismissal is recorded (`startAtLoginPromptAnswered`). A task already on,
+>   or decided in Windows' Settings or by policy, is not asked about; an unreadable one is looked at again next launch.
 > - ⚠ **Login start depends on the agent.** Control is started by the agent's `OnLaunched`; an agent that cannot
 >   start at all (e.g. the Windows App Runtime missing) means no Control at login although the switch reads on.
 >   Accepted for the Store build, where the runtime is a declared dependency the Store installs; a side-channel MSI

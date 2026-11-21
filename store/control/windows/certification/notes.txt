@@ -1,6 +1,6 @@
 Tenshu Control is the companion app of the Tenshu apps (Tenshu Drive and others). It creates the user's realm, holds the keys and pairs devices. It needs no account and no sign-in to use on one PC.
 
-To review: start Tenshu Control. Its window opens, and its icon appears in the notification area. Click "Start fresh on this device", then "Continue". Recovery Phrase, Services, Realm Devices and Settings are then available. Closing the window keeps Control running in the notification area; right-click the icon and choose "Quit Tenshu Control" to quit.
+To review: start Tenshu Control. Its window opens, and its icon appears in the notification area. Click "Start fresh on this device", then "Continue". Recovery Phrase, Services, Realm Devices and Settings are then available. Once, after setup, Control asks whether to start when the user signs in; the app's startup task stays off unless the user says yes, and Settings can change it later. Closing the window keeps Control running in the notification area; right-click the icon and choose "Quit Tenshu Control" to quit.
 
 Sync is optional. Open Services to sign in: it asks for an email address and then a 6-digit code. To try it without a mailbox, enter <DEMO EMAIL> as the email address and <DEMO CODE> as the code (no email is sent to that address). Any address you can receive mail at also works, and a new account starts on the free plan.
 

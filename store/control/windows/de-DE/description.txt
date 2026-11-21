@@ -18,7 +18,7 @@ WIE CONTROL DEINE DATEN PRIVAT HÄLT
 
 AUCH IN CONTROL
 - „Drive im Datei-Explorer anzeigen“: ein Ordner „Tenshu Drive“, dessen Dateien beim Öffnen geladen werden.
-- „Bei Anmeldung starten“, damit deine Geräte synchron bleiben, ohne dass du Control öffnest.
+- „Bei Anmeldung starten“: Stimme zu, wenn Control fragt, oder schalte es in den Einstellungen ein, dann synchronisiert Control im Hintergrund, sobald du dich anmeldest.
 - Sieh deine Geräte, deinen Speicherplan und wie viel du nutzt.
 
 VORAUSSETZUNGEN

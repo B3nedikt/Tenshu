@@ -38,6 +38,16 @@ class DesktopControlSettings(
         write(KEY_START_AT_LOGIN_DEFAULT_APPLIED, value.toString())
 
     /**
+     * Whether the one-time "start at login?" question is settled (Windows, desktop-windows-port.md §3.5): answered
+     * either way, or found already decided. Defaults to false.
+     */
+    fun startAtLoginPromptAnswered(): Boolean =
+        read().getProperty(KEY_START_AT_LOGIN_PROMPT_ANSWERED)?.toBooleanStrictOrNull() ?: false
+
+    fun setStartAtLoginPromptAnswered(value: Boolean) =
+        write(KEY_START_AT_LOGIN_PROMPT_ANSWERED, value.toString())
+
+    /**
      * Whether the user paused background sync from the tray (bgproc §5.3
      * *Paused*). Device-local so a paused daemon stays paused across restarts
      * without pausing the user's other devices. Defaults to false (syncing).
@@ -83,6 +93,7 @@ class DesktopControlSettings(
     companion object {
         const val KEY_CLOSE_TO_TRAY = "closeToTray"
         const val KEY_START_AT_LOGIN_DEFAULT_APPLIED = "startAtLoginDefaultApplied"
+        const val KEY_START_AT_LOGIN_PROMPT_ANSWERED = "startAtLoginPromptAnswered"
         const val KEY_SYNC_PAUSED = "syncPaused"
         const val KEY_EXPLORER_INTEGRATION = "explorerIntegration"
         const val KEY_EXPLORER_CLEANUP_PENDING = "explorerCleanupPending"

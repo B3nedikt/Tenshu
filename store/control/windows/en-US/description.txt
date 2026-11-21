@@ -18,7 +18,7 @@ HOW CONTROL KEEPS YOUR DATA PRIVATE
 
 ALSO IN CONTROL
 - Show Drive in File Explorer: a Tenshu Drive folder whose files download when you open them.
-- Start at login, so your devices stay in sync without you opening Control.
+- Start at login: say yes when Control asks, or turn it on in Settings, and Control syncs in the background from the moment you sign in.
 - See your devices, your storage plan and how much you use.
 
 REQUIREMENTS
