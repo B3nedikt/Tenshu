@@ -75,7 +75,7 @@ Control set up on the same device.
 
 ::: windows
 1. **Install Tenshu Control** from the Microsoft Store, or from the
-   [Windows download page](/apps/control/download/windows/en), and open it. Control lives in the
+   [Windows download page](/apps/control/download/windows), and open it. Control lives in the
    notification area, next to the clock. To quit it, right-click its icon and choose
    **Quit Tenshu Control**.
    ![Tenshu Control's welcome window on Windows, with the buttons "Start fresh on this device", "I have Tenshu on another device" and "Recover from a recovery phrase"](shot:01-welcome)

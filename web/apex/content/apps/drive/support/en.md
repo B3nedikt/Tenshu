@@ -76,7 +76,7 @@ with Tenshu Control, which holds your keys and connects your devices. Set up Con
 
 ::: windows
 1. **Install Tenshu Control** from the Microsoft Store, or from the
-   [Windows download page](/apps/control/download/windows/en), and open it. Control lives in the
+   [Windows download page](/apps/control/download/windows), and open it. Control lives in the
    notification area, next to the clock.
    ![Tenshu Control's welcome window on Windows, with the buttons "Start fresh on this device", "I have Tenshu on another device" and "Recover from a recovery phrase"](shot:control/01-welcome)
 2. **Set up Control.** Click **Start fresh on this device**. Then open **Services** and pick a

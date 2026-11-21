@@ -91,7 +91,7 @@ avec Tenshu Control, qui conserve vos clés et relie vos appareils. Configurez d
 
 ::: windows
 1. **Installez Tenshu Control** depuis le Microsoft Store ou depuis la
-   [page de téléchargement Windows](/apps/control/download/windows/fr), puis ouvrez-le. Control se
+   [page de téléchargement Windows](/apps/control/download/windows), puis ouvrez-le. Control se
    trouve dans la zone de notification, à côté de l’horloge.
    ![Fenêtre d’accueil de Tenshu Control sous Windows, avec les boutons « Start fresh on this device », « I have Tenshu on another device » et « Recover from a recovery phrase »](shot:control/01-welcome)
 2. **Configurez Control.** Cliquez sur **Start fresh on this device** (Repartir de zéro sur cet

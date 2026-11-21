@@ -86,7 +86,7 @@ Tenshu-Apps wie Tenshu Drive brauchen Control, eingerichtet auf demselben Gerät
 
 ::: windows
 1. **Installiere Tenshu Control** aus dem Microsoft Store oder von der
-   [Windows-Downloadseite](/apps/control/download/windows/de) und öffne es. Control lebt im
+   [Windows-Downloadseite](/apps/control/download/windows) und öffne es. Control lebt im
    Infobereich der Taskleiste, neben der Uhr. Zum Beenden klicke mit der rechten Maustaste auf
    sein Symbol und wähle **Tenshu Control beenden**.
    ![Willkommensfenster von Tenshu Control unter Windows, mit den Schaltflächen „Auf diesem Gerät neu beginnen“, „Ich habe Tenshu auf einem anderen Gerät“ und „Mit Wiederherstellungsphrase wiederherstellen“](shot:01-welcome)
