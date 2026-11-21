@@ -251,6 +251,11 @@ class BundledAppTablesTest {
                 "tenshu/inference/nameFaceGroup",
                 "tenshu/inference/rejectFaceSuggestion",
                 "tenshu/inference/faceSuggestionRejections",
+                // Pets (PT-3d): grouping and naming — the suggestion pair arrives with PT-5, which calls it
+                "tenshu/inference/petGroups",
+                "tenshu/inference/namePetGroup",
+                // People & pets' revision stream (`photos-pets.md` §10.19)
+                "tenshu/inference/service/peopleIndexChanges",
                 // albums and favourites
                 "tenshu/photo/service/saveAlbum",
                 "tenshu/photo/service/deleteAlbum",

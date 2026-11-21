@@ -314,6 +314,21 @@ subprojects {
     }
 }
 
+// Every packaged desktop app's jlinked runtime carries the CLDR locale data. jpackage's runtime holds
+// only the modules it is told to (Compose's default set + their dependencies), and `jdk.localedata`
+// is not among them: without it `java.time`/`java.text` know only the root and English CLDR data,
+// so a German launch formats "Nov 2026" / "2026 Nov 20" instead of "November 2026" / "20.11.2026".
+// `./gradlew run` never shows it — it uses the full toolchain JDK. Additive: an app's own
+// `modules(...)` stacks on top. Cost: ≈ +26 MB per app runtime (Fit: lib/modules 53 → 80 MB).
+subprojects {
+    if (!name.endsWith("-desktop")) return@subprojects
+    plugins.withId("org.jetbrains.compose") {
+        extensions.getByType<org.jetbrains.compose.ComposeExtension>()
+            .extensions.getByType<org.jetbrains.compose.desktop.DesktopExtension>()
+            .application.nativeDistributions.modules("jdk.localedata")
+    }
+}
+
 // iOS test compilation + the simulator test run are ENABLED — the `ios.yml`
 // CI lane (docs/proposals/ios-proxy-architecture.md §8) runs
 // `iosSimulatorArm64Test` on a macOS runner, so iOS test code cannot rot

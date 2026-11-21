@@ -32,6 +32,10 @@ import org.tenshu.core.collection.list.TList
 import org.tenshu.core.collection.list.fields
 import org.tenshu.core.collection.list.filter
 import org.tenshu.core.collection.list.flow
+import org.tenshu.core.notifications.DismissedRequest
+import org.tenshu.core.notifications.dismissPendingRequest
+import org.tenshu.core.notifications.dismissedNotificationMarker
+import org.tenshu.core.notifications.requestId
 import org.tenshu.notifications.client.notificationService
 import org.tenshu.core.collection.list.relations
 import org.tenshu.core.collection.list.search
@@ -1132,27 +1136,55 @@ class TenshuFilesRepository(
     override fun proxyConnected(): Flow<Boolean> = client.proxyConnected
 
     /**
-     * The newest [CHANGE_LOST_WINDOW] notifications, narrowed to the change-lost ones. ⚠ A window, not
-     * a type filter: the relation holds every notification type, and the chain has no type predicate.
-     * A notice pushed out of the window by newer activity stops showing here (Control's feed keeps it).
+     * The newest [CHANGE_LOST_WINDOW] notifications, narrowed to the change-lost ones that no device
+     * has dismissed. ⚠ A window, not a type filter: the relation holds every notification type, and
+     * the chain has no type predicate. A notice pushed out of the window by newer activity stops
+     * showing here (Control's feed keeps it).
+     *
+     * ⚠⚠ Dismissal is a synced record per notice, never a list or a preference: a single synced set
+     * would last-writer-wins clobber two dismissals made close together (`control-central-notifications.md`
+     * §10 D1, the reason Phase 4 chose a record).
      */
     override fun changesLost(): Flow<List<ChangeLostModel>> =
-        client.notificationService.notifications
-            .sortByDescending { timestamp }
-            .take(CHANGE_LOST_WINDOW)
+        combine(
+            client.notificationService.notifications
+                .sortByDescending { timestamp }
+                .take(CHANGE_LOST_WINDOW)
+                .flow(),
+            dismissedMarkers(),
+        ) { result, dismissed ->
+            result.fold(
+                onSuccess = { rows ->
+                    rows.toList()
+                        .filterIsInstance<org.tenshu.core.file.notifications.ChangeLostNotification>()
+                        .map { ChangeLostModel(it.uuid.get(), it.fileName.get(), it.path.get()) }
+                        .filterNot { dismissedNotificationMarker(it.id) in dismissed }
+                },
+                // Not knowing is not "nothing lost", but a notice is not worth an error state either.
+                onFailure = { emptyList() },
+            )
+        }
+            .flowOn(Dispatchers.Default)
+
+    /**
+     * Every synced "seen" marker. ⚠ A failed read is "none dismissed", so a notice can come back but
+     * never vanish undismissed.
+     */
+    private fun dismissedMarkers(): Flow<Set<String>> =
+        client.notificationService.dismissedRequests
+            .select { fields(DismissedRequest.Fields.REQUEST_ID) }
             .flow()
             .map { result ->
                 result.fold(
-                    onSuccess = { rows ->
-                        rows.toList()
-                            .filterIsInstance<org.tenshu.core.file.notifications.ChangeLostNotification>()
-                            .map { ChangeLostModel(it.uuid.get(), it.fileName.get(), it.path.get()) }
-                    },
-                    // Not knowing is not "nothing lost", but a notice is not worth an error state either.
-                    onFailure = { emptyList() },
+                    onSuccess = { rows -> rows.toList().map { it.requestId.get() }.toSet() },
+                    onFailure = { emptySet() },
                 )
             }
-            .flowOn(Dispatchers.Default)
+
+    override suspend fun dismissChangeLost(id: String) {
+        client.notificationService.dismissPendingRequest(dismissedNotificationMarker(id))
+            .fold(onSuccess = {}, onFailure = { logUnexpectedError(it) })
+    }
 
     override fun contentTransfer(): Flow<ContentTransferModel?> =
         // Two proxy rows, one client model: `ContentTransferStatus` (what is queued and why) and

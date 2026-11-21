@@ -97,6 +97,8 @@ kotlin {
                 // The `DataSourceReadTest` precedent (`fit-shared-data`).
                 implementation(project(":photo-service-proxy"))
                 implementation(project(":file-service-proxy"))
+                // `peopleIndexChanges` over the real op (`PeopleIndexChangesReadTest`).
+                implementation(project(":inference-service-proxy"))
                 implementation(project(":core-test-utils"))
                 implementation(project(":viewmodel-test-utils"))
             }

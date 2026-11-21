@@ -7,6 +7,10 @@ Writes, relative to today in this machine's time zone:
     <out>/health.json          the daily figures Fit's `-seedFixture` launch writes into Apple Health
     <out>/workouts/NN-*.gpx    one GPX per workout (route + elevation + heart rate), which the same
                                launch imports through Fit's own file import
+    <out>/takeout-fit.zip      the same daily figures as a Google Fit Takeout ("Daily activity metrics"
+                               CSV) — the one path a desktop has for them, through File → Import
+                               activity file… (store-screenshots.md §10.1). Move minutes are estimated
+                               from steps (130 a minute, brisk walking).
 
 Deterministic for a given manifest and day: each day's figures, vitals and night draw from their
 own seeded generators, so the hour of the run changes only what is cut off at "now". `--preview` draws every route over the street network
@@ -241,11 +245,33 @@ def main():
     health = daily(manifest, today, now, workout_km, morning_starts)
     with open(os.path.join(out, "health.json"), "w") as f:
         json.dump(health, f, indent=1)
+    write_takeout(health, os.path.join(out, "takeout-fit.zip"))
     print(f"generate_fit: {len(routes)} workouts, {len(health['quantities'])} quantities, "
           f"{len(health['sleep'])} sleep stages → {out}")
 
     if preview:
         draw_preview(walk_net, routes, preview)
+
+
+def write_takeout(health, path):
+    """health.json's daily totals as Google Fit's Takeout aggregate CSV, zipped where Takeout puts it.
+
+    Column names are the ones Fit's DailyMetricsCsv keys on (it reads headers, not positions).
+    """
+    import zipfile
+    days = {}
+    for q in health["quantities"]:
+        d = days.setdefault(q["start"][:10], {"stepCount": 0.0, "distanceWalkingRunning": 0.0, "activeEnergyBurned": 0.0})
+        if q["type"] in d:
+            d[q["type"]] += q["value"]
+    weight = {q["start"][:10]: q["value"] for q in health["quantities"] if q["type"] == "bodyMass"}
+    rows = ["Date,Move Minutes count,Calories (kcal),Distance (m),Step count,Average weight (kg)"]
+    for day in sorted(days):
+        v = days[day]
+        rows.append(f"{day},{round(v['stepCount'] / 130)},{v['activeEnergyBurned']:.1f},"
+                    f"{v['distanceWalkingRunning']:.1f},{round(v['stepCount'])},{weight.get(day, '')}")
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("Takeout/Fit/Daily activity metrics/Daily activity metrics.csv", "\n".join(rows) + "\n")
 
 
 def draw_preview(network, routes, path):

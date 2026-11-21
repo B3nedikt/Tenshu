@@ -231,7 +231,7 @@ struct CategoryDetailView: View {
     // The bar callout's value, with a unit where the metric has one ("10,423 steps", "42 min").
     private func calloutValue(_ value: Int32) -> String {
         switch model.state?.metric {
-        case .steps: return "\(Int(value).formatted()) steps"
+        case .steps: return "\(FitUnitFormat.number(Int(value))) steps"
         case .activeMinutes: return "\(Int(value)) min"
         default: return formatValue(value)
         }
@@ -240,7 +240,7 @@ struct CategoryDetailView: View {
     // Weight and respiratory rate one-decimal; SpO₂ rounded (97.6 → 98); resting HR whole.
     private func formatLatest(_ value: Double) -> String {
         switch model.state?.metric {
-        case .weight, .respiratoryRate: return String(format: "%.1f", value)
+        case .weight, .respiratoryRate: return FitUnitFormat.oneDecimal(value)
         case .bloodOxygen: return "\(Int(value.rounded()))"
         default: return "\(Int(value))"
         }

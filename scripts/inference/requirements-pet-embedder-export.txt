@@ -1,0 +1,7 @@
+# The toolchain `export-pet-embedder.py` exported `dinov2-small-zeroshot` v1 with (`photos-pets.md` PT-3).
+# Python 3.13. ⚠ torch's and transformers' versions decide the ONNX bytes: with these, two exports gave
+# the same SHA-256 (`PetEmbedderModel.DinoV2SmallZeroShot`). Another toolchain may not — re-measure (M2).
+torch==2.15.0
+transformers==5.23.0
+numpy==2.5.5
+onnx==1.23.2

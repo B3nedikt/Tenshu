@@ -180,6 +180,17 @@ object PhotosSurface {
      * ([ModelsSwitchHome.THIS_APP]): Control-on-iOS has no such screen. While the face model is
      * still being prepared or probed, the `NO_BACKEND` line says it is on its way, not "download it".
      */
+    /**
+     * A section page's title (`photos-pets.md` PT-D3): *People & pets* for People while pet recognition is
+     * on here, every other section its own — the Compose page's rule, shared so SwiftUI says it too.
+     */
+    fun sectionTitle(section: app.tenshu.photos.ui.screens.collections.CollectionSection, state: CollectionsUiState): String =
+        if (section == app.tenshu.photos.ui.screens.collections.CollectionSection.PEOPLE) {
+            app.tenshu.photos.ui.screens.collections.peopleTitle(state)
+        } else {
+            section.title
+        }
+
     fun collectionsLayout(state: CollectionsUiState): CollectionsLayout =
         CollectionsLayout.of(
             state,

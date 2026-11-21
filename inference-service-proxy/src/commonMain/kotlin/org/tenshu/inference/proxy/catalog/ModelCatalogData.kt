@@ -57,6 +57,13 @@ object ModelArtifactRole {
      * entry could only gain one through a version bump, which re-stamps every face template.
      */
     const val ANIMAL_DETECTOR: String = "animalDetector"
+
+    /**
+     * Pets PT-3: the pet identity model (DINOv2-small zero-shot, `photos-pets.md` PT-D10), in its own
+     * entry (`dinov2-small-zeroshot`). ⚠ Its vectors are a third space beside [VISION]'s and
+     * [FACE_EMBEDDER]'s, stored in `pets.log` only.
+     */
+    const val PET_EMBEDDER: String = "petEmbedder"
 }
 
 /**

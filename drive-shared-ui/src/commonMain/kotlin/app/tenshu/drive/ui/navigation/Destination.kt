@@ -3,41 +3,43 @@ package app.tenshu.drive.ui.navigation
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.ui.graphics.vector.ImageVector
+import app.tenshu.drive.shared.resources.Res
+import app.tenshu.drive.shared.resources.drive_nav_files
+import app.tenshu.drive.shared.resources.drive_nav_home
+import app.tenshu.drive.shared.resources.drive_nav_shared
 import kotlinx.serialization.Serializable
+import org.jetbrains.compose.resources.StringResource
 
 interface Destination {
 
     interface TopLevel : Destination {
-        val label: String
+        /** A resource, never a literal: the rail and bar are drawn in the app's language. */
+        val label: StringResource
         val icon: ImageVector
     }
 
     @Serializable
     data object Home : TopLevel {
-        override val label: String get() = "Home"
+        override val label: StringResource get() = Res.string.drive_nav_home
         override val icon: ImageVector get() = Icons.Default.Home
     }
 
     @Serializable
     data object Files : TopLevel {
-        override val label: String get() = "Files"
+        override val label: StringResource get() = Res.string.drive_nav_files
         override val icon: ImageVector get() = Icons.Default.Folder
     }
 
     @Serializable
     data object Shared : TopLevel {
-        override val label: String get() = "Shared"
+        override val label: StringResource get() = Res.string.drive_nav_shared
         override val icon: ImageVector get() = Icons.Default.Share
     }
 
     @Serializable
-    data object Settings : Destination {
-        val label: String get() = "Settings"
-        val icon: ImageVector get() = Icons.Default.Settings
-    }
+    data object Settings : Destination
 
     /** Settings → Open-source licences (`docs/oss-licences.md`), reached from [Settings]. */
     @Serializable

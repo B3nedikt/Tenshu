@@ -498,45 +498,8 @@ class MediaPipeFaceBackend(
      * leaving a face far above the 112 px the template wants. Both exactly as F2m measured them.
      */
     // ⚠ `internal` for the device harness (`AnimalVetoMeasurementTest`): it must see the frame the faces were found in.
-    internal fun decodeUpright(bytes: ByteArray, orientationOverride: Int? = null): Bitmap? {
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds) }
-        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
-        var sample = 1
-        while (maxOf(bounds.outWidth, bounds.outHeight) / sample > MAX_DECODE_EDGE) sample *= 2
-        val decoded = runCatching {
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
-        }.getOrNull() ?: return null
-        // ⚠ The bytes' own EXIF unless a caller overrides it (1–8). The indexer never does: a
-        // preview rung is stored upright (`ExifUpright`), an original carries its tag.
-        val orientation = orientationOverride ?: runCatching {
-            ExifInterface(ByteArrayInputStream(bytes))
-                .getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
-        }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
-        val matrix = Matrix()
-        when (orientation) {
-            ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
-            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
-            ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
-            ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.postScale(-1f, 1f)
-            ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.postScale(1f, -1f)
-            // ⚠ The two ROTATED mirrors — handling only the plain flips leaves these sideways.
-            ExifInterface.ORIENTATION_TRANSPOSE -> {
-                matrix.postRotate(90f)
-                matrix.postScale(-1f, 1f)
-            }
-            ExifInterface.ORIENTATION_TRANSVERSE -> {
-                matrix.postRotate(270f)
-                matrix.postScale(-1f, 1f)
-            }
-            else -> return decoded
-        }
-        val rotated = runCatching {
-            Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
-        }.getOrNull() ?: return decoded
-        if (rotated !== decoded) decoded.recycle()
-        return rotated
-    }
+    internal fun decodeUpright(bytes: ByteArray, orientationOverride: Int? = null): Bitmap? =
+        decodeUprightBitmap(bytes, orientationOverride, MAX_DECODE_EDGE)
 
     /**
      * The aligned square as packed ARGB — the shared [resampleFace], reading the bitmap in place.

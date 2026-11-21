@@ -115,6 +115,12 @@ class JoinedModelSource(
      */
     private val facesWithdrawn: suspend () -> Unit = {},
     /**
+     * Pet recognition was just switched off (`photos-pets.md` PT-4c): [facesWithdrawn]'s twin. ⚠⚠ The
+     * deletion is `petGroups`' own withdrawal-first clear of `pets.log`, never this class's — and it
+     * never reaches the face templates.
+     */
+    private val petsWithdrawn: suspend () -> Unit = {},
+    /**
      * What the verdict's file says of [ModelEntryData] as this device would install it (its key
      * from the entry's digests and this OS build). ⚠ May throw: a throw is *unreadable*.
      */
@@ -392,6 +398,7 @@ class JoinedModelSource(
     override suspend fun consentWithdrawn(capability: InferenceCapability) {
         if (capability == InferenceCapability.SEMANTIC_IMAGE_SEARCH) withContext(context) { unloadSearch() }
         if (capability == InferenceCapability.FACE_CLUSTERING) withContext(context) { facesWithdrawn() }
+        if (capability == InferenceCapability.PET_RECOGNITION) withContext(context) { petsWithdrawn() }
     }
 
     override suspend fun checkAgain() {

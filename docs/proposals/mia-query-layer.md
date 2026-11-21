@@ -1,6 +1,6 @@
 # Mia Query Layer — Turning an Utterance into Grounded Realm Data
 
-**Status:** v0.17 — §25.12 (2026-11-18): **CL-4 is built, so the clarify turn is complete**: a bare hour's card offers the other half of the day. v0.16 — §25.11 (2026-11-18): **CL-3 is built**: two devices or two routines matching a name are asked about, not refused. v0.15 — §25.10 (2026-11-18): **CL-2 is built**: the question is a cell with chips, and "Other…" focuses the composer. v0.14 — §25.9 (2026-11-17): **CL-1 is built**, so Mia asks for a missing or past event start and hears the answer. `MiaService` → v2. v0.13 — §25 (2026-11-17) designs the clarify turn: Mia asks for a slot it is missing and receives the answer. v0.12 — §24 (2026-11-17) lays out the pipeline as interfaces, built and proposed. v0.11 — §23 (2026-11-16, **proposed, not decided**) puts a composable `Query` between the plan and the chain, rather than a model writing chains; it now waits on [`core-semantic-permissions.md`](core-semantic-permissions.md). v0.10 — §22 (2026-11-16) narrows the catch-all: leftover text is a file name only when the sentence reads as a lookup. v0.9 — ⭐ §21 (2026-11-09) measures the photo-search text tower as `ClassifyIntent`'s backend. v0.8 — **Mia on the web runs the same planner in the tab, read-only** (§20). v0.7 — **Mia on iPhone is real and read-only** (§19): a route-1 runtime in place of the mock, and a proxy that offers no action there. ⚠⚠ No question has been asked on a real device yet (§19.4).
+**Status:** v0.20 — §25.15 (2026-11-20): **a run verb opening the request names a routine**, so "run evening lights" runs the routine instead of asking "on or off?"; CL-Q3 closed as built. v0.19 — §25.14 (2026-11-19): **which one, dimming and routines pass on an emulator through a real hub**; a device named outside the noun list is now a device, and a missed answer asks again instead of searching files. v0.18 — §25.13 (2026-11-19): **the first phone pass of the clarify turn** (OnePlus, Android): the flow works end to end, and ten defects fell out, all fixed and re-checked on the phone. The calendar write switch is gone (MQ-D6, second amendment). v0.17 — §25.12 (2026-11-18): **CL-4 is built, so the clarify turn is complete**: a bare hour's card offers the other half of the day. v0.16 — §25.11 (2026-11-18): **CL-3 is built**: two devices or two routines matching a name are asked about, not refused. v0.15 — §25.10 (2026-11-18): **CL-2 is built**: the question is a cell with chips, and "Other…" focuses the composer. v0.14 — §25.9 (2026-11-17): **CL-1 is built**, so Mia asks for a missing or past event start and hears the answer. `MiaService` → v2. v0.13 — §25 (2026-11-17) designs the clarify turn: Mia asks for a slot it is missing and receives the answer. v0.12 — §24 (2026-11-17) lays out the pipeline as interfaces, built and proposed. v0.11 — §23 (2026-11-16, **proposed, not decided**) puts a composable `Query` between the plan and the chain, rather than a model writing chains; it now waits on [`core-semantic-permissions.md`](core-semantic-permissions.md). v0.10 — §22 (2026-11-16) narrows the catch-all: leftover text is a file name only when the sentence reads as a lookup. v0.9 — ⭐ §21 (2026-11-09) measures the photo-search text tower as `ClassifyIntent`'s backend. v0.8 — **Mia on the web runs the same planner in the tab, read-only** (§20). v0.7 — **Mia on iPhone is real and read-only** (§19): a route-1 runtime in place of the mock, and a proxy that offers no action there. ⚠⚠ No question has been asked on a real device yet (§19.4).
 **v0.6** — **§15.1's 200-series cap is closed** (§17). `queryOccurrences` moves the scan inside `:calendar-service` and bounds **occurrences in the window** instead of **series scanned** — the one quantity there was no safe order to truncate. ⚠⚠ Saturation is now a fact rather than a guess. ⚠ `CalendarService` → v5.
 **v0.5 — MQ-1 … MQ-4 SHIPPED** 2026-08-11/14 (as-built: §7–§11, §13), plus Track A
 slice A1 (§12), **`QueryCalendar` (§15)** — which completes MQ-D4a and every named read intent —
@@ -277,6 +277,15 @@ see" — and frames it as a *Skills* concern. It should apply to **Mia itself** 
 - ⚠ Deliberately *not* per-file or per-row: that is the granular capability track flagged
   in the iOS route-1 migration §4 and CD-D8, and it is not blocked on here. Mia's grant is
   per service, and the UI should say so plainly rather than implying finer control.
+
+⚠⚠ **Amended again 2026-11-19 — the write line is gone; the card is the gate.** The amendment
+below shipped as a second "Let Mia add events" switch, and on its first desktop run the maintainer
+found it asked twice: every write already waits for the user to tap MQ-D7's card, which shows the
+resolved row, so the switch gated nothing the tap did not. A grant is back to **one switch per
+source**, and turning a source off stops both reading and acting on it — the reply-time re-read of
+the Calendar grant (§25) still refuses a write the user revoked mid-clarification. A stored
+`mia.grant.calendar.write` row is ignored (pinned by `theCalendarGrantAloneOffersTheCard_evenOverAnOldWriteRow`).
+What follows is the reasoning as it was; ⚠ do not rebuild the second line from it.
 
 ⚠⚠ **Amended 2026-08-05 — the grant needs a verb, not just a noun.** This decision was written
 read-only ("capability-scoped **read** access", revoke copy *"Mia may read Timeline: off"*), and
@@ -1020,6 +1029,9 @@ until something actually creates them.
 confirmation whose button is guaranteed to fail is worse than an honest no.
 
 ### 11.4 The write tier
+
+⚠⚠ **Removed 2026-11-19** (MQ-D6's second amendment): MQ-D7's card is the only gate for a write,
+and the Calendar read grant is the only switch. The section below is the as-built of what was removed.
 
 `MiaSource` gains `CALENDAR` and an optional `writePreference`. ⚠ **Only sources that can
 actually be written carry one** — a switch nothing consults implies a capability the system
@@ -2051,7 +2063,7 @@ computed exactly as `readMiaGrants` / `canWrite` compute them.
 ### 20.3 Run B: the app, and the switches (2026-10-28)
 
 `web/mia` (`web-app-suite.md` §4.B). ⚠ The grants became **switchable** (§8 item 10):
-`Mia.setGranted` / `setWritable` write native Settings' `mia.grant.*` rows through the same
+`Mia.setGranted` (and `setWritable`, removed with the write tier 2026-11-19) write native Settings' `mia.grant.*` rows through the same
 `PreferenceService.set`, answering with the set read back. A revocation in a browser is a revocation
 everywhere, and the next question needing the source is `noMatch` naming it — `MiaWebContractTest`
 pins that, and that the grant row is the only write. The app renders `noMatch` as the explanation
@@ -2959,10 +2971,9 @@ interface ReplyToMia : Operation {            // "tenshu/mia/service/replyToMia"
 - **CL-Q2 — voice.** A spoken "nine" must reach the reply path, never `askMia`. The voice turn has
   to know a clarification is open. That is CL-2's composer-routing rule, but it lives in the
   dictation path, which `inference-service.md` owns.
-- **CL-Q3 — where the token lives client-side.** On the message, so a scrolled-back chip is visibly
-  stale once spent (as `Confirmation.done` is today). Or only on the latest message, so older chips
-  render disabled. Lean: the latter, because one open clarification per conversation (CL-D4) makes
-  older ones dead anyway.
+- ~~**CL-Q3 — where the token lives client-side.**~~ **Decided and built (§25.10):** only the
+  latest question is live and older chips render disabled, because one open clarification per
+  conversation (CL-D4) makes older ones dead anyway. The token travels with the tap.
 - **CL-Q4 — semantic param types in the schema.** When `MiaFrames`' slot types move into the DSL
   (CL-D3): a `localDateTime(...)` / `reference<HomeDevice>(...)` param declaration. It reshapes
   `CalendarService`, `HomeDeviceService` and `RoutineService` ops. Worth doing once, for all
@@ -3147,3 +3158,145 @@ instead?"** as one tap (CL-D6). That completes the clarify turn's phasing.
   at 3" offers 03:00). That is the cost CL-D6 accepted against a meal-word table: a chip nobody
   taps costs nothing, and a wrong guess with no way back would cost a wrong row.
 
+### 25.13 Measured — the first phone pass (2026-11-19)
+
+The clarify turn on a real phone for the first time: a OnePlus (Android), every app from master
+`45cac02`, Control's planner over the production realm. Driven with `adb input`, nothing confirmed.
+
+**Works as designed:**
+- "add dentist tomorrow" asks *What time tomorrow?* with 09:00 / 14:00 / 19:00 / Other…, and a typed
+  "10" answers it: a card for tomorrow 10:00–11:00 in Personal, offering 22:00 instead.
+- "add dinner with Anna tomorrow at 8" proposes 08:00 with *20:00 instead?* (CL-D6's accepted cost:
+  a meal word does not pick the half).
+- The keyboard's Send key sends; the placeholder switches to *Your answer…* while a question is open.
+- "add haircut on Friday" on a Thursday asks *What time tomorrow?*, which is right but reads oddly
+  next to the user's "Friday".
+
+**Defects, all fixed in the same change:**
+1. ⚠⚠ **The composer floated a nav bar's height above the keyboard.** `AdaptiveNavScaffold` padded
+   its content by the docked bar but consumed that inset only under the floating pill, so the chat's
+   `imePadding()` added the keyboard's full height on top of the bar's. The scaffold now consumes
+   `innerPadding` under every chrome, which also corrects Control's unavailable wall
+   (`safeDrawing`). ⚠ Any screen inside the scaffold that applies an inset itself now gets it net of
+   the bar.
+2. ⚠⚠ **Live chips looked inert.** `SuggestionChip`'s enabled border is `outlineVariant`, invisible
+   on the cell's `surfaceVariant`, while its disabled border is visible: the tappable chips read as
+   plain text and only the spent ones had an outline. Both cells now draw the enabled border in
+   `outline`.
+3. **"Other…" left the keyboard down.** The composer keeps focus after a send, so `requestFocus()`
+   was a no-op and the user tapped twice. It now also shows the keyboard.
+4. **The alternative sat below Confirm.** The maintainer's call: the card asks about the time first
+   and ends on the action that commits (`theAlternativeSitsAboveConfirm`).
+5. ⚠⚠ **The event title lost the user's case**: "dinner with Anna" became "dinner with anna",
+   because the title was assembled from the lowercased tokens. Words are still *matched*
+   lowercased, but the title is written from the user's own tokens at the same positions
+   (`aTitleKeepsTheUsersCase`, mutation-checked).
+
+6. ⚠⚠ **After the keyboard was hidden and reopened, the composer floated half a screen above it**,
+   and the thread slid under the status bar. Mia's activity declared no `windowSoftInputMode`, so
+   Android chose per focus event and *panned* the edge-to-edge window on top of `imePadding()`.
+   ⚠ It reproduced on master too (so not defect 1's fix), and only on a reopen: the first open after
+   launch was right, which is how a one-shot check misses it. Mia now declares `adjustResize`.
+7. ⚠⚠ **A tap that wrote nothing said "Done".** Control restarted between a card and its tap; the
+   proxy no longer held the action and said *"That's no longer waiting to be confirmed"*, while the
+   card read Done. `confirmMiaAction` answered `answered` for every outcome, so the client could not
+   tell. It now answers `noMatch` when nothing was written, and the card reads *Not done*
+   (`aTapThatWritesNothingIsNotDone`, mutation-checked). ⚠⚠ **No answer at all is a third
+   outcome, *Unknown***: a transport failure can come after the write (a proxy dying mid-call), so
+   reading it as *Not done* would invite repeating an action that ran (Codex review;
+   `eachSpentCardSaysWhatHappened`). ⚠ The test that pinned the old verdict
+   for a spent token was pinning the defect.
+8. **"never mind" to an open question searched file names for "never mind".** A whole-reply
+   dismissal now closes the question: *"OK, I've left it."* (`neverMindClosesTheQuestion`).
+   ⚠ The whole reply only: "no, at 9" still answers, and "cancel my dentist" is a request.
+9. **Politeness became title**: a stored event read "please a dentist appointment". "please",
+   "can", "could", "would", "you" join the front-only title scaffolding.
+10. **"what devices do I have" searched for a device called "devices".** The generic noun is
+    dropped from device text; a command with no name left ("turn on the device") asks which.
+
+**Not covered by this pass:** CL-3 and dimming (this realm has no Home devices and no routines),
+and confirming any card (nothing was written to the calendar). "was I busy last week" read last
+week and found nothing, which this realm may well be. The iPhone has not had a pass. ✅ CL-3, dimming and a confirmed device card
+are covered by §25.14.
+
+### 25.14 Measured — which one, dimming and routines on an emulator (2026-11-19)
+
+The half §25.13 could not reach, on an Android emulator with a throwaway realm. A local relay and
+commerce stack (`scripts/local-commerce-stack.sh`), Control built against it
+(`-Ptenshu.relayUrl=http://10.0.2.2:8080 -Ptenshu.commerceUrl=http://10.0.2.2:8081`), and a desktop
+`tenshu-hub --simulated-devices` paired by its typed label (`android_shots.py`'s `pair_hub`).
+Seeded with the simulated light named "Desk bulb", a second bulb joined through Home's pairing
+window ("Simulated bulb 1"), a sensor ("Bedroom climate") and two automations made in Home ("Lights
+out", "Evening lights"). Cards were confirmed: the realm held nothing of anyone's.
+
+**Works, end to end through the hub:**
+- *"turn on the bulb"* asks *"Which "bulb" did you mean?"* with both bulbs as chips. A typed
+  "desk" or "the second one" picks; the card's tap turns the bulb on.
+- *"dim the bulb to 30 percent"* asks which, a chip picks, and after the tap Home reads the
+  bulb *On · 30%*, reported back by the hub.
+- *"run the lights routine"* asks *"Which routine did you mean?"*, and after "Lights out" is
+  confirmed Home reads Desk bulb *Off*: the automation ran its action.
+- *"dim the climate to 30 percent"* → *""climate" can't be dimmed."*; *"brighten the desk bulb"* →
+  *"How bright should it be?"*; *"turn on the kitchen light"* → no such device; *"turn off the
+  device"* → name the device; a real question in place of an answer (*"what devices do I have"*)
+  is answered as one.
+
+**Defects, both fixed and re-checked on the emulator:**
+1. ⚠⚠ **A device named outside the noun list was no device.** *"turn on the bulb"* searched file
+   names for "bulb": `DEVICE_WORDS` (light, lamp, plug, …) is closed, and a device's name is the
+   user's. A command's **shape** now names a device whatever it is called: "turn"/"switch"
+   opening the request with exactly one of on/off, "dim"/"brighten", or "set" with a level heard
+   (`QueryPlanner.commandsADevice`; `aCommandNamesItsDeviceWithoutADeviceNoun`, mutation-checked).
+   ⚠ "put" stays out ("put on some music"), and a "set" without a level is not a device ("set a
+   reminder").
+2. ⚠⚠ **A missed answer was answered as something else.** "kitchen" to *"Which "bulb" did you
+   mean?"* became a file search for "kitchen". §25.11's rule, *a reply that is no candidate is
+   planned as a new question*, is now narrowed: only when it **reads** as one. A reply the grammar
+   could only answer with the catch-all or a no-match (the plans a model may second-guess, §16.3)
+   asks the same question again with a fresh token: *"None of these is "kitchen". Which "bulb" did
+   you mean?"*, or for a time *"I didn't catch a time in "banana". What time tomorrow?"*
+   (`ReplyToMiaImplementation.answerOrAskAgain`; `aReplyThatIsNoCandidateAsksAgain_orIsANewQuestion`,
+   `aMissedTimeIsAskedAgain`, both mutation-checked). ⚠ The deterministic plan decides, without the
+   classifier: an open question is the one place a model's guess at a fragment would replace a
+   question the user can still answer. ⚠⚠ It decides **with every source granted**: a question
+   about a source that is switched off plans as a `NoMatch`, yet it is a recognised question, and
+   it gets the grant's own refusal, not the open question again
+   (`aQuestionAboutARevokedSourceIsNoMissedAnswer`, Codex review).
+
+**Not covered:** the time re-ask on a device (this realm had no default calendar; the unit test
+carries it), the iPhone, and anything with rooms (every seeded device was *Unassigned*, so two
+devices with one name were not exercised). ⚠ The emulator is shared between sessions: another
+session's `android-smoke.sh` reinstalled its own Control over this pass mid-way, and the answers
+silently reverted to the unfixed planner. The pass was redone on a second AVD (`-port 5556`);
+check the installed APK's hash before trusting a device answer.
+
+### 25.15 As built — a run verb names a routine (2026-11-20)
+
+§25.14's first defect, one source over. `ROUTINE_WORDS` is closed (routine, automation) and a
+routine's name is the user's, so *"run evening lights"* carried no routine noun. Its "lights" made
+it a device command, which could only answer *"on or off?"*. §25.14 saw *"run lights"* do exactly
+that on the emulator.
+
+- ⚠⚠ **A run verb opening the request (after the polite lead-ins) names a routine**: run, start,
+  trigger, execute, fire, activate (`QueryPlanner.commandsARoutine`). The rest is the name, and the
+  existing `RunRoutine` resolution answers it: one match is a card, several ask which, none is
+  *"I couldn't find a routine called …"*.
+- ⚠ **Device nouns do not veto it**, since routine names are full of them (*"trigger the kitchen
+  light"* is a routine). Any other source's noun does: *"start a workout"* stays a workout read and
+  *"run the photo backup"* is no routine.
+- ⚠ **Something must be left to name**: *"run yesterday"* is a question about running. And only an
+  *opening* verb commands: *"how far did I run last week"* is a question.
+- ⚠ **The lead-ins are no part of the name**, for a routine or a device: *"hey mia run evening
+  lights"* names "evening lights", and *"hey mia turn on the bulb"* names "bulb"
+  (`QueryPlanner.commandWords`; Codex review). Device commands had carried "hey mia" into the
+  name since §25.14.
+- ⚠⚠ **The verb must stand outside a quoted phrase.** The routine arm runs ahead of the quoted
+  one, so `"Trigger Warning"` would otherwise have run a routine instead of finding the file of
+  that name (Codex review). `run "evening lights"` still runs.
+- ⚠ On a runtime that withholds actions (iPhone, the web), the same utterance is now refused as an
+  action (*"I can't run routines from this device yet"*), not answered as a device read.
+
+**Verified:** `aRunVerbNamesARoutineWithoutARoutineNoun` (mutation-checked), `aCommandsLeadInIsNoPartOfTheDevicesName` and three new
+`QuestionSet` rows (*"turn on the bulb"*, *"run evening lights"*, *"please start lights out"*).
+**Not covered:** a device pass. The change is planner-only, and the routine resolution it feeds is
+the one §25.14 ran on the emulator.

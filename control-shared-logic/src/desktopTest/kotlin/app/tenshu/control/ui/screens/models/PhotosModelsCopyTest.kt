@@ -61,6 +61,15 @@ class PhotosModelsCopyTest {
         assertEquals("0 MB", photosModelBytes(-5))
     }
 
+    @Test
+    fun bytesFollowTheLocalesDigits() {
+        assertEquals("2,6 GB", photosModelBytes(2_600_000_000, "de"))
+        assertEquals("1,0 GB", photosModelBytes(1_000_000_000, "de"))
+        assertEquals("709 MB", photosModelBytes(709_000_000, "de"))
+        assertEquals("1,234.6 GB", photosModelBytes(1_234_567_000_000, "en"))
+        assertEquals("1.234,6 GB", photosModelBytes(1_234_567_000_000, "de"))
+    }
+
     /** Rows 1 to 6: what is said when there is no row to say it under. */
     @Test
     fun theListAsAWholeSaysWhyThereIsNoneAndOffersARetryOnlyWhereOneCanHelp() {

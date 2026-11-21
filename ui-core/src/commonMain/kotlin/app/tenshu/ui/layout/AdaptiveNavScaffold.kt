@@ -10,13 +10,17 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.ui.unit.Dp
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
@@ -40,7 +44,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import app.tenshu.ui.chrome.AppExtendedFab
+import app.tenshu.ui.chrome.appFabInset
 import app.tenshu.ui.preview.PreviewBox
 import androidx.compose.ui.tooling.preview.Preview
 
@@ -74,15 +81,32 @@ data class AdaptiveNavItem(
      * additive: the default is the ordinary flat nav item every existing caller gets.
      */
     val emphasized: Boolean = false,
+    /**
+     * Marks this item as the app's **primary action** rather than a place (Fit's *Record*). On a
+     * phone it stays in the bottom bar, drawn [emphasized] — a centred "+" is idiomatic there. At
+     * every wider class it is **not a rail destination**: the rail would make it read as a place,
+     * so the scaffold draws it instead as an extended FAB bottom-end over the content, the
+     * house's primary-action position (`AppExtendedFab`, `fit-app.md` §18.20). Whether that FAB
+     * shows on the current screen is the caller's call — `showPrimaryActionFab`.
+     *
+     * At most one item may carry this; the label is the FAB's visible text and accessible name.
+     */
+    val primaryAction: Boolean = false,
 )
 
 @Composable
 internal fun NavItemIcon(item: AdaptiveNavItem) {
     val icon: @Composable () -> Unit = {
-        if (item.emphasized) {
+        if (item.emphasized || item.primaryAction) {
+            // ⚠ Laid out as an ordinary 24 dp icon, drawn as the 56 × 32 pill. Measured at its
+            // drawn size, the pill pushed the rail item's whole column right — the item centres
+            // its label on the icon's slot, not on the item — so the label crossed the 96 dp
+            // rail's edge and clipped ("Aufzeichne"). `AdaptiveNavLabelFitTest` pins it.
             Box(
                 modifier = Modifier
-                    .size(width = 56.dp, height = 32.dp)
+                    .size(24.dp)
+                    .wrapContentSize(unbounded = true)
+                    .requiredSize(width = 56.dp, height = 32.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primaryContainer),
                 contentAlignment = Alignment.Center,
@@ -210,6 +234,11 @@ fun AdaptiveNavScaffold(
      * sibling would shift the screen each time activity starts or ends.
      */
     overlay: @Composable BoxScope.() -> Unit = {},
+    /**
+     * Whether the current screen shows the [AdaptiveNavItem.primaryAction] item's FAB at the rail
+     * size classes. Ignored on compact (the item is in the bar there) and when no item is marked.
+     */
+    showPrimaryActionFab: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     val sizeClass = LocalWindowWidthSizeClass.current
@@ -220,6 +249,13 @@ fun AdaptiveNavScaffold(
     val showBar = compact && !floating
     val showPill = compact && floating
     val showRail = showNav && sizeClass != WindowWidthSizeClass.Compact
+    // The rail lists places only; the primary action leaves it for a FAB (see [AdaptiveNavItem.primaryAction]).
+    val primaryAction = navItems.firstOrNull { it.primaryAction }
+    val railItems = if (primaryAction == null) navItems else navItems.filterNot { it.primaryAction }
+    val showFab = showRail && showPrimaryActionFab && primaryAction != null
+    // Measured off the FAB with its inset, like the pill's. Reset when the FAB goes.
+    var fabClearancePx by remember { mutableIntStateOf(0) }
+    val fabClearance = if (showFab) with(LocalDensity.current) { fabClearancePx.toDp() } else 0.dp
     // Measured off the pill's wrapper, which spans from the pill's top to the content's bottom
     // edge. Reset when the pill goes, so a pushed screen never inherits the tab's clearance.
     var pillClearancePx by remember { mutableIntStateOf(0) }
@@ -232,11 +268,14 @@ fun AdaptiveNavScaffold(
         // the scaffold falls back to `contentWindowInsets` for the bottom padding either way.
         bottomBar = {
             if (showBar) {
+                val labels = rememberNavLabelGroup()
                 NavigationBar {
                     navItems.forEach { item ->
                         NavigationBarItem(
                             icon = { NavItemIcon(item) },
-                            label = { Text(item.label) },
+                            // One line: a second would push the bar past its fixed height. A
+                            // long word shrinks to fit instead of breaking between letters.
+                            label = { NavLabel(item.label, maxLines = 1, group = labels) },
                             selected = item.selected,
                             onClick = item.onClick,
                         )
@@ -250,12 +289,14 @@ fun AdaptiveNavScaffold(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                // ⚠ Only for the pill, so the docked bar and the rail keep exactly the insets they
-                // always had: what the scaffold already applied must not be applied a second
-                // time by the pill's own `windowInsetsPadding`.
-                .then(if (floating) Modifier.consumeWindowInsets(innerPadding) else Modifier),
+                // ⚠⚠ What the scaffold applied must not be applied a second time below it, under
+                // any chrome. Consumed only for the pill until 2026-11-19, so under the docked bar
+                // Mia's chat `imePadding()` added the keyboard's whole height on top of the bar's:
+                // the composer floated a bar's height above the keyboard (§25.13 of
+                // mia-query-layer.md). Every inset a screen applies itself is now net of the bar.
+                .consumeWindowInsets(innerPadding),
         ) {
-            if (showRail) NavRail(navItems)
+            if (showRail) NavRail(railItems)
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -266,12 +307,28 @@ fun AdaptiveNavScaffold(
             ) {
                 // ⚠ Always provided, 0.dp when there is no pill, so this stays the one call site of
                 // `content()` (see the KDoc) whichever chrome is showing.
-                CompositionLocalProvider(LocalNavBarClearance provides clearance) {
+                CompositionLocalProvider(
+                    LocalNavBarClearance provides clearance,
+                    LocalPrimaryActionClearance provides fabClearance,
+                ) {
                     content()
                 }
                 // The overlay is lifted above the pill, so a bottom-aligned capsule clears it the
                 // same way it clears the docked bar.
                 Box(Modifier.fillMaxSize().padding(bottom = clearance)) { overlay() }
+                if (showFab && primaryAction != null) {
+                    AppExtendedFab(
+                        onClick = primaryAction.onClick,
+                        icon = primaryAction.icon,
+                        label = primaryAction.label,
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            // ⚠ Before the inset, so the size counts the gap above and below it.
+                            .onSizeChanged { fabClearancePx = it.height }
+                            .appFabInset()
+                            .testTag(PRIMARY_ACTION_FAB_TAG),
+                    )
+                }
                 if (showPill) {
                     Box(
                         modifier = Modifier
@@ -290,16 +347,33 @@ fun AdaptiveNavScaffold(
 }
 
 /**
+ * How much of the content area's bottom the primary-action FAB covers — the FAB plus its inset —
+ * so a scrolling screen it floats over can add it to its bottom `contentPadding` and let the last
+ * row scroll clear of it, rather than leaving that row's trailing edge under the button.
+ *
+ * ⚠ Its own local, not [LocalNavBarClearance]: callers read that one as "the floating pill is
+ * showing". `0.dp` whenever the FAB is not drawn (compact, an opted-out screen, no primary action),
+ * so a screen can read it unconditionally; measured, so `0.dp` on the FAB's first frame.
+ */
+val LocalPrimaryActionClearance = compositionLocalOf<Dp> { 0.dp }
+
+/** Test tag of the primary-action FAB drawn at the rail size classes. */
+const val PRIMARY_ACTION_FAB_TAG = "adaptive-nav-primary-action-fab"
+
+/**
  * The leading navigation rail — every non-compact size class renders this same collapsed rail.
  * See [AdaptiveNavScaffold]'s KDoc for why it never expands.
  */
 @Composable
 private fun NavRail(navItems: List<AdaptiveNavItem>) {
+    val labels = rememberNavLabelGroup()
     WideNavigationRail {
         navItems.forEach { item ->
             WideNavigationRailItem(
                 icon = { NavItemIcon(item) },
-                label = { Text(item.label) },
+                // ⚠ Never a bare `Text`: the item is a fixed 96 dp, and a German word wider than
+                // that was broken mid-word and clipped ("Aufzeichne"). See [NavLabel].
+                label = { NavLabel(item.label, maxLines = 2, group = labels) },
                 selected = item.selected,
                 onClick = item.onClick,
                 railExpanded = false,

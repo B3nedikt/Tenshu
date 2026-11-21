@@ -42,7 +42,6 @@ const { ensureRuntime, mia, MiaMethod } = vi.hoisted(() => {
       Grants: 'mia.grants',
       GrantsObserve: 'mia.grants.observe',
       SetGranted: 'mia.grants.setGranted',
-      SetWritable: 'mia.grants.setWritable',
     },
     mia: {
       ask: vi.fn(async (_u: string, _z: string) => ({ ok: true, conversationId: 'c', turn: {} })),
@@ -52,7 +51,6 @@ const { ensureRuntime, mia, MiaMethod } = vi.hoisted(() => {
       grants: vi.fn(async () => ({ ok: true, grants: [] })),
       observeGrants: vi.fn(observer),
       setGranted: vi.fn(async (_s: string, _g: boolean) => ({ ok: true, grants: [] })),
-      setWritable: vi.fn(async (_s: string, _g: boolean) => ({ ok: true, grants: [] })),
     },
   }
 })
@@ -107,9 +105,9 @@ describe('proxyGateway — mia', () => {
     mountProxyGateway()
   })
 
-  it('registers exactly the surface: the grant switches, but no confirm, no delete, no voice', () => {
+  it('registers exactly the surface: the grant switch, but no confirm, no delete, no voice', () => {
     expect(Object.keys(captured).filter((m) => m.startsWith('mia.')).sort()).toEqual(
-      ['mia.ask', 'mia.grants', 'mia.grants.setGranted', 'mia.grants.setWritable', 'mia.history', 'mia.turnsPage'].sort(),
+      ['mia.ask', 'mia.grants', 'mia.grants.setGranted', 'mia.history', 'mia.turnsPage'].sort(),
     )
     expect(Object.keys(subscriptions).filter((m) => m.startsWith('mia.')).sort()).toEqual([
       'mia.grants.observe',
@@ -153,9 +151,6 @@ describe('proxyGateway — mia', () => {
     ['mia.grants', undefined, 'grants', []],
     ['mia.grants.setGranted', { source: 'FITNESS', granted: false }, 'setGranted', ['FITNESS', false]],
     ['mia.grants.setGranted', { source: 'CALENDAR', granted: true }, 'setGranted', ['CALENDAR', true]],
-    // A source with no write tier passes through: it is the SDK's typed `error_mia_no_write_grant`.
-    ['mia.grants.setWritable', { source: 'FILES', granted: true }, 'setWritable', ['FILES', true]],
-    ['mia.grants.setWritable', { source: 'CALENDAR', granted: false }, 'setWritable', ['CALENDAR', false]],
   ])('%s %j dispatches to Mia.%s', async (method, params, fn, args) => {
     await handler(method)(params)
     expect(mia[fn]).toHaveBeenCalledWith(...args)
@@ -195,12 +190,11 @@ describe('proxyGateway — mia', () => {
     ['mia.grants.setGranted', { source: 'FITNESS', granted: 0 }],
     ['mia.grants.setGranted', { source: 'fitness', granted: false }],
     ['mia.grants.setGranted', { source: 'WEATHER', granted: false }],
-    ['mia.grants.setWritable', { source: 7, granted: true }],
-    ['mia.grants.setWritable', { source: 'CALENDAR', granted: null }],
+    ['mia.grants.setGranted', { source: 7, granted: true }],
+    ['mia.grants.setGranted', { source: 'CALENDAR', granted: null }],
   ])('%s refuses %j before the runtime, writing nothing', async (method, params) => {
     await expect(handler(method)(params)).rejects.toThrow(/requires/)
     expect(mia.setGranted).not.toHaveBeenCalled()
-    expect(mia.setWritable).not.toHaveBeenCalled()
   })
 
   it('passes a refusal through as a value, untouched', async () => {

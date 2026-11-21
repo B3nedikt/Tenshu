@@ -1,5 +1,6 @@
 package app.tenshu.control.ui.screens.models
 
+import org.tenshu.core.common.format.LocaleNumbers
 import app.tenshu.control.inference.ForegroundIndexStanding
 import app.tenshu.control.inference.IndexCoverage
 import app.tenshu.control.inference.ModelRow
@@ -174,7 +175,12 @@ private val ModelRow.unsuitable: Boolean
 internal fun ModelsUiState.capabilityOf(modelId: String): InferenceCapability {
     val served: List<String>? = serves[modelId]
     if (served != null) {
-        return if (InferenceCapability.FACE_CLUSTERING.id in served) InferenceCapability.FACE_CLUSTERING else InferenceCapability.SEMANTIC_IMAGE_SEARCH
+        return when {
+            InferenceCapability.FACE_CLUSTERING.id in served -> InferenceCapability.FACE_CLUSTERING
+            // Pets (PT-4c): both pet models serve pet recognition.
+            InferenceCapability.PET_RECOGNITION.id in served -> InferenceCapability.PET_RECOGNITION
+            else -> InferenceCapability.SEMANTIC_IMAGE_SEARCH
+        }
     }
     return capabilities.modelFeatures[modelId] ?: InferenceCapability.SEMANTIC_IMAGE_SEARCH
 }
@@ -389,9 +395,88 @@ object PhotosModelsCopy {
 
     fun facesUnsuitable(device: String) = "This $device couldn't run the model well enough, so grouping photos by people stays off."
 
+    // ─── Pets (`photos-pets.md` PT-4c). ⚠⚠ Android's words (`consentHeadline`, `featureDescription`,
+    // `turnOffText` for PET_RECOGNITION in `:control-shared`), and faces' shape: what switching off deletes.
+
+    /** Android's `consentHeadline(PET_RECOGNITION)`. */
+    const val PETS_FEATURE = "Recognise your pets"
+
+    /** Android's `featureDescription(PET_RECOGNITION)`: where pet data lives, that only names travel, what off deletes. */
+    const val PETS_DESCRIPTION =
+        "Find your cats and dogs in your photos so you can name them. Pet data is made on each " +
+            "device you allow and never leaves it. Only the names you type sync to your devices. " +
+            "Turning this off deletes the pet data and keeps the names."
+
     /** The feature's name, as its row and its screen say it. */
-    fun featureTitle(capability: InferenceCapability): String =
-        if (capability == InferenceCapability.FACE_CLUSTERING) FACES_FEATURE else FEATURE
+    fun featureTitle(capability: InferenceCapability): String = when (capability) {
+        InferenceCapability.FACE_CLUSTERING -> FACES_FEATURE
+        InferenceCapability.PET_RECOGNITION -> PETS_FEATURE
+        else -> FEATURE
+    }
+
+    /** Whether switching [capability] off deletes this device's data for it: faces and pets, each its own. */
+    fun deletesData(capability: InferenceCapability): Boolean =
+        capability == InferenceCapability.FACE_CLUSTERING || capability == InferenceCapability.PET_RECOGNITION
+
+    /** The words of a feature whose switch-off deletes data — faces' or pets'. ⚠ Search's are not these. */
+    fun deleting(capability: InferenceCapability): DeletingFeatureCopy =
+        if (capability == InferenceCapability.PET_RECOGNITION) PetsCopy else FacesCopy
+
+    /** One shape for both deleting features, so a call site never says "face data" about pets. */
+    interface DeletingFeatureCopy {
+        val description: String
+        fun offDeletes(device: String): String
+        fun turnOffTitle(device: String): String
+        fun turnOffText(device: String): String
+        fun turnOffOtherTitle(name: String): String
+        val turnOffOtherText: String
+        val turnOffEverywhere: String
+        val turnOffEverywhereTitle: String
+        val turnOffEverywhereText: String
+        fun offerTitle(device: String): String
+        fun offerText(device: String): String
+        fun removeText(bytes: Long, device: String): String
+        fun unsuitable(device: String): String
+    }
+
+    /** Faces' words: exactly the ones above, unchanged. */
+    object FacesCopy : DeletingFeatureCopy {
+        override val description = FACES_DESCRIPTION
+        override fun offDeletes(device: String) = facesOffDeletes(device)
+        override fun turnOffTitle(device: String) = facesTurnOffTitle(device)
+        override fun turnOffText(device: String) = facesTurnOffText(device)
+        override fun turnOffOtherTitle(name: String) = facesTurnOffOtherTitle(name)
+        override val turnOffOtherText = FACES_TURN_OFF_OTHER_TEXT
+        override val turnOffEverywhere = FACES_TURN_OFF_EVERYWHERE
+        override val turnOffEverywhereTitle = facesTurnOffEverywhereTitle
+        override val turnOffEverywhereText = FACES_TURN_OFF_EVERYWHERE_TEXT
+        override fun offerTitle(device: String) = facesOfferTitle(device)
+        override fun offerText(device: String) = facesOfferText(device)
+        override fun removeText(bytes: Long, device: String) = facesRemoveText(bytes, device)
+        override fun unsuitable(device: String) = facesUnsuitable(device)
+    }
+
+    /** Pets' words, in faces' shape: pet data, never face data. */
+    object PetsCopy : DeletingFeatureCopy {
+        override val description = PETS_DESCRIPTION
+        override fun offDeletes(device: String) = "Turning this off deletes this $device's pet data; names stay."
+        override fun turnOffTitle(device: String) = "Turn off \"$PETS_FEATURE\" on this $device?"
+        override fun turnOffText(device: String) =
+            "This $device's pet data is deleted. The names you typed are kept, and other devices are not changed."
+        override fun turnOffOtherTitle(name: String) = "Turn off \"$PETS_FEATURE\" on $name?"
+        override val turnOffOtherText = "Its pet data is deleted. The names you typed are kept, and other devices are not changed."
+        override val turnOffEverywhere = "Turn off everywhere and delete pet data"
+        override val turnOffEverywhereTitle = "Turn off \"$PETS_FEATURE\" everywhere?"
+        override val turnOffEverywhereText = "Pet data is deleted on every device. The names you typed are kept."
+        override fun offerTitle(device: String) = "Turn on \"$PETS_FEATURE\" for this $device?"
+        override fun offerText(device: String) =
+            "The models are ready. Photos looks for your cats and dogs when you tap Index now. Pet data is made on " +
+                "this $device and never leaves it; only the names you type sync. Turning this off deletes the pet data and keeps the names."
+        override fun removeText(bytes: Long, device: String) =
+            "This frees about ${photosModelBytes(bytes)} on this $device. Recognising your pets stops working here " +
+                "until the model is downloaded again. The switch for it is not changed, and pet data already made stays until you turn it off."
+        override fun unsuitable(device: String) = "This $device couldn't run the pet models well enough, so recognising your pets stays off."
+    }
 
     // ─── The indexing section (§14.19.6). ⚠ Placeholder copy (M11), like the rest.
 
@@ -446,6 +531,13 @@ object PhotosModelsCopy {
      * indexing"* line: its first line is the coverage line when there is one.
      */
     const val INDEX_PROMPT = "Index your photos to search them by what is in them."
+
+    /**
+     * [INDEX_PROMPT] where search is not switched on: the pass indexes for [features] alone, so the
+     * prompt names them and promises no search (`photos-pets.md` §10.18).
+     */
+    fun indexPromptFor(features: List<String>): String =
+        "Index your photos for ${features.joinToString(" and ") { "\"$it\"" }}."
     fun indexNotOnDevice(n: Int, device: String) = "${count(n)} aren't on this $device."
 
     /**
@@ -505,12 +597,17 @@ object PhotosModelsCopy {
     }
 }
 
-/** Decimal units, as iOS's own storage screen counts: *709 MB*, *2.6 GB*. */
-fun photosModelBytes(bytes: Long): String {
+/**
+ * Decimal units, as iOS's own storage screen counts: *709 MB*, *2.6 GB* — the deliberate exception
+ * to the binary `formatStorageBytes`, because these lines set a model's size beside the device's
+ * free space and that figure must read as the OS's storage screen reads it (one base per line).
+ * The digits follow the locale: *2,6 GB* in German (`docs/proposals/locale-number-formatting.md`).
+ */
+fun photosModelBytes(bytes: Long, languageTag: String = LocaleNumbers.defaultLanguageTag()): String {
     val megabytes: Long = (bytes.coerceAtLeast(0L) + 500_000L) / 1_000_000L
-    if (megabytes < 1_000L) return "$megabytes MB"
+    if (megabytes < 1_000L) return "${LocaleNumbers.integer(megabytes, languageTag)} MB"
     val tenths: Long = (bytes + 50_000_000L) / 100_000_000L
-    return "${tenths / 10}.${tenths % 10} GB"
+    return "${LocaleNumbers.decimal(tenths / 10.0, 1, languageTag)} GB"
 }
 
 /**
@@ -555,7 +652,8 @@ fun photosModelsScreen(state: ModelsUiState, device: String, onWifi: Boolean?): 
         question = state.pendingDeletion?.let { row ->
             val frees: Long = (row.setup as? ModelSetup.Held)?.model?.onDeviceBytes ?: 0L
             val text: String = when (state.capabilityOf(row.modelId)) {
-                InferenceCapability.FACE_CLUSTERING -> PhotosModelsCopy.facesRemoveText(frees, device)
+                InferenceCapability.FACE_CLUSTERING, InferenceCapability.PET_RECOGNITION ->
+                    PhotosModelsCopy.deleting(state.capabilityOf(row.modelId)).removeText(frees, device)
                 else -> PhotosModelsCopy.removeText(frees, device)
             }
             PhotosModelsScreen.Asked(
@@ -566,12 +664,12 @@ fun photosModelsScreen(state: ModelsUiState, device: String, onWifi: Boolean?): 
                 ),
             )
         } ?: state.featureOffer?.let { offered ->
-            val faces: Boolean = offered == InferenceCapability.FACE_CLUSTERING
+            val deleting: Boolean = PhotosModelsCopy.deletesData(offered)
             PhotosModelsScreen.Asked(
                 PhotosModelsScreen.Asked.Kind.FEATURE_OFFER,
                 PhotosModelsScreen.Question(
-                    if (faces) PhotosModelsCopy.facesOfferTitle(device) else PhotosModelsCopy.offerTitle(device),
-                    if (faces) PhotosModelsCopy.facesOfferText(device) else PhotosModelsCopy.OFFER_TEXT,
+                    if (deleting) PhotosModelsCopy.deleting(offered).offerTitle(device) else PhotosModelsCopy.offerTitle(device),
+                    if (deleting) PhotosModelsCopy.deleting(offered).offerText(device) else PhotosModelsCopy.OFFER_TEXT,
                     yes = PhotosModelsCopy.TURN_ON, no = PhotosModelsCopy.NOT_NOW,
                 ),
             )
@@ -588,7 +686,7 @@ private fun featureRow(state: ModelsUiState, consent: CapabilityConsent, device:
     val capability: InferenceCapability = consent.capability
     val on: Boolean = consent.realm && consent.device
     val waits: Boolean = state.consentsRead && on && state.usableFor(capability) != true && !state.unsuitableFor(capability)
-    val deletes: Boolean = capability == InferenceCapability.FACE_CLUSTERING && state.consentsRead && on
+    val deletes: Boolean = PhotosModelsCopy.deletesData(capability) && state.consentsRead && on
     return PhotosModelsScreen.Feature(
         capability = capability,
         title = PhotosModelsCopy.featureTitle(capability),
@@ -599,7 +697,7 @@ private fun featureRow(state: ModelsUiState, consent: CapabilityConsent, device:
         },
         detail = listOfNotNull(
             PhotosModelsCopy.STARTS_WHEN_READY.takeIf { waits },
-            PhotosModelsCopy.facesOffDeletes(device).takeIf { deletes },
+            PhotosModelsCopy.deleting(capability).offDeletes(device).takeIf { deletes },
         ).joinToString(" ").ifEmpty { null },
     )
 }
@@ -688,10 +786,23 @@ internal fun photosIndexing(state: ModelsUiState, device: String): PhotosModelsS
             // ⚠ A press being answered: nothing runs yet, so nothing to pause.
             state.startingIndex -> section(PhotosModelsCopy.STARTING)
             // ⚠ Idle: the coverage line is the first line, never a *"not indexing"* above it.
-            else -> section(coverageLine(state, device) ?: PhotosModelsCopy.INDEX_PROMPT, actions = startable(state), withCoverage = false)
+            else -> section(coverageLine(state, device) ?: prompt(state, on), actions = startable(state), withCoverage = false)
         }
     }
 }
+
+/** The idle prompt: search's, or — where search is not on — the switched-on features named. */
+private fun prompt(state: ModelsUiState, on: List<CapabilityConsent>): String =
+    if (searchIsOn(state)) PhotosModelsCopy.INDEX_PROMPT
+    else PhotosModelsCopy.indexPromptFor(on.map { PhotosModelsCopy.featureTitle(it.capability) })
+
+/**
+ * Search's switch on here and for the realm. ⚠⚠ The stored index is SEARCH's store: with search
+ * off a pass for faces or pets leaves it as it was, and *0 of 113 … can be searched* after a pass
+ * that found every pet reads as a pass that did nothing (`photos-pets.md` §10.18).
+ */
+private fun searchIsOn(state: ModelsUiState): Boolean =
+    state.consents.any { it.capability == InferenceCapability.SEMANTIC_IMAGE_SEARCH && it.realm && it.device }
 
 /** *Index now*, unless a press is being answered. ⚠ No *Pause*: nothing runs. */
 private fun startable(state: ModelsUiState): List<PhotosModelsScreen.IndexAction> =
@@ -702,7 +813,8 @@ private fun startable(state: ModelsUiState): List<PhotosModelsScreen.IndexAction
  * first: after an iOS update a bare *0 of N* would read as a fault.
  */
 private fun coverageLine(state: ModelsUiState, device: String): String? {
-    val stored: StoredIndex? = state.storedIndex
+    // ⚠ Search off: its store's count says nothing true, so only the pass's reach is said.
+    val stored: StoredIndex? = state.storedIndex.takeIf { searchIsOn(state) }
     val reach: IndexCoverage? = state.coverage
     if (stored?.clearedByOsUpdate == true && reach == null) return PhotosModelsCopy.clearedByOsUpdate(stored.searchable)
     val searchable: Int? = stored?.searchable
@@ -881,7 +993,8 @@ private fun row(state: ModelsUiState, row: ModelRow, device: String, onWifi: Boo
 
 /** What a row says of a model this phone could not run, for the feature it serves. */
 private fun unsuitableSentence(state: ModelsUiState, modelId: String, device: String): String = when (state.capabilityOf(modelId)) {
-    InferenceCapability.FACE_CLUSTERING -> PhotosModelsCopy.facesUnsuitable(device)
+    InferenceCapability.FACE_CLUSTERING, InferenceCapability.PET_RECOGNITION ->
+        PhotosModelsCopy.deleting(state.capabilityOf(modelId)).unsuitable(device)
     else -> PhotosModelsCopy.unsuitable(device)
 }
 
@@ -1060,7 +1173,8 @@ fun photosFeatureScreen(state: ModelsUiState, capability: InferenceCapability, d
         else -> null
     }
     val idKnown: Boolean = state.thisDeviceKnown != false
-    val deletes: Boolean = capability == InferenceCapability.FACE_CLUSTERING
+    val deletes: Boolean = PhotosModelsCopy.deletesData(capability)
+    val words: PhotosModelsCopy.DeletingFeatureCopy = PhotosModelsCopy.deleting(capability)
     fun turnOff(title: String, text: String) = PhotosModelsScreen.Question(title, text, yes = PhotosModelsCopy.TURN_OFF, no = PhotosModelsCopy.KEEP_ON)
     val onHere: String =
         if (state.usableFor(capability) != true && !state.unsuitableFor(capability)) PhotosModelsCopy.STARTS_WHEN_READY else PhotosModelsCopy.DEVICE_ON
@@ -1075,7 +1189,7 @@ fun photosFeatureScreen(state: ModelsUiState, capability: InferenceCapability, d
             // ⚠⚠ What the press would delete, said before it is pressed.
             // The switch shows it is on; the line says what turning it off deletes.
             consent.device && deletes ->
-                if (onHere == PhotosModelsCopy.DEVICE_ON) PhotosModelsCopy.facesOffDeletes(device) else "$onHere ${PhotosModelsCopy.facesOffDeletes(device)}"
+                if (onHere == PhotosModelsCopy.DEVICE_ON) words.offDeletes(device) else "$onHere ${words.offDeletes(device)}"
             consent.device -> onHere
             else -> PhotosModelsCopy.DEVICE_OFF
         },
@@ -1087,7 +1201,7 @@ fun photosFeatureScreen(state: ModelsUiState, capability: InferenceCapability, d
             consent.device -> PhotosFeatureScreen.Press.TurnOffHere
             else -> PhotosFeatureScreen.Press.TurnOnHere
         },
-        question = turnOff(PhotosModelsCopy.facesTurnOffTitle(device), PhotosModelsCopy.facesTurnOffText(device))
+        question = turnOff(words.turnOffTitle(device), words.turnOffText(device))
             .takeIf { deletes && read && idKnown && consent.device },
     )
     // ⚠ Listed only from a roster that is known NOW: a row left by a read that has since failed
@@ -1098,7 +1212,7 @@ fun photosFeatureScreen(state: ModelsUiState, capability: InferenceCapability, d
     return PhotosFeatureScreen(
         capability = capability,
         title = PhotosModelsCopy.featureTitle(capability),
-        about = if (deletes) PhotosModelsCopy.FACES_DESCRIPTION else PhotosModelsCopy.FEATURE_DESCRIPTION,
+        about = if (deletes) words.description else PhotosModelsCopy.FEATURE_DESCRIPTION,
         devicesHeader = PhotosModelsCopy.DEVICES,
         thisDevice = here,
         others = others.map { other ->
@@ -1110,8 +1224,8 @@ fun photosFeatureScreen(state: ModelsUiState, capability: InferenceCapability, d
                 // ⚠ Off only from here (§38.2): a device's yes is given on that device.
                 press = PhotosFeatureScreen.Press.TurnOffOther(other.deviceId).takeIf { other.allowed },
                 question = turnOff(
-                    PhotosModelsCopy.facesTurnOffOtherTitle(other.name.ifBlank { PhotosModelsCopy.UNNAMED_DEVICE }),
-                    PhotosModelsCopy.FACES_TURN_OFF_OTHER_TEXT,
+                    words.turnOffOtherTitle(other.name.ifBlank { PhotosModelsCopy.UNNAMED_DEVICE }),
+                    words.turnOffOtherText,
                 ).takeIf { deletes && other.allowed },
             )
         },
@@ -1123,10 +1237,10 @@ fun photosFeatureScreen(state: ModelsUiState, capability: InferenceCapability, d
             else -> PhotosModelsCopy.OTHER_DEVICES_UNREADABLE
         },
         everywhere = PhotosFeatureScreen.Everywhere(
-            label = if (deletes) PhotosModelsCopy.FACES_TURN_OFF_EVERYWHERE else PhotosModelsCopy.TURN_OFF_EVERYWHERE,
+            label = if (deletes) words.turnOffEverywhere else PhotosModelsCopy.TURN_OFF_EVERYWHERE,
             press = PhotosFeatureScreen.Press.TurnOffEverywhere,
             question = if (deletes) {
-                turnOff(PhotosModelsCopy.facesTurnOffEverywhereTitle, PhotosModelsCopy.FACES_TURN_OFF_EVERYWHERE_TEXT)
+                turnOff(words.turnOffEverywhereTitle, words.turnOffEverywhereText)
             } else {
                 turnOff(PhotosModelsCopy.turnOffEverywhereTitle, PhotosModelsCopy.TURN_OFF_EVERYWHERE_TEXT)
             },

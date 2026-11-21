@@ -16,6 +16,13 @@ import org.tenshu.core.file.system.uploadSourceFileBackground
 import org.tenshu.file.client.fileService
 import org.tenshu.files.util.ContentProviderUtil
 
+/**
+ * ⚠⚠ Every upload / replace below runs on [Dispatchers.IO], not the caller's dispatcher. Building
+ * the source-file op is blocking work in the caller's thread — a `getSourceDateMillis` query, the
+ * descriptor open, and a synchronous `sendFile` Binder call — all *before* the op's own interactor
+ * hops off Main. Called from a `viewModelScope` that is a picker's result callback, it froze the
+ * resumed screen for the whole pick.
+ */
 class AndroidFilesRepositoryPlatformDelegate(
     private val context: Context
 ) : FilesRepositoryPlatformDelegate {
@@ -66,8 +73,8 @@ class AndroidFilesRepositoryPlatformDelegate(
         parentPath: String,
         fileName: String,
         uriString: String
-    ): TResult<Data?> {
-        return client.fileService.defaultFileSystem
+    ): TResult<Data?> = withContext(Dispatchers.IO) {
+        client.fileService.defaultFileSystem
             .uploadSourceFile(
                 parentPath = parentPath,
                 fileName = fileName,
@@ -81,8 +88,8 @@ class AndroidFilesRepositoryPlatformDelegate(
         parentPath: String,
         fileName: String,
         uriString: String
-    ): TResult<Data?> {
-        return client.fileService.defaultFileSystem
+    ): TResult<Data?> = withContext(Dispatchers.IO) {
+        client.fileService.defaultFileSystem
             .replaceSourceFile(
                 parentPath = parentPath,
                 fileName = fileName,
@@ -108,8 +115,8 @@ class AndroidFilesRepositoryPlatformDelegate(
         parentPath: String,
         fileName: String,
         uriString: String
-    ): TaskHandle<Data?> {
-        return client.fileService.defaultFileSystem
+    ): TaskHandle<Data?> = withContext(Dispatchers.IO) {
+        client.fileService.defaultFileSystem
             .uploadSourceFileBackground(
                 parentPath = parentPath,
                 fileName = fileName,
@@ -123,8 +130,8 @@ class AndroidFilesRepositoryPlatformDelegate(
         parentPath: String,
         fileName: String,
         uriString: String
-    ): TaskHandle<Data?> {
-        return client.fileService.defaultFileSystem
+    ): TaskHandle<Data?> = withContext(Dispatchers.IO) {
+        client.fileService.defaultFileSystem
             .replaceSourceFileBackground(
                 parentPath = parentPath,
                 fileName = fileName,

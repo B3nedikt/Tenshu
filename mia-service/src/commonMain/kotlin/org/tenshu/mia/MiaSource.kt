@@ -28,16 +28,11 @@ import org.tenshu.preference.PreferenceScope
  * and `ios-first-party-route-1-migration.md` §4). Implying finer control than "Mia may read
  * your Timeline" would be a lie the system cannot enforce.
  *
- * ⚠⚠ **Since MQ-3b a grant is `(service, access)`** — MQ-D6 as amended. [writePreference] is
- * non-null only where a write intent actually exists, because a switch nothing consults is
- * worse than no switch: it implies a capability the system does not have. Calendar is the only
- * writable source today.
- *
- * ⚠ **Write is opt-in and read is not.** Reading was the shipped behaviour and revoking it
- * would break a working assistant; *writing* has never happened before, so it starts off and
- * the first `CreateEvent` is where asking for it belongs. ⚠ And write without read is not
- * offered — every write intent resolves slots against existing data first, so a grant that
- * cannot be satisfied is worse than an absent one.
+ * ⚠⚠ **One switch per source, and it covers what Mia may do there too.** MQ-3b added a second,
+ * write switch for the calendar; it was removed on 2026-11-19 because it asked twice. Every write
+ * already runs only after the user taps MQ-D7's card, which shows the resolved row, so the switch
+ * gated nothing the tap did not. Devices and routines never had one. Turning a source off still
+ * stops both reading it and acting on it.
  */
 enum class MiaSource(
     /** The service this source reads. */
@@ -55,8 +50,6 @@ enum class MiaSource(
     val chainReferenceId: String,
     /** The switch. Realm-scoped: revoking on the phone revokes everywhere. */
     val preference: Preference<Boolean>,
-    /** The `read + write` half, or `null` where nothing can write this source. */
-    val writePreference: Preference<Boolean>? = null,
 ) {
     FILES(
         serviceId = FileService.ID,
@@ -149,11 +142,7 @@ enum class MiaSource(
         serviceId = CalendarService.ID,
         chainReferenceId = CalendarService.ID,
         preference = grant("calendar"),
-        writePreference = writeGrant("calendar"),
     );
-
-    /** Whether this source can be written at all — i.e. whether the second line exists. */
-    val writable: Boolean get() = writePreference != null
 
     companion object
 }
@@ -173,18 +162,5 @@ private fun grant(key: String) = Preference(
     id = "mia.grant.$key",
     scope = PreferenceScope.REALM,
     default = true,
-    adapter = BooleanAdapter,
-)
-
-/**
- * ⚠⚠ **Default FALSE, unlike the read grant.** Reading was already happening when the switch
- * appeared, so defaulting it off would have broken a working assistant; writing has never
- * happened, so it starts off and is asked for at the moment it is load-bearing — the
- * `SCHEDULE_EXACT_ALARM` posture from `routines-engine.md` RE-D5, one layer up.
- */
-private fun writeGrant(key: String) = Preference(
-    id = "mia.grant.$key.write",
-    scope = PreferenceScope.REALM,
-    default = false,
     adapter = BooleanAdapter,
 )

@@ -33,6 +33,9 @@ sealed class FileModel(
         override val subLine: String,
         override val previewIcon: FileIcon,
         override val previewBytes: ByteArray? = null,
+        /** The child count [subLine] spells in English, for a UI that words it in its own language.
+         *  `null` where nothing was counted (the root, a picker row). */
+        val childCount: Long? = null,
     ) : FileModel(path, name, subLine, previewIcon, previewBytes)
 }
 

@@ -18,4 +18,36 @@
     <string name="photos_control_fenced_update_app">This device is behind the rest of your realm and has stopped receiving photos. Update Photos to catch up.</string>
     <string name="photos_control_fenced_update_both">This device is behind the rest of your realm and has stopped receiving photos. Update Photos and Tenshu Control to catch up.</string>
     <string name="photos_control_fenced_update_unknown">This device is behind the rest of your realm and has stopped receiving photos. Update Tenshu on this device to catch up.</string>
+    <!-- The bar / rail (navigation/PhotosNavItems.kt). "Photos" is the app's own name and stays
+         untranslated, as on iOS. -->
+    <string name="photos_nav_photos">Photos</string>
+    <string name="photos_nav_collections">Collections</string>
+    <!-- The feed's density button (App.kt), naming the CURRENT grouping. ⚠ The same English as
+         FeedDensity.description, which the SwiftUI button reads. -->
+    <string name="photos_density_mosaic">Grouped by day, some photos larger. Change grouping.</string>
+    <string name="photos_density_day">Grouped by day. Change grouping.</string>
+    <string name="photos_density_month">Grouped by month. Change grouping.</string>
+    <string name="photos_density_year">Grouped by year. Change grouping.</string>
+    <!-- Dates (PhotoDates via rememberDateWords): the words, and the order they go in. ⚠ The
+         patterns are filled in by rememberDateWords, not by stringResource; keep the positions.
+         %1$d = day, %2$s = month name, %3$d = year. -->
+    <string name="photos_date_day">%1$d %2$s %3$d</string>
+    <string name="photos_date_month">%1$s %2$d</string>
+    <string name="photos_date_short">%1$d %2$s</string>
+    <string-array name="photos_months">
+        <item>January</item><item>February</item><item>March</item><item>April</item>
+        <item>May</item><item>June</item><item>July</item><item>August</item>
+        <item>September</item><item>October</item><item>November</item><item>December</item>
+    </string-array>
+    <string-array name="photos_months_short">
+        <item>Jan</item><item>Feb</item><item>Mar</item><item>Apr</item>
+        <item>May</item><item>Jun</item><item>Jul</item><item>Aug</item>
+        <item>Sep</item><item>Oct</item><item>Nov</item><item>Dec</item>
+    </string-array>
+    <!-- Monday first. -->
+    <string-array name="photos_weekdays_short">
+        <item>Mon</item><item>Tue</item><item>Wed</item><item>Thu</item><item>Fri</item><item>Sat</item><item>Sun</item>
+    </string-array>
+    <string name="photos_feed_search">Search</string>
+    <string name="photos_feed_settings">Settings</string>
 </resources>

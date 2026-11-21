@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import app.tenshu.ui.layout.LocalPrimaryActionClearance
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -106,7 +107,10 @@ fun HistoryScreen(
         // before a day header is emitted by the item itself instead.
         LazyColumn(
             Modifier.fillMaxSize().padding(innerPadding),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
+            // The Record FAB floats over this list on a wide window (fit-app.md §18.20).
+            contentPadding = PaddingValues(
+                start = 16.dp, end = 16.dp, bottom = 16.dp + LocalPrimaryActionClearance.current,
+            ),
         ) {
             item(key = "week-summary") {
                 WeekSummary(

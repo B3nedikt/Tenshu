@@ -37,7 +37,7 @@ class AddFileActionsViewModelUploadStorageTest {
     private fun OwnedViewModels.viewModel(uploadResult: RepositoryResult<Unit>): Pair<AddFileActionsViewModel, FakeFilesRepository> {
         val repo = FakeFilesRepository(uploadResult = uploadResult)
         val controller = FolderUploadController(repo, ownScope(CoroutineScope(Dispatchers.Unconfined)))
-        return own(AddFileActionsViewModel(repo, controller)) to repo
+        return own(AddFileActionsViewModel(repo, controller, Dispatchers.Main)) to repo
     }
 
     @Test
@@ -112,6 +112,7 @@ class AddFileActionsViewModelUploadStorageTest {
         val vm = vms.own(AddFileActionsViewModel(
             repo,
             FolderUploadController(repo, vms.ownScope(CoroutineScope(Dispatchers.Unconfined))),
+            Dispatchers.Main,
         ))
 
         vm.uploadFile("file:///tmp/a.txt", "/dest")
@@ -137,6 +138,7 @@ class AddFileActionsViewModelUploadStorageTest {
         val vm = vms.own(AddFileActionsViewModel(
             repo,
             FolderUploadController(repo, vms.ownScope(CoroutineScope(Dispatchers.Unconfined))),
+            Dispatchers.Main,
         ))
 
         vm.uploadFile("file:///tmp/a.txt", "/dest")
@@ -165,6 +167,7 @@ class AddFileActionsViewModelUploadStorageTest {
         val vm = vms.own(AddFileActionsViewModel(
             repo,
             FolderUploadController(repo, vms.ownScope(CoroutineScope(Dispatchers.Unconfined))),
+            Dispatchers.Main,
         ))
 
         vm.uploadFile("file:///tmp/a.txt", "/dest")
@@ -185,7 +188,7 @@ class AddFileActionsViewModelUploadStorageTest {
             }
         )
         val controller = FolderUploadController(repo, ownScope(CoroutineScope(Dispatchers.Unconfined)))
-        return own(AddFileActionsViewModel(repo, controller)) to repo
+        return own(AddFileActionsViewModel(repo, controller, Dispatchers.Main)) to repo
     }
 
     @Test

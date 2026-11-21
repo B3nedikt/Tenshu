@@ -1,5 +1,6 @@
 package app.tenshu.timeline.ui.components
 
+import app.tenshu.ui.format.LocaleNumbers
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -114,17 +115,11 @@ fun TripOfflineRow(
                 )
                 actionable -> Text(
                     // Only the MISSING bytes: a region already resident costs nothing to "keep".
-                    text = stringResource(Res.string.timeline_trip_offline_hint, formatRegionSize(offer.missingBytes)),
+                    text = stringResource(Res.string.timeline_trip_offline_hint, LocaleNumbers.bytes(offer.missingBytes)),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
     }
-}
-
-/** Coarse, honest size for region bundles — GB above 1024 MB, else whole MB. */
-private fun formatRegionSize(bytes: Long): String {
-    val mib = bytes / (1024.0 * 1024.0)
-    return if (mib >= 1024.0) "${kotlin.math.round(mib / 1024.0 * 10) / 10.0} GB" else "${mib.toLong()} MB"
 }

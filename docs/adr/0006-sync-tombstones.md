@@ -113,6 +113,13 @@ Eight anchor decisions shape the design:
   plus T-K-01 / T-K-02 wording updates. All present in `threat-model.md`.
 - **Recreate semantics are well-defined** — a future block with `hlc >
   tombstone.hlc` is accepted; the entity is recreated. CRDT-standard.
+  *Amended 2026-11-20* (revisit trigger 3 fired): the recreate revives the
+  entity, **not its descendants at the tombstone's HLC**. With one tombstone per
+  operation, a peer that applied the folder's tombstone after a same-path
+  re-create had nothing to reap the old children with, and they reappeared in
+  the new folder. Receivers now reap a superseded container's members at or
+  below T and refuse any block at or below a container's deletion point —
+  `docs/sync/design.md` §2.6, "A recreate revives the container".
 
 ## When to revisit
 

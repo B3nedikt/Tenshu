@@ -63,7 +63,7 @@ private class PreferencesMirrorDigestStore : MirrorDigestStore {
  * Refreshes this Mac's mirrors at launch and then every [INTERVAL_MS] while the app runs.
  *
  * ⚠⚠ That is the whole schedule: no launch agent, so nothing refreshes while Calendar is closed —
- * the copy says so (`DeviceCalendarAccess.syncCadence`) and the row shows when it last updated.
+ * the copy says so (`DeviceKind.syncCadence`) and the row shows when it last updated.
  * ⚠ Idempotent: `ensureScheduled` is called at launch and again whenever a mirror starts.
  */
 private class DesktopMirrorScheduler(private val refresher: MirrorRefresher) : MirrorBackgroundScheduler {

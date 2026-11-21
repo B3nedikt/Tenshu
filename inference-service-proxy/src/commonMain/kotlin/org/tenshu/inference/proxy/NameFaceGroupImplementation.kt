@@ -36,6 +36,10 @@ import org.tenshu.inference.ModelProvenance
  */
 internal class NameFaceGroupImplementation(
     private val deviceId: String,
+    /** Pets PT-3b: `PET_RECOGNITION` and `namePetGroup`'s params. ⚠ Defaults are People's, unchanged. */
+    private val capability: InferenceCapability = InferenceCapability.FACE_CLUSTERING,
+    private val nameParam: String = org.tenshu.inference.NameFaceGroup.Params.NAME,
+    private val filePathsParam: String = org.tenshu.inference.NameFaceGroup.Params.FILE_PATHS,
 ) : AsyncOperationImplementation {
 
     @Suppress("UNCHECKED_CAST")
@@ -46,11 +50,11 @@ internal class NameFaceGroupImplementation(
         caller: Any?,
         params: Map<String, Data>?
     ): T {
-        val name = params?.get(org.tenshu.inference.NameFaceGroup.Params.NAME)
+        val name = params?.get(nameParam)
             ?.let { (it as TString).get() }
             .orEmpty()
             .trim()
-        val paths = (params?.get(org.tenshu.inference.NameFaceGroup.Params.FILE_PATHS) as? TList<*>)
+        val paths = (params?.get(filePathsParam) as? TList<*>)
             ?.toList()
             ?.filterIsInstance<TString>()
             ?.map { it.get() }
@@ -63,7 +67,7 @@ internal class NameFaceGroupImplementation(
         // reporting it as `NO_CONSENT` would send someone to toggle a setting that is already on.
         if (name.isBlank() || paths.isEmpty()) return null as T
 
-        if (!executionContext.hasInferenceConsent(CAPABILITY, deviceId)) {
+        if (!executionContext.hasInferenceConsent(capability, deviceId)) {
             throw TenshuException(
                 FaceGroupsUnavailable.create(
                     context = executionContext.context,
@@ -75,7 +79,7 @@ internal class NameFaceGroupImplementation(
                     // statement of fact rather than as an instruction, so it cannot be mistaken
                     // for a sentence meant for a user — which is how a proxy ends up owning
                     // localisation it must not own.
-                    message = "faceClustering consent absent for realm or device $deviceId",
+                    message = "${capability.id} consent absent for realm or device $deviceId",
                 ),
             )
         }
@@ -95,7 +99,7 @@ internal class NameFaceGroupImplementation(
                         composite = MediaLabel.create(
                             context = executionContext.context,
                             filePath = path,
-                            capability = CAPABILITY,
+                            capability = capability,
                             label = name,
                             // ⚠⚠ The user is not a classifier: 1000‰ is certainty, and anything
                             // less would let a confidence filter somewhere downstream quietly drop a
@@ -131,7 +135,7 @@ internal class NameFaceGroupImplementation(
             DataId.StringDataId.create(
                 context = context,
                 type = MediaLabel.ID,
-                keyValue = MediaLabel.labelKey(path, CAPABILITY, name),
+                keyValue = MediaLabel.labelKey(path, capability, name),
             ),
         ) != null
         // ⚠ A probe that itself fails answers "no". The store is already misbehaving at this
@@ -139,7 +143,4 @@ internal class NameFaceGroupImplementation(
         // `labelKey` makes a repeat write the same row.
     }.getOrDefault(false)
 
-    private companion object {
-        val CAPABILITY = InferenceCapability.FACE_CLUSTERING
-    }
 }

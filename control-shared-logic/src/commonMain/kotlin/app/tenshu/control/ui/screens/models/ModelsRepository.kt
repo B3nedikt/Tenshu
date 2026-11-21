@@ -290,9 +290,11 @@ data class OtherDeviceConsent(
  * ⭐ `FACE_CLUSTERING` is offered with its backend (`MediaPipeFaceBackend`).
  * ⚠⚠ Settings-only and off by default (IN-D3) — never offered in onboarding
  * (`offerableInOnboarding = false`) — and withdrawing it deletes the face templates, not the names.
+ * ⭐ `PET_RECOGNITION` (`photos-pets.md` PT-3c) with its backend (`PixelPetBackend`), on the same
+ * terms: Settings-only, off, and withdrawing it deletes `pets.log` — never the faces — and keeps names.
  */
 internal val OfferedConsents: List<InferenceCapability> =
-    listOf(InferenceCapability.SEMANTIC_IMAGE_SEARCH, InferenceCapability.FACE_CLUSTERING)
+    listOf(InferenceCapability.SEMANTIC_IMAGE_SEARCH, InferenceCapability.FACE_CLUSTERING, InferenceCapability.PET_RECOGNITION)
 
 /**
  * Control on Android and desktop. ⚠ No cancel and no cellular choice: the in-process downloader
@@ -401,7 +403,8 @@ interface ModelsConsents {
      *
      * ⚠⚠ Off only, and that is the interface rather than a check: a device's yes spends that device's
      * battery and storage, so it is given on that device (§38.2). ⚠⚠ For `FACE_CLUSTERING` an explicit
-     * no is what deletes that device's face data, once the row reaches it.
+     * no is what deletes that device's face data, once the row reaches it — and for `PET_RECOGNITION`
+     * its pet data (`photos-pets.md` §4).
      *
      * @return `false` when nothing was written.
      */

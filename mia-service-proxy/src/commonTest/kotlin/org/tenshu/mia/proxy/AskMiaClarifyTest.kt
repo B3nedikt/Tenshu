@@ -77,17 +77,18 @@ class AskMiaClarifyTest {
         )
     }
 
-    private fun TestProxy.grantWrite(granted: Boolean = true) {
+    /** The calendar grant: since 2026-11-19 the only switch a calendar write needs (MQ-D6). */
+    private fun TestProxy.grantCalendar(granted: Boolean) {
         executionContext.saveData(
             RealmSetting.create(
                 context = tContext,
-                preferenceId = assertNotNull(MiaSource.CALENDAR.writePreference).id,
+                preferenceId = MiaSource.CALENDAR.preference.id,
                 value = granted.toTBoolean(tContext),
             )
         )
     }
 
-    private suspend fun ready(proxy: TestProxy): TestProxy = proxy.apply { seedCalendar(); grantWrite() }
+    private suspend fun ready(proxy: TestProxy): TestProxy = proxy.apply { seedCalendar() }
 
     @Test
     fun aMissingStartIsAsked_andTheQuestionCarriesItsChoices() = runTest {
@@ -102,6 +103,24 @@ class AskMiaClarifyTest {
             listOf("Morning 09:00", "Afternoon 14:00", "Evening 19:00"),
             asked.choices.toList().filterIsInstance<MiaChoice>().map { it.label.get() },
         )
+        assertTrue(proxy.events().isEmpty())
+    }
+
+    /**
+     * ⚠⚠ "never mind" declines: the question closes, nothing is searched and nothing is written
+     * (§25.13; it used to fall through to a file-name search). A late answer finds nothing open.
+     */
+    @Test
+    fun neverMindClosesTheQuestion() = runTest {
+        val proxy = ready(createMiaProxy(backgroundScope))
+        val asked = ask(proxy, "add dentist tomorrow").asked()
+
+        val declined = reply(proxy, asked.token.get(), "never mind")
+        assertEquals(MiaAnswer.VERDICT_NO_MATCH, declined.verdict.get())
+        assertEquals("OK, I've left it.", declined.explanation.get())
+
+        val late = reply(proxy, asked.token.get(), "9")
+        assertEquals("That question is no longer open — ask me again.", late.explanation.get())
         assertTrue(proxy.events().isEmpty())
     }
 
@@ -146,6 +165,41 @@ class AskMiaClarifyTest {
         assertTrue(proxy.events().isEmpty())
     }
 
+    /** ⚠⚠ A reply that is neither a time nor a question asks for the time again (§25.14). */
+    @Test
+    fun aMissedTimeIsAskedAgain() = runTest {
+        val proxy = ready(createMiaProxy(backgroundScope))
+        val asked = ask(proxy, "add dentist tomorrow").asked()
+
+        val again = reply(proxy, asked.token.get(), "banana")
+        assertEquals("I didn't catch a time in “banana”. What time tomorrow?", again.explanation.get())
+        assertEquals(asked.choices.toList().size, again.asked().choices.toList().size)
+        assertNotNull(reply(proxy, again.asked().token.get(), "9").action)
+        assertTrue(proxy.events().isEmpty())
+    }
+
+    /**
+     * ⚠⚠ A question about a source that is switched off is still a question: it gets the grant's
+     * own refusal, never the time question again (Codex review).
+     */
+    @Test
+    fun aQuestionAboutARevokedSourceIsNoMissedAnswer() = runTest {
+        val proxy = ready(createMiaProxy(backgroundScope))
+        proxy.executionContext.saveData(
+            RealmSetting.create(
+                context = proxy.tContext,
+                preferenceId = MiaSource.DEVICES.preference.id,
+                value = false.toTBoolean(proxy.tContext),
+            )
+        )
+        val asked = ask(proxy, "add dentist tomorrow").asked()
+
+        val answer = reply(proxy, asked.token.get(), "what devices do I have")
+        assertNotEquals(MiaAnswer.VERDICT_CLARIFY, answer.verdict.get())
+        assertTrue(answer.explanation.get().contains("not allowed"), answer.explanation.get())
+        assertTrue(proxy.events().isEmpty())
+    }
+
     @Test
     fun theQuestionTokenIsSingleUse() = runTest {
         val proxy = ready(createMiaProxy(backgroundScope))
@@ -173,10 +227,10 @@ class AskMiaClarifyTest {
         assertEquals(MiaAnswer.VERDICT_NO_MATCH, reply(proxy, "not-a-token", "9").verdict.get())
     }
 
-    /** ⚠⚠ Never ask about a write the calendar will refuse: no grant, no question. */
+    /** ⚠⚠ Never ask about a write the calendar will refuse: no calendar grant, no question. */
     @Test
-    fun withoutTheWriteGrantNothingIsAsked() = runTest {
-        val proxy = createMiaProxy(backgroundScope).apply { seedCalendar(); grantWrite(false) }
+    fun withoutTheCalendarGrantNothingIsAsked() = runTest {
+        val proxy = createMiaProxy(backgroundScope).apply { seedCalendar(); grantCalendar(false) }
 
         val answer = ask(proxy, "add dentist tomorrow")
         assertEquals(MiaAnswer.VERDICT_NO_MATCH, answer.verdict.get())
@@ -185,7 +239,7 @@ class AskMiaClarifyTest {
 
     @Test
     fun withoutADefaultCalendarNothingIsAsked() = runTest {
-        val proxy = createMiaProxy(backgroundScope).apply { grantWrite() }
+        val proxy = createMiaProxy(backgroundScope)
 
         val answer = ask(proxy, "add dentist tomorrow")
         assertEquals(MiaAnswer.VERDICT_NO_MATCH, answer.verdict.get())
@@ -197,7 +251,7 @@ class AskMiaClarifyTest {
     fun aGrantRevokedBeforeTheReplyIsRefusedAtTheReply() = runTest {
         val proxy = ready(createMiaProxy(backgroundScope))
         val token = ask(proxy, "add dentist tomorrow").asked().token.get()
-        proxy.grantWrite(false)
+        proxy.grantCalendar(false)
 
         val answer = reply(proxy, token, "9")
         assertEquals(MiaAnswer.VERDICT_NO_MATCH, answer.verdict.get())
@@ -238,11 +292,12 @@ class AskMiaClarifyTest {
         assertTrue(second.alternatives.toList().isEmpty(), "a chosen time is settled")
         assertTrue(proxy.events().isEmpty(), "an alternative never writes")
 
-        // ⚠⚠ The first card is spent: it cannot write 08:00 beside the 20:00 card.
-        assertEquals(MiaAnswer.VERDICT_ANSWERED, confirm(proxy, first.token.get()).verdict.get())
+        // ⚠⚠ The first card is spent: it cannot write 08:00 beside the 20:00 card. And it says so
+        // with `noMatch`, so the client marks it "Not done", never "Done" (§25.13).
+        assertEquals(MiaAnswer.VERDICT_NO_MATCH, confirm(proxy, first.token.get()).verdict.get())
         assertTrue(proxy.events().isEmpty())
 
-        confirm(proxy, second.token.get())
+        assertEquals(MiaAnswer.VERDICT_ANSWERED, confirm(proxy, second.token.get()).verdict.get())
         assertEquals("2026-07-16T20:00", proxy.events().single().startLocal.get())
     }
 

@@ -204,6 +204,22 @@ data class IndexPassResult(
      * Set by `MediaIndexRunner`.
      */
     val libraryWalk: Boolean = false,
+    /**
+     * Pets' half (`photos-pets.md` PT-3), counted like the face half's: photographs the detector ran
+     * over, the cats and dogs it kept, the templates written, the ones [PetSelection] skipped because
+     * their crop held another animal, and the failures and refusals that kept a record from being
+     * written. ⚠ [photosSearchedForPets] includes the photographs with no animal — most of them.
+     */
+    val photosSearchedForPets: Int = 0,
+    val petsEmbedded: Int = 0,
+    val petsOverlapping: Int = 0,
+    val petRecordsWritten: Int = 0,
+    val petsFailed: Int = 0,
+    val petsRejected: Int = 0,
+    /** The pets store was cleared: a withdrawal of `PET_RECOGNITION`, or a pipeline change. */
+    val petsCleared: Boolean = false,
+    /** Pets rows the reconcile dropped for photographs no longer in the library. */
+    val stalePetsRemoved: Int = 0,
 ) {
     val skipped: Int get() = alreadyCurrent + notOnDevice + skippedNoConsent + skippedNoBackend
 
@@ -326,6 +342,15 @@ class MediaIndexer(
      * rather than everything, on battery.
      */
     private val conditions: IndexingConditions = IndexingConditions.Never,
+    /**
+     * Pets' templates (`pets.log`, `photos-pets.md` §2). `null` indexes no pets.
+     *
+     * ⚠⚠ A **fourth half**, the face half's twin: its own store, its own backend ([petBackend], not
+     * the registry), its own consent (`PET_RECOGNITION`) and its own freshness. Must be the instance
+     * the pet ops read, as [faces] must be `faceGroups`'.
+     */
+    private val pets: FaceTemplateStore? = null,
+    private val petBackend: PetBackend? = null,
 ) {
 
     /**
@@ -345,6 +370,17 @@ class MediaIndexer(
     private fun faceStoreChanged() {
         faceStoreWritesNow.update { it + 1 }
     }
+
+    /** [faceStoreWrites]' twin for the pets store: what tells a pets reader to look again. */
+    val petStoreWrites: StateFlow<Long> get() = petStoreWritesNow.asStateFlow()
+    private val petStoreWritesNow = MutableStateFlow(0L)
+
+    private fun petStoreChanged() {
+        petStoreWritesNow.update { it + 1 }
+    }
+
+    /** Whether this graph can look for pets now: a pets store, and both models present. */
+    fun petsRunHere(): Boolean = pets != null && petBackend?.available() == true
 
     /** @see MediaIndexer.index's `manual` — the two bars, chosen once and re-read per image. */
     fun allowed(manual: Boolean): Boolean = allowed(if (manual) PassBar.MANUAL else PassBar.SCHEDULED)
@@ -371,7 +407,10 @@ class MediaIndexer(
      * them: the user asked for none of this.
      */
     suspend fun everyHalfWithdrawn(executionContext: ExecutionContext): Boolean =
-        MEDIA_INDEX_CAPABILITIES.all { executionContext.inferenceConsentWithdrawn(it, deviceId()) }
+        MEDIA_INDEX_CAPABILITIES.all { executionContext.inferenceConsentWithdrawn(it, deviceId()) } &&
+            // ⚠ Pets count only where they could run AND are switched on: a user who never chose pets
+            // asked for none of it, so their never-set switch must not keep a queue alive.
+            !(petsRunHere() && executionContext.hasInferenceConsent(InferenceCapability.PET_RECOGNITION, deviceId()))
 
     suspend fun anyHalfMayRun(executionContext: ExecutionContext): Boolean {
         if (executionContext.isIndexingPaused(deviceId())) return false
@@ -383,7 +422,7 @@ class MediaIndexer(
             }
             stored && registry.backendFor(capability) != null &&
                 executionContext.hasInferenceConsent(capability, deviceId())
-        }
+        } || (petsRunHere() && executionContext.hasInferenceConsent(InferenceCapability.PET_RECOGNITION, deviceId()))
     }
 
     /**
@@ -439,16 +478,17 @@ class MediaIndexer(
          */
         onPath: ((String, PathOutcome) -> Unit)? = null,
     ): IndexPassResult = try {
-        val reconciled = wholeLibrary?.let { reconcile(executionContext, media, it) } ?: Reconciled(0, 0)
+        val reconciled = wholeLibrary?.let { reconcile(executionContext, media, it) } ?: Reconciled(0, 0, 0)
         indexPass(executionContext, media, capability, bar, batchCap, onPath).copy(
             staleFacesRemoved = reconciled.faces,
             staleVectorsRemoved = reconciled.vectors,
+            stalePetsRemoved = reconciled.pets,
         )
     } finally {
         progress?.finish()
     }
 
-    private class Reconciled(val faces: Int, val vectors: Int)
+    private class Reconciled(val faces: Int, val vectors: Int, val pets: Int = 0)
 
     /**
      * Drops every stored template and vector whose path the library walk does not contain
@@ -512,7 +552,11 @@ class MediaIndexer(
         val vectorRows = embeddings?.let { store ->
             dropTheDead("embeddings", executionContext, walked, wholeLibrary, store::remembered, store::forget)
         } ?: 0
-        return Reconciled(faceRows, vectorRows)
+        val petRows = pets?.let { store ->
+            dropTheDead("pets", executionContext, walked, wholeLibrary, store::remembered, store::forget)
+        } ?: 0
+        if (petRows > 0) petStoreChanged()
+        return Reconciled(faceRows, vectorRows, petRows)
     }
 
     private suspend fun dropTheDead(
@@ -550,12 +594,36 @@ class MediaIndexer(
      */
     /** ⚠ Answers whether it deleted the templates — what People draws changes then ([IndexPassResult.facesCleared]). */
     suspend fun deleteTemplatesOnWithdrawal(executionContext: ExecutionContext): Boolean {
+        // ⚠ Pets ride the same call so every caller of this one deletes them too; the answer stays the
+        // face half's, which is what People's refresh reads.
+        deletePetTemplatesOnWithdrawal(executionContext)
+        return deleteFaceTemplatesOnWithdrawal(executionContext)
+    }
+
+    /** [deleteTemplatesOnWithdrawal]'s face half alone — what a face write re-checks after it lands. */
+    private suspend fun deleteFaceTemplatesOnWithdrawal(executionContext: ExecutionContext): Boolean {
         if (faces != null &&
             executionContext.inferenceConsentWithdrawn(InferenceCapability.FACE_CLUSTERING, deviceId()) &&
             faces.provenance() != null
         ) {
             faces.clear()
             faceStoreChanged()
+            return true
+        }
+        return false
+    }
+
+    /**
+     * [deleteTemplatesOnWithdrawal] for `pets.log`: ⚠⚠ an EXPLICIT `PET_RECOGNITION` switch-off deletes
+     * the pet templates — and only them; face consent never reaches this store (`photos-pets.md` §4).
+     */
+    suspend fun deletePetTemplatesOnWithdrawal(executionContext: ExecutionContext): Boolean {
+        if (pets != null &&
+            executionContext.inferenceConsentWithdrawn(InferenceCapability.PET_RECOGNITION, deviceId()) &&
+            pets.provenance() != null
+        ) {
+            pets.clear()
+            petStoreChanged()
             return true
         }
         return false
@@ -578,6 +646,8 @@ class MediaIndexer(
         // words, synced `MediaLabel`s, and outlive the switch (`photos-people-and-pets.md` §8). ⚠⚠
         // Only an EXPLICIT withdrawal deletes — see `inferenceConsentWithdrawn`: a read that merely
         // finds nothing is not a switch-off.
+        var petsCleared = pets != null && pets.provenance() != null &&
+            executionContext.inferenceConsentWithdrawn(InferenceCapability.PET_RECOGNITION, deviceId())
         var facesCleared = deleteTemplatesOnWithdrawal(executionContext)
         // ⚠⚠ A backend PER HALF, never "the" backend. The pinned ONNX backend supports search and not
         // tagging, so a pass that asked only for a tagging backend found none and skipped every photo
@@ -600,22 +670,34 @@ class MediaIndexer(
                 facesCleared = true
             }
         }
+        // ⚠ The pets half's model change, for the face half's reason above: its stamp carries the
+        // embedder, the detector and the selection, and templates from another pipeline are worthless.
+        val petFinder = petBackend?.takeIf { pets != null && it.available() }
+        if (pets != null && petFinder != null) {
+            val held = pets.provenance()
+            if (held != null && held != petFinder.provenance) {
+                pets.clear()
+                petStoreChanged()
+                petsCleared = true
+            }
+        }
         // ⚠ Pass-level; consent, read per photograph below, can still turn it to NO_CONSENT.
         var faceHalf = when {
             faces == null -> FaceHalf.NO_STORE
             faceBackend == null -> FaceHalf.NO_BACKEND
             else -> FaceHalf.ON
         }
-        if (tagger == null && embedder == null && faceBackend == null) {
+        if (tagger == null && embedder == null && faceBackend == null && petFinder == null) {
             return IndexPassResult(
                 skippedNoBackend = media.size,
                 faceHalf = faceHalf,
                 facesSkippedOff = media.size,
                 facesCleared = facesCleared,
+                petsCleared = petsCleared,
             )
         }
         // ⚠ Asked before the bar starts, so a pass the device is not ready for never shows as running.
-        if (!allowed(bar)) return IndexPassResult(deferred = true, facesCleared = facesCleared)
+        if (!allowed(bar)) return IndexPassResult(deferred = true, facesCleared = facesCleared, petsCleared = petsCleared)
 
         var labelled = 0
         var current = 0
@@ -667,6 +749,15 @@ class MediaIndexer(
         var facesFailed = 0
         var facesRejected = 0
         var faceRecordsWritten = 0
+        // Pets' half: its own latches, for the face half's reasons.
+        var petsFailing = false
+        var petSinkRefuses = false
+        var photosSearchedForPets = 0
+        var petsEmbedded = 0
+        var petsOverlapping = 0
+        var petRecordsWritten = 0
+        var petsFailed = 0
+        var petsRejected = 0
 
         val stamp = tagger?.let(currentProvenance)
 
@@ -722,13 +813,25 @@ class MediaIndexer(
                 facesCleared = true
             }
             val mayFaces = faceBackend != null && faceConsent
+            // ⚠ Pets: their own switch, re-read per file, and the same mid-pass deletion on an
+            // EXPLICIT withdrawal only — never on a read that found nothing.
+            val petConsent = pets != null &&
+                executionContext.hasInferenceConsent(InferenceCapability.PET_RECOGNITION, deviceId())
+            if (pets != null && !petConsent && pets.provenance() != null &&
+                executionContext.inferenceConsentWithdrawn(InferenceCapability.PET_RECOGNITION, deviceId())
+            ) {
+                pets.clear()
+                petStoreChanged()
+                petsCleared = true
+            }
+            val mayPets = petFinder != null && petConsent
             // ⚠ Counted BEFORE the no-consent `continue` and the `current` bookkeeping below: a photo
             // whose vector is current is otherwise reported "current" with its faces never looked at.
             if (!mayFaces) {
                 facesSkippedOff++
                 if (faceHalf == FaceHalf.ON) faceHalf = FaceHalf.NO_CONSENT
             }
-            if (!mayTag && !mayEmbed && !mayFaces) {
+            if (!mayTag && !mayEmbed && !mayFaces && !mayPets) {
                 noConsent++
                 // ⚠ Done for a batch: nothing it may do here, and the switch's next pass covers it.
                 onPath?.invoke(item.filePath, PathOutcome.DONE)
@@ -761,8 +864,15 @@ class MediaIndexer(
                 if (faceSinkRefuses) facesRejected++ else facesFailed++
             }
             val needsFaces = facesMissing && !skippedFaces
-            if (!needsTags && !needsVector && !needsFaces) {
-                if (!skippedUnread && !skippedFaces) {
+            // ⚠ The pets store's own `visited`, true for a photograph with no animal — as faces'.
+            val petsMissing = mayPets && pets?.visited(item.filePath) == false
+            val skippedPets = petsMissing && (petSinkRefuses || petsFailing)
+            if (skippedPets) {
+                if (petSinkRefuses) petsRejected++ else petsFailed++
+            }
+            val needsPets = petsMissing && !skippedPets
+            if (!needsTags && !needsVector && !needsFaces && !needsPets) {
+                if (!skippedUnread && !skippedFaces && !skippedPets) {
                     current++
                     onPath?.invoke(item.filePath, PathOutcome.DONE)
                 } else {
@@ -802,7 +912,7 @@ class MediaIndexer(
             // start: the other half running on it does not make it done — dropped as DONE, its faces
             // (or vector) would wait for a library pass.
             pendingPath = item.filePath
-            pendingFailed = skippedFaces || skippedUnread
+            pendingFailed = skippedFaces || skippedUnread || skippedPets
 
             // ⚠⚠ The SAME visit, and this is IN-D8's whole argument made concrete: one image–text
             // model serves tagging and search, and the library walk — not the model call — is the
@@ -904,6 +1014,7 @@ class MediaIndexer(
                             faceStoreChanged()
                             faceRecordsWritten++
                             facesEmbedded += stored.size
+                            if (deleteFaceTemplatesOnWithdrawal(executionContext)) facesCleared = true
                         } else {
                             // ⚠ A refused write is the store's stamp or width disagreeing, which will
                             // disagree for every later photograph too — latch, do not re-ask per file.
@@ -922,6 +1033,7 @@ class MediaIndexer(
                         if (faces.put(item.filePath, emptyList(), faceStamp)) {
                             faceStoreChanged()
                             faceRecordsWritten++
+                            if (deleteFaceTemplatesOnWithdrawal(executionContext)) facesCleared = true
                         } else {
                             facesRejected++
                             faceSinkRefuses = true
@@ -934,6 +1046,51 @@ class MediaIndexer(
                         pendingFailed = true
                         detectorFailing = true
                         println("MediaIndexPass -> face half LATCHED at ${item.filePath}: detectFaces Failed")
+                    }
+                }
+            }
+
+            // ⚠⚠ The same bytes a fourth time — IN-D8's argument again. Pets' outcomes are the face
+            // half's three: a record (possibly empty), an unreadable record, or nothing at all.
+            // ⚠⚠ Every write here and in the face half above is followed by a withdrawal re-check:
+            // consent was read before the model ran, and a `faceGroups`/`petGroups` read that saw
+            // the switch-off meanwhile may already have cleared the store — an unchecked write would
+            // recreate it, holding a withdrawn user's templates until the next pass or read. Sound
+            // without a lock: a clear that ran before our write read the withdrawal before it, so
+            // our read after the write sees it too.
+            if (needsPets && pets != null && petFinder != null) {
+                photosSearchedForPets++
+                val petStamp = petFinder.provenance
+                when (val found = petFinder.findPets(bytes, orientation)) {
+                    is PetOutcome.Found -> {
+                        petsOverlapping += found.overlapping
+                        if (pets.put(item.filePath, found.pets, petStamp)) {
+                            petStoreChanged()
+                            petRecordsWritten++
+                            petsEmbedded += found.pets.size
+                            if (deletePetTemplatesOnWithdrawal(executionContext)) petsCleared = true
+                        } else {
+                            petsRejected++
+                            petSinkRefuses = true
+                            pendingFailed = true
+                        }
+                    }
+                    PetOutcome.Unreadable ->
+                        if (pets.put(item.filePath, emptyList(), petStamp)) {
+                            petStoreChanged()
+                            petRecordsWritten++
+                            if (deletePetTemplatesOnWithdrawal(executionContext)) petsCleared = true
+                        } else {
+                            petsRejected++
+                            petSinkRefuses = true
+                        }
+                    // ⚠⚠ NOT remembered, and latched: a model that will not run here will not run for
+                    // the next photograph either.
+                    PetOutcome.Failed -> {
+                        petsFailed++
+                        pendingFailed = true
+                        petsFailing = true
+                        println("MediaIndexPass -> pet half LATCHED at ${item.filePath}: findPets Failed")
                     }
                 }
             }
@@ -1002,6 +1159,13 @@ class MediaIndexer(
             facesRejected = facesRejected,
             faceRecordsWritten = faceRecordsWritten,
             batchCapReached = capReached,
+            photosSearchedForPets = photosSearchedForPets,
+            petsEmbedded = petsEmbedded,
+            petsOverlapping = petsOverlapping,
+            petRecordsWritten = petRecordsWritten,
+            petsFailed = petsFailed,
+            petsRejected = petsRejected,
+            petsCleared = petsCleared,
         )
     }
 }

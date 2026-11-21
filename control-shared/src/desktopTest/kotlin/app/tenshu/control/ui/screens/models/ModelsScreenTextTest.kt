@@ -5,7 +5,7 @@ import app.tenshu.control.inference.LastIndexCoverage
 import app.tenshu.control.inference.ModelSetup
 import app.tenshu.control.inference.ModelsAvailability
 import app.tenshu.control.ui.faceClusteringRunsHere
-import app.tenshu.control.ui.screens.offlinemaps.formatBytes
+import app.tenshu.ui.format.LocaleNumbers
 import org.tenshu.inference.InferenceCapability
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -283,6 +283,30 @@ class ModelsScreenTextTest {
     }
 
     /**
+     * Pets PT-3c (`photos-pets.md` §4): the pets switch is shown where faces run (the same build fact),
+     * deletes ITS OWN data when switched off and says so in its own words — never "face data".
+     */
+    @Test
+    fun thePetsSwitchIsShownWhereFacesRun_andDeletesPetDataOnly() {
+        val search = CapabilityConsent(InferenceCapability.SEMANTIC_IMAGE_SEARCH)
+        val pets = CapabilityConsent(InferenceCapability.PET_RECOGNITION)
+        assertEquals(listOf(search, pets), visibleConsents(listOf(search, pets), runsFaces = true))
+        assertEquals(listOf(search), visibleConsents(listOf(search, pets), runsFaces = false))
+        val on = pets.copy(realm = true)
+        assertEquals(listOf(search, on), visibleConsents(listOf(search, on), runsFaces = false), "an ON switch is never hidden")
+
+        val pet = InferenceCapability.PET_RECOGNITION
+        assertTrue(turnOffDeletes(pet))
+        assertEquals("Turn off everywhere and delete pet data", turnOffEverywhereLabel(pet))
+        assertTrue(turnOffText(pet, everywhere = false).contains("pet data is deleted"))
+        assertTrue(turnOffText(pet, everywhere = true).startsWith("Pet data is deleted on every device"))
+        listOf(true, false).forEach { assertFalse(turnOffText(pet, it).contains("face"), turnOffText(pet, it)) }
+        assertEquals("Recognise your pets", consentHeadline(pet))
+        assertTrue(featureDescription(pet).contains("never leaves it") && featureDescription(pet).contains("deletes the pet data"))
+        assertTrue(InferenceCapability.PET_RECOGNITION in app.tenshu.control.ui.screens.models.ControlModelsCapabilities.features)
+    }
+
+    /**
      * ⚠⚠ **There is no honest bar for a pass over an empty library.** `total = 0` is a real state,
      * and a fraction over it is either a division by zero or a bar that reads full for work that
      * never happened — so the answer is *no bar*, not a number.
@@ -364,7 +388,7 @@ class ModelsScreenTextTest {
         assertTrue("stops being used right away" in text, text)
         assertTrue("released the next time Control starts" in text, text)
         // The number stays: it is what the decision turns on.
-        assertTrue(formatBytes(401_604_608) in text, text)
+        assertTrue(LocaleNumbers.bytes(401_604_608) in text, text)
         // ⚠ IN-D10's half of the sentence is untouched.
         assertTrue("stay switched on" in text, text)
     }

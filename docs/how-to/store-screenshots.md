@@ -408,6 +408,13 @@ have (`TEL;TYPE=CELL;TYPE=VOICE`, `EMAIL;TYPE=INTERNET;TYPE=WORK`).
   system address book (`claims.md`), so neither `CNContactStore` nor a picker is a user's path here
   and no permission sheet ever appears. The rows the seed writes are the ones an import on another
   device syncs in, raw vCard included. Renders one line, never captured — the Drive rule (§2).
+- **Portraits** (2026-11-19): with `~/Movies/Tenshu promo/people/contacts/<Given> <Family>.jpg`
+  present (or `CONTACTS_PORTRAITS=<dir>`), the script passes `--portraits` and each match becomes
+  the card's embedded `PHOTO`, 512 px, metadata stripped — the path a real export's photo takes.
+  They are **generated people**, never stock or real
+  ([`store-screenshot-stories.md`](../proposals/store-screenshot-stories.md) §4.1a), and never
+  committed. Without the folder the run says so and every contact keeps its monogram. A file
+  matching nobody fails the run.
 - ⚠⚠ **The generator refuses a real-looking person.** Every phone number must sit in a range
   reserved for fiction (US `555-0100…0199`, UK `07700 900xxx`, Germany `030 23125xxx`, France
   `01 99 00xx xx`, Australia `0491 570 156…159`) and every email under `example.com/.org/.net`
@@ -1011,8 +1018,11 @@ screen names, published with `store-publish.sh` (§7) — with these differences
   - ⚠ Only Android `res/` strips a string's enclosing quotes; Compose resources keep them
     (Contacts' `"%1$s" and "%2$s"` renders with its quotes), and the table reads them the same way.
   - ⚠ **What stays English on a German capture is the app's, not the walk's**: text with no
-    `values-de` entry. Seen 2026-10-28 — Control's bottom bar (*Home, Apps, Data, Services, Settings*
-    are literals in `Destination.kt`) and some Settings rows (*Errors*, *Offline maps*, *Models*);
+    `values-de` entry. Seen 2026-10-28 — some of Control's Settings rows (*Errors*, *Offline maps*,
+    *Models*); the bottom bars of Control, Drive and Photos, Drive's search placeholder and its
+    folder counts, and Photos' grouping button and date headers were literals too until 2026-11-20
+    and are resources now (⚠ Compose only — the SwiftUI apps still draw the grouping and dates in
+    English);
     the plan's name (*Plan: Free*) comes from the commerce plane. Calendar and Photos carry
     ~15 German strings each, so most of their screens stay English.
 
@@ -1408,7 +1418,9 @@ scripts/store-screenshots-android.sh --set promo \
 The photos come from `~/Movies/Tenshu promo/photos/<Album>/` (one folder per album; loose photos
 form one album). ⚠ Look at every photo on the contact sheets in `build/store/fixture/promo-review/`
 before a run: only photos the maintainer took, with **no people, brands, legible signs or number
-plates** — the same bar as the stock set above.
+plates** — the same bar as the stock set above. The one exception is the albums of **generated
+people** made for People ([`store-screenshot-stories.md`](../proposals/store-screenshot-stories.md)
+§4.1a): no real person appears in any fixture.
 
 The recordings land beside the captures in `store/{drive,photos}/screenshots/android/phonepromo/en/`
 (gitignored): `android-upload` (the held-back photo through + → Upload → Images), `android-share`
@@ -1433,3 +1445,123 @@ Things that cost a run to learn:
   editing (constant 30 fps, a keyframe every half second), or frame-exact seeks time out.
 - ⚠ **Never record the recovery phrase or a share link on a real realm.** Those two stay on the
   throwaway dev-lab realm this run creates.
+
+## 10. Desktop — the installed macOS apps over a capture realm
+
+```bash
+scripts/store-screenshots-desktop.sh drive                       # en + de, light + dark
+scripts/store-screenshots-desktop.sh drive --lang de --appearance dark
+```
+
+Unlike the phone pipelines nothing is built, installed, seeded or signed in: the script drives the
+apps **in `/Applications`**, signed in to a realm kept for captures, through macOS Accessibility
+(`scripts/lib/desktop_shots.swift` — Compose Desktop exposes its semantics as AX elements, so a
+control is found by the name a screen reader reads, never by coordinates) and captures the window
+with `screencapture -l`. Each frame is a fixed **1280 × 800 pt** window (2560 × 1600 px on Retina),
+keyed `store/<app>/screenshots/desktop/macoslanding/<lang>/[dark/]NN-<screen>.png`, the hero's
+device (`store-screenshot-stories.md` §4.2, §5). Never committed; publish as for the phones.
+
+**Appearance and language are per launch, never system-wide.** The app is quit and reopened with
+`-AppleInterfaceStyle Light|Dark` (an argument-domain default the theme's `isSystemInDarkTheme()`
+reads) and `JAVA_TOOL_OPTIONS=-Duser.language=…` (the JVM locale the Compose resources resolve
+against; `-AppleLanguages` does **not** reach the JVM). Control is never relaunched — its app lock
+re-arms and wants Touch ID — so it is captured as it stands.
+
+⚠ **A German capture shows English where the product does.** Drive's nav rail
+(`Destination.kt`), the search placeholder (`AppSearchBar`'s default) and the folder counts are
+hardcoded English, as were Photos' grouping label and month headers (translated since, `photos_density_*`); the AX
+labels under most of them are German, so a walk that reads them still finds its way. Fix the
+strings, not the capture.
+
+**The frames.** Drive `01-files` is the root as a list. Photos `01-library` is the feed grouped
+**by month** (by day is three photos a row on a desktop window, by year a wall of thumbnails), two
+lines scrolled so the year scrubber's thumb shows — it appears only while the feed moves and fades
+1.2 s after, so `desktop_shots scroll … <shot>` captures inside that beat. ⚠ The year pills show only
+while the thumb is **held**, and held, the feed stops decoding previews (every tile grey): a frame
+with the pills cannot also show photos, so frame 1 shows the thumb.
+
+⚠ **Scrolling moves your pointer.** AWT ignores a scroll posted to the process and the feed exposes
+no AX scroll action, so `scroll` and `scrub` put the pointer on the window for the gesture and back
+where it was before the capture (a window capture never draws the pointer). Park the pointer at a
+screen edge and leave the mouse alone during a run — that is also what keeps `size` from failing.
+
+### 10.1 The capture realm
+
+The maintainer's own account, on a realm made for captures (2026-11-19: *Forget this device* →
+*Start fresh* in Control, signed in with the same email). Its content is assembled, not lived in:
+the staged promo albums of §9 (the generated people People groups), the maintainer's own pets and
+landscapes re-staged the same way (no GPS, no camera tags; undated photos given plausible dates),
+the stock folders, and the landing recipe's placeholder documents. ⚠ Run
+`store/fixtures/people/check_people.py --promo <the tree>` on the assembled tree, not only on
+`promo/`: every added photo changes the order clustering visits (§4.1a). ⚠⚠ It is a real realm —
+look at every capture before publishing, and never capture the recovery phrase or a share link.
+
+**Calendar's data** went in through the app's own sheets, not a seed: `generate_calendar.py
+build/store/fixture/calendar` (§3b) for the day, then in Calendar → *Manage calendars* → *New
+calendar* for Work, Family, Fitness and Travel (Personal is the app's own) with the fixture's
+colours — the swatches have no AX labels, so `desktop_shots pressafter <proc> Colour <k>` picks the
+k-th of `CalendarPalette.COLORS` — and each row's *Import or export…* → *Import from a file* with
+its `.ics` (the file dialog takes the path through ⌘⇧G). 29 events on 2026-11-20. ⚠ The dates are
+relative to the day the fixture was generated: Calendar's `01-month` is full only around then. A
+later run deletes the four calendars, empties Personal, and imports a fresh day's fixture. ⚠⚠ Never
+*Copy a calendar from this Mac* — that reads the maintainer's real macOS calendars into the realm.
+
+**Contacts' data** is §3c's address book: `generate_contacts.py build/store/fixture/contacts
+--portraits ~/Movies/Tenshu\ promo/people/contacts` (28 people, 18 with a generated portrait), then
+in Contacts *Add a contact* (the second one, the menu) → *Import contacts* → *Import a .vcf file*
+through the same ⌘⇧G dialog. *Imported 28 contacts.*, and the *2 possible duplicates* row the
+fixture makes on purpose stays in `01-contacts`. ⚠ The *Import contacts* and *Import a .vcf file*
+rows press one level up (`press … 1 1`): the text carries the label, its parent the click.
+
+**Fit's data** is §3a's fixture: `generate_fit.py build/store/fixture/fit` writes the 19 GPX
+workouts and, for the desktop, `takeout-fit.zip` — the daily figures as Google Fit's *Daily activity
+metrics* CSV, because a Mac has neither Apple Health nor Health Connect and Takeout is the one path
+it has for steps and energy. Each goes in through *File → Import activity file…*, one file per
+dialog (it takes no multiple selection). Without the zip Home shows 0 steps and an empty energy
+chart; with it, today reads 33 / 30 min, *Goal reached*. Move minutes are estimated from steps
+(130 a minute). ⚠ Dated like Calendar's — full only around the day generated (2026-11-20).
+
+### 10.3 The hero's phone — a phone in the same realm
+
+The hero shows each app on a laptop AND a phone with the same content (`store-screenshot-stories.md`
+§5, rule 6), so the phone is a device of the capture realm, not a seeded one:
+
+1. Boot `Pixel_8_Shots` **read-only, with a window**, on its own port:
+   `emulator -avd Pixel_8_Shots -port 5556 -read-only -no-audio -no-snapshot-save`, then install
+   production-pointed debug builds of Control, Drive, Photos, Calendar, Contacts and Fit, and
+   `pm clear` them (the AVD image carries an old realm). Uninstall any other Tenshu app on it.
+2. Control → *I have Tenshu on another device* → *Enter code instead*. ⚠ The pairing code is a
+   credential for the realm: the **maintainer** copies it from the Mac's Control (*Settings → Realm
+   Devices → Add new device*), pastes it into the emulator window and approves on the Mac.
+3. Let it sync, then `adb shell settings put global sysui_demo_allowed 1` (else the status bar shows
+   the real time) and `ANDROID_SERIAL=emulator-5556 python3 scripts/lib/android_hero.py --lang en|de
+   --appearance light|dark` → `store/<app>/screenshots/android/phonehero/<lang>/[dark/]01-*.png`.
+4. ⚠⚠ **Remove the emulator from *Realm Devices* on the Mac afterwards.** It is thrown away, and an
+   abandoned device blocks the realm's reclamation barrier.
+
+Things that cost a run to learn:
+- ⚠ **Fit and Health Connect.** Fit asks for its full Health Connect set on every launch; refusing
+  any of it leaves a *needs permission* banner over Home. Granted, Fit imports Health Connect's
+  *total calories burned* — which includes resting energy, ~900 kcal by early afternoon — over the
+  day's active energy, **into the realm**, so the Mac shows it too — and every newly paired phone
+  that grants it imports again, later in the day, so the figure climbs (935 → 1,188 kcal on
+  2026-11-20). Take the phone's Fit last, shut the emulator down, then re-take the laptop's Fit.
+- ⚠ Changing an app's locale restarts it **and Control**; the next app opens on *Checking Tenshu
+  Control…* until Control is up. Launch Control first.
+- The phone came up with 16 files the Mac had deleted — a peer resurrecting a deleted folder's
+  children when the folder is re-created at the same path (fixed since; existing peers keep the
+  extras until deleted). Compare the phone's folder counts with the Mac's before capturing.
+
+### 10.2 When it fails
+
+- **`no Accessibility access`.** The grant belongs to the process macOS holds responsible: under
+  Claude Code its own bundled `claude.app` (versioned path — re-grant after an update), in a
+  terminal the terminal app. System Settings → Privacy & Security → Accessibility.
+- ⚠⚠ **After a screen lock, every app answers wrongly while the grant still reads as granted**
+  (`AXIsProcessTrusted()` true, but the main window comes back as the application element — Finder
+  too). `desktop_shots` then reports *has no open window*. Switch the grant off and on.
+- **A highlighted row in the capture** is the pointer hovering it. `size` without an origin puts
+  the window in a corner of the screen's *visible* frame the pointer is not over; it fails if there
+  is none. ⚠ A corner reaching under the Dock gets its height clamped by macOS (820 for 800).
+- **A busy app (Drive mid-upload) can miss an AX request** — `desktop_shots` retries the window
+  lookup for 10 s; `store-screenshots-desktop.sh` waits for the upload banner to clear before a shot.

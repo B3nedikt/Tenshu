@@ -45,6 +45,9 @@ kotlin {
             dependencies {
                 api(project(":notification-service-common"))
                 api(project(":core-proxy"))
+                // NotificationRetention tombstones what it prunes (`control-central-notifications.md` §10 D2);
+                // `api` because `initNotificationService` takes its holder.
+                api(project(":sync-service-common"))
             }
         }
         getByName("commonTest") {

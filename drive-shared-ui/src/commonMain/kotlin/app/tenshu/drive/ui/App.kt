@@ -302,7 +302,7 @@ fun App(
         AdaptiveNavItem(
             key = item,
             icon = item.icon,
-            label = item.label,
+            label = stringResource(item.label),
             selected = isSelected,
             // §2.3 attention dot: an invite awaits confirmation (synced flag).
             showBadge = item is Destination.Shared && showInviteBadge,

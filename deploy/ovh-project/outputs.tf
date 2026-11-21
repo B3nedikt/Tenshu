@@ -36,7 +36,7 @@ output "relay_env_overrides" {
 }
 
 output "commerce_env_overrides" {
-  description = "deploy.env lines for the commerce box: backups on OVH. ⚠ SMTP stays on Scaleway TEM."
+  description = "deploy.env lines for the commerce box: backups on OVH. ⚠ SMTP is not here: Mailgun EU on 2525, set-up-otp-email.md §A.5."
   sensitive   = true
   value       = <<-EOT
     BACKUP_S3_ENDPOINT=${local.s3_endpoint}

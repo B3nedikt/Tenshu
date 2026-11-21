@@ -223,6 +223,21 @@ if [[ $DO_DESKTOP -eq 1 ]]; then
       # launcher both miss it (seen on TenshuPhotos, 2026-10-11). Re-register once it is whole.
       /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
         -f "/Applications/${bundle}" || fail "$app: LaunchServices re-registration failed"
+      # ⚠⚠ The `rm -rf` above also drops every app extension in the bundle from PlugInKit, and
+      # neither the copy nor `lsregister -f` adds it back: after a reinstall
+      # `pluginkit -m -i app.tenshu.drive.ios.fileprovider` was empty, so fileproviderd had no
+      # extension to start and Finder answered every Tenshu Drive access "can't connect to the
+      # server" (2026-11-19). Register each .appex explicitly and check that it took.
+      for appex in "/Applications/${bundle}/Contents/PlugIns/"*.appex; do
+        [[ -d "$appex" ]] || continue
+        # ⚠ Both guarded: under `set -e` a failure here would end the run with every app it quit
+        # still down. A failure is recorded by the check below, and the run carries on.
+        appex_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${appex}/Contents/Info.plist" 2>/dev/null || true)"
+        pluginkit -a "$appex" 2>/dev/null || true
+        if [[ -z "$appex_id" ]] || ! pluginkit -m -i "$appex_id" 2>/dev/null | grep -q .; then
+          fail "$app: $(basename "$appex") is not registered with PlugInKit after the install"
+        fi
+      done
 
       team="$(codesign -dv "/Applications/${bundle}" 2>&1 | sed -n 's/^TeamIdentifier=//p')"
       nested=0
@@ -260,6 +275,22 @@ if [[ $DO_DESKTOP -eq 1 ]]; then
         else
           fail "control: desktop Control or its tray-agent is not running — check the signature gate"
         fi
+      fi
+    fi
+    # ⚠⚠ Drive's Finder integration needs Drive launched once after Control is replaced, even
+    # if Drive was not running. Quitting Control makes Finder's File Provider answer "server
+    # unreachable", Finder then stops asking, and only a live extension or Drive's launch
+    # (`tenshu-domain add` sends signalErrorResolved, and only works when Drive spawns it —
+    # FileProviderExtension/README.md) tells it Control is back. So when Finder carries a Tenshu
+    # Drive location, Drive is started in the background if this run did not reopen it anyway.
+    if echo " ${APPS} " | grep -Eq " (control|drive) " &&
+       ! echo " ${was_running} " | grep -q " drive " &&
+       compgen -G "${HOME}/Library/CloudStorage/TenshuDrive-*" >/dev/null; then
+      drive_bundle="$(app_field drive desktopBundle)"
+      if [[ -d "/Applications/${drive_bundle}" ]] && open -g -a "/Applications/${drive_bundle}" 2>/dev/null; then
+        echo "       started   ${drive_bundle} in the background (re-connects Finder's Tenshu Drive location)"
+      else
+        fail "drive: could not start ${drive_bundle} to re-connect Finder's Tenshu Drive location"
       fi
     fi
     # Then every other app this run quit. An install that silently closes what the user had

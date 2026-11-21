@@ -23,9 +23,12 @@ suspend fun wipeDerivedInferenceState(
     embeddings: EmbeddingStore,
     faces: FaceTemplateStore,
     arrivals: ArrivalQueue,
+    /** Pets' `pets.log` where the graph has one (`photos-pets.md` §2); keyed by path, so it goes too. */
+    pets: FaceTemplateStore? = null,
 ) {
     runner.cancelRunningPass()
     embeddings.clear()
     faces.clear()
+    pets?.clear()
     arrivals.clear()
 }

@@ -33,6 +33,11 @@ internal class RejectFaceSuggestionImplementation(
     private val deviceId: String,
     /** See [FaceGroupsImplementation.storeGate] — a store that may not be served may not be written either. */
     private val storeGate: (suspend () -> Boolean)? = null,
+    /** Pets PT-3b: `PET_RECOGNITION` and `rejectPetSuggestion`'s params. ⚠ Defaults are People's. */
+    private val capability: InferenceCapability = InferenceCapability.FACE_CLUSTERING,
+    private val nameParam: String = RejectFaceSuggestion.Params.NAME,
+    private val filePathsParam: String = RejectFaceSuggestion.Params.FILE_PATHS,
+    private val boxesParam: String = RejectFaceSuggestion.Params.BOXES_PER_MILLE,
 ) : AsyncOperationImplementation {
 
     @Suppress("UNCHECKED_CAST")
@@ -43,10 +48,10 @@ internal class RejectFaceSuggestionImplementation(
         caller: Any?,
         params: Map<String, Data>?
     ): T {
-        val name = (params?.get(RejectFaceSuggestion.Params.NAME) as? TString)?.get().orEmpty().trim()
-        val paths = (params?.get(RejectFaceSuggestion.Params.FILE_PATHS) as? TList<*>)
+        val name = (params?.get(nameParam) as? TString)?.get().orEmpty().trim()
+        val paths = (params?.get(filePathsParam) as? TList<*>)
             ?.toList()?.map { (it as? TString)?.get().orEmpty() }.orEmpty()
-        val boxes = (params?.get(RejectFaceSuggestion.Params.BOXES_PER_MILLE) as? TList<*>)
+        val boxes = (params?.get(boxesParam) as? TList<*>)
             ?.toList()?.map { ((it as? TInteger)?.get() ?: -1L).toInt() }.orEmpty()
 
         // ⚠ A caller mistake writes nothing and claims nothing — before consent, as `nameFaceGroup`
@@ -64,12 +69,12 @@ internal class RejectFaceSuggestionImplementation(
                 ),
             )
         }
-        if (!executionContext.hasInferenceConsent(CAPABILITY, deviceId)) {
+        if (!executionContext.hasInferenceConsent(capability, deviceId)) {
             throw TenshuException(
                 FaceGroupsUnavailable.create(
                     context = executionContext.context,
                     reason = FaceGroupsUnavailable.Reasons.NO_CONSENT,
-                    message = "faceClustering consent absent for realm or device $deviceId",
+                    message = "${capability.id} consent absent for realm or device $deviceId",
                 ),
             )
         }
@@ -90,9 +95,6 @@ internal class RejectFaceSuggestionImplementation(
         return faces.reject(records).toLong().toTInteger(executionContext.context) as T
     }
 
-    private companion object {
-        val CAPABILITY = InferenceCapability.FACE_CLUSTERING
-    }
 }
 
 /**
@@ -106,6 +108,8 @@ internal class FaceSuggestionRejectionsImplementation(
     private val deviceId: String,
     /** See [FaceGroupsImplementation.storeGate]. */
     private val storeGate: (suspend () -> Boolean)? = null,
+    /** Pets PT-3b: `PET_RECOGNITION`. ⚠ The default is People's. */
+    private val capability: InferenceCapability = InferenceCapability.FACE_CLUSTERING,
 ) : AsyncOperationImplementation {
 
     @Suppress("UNCHECKED_CAST")
@@ -120,11 +124,11 @@ internal class FaceSuggestionRejectionsImplementation(
             unavailable(executionContext, FaceGroupsUnavailable.Reasons.NO_BACKEND, "this device's face data cannot be used right now")
         }
         // ⚠⚠ Before the store is read: a withdrawn switch must not disclose what was rejected.
-        if (!executionContext.hasInferenceConsent(CAPABILITY, deviceId)) {
+        if (!executionContext.hasInferenceConsent(capability, deviceId)) {
             unavailable(
                 executionContext,
                 FaceGroupsUnavailable.Reasons.NO_CONSENT,
-                "faceClustering consent absent for realm or device $deviceId",
+                "${capability.id} consent absent for realm or device $deviceId",
             )
         }
         // ⚠⚠ An unreadable rejections file THROWS here (`RejectionsUnreadable`) and the op fails:
@@ -148,7 +152,4 @@ internal class FaceSuggestionRejectionsImplementation(
             FaceGroupsUnavailable.create(context = executionContext.context, reason = reason, message = message),
         )
 
-    private companion object {
-        val CAPABILITY = InferenceCapability.FACE_CLUSTERING
-    }
 }

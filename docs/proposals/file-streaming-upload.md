@@ -29,6 +29,11 @@ copy); and the desktop UDS path caps one request at 256 MiB (`StreamFramer.MAX_F
 [`media-processing-pipeline-sweep.md`](media-processing-pipeline-sweep.md) F2 already names the
 phone half of this ("a large video is read whole … likely OOM"; verification owed).
 
+⚠ **A multi-select pick multiplies it by N.** Drive used to start every picked upload at once, so
+a 50-photo pick held 50 whole files in Control's heap together. `AddFileActionsViewModel` now caps
+picked uploads at 3 in flight. That bounds the *count*, not the per-file cost, which is still this
+doc's job.
+
 **What is already fine.** The content *emit* reads the stored file 2 MiB at a time with bounded
 concurrency and never sees the upload array (`SyncObserver`; residency
 `O(4 × 2 MiB)`). The download side reassembles into a `.tenshu-partial` by ranged writes and moves it

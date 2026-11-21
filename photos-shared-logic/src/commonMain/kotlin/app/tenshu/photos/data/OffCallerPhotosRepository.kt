@@ -65,6 +65,9 @@ abstract class PhotosRepositoryDecorator(protected val inner: PhotosRepository) 
     /** State, like the reachability streams: forwarded as it is. */
     override fun libraryWatch(): LibraryWatch? = inner.libraryWatch()
 
+    /** A stream like the feed's: its subscribe is a call, so it runs where [stream] puts it. */
+    override fun peopleIndexChanges(): Flow<Unit>? = inner.peopleIndexChanges()?.let { stream("peopleIndexChanges", it) }
+
     override suspend fun preview(path: String, width: Int, height: Int): PhotoPreview? =
         call("preview") { inner.preview(path, width, height) }
 
@@ -136,6 +139,10 @@ abstract class PhotosRepositoryDecorator(protected val inner: PhotosRepository) 
         call("editedContentIds") { inner.editedContentIds() }
     override suspend fun nameFaceGroup(filePaths: List<String>, name: String): NamingOutcome =
         write("nameFaceGroup") { inner.nameFaceGroup(filePaths, name) }
+    override suspend fun petGroups(limit: Int): Pair<List<FaceGroup>, PeopleStatus>? =
+        call("petGroups") { inner.petGroups(limit) }
+    override suspend fun namePetGroup(filePaths: List<String>, name: String): NamingOutcome =
+        write("namePetGroup") { inner.namePetGroup(filePaths, name) }
     override suspend fun faceSuggestionRejections(): List<app.tenshu.photos.model.FaceRejection>? =
         call("faceSuggestionRejections") { inner.faceSuggestionRejections() }
     override suspend fun rejectNameSuggestion(name: String, faces: List<app.tenshu.photos.model.GroupFace>): Boolean =

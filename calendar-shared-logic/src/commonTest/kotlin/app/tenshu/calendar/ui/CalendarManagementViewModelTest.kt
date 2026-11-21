@@ -289,7 +289,8 @@ class CalendarManagementViewModelTest {
         val state = vm(vms, FakeRepository(failWith = IllegalStateException("no proxy"))).uiState.value
 
         assertFalse(state.isLoading)
-        assertEquals("no proxy", state.errorMessage)
+        assertEquals(CalendarProblem.Failed(CalendarAction.LOAD_CALENDARS), state.problem)
+        assertEquals("Could not load calendars", state.errorMessage)
     }
 
     // --- visibility ----------------------------------------------------------
@@ -530,7 +531,8 @@ class CalendarManagementViewModelTest {
 
         model.confirmDelete()
 
-        assertEquals("busy", model.uiState.value.errorMessage)
+        // ⚠ The action's words, never the throwable's own message (docs/agent.md).
+        assertEquals("Could not delete", model.uiState.value.errorMessage)
     }
 
     // --- the default ---------------------------------------------------------
@@ -720,7 +722,7 @@ class CalendarManagementViewModelTest {
 
         model.removeSubscription("sub-1")
 
-        assertEquals("busy", model.uiState.value.errorMessage)
+        assertEquals("Could not unsubscribe", model.uiState.value.errorMessage)
     }
 
     @Test

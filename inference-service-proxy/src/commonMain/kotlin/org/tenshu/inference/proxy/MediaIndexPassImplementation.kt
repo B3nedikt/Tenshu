@@ -191,4 +191,7 @@ internal fun IndexPassResult.summaryLine(): String =
         "embedFailed=$embeddingsFailed embedNotAttempted=$embeddingsNotAttempted " +
         "embedStopped=${if (embeddingStoodDown) "modelFailing" else "no"} paused=$paused deferred=$deferred " +
         "faces=${faceHalf.report} facesSkipped=$facesSkippedOff facesFailed=$facesFailed facesRejected=$facesRejected " +
-        "facePhotos=$photosSearchedForFaces facesFound=$facesFound facesEmbedded=$facesEmbedded facesNotHuman=$facesNotHuman facesInsideAnimals=$facesInsideAnimals"
+        "facePhotos=$photosSearchedForFaces facesFound=$facesFound facesEmbedded=$facesEmbedded facesNotHuman=$facesNotHuman facesInsideAnimals=$facesInsideAnimals " +
+        // ⚠ The pets half too: without it a device pass could not tell from the console whether pets ran.
+        "petPhotos=$photosSearchedForPets petsEmbedded=$petsEmbedded petsOverlapping=$petsOverlapping " +
+        "petRecords=$petRecordsWritten petsFailed=$petsFailed petsRejected=$petsRejected"

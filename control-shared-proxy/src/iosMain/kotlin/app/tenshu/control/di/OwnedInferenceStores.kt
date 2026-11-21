@@ -85,6 +85,14 @@ fun ownedInferenceStoresModule(
         val files: FileDatabase = get(named(INFERENCE_FILE_DATABASE))
         AfterPriorWriterFaceTemplateStore { OwnedInferenceStores.templatesOver(files) }
     }
+    // Pets (`photos-pets.md` PT-4b2): `pets.log` in the owner's container, behind the same barrier.
+    // ⚠ Bound whether or not this build runs pets: an unused log is empty, and the custody below clears it with the realm.
+    single<FaceTemplateStore>(named(PET_TEMPLATE_STORE)) {
+        val files: FileDatabase = get(named(INFERENCE_FILE_DATABASE))
+        AfterPriorWriterFaceTemplateStore {
+            OwnedInferenceStores.templatesOver(files, INFERENCE_PETS_PATH, org.tenshu.inference.proxy.DefaultFaceTemplateStore.PETS_MAGIC)
+        }
+    }
     single<ModelIndexStorage> { FileModelIndexStorage(get(named(INFERENCE_FILE_DATABASE))) }
     single {
         InferenceStoreCustody(
@@ -94,6 +102,8 @@ fun ownedInferenceStoresModule(
             cancelPass = { get<MediaIndexRunner>().cancelRunningPass() },
             // IN-D6a: the arrived paths are the realm's too, cleared with its stores.
             arrivals = getOrNull(),
+            // Pets: keyed by path like the face templates, so they leave with the realm too.
+            pets = get(named(PET_TEMPLATE_STORE)),
             readRealm = {
                 // ⚠⚠ Both halves, or no answer (`ios-face-grouping.md` §2.2 item 8, threat model
                 // A40). The owner alone cannot see a reset that keeps it; the store's epoch moves
@@ -194,8 +204,12 @@ object OwnedInferenceStores {
      * ⚠ A healthy database gets the plain store. Its stamp is the truth, and "nothing to delete"
      * is right.
      */
-    internal fun templatesOver(database: FileDatabase): FaceTemplateStore {
-        val store = DefaultFaceTemplateStore(database, INFERENCE_FACES_PATH)
+    internal fun templatesOver(
+        database: FileDatabase,
+        path: String = INFERENCE_FACES_PATH,
+        magic: ByteArray = DefaultFaceTemplateStore.FACES_MAGIC,
+    ): FaceTemplateStore {
+        val store = DefaultFaceTemplateStore(database, path, magic)
         if (database !is NotExcludedFromBackup) return store
         return object : FaceTemplateStore by store {
             override suspend fun provenance(): ModelProvenance? = database.retryPurge().let { store.provenance() }
@@ -397,7 +411,7 @@ object OwnedInferenceStores {
                 IosFileDatabase(root),
                 // ⚠ IN-D6a's arrived paths too: names of the realm's photographs.
                 // ⚠ And where the log was last read: no path, but this realm's.
-                listOf(INFERENCE_EMBEDDINGS_PATH, INFERENCE_FACES_PATH, INFERENCE_ARRIVALS_PATH) + app.tenshu.control.inference.ARRIVALS_CURSOR_PATH,
+                listOf(INFERENCE_EMBEDDINGS_PATH, INFERENCE_FACES_PATH, INFERENCE_PETS_PATH, INFERENCE_ARRIVALS_PATH) + app.tenshu.control.inference.ARRIVALS_CURSOR_PATH,
             )
         }
     }.onFailure { println("OwnedInferenceStores -> relinquish failed, the next check clears: $it") }.isSuccess

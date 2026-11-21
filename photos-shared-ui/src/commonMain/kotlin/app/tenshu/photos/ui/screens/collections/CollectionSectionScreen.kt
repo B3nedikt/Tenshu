@@ -68,7 +68,8 @@ fun CollectionSectionScreen(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text(section.title) },
+                // Pets PT-3d: *People & pets* while pet recognition is on here (PT-D3).
+                title = { Text(if (section == CollectionSection.PEOPLE) peopleTitle(state) else section.title) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")

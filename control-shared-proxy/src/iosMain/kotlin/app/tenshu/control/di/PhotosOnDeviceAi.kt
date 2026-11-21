@@ -1,18 +1,13 @@
 package app.tenshu.control.di
 
-import org.tenshu.inference.proxy.PreflightKey
-import org.tenshu.inference.proxy.coreml.iosPreflightKeyOf
-import org.tenshu.inference.proxy.catalog.InstalledIndex
-import org.tenshu.inference.proxy.catalog.ModelDeliveryComponents
-import org.tenshu.inference.proxy.catalog.ModelEntryData
-import org.tenshu.inference.proxy.catalog.InstalledModelData
+import app.tenshu.control.inference.ArrivalsLogCursor
+import app.tenshu.control.inference.ArrivalsMissed
+import app.tenshu.control.inference.ArrivedPhotoPaths
 import app.tenshu.control.inference.CatalogRead
+import app.tenshu.control.inference.CombinedModelSource
 import app.tenshu.control.inference.ForegroundIndexSource
 import app.tenshu.control.inference.IndexCoverageSource
 import app.tenshu.control.inference.IndexProgressSource
-import org.tenshu.inference.proxy.EmbeddingStore
-import org.tenshu.inference.proxy.PassStanding
-import kotlinx.coroutines.flow.MutableStateFlow
 import app.tenshu.control.inference.InstalledRead
 import app.tenshu.control.inference.JoinedModelSource
 import app.tenshu.control.inference.ModelsAvailability
@@ -20,12 +15,17 @@ import app.tenshu.control.inference.OnDeviceModelSource
 import app.tenshu.control.inference.RetiredWithTheGraph
 import app.tenshu.control.ui.screens.models.ModelsRepository
 import app.tenshu.control.ui.screens.models.OnDeviceModelsRepository
+import kotlin.concurrent.AtomicInt
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import org.koin.core.Koin
 import org.koin.core.module.Module
 import org.koin.core.qualifier.named
@@ -34,111 +34,127 @@ import org.tenshu.core.common.TenshuClient
 import org.tenshu.core.common.proxy.ClientRegistry
 import org.tenshu.core.common.proxy.ExecutionContext
 import org.tenshu.core.common.proxy.FileDatabase
-import org.tenshu.inference.InferenceCapability
-import org.tenshu.inference.proxy.AiReadiness
-import org.tenshu.inference.proxy.CoalescedRuns
-import org.tenshu.inference.proxy.CompiledModels
-import org.tenshu.inference.proxy.ModelPreparer
-import org.tenshu.inference.proxy.PendingUnloads
-import org.tenshu.inference.proxy.PinnedModelChanges
-import org.tenshu.inference.proxy.SceneForeground
-import org.tenshu.inference.proxy.coreml.CoreMlCompiledModels
-import org.tenshu.inference.proxy.coreml.coreMlNotPrepared
-import org.tenshu.inference.proxy.AiReadinessState
-import org.tenshu.inference.proxy.AiStaticGates
-import org.tenshu.inference.proxy.InferenceBackend
-import org.tenshu.inference.proxy.InferenceStoreCustody
-import org.tenshu.inference.proxy.MediaIndexRunner
-import org.tenshu.inference.proxy.MediaIndexer
-import org.tenshu.inference.proxy.Preflight
-import org.tenshu.inference.proxy.PreflightDevice
-import org.tenshu.inference.proxy.PreflightOutcome
-import org.tenshu.inference.proxy.PreflightReport
-import org.tenshu.inference.proxy.SlowProbes
-import org.tenshu.inference.proxy.onnx.VisionModel
-import org.tenshu.inference.proxy.PreflightProbeLookup
-import org.tenshu.inference.proxy.catalog.BackgroundModelDownloader
-import org.tenshu.inference.proxy.catalog.CoreMlDiskBudget
-import org.tenshu.inference.proxy.catalog.ModelDownloaderFactory
-import org.tenshu.inference.proxy.catalog.ModelStore
-import org.tenshu.inference.proxy.catalog.ModelStoreChanges
-import org.tenshu.inference.proxy.catalog.ModelTransferPort
-import org.tenshu.inference.proxy.coreml.COREML_RUNTIMES
-import org.tenshu.inference.proxy.coreml.CoreMlCompiler
-import org.tenshu.inference.proxy.coreml.CoreMlInferenceBackend
-import org.tenshu.inference.proxy.coreml.CoreMlModelCache
-import org.tenshu.inference.proxy.coreml.CoreMlPreflightTowers
-import org.tenshu.inference.proxy.coreml.CoreMlSessionOpener
-import org.tenshu.inference.proxy.coreml.IosPreflightDevice
-import org.tenshu.inference.proxy.coreml.SystemCoreMlCompiler
-import org.tenshu.inference.proxy.coreml.coreMlBackendOver
-import org.tenshu.inference.proxy.coreml.coreMlModelFacts
-import org.tenshu.inference.proxy.coreml.iosAiDevice
-import org.tenshu.inference.proxy.coreml.iosPreflightKey
-import org.tenshu.inference.proxy.FaceTemplateCustody
-import org.tenshu.inference.proxy.vision.FaceImageDecoder
-import org.tenshu.inference.proxy.coreml.IosFaceImageDecoder
-import org.tenshu.inference.proxy.coreml.SystemVisionFaceDetector
-import org.tenshu.inference.proxy.coreml.VisionCoreMlFaceBackend
-import org.tenshu.inference.proxy.vision.VisionFaceDetector
-import org.tenshu.inference.proxy.coreml.coreMlFaceReadiness
-import org.tenshu.inference.proxy.coreml.coreMlFaceNotPrepared
-import org.tenshu.inference.proxy.coreml.CoreMlFacePreflightModels
-import org.tenshu.inference.proxy.coreml.faceBackendOver
-import org.tenshu.inference.proxy.coreml.iosFacePreflightKey
-import org.tenshu.inference.proxy.coreml.iosFacePreflightKeyOf
-import org.tenshu.inference.proxy.FacePreflightModels
-import org.tenshu.inference.proxy.FacePreflightProbeLookup
-import org.tenshu.inference.proxy.FacePreflightProber
-import org.tenshu.inference.proxy.catalog.ModelArtifactRole
-import org.tenshu.inference.faceGroups
-import app.tenshu.control.inference.CombinedModelSource
-import org.tenshu.inference.proxy.onnx.FaceModel
-import org.tenshu.inference.proxy.hasInferenceConsent
-import org.tenshu.sync.common.SyncManager
-import kotlinx.coroutines.flow.Flow
 import org.tenshu.core.fold
 import org.tenshu.core.get
 import org.tenshu.inference.IndexPassRefused
+import org.tenshu.inference.InferenceCapability
 import org.tenshu.inference.client.inferenceService
-import org.tenshu.inference.startMediaIndexPass
-import org.tenshu.inference.proxy.BackgroundWindow
-import org.tenshu.inference.proxy.DeviceIndexingState
+import org.tenshu.inference.faceGroups
+import org.tenshu.inference.petGroups
 import org.tenshu.inference.proxy.ARRIVALS_DEBOUNCE_MS
-import app.tenshu.control.inference.ArrivalsLogCursor
-import app.tenshu.control.inference.ArrivalsMissed
-import app.tenshu.control.inference.ArrivedPhotoPaths
+import org.tenshu.inference.proxy.AiReadiness
+import org.tenshu.inference.proxy.AiReadinessState
+import org.tenshu.inference.proxy.AiStaticGates
 import org.tenshu.inference.proxy.ArrivalQueue
-import org.tenshu.inference.proxy.PathsBatch
-import org.tenshu.inference.proxy.runArrivalsBatch
+import org.tenshu.inference.proxy.BackgroundWindow
+import org.tenshu.inference.proxy.CoalescedRuns
+import org.tenshu.inference.proxy.CompiledModels
+import org.tenshu.inference.proxy.ContinuedIndexing
+import org.tenshu.inference.proxy.ContinuedTaskScheduler
+import org.tenshu.inference.proxy.DeviceIndexingState
+import org.tenshu.inference.proxy.EmbeddingStore
+import org.tenshu.inference.proxy.FacePreflightModels
+import org.tenshu.inference.proxy.FacePreflightProbeLookup
+import org.tenshu.inference.proxy.FacePreflightProber
+import org.tenshu.inference.proxy.FaceTemplateCustody
 import org.tenshu.inference.proxy.ForegroundArrivals
 import org.tenshu.inference.proxy.ForegroundIndexing
 import org.tenshu.inference.proxy.ForegroundIndexingConditions
 import org.tenshu.inference.proxy.IndexPassResult
+import org.tenshu.inference.proxy.IndexProgressHolder
+import org.tenshu.inference.proxy.IndexingConditions
+import org.tenshu.inference.proxy.InferenceBackend
+import org.tenshu.inference.proxy.InferenceBackendRegistry
+import org.tenshu.inference.proxy.InferenceStoreCustody
+import org.tenshu.inference.proxy.MEDIA_INDEX_CAPABILITIES
+import org.tenshu.inference.proxy.MediaIndexRunner
+import org.tenshu.inference.proxy.MediaIndexer
+import org.tenshu.inference.proxy.ModelPreparer
 import org.tenshu.inference.proxy.NEW_ARRIVALS_BATCH_CAP
 import org.tenshu.inference.proxy.PassEnding
-import org.tenshu.inference.proxy.IndexingConditions
 import org.tenshu.inference.proxy.PassExclusion
-import org.tenshu.inference.proxy.StartAnswer
-import org.tenshu.inference.proxy.coreml.IosIndexingSignals
-import platform.UIKit.UIApplication
-import platform.UIKit.UIBackgroundTaskInvalid
-import kotlin.concurrent.AtomicInt
-import org.tenshu.inference.proxy.ContinuedIndexing
-import org.tenshu.inference.proxy.ContinuedTaskScheduler
-import org.tenshu.inference.proxy.IndexProgressHolder
-import org.tenshu.inference.proxy.InferenceBackendRegistry
-import org.tenshu.inference.proxy.MEDIA_INDEX_CAPABILITIES
 import org.tenshu.inference.proxy.PassOutcome
+import org.tenshu.inference.proxy.PassStanding
+import org.tenshu.inference.proxy.PathsBatch
+import org.tenshu.inference.proxy.PendingUnloads
+import org.tenshu.inference.proxy.PetBackend
+import org.tenshu.inference.proxy.PetPreflightModels
+import org.tenshu.inference.proxy.PetPreflightProber
+import org.tenshu.inference.proxy.PinnedModelChanges
+import org.tenshu.inference.proxy.Preflight
+import org.tenshu.inference.proxy.PreflightDevice
+import org.tenshu.inference.proxy.PreflightKey
+import org.tenshu.inference.proxy.PreflightOutcome
+import org.tenshu.inference.proxy.PreflightProbeLookup
+import org.tenshu.inference.proxy.PreflightReport
 import org.tenshu.inference.proxy.ProcessingWake
+import org.tenshu.inference.proxy.ReadinessSlot
+import org.tenshu.inference.proxy.SceneForeground
+import org.tenshu.inference.proxy.SlowProbes
+import org.tenshu.inference.proxy.StartAnswer
 import org.tenshu.inference.proxy.WakeScheduler
 import org.tenshu.inference.proxy.WakeWork
+import org.tenshu.inference.proxy.catalog.BackgroundModelDownloader
+import org.tenshu.inference.proxy.catalog.CoreMlDiskBudget
+import org.tenshu.inference.proxy.catalog.InstalledIndex
+import org.tenshu.inference.proxy.catalog.InstalledModelData
+import org.tenshu.inference.proxy.catalog.ModelArtifactRole
+import org.tenshu.inference.proxy.catalog.ModelDeliveryComponents
+import org.tenshu.inference.proxy.catalog.ModelDownloaderFactory
+import org.tenshu.inference.proxy.catalog.ModelEntryData
+import org.tenshu.inference.proxy.catalog.ModelStore
+import org.tenshu.inference.proxy.catalog.ModelStoreChanges
+import org.tenshu.inference.proxy.catalog.ModelTransferPort
+import org.tenshu.inference.proxy.coreml.COREML_RUNTIMES
+import org.tenshu.inference.proxy.coreml.CoreMlCompiledModels
+import org.tenshu.inference.proxy.coreml.CoreMlCompiler
+import org.tenshu.inference.proxy.coreml.CoreMlFacePreflightModels
+import org.tenshu.inference.proxy.coreml.CoreMlInferenceBackend
+import org.tenshu.inference.proxy.coreml.CoreMlModelCache
+import org.tenshu.inference.proxy.coreml.CoreMlPetBackend
+import org.tenshu.inference.proxy.coreml.CoreMlPetPreflightModels
+import org.tenshu.inference.proxy.coreml.CoreMlPreflightTowers
+import org.tenshu.inference.proxy.coreml.CoreMlSessionOpener
+import org.tenshu.inference.proxy.coreml.IosFaceImageDecoder
+import org.tenshu.inference.proxy.coreml.IosIndexingSignals
+import org.tenshu.inference.proxy.coreml.IosPreflightDevice
+import org.tenshu.inference.proxy.coreml.PetCoreMlOpener
+import org.tenshu.inference.proxy.coreml.SystemCoreMlCompiler
+import org.tenshu.inference.proxy.coreml.SystemPetCoreMlOpener
+import org.tenshu.inference.proxy.coreml.SystemVisionFaceDetector
+import org.tenshu.inference.proxy.coreml.VisionCoreMlFaceBackend
+import org.tenshu.inference.proxy.coreml.coreMlBackendOver
+import org.tenshu.inference.proxy.coreml.coreMlFaceNotPrepared
+import org.tenshu.inference.proxy.coreml.coreMlFaceReadiness
+import org.tenshu.inference.proxy.coreml.coreMlModelFacts
+import org.tenshu.inference.proxy.coreml.coreMlNotPrepared
+import org.tenshu.inference.proxy.coreml.coreMlPetReadiness
+import org.tenshu.inference.proxy.coreml.coreMlPetsNotPrepared
+import org.tenshu.inference.proxy.coreml.faceBackendOver
+import org.tenshu.inference.proxy.coreml.iosAiDevice
+import org.tenshu.inference.proxy.coreml.iosFacePreflightKey
+import org.tenshu.inference.proxy.coreml.iosFacePreflightKeyOf
+import org.tenshu.inference.proxy.coreml.iosPetPreflightKey
+import org.tenshu.inference.proxy.coreml.iosPetPreflightKeyOf
+import org.tenshu.inference.proxy.coreml.iosPreflightKey
+import org.tenshu.inference.proxy.coreml.iosPreflightKeyOf
+import org.tenshu.inference.proxy.coreml.petBackendOver
+import org.tenshu.inference.proxy.hasInferenceConsent
 import org.tenshu.inference.proxy.isIndexingPaused
+import org.tenshu.inference.proxy.onnx.AnimalDetectorModel
+import org.tenshu.inference.proxy.onnx.FaceModel
+import org.tenshu.inference.proxy.onnx.PetEmbedderModel
+import org.tenshu.inference.proxy.onnx.VisionModel
 import org.tenshu.inference.proxy.passOutcomeOf
 import org.tenshu.inference.proxy.permittedInference
+import org.tenshu.inference.proxy.runArrivalsBatch
 import org.tenshu.inference.proxy.runWakePassOver
-import kotlin.uuid.ExperimentalUuidApi
-import kotlin.uuid.Uuid
+import org.tenshu.inference.proxy.vision.FaceImageDecoder
+import org.tenshu.inference.proxy.vision.VisionFaceDetector
+import org.tenshu.inference.startMediaIndexPass
+import org.tenshu.sync.common.SyncManager
+import platform.UIKit.UIApplication
+import platform.UIKit.UIBackgroundTaskInvalid
 
 /**
  * On-device AI in the graph of the **one** app that owns inference on this phone — Photos
@@ -183,7 +199,7 @@ import kotlin.uuid.Uuid
  * @param root the absolute directory the owner's inference database is rooted at.
  * @param faces whether this build binds the face backend ([PhotosOnDeviceAi.facesAdmitted]).
  */
-fun photosOnDeviceAiModule(root: String, faces: Boolean = false): Module = module {
+fun photosOnDeviceAiModule(root: String, faces: Boolean = false, pets: Boolean = false): Module = module {
     single {
         // ⚠ Under `inference/`, with everything else this app derives: the purge of a directory
         // that lost its backup exclusion removes that tree, and compiled models are ~740 MB of it.
@@ -232,6 +248,8 @@ fun photosOnDeviceAiModule(root: String, faces: Boolean = false): Module = modul
             // reverse of the face loads' wait on search's probe. ⚠ Only one the graph has BUILT: a
             // wait must not construct the face pair. With faces off there is none, and this is nothing.
             PhotosOnDeviceAi.builtFacePreflight(koin)?.awaitSessionsClosed()
+            // ⚠ Nor beside a pets probe (`photos-pets.md` PT-4b2b), by the same rule.
+            PhotosOnDeviceAi.builtPetPreflight(koin)?.awaitSessionsClosed()
         }
         // ⚠⚠ Every open while `Ready` is recorded in the scene's foreground (§14.19).
         val foregroundNow: () -> Long? = { PhotosOnDeviceAi.foregroundEpoch() }
@@ -268,6 +286,7 @@ fun photosOnDeviceAiModule(root: String, faces: Boolean = false): Module = modul
             beforeLoad = {
                 PhotosOnDeviceAi.awaitPendingUnload(koin.get())
                 koin.get<Preflight>().awaitSessionsClosed()
+                PhotosOnDeviceAi.builtPetPreflight(koin)?.awaitSessionsClosed()
             },
             // ⚠⚠ The downloader's lock, which is the process's: no commit, removal or other
             // graph's prepare runs under a compile.
@@ -347,12 +366,16 @@ fun photosOnDeviceAiModule(root: String, faces: Boolean = false): Module = modul
         )
         // ⚠⚠ With the face backend, the face model's rows beside search's: each from its own
         // readiness, preparer and probe, and nothing of one read for the other.
-        if (!faces) return@single search
+        if (!faces && !pets) return@single search
         CombinedModelSource(
-            linkedMapOf(
-                preparer.modelId to search,
-                FaceModel.AuraFaceCoreMl.modelId to PhotosOnDeviceAi.faceSource(koin, delivery, downloader),
-            ),
+            linkedMapOf<String, JoinedModelSource>(preparer.modelId to search).apply {
+                if (faces) put(FaceModel.AuraFaceCoreMl.modelId, PhotosOnDeviceAi.faceSource(koin, delivery, downloader))
+                // Pets (PT-4c): a row per pet model, both over the one pets readiness and probe.
+                if (pets) {
+                    put(AnimalDetectorModel.RfDetrNanoCoreMl.modelId, PhotosOnDeviceAi.petSource(koin, delivery, downloader, PhotosOnDeviceAi.PETS_DETECTOR_PREPARER))
+                    put(PetEmbedderModel.DinoV2SmallZeroShotCoreMl.modelId, PhotosOnDeviceAi.petSource(koin, delivery, downloader, PhotosOnDeviceAi.PETS_EMBEDDER_PREPARER))
+                }
+            },
         )
     }
     // ⚠⚠ Under the INTERFACE, and ONE for the graph: every Models screen that opens reads the
@@ -368,9 +391,9 @@ fun photosOnDeviceAiModule(root: String, faces: Boolean = false): Module = modul
             source = runCatching { get<OnDeviceModelSource>() }.getOrNull(),
             // ⚠⚠ From the backends this graph BOUND, never a constant: the face switch is offered
             // only where a face backend is (two switches, absence is NO).
-            features = PhotosOnDeviceAi.features(get(named("inferenceBackends"))),
+            features = PhotosOnDeviceAi.features(get(named("inferenceBackends")), pets = getOrNull<PetBackend>() != null),
             // ⚠ What the screen reads a row as before the catalog is read: the models this graph prepares.
-            modelFeatures = PhotosOnDeviceAi.modelFeatures(faces),
+            modelFeatures = PhotosOnDeviceAi.modelFeatures(faces, pets),
             // Photos' own client: the removal is the operation, the consents and the pause are
             // the preference rows.
             client = get<TenshuClient>(),
@@ -449,9 +472,11 @@ fun photosOnDeviceAiModule(root: String, faces: Boolean = false): Module = modul
             val mine: AiReadiness = get(named(PhotosOnDeviceAi.FACE_READINESS))
             // ⚠⚠ As SigLIP's: no embedder is opened while an earlier graph is still unloading, nor
             // while this graph's search probe holds a pair.
+            val koin: Koin = getKoin()
             val beforeLoad: suspend () -> Unit = {
                 PhotosOnDeviceAi.awaitPendingUnload(mine)
                 get<Preflight>().awaitSessionsClosed()
+                PhotosOnDeviceAi.builtPetPreflight(koin)?.awaitSessionsClosed()
             }
             // ⚠⚠ `faceBackendOver` refuses any readiness that is not the face slot's.
             if (open != null) {
@@ -481,6 +506,7 @@ fun photosOnDeviceAiModule(root: String, faces: Boolean = false): Module = modul
                 beforeLoad = {
                     PhotosOnDeviceAi.awaitPendingUnload(probing)
                     koin.get<Preflight>().awaitSessionsClosed()
+                    PhotosOnDeviceAi.builtPetPreflight(koin)?.awaitSessionsClosed()
                 },
                 // ⚠⚠ The process's, and the face model's own: a slow face probe spends no search foreground.
                 slowProbes = PhotosOnDeviceAi.faceSlowProbes,
@@ -512,12 +538,115 @@ fun photosOnDeviceAiModule(root: String, faces: Boolean = false): Module = modul
                     PhotosOnDeviceAi.awaitPendingUnload(readiness)
                     koin.get<Preflight>().awaitSessionsClosed()
                     koin.get<Preflight>(named(PhotosOnDeviceAi.FACE_PREFLIGHT)).awaitSessionsClosed()
+                    PhotosOnDeviceAi.builtPetPreflight(koin)?.awaitSessionsClosed()
                 },
                 steps = PhotosModelDownloads.steps,
                 towers = listOf(ModelArtifactRole.FACE_EMBEDDER),
                 modelId = FaceModel.AuraFaceCoreMl.modelId,
                 foregroundNow = { PhotosOnDeviceAi.foregroundEpoch() },
             )
+        }
+    }
+    if (pets) {
+        // ─── Pets (`photos-pets.md` PT-4b2): RF-DETR + DINOv2 on Core ML, the face pair's machinery ──
+        // ⚠⚠ Their own custody over `pets.log` and the pets slot's fingerprint — never faces', never SigLIP's.
+        single(named(PhotosOnDeviceAi.PETS_CUSTODY)) {
+            FaceTemplateCustody(
+                files = get(named(INFERENCE_FILE_DATABASE)),
+                faces = get(named(PET_TEMPLATE_STORE)),
+                cancelPass = { get<MediaIndexRunner>().cancelRunningPass() },
+                fingerprintPath = ReadinessSlot.PETS.fingerprintPath,
+            )
+        }
+        single(named(PhotosOnDeviceAi.PETS_READINESS)) {
+            val realm: Lazy<InferenceStoreCustody> = lazy { get<InferenceStoreCustody>() }
+            coreMlPetReadiness(
+                files = { get(named(INFERENCE_FILE_DATABASE)) },
+                store = { get<ModelStore>() },
+                cache = { get<CoreMlModelCache>() },
+                custody = { get(named(PhotosOnDeviceAi.PETS_CUSTODY)) },
+                realmUsable = { realm.value.usable() },
+                cancelPass = { get<MediaIndexRunner>().cancelRunningPass() },
+                closeSessions = { get<CoreMlPetBackend>().closeSessions() },
+            )
+        }
+        single {
+            val mine: AiReadiness = get(named(PhotosOnDeviceAi.PETS_READINESS))
+            val koin: Koin = getKoin()
+            // A test's stand-in for Core ML; nothing binds one in production.
+            val opener: PetCoreMlOpener = getOrNull() ?: SystemPetCoreMlOpener
+            // ⚠⚠ No pet model loads while an earlier graph unloads, nor beside any probe of this graph.
+            petBackendOver(
+                readiness = mine,
+                decoder = getOrNull<FaceImageDecoder>() ?: IosFaceImageDecoder,
+                opener = opener,
+                beforeLoad = {
+                    PhotosOnDeviceAi.awaitPendingUnload(mine)
+                    koin.get<Preflight>().awaitSessionsClosed()
+                    PhotosOnDeviceAi.builtFacePreflight(koin)?.awaitSessionsClosed()
+                    PhotosOnDeviceAi.builtPetPreflight(koin)?.awaitSessionsClosed()
+                },
+                foregroundNow = { PhotosOnDeviceAi.foregroundEpoch() },
+            )
+        }
+        // ⚠⚠ Under the interface too: the common `MediaIndexer` and the pet ops find it as a `PetBackend`
+        // (`petTemplatesIfPetsRunHere`), and binding it is what switches the pet half on.
+        single<PetBackend> { get<CoreMlPetBackend>() }
+        single(named(PhotosOnDeviceAi.PETS_PREFLIGHT)) {
+            val opener: PetCoreMlOpener = getOrNull() ?: SystemPetCoreMlOpener
+            val models: PetPreflightModels = getOrNull() ?: CoreMlPetPreflightModels(opener)
+            val device: PreflightDevice = getOrNull() ?: IosPreflightDevice
+            val probing: AiReadiness = get(named(PhotosOnDeviceAi.PETS_READINESS))
+            val koin: Koin = getKoin()
+            val built: PetPreflightBuilt = get()
+            Preflight.over(
+                readiness = probing,
+                prober = PetPreflightProber(models, device),
+                device = device,
+                // ⚠⚠ Never beside search's or the face probe, nor while an earlier graph unloads.
+                beforeLoad = {
+                    PhotosOnDeviceAi.awaitPendingUnload(probing)
+                    koin.get<Preflight>().awaitSessionsClosed()
+                    PhotosOnDeviceAi.builtFacePreflight(koin)?.awaitSessionsClosed()
+                },
+                slowProbes = PhotosOnDeviceAi.petSlowProbes,
+                foregroundNow = { PhotosOnDeviceAi.foregroundEpoch() },
+            ).also { built.preflight = it }
+        }
+        single { PetPreflightBuilt() }
+        // ⚠ Two catalog entries, so two preparers over the ONE pets readiness: each compiles its own
+        // tower, and the readiness serves only once both are compiled (`coreMlPetModelFacts`).
+        listOf(
+            PhotosOnDeviceAi.PETS_DETECTOR_PREPARER to (AnimalDetectorModel.RfDetrNanoCoreMl.modelId to ModelArtifactRole.ANIMAL_DETECTOR),
+            PhotosOnDeviceAi.PETS_EMBEDDER_PREPARER to (PetEmbedderModel.DinoV2SmallZeroShotCoreMl.modelId to ModelArtifactRole.PET_EMBEDDER),
+        ).forEach { (name, model) ->
+            single(named(name)) {
+                val koin: Koin = getKoin()
+                val readiness: AiReadiness = get(named(PhotosOnDeviceAi.PETS_READINESS))
+                ModelPreparer(
+                    store = get(),
+                    compiled = get(),
+                    readiness = readiness,
+                    preflight = { afterRecompile ->
+                        val foreground: Long? = PhotosOnDeviceAi.foregroundEpoch()
+                        val preflight: Preflight = koin.get(named(PhotosOnDeviceAi.PETS_PREFLIGHT))
+                        if (afterRecompile) preflight.recompiled(foreground) else preflight.prepared(foreground)
+                    },
+                    currentKey = { iosPetPreflightKey(koin.get<ModelStore>().installed()) },
+                    notPrepared = { coreMlPetsNotPrepared(koin.get(), koin.get()) },
+                    inForeground = { PhotosOnDeviceAi.inForeground() },
+                    beforeLoad = {
+                        PhotosOnDeviceAi.awaitPendingUnload(readiness)
+                        koin.get<Preflight>().awaitSessionsClosed()
+                        PhotosOnDeviceAi.builtFacePreflight(koin)?.awaitSessionsClosed()
+                        koin.get<Preflight>(named(PhotosOnDeviceAi.PETS_PREFLIGHT)).awaitSessionsClosed()
+                    },
+                    steps = PhotosModelDownloads.steps,
+                    towers = listOf(model.second),
+                    modelId = model.first,
+                    foregroundNow = { PhotosOnDeviceAi.foregroundEpoch() },
+                )
+            }
         }
     }
     // ─── The foreground pass (§14.19). ─────────────────────────────────────────────────────────
@@ -559,6 +688,7 @@ fun photosOnDeviceAiModule(root: String, faces: Boolean = false): Module = modul
             closeSessions = {
                 koin.get<CoreMlInferenceBackend>().closeSessions()
                 koin.getOrNull<VisionCoreMlFaceBackend>()?.closeSessions()
+                koin.getOrNull<CoreMlPetBackend>()?.closeSessions()
             },
             // A test's window; nothing binds one in production.
             window = getOrNull() ?: AppBackgroundWindow,
@@ -641,10 +771,11 @@ fun photosOnDeviceAiModule(root: String, faces: Boolean = false): Module = modul
     single<ModelStoreChanges> {
         // Readiness's writer 3: the old generation stops being served before the store moves.
         // ⚠⚠ For the model the change is about: a change to any other model stands nothing down.
-        if (faces) {
+        if (faces || pets) {
             ByModelChanges(
                 siglip = get(),
-                faces = get(named(PhotosOnDeviceAi.FACE_READINESS)),
+                faces = getOrNull(named(PhotosOnDeviceAi.FACE_READINESS)),
+                pets = getOrNull(named(PhotosOnDeviceAi.PETS_READINESS)),
             )
         } else {
             PinnedModelChanges(get(), VisionModel.PinnedSigLip.modelId)
@@ -679,7 +810,8 @@ fun photosOnDeviceAiModule(root: String, faces: Boolean = false): Module = modul
                 storeChanged = { changed ->
                     // ⚠ The face model's install asks for the same check: it prepares and probes both.
                     val concerned: Boolean = koin.get<ModelPreparer>().concerns(changed) ||
-                        koin.getOrNull<ModelPreparer>(named(PhotosOnDeviceAi.FACE_PREPARER))?.concerns(changed) == true
+                        koin.getOrNull<ModelPreparer>(named(PhotosOnDeviceAi.FACE_PREPARER))?.concerns(changed) == true ||
+                        PhotosOnDeviceAi.petPreparers(koin).any { it.concerns(changed) }
                     if (concerned) koin.get<CoalescedRuns>(named(RECHECKS)).requestLater()
                 },
                 // ⚠⚠ And a removal evicts the compiled towers in its own step, under the lock
@@ -691,10 +823,12 @@ fun photosOnDeviceAiModule(root: String, faces: Boolean = false): Module = modul
                 beforeRemoval = { removed ->
                     koin.get<ModelPreparer>().evicting(removed)
                     koin.getOrNull<ModelPreparer>(named(PhotosOnDeviceAi.FACE_PREPARER))?.evicting(removed)
+                    PhotosOnDeviceAi.petPreparers(koin).forEach { it.evicting(removed) }
                 },
                 afterRemoval = { removed ->
                     koin.get<ModelPreparer>().evicted(removed)
                     koin.getOrNull<ModelPreparer>(named(PhotosOnDeviceAi.FACE_PREPARER))?.takeIf { it.concerns(removed) }?.evicted(removed)
+                    PhotosOnDeviceAi.petPreparers(koin).filter { it.concerns(removed) }.forEach { it.evicted(removed) }
                 },
             )
         }
@@ -749,6 +883,23 @@ object PhotosOnDeviceAi {
     /** The face model's [Preflight] (F6); SigLIP's is unqualified. */
     const val FACE_PREFLIGHT: String = "facePreflight"
 
+    /** Pets (`photos-pets.md` PT-4b2): the custody, readiness, probe and the two preparers' names. */
+    const val PETS_CUSTODY: String = "petsCustody"
+    const val PETS_READINESS: String = "petsReadiness"
+    const val PETS_PREFLIGHT: String = "petsPreflight"
+    const val PETS_DETECTOR_PREPARER: String = "petsDetectorPreparer"
+    const val PETS_EMBEDDER_PREPARER: String = "petsEmbedderPreparer"
+
+    /** The pets [Preflight] of a graph, once built — [builtFacePreflight]'s twin, constructing nothing. */
+    fun builtPetPreflight(koin: Koin): Preflight? =
+        runCatching { koin.getOrNull<PetPreflightBuilt>()?.preflight }.getOrNull()
+
+    /** The two pet preparers where pets are bound, none elsewhere. */
+    fun petPreparers(koin: Koin): List<ModelPreparer> = listOfNotNull(
+        koin.getOrNull(named(PETS_DETECTOR_PREPARER)),
+        koin.getOrNull(named(PETS_EMBEDDER_PREPARER)),
+    )
+
     /** [koin]'s face [Preflight] if its graph has built one, else `null`. ⚠ Never constructs it ([FacePreflightBuilt]). */
     fun builtFacePreflight(koin: Koin): Preflight? =
         runCatching { koin.getOrNull<FacePreflightBuilt>()?.preflight }.getOrNull()
@@ -757,9 +908,103 @@ object PhotosOnDeviceAi {
      * Which feature each model a graph prepares serves (`ModelsCapabilities.modelFeatures`). ⚠ Empty
      * with faces off: one model, every row search's already, and the capabilities exactly what they were.
      */
-    fun modelFeatures(faces: Boolean): Map<String, InferenceCapability> =
-        if (!faces) emptyMap()
-        else mapOf(VisionModel.PinnedSigLip.modelId to InferenceCapability.SEMANTIC_IMAGE_SEARCH, FaceModel.AuraFaceCoreMl.modelId to InferenceCapability.FACE_CLUSTERING)
+    fun modelFeatures(faces: Boolean, pets: Boolean = false): Map<String, InferenceCapability> =
+        if (!faces && !pets) {
+            emptyMap()
+        } else {
+            buildMap {
+                put(VisionModel.PinnedSigLip.modelId, InferenceCapability.SEMANTIC_IMAGE_SEARCH)
+                if (faces) put(FaceModel.AuraFaceCoreMl.modelId, InferenceCapability.FACE_CLUSTERING)
+                if (pets) {
+                    put(AnimalDetectorModel.RfDetrNanoCoreMl.modelId, InferenceCapability.PET_RECOGNITION)
+                    put(PetEmbedderModel.DinoV2SmallZeroShotCoreMl.modelId, InferenceCapability.PET_RECOGNITION)
+                }
+            }
+        }
+
+    /**
+     * One pet model's rows of the Models screen (PT-4c): [faceSource]'s shape over the pets slot's
+     * readiness and probe and [preparerName]'s preparer — two of these, one per catalog entry.
+     * ⚠⚠ The catalog entry is read by id AND runtime `coreml`: Android's `onnx+mediapipe` entries share the ids.
+     */
+    internal fun petSource(koin: Koin, delivery: ModelDeliveryComponents, downloader: BackgroundModelDownloader, preparerName: String): JoinedModelSource {
+        val readiness: AiReadiness = koin.get(named(PETS_READINESS))
+        val preparer: ModelPreparer = koin.get(named(preparerName))
+        val preflight: Preflight = koin.get(named(PETS_PREFLIGHT))
+        val modelId: String = preparer.modelId
+        val partnerId: String =
+            if (modelId == PetEmbedderModel.DinoV2SmallZeroShotCoreMl.modelId) AnimalDetectorModel.RfDetrNanoCoreMl.modelId
+            else PetEmbedderModel.DinoV2SmallZeroShotCoreMl.modelId
+        // ⚠⚠ The partner entry as the row's own catalog read last saw it — never a fresh fetch: the key is
+        // asked inside the source's reactive join, and an HTTP read there would stall every row update
+        // (download progress included) behind a slow CDN.
+        val partnerSeen = PartnerEntry()
+        fun offeredKey(entry: ModelEntryData): PreflightKey {
+            val partner: ModelEntryData? = partnerSeen.entry
+            return when {
+                partner == null -> iosPetPreflightKey(koin.get<ModelStore>().installed())
+                modelId == PetEmbedderModel.DinoV2SmallZeroShotCoreMl.modelId -> iosPetPreflightKeyOf(entry, partner)
+                else -> iosPetPreflightKeyOf(partner, entry)
+            }
+        }
+        return JoinedModelSource(
+            modelId = modelId,
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+            retired = readiness.retiredNow,
+            readiness = readiness.standing,
+            journal = downloader.journalView,
+            outcome = downloader.lastOutcome,
+            progress = delivery.progress.progress,
+            compiling = preparer.compiling,
+            probing = preflight.probing,
+            prepare = preparer.lastReport,
+            prepareRefusal = preparer.lastRefusal,
+            preflight = preflight.lastReport,
+            readInstalled = {
+                when (val index: InstalledIndex = delivery.store.read()) {
+                    InstalledIndex.NotAnIndex, is InstalledIndex.Unreadable -> InstalledRead.Unreadable
+                    is InstalledIndex.Records -> {
+                        val record: InstalledModelData? = index.models.firstOrNull { it.modelId == modelId }
+                        InstalledRead.Read(
+                            record = record,
+                            prepareKey = record?.let(preparer::keyFor),
+                            preflightKey = record?.let { iosPetPreflightKey(index.models) },
+                            onDeviceBytes = record?.let { it.byteSize + CoreMlDiskBudget.prepareBytes(it.byteSize) } ?: 0L,
+                        )
+                    }
+                }
+            },
+            loadCatalog = {
+                delivery.catalogSource.load()
+                    ?.let { catalog ->
+                        val entry: ModelEntryData? = catalog.models.firstOrNull { it.modelId == modelId && it.runtime == PET_RUNTIME }
+                        // The partner rides on the same read: what [offeredKey] builds the pair's key from.
+                        partnerSeen.entry = catalog.models.firstOrNull { it.modelId == partnerId && it.runtime == PET_RUNTIME }
+                        CatalogRead.Read(entry, entry?.let { it.byteSize + CoreMlDiskBudget.prepareBytes(it.byteSize) })
+                    }
+                    ?: CatalogRead.Unavailable
+            },
+            startDownload = { id, allowsCellular, admitted -> downloader.download(id, allowsCellular) { admitted() } },
+            cancelDownload = { id -> downloader.cancel(id) },
+            recheck = { recheck(koin) },
+            isRetired = readiness::isRetired,
+            // ⚠⚠ Switched off: both pet models are let go, and `petGroups` runs its withdrawal-first
+            // deletion of `pets.log` now. ⚠ Only for an EXPLICIT no; the face templates are never touched.
+            petsWithdrawn = {
+                koin.getOrNull<CoreMlPetBackend>()?.closeSessions()
+                runCatching { koin.get<TenshuClient>().inferenceService.petGroups(1) }
+                    .onFailure { println("PhotosOnDeviceAi -> the withdrawn pet data was not deleted now: $it") }
+            },
+            readOffered = { entry -> readiness.answerFor(offeredKey(entry)) },
+            loadAgainOf = { entry ->
+                val key: PreflightKey = entry?.let { offeredKey(it) } ?: iosPetPreflightKey(koin.get<ModelStore>().installed())
+                readiness.loadAgain(key)
+            },
+        )
+    }
+
+    /** The runtime iOS's pet entries carry: plain Core ML (RF-DETR and DINOv2 both ours, no Vision). */
+    const val PET_RUNTIME: String = "coreml"
 
     /**
      * The face model's rows of the Models screen (F6): [JoinedModelSource] over the face slot's
@@ -844,9 +1089,11 @@ object PhotosOnDeviceAi {
      * backend it bound, search first. ⚠⚠ What the Models screen offers consent for, so a face switch
      * appears only beside a bound face backend.
      */
-    fun features(backends: List<InferenceBackend>): List<InferenceCapability> = buildList {
+    fun features(backends: List<InferenceBackend>, pets: Boolean = false): List<InferenceCapability> = buildList {
         if (backends.any { it is CoreMlInferenceBackend }) add(InferenceCapability.SEMANTIC_IMAGE_SEARCH)
         if (backends.any { it is VisionCoreMlFaceBackend }) add(InferenceCapability.FACE_CLUSTERING)
+        // ⚠ Pets are not an `InferenceBackend`: the switch follows a bound `PetBackend` (PT-4c).
+        if (pets) add(InferenceCapability.PET_RECOGNITION)
     }
 
     /**
@@ -952,6 +1199,7 @@ object PhotosOnDeviceAi {
         // ⚠ The face pair's own writer 4, where faces are bound: a new OS build or Vision
         // revision voids its verdict, and nothing of SigLIP's is read or written by it.
         koin.getOrNull<AiReadiness>(named(FACE_READINESS))?.fingerprintChecked()
+        koin.getOrNull<AiReadiness>(named(PETS_READINESS))?.fingerprintChecked()
         // The download journal: what was delivered while this app was suspended or dead is
         // verified from disk and installed, through readiness's writer 3 (§14.11).
         runCatching { PhotosModelDownloads.resume(koin) }
@@ -977,6 +1225,29 @@ object PhotosOnDeviceAi {
         // ⭐ F6: the face model's own prepare and probe, after search's and in the same sequence,
         // so the two never compile or probe side by side. ⚠ Where faces are bound, and only then.
         faceCheck(koin)
+        // Pets (PT-4b2), last in the same sequence: never compiled or probed beside the others.
+        petCheck(koin)
+    }
+
+    /**
+     * The pet models' prepare, then their probe — [faceCheck]'s shape, once per preparer (two catalog
+     * entries over one readiness). ⚠ A failure is said and the check goes on.
+     */
+    internal suspend fun petCheck(koin: Koin) {
+        for (preparer in petPreparers(koin)) {
+            runCatching {
+                preparer.check { pastTheBackoff ->
+                    val foreground: Long? = foregroundEpoch()
+                    val preflight: Preflight = koin.get(named(PETS_PREFLIGHT))
+                    val report: PreflightReport =
+                        if (pastTheBackoff) preflight.recompiledReport(foreground) else preflight.foregroundedReport(foreground)
+                    ModelPreparer.Probed(about = report.key, outcome = report.outcome)
+                }
+            }.onFailure { failure ->
+                if (failure is kotlinx.coroutines.CancellationException) throw failure
+                println("PhotosOnDeviceAi -> a pet model's check failed: $failure")
+            }
+        }
     }
 
     /** SigLIP's tail of a check: the text tower let go, or warmed, by search's consent. */
@@ -1060,6 +1331,9 @@ object PhotosOnDeviceAi {
         // ⚠⚠ The face pair's too, first and on this thread: a torn-down graph claims no face either.
         val faces: AiReadiness? = runCatching { koin.getOrNull<AiReadiness>(named(FACE_READINESS)) }.getOrNull()
         faces?.retire()
+        // ⚠⚠ And the pets', likewise (PT-4b2).
+        val pets: AiReadiness? = runCatching { koin.getOrNull<AiReadiness>(named(PETS_READINESS)) }.getOrNull()
+        pets?.retire()
         // ⚠ Retired first, before anyone is told. [PendingUnloads.retire] retires again inside its
         // lock, with the publishing. Early is the safe side: a party that reads *retired* waits
         // for no unload. The order that must never be seen is published and not yet retired.
@@ -1075,6 +1349,7 @@ object PhotosOnDeviceAi {
         // ⚠ Only one this graph built: resolving it here would construct the face probe (and its
         // readiness) inside a graph being torn down.
         val facePreflight: Preflight? = builtFacePreflight(koin)
+        val petPreflight: Preflight? = builtPetPreflight(koin)
         // ⚠ The foreground pass's driver goes with the graph; its pass is stopped by the unload.
         runCatching { koin.get<CoroutineScope>(named(INDEXING_SCOPE)).cancel() }
         // ⚠ The face embedder is unloaded inside the same unload, so the next graph waits for it too.
@@ -1082,6 +1357,8 @@ object PhotosOnDeviceAi {
             preflight?.awaitSessionsClosed()
             facePreflight?.awaitSessionsClosed()
             faces?.let { runCatching { it.unloadRetired() }.onFailure { failure -> println("PhotosOnDeviceAi -> the face embedder was not unloaded: $failure") } }
+            petPreflight?.awaitSessionsClosed()
+            pets?.let { runCatching { it.unloadRetired() }.onFailure { failure -> println("PhotosOnDeviceAi -> the pet models were not unloaded: $failure") } }
         }
     }
 
@@ -1121,6 +1398,8 @@ object PhotosOnDeviceAi {
             ?.onFailure { println("PhotosOnDeviceAi -> the scene's change was not recorded: $it") }
         koin?.let { graph -> runCatching { graph.getOrNull<AiReadiness>(named(FACE_READINESS))?.sceneChanged(active = now, leftForeground = was) } }
             ?.onFailure { println("PhotosOnDeviceAi -> the scene's change was not recorded for faces: $it") }
+        koin?.let { graph -> runCatching { graph.getOrNull<AiReadiness>(named(PETS_READINESS))?.sceneChanged(active = now, leftForeground = was) } }
+            ?.onFailure { println("PhotosOnDeviceAi -> the scene's change was not recorded for pets: $it") }
         scene.set(now)
         // ⚠⚠ After the scene moved, so the pass's own bar already says no at its next photo:
         // cancelled, both towers let go, inside a background window (§3.3, §14.19).
@@ -1165,7 +1444,11 @@ object PhotosOnDeviceAi {
         val device: String = koin.get<SyncManager>().currentDeviceId
         if (context.isIndexingPaused(device)) return WakeWork.NOT_ASKED
         val permitted = context.permittedInference(koin.get<InferenceBackendRegistry>(), device)
-        if (MEDIA_INDEX_CAPABILITIES.none { it in permitted }) return WakeWork.NOT_ASKED
+        // ⚠ Pets are not in the backend registry (`petsRunHere`): a device with only pets switched on
+        // is asked for overnight work too.
+        val petsAsked: Boolean = koin.getOrNull<MediaIndexer>()?.petsRunHere() == true &&
+            context.hasInferenceConsent(InferenceCapability.PET_RECOGNITION, device)
+        if (MEDIA_INDEX_CAPABILITIES.none { it in permitted } && !petsAsked) return WakeWork.NOT_ASKED
         return workLeft(koin.get<MediaIndexRunner>().standing.value, koin.getOrNull<ArrivalsMissed>()?.since)
     }
 
@@ -1304,6 +1587,9 @@ object PhotosOnDeviceAi {
 
     /** The face model's own (F6): a slow face probe must not spend search's foreground, nor the reverse. */
     internal val faceSlowProbes = SlowProbes()
+
+    /** The pets probe's own: a slow pets probe spends neither search's nor the faces' foreground. */
+    internal val petSlowProbes = SlowProbes()
 
     /**
      * Suspends while a torn-down graph of this process is still unloading its towers. What every
@@ -1457,12 +1743,32 @@ private object AppBackgroundWindow : BackgroundWindow {
  * the writer 3 of the readiness it is about, and of no other; a change to any third model runs as it
  * is. ⚠ A change that does not say which model stands both down, which is the safe side.
  */
-private class ByModelChanges(private val siglip: AiReadiness, private val faces: AiReadiness) : ModelStoreChanges {
-    override suspend fun <T> changing(change: suspend () -> T): T = siglip.storeChanging { faces.storeChanging(change) }
+private class ByModelChanges(
+    private val siglip: AiReadiness,
+    private val faces: AiReadiness?,
+    /** Pets (PT-4b2): BOTH pet models stand the one pets readiness down. */
+    private val pets: AiReadiness? = null,
+) : ModelStoreChanges {
+    override suspend fun <T> changing(change: suspend () -> T): T =
+        siglip.storeChanging { (faces?.let { f -> f.storeChanging { (pets?.storeChanging(change) ?: change()) } } ?: (pets?.storeChanging(change) ?: change())) }
 
     override suspend fun <T> changing(modelId: String, change: suspend () -> T): T = when (modelId) {
         VisionModel.PinnedSigLip.modelId -> siglip.storeChanging(change)
-        FaceModel.AuraFaceCoreMl.modelId -> faces.storeChanging(change)
+        FaceModel.AuraFaceCoreMl.modelId -> faces?.storeChanging(change) ?: change()
+        AnimalDetectorModel.RfDetrNanoCoreMl.modelId, PetEmbedderModel.DinoV2SmallZeroShotCoreMl.modelId ->
+            pets?.storeChanging(change) ?: change()
         else -> change()
     }
+}
+
+/** The partner pet model's catalog entry as a source's last catalog read saw it (`PhotosOnDeviceAi.petSource`). */
+internal class PartnerEntry {
+    @kotlin.concurrent.Volatile
+    var entry: ModelEntryData? = null
+}
+
+/** The pets [Preflight] of a graph once constructed — [FacePreflightBuilt]'s twin. */
+internal class PetPreflightBuilt {
+    @kotlin.concurrent.Volatile
+    var preflight: Preflight? = null
 }

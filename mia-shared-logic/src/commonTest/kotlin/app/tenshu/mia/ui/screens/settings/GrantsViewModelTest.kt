@@ -22,16 +22,11 @@ class GrantsViewModelTest {
 
     private class FakeGrants(initial: Set<MiaSource>) : MiaGrantsRepository {
         val state = MutableStateFlow(initial)
-        val writeState = MutableStateFlow(emptySet<MiaSource>())
         var writes = 0
         override fun granted(): Flow<Set<MiaSource>> = state
-        override fun writable(): Flow<Set<MiaSource>> = writeState
         override suspend fun setGranted(source: MiaSource, granted: Boolean) {
             writes++
             state.value = if (granted) state.value + source else state.value - source
-        }
-        override suspend fun setWritable(source: MiaSource, granted: Boolean) {
-            writeState.value = if (granted) writeState.value + source else writeState.value - source
         }
     }
 
@@ -69,20 +64,6 @@ class GrantsViewModelTest {
         assertFalse(MiaSource.TIMELINE in viewModel.uiState.value.granted)
         assertTrue(MiaSource.FILES in viewModel.uiState.value.granted)
         assertTrue(viewModel.uiState.value.editable)
-    }
-
-    @Test
-    fun theWriteTierStartsOffAndIsSetIndependently() = vmTest { vms ->
-        val repository = FakeGrants(MiaSource.entries.toSet())
-        val viewModel = vms.own(GrantsViewModel(repository))
-
-        // ⚠⚠ Write is opt-in even where read is on — two questions, two answers.
-        assertTrue(viewModel.uiState.value.writable.isEmpty())
-
-        viewModel.setWritable(MiaSource.CALENDAR, granted = true)
-
-        assertTrue(MiaSource.CALENDAR in viewModel.uiState.value.writable)
-        assertTrue(MiaSource.CALENDAR in viewModel.uiState.value.granted)
     }
 
     @Test

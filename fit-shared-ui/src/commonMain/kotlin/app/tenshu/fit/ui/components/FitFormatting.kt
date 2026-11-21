@@ -27,6 +27,7 @@ import app.tenshu.fit.shared.resources.fit_unit_kcal
 import app.tenshu.fit.shared.resources.fit_unit_km
 import app.tenshu.fit.shared.resources.fit_unit_m
 import app.tenshu.fit.shared.resources.fit_unit_per_km
+import app.tenshu.ui.format.LocaleNumbers
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -41,17 +42,18 @@ import org.jetbrains.compose.resources.stringResource
 /** A metric split into its numeric [value] and a short [unit] for a two-part stat cell. */
 data class ValueUnit(val value: String, val unit: String?)
 
-/** Locale-independent thousands grouping (mock uses en-US comma grouping). */
-fun groupThousands(n: Int): String {
-    val neg = n < 0
-    val digits = kotlin.math.abs(n).toString()
-    val sb = StringBuilder()
-    for ((i, ch) in digits.withIndex()) {
-        if (i > 0 && (digits.length - i) % 3 == 0) sb.append(',')
-        sb.append(ch)
-    }
-    return if (neg) "-$sb" else sb.toString()
-}
+/**
+ * Every figure Fit shows goes through these, which format in the user's language via
+ * [LocaleNumbers] (`4,315` / `3.2 km` in English, `4.315` / `3,2 km` in German) — never a
+ * hand-rolled separator.
+ */
+fun groupThousands(n: Int): String = LocaleNumbers.integer(n)
+
+/** One decimal, half-up (weights, respiratory rate): `72.5` / `72,5`. */
+fun oneDecimal(value: Double): String = LocaleNumbers.decimal(value, 1)
+
+/** Kilometres from tenths of a km: `32` → `3.2` / `3,2`. */
+fun kmTenthsText(kmTenths: Int): String = LocaleNumbers.decimal(kmTenths / 10.0, 1)
 
 /** Zero-pads to two digits without a width format specifier (CMP formatter is limited). */
 private fun pad2(n: Int): String = if (n < 10) "0$n" else n.toString()
@@ -123,7 +125,7 @@ fun durationClock(totalSec: Int): String {
     else "${p.minutes}:${pad2(p.seconds)}"
 }
 
-/** Distance as one string: "540 m" / "3.2 km". */
+/** Distance as one string: "540 m" / "3.2 km" ("3,2 km" in German). */
 @Composable
 fun distanceText(distanceM: Int?): String {
     if (distanceM == null) return stringResource(Res.string.fit_dash)
@@ -136,11 +138,9 @@ fun distanceText(distanceM: Int?): String {
 fun distanceValueUnit(distanceM: Int): ValueUnit {
     val parts = FitFormat.distanceParts(distanceM)
     return when (parts.form) {
-        DistanceForm.Meters -> ValueUnit(parts.meters.toString(), stringResource(Res.string.fit_unit_m))
+        DistanceForm.Meters -> ValueUnit(groupThousands(parts.meters), stringResource(Res.string.fit_unit_m))
         DistanceForm.Kilometers -> {
-            val whole = parts.kmTenths / 10
-            val tenth = parts.kmTenths % 10
-            ValueUnit("$whole.$tenth", stringResource(Res.string.fit_unit_km))
+            ValueUnit(kmTenthsText(parts.kmTenths), stringResource(Res.string.fit_unit_km))
         }
     }
 }

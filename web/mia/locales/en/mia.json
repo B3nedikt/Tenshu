@@ -51,7 +51,6 @@
     "title": "What Mia can read",
     "body": "Mia only reads what you allow, one app at a time. Turning something off here means Mia stops using it — it can’t answer from it, and it will say so rather than pretending there is nothing there.",
     "everywhere": "These switches apply to Mia on all your devices.",
-    "write": "Let Mia add events",
     "source": {
       "FILES": "Files",
       "TIMELINE": "Timeline",
@@ -81,7 +80,6 @@
     "error_mia_session_cleared": "You were signed out or Tenshu locked while Mia was answering, so that question wasn’t kept. Ask again.",
     "error_mia_unexpected_action": "Mia wanted to change something, which it can’t do in the browser. Nothing was changed.",
     "error_mia_unknown_source": "Mia doesn’t know that source. Nothing was changed.",
-    "error_mia_no_write_grant": "Mia can’t write to that source. Nothing was changed.",
     "bridge": "Couldn’t reach Tenshu. Make sure it is open and unlocked, then try again.",
     "bridge_timeout": "Tenshu took too long to answer. Try again.",
     "bridge_not_permitted": "Mia is not allowed to do that."

@@ -267,7 +267,8 @@ struct CollectionsScreen: View {
 
     private func peopleRow(_ people: CollectionsPeopleRow) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            header(CollectionSection.people.title, viewAll: people.viewAll ? .people : nil)
+            // PT-D3: the row's own title — *People & pets* while pet recognition is on here.
+            header(people.title, viewAll: people.viewAll ? .people : nil)
             if people.pending { placeholderRow(circles: true) }
             if let failure = people.failure { failureLine(failure) }
             if let line = people.statusLine {

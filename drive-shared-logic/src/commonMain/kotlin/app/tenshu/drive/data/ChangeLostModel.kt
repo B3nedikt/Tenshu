@@ -12,12 +12,13 @@ import kotlinx.coroutines.flow.update
 data class ChangeLostModel(val id: String, val fileName: String, val path: String)
 
 /**
- * Which change-lost notices this run has dismissed. Process-wide rather than per screen, so a notice
+ * Which change-lost notices this run has dismissed — only so the banner goes the moment it is
+ * dismissed, before the synced record round-trips. Process-wide rather than per screen, so a notice
  * dismissed in one folder stays dismissed in the next.
  *
- * ⚠ In memory: a notice comes back after a restart until it ages out of the newest-notifications
- * window the repository reads. The synced row itself is never deleted from here — Control's feed shows
- * it too, on every device.
+ * ⚠ Not where a dismissal lives: that is the synced per-notice record [FilesRepository.dismissChangeLost]
+ * writes, which survives restarts and reaches every device. Dismissing never deletes the notice
+ * itself — Control's feed keeps showing it.
  */
 object ChangeLostDismissals {
     private val dismissed = MutableStateFlow<Set<String>>(emptySet())

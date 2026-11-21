@@ -412,3 +412,49 @@ is the one non-presentation change v1 needs, and it also de-risks the 6e app-rec
 - OS elevation reuses `ProxyService`'s channel plumbing (Android) — **add a second channel**
   for actionable requests (importance HIGH) distinct from the LOW task-liveness channel; keep
   the copy generic/PII-free (same constraint as the FGS).
+
+---
+
+## 10. Notification dismissal and retention (maintainer, 2026-11-19)
+
+**Prompted by:** Drive's change-lost banner (CR-2 B4 P3) coming back on every restart. Its dismissals
+were held in memory, while the notice is a synced row that stays in the newest-50 window for days.
+Underneath that sat a wider gap: **nothing deletes a notification, anywhere**. They accumulate on every
+device and in the relay log, deletion notices with the deleted file's path among them
+(`retention-quota-model.md` "Tier-1 records").
+
+**D1 — A notification is dismissed with the same synced per-id record as a pending request.**
+`DismissPendingRequest` writes a `DismissedRequest` whose `requestId` is
+`dismissedNotificationMarker(uuid)` = `notification:<uuid>`. The prefix keeps these apart from the
+`grant:` / `invite:` ids that share the relation. Readers filter on the marker; dismissing never deletes
+the notice.
+- ⚠⚠ **Never a list preference or a synced "dismissed set".** Two dismissals close together
+  last-writer-wins clobber each other: across devices (Phase 4's reason) *and* on one device, where two
+  overlapping read-modify-writes drop the first. A first attempt shipped exactly that and was closed.
+- **The record type is reused, not renamed** (maintainer Q3). `DismissedRequest` is now a general
+  "seen" marker in all but name; renaming it is a reshape, worth doing only if a third use appears.
+- First reader: Drive's change-lost banner (`TenshuFilesRepository.changesLost`). It keeps an in-memory
+  set only to hide a notice the moment it is dismissed, before the record round-trips.
+- Control's feed is history and has no dismiss; D2's cap is what bounds it.
+
+**D2 — Notifications are capped by construction: the newest 200, or 30 days, whichever is smaller**
+(maintainer Q2; the `RoutineRun` numbers). Pruned with ordinary tombstones, so the relay's tombstone GC
+can drop the rows' history too. Best-effort and convergent: every device prunes by the same rule, so a
+missed prune costs rows, never correctness. A notice's dismissal marker is pruned with it.
+- **No exemption for an undismissed change-lost notice** (maintainer Q1): 30 days is long, and Control's
+  feed showed it throughout.
+- **As built** (`NotificationRetention`, installed by `initNotificationService`):
+  - ⚠ The 30 days are measured from the **newest notification**, not the device clock. A pass only
+    runs on a new save, so the newest row is "now"; and no device's clock decides which rows the
+    others lose. Ties at the row cap break by uuid, for the same reason.
+  - ⚠ Only a **local** save triggers a pass, never sync ingest, so a device catching up does not
+    answer every pulled block with one. The first local save after start always runs, which is what
+    clears an old backlog; after that, one pass per 20 local saves, because the upload-burst coalescer
+    re-saves one notice per file. The log can therefore stand up to 20 rows over the cap between passes.
+  - A save that arrives while a pass runs makes it run once more, rather than being dropped.
+  - ⚠⚠ **A prune is a tombstone, emitted through the `TombstoneEmitter` (one `emitAll` per pass).**
+    `deleteData` alone deletes on this device only (`SyncObserver.onDataDeleted` is a no-op), and since
+    ingest never prunes, every peer and the relay would keep every row. So `initNotificationService`
+    takes the `TombstoneEmitterHolder` as a **required** parameter: every runtime with sync passes it,
+    and only a bare test proxy passes `null`. A pass whose emitter is not up yet, or that could not
+    name the rows for the wire, deletes nothing and waits for a later one.

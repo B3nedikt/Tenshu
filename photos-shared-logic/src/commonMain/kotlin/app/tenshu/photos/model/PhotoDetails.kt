@@ -1,5 +1,6 @@
 package app.tenshu.photos.model
 
+import org.tenshu.core.common.format.LocaleNumbers
 import org.tenshu.core.file.MediaMetadata
 
 /**
@@ -69,7 +70,7 @@ data class PhotoDetails(
             val mp = (w.toLong() * h) / 1_000_000.0
             if (mp < 0.05) return null
             val tenths = ((mp * 10) + 0.5).toLong()
-            return "${tenths / 10}.${tenths % 10} MP"
+            return "${tenthsText(tenths)} MP"
         }
 
     /** `"1:23"`, or `"1:02:03"` past an hour. `null` for a still. */
@@ -102,7 +103,7 @@ data class PhotoDetails(
                 value /= 1000.0
                 if (value < 1000 || unit == "TB") {
                     val tenths = ((value * 10) + 0.5).toLong()
-                    return "${tenths / 10}.${tenths % 10} $unit"
+                    return "${tenthsText(tenths)} $unit"
                 }
             }
             return "$bytes B"
@@ -131,7 +132,7 @@ val MediaMetadata.exposureLabel: String?
         if (seconds <= 0.0) return null
         if (seconds >= 1.0) {
             val tenths = ((seconds * 10) + 0.5).toLong()
-            return if (tenths % 10 == 0L) "${tenths / 10} s" else "${tenths / 10}.${tenths % 10} s"
+            return "${tenthsText(tenths, dropZero = true)} s"
         }
         return "1/${((1.0 / seconds) + 0.5).toLong()} s"
     }
@@ -142,7 +143,7 @@ val MediaMetadata.apertureLabel: String?
         val f = fNumber ?: return null
         if (f <= 0.0) return null
         val tenths = ((f * 10) + 0.5).toLong()
-        return if (tenths % 10 == 0L) "f/${tenths / 10}" else "f/${tenths / 10}.${tenths % 10}"
+        return "f/${tenthsText(tenths, dropZero = true)}"
     }
 
 /**
@@ -157,7 +158,7 @@ val MediaMetadata.focalLengthLabel: String?
         val mm = focalLengthMm ?: return null
         if (mm <= 0.0) return null
         val tenths = ((mm * 10) + 0.5).toLong()
-        val exact = if (tenths % 10 == 0L) "${tenths / 10} mm" else "${tenths / 10}.${tenths % 10} mm"
+        val exact = "${tenthsText(tenths, dropZero = true)} mm"
         return focalLength35mm?.let { "$exact ($it mm equivalent)" } ?: exact
     }
 
@@ -172,7 +173,7 @@ val MediaMetadata.exposureBiasLabel: String?
     get() {
         val ev = exposureBiasEv ?: return null
         val tenths = ((if (ev < 0) -ev else ev) * 10 + 0.5).toLong()
-        val magnitude = if (tenths % 10 == 0L) "${tenths / 10}" else "${tenths / 10}.${tenths % 10}"
+        val magnitude = tenthsText(tenths, dropZero = true)
         val sign = when {
             tenths == 0L -> ""
             ev < 0 -> "−"
@@ -180,3 +181,12 @@ val MediaMetadata.exposureBiasLabel: String?
         }
         return "$sign$magnitude EV"
     }
+
+/**
+ * A count of tenths, already rounded, as the locale writes it: `12.2` / `12,2`, or with [dropZero]
+ * `2` rather than `2.0` / `2,0`. ⚠ The one place this file turns a number into digits — a
+ * hand-rolled `"$whole.$tenth"` is English everywhere (`docs/proposals/locale-number-formatting.md`).
+ * The locale is the platform's current language, what Compose's `Locale.current` reads.
+ */
+private fun tenthsText(tenths: Long, dropZero: Boolean = false): String =
+    if (dropZero) LocaleNumbers.upTo(tenths / 10.0, 1) else LocaleNumbers.decimal(tenths / 10.0, 1)

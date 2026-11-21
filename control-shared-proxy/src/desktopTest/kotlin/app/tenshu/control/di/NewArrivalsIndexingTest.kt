@@ -451,7 +451,7 @@ class NewArrivalsIndexingTest {
             )
         }
         val owned = File("src/iosMain/kotlin/app/tenshu/control/di/OwnedInferenceStores.kt").readText()
-        assertTrue(Regex("""listOf\(INFERENCE_EMBEDDINGS_PATH, INFERENCE_FACES_PATH, INFERENCE_ARRIVALS_PATH\)""").containsMatchIn(owned), "iOS's eraseAtRest leaves the queue")
+        assertTrue(Regex("""listOf\(INFERENCE_EMBEDDINGS_PATH, INFERENCE_FACES_PATH, INFERENCE_PETS_PATH, INFERENCE_ARRIVALS_PATH\)""").containsMatchIn(owned), "iOS's eraseAtRest leaves the queue")
         assertTrue("arrivals = getOrNull()," in owned, "iOS's custody does not clear the queue")
     }
 }

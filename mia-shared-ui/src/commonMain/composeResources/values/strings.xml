@@ -42,9 +42,6 @@
     <!-- ⚠ Says "per app" plainly: grants are per SERVICE and there is no per-file control,
          so copy implying otherwise would promise what the system cannot enforce (MQ-D6). -->
     <string name="mia_settings_grants_body">Mia only reads what you allow, one app at a time. Turning something off here means Mia stops using it — it can't answer from it, and it will say so rather than pretending there is nothing there.</string>
-    <!-- ⚠ MQ-D6: a grant needs a VERB, not just a noun. Reading your calendar and adding to
-         it are two different permissions and a user will reasonably want the first alone. -->
-    <string name="mia_settings_grants_write">Let Mia add events</string>
     <string name="mia_settings_grants_files">Files</string>
     <string name="mia_settings_grants_timeline">Timeline</string>
     <string name="mia_settings_grants_fitness">Workouts</string>

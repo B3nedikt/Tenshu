@@ -15,6 +15,7 @@ import org.tenshu.core.common.TenshuEnvironment
 import org.tenshu.core.common.TestProxy
 import org.tenshu.core.common.proxy.ArrayDatabaseReference
 import org.tenshu.core.common.proxy.LocalTaskExecutor
+import org.tenshu.core.common.relation.relationReference
 import org.tenshu.core.common.request.LocalRequestChain
 import org.tenshu.core.entity.DataId
 import org.tenshu.core.entity.Entity
@@ -180,6 +181,53 @@ class FileHistoryRelationTest {
             history.size,
             "the per-file array is capped via the realm-wide trim's delete fan-out",
         )
+        assertEquals(1, history.count { it.typeId() == CreatedFileModification.ID }, "Created is never trimmed")
+    }
+
+    // --- The policies read the file's own array, never the realm-wide log ---
+    //
+    // Both run inside the writer's transaction, where on the iOS SQLite replica a whole-log read
+    // per deleted file fenced the store (`photos-pets.md` §10.18). Removing the realm-wide
+    // `MODIFICATIONS` array first makes a policy that still reads it visibly do nothing.
+
+    private fun TestEnv.dropRealmWideLog() {
+        val log = proxy.executionContext.relationReference(FileService.Relations.MODIFICATIONS)
+        proxy.executionContext.deleteData(log.arrayId)
+        assertTrue(proxy.executionContext.getArrayData(log)?.toList().orEmpty().isEmpty())
+    }
+
+    @Test
+    fun deleteCascadeReadsThePerFileArrayNotTheRealmWideLog() = runTest {
+        val clock = FakeClock(initial = 1_000L)
+        val env = env(createFileProxy(backgroundScope, deviceId = deviceId, clock = clock))
+
+        clock.advance(1); env.upload("/", "a.txt")
+        clock.advance(1); env.replace("/", "a.txt")
+        assertEquals(2, env.history("/a.txt").size)
+        env.dropRealmWideLog()
+
+        clock.advance(1); env.delete("/a.txt")
+
+        assertTrue(env.history("/a.txt").isEmpty(), "the cascade found /a.txt's rows in its own array")
+    }
+
+    @Test
+    fun retentionReadsThePerFileArrayNotTheRealmWideLog() = runTest {
+        val clock = FakeClock(initial = 1_000L)
+        val env = env(createFileProxy(backgroundScope, deviceId = deviceId, clock = clock))
+
+        clock.advance(1); env.upload("/", "a.txt")
+        repeat(FileModification.RETENTION_CAP - 1) {
+            clock.advance(1)
+            env.replace("/", "a.txt", bytes = byteArrayOf(4, 5, 6, 7, it.toByte()))
+        }
+        assertEquals(FileModification.RETENTION_CAP, env.history("/a.txt").size)
+        env.dropRealmWideLog()
+
+        clock.advance(1); env.replace("/", "a.txt", bytes = byteArrayOf(9, 9, 9))
+
+        val history = env.history("/a.txt")
+        assertEquals(FileModification.RETENTION_CAP, history.size, "the write over the cap was trimmed")
         assertEquals(1, history.count { it.typeId() == CreatedFileModification.ID }, "Created is never trimmed")
     }
 

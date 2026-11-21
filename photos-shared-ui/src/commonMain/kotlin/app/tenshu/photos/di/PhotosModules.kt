@@ -125,6 +125,9 @@ fun viewModelsModule(): Module = module {
             startAfter = get<FeedFirstPage>(),
             snapshotStore = getOrNull(),
             currentRealm = getOrNull<TenshuClient>()?.let { controlCurrentRealm(it) },
+            // ⚠⚠ Control's People & pets revision (`photos-pets.md` §10.19): without it a pass
+            // that changed the groups was seen only when the Collections tab was tapped again.
+            indexChanges = get<PhotosRepository>().peopleIndexChanges(),
         )
     }
     // The last two are platform-optional — a device that cannot enumerate its own folders

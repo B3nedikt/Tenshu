@@ -41,6 +41,14 @@ internal class FaceGroupsImplementation(
      * path can name a live photograph of somebody else.
      */
     private val storeGate: (suspend () -> Boolean)? = null,
+    /**
+     * Pets PT-3b: the same contract over `pets.log` — `PET_RECOGNITION`, `petGroups`' limit, and the
+     * pet backend instead of the registry's. ⚠ Defaults are People's, unchanged.
+     */
+    private val capability: InferenceCapability = InferenceCapability.FACE_CLUSTERING,
+    private val limitParam: String = org.tenshu.inference.FaceGroups.Params.LIMIT,
+    /** The backend that makes this store's vectors, or `null` for none here; its stamp gates the model-change clear. */
+    private val backendFor: () -> Any? = { registry.backendFor(capability) },
 ) : AsyncOperationImplementation {
 
     @Suppress("UNCHECKED_CAST")
@@ -51,7 +59,7 @@ internal class FaceGroupsImplementation(
         caller: Any?,
         params: Map<String, Data>?
     ): T {
-        val limit = params?.get(org.tenshu.inference.FaceGroups.Params.LIMIT)
+        val limit = params?.get(limitParam)
             ?.let { (it as TInteger).get() } ?: 0L
 
         // ⚠ A non-positive cap is a caller mistake, not an unavailable feature.
@@ -68,13 +76,13 @@ internal class FaceGroupsImplementation(
         // vector clear that failed) would otherwise keep a withdrawn user's templates on disk for
         // as long as it stayed closed — and the index pass, the other place this runs, stands
         // behind the same gate.
-        val consented = executionContext.hasInferenceConsent(CAPABILITY, deviceId)
+        val consented = executionContext.hasInferenceConsent(capability, deviceId)
         // ⚠⚠ Only an EXPLICIT withdrawal deletes — a read that found nothing still
         // refuses below (absence is NO for serving) but must not destroy the templates.
         // ⚠ The withdrawal is asked first, so with no withdrawal the store is not touched at all
         // ahead of the gate; with one, only its stamp is, to decide whether there is anything to
         // delete.
-        if (!consented && executionContext.inferenceConsentWithdrawn(CAPABILITY, deviceId) &&
+        if (!consented && executionContext.inferenceConsentWithdrawn(capability, deviceId) &&
             faces.provenance() != null
         ) {
             faces.clear()
@@ -94,11 +102,11 @@ internal class FaceGroupsImplementation(
         // `PhotosLikeImplementation`: on a device that can never detect a face, naming the consent
         // switch would send the user to turn on something that changes nothing. Asking the registry
         // runs no model.
-        val backend = registry.backendFor(CAPABILITY)
+        val backend = backendFor()
             ?: unavailable(
                 executionContext,
                 FaceGroupsUnavailable.Reasons.NO_BACKEND,
-                "no backend claims faceClustering on this device",
+                "no backend claims ${capability.id} on this device",
             )
 
         // ⚠⚠ Before the store is read, not after. Consent can be withdrawn *after* an index pass,
@@ -108,7 +116,7 @@ internal class FaceGroupsImplementation(
             unavailable(
                 executionContext,
                 FaceGroupsUnavailable.Reasons.NO_CONSENT,
-                "faceClustering consent absent for realm or device $deviceId",
+                "${capability.id} consent absent for realm or device $deviceId",
             )
         }
 
@@ -217,7 +225,4 @@ internal class FaceGroupsImplementation(
         ),
     )
 
-    private companion object {
-        val CAPABILITY = InferenceCapability.FACE_CLUSTERING
-    }
 }

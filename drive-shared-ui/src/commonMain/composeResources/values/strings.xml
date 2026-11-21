@@ -48,6 +48,18 @@
     <!-- File search bar (drive-shared/.../common/search/FileSearchBar.kt) -->
     <string name="file_search_close">Close</string>
     <string name="file_search_settings">Settings</string>
+    <string name="file_search_placeholder">Search</string>
+
+    <!-- Top-level nav (navigation/Destination.kt): the rail / bottom bar labels. -->
+    <string name="drive_nav_home">Home</string>
+    <string name="drive_nav_files">Files</string>
+    <string name="drive_nav_shared">Shared</string>
+
+    <!-- A folder row's subtitle (common/FileItemSupportingText.kt): its child count.
+         ⚠ One-vs-other keys, not a <plurals> — the repo convention for composeResources (see
+         fit-shared-ui's fit_run_item_one). -->
+    <string name="folder_item_file_count_one">1 file</string>
+    <string name="folder_item_file_count">%1$d files</string>
 
     <!-- Rename-file dialog (drive-shared/.../common/rename/RenameFileDialog.kt) -->
     <string name="rename_file_dialog_title">Rename file</string>

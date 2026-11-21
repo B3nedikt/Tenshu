@@ -14,6 +14,12 @@ import org.koin.compose.koinInject
 import org.tenshu.core.common.TenshuClient
 import org.tenshu.storage.client.status
 import org.tenshu.storage.client.storageService
+import app.tenshu.calendar.shared.resources.Res
+import app.tenshu.calendar.shared.resources.calendar_storage_action
+import app.tenshu.calendar.shared.resources.calendar_storage_full_text
+import app.tenshu.calendar.shared.resources.calendar_storage_no_plan_text
+import app.tenshu.calendar.shared.resources.calendar_storage_setup_action
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * The realm's storage state (`drive-synced-folders.md` §8b.5c).
@@ -56,19 +62,22 @@ fun RealmStorageBannerHost(
         state = state,
         text = when (state) {
             is RealmStorageState.Full ->
-                "Storage full — ${formatStorageBytes(state.usedBytes)} of " +
-                    "${formatStorageBytes(state.limitBytes)} used. Your data stays on this device " +
-                    "and nothing is deleted, but it can't sync until you free up space " +
-                    "or get more."
+                stringResource(
+                    Res.string.calendar_storage_full_text,
+                    formatStorageBytes(state.usedBytes),
+                    formatStorageBytes(state.limitBytes),
+                )
             else ->
-                "Not syncing — this device has no storage plan, so your data stays on this device. " +
-                    "Set up storage to sync across your devices."
+                stringResource(Res.string.calendar_storage_no_plan_text)
         },
         modifier = modifier,
         actionLabel = manage?.let {
             // ⚠ The button must say what the sentence says — there is nothing to *manage* on a
             // realm with no plan yet.
-            if (state is RealmStorageState.Full) "Manage storage" else "Set up storage"
+            stringResource(
+                if (state is RealmStorageState.Full) Res.string.calendar_storage_action
+                else Res.string.calendar_storage_setup_action,
+            )
         },
         onManageStorage = manage,
     )

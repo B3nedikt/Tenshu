@@ -279,7 +279,7 @@ struct PhotoEditorScreen: View {
                 label: "Straighten",
                 value: state.edit.viewStraightenDegrees,
                 range: TransformEdit.companion.MAX_STRAIGHTEN_DEGREES,
-                format: { String(format: "%.1f°", abs($0) < 0.05 ? 0 : $0) },
+                format: { "\(editorFigure(abs($0) < 0.05 ? 0 : $0, fractionDigits: 1))°" },
                 compact: false
             ) { vm.setStraighten(degrees: $0) }
             .disabled(!ready)
@@ -288,10 +288,10 @@ struct PhotoEditorScreen: View {
             let x = (pair.first as? KotlinFloat)?.floatValue ?? 0
             let y = (pair.second as? KotlinFloat)?.floatValue ?? 0
             VStack(spacing: 4) {
-                AngleDialView(label: "Vertical", value: y * 100, range: 100, format: { String(format: "%.0f", abs($0) < 0.5 ? 0 : $0) }, compact: true) {
+                AngleDialView(label: "Vertical", value: y * 100, range: 100, format: { editorFigure(abs($0) < 0.5 ? 0 : $0, fractionDigits: 0) }, compact: true) {
                     vm.setPerspective(x: x, y: $0 / 100)
                 }
-                AngleDialView(label: "Horizontal", value: x * 100, range: 100, format: { String(format: "%.0f", abs($0) < 0.5 ? 0 : $0) }, compact: true) {
+                AngleDialView(label: "Horizontal", value: x * 100, range: 100, format: { editorFigure(abs($0) < 0.5 ? 0 : $0, fractionDigits: 0) }, compact: true) {
                     vm.setPerspective(x: $0 / 100, y: y)
                 }
             }
@@ -743,4 +743,13 @@ struct AngleDialView: View {
             }
         }
     }
+}
+
+/// A dial's reading in the user's locale — `2,5°` in German — rounded half away from zero like
+/// Kotlin's `LocaleNumbers`. ⚠ Never `String(format: "%.1f")`: that is a point everywhere
+/// (`docs/proposals/locale-number-formatting.md`).
+private func editorFigure(_ value: Float, fractionDigits: Int) -> String {
+    value.formatted(
+        .number.precision(.fractionLength(fractionDigits)).rounded(rule: .toNearestOrAwayFromZero).locale(.autoupdatingCurrent)
+    )
 }

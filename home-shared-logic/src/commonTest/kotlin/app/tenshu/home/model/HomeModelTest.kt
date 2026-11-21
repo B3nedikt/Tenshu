@@ -7,12 +7,12 @@ class HomeModelTest {
 
     @Test
     fun byteSizesFormatAcrossUnits() {
-        assertEquals("0 B", formatByteSize(0))
-        assertEquals("512 B", formatByteSize(512))
-        assertEquals("1.5 KB", formatByteSize(1_500))
-        assertEquals("412 GB", formatByteSize(412_000_000_000))
-        assertEquals("1 TB", formatByteSize(1_000_000_000_000))
-        assertEquals("2.5 TB", formatByteSize(2_500_000_000_000))
+        assertEquals("0 B", formatByteSize(0, "en"))
+        assertEquals("512 B", formatByteSize(512, "en"))
+        assertEquals("1.5 KB", formatByteSize(1_500, "en"))
+        assertEquals("412 GB", formatByteSize(412_000_000_000, "en"))
+        assertEquals("1 TB", formatByteSize(1_000_000_000_000, "en"))
+        assertEquals("2.5 TB", formatByteSize(2_500_000_000_000, "en"))
     }
 
     @Test
@@ -28,8 +28,19 @@ class HomeModelTest {
 
     @Test
     fun temperaturesFormatFromTenths() {
-        assertEquals("21°", formatDeciC(210))
-        assertEquals("21.3°", formatDeciC(213))
-        assertEquals("-5°", formatDeciC(-50))
+        assertEquals("21°", formatDeciC(210, "en"))
+        assertEquals("21.3°", formatDeciC(213, "en"))
+        assertEquals("-5°", formatDeciC(-50, "en"))
+        // The sign survives a reading between 0 and -1 (integer division used to drop it: "0.5°").
+        assertEquals("-0.5°", formatDeciC(-5, "en"))
+    }
+
+    @Test
+    fun germanReadsTheDecimalWithAComma() {
+        assertEquals("21,3°", formatDeciC(213, "de"))
+        assertEquals("-0,5°", formatDeciC(-5, "de"))
+        assertEquals("2,5 TB", formatByteSize(2_500_000_000_000, "de"))
+        assertEquals("1,5 KB", formatByteSize(1_500, "de"))
+        assertEquals("412 GB", formatByteSize(412_000_000_000, "de"))
     }
 }

@@ -128,7 +128,7 @@ fun createMiaProxy(
         },
     ).apply {
         executionContext.initFileService()
-        executionContext.initNotificationService()
+        executionContext.initNotificationService(tombstoneEmitterHolder = null)
         // ⚠ One install covers every `maintained = true` service-data relation in the
         // registry — Moment, Workout, Place and HomeDevice all ride the generic
         // maintainer (`initHomeDeviceService` is nothing but this call). So a row saved

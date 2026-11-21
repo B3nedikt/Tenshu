@@ -24,6 +24,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.tenshu.calendar.data.CalendarSummary
+import app.tenshu.calendar.shared.resources.Res
+import app.tenshu.calendar.shared.resources.calendar_calendars
+import app.tenshu.calendar.shared.resources.calendar_manage_calendars
+import app.tenshu.calendar.shared.resources.calendar_untitled_calendar
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * The calendars sidebar (CA-2f) — a permanent list of calendars with their
@@ -50,7 +55,7 @@ fun CalendarSidebar(
 ) {
     Column(modifier.fillMaxSize()) {
         Text(
-            text = "Calendars",
+            text = stringResource(Res.string.calendar_calendars),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
@@ -69,7 +74,7 @@ fun CalendarSidebar(
             onClick = onManage,
             modifier = Modifier.fillMaxWidth().padding(4.dp),
         ) {
-            Text("Manage calendars")
+            Text(stringResource(Res.string.calendar_manage_calendars))
         }
     }
 }
@@ -106,7 +111,7 @@ private fun CalendarRow(
             ),
         )
         Text(
-            text = calendar.name.ifBlank { "(Untitled)" },
+            text = calendar.name.ifBlank { stringResource(Res.string.calendar_untitled_calendar) },
             style = MaterialTheme.typography.bodyMedium,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

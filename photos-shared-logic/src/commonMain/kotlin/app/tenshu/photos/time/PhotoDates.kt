@@ -33,10 +33,10 @@ import kotlin.time.TimeSource
  * on the main thread, so a 5 000-photograph library froze the app for 2.7 s on every return to the
  * Collections tab, 91 % of it in that one call (`photos-ios.md` §8.22).
  *
- * ⚠ The labels are deliberately plain and locale-independent for now. A real date format is a
- * `:ui-core` concern with a locale story attached (Calendar owns that question). ⚠ The SwiftUI shell
- * uses these *verbatim* rather than `DateFormatter`, so the feed's headers and the scrubber's bubble
- * agree on both platforms by calling the same function.
+ * ⚠ The words come from a [DateWords]: [DateWords.English] by default, and the Compose shell passes
+ * one read from its string resources, so a German launch reads *Oktober 2026*. ⚠ The SwiftUI shell
+ * uses these *verbatim* (English) rather than `DateFormatter`, so the feed's headers and the
+ * scrubber's bubble agree on both platforms by calling the same function.
  */
 @OptIn(ExperimentalTime::class)
 object PhotoDates {
@@ -80,9 +80,11 @@ object PhotoDates {
     /** A day header — "17 December 2024". */
     fun dayLabel(dayStartMs: Long): String = dayLabel(dayStartMs, zone())
 
-    internal fun dayLabel(dayStartMs: Long, zone: TimeZone): String {
+    fun dayLabel(dayStartMs: Long, words: DateWords): String = dayLabel(dayStartMs, zone(), words)
+
+    internal fun dayLabel(dayStartMs: Long, zone: TimeZone, words: DateWords = DateWords.English): String {
         val date = dateOf(dayStartMs, zone)
-        return "${date.day} ${monthName(date.month.ordinal + 1)} ${date.year}"
+        return words.day(date.day, words.months[date.month.ordinal], date.year)
     }
 
     /**
@@ -94,12 +96,20 @@ object PhotoDates {
     fun sectionLabel(density: FeedDensity, sectionStartMs: Long): String =
         sectionLabel(density, sectionStartMs, zone())
 
-    internal fun sectionLabel(density: FeedDensity, sectionStartMs: Long, zone: TimeZone): String {
-        if (density == FeedDensity.Mosaic || density == FeedDensity.Day) return dayLabel(sectionStartMs, zone)
+    fun sectionLabel(density: FeedDensity, sectionStartMs: Long, words: DateWords): String =
+        sectionLabel(density, sectionStartMs, zone(), words)
+
+    internal fun sectionLabel(
+        density: FeedDensity,
+        sectionStartMs: Long,
+        zone: TimeZone,
+        words: DateWords = DateWords.English,
+    ): String {
+        if (density == FeedDensity.Mosaic || density == FeedDensity.Day) return dayLabel(sectionStartMs, zone, words)
         val date = dateOf(sectionStartMs, zone)
         return when (density) {
             FeedDensity.Year -> date.year.toString()
-            else -> monthName(date.month.ordinal + 1) + " " + date.year
+            else -> words.month(words.months[date.month.ordinal], date.year)
         }
     }
 
@@ -111,9 +121,11 @@ object PhotoDates {
      */
     fun shortDate(epochMs: Long): String = shortDate(epochMs, zone())
 
-    internal fun shortDate(epochMs: Long, zone: TimeZone): String {
+    fun shortDate(epochMs: Long, words: DateWords): String = shortDate(epochMs, zone(), words)
+
+    internal fun shortDate(epochMs: Long, zone: TimeZone, words: DateWords = DateWords.English): String {
         val date = dateOf(epochMs, zone)
-        return "${date.day} ${monthName(date.month.ordinal + 1).take(3)}"
+        return words.short(date.day, words.shortMonths[date.month.ordinal])
     }
 
     /** The viewer subtitle's time half — "21:26", in the device's current zone. */
@@ -133,20 +145,59 @@ object PhotoDates {
      */
     fun capturedAt(epochMs: Long): String = capturedAt(epochMs, zone())
 
-    internal fun capturedAt(epochMs: Long, zone: TimeZone): String {
+    fun capturedAt(epochMs: Long, words: DateWords): String = capturedAt(epochMs, zone(), words)
+
+    internal fun capturedAt(epochMs: Long, zone: TimeZone, words: DateWords = DateWords.English): String {
         val at = Instant.fromEpochMilliseconds(epochMs).toLocalDateTime(zone)
-        val day = at.dayOfWeek.name.lowercase().replaceFirstChar { it.uppercase() }.take(3)
-        val month = monthName(at.date.month.ordinal + 1).take(3)
-        return "$day, ${at.date.day} $month ${at.date.year}  ·  ${timeOfDay(epochMs, zone)}"
+        val weekday = words.shortWeekdays[at.dayOfWeek.ordinal]
+        val date = words.day(at.date.day, words.shortMonths[at.date.month.ordinal], at.date.year)
+        return "$weekday, $date  ·  ${timeOfDay(epochMs, zone)}"
     }
 
     private fun dateOf(epochMs: Long, zone: TimeZone): LocalDate =
         Instant.fromEpochMilliseconds(epochMs).toLocalDateTime(zone).date
 
-    private fun monthName(number: Int): String = when (number) {
-        1 -> "January"; 2 -> "February"; 3 -> "March"; 4 -> "April"
-        5 -> "May"; 6 -> "June"; 7 -> "July"; 8 -> "August"
-        9 -> "September"; 10 -> "October"; 11 -> "November"; else -> "December"
+}
+
+/**
+ * The words and orders [PhotoDates] spells dates with. Compose-free so the SwiftUI shell can keep
+ * the English default; the Compose shell builds one from its resources (`rememberDateWords`).
+ *
+ * @param months twelve names, January first. @param shortMonths the same, abbreviated.
+ * @param shortWeekdays seven, Monday first ([kotlinx.datetime.DayOfWeek] order).
+ */
+class DateWords(
+    val months: List<String>,
+    val shortMonths: List<String>,
+    val shortWeekdays: List<String>,
+    /** "17 December 2024" — a day, with a month name from either list. */
+    val day: (day: Int, month: String, year: Int) -> String,
+    /** "December 2024". */
+    val month: (month: String, year: Int) -> String,
+    /** "9 Apr" — the viewer's title. */
+    val short: (day: Int, shortMonth: String) -> String,
+) {
+    init {
+        require(months.size == 12 && shortMonths.size == 12 && shortWeekdays.size == 7) {
+            "DateWords needs 12 months, 12 short months and 7 weekdays"
+        }
+    }
+
+    companion object {
+        private val ENGLISH_MONTHS = listOf(
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December",
+        )
+
+        /** What every shell drew before the words were localised, and what SwiftUI still draws. */
+        val English = DateWords(
+            months = ENGLISH_MONTHS,
+            shortMonths = ENGLISH_MONTHS.map { it.take(3) },
+            shortWeekdays = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"),
+            day = { d, m, y -> "$d $m $y" },
+            month = { m, y -> "$m $y" },
+            short = { d, m -> "$d $m" },
+        )
     }
 }
 

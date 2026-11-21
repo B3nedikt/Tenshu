@@ -57,6 +57,68 @@ import app.tenshu.calendar.ui.EditorConflict
 import app.tenshu.calendar.ui.EventEditorViewModel
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalTime
+import app.tenshu.calendar.model.ReminderLabel
+import app.tenshu.calendar.shared.resources.Res
+import app.tenshu.calendar.shared.resources.calendar_all_day
+import app.tenshu.calendar.shared.resources.calendar_calendar
+import app.tenshu.calendar.shared.resources.calendar_cancel
+import app.tenshu.calendar.shared.resources.calendar_change_repeating_message
+import app.tenshu.calendar.shared.resources.calendar_change_repeating_title
+import app.tenshu.calendar.shared.resources.calendar_conflict_changed_title
+import app.tenshu.calendar.shared.resources.calendar_conflict_delete_anyway
+import app.tenshu.calendar.shared.resources.calendar_conflict_deleting_message
+import app.tenshu.calendar.shared.resources.calendar_conflict_editing_message
+import app.tenshu.calendar.shared.resources.calendar_conflict_gone_message
+import app.tenshu.calendar.shared.resources.calendar_conflict_gone_title
+import app.tenshu.calendar.shared.resources.calendar_conflict_keep_both
+import app.tenshu.calendar.shared.resources.calendar_conflict_keep_editing
+import app.tenshu.calendar.shared.resources.calendar_conflict_keep_mine
+import app.tenshu.calendar.shared.resources.calendar_conflict_keep_theirs
+import app.tenshu.calendar.shared.resources.calendar_conflict_save_mine_anyway
+import app.tenshu.calendar.shared.resources.calendar_conflict_theirs
+import app.tenshu.calendar.shared.resources.calendar_conflict_use_theirs
+import app.tenshu.calendar.shared.resources.calendar_delete
+import app.tenshu.calendar.shared.resources.calendar_delete_all_occurrences
+import app.tenshu.calendar.shared.resources.calendar_delete_repeating_message
+import app.tenshu.calendar.shared.resources.calendar_delete_repeating_title
+import app.tenshu.calendar.shared.resources.calendar_delete_this_occurrence
+import app.tenshu.calendar.shared.resources.calendar_edit_event
+import app.tenshu.calendar.shared.resources.calendar_ends
+import app.tenshu.calendar.shared.resources.calendar_ends_before_starts
+import app.tenshu.calendar.shared.resources.calendar_location
+import app.tenshu.calendar.shared.resources.calendar_new_event
+import app.tenshu.calendar.shared.resources.calendar_no_reminders
+import app.tenshu.calendar.shared.resources.calendar_notes
+import app.tenshu.calendar.shared.resources.calendar_ok
+import app.tenshu.calendar.shared.resources.calendar_pick_a_date
+import app.tenshu.calendar.shared.resources.calendar_read_only_notice
+import app.tenshu.calendar.shared.resources.calendar_recurrence_custom
+import app.tenshu.calendar.shared.resources.calendar_recurrence_custom_readonly
+import app.tenshu.calendar.shared.resources.calendar_recurrence_daily
+import app.tenshu.calendar.shared.resources.calendar_recurrence_monthly
+import app.tenshu.calendar.shared.resources.calendar_recurrence_never
+import app.tenshu.calendar.shared.resources.calendar_recurrence_weekly
+import app.tenshu.calendar.shared.resources.calendar_recurrence_yearly
+import app.tenshu.calendar.shared.resources.calendar_reminder_at_start
+import app.tenshu.calendar.shared.resources.calendar_reminder_day_before_at
+import app.tenshu.calendar.shared.resources.calendar_reminder_days_before_at
+import app.tenshu.calendar.shared.resources.calendar_reminder_days_before_one
+import app.tenshu.calendar.shared.resources.calendar_reminder_days_before_other
+import app.tenshu.calendar.shared.resources.calendar_reminder_hours_before_one
+import app.tenshu.calendar.shared.resources.calendar_reminder_hours_before_other
+import app.tenshu.calendar.shared.resources.calendar_reminder_minutes_before
+import app.tenshu.calendar.shared.resources.calendar_reminder_on_the_day_at
+import app.tenshu.calendar.shared.resources.calendar_reminders
+import app.tenshu.calendar.shared.resources.calendar_repeats
+import app.tenshu.calendar.shared.resources.calendar_save
+import app.tenshu.calendar.shared.resources.calendar_save_all_occurrences
+import app.tenshu.calendar.shared.resources.calendar_save_this_occurrence
+import app.tenshu.calendar.shared.resources.calendar_starts
+import app.tenshu.calendar.shared.resources.calendar_title
+import app.tenshu.calendar.shared.resources.calendar_untitled_event
+import app.tenshu.calendar.ui.i18n.countOf
+import org.jetbrains.compose.resources.stringResource
+import app.tenshu.calendar.ui.i18n.text
 
 /**
  * The event editor (CA-3).
@@ -90,18 +152,18 @@ fun EventEditorScreen(
         modifier = modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text(if (state.isEditing) "Edit event" else "New event") },
+                title = { Text(if (state.isEditing) stringResource(Res.string.calendar_edit_event) else stringResource(Res.string.calendar_new_event)) },
                 navigationIcon = {
-                    IconButton(onClose) { Icon(Icons.Default.Close, contentDescription = "Cancel") }
+                    IconButton(onClose) { Icon(Icons.Default.Close, contentDescription = stringResource(Res.string.calendar_cancel)) }
                 },
                 actions = {
                     if (state.isEditing && !state.isReadOnly) {
                         IconButton(viewModel::delete) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete")
+                            Icon(Icons.Default.Delete, contentDescription = stringResource(Res.string.calendar_delete))
                         }
                     }
                     if (!state.isReadOnly) {
-                        TextButton(onClick = viewModel::save, enabled = state.canSave) { Text("Save") }
+                        TextButton(onClick = viewModel::save, enabled = state.canSave) { Text(stringResource(Res.string.calendar_save)) }
                     }
                 },
             )
@@ -116,8 +178,10 @@ fun EventEditorScreen(
 
     if (state.askingScope) {
         ScopeDialog(
-            title = "Change repeating event",
-            message = "This event repeats. Apply your changes to this occurrence only, or to every occurrence?",
+            title = stringResource(Res.string.calendar_change_repeating_title),
+            message = stringResource(Res.string.calendar_change_repeating_message),
+            thisLabel = stringResource(Res.string.calendar_save_this_occurrence),
+            allLabel = stringResource(Res.string.calendar_save_all_occurrences),
             onDismiss = viewModel::dismissScopePrompt,
             onScope = viewModel::commit,
         )
@@ -129,9 +193,10 @@ fun EventEditorScreen(
 
     if (state.askingDeleteScope) {
         ScopeDialog(
-            title = "Delete repeating event",
-            message = "This event repeats. Delete this occurrence only, or every occurrence?",
-            confirmLabel = "Delete",
+            title = stringResource(Res.string.calendar_delete_repeating_title),
+            message = stringResource(Res.string.calendar_delete_repeating_message),
+            thisLabel = stringResource(Res.string.calendar_delete_this_occurrence),
+            allLabel = stringResource(Res.string.calendar_delete_all_occurrences),
             onDismiss = viewModel::dismissScopePrompt,
             onScope = viewModel::commitDelete,
         )
@@ -159,7 +224,7 @@ private fun EditorForm(
         OutlinedTextField(
             value = state.title,
             onValueChange = viewModel::setTitle,
-            label = { Text("Title") },
+            label = { Text(stringResource(Res.string.calendar_title)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -167,11 +232,11 @@ private fun EditorForm(
         // --- when ---
         AssistChip(
             onClick = { showDatePicker = true },
-            label = { Text(state.startDate?.let(CalendarDateFormat::mediumDate) ?: "Pick a date") },
+            label = { Text(state.startDate?.let(CalendarDateFormat::mediumDate) ?: stringResource(Res.string.calendar_pick_a_date)) },
         )
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("All day", Modifier.weight(1f))
+            Text(stringResource(Res.string.calendar_all_day), Modifier.weight(1f))
             Switch(checked = state.allDay, onCheckedChange = viewModel::setAllDay)
         }
 
@@ -181,16 +246,16 @@ private fun EditorForm(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 AssistChip(
                     onClick = { showStartTimePicker = true },
-                    label = { Text("Starts ${CalendarDateFormat.shortTime(state.startTime)}") },
+                    label = { Text(stringResource(Res.string.calendar_starts, CalendarDateFormat.shortTime(state.startTime))) },
                 )
                 AssistChip(
                     onClick = { showEndTimePicker = true },
-                    label = { Text("Ends ${CalendarDateFormat.shortTime(state.endTime)}") },
+                    label = { Text(stringResource(Res.string.calendar_ends, CalendarDateFormat.shortTime(state.endTime))) },
                 )
             }
             if (state.endBeforeStart) {
                 Text(
-                    "The event ends before it starts.",
+                    stringResource(Res.string.calendar_ends_before_starts),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                 )
@@ -209,24 +274,24 @@ private fun EditorForm(
         OutlinedTextField(
             value = state.location,
             onValueChange = viewModel::setLocation,
-            label = { Text("Location") },
+            label = { Text(stringResource(Res.string.calendar_location)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
         OutlinedTextField(
             value = state.notes,
             onValueChange = viewModel::setNotes,
-            label = { Text("Notes") },
+            label = { Text(stringResource(Res.string.calendar_notes)) },
             minLines = 3,
             modifier = Modifier.fillMaxWidth(),
         )
 
-        state.errorMessage?.let { message ->
-            Text(message, color = MaterialTheme.colorScheme.error)
+        state.problem?.let { problem ->
+            Text(problem.text(), color = MaterialTheme.colorScheme.error)
         }
         if (state.isReadOnly) {
             Text(
-                READ_ONLY_NOTICE,
+                stringResource(Res.string.calendar_read_only_notice),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -268,15 +333,14 @@ private fun EditorForm(
 @Composable
 private fun RecurrenceField(state: EventEditorUiState, onPick: (RecurrencePreset) -> Unit) {
     Column {
-        Text("Repeats", style = MaterialTheme.typography.labelLarge)
+        Text(stringResource(Res.string.calendar_repeats), style = MaterialTheme.typography.labelLarge)
 
         if (state.recurrenceIsReadOnly) {
             // ⚠⚠ A rule we can show but not offer. Rendering a chip row here
             // would mean whichever chip we highlighted was a lie, and touching
             // it would rewrite a rule the user set elsewhere — §3 D2.
             Text(
-                "Custom — set in another app. Editing it here isn't supported yet, " +
-                    "and your other changes won't affect it.",
+                stringResource(Res.string.calendar_recurrence_custom_readonly),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
@@ -294,7 +358,7 @@ private fun RecurrenceField(state: EventEditorUiState, onPick: (RecurrencePreset
                 FilterChip(
                     selected = state.recurrence == preset,
                     onClick = { onPick(preset) },
-                    label = { Text(preset.label()) },
+                    label = { Text(preset.localisedLabel()) },
                 )
             }
         }
@@ -316,7 +380,7 @@ private fun ReminderField(state: EventEditorUiState, onToggle: (Int) -> Unit) {
     val choices = (offered + state.reminderMinutes).distinct().sorted()
 
     Column {
-        Text("Reminders", style = MaterialTheme.typography.labelLarge)
+        Text(stringResource(Res.string.calendar_reminders), style = MaterialTheme.typography.labelLarge)
         FlowRow(
             Modifier.fillMaxWidth().padding(top = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -325,13 +389,13 @@ private fun ReminderField(state: EventEditorUiState, onToggle: (Int) -> Unit) {
                 FilterChip(
                     selected = minutes in state.reminderMinutes,
                     onClick = { onToggle(minutes) },
-                    label = { Text(ReminderPresets.label(minutes, state.allDay)) },
+                    label = { Text(reminderLabel(ReminderPresets.describe(minutes, state.allDay))) },
                 )
             }
         }
         if (state.reminderMinutes.isEmpty()) {
             Text(
-                "No reminders — this event will not alert you.",
+                stringResource(Res.string.calendar_no_reminders),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
@@ -346,7 +410,7 @@ private fun CalendarField(state: EventEditorUiState, onPick: (String) -> Unit) {
     if (state.isReadOnly || state.writableCalendars.size <= 1) return   // nothing to choose between
 
     Column {
-        Text("Calendar", style = MaterialTheme.typography.labelLarge)
+        Text(stringResource(Res.string.calendar_calendar), style = MaterialTheme.typography.labelLarge)
         // ⚠⚠ Wraps. As a plain Row, five calendars on a phone crushed the last chip to nothing, so
         // that calendar could not be chosen for a new event at all (EventEditorPhoneWidthTest).
         FlowRow(
@@ -378,7 +442,8 @@ private fun ScopeDialog(
     message: String,
     onDismiss: () -> Unit,
     onScope: (EditScope) -> Unit,
-    confirmLabel: String = "Save",
+    thisLabel: String,
+    allLabel: String,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -391,12 +456,12 @@ private fun ScopeDialog(
             TextButton(onClick = { onScope(EditScope.THIS_OCCURRENCE) }) {
                 // "occurrence", as the message above and the iOS dialog say: "this event" read
                 // as the whole series, which is exactly the ambiguity the prompt exists to settle.
-                Text("$confirmLabel this occurrence")
+                Text(thisLabel)
             }
         },
         dismissButton = {
             TextButton(onClick = { onScope(EditScope.ALL_OCCURRENCES) }) {
-                Text("$confirmLabel all occurrences")
+                Text(allLabel)
             }
         },
     )
@@ -422,7 +487,7 @@ private fun ConflictDialog(conflict: EditorConflict, viewModel: EventEditorViewM
 
     AlertDialog(
         onDismissRequest = viewModel::dismissConflict,
-        title = { Text(if (theirs == null) "This event is gone" else "Changed somewhere else") },
+        title = { Text(if (theirs == null) stringResource(Res.string.calendar_conflict_gone_title) else stringResource(Res.string.calendar_conflict_changed_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
@@ -431,12 +496,10 @@ private fun ConflictDialog(conflict: EditorConflict, viewModel: EventEditorViewM
                         // have been moved to another day, and this layer cannot tell the
                         // two apart. Claiming the wrong one is worse than naming neither.
                         theirs == null ->
-                            "This event is no longer where you opened it — another device " +
-                                "deleted or moved it. Saving will put your version back."
+                            stringResource(Res.string.calendar_conflict_gone_message)
                         deleting ->
-                            "Another device changed this event while you were deleting it. " +
-                                "Deleting now throws that change away too."
-                        else -> "Another device changed this event while you were editing it."
+                            stringResource(Res.string.calendar_conflict_deleting_message)
+                        else -> stringResource(Res.string.calendar_conflict_editing_message)
                     },
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -445,8 +508,11 @@ private fun ConflictDialog(conflict: EditorConflict, viewModel: EventEditorViewM
                         // ⚠ Their version is *named*, not just referred to. "Something
                         // changed" leaves the user choosing between two things they
                         // cannot see; a title and a time is usually enough to recognise.
-                        "Theirs: ${it.title.ifBlank { "(No title)" }} · " +
+                        stringResource(
+                            Res.string.calendar_conflict_theirs,
+                            it.title.ifBlank { stringResource(Res.string.calendar_untitled_event) },
                             CalendarDateFormat.shortTime(it.startLocal.time),
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -455,9 +521,9 @@ private fun ConflictDialog(conflict: EditorConflict, viewModel: EventEditorViewM
                     TextButton(onClick = viewModel::keepMine) {
                         Text(
                             when {
-                                deleting -> "Delete anyway"
-                                theirs == null -> "Save mine anyway"
-                                else -> "Keep mine"
+                                deleting -> stringResource(Res.string.calendar_conflict_delete_anyway)
+                                theirs == null -> stringResource(Res.string.calendar_conflict_save_mine_anyway)
+                                else -> stringResource(Res.string.calendar_conflict_keep_mine)
                             }
                         )
                     }
@@ -466,12 +532,12 @@ private fun ConflictDialog(conflict: EditorConflict, viewModel: EventEditorViewM
                         // the form shows what the other device made of it, which is the
                         // only way to decide whether you still want it gone.
                         TextButton(onClick = viewModel::useTheirs) {
-                            Text(if (deleting) "Keep theirs" else "Use theirs")
+                            Text(if (deleting) stringResource(Res.string.calendar_conflict_keep_theirs) else stringResource(Res.string.calendar_conflict_use_theirs))
                         }
                         // ⚠ Not offered for a delete: "both" of a deletion and an edit is
                         // just the edit, which is what *Keep theirs* already does.
                         if (!deleting) {
-                            TextButton(onClick = viewModel::saveBoth) { Text("Keep both") }
+                            TextButton(onClick = viewModel::saveBoth) { Text(stringResource(Res.string.calendar_conflict_keep_both)) }
                         }
                     }
                 }
@@ -481,7 +547,7 @@ private fun ConflictDialog(conflict: EditorConflict, viewModel: EventEditorViewM
         // ⚠ The only slot that writes nothing, and it says so — "Cancel" over a form
         // still full of the user's unsaved edits reads as "throw them away".
         dismissButton = {
-            TextButton(onClick = viewModel::dismissConflict) { Text("Keep editing") }
+            TextButton(onClick = viewModel::dismissConflict) { Text(stringResource(Res.string.calendar_conflict_keep_editing)) }
         },
     )
 }
@@ -510,9 +576,9 @@ private fun DatePickerSheet(
                         ?.let { LocalDate.fromEpochDays((it / MILLIS_PER_DAY).toInt()) }
                         ?.let(onPick)
                 },
-            ) { Text("OK") }
+            ) { Text(stringResource(Res.string.calendar_ok)) }
         },
-        dismissButton = { TextButton(onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onDismiss) { Text(stringResource(Res.string.calendar_cancel)) } },
     ) {
         DatePicker(pickerState)
     }
@@ -537,10 +603,10 @@ private fun TimePickerSheet(
         onDismissRequest = onDismiss,
         confirmButton = {
             TextButton(onClick = { onPick(LocalTime(pickerState.hour, pickerState.minute)) }) {
-                Text("OK")
+                Text(stringResource(Res.string.calendar_ok))
             }
         },
-        dismissButton = { TextButton(onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onDismiss) { Text(stringResource(Res.string.calendar_cancel)) } },
         text = { TimePicker(pickerState) },
     )
 }
@@ -552,6 +618,39 @@ private const val MILLIS_PER_DAY = 86_400_000L
 // one platform.
 private val OFFERABLE = RecurrencePreset.OFFERABLE
 
-/** Shown under an event in a subscribed or mirrored calendar ([EventEditorUiState.isReadOnly]). */
-internal const val READ_ONLY_NOTICE =
-    "This calendar is updated from elsewhere, so its events can't be changed here."
+/**
+ * What a picker calls [this] preset, in the app's language. ⚠ The meanings follow
+ * `RecurrencePreset.label()`, whose English the SwiftUI editor shows.
+ */
+@Composable
+private fun RecurrencePreset.localisedLabel(): String = stringResource(
+    when (this) {
+        RecurrencePreset.NEVER -> Res.string.calendar_recurrence_never
+        RecurrencePreset.DAILY -> Res.string.calendar_recurrence_daily
+        RecurrencePreset.WEEKLY -> Res.string.calendar_recurrence_weekly
+        RecurrencePreset.MONTHLY -> Res.string.calendar_recurrence_monthly
+        RecurrencePreset.YEARLY -> Res.string.calendar_recurrence_yearly
+        RecurrencePreset.CUSTOM -> Res.string.calendar_recurrence_custom
+    },
+)
+
+/** A reminder chip, worded from [ReminderPresets.describe]'s parts rather than its English. */
+@Composable
+private fun reminderLabel(label: ReminderLabel): String = when (label) {
+    ReminderLabel.AtStart -> stringResource(Res.string.calendar_reminder_at_start)
+    is ReminderLabel.DaysBefore -> countOf(
+        label.days,
+        Res.string.calendar_reminder_days_before_one,
+        Res.string.calendar_reminder_days_before_other,
+    )
+    is ReminderLabel.HoursBefore -> countOf(
+        label.hours,
+        Res.string.calendar_reminder_hours_before_one,
+        Res.string.calendar_reminder_hours_before_other,
+    )
+    is ReminderLabel.MinutesBefore -> stringResource(Res.string.calendar_reminder_minutes_before, label.minutes)
+    is ReminderLabel.OnTheDayAt -> stringResource(Res.string.calendar_reminder_on_the_day_at, label.time)
+    is ReminderLabel.DayBeforeAt -> stringResource(Res.string.calendar_reminder_day_before_at, label.time)
+    is ReminderLabel.DaysBeforeAt ->
+        stringResource(Res.string.calendar_reminder_days_before_at, label.days, label.time)
+}

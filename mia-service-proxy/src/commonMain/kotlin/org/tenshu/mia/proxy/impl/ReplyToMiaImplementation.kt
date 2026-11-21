@@ -10,8 +10,10 @@ import org.tenshu.core.common.proxy.executor.OperationImplementationFactory
 import org.tenshu.core.get
 import org.tenshu.core.number.TInteger
 import org.tenshu.mia.MiaAnswer
+import org.tenshu.mia.MiaSource
 import org.tenshu.mia.ReplyToMia
 import org.tenshu.mia.plan.MiaFrames
+import org.tenshu.mia.plan.QueryPlan
 import org.tenshu.mia.plan.QueryPlanner
 import org.tenshu.mia.proxy.MiaActionRegistry
 import org.tenshu.mia.proxy.readMiaGrants
@@ -62,12 +64,23 @@ internal class ReplyToMiaImplementation(
         // is spent here, so it can never be confirmed beside the card this reply mints.
         actions.take(token)
 
+        // ⚠ Declining closes the question (it was taken above) and says so; planned as a new
+        // question, "never mind" became a file-name search (§25.13). `noMatch`, not `answered`:
+        // nothing was looked up, and `answered` with no hits renders "— nothing matched".
+        if (QueryPlanner.isDismissal(utterance)) {
+            return MiaAnswer.create(
+                context = executionContext.context,
+                verdict = MiaAnswer.VERDICT_NO_MATCH,
+                explanation = "OK, I've left it.",
+            ) as T
+        }
+
         val granted = executionContext.readMiaGrants()
 
         // ⭐ CL-3: a which-one question is answered from its candidates, never from the realm.
         if (MiaFrames.of(clarify.op).param(clarify.param).slot == MiaFrames.Slot.ENTITY_REFERENCE) {
             return when (val pick = QueryPlanner.answerCandidate(clarify, utterance)) {
-                null -> ask.answerUtterance(executionContext, implementationFactory, utterance, nowMs, zoneId)
+                null -> answerOrAskAgain(executionContext, implementationFactory, clarify, utterance, nowMs, zoneId, granted)
                 is QueryPlanner.Pick.Fewer -> ask.answerPlan(executionContext, implementationFactory, pick.clarify, granted, zoneId)
                 is QueryPlanner.Pick.One -> ask.confirmCandidate(executionContext, clarify, pick.choice, granted)
             } as T
@@ -75,8 +88,42 @@ internal class ReplyToMiaImplementation(
 
         val zone = runCatching { TimeZone.of(zoneId) }.getOrDefault(TimeZone.UTC)
         val answered = QueryPlanner.answerClarification(clarify, utterance, nowMs, zone)
-            ?: return ask.answerUtterance(executionContext, implementationFactory, utterance, nowMs, zoneId) as T
+            ?: return answerOrAskAgain(executionContext, implementationFactory, clarify, utterance, nowMs, zoneId, granted) as T
 
         return ask.answerPlan(executionContext, implementationFactory, answered, granted, zoneId) as T
+    }
+
+    /**
+     * A reply that answered nothing: a new question if it reads as one, else the same question
+     * again, saying what was missed (§25.14). ⚠⚠ Never the catch-all: "kitchen" to *"Which “bulb”
+     * did you mean?"* was answered with a file search for "kitchen", the confidently-wrong answer
+     * §22 exists to prevent. The re-asked question is a fresh token, so a chip of the old one is
+     * spent and the new one's chips work.
+     */
+    private suspend fun answerOrAskAgain(
+        executionContext: ExecutionContext,
+        implementationFactory: OperationImplementationFactory,
+        clarify: QueryPlan.Clarify,
+        utterance: String,
+        nowMs: Long,
+        zoneId: String,
+        granted: Set<MiaSource>,
+    ): MiaAnswer {
+        if (ask.readsAsANewQuestion(utterance, nowMs, zoneId)) {
+            return ask.answerUtterance(executionContext, implementationFactory, utterance, nowMs, zoneId)
+        }
+        val heard = utterance.trim()
+        val missed = when (MiaFrames.of(clarify.op).param(clarify.param).slot) {
+            MiaFrames.Slot.ENTITY_REFERENCE -> "None of these is “$heard”."
+            MiaFrames.Slot.LOCAL_DATE_TIME -> "I didn't catch a time in “$heard”."
+            else -> "I didn't catch that."
+        }
+        return ask.answerPlan(
+            executionContext,
+            implementationFactory,
+            clarify.copy(explanation = "$missed ${clarify.explanation}"),
+            granted,
+            zoneId,
+        )
     }
 }

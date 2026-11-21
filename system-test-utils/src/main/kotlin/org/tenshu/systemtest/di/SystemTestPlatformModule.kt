@@ -188,7 +188,7 @@ fun systemTestPlatformModule(
 
     single<SemanticMergerRegistry> {
         SemanticMergerRegistry().apply {
-            register(FolderMerger())
+            register(FolderMerger(fileDatabase = get<FileDatabase>()))
             register(DailyActivityMerger())
             // Calendar (CA-2j): the union of a series' deleted occurrences, and a
             // dismissal that a concurrent snooze cannot undo.
@@ -373,7 +373,7 @@ fun systemTestPlatformModule(
             )
             initHealthService()
             initIdentityService()
-            initNotificationService()
+            initNotificationService(tombstoneEmitterHolder = emitterHolder)
             initPreferenceService()
             // ⚠ Mirrors production (Control's `PlatformProxyModule`): without the relation
             // maintainer a calendar row arriving by sync is stored but invisible to

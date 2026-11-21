@@ -10,14 +10,21 @@ import app.tenshu.drive.data.RepositoryResult
 import app.tenshu.drive.data.keepBothCandidateName
 import app.tenshu.drive.domain.StorageGateDecision
 import app.tenshu.drive.ui.common.folderupload.FolderUploadController
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 
 class AddFileActionsViewModel(
     private val filesRepository: FilesRepository,
     private val folderUpload: FolderUploadController,
+    /** Where a picked file's name read and upload run — never Main (see [uploadFile]). */
+    private val pickWorkDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
 
     val uiState: StateFlow<AddFileActionsUiState> get() = _uiState
@@ -34,6 +41,16 @@ class AddFileActionsViewModel(
      */
     private val queuedConflicts = ArrayDeque<UploadConflict>()
     private var nextConflictId = 1L
+
+    /**
+     * How many picked files are in flight at once.
+     *
+     * ⚠ A multi-select pick used to start every upload at the same instant. Each one holds a
+     * Control Binder thread for its whole call and has Control read the file whole into its
+     * heap (`file-streaming-upload.md` §1), so a 50-photo pick was 50 files resident in Control
+     * together and a Binder pool too busy to serve Drive's own listing reads.
+     */
+    private val pickedUploads = Semaphore(MAX_CONCURRENT_PICKED_UPLOADS)
 
     init {
         // The folder-upload loop lives in the app-scoped FolderUploadController
@@ -65,8 +82,17 @@ class AddFileActionsViewModel(
 
     fun uploadFile(uriString: String, parentPath: String) {
         viewModelScope.launch {
-            val fileName = filesRepository.getFileName(uriString) ?: "Unknown"
-            val result = filesRepository.uploadFile(uriString, parentPath, fileName)
+            // ⚠⚠ Off Main, both of them. `viewModelScope` is `Main.immediate`, and the host calls
+            // this once per pick from inside the picker's result callback — so anything blocking
+            // here ran N times back to back before the resumed screen could draw its first frame,
+            // which on a large pick is a black screen. On Android the name is a ContentResolver
+            // query and the upload a second query, a descriptor open and a synchronous Binder push.
+            val (fileName, result) = withContext(pickWorkDispatcher) {
+                pickedUploads.withPermit {
+                    val fileName = filesRepository.getFileName(uriString) ?: "Unknown"
+                    fileName to filesRepository.uploadFile(uriString, parentPath, fileName)
+                }
+            }
             handleUploadResult(result, uriString, parentPath, fileName)
         }
     }
@@ -224,5 +250,8 @@ class AddFileActionsViewModel(
 
         /** Safety stop for [resolveConflictKeepBoth]'s counter. */
         private const val KEEP_BOTH_LIMIT = 100
+
+        /** See [pickedUploads]. */
+        private const val MAX_CONCURRENT_PICKED_UPLOADS = 3
     }
 }

@@ -1597,6 +1597,29 @@ relocation pass running under WorkManager with Control closed; and `android-smok
 over a reinstalled Contacts canary (this bump moves the contact service, so a stale Contacts is
 flagged for that reason too).
 
+### 9.11 List-detail on wide windows (2026-11-20)
+
+At Expanded and wider (`WindowWidthSizeClass.showsListDetail`) the list sits in `:ui-core`'s
+`AppListDetailLayout` — a fixed 360 dp pane against the rail — and the selected contact fills the
+rest. It replaced a single list capped at 840 dp and centred, which on a 1280-pt macOS window left
+~170 pt of nothing between the rail and the list. Compact and Medium are unchanged.
+
+- **The back stack stays the one model** (`ContactPanes`). A selection is the same
+  `[Contacts, ContactDetail(id)]` tail a narrow window pushes; wide, the shell folds that tail into
+  the list entry before handing the stack to `KmpNavHost`. So narrowing with someone selected lands
+  on their detail screen with back to the list, and widening from a detail screen shows it beside
+  the list — no state is carried between two models on resize. Wide, a click **replaces** the tail
+  rather than pushing, so back never walks every contact clicked through.
+- **With nothing picked, the first contact is shown** — the desktop convention, and an empty half
+  window reads as a failed load. It is display-only and never written to the stack, so a window
+  narrowed before anyone was picked returns to the list. A selection the loaded list no longer holds
+  (merged or deleted elsewhere) falls back the same way.
+- ⚠ The detail pane gets a **view-model store of its own**, cleared when the shown contact changes.
+  In the list entry's store, keyed by person, every contact clicked through would keep a live
+  detail view model until the app closed.
+- The FAB stays with the list, bottom-end of its pane; `Ctrl/Cmd+F` sits on the whole layout so it
+  works from the detail pane too.
+
 ## 10. References
 
 - [`contact-service-identity-model.md`](contact-service-identity-model.md) — the data-service

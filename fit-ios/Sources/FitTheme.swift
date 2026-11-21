@@ -101,9 +101,25 @@ extension Source {
 // MARK: - Formatting
 
 enum FitUnitFormat {
+    /// The user's locale, so figures follow CLDR for it: `4,315` / `3.2 km` in English, `4.315` /
+    /// `3,2 km` in German, `4 315` / `3,2 km` in French — the twin of `:ui-core`'s `LocaleNumbers`
+    /// (fit-app.md §7). ⚠ Never `String(format:)` for a figure — it is POSIX, so German got
+    /// `3.2 km`; nor a bare `"\(n)"`, which drops the grouping altogether.
+    static var locale: Locale { .autoupdatingCurrent }
+
+    /// A whole number with the language's grouping: `4,315` / `4.315`.
+    static func number(_ n: Int) -> String {
+        n.formatted(.number.locale(locale))
+    }
+
+    /// One fixed decimal with the language's separator: `72.5` / `72,5`.
+    static func oneDecimal(_ v: Double) -> String {
+        v.formatted(.number.precision(.fractionLength(1)).rounded(rule: .toNearestOrAwayFromZero).locale(locale))
+    }
+
     /// Metres → "x.x km" (or "x m" under ~1 km).
     static func distance(_ metres: Int) -> String {
-        if metres >= 1000 { return String(format: "%.1f km", Double(metres) / 1000.0) }
+        if metres >= 1000 { return "\(oneDecimal(Double(metres) / 1000.0)) km" }
         return "\(metres) m"
     }
 
@@ -125,7 +141,7 @@ enum FitUnitFormat {
 
     /// kJ → "kcal" (the display convention), 1 kcal ≈ 4.184 kJ.
     static func energy(_ kj: Int) -> String {
-        "\(Int(Double(kj) / 4.184)) kcal"
+        "\(number(Int(Double(kj) / 4.184))) kcal"
     }
 }
 

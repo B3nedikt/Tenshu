@@ -51,7 +51,6 @@
     "title": "Was Mia lesen darf",
     "body": "Mia liest nur, was du erlaubst – App für App. Schaltest du hier etwas aus, nutzt Mia es nicht mehr: Mia kann dann nicht daraus antworten und sagt dir das, statt so zu tun, als gäbe es dort nichts.",
     "everywhere": "Diese Schalter gelten für Mia auf all deinen Geräten.",
-    "write": "Mia darf Termine hinzufügen",
     "source": {
       "FILES": "Dateien",
       "TIMELINE": "Timeline",
@@ -81,7 +80,6 @@
     "error_mia_session_cleared": "Du wurdest abgemeldet oder Tenshu hat sich gesperrt, während Mia antwortete. Die Frage wurde daher nicht behalten. Frag noch einmal.",
     "error_mia_unexpected_action": "Mia wollte etwas ändern, was im Browser nicht geht. Es wurde nichts geändert.",
     "error_mia_unknown_source": "Mia kennt diese Quelle nicht. Es wurde nichts geändert.",
-    "error_mia_no_write_grant": "Mia kann in diese Quelle nicht schreiben. Es wurde nichts geändert.",
     "bridge": "Tenshu ist nicht erreichbar. Stelle sicher, dass es geöffnet und entsperrt ist, und versuche es erneut.",
     "bridge_timeout": "Tenshu hat zu lange gebraucht. Versuche es erneut.",
     "bridge_not_permitted": "Mia darf das nicht."

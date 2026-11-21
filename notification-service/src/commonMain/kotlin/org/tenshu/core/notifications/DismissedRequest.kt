@@ -66,6 +66,15 @@ interface DismissedRequest : Composite {
     }
 }
 
+/**
+ * The [DismissedRequest.requestId] that marks the [Notification] with [uuid] as dismissed
+ * (`control-central-notifications.md` §10 D1).
+ *
+ * ⚠ The `notification:` prefix keeps these apart from the pending-request ids (`grant:…` /
+ * `invite:…`) that share the relation, so neither reader mistakes one for the other.
+ */
+fun dismissedNotificationMarker(uuid: String): String = "notification:$uuid"
+
 val Entity<out DismissedRequest>.requestId: TString
     get() = getFieldValue(DismissedRequest.Fields.REQUEST_ID)
 

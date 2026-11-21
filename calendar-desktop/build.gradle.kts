@@ -98,6 +98,10 @@ compose.desktop {
             packageName = "TenshuCalendar"
             packageVersion = "1.0.1"
 
+            // ⚠⚠ `CalendarDateFormat` needs `jdk.localedata` in the jlinked runtime, or a German launch
+            // of the packaged app reads "Nov 2026" (CLDR root). The root build script adds it to every
+            // `*-desktop` app; do not drop that convention without adding the module back here.
+
             // ⚠⚠ **This is what makes macOS offer Calendar for a `.ics` file** (CA-6c).
             // jpackage turns it into a `CFBundleDocumentTypes` entry in the bundled
             // `Info.plist`; Launch Services reads that when the `.app` is first seen, and

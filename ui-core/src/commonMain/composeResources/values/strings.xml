@@ -85,6 +85,9 @@
          the policy, so the label lives here once. Short by design; the page itself is the text. -->
     <string name="privacy_policy">Privacy policy</string>
     <string name="terms_of_use">Terms of use</string>
+    <!-- AppSearchBar's defaults: the placeholder and the leading magnifier's spoken label. -->
+    <string name="search_placeholder">Search</string>
+    <string name="search_icon_description">Search</string>
 
     <!-- Open-source licences (docs/oss-licences.md): the row every app's settings carries and the
          screen it opens. The data credits below are rows on that screen. -->

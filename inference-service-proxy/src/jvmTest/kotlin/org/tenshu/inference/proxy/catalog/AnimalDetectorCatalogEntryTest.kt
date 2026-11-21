@@ -29,32 +29,46 @@ class AnimalDetectorCatalogEntryTest {
     private val model = AnimalDetectorModel.RfDetrNanoInt8
     private val manifestText = File(repoRoot(), "deploy/models/models.json").readText()
     private val manifest = ModelCatalogBuilder.parseManifest(manifestText)
-    private val pinned = manifest.models.single { it.id == model.modelId }
+    private val entries = manifest.models.filter { it.id == model.modelId }
+    /** Android's entry: the face veto's (PT-2c) and Pets' (PT-3c). */
+    private val pinned = entries.single { it.runtime == FaceModel.RUNTIME }
+    /** macOS's: Pets only — the Mac face pair uses Vision and has no veto. */
+    private val mac = entries.single { it.runtime == FaceModel.ONNX_VISION_RUNTIME }
 
     @Test
     fun theEntryIsTheDescriptorsDetector() {
-        assertEquals(model.modelVersion, pinned.version)
-        assertEquals(listOf(InferenceCapability.FACE_CLUSTERING.id), pinned.capabilities)
-        assertEquals("Apache-2.0", pinned.licence)
-        val artifact = pinned.artifacts.single()
-        assertEquals(ModelArtifactRole.ANIMAL_DETECTOR, artifact.role)
-        assertEquals(model.sha256, artifact.sha256)
-        assertEquals(model.byteSize, artifact.byteSize)
-        assertTrue(artifact.path.startsWith("${model.modelId}/${model.modelVersion}/"), artifact.path)
+        assertEquals(3, entries.size, "Android's, macOS's and iOS's: ${entries.map { it.runtime }}")
+        val ios = entries.single { it.runtime == "coreml" }
+        assertEquals(listOf(InferenceCapability.PET_RECOGNITION.id), ios.capabilities)
+        val iosArtifact = ios.artifacts.single()
+        assertEquals(AnimalDetectorModel.RfDetrNanoCoreMl.sha256, iosArtifact.sha256)
+        assertEquals(AnimalDetectorModel.RfDetrNanoCoreMl.byteSize, iosArtifact.byteSize)
+        assertEquals(listOf(InferenceCapability.FACE_CLUSTERING.id, InferenceCapability.PET_RECOGNITION.id), pinned.capabilities)
+        assertEquals(listOf(InferenceCapability.PET_RECOGNITION.id), mac.capabilities)
+        for (entry in entries.filter { it.runtime != "coreml" }) {
+            assertEquals(model.modelVersion, entry.version)
+            assertEquals("Apache-2.0", entry.licence)
+            val artifact = entry.artifacts.single()
+            assertEquals(ModelArtifactRole.ANIMAL_DETECTOR, artifact.role)
+            assertEquals(model.sha256, artifact.sha256)
+            assertEquals(model.byteSize, artifact.byteSize)
+            assertTrue(artifact.path.startsWith("${model.modelId}/${model.modelVersion}/"), artifact.path)
+        }
     }
 
     /**
-     * ⚠⚠ Android only. `onnx+mediapipe` is a runtime iOS and desktop never declare, so they drop the
-     * entry at parse; plain `onnx` would offer desktop a 28.8 MB download it has no face backend for.
+     * ⚠⚠ Android and macOS only — where a detector has a consumer (the veto; Pets). `onnx+mediapipe`
+     * and `onnx+vision` are runtimes iOS, Windows and Linux never declare; plain `onnx` would offer a
+     * Windows desktop a 28.8 MB download nothing there can run. ⚠ Each platform sees exactly ONE entry.
      */
     @Test
-    fun onlyAndroidsRuntimeCanSeeIt() {
-        assertEquals(FaceModel.RUNTIME, pinned.runtime)
-        val entries = parseModelCatalog(asSigned(manifestText)).models
-        val android = usableModels(entries, supportedRuntimes = SUPPORTED_RUNTIMES + FaceModel.RUNTIME).map { it.modelId }
-        val desktop = usableModels(entries, supportedRuntimes = SUPPORTED_RUNTIMES).map { it.modelId }
-        assertTrue(model.modelId in android, "$android")
-        assertTrue(model.modelId !in desktop, "$desktop")
+    fun onlyAndroidAndMacSeeIt_oneEntryEach() {
+        val listed = parseModelCatalog(asSigned(manifestText)).models
+        fun seen(runtimes: Set<String>) = usableModels(listed, supportedRuntimes = runtimes).count { it.modelId == model.modelId }
+        assertEquals(1, seen(SUPPORTED_RUNTIMES + FaceModel.RUNTIME), "Android")
+        assertEquals(1, seen(SUPPORTED_RUNTIMES + FaceModel.ONNX_VISION_RUNTIME), "macOS")
+        assertEquals(0, seen(SUPPORTED_RUNTIMES), "Windows / Linux")
+        assertEquals(1, seen(setOf("coreml", FaceModel.COREML_VISION_RUNTIME)), "iOS: the Core ML archive only")
     }
 
     @Test

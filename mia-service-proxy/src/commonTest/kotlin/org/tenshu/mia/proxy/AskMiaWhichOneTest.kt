@@ -137,19 +137,31 @@ class AskMiaWhichOneTest {
         assertEquals("Turn off Kitchen lamp strip", assertNotNull(reply(proxy, again.token.get(), "strip").action).title.get())
     }
 
-    /** ⚠⚠ Only a candidate answers: anything else is a new question, and nothing is acted on. */
+    /**
+     * ⚠⚠ Only a candidate answers, and nothing else is acted on (§25.14). A miss the grammar can
+     * only catch-all asks the same question again; a reply that reads as a question is one.
+     */
     @Test
-    fun aReplyThatIsNoCandidateIsANewQuestion() = runTest {
+    fun aReplyThatIsNoCandidateAsksAgain_orIsANewQuestion() = runTest {
         val proxy = createMiaProxy(backgroundScope)
         proxy.seedDevice("d1", "Kitchen lamp")
         proxy.seedDevice("d2", "Bedroom lamp", room = "Bedroom")
         proxy.seedDevice("d3", "Hall heater", room = "Hall")
 
         val asked = ask(proxy, "turn off the lamp").asked()
-        // The hall heater exists in the realm, but it was not offered.
-        val answer = reply(proxy, asked.token.get(), "hall heater")
-        assertNotEquals(MiaAnswer.VERDICT_CLARIFY, answer.verdict.get())
-        assertTrue(answer.action?.title?.get()?.contains("lamp") != true, "never one of the offered lamps")
+        // The hall heater exists in the realm, but it was not offered. Planned as a new question
+        // it was a file search for "hall heater".
+        val again = reply(proxy, asked.token.get(), "hall heater")
+        val reasked = again.asked()
+        assertTrue(again.explanation.get().startsWith("None of these is “hall heater”."), again.explanation.get())
+        assertEquals(asked.labels().sorted(), reasked.labels().sorted())
+        assertTrue(proxy.commands().isEmpty())
+        // The re-asked question is answerable; the first one is spent.
+        assertEquals("Turn off Bedroom lamp", assertNotNull(reply(proxy, reasked.token.get(), "bedroom").action).title.get())
+        assertEquals("That question is no longer open — ask me again.", reply(proxy, asked.token.get(), "bedroom").explanation.get())
+
+        val newQuestion = reply(proxy, ask(proxy, "turn off the lamp").asked().token.get(), "what devices do I have")
+        assertNotEquals(MiaAnswer.VERDICT_CLARIFY, newQuestion.verdict.get())
         assertTrue(proxy.commands().isEmpty())
     }
 

@@ -16,6 +16,10 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import kotlinx.coroutines.launch
+import app.tenshu.ui.resources.Res
+import app.tenshu.ui.resources.search_icon_description
+import app.tenshu.ui.resources.search_placeholder
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -124,9 +128,9 @@ fun AppSearchBar(
     onSearch: (String) -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    placeholder: String = "Search",
+    placeholder: String = stringResource(Res.string.search_placeholder),
     leadingIcon: ImageVector = Icons.Default.Search,
-    leadingIconContentDescription: String? = "Search Icon",
+    leadingIconContentDescription: String? = stringResource(Res.string.search_icon_description),
     trailingIcon: (@Composable () -> Unit)? = null,
     inputFocusRequester: FocusRequester? = null,
     content: @Composable ColumnScope.() -> Unit = {},

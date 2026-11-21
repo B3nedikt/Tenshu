@@ -137,7 +137,19 @@ class ReadinessSlot(
             fingerprintPath = "/inference/faces.runtime.fingerprint",
         )
 
-        val ALL: List<ReadinessSlot> = listOf(SIGLIP, FACES)
+        /**
+         * Pets on iOS (`photos-pets.md` PT-4b2): two models of ours — RF-DETR and DINOv2 — so two open
+         * records, and its own fingerprint, never faces'.
+         */
+        val PETS = ReadinessSlot(
+            name = "pets",
+            verdictPath = "/inference/pets.preflight.verdict",
+            scenePath = "/inference/pets.preflight.scene",
+            openRoles = listOf(ModelArtifactRole.ANIMAL_DETECTOR, ModelArtifactRole.PET_EMBEDDER),
+            fingerprintPath = "/inference/pets.runtime.fingerprint",
+        )
+
+        val ALL: List<ReadinessSlot> = listOf(SIGLIP, FACES, PETS)
     }
 }
 

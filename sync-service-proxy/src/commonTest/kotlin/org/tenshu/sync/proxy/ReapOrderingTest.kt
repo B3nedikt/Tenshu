@@ -199,4 +199,57 @@ class ReapOrderingTest {
         ingestFile(OLD, atMillis = 600L)
         assertNotNull(row(OLD), "and one above T is still accepted")
     }
+    // ---- The other order: the tombstone first, the folder's older children after it ----
+    //
+    // ⚠⚠ A device joining a realm pulls tombstones and history on separate lanes and back-fills history
+    // backwards, so it can apply a folder's tombstone before any of the folder's children have arrived.
+    // The cascade then has nothing to reap, and no tombstone names the children. Measured on an iPhone
+    // joining a realm whose folders had been deleted and re-created at the same paths: the old children
+    // came back as live rows inside the new folders, their content already freed on the relay
+    // (`photos-pets.md` §10.18).
+
+    @Test
+    fun aChildOlderThanItsFoldersDelete_arrivingAfterTheTombstone_isRefused() {
+        ingestFolderTombstone(atMillis = T)
+
+        ingestFile(OLD, atMillis = 100L)
+
+        assertNull(row(OLD), "a child written before its folder's delete never becomes live, whatever the order")
+    }
+
+    @Test
+    fun aRecreatedFolderKeepsItsNewChildren_andRefusesTheOldOnes() {
+        ingestFolderTombstone(atMillis = T)
+        ingestFolder(emptyList(), atMillis = 600L) // the same path, re-created after the delete
+
+        ingestFile(NEW, atMillis = 700L)
+        ingestFile(OLD, atMillis = 100L)
+
+        assertNotNull(row(FOLDER), "precondition: the re-created folder is live")
+        assertNotNull(row(NEW), "a child written after the delete belongs to the new folder")
+        assertNull(row(OLD), "a child from before the delete stays dead in the re-created folder")
+    }
+
+    @Test
+    fun aGrandchildOlderThanAnAncestorsDeleteIsRefused() {
+        ingestFolderTombstone(atMillis = T)
+
+        ingestFile("$FOLDER/sub/deep.txt", atMillis = 100L)
+        ingestFile("$FOLDER/sub/later.txt", atMillis = 800L)
+
+        assertNull(row("$FOLDER/sub/deep.txt"), "the ancestor walk reaches past the direct parent")
+        assertNotNull(row("$FOLDER/sub/later.txt"), "a descendant written after the delete is kept")
+    }
+
+    @Test
+    fun aRefusedLateChildStaysRefusedAfterARestart() {
+        ingestFolderTombstone(atMillis = T)
+        ingestFile(OLD, atMillis = 100L)
+
+        registry = newRegistry()
+        processor = newProcessor(registry)
+        ingestFile(OLD, atMillis = 300L)
+
+        assertNull(row(OLD), "the refusal holds after a restart: the folder's tombstone is durable")
+    }
 }

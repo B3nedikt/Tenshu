@@ -150,7 +150,12 @@ struct ProfileEditorSheet: View {
             }
         }
         if let kg = values.weightKg {
-            weightText = String(format: "%.1f", values.units == .imperial ? kg * lbPerKg : kg)
+            // The locale's digits and decimal mark ("72,5" in German, "٧٢٫٥" in Arabic) — `save()`
+            // parses with the same locale (`parseWeight`). No grouping: a grouped "1.234,5" would
+            // be ambiguous with a typed ASCII decimal.
+            weightText = (values.units == .imperial ? kg * lbPerKg : kg).formatted(
+                .number.precision(.fractionLength(1)).grouping(.never).rounded(rule: .toNearestOrAwayFromZero).locale(FitUnitFormat.locale)
+            )
         }
     }
 
@@ -170,11 +175,27 @@ struct ProfileEditorSheet: View {
                 commit(.height(cm))
             }
         case .weight:
-            if let entered = Double(weightText.replacingOccurrences(of: ",", with: ".")) {
+            if let entered = parseWeight(weightText) {
                 commit(.weight(values.units == .imperial ? entered / lbPerKg : entered))
             }
         }
     }
+}
+
+/// The weight field's text as a number. A typed ASCII `72.5` / `72,5` reads first, strictly, in
+/// any locale. Then the text is read with the locale the pre-fill was written in, because an Arabic
+/// or Persian locale writes Arabic-Indic digits and `٫`, which `Double(_:)` rejects: saving an
+/// untouched pre-fill would commit nothing. ⚠ Strict on purpose (`NumberFormatter`, not lenient):
+/// the `FormatStyle` parse reads a German `72.5` as `72`, silently dropping the decimal.
+func parseWeight(_ text: String) -> Double? {
+    let trimmed = text.trimmingCharacters(in: .whitespaces)
+    if let ascii = Double(trimmed.replacingOccurrences(of: ",", with: ".")) { return ascii }
+    let format = NumberFormatter()
+    format.locale = FitUnitFormat.locale
+    format.numberStyle = .decimal
+    format.usesGroupingSeparator = false
+    format.isLenient = false
+    return format.number(from: trimmed)?.doubleValue
 }
 
 /// A tappable "label … value ›" Form row — the editable successor to the old read-only

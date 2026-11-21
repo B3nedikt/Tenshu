@@ -43,9 +43,12 @@ import app.tenshu.calendar.model.CalendarDateFormat
 import app.tenshu.calendar.model.DaySchedule
 import app.tenshu.calendar.model.MINUTES_PER_DAY
 import app.tenshu.calendar.model.PositionedEvent
+import app.tenshu.calendar.shared.resources.Res
+import app.tenshu.calendar.shared.resources.calendar_untitled_event
 import kotlinx.coroutines.flow.first
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalTime
+import org.jetbrains.compose.resources.stringResource
 import org.tenshu.calendar.common.recurrence.ResolvedOccurrence
 
 /**
@@ -228,7 +231,7 @@ private fun AllDayChip(
     onOpen: (ResolvedOccurrence) -> Unit,
 ) {
     Text(
-        text = occurrence.title.ifBlank { "(No title)" },
+        text = occurrence.title.ifBlank { stringResource(Res.string.calendar_untitled_event) },
         style = MaterialTheme.typography.labelSmall,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
@@ -356,7 +359,7 @@ private fun BoxScope.EventBlock(
             .padding(horizontal = 4.dp),
     ) {
         Text(
-            text = occurrence.title.ifBlank { "(No title)" },
+            text = occurrence.title.ifBlank { stringResource(Res.string.calendar_untitled_event) },
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.onSurface,

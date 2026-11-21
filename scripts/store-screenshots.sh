@@ -384,7 +384,15 @@ CONTACTS_FIXTURE="$ROOT/build/store/fixture/contacts"
 if wants contacts; then
   # One .vcf of invented people; the generator refuses a real-looking number or address.
   rm -rf "$CONTACTS_FIXTURE"
-  python3 store/fixtures/contacts/generate_contacts.py "$CONTACTS_FIXTURE"
+  # Portraits of generated people, kept outside the tree (store-screenshot-stories.md §4.1a). Without
+  # the folder every contact keeps its monogram — say so, so a capture without faces is a choice.
+  CONTACTS_PORTRAITS="${CONTACTS_PORTRAITS:-$HOME/Movies/Tenshu promo/people/contacts}"
+  if [ -d "$CONTACTS_PORTRAITS" ]; then
+    python3 store/fixtures/contacts/generate_contacts.py "$CONTACTS_FIXTURE" --portraits "$CONTACTS_PORTRAITS"
+  else
+    echo "contacts: no portraits at $CONTACTS_PORTRAITS — every contact shows its monogram"
+    python3 store/fixtures/contacts/generate_contacts.py "$CONTACTS_FIXTURE"
+  fi
 fi
 TIMELINE_FIXTURE="$ROOT/build/store/fixture/timeline"
 if wants timeline; then
