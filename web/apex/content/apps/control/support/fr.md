@@ -195,25 +195,12 @@ phrase** (Restaurer à partir d’une phrase de récupération) sur cet appareil
 :::
 
 ::: windows
-1. **Installez Tenshu Control** depuis le Microsoft Store ou depuis la
-   [page de téléchargement Windows](/apps/control/download/windows/fr), puis ouvrez-le. Control se
-   trouve dans la zone de notification, à côté de l'horloge. Pour le fermer, faites un clic droit
-   sur son icône et choisissez **Quit Tenshu Control** (Quitter Tenshu Control).
-   ![Fenêtre d'accueil de Tenshu Control sous Windows, avec les boutons « Start fresh on this device », « I have Tenshu on another device » et « Recover from a recovery phrase »](shot:01-welcome)
-2. **Créez votre realm.** Cliquez sur **Start fresh on this device** (Repartir de zéro sur cet
-   appareil), puis sur **Continue** (Continuer).
-   ![Fenêtre « Protected by your device » (Protégé par votre appareil) de Tenshu Control, avec un bouton « Continue »](shot:02-protected)
-3. **Conservez votre phrase de récupération.** Ouvrez **Recovery Phrase** (Phrase de récupération)
-   et notez les 24 mots. Gardez-les en lieu sûr, hors ligne.
-   ![Fenêtre « Recovery Phrase » de Tenshu Control](shot:03-recovery-phrase)
-4. **Activez la synchronisation.** Ouvrez **Services** et choisissez une offre de stockage.
-   D'ici là, tout reste sur ce PC.
-   ![Fenêtre « Services » de Tenshu Control avec les offres Free, Basic et Premium](shot:10-services)
-5. **Ajoutez votre autre appareil.** Installez-y Tenshu Control et choisissez **I have Tenshu on
-   another device** (J'ai Tenshu sur un autre appareil). Sur ce PC, allez dans **Realm Devices**
-   (Appareils du realm) → **Add new device** (Ajouter un appareil). Vérifiez que les deux appareils
-   affichent le même code de confirmation.
-   ![Fenêtre « Add Device » (Ajouter un appareil) de Tenshu Control avec un code d'association](shot:09-add-device)
+### Plus rien ne se synchronise après un redémarrage
+
+Tenshu Control ne synchronise que lorsqu’il est lancé. Ouvrez-le une fois, et il rattrape tout.
+Pour que cela se fasse tout seul, activez **Start at login** (Démarrer à la connexion) dans
+**Settings** (Paramètres). Si l’interrupteur vous renvoie vers Windows, activez-y Tenshu Control
+sous **Paramètres** → **Applications** → **Démarrage**.
 :::
 
 ::: web
@@ -242,28 +229,6 @@ ajouter de nouveau ce navigateur, ou restaurez avec votre phrase de récupérati
 
 ::: macos
 - Un Mac. Tenshu Control fonctionne dans la barre des menus.
-:::
-
-::: windows
-1. **Installez Tenshu Control** depuis le Microsoft Store ou depuis la
-   [page de téléchargement Windows](/apps/control/download/windows/fr), puis ouvrez-le. Control se
-   trouve dans la zone de notification, à côté de l'horloge. Pour le fermer, faites un clic droit
-   sur son icône et choisissez **Quit Tenshu Control** (Quitter Tenshu Control).
-   ![Fenêtre d'accueil de Tenshu Control sous Windows, avec les boutons « Start fresh on this device », « I have Tenshu on another device » et « Recover from a recovery phrase »](shot:01-welcome)
-2. **Créez votre realm.** Cliquez sur **Start fresh on this device** (Repartir de zéro sur cet
-   appareil), puis sur **Continue** (Continuer).
-   ![Fenêtre « Protected by your device » (Protégé par votre appareil) de Tenshu Control, avec un bouton « Continue »](shot:02-protected)
-3. **Conservez votre phrase de récupération.** Ouvrez **Recovery Phrase** (Phrase de récupération)
-   et notez les 24 mots. Gardez-les en lieu sûr, hors ligne.
-   ![Fenêtre « Recovery Phrase » de Tenshu Control](shot:03-recovery-phrase)
-4. **Activez la synchronisation.** Ouvrez **Services** et choisissez une offre de stockage.
-   D'ici là, tout reste sur ce PC.
-   ![Fenêtre « Services » de Tenshu Control avec les offres Free, Basic et Premium](shot:10-services)
-5. **Ajoutez votre autre appareil.** Installez-y Tenshu Control et choisissez **I have Tenshu on
-   another device** (J'ai Tenshu sur un autre appareil). Sur ce PC, allez dans **Realm Devices**
-   (Appareils du realm) → **Add new device** (Ajouter un appareil). Vérifiez que les deux appareils
-   affichent le même code de confirmation.
-   ![Fenêtre « Add Device » (Ajouter un appareil) de Tenshu Control avec un code d'association](shot:09-add-device)
 :::
 
 ::: web

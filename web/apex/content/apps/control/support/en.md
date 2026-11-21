@@ -167,6 +167,14 @@ If you added a passphrase, it can't be reset. Your recovery phrase is what resto
 choose **Recover from a recovery phrase** on this device.
 :::
 
+::: windows
+### Nothing syncs after I restart my PC
+
+Tenshu Control only syncs while it's running. Open it once and it catches up. To have that happen
+on its own, turn on **Start at login** in **Settings**. If the switch sends you to Windows, turn
+Tenshu Control on there, under **Settings** → **Apps** → **Startup**.
+:::
+
 ::: web
 ### I cleared my browser's data
 

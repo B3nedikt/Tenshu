@@ -187,23 +187,12 @@ Wiederherstellungsphrase wiederherstellen** (auf dem iPhone: **Recover from a re
 :::
 
 ::: windows
-1. **Installiere Tenshu Control** aus dem Microsoft Store oder von der
-   [Windows-Downloadseite](/apps/control/download/windows/de) und öffne es. Control lebt im
-   Infobereich der Taskleiste, neben der Uhr. Zum Beenden klicke mit der rechten Maustaste auf
-   sein Symbol und wähle **Tenshu Control beenden**.
-   ![Willkommensfenster von Tenshu Control unter Windows, mit den Schaltflächen „Auf diesem Gerät neu beginnen“, „Ich habe Tenshu auf einem anderen Gerät“ und „Mit Wiederherstellungsphrase wiederherstellen“](shot:01-welcome)
-2. **Erstelle dein Realm.** Klicke auf **Auf diesem Gerät neu beginnen** und dann auf **Weiter**.
-   ![Fenster „Durch dein Gerät geschützt“ von Tenshu Control, mit der Schaltfläche „Weiter“](shot:02-protected)
-3. **Sichere deine Wiederherstellungsphrase.** Öffne **Wiederherstellungsphrase** und schreib die
-   24 Wörter auf. Bewahre sie offline an einem sicheren Ort auf.
-   ![Fenster „Wiederherstellungsphrase“ von Tenshu Control](shot:03-recovery-phrase)
-4. **Schalte die Synchronisierung ein.** Öffne **Dienste** und wähle einen Speicherplan. Bis
-   dahin bleibt alles auf diesem PC.
-   ![Fenster „Dienste“ von Tenshu Control mit den Plänen Free, Basic und Premium](shot:10-services)
-5. **Füge dein anderes Gerät hinzu.** Installiere dort Tenshu Control und wähle **Ich habe Tenshu
-   auf einem anderen Gerät**. Gehe auf diesem PC zu **Realm-Geräte** → **Neues Gerät
-   hinzufügen**. Prüfe, dass beide Geräte denselben Bestätigungscode anzeigen.
-   ![Fenster „Gerät hinzufügen“ von Tenshu Control mit einem Kopplungscode](shot:09-add-device)
+### Nach einem Neustart wird nichts mehr synchronisiert
+
+Tenshu Control synchronisiert nur, solange es läuft. Öffne es einmal, dann holt es alles nach.
+Damit das von selbst passiert, schalte in den **Einstellungen** **Bei Anmeldung starten** ein.
+Schickt dich der Schalter zu Windows, aktiviere Tenshu Control dort unter **Einstellungen** →
+**Apps** → **Autostart**.
 :::
 
 ::: web
@@ -232,26 +221,6 @@ hinzuzufügen, oder stelle mit deiner Wiederherstellungsphrase wieder her.
 
 ::: macos
 - Ein Mac. Tenshu Control läuft in der Menüleiste.
-:::
-
-::: windows
-1. **Installiere Tenshu Control** aus dem Microsoft Store oder von der
-   [Windows-Downloadseite](/apps/control/download/windows/de) und öffne es. Control lebt im
-   Infobereich der Taskleiste, neben der Uhr. Zum Beenden klicke mit der rechten Maustaste auf
-   sein Symbol und wähle **Tenshu Control beenden**.
-   ![Willkommensfenster von Tenshu Control unter Windows, mit den Schaltflächen „Auf diesem Gerät neu beginnen“, „Ich habe Tenshu auf einem anderen Gerät“ und „Mit Wiederherstellungsphrase wiederherstellen“](shot:01-welcome)
-2. **Erstelle dein Realm.** Klicke auf **Auf diesem Gerät neu beginnen** und dann auf **Weiter**.
-   ![Fenster „Durch dein Gerät geschützt“ von Tenshu Control, mit der Schaltfläche „Weiter“](shot:02-protected)
-3. **Sichere deine Wiederherstellungsphrase.** Öffne **Wiederherstellungsphrase** und schreib die
-   24 Wörter auf. Bewahre sie offline an einem sicheren Ort auf.
-   ![Fenster „Wiederherstellungsphrase“ von Tenshu Control](shot:03-recovery-phrase)
-4. **Schalte die Synchronisierung ein.** Öffne **Dienste** und wähle einen Speicherplan. Bis
-   dahin bleibt alles auf diesem PC.
-   ![Fenster „Dienste“ von Tenshu Control mit den Plänen Free, Basic und Premium](shot:10-services)
-5. **Füge dein anderes Gerät hinzu.** Installiere dort Tenshu Control und wähle **Ich habe Tenshu
-   auf einem anderen Gerät**. Gehe auf diesem PC zu **Realm-Geräte** → **Neues Gerät
-   hinzufügen**. Prüfe, dass beide Geräte denselben Bestätigungscode anzeigen.
-   ![Fenster „Gerät hinzufügen“ von Tenshu Control mit einem Kopplungscode](shot:09-add-device)
 :::
 
 ::: web

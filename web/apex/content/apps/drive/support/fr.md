@@ -265,6 +265,15 @@ Ouvrez Tenshu Control et ajoutez de nouveau cet appareil à votre realm. N’uti
 perdu.
 :::
 
+::: windows
+### Plus rien ne se synchronise après un redémarrage
+
+C’est Tenshu Control qui synchronise, et seulement lorsqu’il est lancé. Ouvrez-le une fois, et il
+rattrape tout. Pour que cela se fasse tout seul, activez **Start at login** (Démarrer à la
+connexion) dans les **Settings** (Paramètres) de Control. Si l’interrupteur vous renvoie vers
+Windows, activez-y Tenshu Control sous **Paramètres** → **Applications** → **Démarrage**.
+:::
+
 ::: web
 ### J’ai effacé les données de mon navigateur
 

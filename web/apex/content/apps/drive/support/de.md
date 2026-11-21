@@ -252,6 +252,15 @@ unter **Dienste** einen größeren Plan.
 **Dieses Gerät vergessen**: Alles, was noch auf den Upload wartet, ginge sonst verloren.
 :::
 
+::: windows
+### Nach einem Neustart wird nichts mehr synchronisiert
+
+Das Synchronisieren übernimmt Tenshu Control, und nur, solange es läuft. Öffne es einmal, dann holt
+es alles nach. Damit das von selbst passiert, schalte in den **Einstellungen** von Control **Bei
+Anmeldung starten** ein. Schickt dich der Schalter zu Windows, aktiviere Tenshu Control dort unter
+**Einstellungen** → **Apps** → **Autostart**.
+:::
+
 ::: web
 ### Ich habe meine Browserdaten gelöscht
 

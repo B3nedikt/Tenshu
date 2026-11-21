@@ -227,6 +227,14 @@ Open Tenshu Control and add this device to your realm again. Don't use **Forget 
 first: anything still waiting to upload would be lost.
 :::
 
+::: windows
+### Nothing syncs after I restart my PC
+
+Tenshu Control does the syncing, and only while it's running. Open it once and it catches up. To
+have that happen on its own, turn on **Start at login** in Control's **Settings**. If the switch
+sends you to Windows, turn Tenshu Control on there, under **Settings** → **Apps** → **Startup**.
+:::
+
 ::: web
 ### I cleared my browser's data
 
