@@ -3,7 +3,7 @@ Tenshu Drive needs Tenshu Control installed and set up on the same PC first: htt
 To review:
 1. Install Tenshu Control and start it. Click "Start fresh on this device", then "Continue".
 2. Start Tenshu Drive. It finds Control on its own and shows an empty file list.
-3. Click "Upload" to upload a file or a folder, or create a folder. Open a file to view it; a file's actions include Rename, Move and Share link.
+3. Click the "+" button at the bottom right. Under "Upload", choose "File" or "Folder upload"; under "Create", "Folder" makes a new folder. Open a file to view it; a file's actions include Rename, Move and Share link.
 
 Without a storage plan in Control, files stay on the PC and Drive shows that it is not syncing; that is expected. To try sync, open Services in Control: it asks for an email address and then a 6-digit code. Enter <DEMO EMAIL> as the email address and <DEMO CODE> as the code (no email is sent to that address).
 

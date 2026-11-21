@@ -101,7 +101,7 @@ zuerst Control ein.
 3. **Installiere Tenshu Drive** auf demselben Weg und öffne es. Drive verbindet sich von selbst
    mit Control. Wenn es **Tenshu Control einrichten** anzeigt, schließe zuerst Schritt 2 ab.
    ![Die leere Dateiliste von Tenshu Drive unter Windows mit „Noch keine Dateien hier“](shot:07-empty)
-4. **Lade eine Datei hoch.** Klicke auf **Hochladen** und dann auf **Datei**.
+4. **Lade eine Datei hoch.** Klicke auf **+** und dann unter **Hochladen** auf **Datei**.
    ![Das Hochladen-Menü von Tenshu Drive, mit „Datei“, „Ordner hochladen“ und „Bilder“](shot:05-add)
 5. **Sieh sie auf einem anderen Gerät.** Richte Tenshu Control auf deinem anderen Gerät ein und
    wähle **Ich habe Tenshu auf einem anderen Gerät**. Öffne auf diesem PC Control und gehe zu

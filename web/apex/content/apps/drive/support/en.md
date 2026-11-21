@@ -86,7 +86,7 @@ with Tenshu Control, which holds your keys and connects your devices. Set up Con
 3. **Install Tenshu Drive** the same way, and open it. Drive connects to Control on its own.
    If it says **Set up Tenshu Control**, finish step 2 first.
    ![Tenshu Drive's empty file list on Windows, saying "No files here yet"](shot:07-empty)
-4. **Upload a file.** Click **Upload**, then **File**.
+4. **Upload a file.** Click **+**, then **File** under **Upload**.
    ![Tenshu Drive's upload menu, with "File", "Folder upload" and "Images"](shot:05-add)
 5. **See it on another device.** Set up Tenshu Control on your other device and choose
    **I have Tenshu on another device**. On this PC, open Control and go to

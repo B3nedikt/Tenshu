@@ -103,7 +103,7 @@ avec Tenshu Control, qui conserve vos clés et relie vos appareils. Configurez d
    seul. S’il affiche **Set up Tenshu Control** (Configurer Tenshu Control), terminez d’abord
    l’étape 2.
    ![La liste de fichiers vide de Tenshu Drive sous Windows, avec « No files here yet » (Aucun fichier ici pour l’instant)](shot:07-empty)
-4. **Importez un fichier.** Cliquez sur **Upload** (Importer), puis sur **File** (Fichier).
+4. **Importez un fichier.** Cliquez sur **+**, puis sur **File** (Fichier) sous **Upload** (Importer).
    ![Le menu d’import de Tenshu Drive, avec « File », « Folder upload » (Importer un dossier) et « Images »](shot:05-add)
 5. **Retrouvez-le sur un autre appareil.** Configurez Tenshu Control sur votre autre appareil et
    choisissez **I have Tenshu on another device** (J’ai Tenshu sur un autre appareil). Sur ce PC,
