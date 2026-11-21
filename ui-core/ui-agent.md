@@ -189,6 +189,13 @@ to disagree; see `docs/tech-debt.md`, *"CMP Version Pin"*.
   ⚠ **There is no navigation drawer** — Material 3 deprecated it in favour of the expanded rail, and
   a `PermanentNavigationDrawer` renders a fixed 300 dp at every window width and every label set.
   Don't introduce one. Widths are pinned by `AdaptiveNavMetricsTest`.
+  ⚠⚠ **Nav labels go through `NavLabel`, never a bare `Text`.** The rail is a fixed 96 dp and a bar
+  item a fifth of a phone, and a German word wider than that was broken *between letters* and
+  clipped ("Aufzeichne"). `NavLabel` wraps at spaces, then shrinks every label of the chrome to one
+  shared size (≥ 9 sp) until the longest word fits, and ellipsizes only below that. Likewise an
+  item's icon must *lay out* at 24 dp — the emphasized pill draws 56 dp but measures 24, or the
+  rail item shifts its label off-centre past the edge. `AdaptiveNavLabelFitTest` pins both with
+  the real `values-de` labels.
 * **`rememberPersistedWindowState(key, storageDir = DesktopAppPaths.root())`** (desktop) — **every**
   Tenshu desktop app's window, and the one rule for its size: a first launch opens **centred at 80 %
   of the usable screen width × 90 % of its height**, never below 1024 × 768 (unless the screen is
@@ -201,6 +208,11 @@ to disagree; see `docs/tech-debt.md`, *"CMP Version Pin"*.
   phone-shaped 450 × 920 window is the one deliberate exception.
 * **`Modifier.appContentWidth()`** — caps body width at 840dp so text does not stretch across wide
   desktop windows.
+* **`AppListDetailLayout`** + **`WindowWidthSizeClass.showsListDetail`** — a fixed
+  `AppListPaneWidth` (360 dp) list against the rail, a divider, and the selected item filling the
+  rest, for Expanded and wider. Not adaptive by itself: the caller branches on `showsListDetail`
+  and keeps the narrow one-screen navigation below it. Contacts is the first consumer
+  (`contacts-app.md` §9.11 — keep the back stack the single selection model, as it does).
 * **`Modifier.appWindowMargin()`** — the Material window margin on a body pane: 0 dp Compact,
   24 dp Medium and up. `AdaptiveNavScaffold` applies it already, so screens must not.
   ⚠ **Horizontal only, deliberately** — vertical insets belong to each screen's top chrome, and

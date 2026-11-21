@@ -35,17 +35,18 @@ object ReminderPresets {
     /**
      * A label for [minutesBefore], as a *timed* event reads it.
      *
-     * ⚠ Not localised, and that is a known gap rather than an oversight: unlike
-     * a weekday name this really is copy, so it belongs in the ADR 0016
-     * catalogue rather than in a platform date formatter. Left here, visible,
-     * until the app's other strings move too — every string in Calendar is in
-     * the same position.
+     * ⚠ English only: the SwiftUI editor's words. The Compose editor renders
+     * [describeTimed] from its ADR 0016 catalogue instead, so a change here does
+     * not reach Android or desktop.
      */
-    fun timedLabel(minutesBefore: Int): String = when {
-        minutesBefore == 0 -> "At start"
-        minutesBefore % 1440 == 0 -> "${minutesBefore / 1440} day${plural(minutesBefore / 1440)} before"
-        minutesBefore % 60 == 0 -> "${minutesBefore / 60} hour${plural(minutesBefore / 60)} before"
-        else -> "$minutesBefore min before"
+    fun timedLabel(minutesBefore: Int): String = english(describeTimed(minutesBefore))
+
+    /** What [timedLabel] says, as parts a localised renderer can word for itself. */
+    fun describeTimed(minutesBefore: Int): ReminderLabel = when {
+        minutesBefore == 0 -> ReminderLabel.AtStart
+        minutesBefore % 1440 == 0 -> ReminderLabel.DaysBefore(minutesBefore / 1440)
+        minutesBefore % 60 == 0 -> ReminderLabel.HoursBefore(minutesBefore / 60)
+        else -> ReminderLabel.MinutesBefore(minutesBefore)
     }
 
     /**
@@ -56,7 +57,10 @@ object ReminderPresets {
      * all-day offset is a *time of day on a day*, and rendering it as "540
      * minutes before" would be technically true and completely unreadable.
      */
-    fun allDayLabel(minutesBefore: Int): String {
+    fun allDayLabel(minutesBefore: Int): String = english(describeAllDay(minutesBefore))
+
+    /** What [allDayLabel] says, as parts a localised renderer can word for itself. */
+    fun describeAllDay(minutesBefore: Int): ReminderLabel {
         // Minutes after midnight on the event's own day.
         val afterMidnight = -minutesBefore
         val dayOffset = floorDiv(afterMidnight, MINUTES_PER_DAY)
@@ -64,10 +68,25 @@ object ReminderPresets {
         val time = "${pad(minuteOfDay / 60)}:${pad(minuteOfDay % 60)}"
 
         return when (dayOffset) {
-            0 -> "On the day at $time"
-            -1 -> "Day before at $time"
-            else -> "${-dayOffset} days before at $time"
+            0 -> ReminderLabel.OnTheDayAt(time)
+            -1 -> ReminderLabel.DayBeforeAt(time)
+            else -> ReminderLabel.DaysBeforeAt(-dayOffset, time)
         }
+    }
+
+    /** The parts for whichever kind of event is being edited — [label]'s localisable twin. */
+    fun describe(minutesBefore: Int, allDay: Boolean): ReminderLabel =
+        if (allDay) describeAllDay(minutesBefore) else describeTimed(minutesBefore)
+
+    /** ⚠ The words the SwiftUI editor shows; the Compose one words [ReminderLabel] from its resources. */
+    private fun english(label: ReminderLabel): String = when (label) {
+        ReminderLabel.AtStart -> "At start"
+        is ReminderLabel.DaysBefore -> "${label.days} day${plural(label.days)} before"
+        is ReminderLabel.HoursBefore -> "${label.hours} hour${plural(label.hours)} before"
+        is ReminderLabel.MinutesBefore -> "${label.minutes} min before"
+        is ReminderLabel.OnTheDayAt -> "On the day at ${label.time}"
+        is ReminderLabel.DayBeforeAt -> "Day before at ${label.time}"
+        is ReminderLabel.DaysBeforeAt -> "${label.days} days before at ${label.time}"
     }
 
     /** The label for whichever kind of event is being edited. */
@@ -85,4 +104,18 @@ object ReminderPresets {
     }
 
     private const val MINUTES_PER_DAY = 24 * 60
+}
+
+/**
+ * A reminder offset as parts rather than words, so a renderer can say it in its own language.
+ * ⚠ [OnTheDayAt.time] and friends are the 24-hour `HH:mm` the English labels have always shown.
+ */
+sealed interface ReminderLabel {
+    data object AtStart : ReminderLabel
+    data class DaysBefore(val days: Int) : ReminderLabel
+    data class HoursBefore(val hours: Int) : ReminderLabel
+    data class MinutesBefore(val minutes: Int) : ReminderLabel
+    data class OnTheDayAt(val time: String) : ReminderLabel
+    data class DayBeforeAt(val time: String) : ReminderLabel
+    data class DaysBeforeAt(val days: Int, val time: String) : ReminderLabel
 }

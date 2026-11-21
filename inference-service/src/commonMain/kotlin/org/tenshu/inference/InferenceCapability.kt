@@ -57,6 +57,18 @@ enum class InferenceCapability(
     FACE_CLUSTERING("faceClustering", offerableInOnboarding = false),
 
     /**
+     * Telling the user's cats and dogs apart, so they can be named like people (`photos-pets.md`
+     * PT-D2).
+     *
+     * ⚠⚠ **Its own switch, never folded into [FACE_CLUSTERING].** Many people who refuse face
+     * recognition will want their dog; making the more sensitive switch the price of the harmless one
+     * is the mistake. Withdrawing either deletes only its own templates (`faces.log` / `pets.log`).
+     * ⚠ Not special-category — an animal is not a natural person — but still off by default and
+     * Settings-only for v1 ([offerableInOnboarding] `= false`): asking at first run is a nudge (§4).
+     */
+    PET_RECOGNITION("petRecognition", offerableInOnboarding = false),
+
+    /**
      * Reading an utterance well enough to pick **which question it is** (MQ-5).
      *
      * ⚠⚠ **Not "AI in Mia" — Mia already answers questions with no model at all.** This capability

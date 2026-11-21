@@ -10,6 +10,7 @@
 /* The app carousel and the screenshot slots: the landing page's Apps section and the support hub
    share them, and the support-page build compiles this file too, so both get them from here. */
 @import "./landing/carousel/appCarousel.css";
+@import "./landing/hero/hero.css";
 
 /* ⚠ No `color-scheme` here: tokens.css sets it on :root (`light dark`, or the one scheme an
    explicit data-theme pins) and it inherits. Re-declaring `light dark` on body/#root would make

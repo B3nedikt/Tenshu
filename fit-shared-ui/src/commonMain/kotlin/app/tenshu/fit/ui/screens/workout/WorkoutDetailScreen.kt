@@ -94,6 +94,7 @@ import app.tenshu.fit.ui.components.distanceValueUnit
 import app.tenshu.fit.ui.components.durationClock
 import app.tenshu.fit.ui.components.energyValueUnit
 import app.tenshu.fit.ui.components.groupThousands
+import app.tenshu.ui.format.LocaleNumbers
 import app.tenshu.fit.ui.components.intOrDash
 import app.tenshu.fit.ui.components.paceValueUnit
 import app.tenshu.fit.ui.components.workoutTitle
@@ -515,12 +516,8 @@ private fun LapRow(
     }
 }
 
-private fun lapKm(distanceM: Int): String {
-    val whole = distanceM / 1000
-    val hundredths = (distanceM % 1000) / 10
-    val padded = if (hundredths < 10) "0$hundredths" else hundredths.toString()
-    return "$whole.$padded"
-}
+/** Lap distance to the hundredth of a km, truncated: `1.05` / `1,05`. */
+private fun lapKm(distanceM: Int): String = LocaleNumbers.decimal(distanceM / 10 / 100.0, 2)
 
 @Composable
 private fun ProvenanceFooter(workout: Workout) {

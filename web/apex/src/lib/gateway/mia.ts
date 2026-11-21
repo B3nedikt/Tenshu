@@ -4,7 +4,7 @@
 // `MiaWebContractTest`.
 //
 // ⚠⚠ No confirm, no delete. Two things here write: `mia.ask` appends to the in-memory conversation,
-// and the two grant switches write native Settings' realm rows (run B, web-app-suite §8,
+// and the grant switch writes native Settings' realm rows (run B, web-app-suite §8,
 // 2026-10-28). ⚠⚠ Only the Mia origin's allowlist names `mia.*` (F5; threat model A39);
 // `proxyGateway.mia.test.ts` pins that.
 import { MAX_TURN_PAGE_SIZE, MAX_UTTERANCE_CHARS, MIA_SOURCES, Mia, MiaMethod, type MiaSource } from '@tenshu/sdk/mia'
@@ -24,10 +24,6 @@ export const miaGateway: GatewayModule = {
     [MiaMethod.SetGranted]: async (params) => {
       const { source, granted } = readSwitch(params, MiaMethod.SetGranted)
       return Mia.setGranted(source, granted)
-    },
-    [MiaMethod.SetWritable]: async (params) => {
-      const { source, granted } = readSwitch(params, MiaMethod.SetWritable)
-      return Mia.setWritable(source, granted)
     },
   },
   subscriptions: {
@@ -66,8 +62,7 @@ function readPage(params: unknown): { cursor: string | null; pageSize: number } 
 }
 
 // `{ source, granted }`: a `MiaSource` name and a boolean. ⚠ A string 'false' must never become a
-// truthy switch, so the type is checked exactly. A source outside `MIA_SOURCES` is refused here; a
-// write switch on a source with no write tier is the SDK's typed `error_mia_no_write_grant`.
+// truthy switch, so the type is checked exactly. A source outside `MIA_SOURCES` is refused here.
 function readSwitch(params: unknown, method: string): { source: MiaSource; granted: boolean } {
   const r = asRecord(params)
   const source = r.source

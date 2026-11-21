@@ -124,4 +124,17 @@ class CalendarDateFormatTest {
     fun the_month_header_carries_the_month_and_the_year() {
         assertEquals("August 2026", CalendarDateFormat.monthAndYear(2026, 8))
     }
+
+    /**
+     * ⚠⚠ German month names and the German date order, from the platform's locale data. A runtime
+     * without `jdk.localedata` (a jlinked one, as jpackage bundles unless told otherwise) falls back
+     * to CLDR root here — "Nov 2026" and "2026 Nov 20" — which is what `:calendar-desktop`'s
+     * `modules("jdk.localedata")` prevents in the packaged app.
+     */
+    @Test
+    fun a_german_locale_gets_german_month_names_and_date_order() {
+        Locale.setDefault(Locale.GERMANY)
+        assertEquals("November 2026", CalendarDateFormat.monthAndYear(2026, 11))
+        assertEquals("20.11.2026", CalendarDateFormat.mediumDate(LocalDate(2026, 11, 20)))
+    }
 }

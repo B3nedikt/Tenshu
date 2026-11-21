@@ -44,6 +44,8 @@
     <string name="auto_continue_countdown">Weiter in %1$d Sekunden</string>
     <string name="privacy_policy">Datenschutzerklärung</string>
     <string name="terms_of_use">Nutzungsbedingungen</string>
+    <string name="search_placeholder">Suchen</string>
+    <string name="search_icon_description">Suchen</string>
 
     <!-- Open-Source-Lizenzen (docs/oss-licences.md). -->
     <string name="oss_licences_title">Open-Source-Lizenzen</string>

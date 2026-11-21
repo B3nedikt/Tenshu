@@ -43,12 +43,18 @@ data class CalendarManagementUiState(
     /** Non-null while the add/edit sheet is open. */
     val draft: CalendarDraft? = null,
     /** Set when the draft cannot be saved, and why. */
-    val draftError: String? = null,
+    val draftProblem: CalendarProblem? = null,
     /** Set while a delete is awaiting confirmation. */
     val confirmingDelete: CalendarSummary? = null,
     val isLoading: Boolean = true,
-    val errorMessage: String? = null,
+    val problem: CalendarProblem? = null,
 ) {
+    /** [problem] in English — the SwiftUI shell's text; Compose words [problem] itself. */
+    val errorMessage: String? get() = problem?.english()
+
+    /** [draftProblem] in English — the SwiftUI shell's text; Compose words [draftProblem] itself. */
+    val draftError: String? get() = draftProblem?.english()
+
     /**
      * ⚠⚠ The last calendar cannot be deleted, and the screen must *say* so
      * rather than let the delete fail. Deleting it would cascade away every event
@@ -70,9 +76,12 @@ data class SubscribeDraft(
     val url: String = "",
     val name: String = "",
     /** Set when the URL cannot be subscribed to, and why. */
-    val error: String? = null,
+    val problem: CalendarProblem? = null,
     val isSaving: Boolean = false,
-)
+) {
+    /** [problem] in English — the SwiftUI shell's text; Compose words [problem] itself. */
+    val error: String? get() = problem?.english()
+}
 
 /**
  * The calendars screen (CA-5f).
@@ -146,7 +155,7 @@ class CalendarManagementViewModel(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            errorMessage = error.message ?: "Could not load calendars",
+                            problem = CalendarProblem.failure(CalendarAction.LOAD_CALENDARS, error),
                         )
                     }
                 }
@@ -162,7 +171,7 @@ class CalendarManagementViewModel(
                             subscriptionsByCalendar = subscriptions.associateBy { s -> s.calendarId },
                             mirrorsByCalendar = mirrored.associateBy { m -> m.calendarId },
                             isLoading = false,
-                            errorMessage = null,
+                            problem = null,
                         )
                     }
                 }
@@ -212,7 +221,7 @@ class CalendarManagementViewModel(
         _uiState.update {
             it.copy(
                 draft = CalendarDraft(colorArgb = CalendarPalette.nextAfter(it.calendars.map { c -> c.colorArgb })),
-                draftError = null,
+                draftProblem = null,
             )
         }
     }
@@ -226,15 +235,15 @@ class CalendarManagementViewModel(
                     colorArgb = calendar.colorArgb,
                     sensitive = calendar.sensitive,
                 ),
-                draftError = null,
+                draftProblem = null,
             )
         }
     }
 
-    fun dismissDraft() = _uiState.update { it.copy(draft = null, draftError = null) }
+    fun dismissDraft() = _uiState.update { it.copy(draft = null, draftProblem = null) }
 
     fun setDraftName(name: String) =
-        _uiState.update { it.copy(draft = it.draft?.copy(name = name), draftError = null) }
+        _uiState.update { it.copy(draft = it.draft?.copy(name = name), draftProblem = null) }
 
     fun setDraftColor(colorArgb: Int) =
         _uiState.update { it.copy(draft = it.draft?.copy(colorArgb = colorArgb)) }
@@ -263,14 +272,14 @@ class CalendarManagementViewModel(
         val draft = state.draft ?: return
         val name = draft.name.trim()
         if (name.isBlank()) {
-            _uiState.update { it.copy(draftError = "Give the calendar a name") }
+            _uiState.update { it.copy(draftProblem = CalendarProblem.NameMissing) }
             return
         }
         val clash = state.calendars.any {
             it.name.equals(name, ignoreCase = true) && it.calendarId != draft.calendarId
         }
         if (clash) {
-            _uiState.update { it.copy(draftError = "You already have a calendar called \"$name\"") }
+            _uiState.update { it.copy(draftProblem = CalendarProblem.NameTaken(name)) }
             return
         }
 
@@ -284,11 +293,11 @@ class CalendarManagementViewModel(
                 )
             }.fold(
                 onSuccess = {
-                    _uiState.update { it.copy(draft = null, draftError = null) }
+                    _uiState.update { it.copy(draft = null, draftProblem = null) }
                     refresh()
                 },
                 onFailure = { error ->
-                    _uiState.update { it.copy(draftError = error.message ?: "Could not save") }
+                    _uiState.update { it.copy(draftProblem = CalendarProblem.failure(CalendarAction.SAVE, error)) }
                 },
             )
         }
@@ -317,14 +326,14 @@ class CalendarManagementViewModel(
                 onSuccess = { refresh() },
                 onFailure = { error ->
                     _uiState.update {
-                        it.copy(errorMessage = error.message ?: "Could not delete")
+                        it.copy(problem = CalendarProblem.failure(CalendarAction.DELETE, error))
                     }
                 },
             )
         }
     }
 
-    fun dismissError() = _uiState.update { it.copy(errorMessage = null) }
+    fun dismissError() = _uiState.update { it.copy(problem = null) }
 
     // ── subscriptions (CA-7b) ────────────────────────────────────────────────
 
@@ -333,7 +342,7 @@ class CalendarManagementViewModel(
     fun dismissSubscribe() = _uiState.update { it.copy(subscribeDraft = null) }
 
     fun setSubscribeUrl(url: String) =
-        _uiState.update { it.copy(subscribeDraft = it.subscribeDraft?.copy(url = url, error = null)) }
+        _uiState.update { it.copy(subscribeDraft = it.subscribeDraft?.copy(url = url, problem = null)) }
 
     fun setSubscribeName(name: String) =
         _uiState.update { it.copy(subscribeDraft = it.subscribeDraft?.copy(name = name)) }
@@ -352,10 +361,10 @@ class CalendarManagementViewModel(
     fun commitSubscribe() {
         val draft = _uiState.value.subscribeDraft ?: return
         if (draft.url.isBlank()) {
-            _uiState.update { it.copy(subscribeDraft = draft.copy(error = "Paste a calendar address")) }
+            _uiState.update { it.copy(subscribeDraft = draft.copy(problem = CalendarProblem.AddressMissing)) }
             return
         }
-        _uiState.update { it.copy(subscribeDraft = draft.copy(isSaving = true, error = null)) }
+        _uiState.update { it.copy(subscribeDraft = draft.copy(isSaving = true, problem = null)) }
         viewModelScope.launch {
             runCatchingCancellable { repository.addSubscription(draft.url, draft.name) }.fold(
                 onSuccess = { id ->
@@ -364,7 +373,7 @@ class CalendarManagementViewModel(
                             it.copy(
                                 subscribeDraft = draft.copy(
                                     isSaving = false,
-                                    error = "Only https:// and webcal:// addresses can be subscribed to",
+                                    problem = CalendarProblem.AddressNotSupported,
                                 )
                             )
                         }
@@ -385,7 +394,7 @@ class CalendarManagementViewModel(
                         it.copy(
                             subscribeDraft = draft.copy(
                                 isSaving = false,
-                                error = error.message ?: "Could not subscribe",
+                                problem = CalendarProblem.failure(CalendarAction.SUBSCRIBE, error),
                             )
                         )
                     }
@@ -409,7 +418,7 @@ class CalendarManagementViewModel(
             runCatchingCancellable { repository.removeSubscription(subscriptionId) }.fold(
                 onSuccess = { refresh() },
                 onFailure = { error ->
-                    _uiState.update { it.copy(errorMessage = error.message ?: "Could not unsubscribe") }
+                    _uiState.update { it.copy(problem = CalendarProblem.failure(CalendarAction.UNSUBSCRIBE, error)) }
                 },
             )
         }
@@ -451,7 +460,7 @@ class CalendarManagementViewModel(
         val mirrors = mirrors ?: return
         viewModelScope.launch {
             runCatchingCancellable { mirrors.stopMirror(mirrorId) }.onFailure { error ->
-                _uiState.update { it.copy(errorMessage = error.message ?: "Could not stop syncing") }
+                _uiState.update { it.copy(problem = CalendarProblem.failure(CalendarAction.STOP_SYNCING, error)) }
             }
         }
     }

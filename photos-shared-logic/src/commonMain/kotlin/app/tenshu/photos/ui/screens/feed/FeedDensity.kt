@@ -33,7 +33,8 @@ enum class FeedDensity {
     /**
      * The density control's accessibility label. ⚠ Names the CURRENT grouping, not the next one: a
      * control that describes what it will become reads as a statement about what is on screen.
-     * Shared so the Compose button and the SwiftUI one say the same thing (PIO-2).
+     * Shared so the Compose button and the SwiftUI one say the same thing (PIO-2). ⚠ English: the
+     * Compose button reads its own resource (`photos_density_*`), which must say the same.
      */
     val description: String
         get() = when (this) {

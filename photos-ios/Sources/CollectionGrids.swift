@@ -603,7 +603,7 @@ struct SectionScreen: View {
             }
             .padding(16)
         }
-        .navigationTitle(section.title)
+        .navigationTitle(PhotosSurface.shared.sectionTitle(section: section, state: collections.state))
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             collections.viewModel.setShown(surface: "section", shown: true)

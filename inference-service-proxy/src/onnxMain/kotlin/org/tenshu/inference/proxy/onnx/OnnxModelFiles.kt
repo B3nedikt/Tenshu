@@ -154,6 +154,47 @@ object OnnxModelFiles {
         }
     }
 
+    /** The pet embedder's side-load name (`photos-pets.md` PT-3): `<modelId>.onnx`, beside the others. */
+    fun petEmbedderFileName(model: PetEmbedderModel = PetEmbedderModel.DinoV2SmallZeroShot): String = "${model.modelId}.onnx"
+
+    /** The pet embedder by its side-load name only; ⚠ a file of another size is another model. */
+    fun petEmbedderLocator(root: File, model: PetEmbedderModel = PetEmbedderModel.DinoV2SmallZeroShot): () -> String? {
+        val sideLoad = locatorFor(root) { petEmbedderFileName(model) }
+        return { sideLoad()?.takeIf { File(it).length() == model.byteSize } }
+    }
+
+    /**
+     * [animalDetectorStoreLocator]'s twin for the pet embedder: **installed first** (its own catalog
+     * entry, role [ModelArtifactRole.PET_EMBEDDER]), the side-load second, resolved per call.
+     *
+     * ⚠⚠ Another installed version, or a file of another size, is **null**, never the side-load: the
+     * pets store's stamp says which embedder ran.
+     */
+    fun petEmbedderStoreLocator(
+        store: ModelStore,
+        root: File,
+        model: PetEmbedderModel = PetEmbedderModel.DinoV2SmallZeroShot,
+    ): () -> String? {
+        val sideLoad = petEmbedderLocator(root, model)
+        return locate@{
+            val index: List<InstalledModelData> = try {
+                store.installed()
+            } catch (unreadable: ModelIndexUnreadableException) {
+                return@locate null
+            }
+            val installed = index.firstOrNull { it.modelId == model.modelId } ?: return@locate sideLoad()
+            if (installed.modelVersion != model.modelVersion) return@locate null
+            val artifact = installed.artifacts.firstOrNull { it.role == ModelArtifactRole.PET_EMBEDDER }
+                ?: return@locate sideLoad()
+            val file = File(root, artifact.localPath)
+            when {
+                !file.isFile -> sideLoad()
+                file.length() != model.byteSize -> null
+                else -> file.absolutePath
+            }
+        }
+    }
+
     private fun locatorFor(root: File, name: () -> String): () -> String? = {
         File(File(root, DIRECTORY), name()).takeIf { it.isFile }?.absolutePath
     }

@@ -90,12 +90,16 @@ import org.jetbrains.compose.resources.stringResource
  * key, and a person can hold several (rotation, re-handshake). It is what makes the Q2b
  * demotion legible — the user can see the old verified key sitting beside the new unverified
  * one instead of being told, without explanation, that a checkmark disappeared.
+ *
+ * [showBack] is false in the list-detail layout's detail pane: [onBack] still runs when the
+ * contact is deleted, but there is no screen to go back *to* — the list is beside it.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ContactDetailScreen(
     viewModel: ContactDetailViewModel,
     onBack: () -> Unit,
+    showBack: Boolean = true,
 ) {
     val state by viewModel.uiState.collectAsState()
     val contact = state.contact
@@ -252,7 +256,7 @@ fun ContactDetailScreen(
     Column(Modifier.fillMaxSize()) {
         AppTopAppBar(
             title = stringResource(Res.string.contacts_detail_title),
-            onBack = onBack,
+            onBack = onBack.takeIf { showBack },
             actions = if (contact == null) {
                 null
             } else {

@@ -57,7 +57,6 @@ vi.mock('@tenshu/sdk/mia', () => ({
     Grants: 'mia.grants',
     GrantsObserve: 'mia.grants.observe',
     SetGranted: 'mia.grants.setGranted',
-    SetWritable: 'mia.grants.setWritable',
   },
 }))
 vi.mock('@tenshu/sdk/fit', () => ({ Fit: {}, MAX_WORKOUT_PAGE_SIZE: 200, MAX_ACTIVITY_FILE_BYTES: 33554432 }))

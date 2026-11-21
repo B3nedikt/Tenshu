@@ -15,6 +15,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import app.tenshu.ui.preview.PreviewBox
 import app.tenshu.ui.theme.spacing
@@ -78,6 +80,11 @@ fun AppFab(
  * name, and describing the icon as well would make a screen reader announce the action twice.
  * That is the opposite of [AppFab]'s rule, and it is why the two are separate functions rather
  * than one with a nullable label.
+ *
+ * ⚠⚠ The label is set as the button's `contentDescription` explicitly. M3 draws the text inside a
+ * `clearAndSetSemantics` node, so in the merged tree — what a screen reader reads — the button had
+ * **no name at all**, the text notwithstanding (`AdaptivePrimaryActionTest` caught it). The
+ * cleared text means the name is still announced once.
  */
 @Composable
 fun AppExtendedFab(
@@ -90,7 +97,7 @@ fun AppExtendedFab(
         onClick = onClick,
         icon = { Icon(imageVector = icon, contentDescription = null) },
         text = { Text(label) },
-        modifier = modifier,
+        modifier = modifier.semantics { contentDescription = label },
     )
 }
 

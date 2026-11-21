@@ -126,6 +126,17 @@ interface PhotosRepository {
     fun libraryWatch(): LibraryWatch? = null
 
     /**
+     * Emits once for every change this device's index made to what *People & pets* draws — a pass, or
+     * a withdrawal, that wrote or cleared face or pet templates (`photos-pets.md` §10.19). `null`
+     * where this repository has nothing to follow.
+     *
+     * ⚠⚠ [libraryWatch] cannot see these: the groups are clustered from device-local logs, not realm
+     * rows. ⚠ It is a stream that may END WITH AN ERROR — an older Control without the op — and the
+     * caller must log that, never read it as "nothing will change".
+     */
+    fun peopleIndexChanges(): Flow<Unit>? = null
+
+    /**
      * Preview bytes for one photo at roughly [width]×[height], or `null` when this device holds
      * neither the original nor a synced thumbnail for it. See [PhotoPreview.standIn] for an answer
      * smaller than the request.
@@ -510,6 +521,15 @@ interface PhotosRepository {
     suspend fun faceGroups(limit: Int): Pair<List<FaceGroup>, PeopleStatus>
 
     /**
+     * Pets' groups (`photos-pets.md` PT-3d): [faceGroups]' contract over `petGroups` — one group per
+     * cat or dog the device's 0.85 best guess holds together, the same three-way status.
+     *
+     * ⚠ `null` when this repository cannot ask at all (the default): no pets, never an error, so a
+     * screen over an older Control keeps its People row exactly as before.
+     */
+    suspend fun petGroups(limit: Int): Pair<List<FaceGroup>, PeopleStatus>? = null
+
+    /**
      * The `contentId` of every edited photo — the edit index's keys. `null` when it cannot be known.
      *
      * ⚠⚠ For a reader holding covers it did NOT map just now — the Collections snapshot, written
@@ -542,6 +562,13 @@ interface PhotosRepository {
      *   "switch it on" from "try again", and a single `false` forced one sentence to serve both.
      */
     suspend fun nameFaceGroup(filePaths: List<String>, name: String): NamingOutcome
+
+    /**
+     * [nameFaceGroup] for a pet: a `petRecognition` label per photograph (`photos-pets.md` PT-D1).
+     * ⚠⚠ Never routed through [nameFaceGroup] — a pet's name written as a person's would put a cat in
+     * People's Article 9 data. ⚠ Defaults to `Failed`: nothing written is never "saved".
+     */
+    suspend fun namePetGroup(filePaths: List<String>, name: String): NamingOutcome = NamingOutcome.Failed
 
     /**
      * Every "this face is not X" answered on this device (IN-6 F6c name suggestions) — what keeps

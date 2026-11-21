@@ -577,20 +577,19 @@ over run A's `Mia` surface plus one SDK addition. Decided by the maintainer the 
   - **History.** The conversation list (at most one, `MiaBook.kt` rule 2) and its read-only thread,
     keyset-paged. ⚠ The screen says in words that the history lives in this browser's memory, is
     never saved and is cleared on sign-out or lock (MQ-D8).
-  - **What Mia can read.** One switch per source plus Calendar's write line (disabled while read is
-    off, as natively). ⚠⚠ Never optimistic: a switch draws the set the runtime read back after the
+  - **What Mia can read.** One switch per source (Calendar's write line was removed
+    2026-11-19 — `mia-query-layer.md` MQ-D6). ⚠⚠ Never optimistic: a switch draws the set the runtime read back after the
     write; a failed write keeps the old state and shows the error by kind under its row.
-- **SDK.** `Mia.setGranted` / `setWritable` — native Settings' `MiaGrantsRepository` writes, the same
+- **SDK.** `Mia.setGranted` — native Settings' `MiaGrantsRepository` writes, the same
   `PreferenceService.set` on the same `mia.grant.*` rows — answering `{ ok, grants }` read back after
-  the write. An unknown source is `error_mia_unknown_source`; a write switch on a source with no write
-  tier is `error_mia_no_write_grant` (native returns silently; a bridge call cannot). `MiaWebContractTest`
+  the write. An unknown source is `error_mia_unknown_source`. `MiaWebContractTest`
   turns `FITNESS` off through the web call, asserts the next question is `noMatch` naming workouts
   and that exactly one write op was dispatched (`WriteSetting`, counted over every settings, event,
   device and routine write mapped in a tab; watched red with a second grant write added), then turns
   it on again and the question answers.
-- **Bridge.** `mia.grants.setGranted` / `mia.grants.setWritable`; the gateway refuses a source outside
+- **Bridge.** `mia.grants.setGranted`; the gateway refuses a source outside
   `MIA_SOURCES` and any non-boolean `granted` before the runtime.
-- ⚠⚠ **Allowlist and threat model.** Mia's list is the session methods plus the eight `mia.*` names,
+- ⚠⚠ **Allowlist and threat model.** Mia's list is the session methods plus the seven `mia.*` names,
   exactly; every other app's is pinned to none (`proxyGateway.mia.test.ts`), and Mia's `ProxyMethod`
   table to no other namespace (`sdkMirror.test.ts`). A39 gained its web amendment and T-MQ-01b a web
   note: the origin reads, through questions, whatever the grants allow — and, holding the switches,

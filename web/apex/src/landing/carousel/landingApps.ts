@@ -22,12 +22,18 @@ import type { CarouselIcon, CarouselImage, CarouselShot, CarouselVariant, ShotPl
  * it never replaces the support pages' plain capture of the same number. On iOS the same scheme is
  * `ios/iphone69landing/<lang>/NN-screen`.
  *
+ * A key may be `{ screen, device }`: a capture published under a device of its own on that platform —
+ * the hero's phone, `android/phonehero/<lang>/NN-screen`, captured from the desktop capture realm
+ * (scripts/lib/android_hero.py), so it shows the laptop's content.
+ *
  * A key may be `{ screen, framed: true }`: a "pre-framed" capture that already carries a real
  * device bezel (scripts/store-frame, D7), published under `…/<lang>/framed/NN-screen` (and
  * `…/<lang>/dark/framed/NN-screen`). The carousel then draws no frame of its own. Nothing uses it
  * yet — the bezels' licences are checked first.
  */
-export type ScreenRef = string | { readonly screen: string; readonly framed?: true; readonly landing?: true }
+export type ScreenRef =
+  | string
+  | { readonly screen: string; readonly framed?: true; readonly landing?: true; readonly device?: string }
 
 const landing = (screen: string): ScreenRef => ({ screen, landing: true })
 
@@ -163,8 +169,8 @@ export function landingShots(
     return variants.length ? { ...png, variants } : png
   }
   return screens.flatMap((ref) => {
-    const { screen, framed = false, landing = false } = typeof ref === 'string' ? { screen: ref } : ref
-    const device = landing ? `${platformDevice}landing` : platformDevice
+    const { screen, framed = false, landing = false, device: named } = typeof ref === 'string' ? { screen: ref } : ref
+    const device = named ?? (landing ? `${platformDevice}landing` : platformDevice)
     const slot = (l: string, tail: string) => ({
       light: image(`${platform}/${device}/${l}/${tail}`),
       dark: image(`${platform}/${device}/${l}/dark/${tail}`),
@@ -182,4 +188,47 @@ export function landingShots(
     }
     return bare.light || bare.dark ? [{ ...bare, alt }] : []
   })
+}
+
+// ── the hero ─────────────────────────────────────────────────────────────
+
+/**
+ * The hero's apps (Block1Hero, docs/proposals/store-screenshot-stories.md §5), in the order the
+ * clock visits them: each app's frame 1 on the laptop (`desktop/macoslanding`, captured by
+ * scripts/store-screenshots-desktop.sh) and on the phone (`android/phonehero`, captured by
+ * scripts/lib/android_hero.py on a phone paired into the SAME realm) — rule 6, the same content on
+ * both devices.
+ */
+const hero = (screen: string): ScreenRef => ({ screen, device: 'phonehero' })
+export const HERO_APPS: readonly { readonly id: string; readonly desktop: string; readonly phone: ScreenRef }[] = [
+  { id: 'drive', desktop: '01-files', phone: hero('01-files') },
+  { id: 'photos', desktop: '01-library', phone: hero('01-library') },
+  { id: 'calendar', desktop: '01-month', phone: hero('01-month') },
+  { id: 'contacts', desktop: '01-contacts', phone: hero('01-contacts') },
+  { id: 'fit', desktop: '01-home', phone: hero('01-home') },
+]
+
+/** One app's frame 1 on the laptop: `desktop/macoslanding/<lang>/[dark/]<screen>`, English where [lang] has none. */
+export function desktopShot(
+  app: string,
+  screen: string,
+  lang: string,
+  alt: string,
+  manifests: Readonly<Record<string, ShotManifest>> = MANIFESTS,
+): CarouselShot | null {
+  const manifest = manifests[app]
+  if (!manifest) return null
+  const image = (key: string): CarouselImage | null => {
+    const entry = manifest.screens[key]
+    if (!entry) return null
+    const variants: CarouselVariant[] = (manifest.derivatives?.[entry.sha256] ?? [])
+      .map((d) => ({ url: `${manifest.base}${d.sha256}.webp`, width: d.width }))
+      .sort((a, b) => a.width - b.width)
+    const png = { url: `${manifest.base}${entry.sha256}.png`, width: entry.width, height: entry.height }
+    return variants.length ? { ...png, variants } : png
+  }
+  const slot = (l: string) => ({ light: image(`desktop/macoslanding/${l}/${screen}`), dark: image(`desktop/macoslanding/${l}/dark/${screen}`) })
+  const s = slot(lang)
+  const found = s.light || s.dark ? s : slot('en')
+  return found.light || found.dark ? { ...found, alt } : null
 }

@@ -24,13 +24,7 @@ actual fun rememberDeviceCalendarAccess(): DeviceCalendarAccess {
     return remember(scope) {
         object : DeviceCalendarAccess {
             override val supported: Boolean = macCalendarsUsable()
-            override val deviceName: String = "Mac"
-            override val permissionHint: String =
-                "System Settings, under Privacy & Security › Calendars › Tenshu Calendar"
-
-            // ⚠ The schedule really is this: a refresh at launch and every few minutes while the app
-            // runs (`DesktopMirrorScheduler`) — no OS trigger, no background job when it is closed.
-            override val syncCadence: String = "regularly while Calendar is open on this Mac"
+            override val deviceKind: DeviceKind = DeviceKind.MAC
 
             override fun requestRead(onResult: (granted: Boolean) -> Unit) {
                 // ⚠ Blocks on the user's answer, so off the UI thread; the answer comes back on it.

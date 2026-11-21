@@ -130,7 +130,7 @@ struct OnboardingView: View {
                     aboutYouRow("Height", value: aboutYouHeight.map { "\($0) cm" }) { aboutYouEditing = .height }
                 }
                 if missing.contains(.weight) {
-                    aboutYouRow("Weight", value: aboutYouWeight.map { String(format: "%.1f kg", $0) }) { aboutYouEditing = .weight }
+                    aboutYouRow("Weight", value: aboutYouWeight.map { "\(FitUnitFormat.oneDecimal($0)) kg" }) { aboutYouEditing = .weight }
                 }
             }
 

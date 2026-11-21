@@ -31,8 +31,6 @@ export const MiaErrorKind = {
   unexpectedAction: 'error_mia_unexpected_action',
   // A grant switch named a source that does not exist. Nothing was written.
   unknownSource: 'error_mia_unknown_source',
-  // A write switch on a source with no write tier (everything but CALENDAR). Nothing was written.
-  noWriteGrant: 'error_mia_no_write_grant',
 } as const
 
 // The longest utterance `ask` accepts (after trimming); the gateway refuses longer before the runtime.
@@ -50,7 +48,6 @@ export const MiaMethod = {
   Grants: 'mia.grants',
   GrantsObserve: 'mia.grants.observe',
   SetGranted: 'mia.grants.setGranted',
-  SetWritable: 'mia.grants.setWritable',
 } as const
 
 // Native's verdicts (`MiaAnswer`), exactly. ⚠⚠ 'noMatch' covers both "I did not understand" and "I
@@ -114,9 +111,9 @@ export interface MiaConversation {
 
 export interface MiaGrant {
   readonly source: MiaSource
+  // ⚠ One switch per source (2026-11-19): it covers what Mia may do there too. A write still needs
+  // the confirmation tap on the device that offers it, and a tab offers none.
   readonly read: boolean
-  // null where nothing can write the source (everything but CALENDAR today).
-  readonly write: boolean | null
 }
 
 // An opaque keyset cursor: pass back exactly what `nextCursor` returned. `null` is the head.

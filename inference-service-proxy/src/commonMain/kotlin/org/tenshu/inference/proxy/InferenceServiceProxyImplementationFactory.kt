@@ -7,6 +7,7 @@ import org.tenshu.inference.DeleteModel
 import org.tenshu.inference.DownloadModel
 import org.tenshu.inference.DownloadProgress
 import org.tenshu.inference.IndexProgress
+import org.tenshu.inference.InferenceCapability
 import org.tenshu.inference.InstalledModels
 import org.tenshu.inference.MediaIndexPass
 import org.tenshu.inference.PhotosLike
@@ -89,6 +90,20 @@ fun inferenceServiceProxyImplementationFactory(
      * wherever the stores are cleared by the realm-wipe hook of the one process that holds them.
      */
     storeGate: (suspend () -> Boolean)? = null,
+    /**
+     * Pets PT-3b (`photos-pets.md` §3): `pets.log` and PT-D11's 0.85 grouping, read by the pet ops.
+     * ⚠ Nullable for [faceGrouping]'s reason — no pets wiring, no `petGroups` op rather than an empty
+     * one — and ⚠⚠ its store MUST be the instance [indexer]'s `MediaIndexer` writes.
+     */
+    petGrouping: FaceGroupingComponents? = null,
+    /** The pet backend whose stamp gates `petGroups`' model-change clear; absent or unavailable = NO_BACKEND. */
+    petBackend: PetBackend? = null,
+    /**
+     * `peopleIndexChanges`' counter (`photos-pets.md` §10.19). ⚠ Defaults to [runner]'s
+     * [MediaIndexRunner.faceChanges]: no runner, no op — an absent operation fails where it can be
+     * seen, a counter nothing moves would say "nothing changed" for ever.
+     */
+    peopleRevision: kotlinx.coroutines.flow.StateFlow<Long>? = runner?.faceChanges,
 ): OperationImplementation? {
     return when (id) {
         PhotosLike.ID -> PhotosLikeImplementation(registry, embeddings, deviceId, livePaths, storeGate)
@@ -110,6 +125,35 @@ fun inferenceServiceProxyImplementationFactory(
         }
         org.tenshu.inference.FaceSuggestionRejections.ID -> faceGrouping?.let {
             FaceSuggestionRejectionsImplementation(it.store, deviceId, storeGate)
+        }
+        // Pets PT-3b: the four face contracts over `pets.log` and `PET_RECOGNITION`. ⚠ Naming is not
+        // gated on `petGrouping`, for `nameFaceGroup`'s reason: a device that cannot index pets must
+        // still be able to correct a name its peers typed.
+        org.tenshu.inference.PetGroups.ID -> petGrouping?.let {
+            FaceGroupsImplementation(
+                registry, it.store, it.clustering, deviceId, it.livePaths, storeGate,
+                capability = InferenceCapability.PET_RECOGNITION,
+                limitParam = org.tenshu.inference.PetGroups.Params.LIMIT,
+                backendFor = { petBackend?.takeIf { backend -> backend.available() } },
+            )
+        }
+        org.tenshu.inference.NamePetGroup.ID -> NameFaceGroupImplementation(
+            deviceId,
+            capability = InferenceCapability.PET_RECOGNITION,
+            nameParam = org.tenshu.inference.NamePetGroup.Params.NAME,
+            filePathsParam = org.tenshu.inference.NamePetGroup.Params.FILE_PATHS,
+        )
+        org.tenshu.inference.RejectPetSuggestion.ID -> petGrouping?.let {
+            RejectFaceSuggestionImplementation(
+                it.store, deviceId, storeGate,
+                capability = InferenceCapability.PET_RECOGNITION,
+                nameParam = org.tenshu.inference.RejectPetSuggestion.Params.NAME,
+                filePathsParam = org.tenshu.inference.RejectPetSuggestion.Params.FILE_PATHS,
+                boxesParam = org.tenshu.inference.RejectPetSuggestion.Params.BOXES_PER_MILLE,
+            )
+        }
+        org.tenshu.inference.PetSuggestionRejections.ID -> petGrouping?.let {
+            FaceSuggestionRejectionsImplementation(it.store, deviceId, storeGate, capability = InferenceCapability.PET_RECOGNITION)
         }
         // MQ-5. ⚠ No `embeddings`: choosing which question was asked reads no vectors and no
         // library — the only user content it sees is the sentence itself.
@@ -148,6 +192,7 @@ fun inferenceServiceProxyImplementationFactory(
         // so an absent one is ambiguous there; `MediaIndexer` calls `start()` first, so an absent
         // entry here unambiguously means no pass is running and is reported as such.
         IndexProgress.ID -> indexProgress?.let { MediaIndexProgressImplementation(it) }
+        org.tenshu.inference.PeopleIndexChanges.ID -> peopleRevision?.let { PeopleIndexChangesImplementation(it) }
         else -> null
     }
 }

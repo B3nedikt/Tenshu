@@ -104,13 +104,23 @@ func formatRunDate(_ epochMillis: Int64) -> String {
     return f.string(from: date)
 }
 
-/// ⚠ Decimal MB (10^6), matching Compose and what a file manager shows for the same archive — a
-/// figure the user can cross-check beats a binary-exact one.
+/// A size — the Swift twin of Kotlin's `formatStorageBytes` (`:storage-service-common`, the one byte
+/// formatter), which Fit's framework does not export: binary steps (1 KB = 1024 B) with the
+/// conventional "KB/MB/GB" names, at most one decimal (dropped when `.0`), half-up, and the digits in
+/// the user's locale — `1.5 GB` / `1,5 GB`. ⚠ Keep the two in step: Compose shows the same row.
 func formatBytes(_ bytes: Int64) -> String {
-    if bytes >= 1_000_000_000 { return "\(Double(bytes / 100_000_000) / 10.0) GB" }
-    if bytes >= 1_000_000 { return "\(bytes / 1_000_000) MB" }
-    if bytes >= 1_000 { return "\(bytes / 1_000) kB" }
-    return "\(bytes) B"
+    let units = ["B", "KB", "MB", "GB", "TB", "PB", "EB"]
+    if bytes < 1024 { return "\(FitUnitFormat.number(Int(max(bytes, 0)))) B" }
+    var value = Double(bytes)
+    var unit = 0
+    while unit < units.count - 1 && (value * 10).rounded(.toNearestOrAwayFromZero) >= 1024 * 10 {
+        value /= 1024
+        unit += 1
+    }
+    let figure = value.formatted(
+        .number.precision(.fractionLength(0...1)).rounded(rule: .toNearestOrAwayFromZero).locale(FitUnitFormat.locale)
+    )
+    return "\(figure) \(units[unit])"
 }
 
 /// The SF Symbol for a source row. Mirrors `FitIcons.dataSource`.

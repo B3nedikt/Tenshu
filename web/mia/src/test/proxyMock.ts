@@ -55,7 +55,6 @@ export const proxy = {
   grants: vi.fn(async (): Promise<GrantsResult> => ({ ok: true, grants: defaultGrants() })),
   subscribeGrants: vi.fn(streams.grants.subscribe),
   setGranted: vi.fn(async (_s: MiaSource, _g: boolean): Promise<SetGrantResult> => ({ ok: true, grants: defaultGrants() })),
-  setWritable: vi.fn(async (_s: MiaSource, _g: boolean): Promise<SetGrantResult> => ({ ok: true, grants: defaultGrants() })),
 }
 
 export const proxyModule = {
@@ -82,12 +81,11 @@ export function failure(kind: string): MiaFailure {
 
 export const SOURCES: MiaSource[] = ['FILES', 'TIMELINE', 'FITNESS', 'PLACES', 'DEVICES', 'ROUTINES', 'LABELS', 'VISUAL_SEARCH', 'CALENDAR']
 
-// The proxy's defaults: every read on, Calendar's write tier off, no other write tier.
+// The proxy's defaults: every source on.
 export function defaultGrants(overrides: Partial<Record<MiaSource, Partial<MiaGrant>>> = {}): MiaGrant[] {
   return SOURCES.map((source) => ({
     source,
     read: true,
-    write: source === 'CALENDAR' ? false : null,
     ...overrides[source],
   }))
 }

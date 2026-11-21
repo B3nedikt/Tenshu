@@ -2,6 +2,15 @@
 
     python3 store/fixtures/contacts/generate_contacts.py <out dir>
     python3 store/fixtures/contacts/generate_contacts.py --check      validate only, write nothing
+    python3 store/fixtures/contacts/generate_contacts.py <out dir> --portraits DIR
+
+With --portraits, a person whose `<Given> <Family>.jpg` (or .jpeg / .png / .heic) is in DIR gets it as
+the card's embedded PHOTO, scaled to a 512 px long edge and stripped of metadata (`sips`, macOS) —
+the path a real address-book export takes into Contacts' avatar. People without a file keep their
+monogram, as a real address book has. The portraits are generated people
+(docs/proposals/store-screenshot-stories.md §4.1), kept outside the tree, by default in
+~/Movies/Tenshu promo/people/contacts; a file matching nobody fails the run, so a typo is not a
+silently missing face.
 
 Writes <out>/contacts.vcf — one vCard 3.0 file, the shape Apple's and Google's exports have — which
 Contacts' `-seedFixture` launch imports through the shared repository's `importVcards`, the op every
@@ -15,10 +24,13 @@ emails case-insensitively — anything but the two deliberate pairs would change
 ⚠ Nothing it writes is committed: store-screenshots.md §3 ("Nothing binary under store/").
 """
 
+import base64
 import json
 import os
 import re
+import subprocess
 import sys
+import tempfile
 
 sys.dont_write_bytecode = True  # no __pycache__ under store/ (check-store-assets.py rejects binaries)
 
@@ -53,7 +65,39 @@ def escape(text):
     return text.replace("\\", "\\\\").replace(",", "\\,").replace(";", "\\;").replace("\n", "\\n")
 
 
-def vcard(person):
+PORTRAIT_EXTENSIONS = (".jpg", ".jpeg", ".png", ".heic")
+PORTRAIT_EDGE = 512
+
+
+def load_portraits(directory, people):
+    """Maps "Given Family" to JPEG bytes for every portrait in `directory`."""
+    names = {" ".join(p["name"]) for p in people}
+    portraits = {}
+    for entry in sorted(os.listdir(directory)):
+        stem, ext = os.path.splitext(entry)
+        if entry.startswith(".") or ext.lower() not in PORTRAIT_EXTENSIONS:
+            continue
+        if stem not in names:
+            fail(f"portrait {entry!r} matches nobody in the manifest (name it '<Given> <Family>{ext}')")
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "portrait.jpg")
+            # sips re-encodes, which drops EXIF/GPS; -Z bounds the long edge.
+            subprocess.run(["sips", "-s", "format", "jpeg", "-s", "formatOptions", "82",
+                            "-Z", str(PORTRAIT_EDGE), os.path.join(directory, entry), "--out", out],
+                           check=True, capture_output=True)
+            portraits[stem] = open(out, "rb").read()
+    return portraits
+
+
+def fold(line):
+    """vCard 3.0 folding: no line over 75 octets, continuations start with one space."""
+    if len(line) <= 75:
+        return line
+    parts = [line[:75]] + [line[i:i + 74] for i in range(75, len(line), 74)]
+    return "\r\n ".join(parts)
+
+
+def vcard(person, portrait=None):
     given, family = person["name"]
     lines = ["BEGIN:VCARD", "VERSION:3.0",
              f"N:{escape(family)};{escape(given)};;;", f"FN:{escape(given + ' ' + family)}"]
@@ -73,6 +117,8 @@ def vcard(person):
         lines.append(f"BDAY:{person['birthday']}")
     if person.get("categories"):
         lines.append("CATEGORIES:" + ",".join(escape(c) for c in person["categories"]))
+    if portrait:
+        lines.append(fold("PHOTO;ENCODING=b;TYPE=JPEG:" + base64.b64encode(portrait).decode("ascii")))
     lines.append("END:VCARD")
     return "\r\n".join(lines) + "\r\n"
 
@@ -98,19 +144,30 @@ def validate(people):
 
 
 def main(argv):
+    portraits_dir = None
+    if "--portraits" in argv:
+        i = argv.index("--portraits")
+        if i + 1 >= len(argv):
+            fail("--portraits needs a directory")
+        portraits_dir = os.path.expanduser(argv[i + 1])
+        argv = argv[:i] + argv[i + 2:]
+        if not os.path.isdir(portraits_dir):
+            fail(f"--portraits: {portraits_dir} is not a directory")
     if len(argv) != 2:
-        fail("usage: generate_contacts.py <out dir> | --check")
+        fail("usage: generate_contacts.py <out dir> [--portraits DIR] | --check")
     manifest = json.load(open(os.path.join(HERE, "manifest.json"), encoding="utf-8"))
     people = manifest["people"]
     validate(people)
     if argv[1] == "--check":
         print(f"generate_contacts: ok ({len(people)} people)")
         return
+    portraits = load_portraits(portraits_dir, people) if portraits_dir else {}
     os.makedirs(argv[1], exist_ok=True)
     out = os.path.join(argv[1], "contacts.vcf")
     with open(out, "w", encoding="utf-8", newline="") as f:
-        f.write("".join(vcard(p) for p in people))
-    print(f"generate_contacts: {len(people)} people → {out}")
+        f.write("".join(vcard(p, portraits.get(" ".join(p["name"]))) for p in people))
+    with_photo = f", {len(portraits)} with a portrait" if portraits_dir else ""
+    print(f"generate_contacts: {len(people)} people{with_photo} → {out}")
 
 
 if __name__ == "__main__":

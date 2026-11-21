@@ -39,14 +39,22 @@ class LinearSerializer(
 
     private lateinit var valueTokenizer: (TValue) -> TokenString
 
+    /**
+     * ⚠⚠ **Each call runs on its own instance.** One serializer is shared by every concurrent reply
+     * (`ProxyGateway`), each with its own connection's tokenizer, and the recursion below reads the
+     * tokenizer from a field. Set on the shared instance, a reply started while another was being
+     * written finished with the other's tokenizer (`SharedSerializerConcurrencyTest`;
+     * `core-semantic-permissions.md` SP-D6).
+     */
     fun serialize(
         data: Data,
         valueTokenizer: (TValue) -> TokenString,
         isTopLevel: Boolean = true,
         expectedType: Type? = null
     ): TokenString {
-        this.valueTokenizer = valueTokenizer
-        return serialize(data, isTopLevel, expectedType, isOptimized = expectedType != null)
+        val run = LinearSerializer(schemaProvider)
+        run.valueTokenizer = valueTokenizer
+        return run.serialize(data, isTopLevel, expectedType, isOptimized = expectedType != null)
     }
 
     private fun DataSchema.isMarker(): Boolean {

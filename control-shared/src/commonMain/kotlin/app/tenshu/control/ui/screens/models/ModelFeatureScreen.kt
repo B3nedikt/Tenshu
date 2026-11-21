@@ -221,12 +221,19 @@ private fun PendingOff.deviceName(): String? = when (this) {
 internal fun canTurnOffEverywhere(consent: CapabilityConsent, others: List<OtherDeviceConsent>): Boolean =
     consent.realm || consent.device || others.any { it.allowed }
 
-/** ⚠⚠ Faces only: an explicit no deletes that device's face data, and that cannot be taken back. */
+/**
+ * ⚠⚠ Faces and pets: an explicit no deletes that device's face — or pet — data, and that cannot be
+ * taken back. Each deletes only its own (`photos-pets.md` §4).
+ */
 internal fun turnOffDeletes(capability: InferenceCapability): Boolean =
-    capability == InferenceCapability.FACE_CLUSTERING
+    capability == InferenceCapability.FACE_CLUSTERING || capability == InferenceCapability.PET_RECOGNITION
+
+/** What a deleting switch-off deletes, in the user's words. */
+private fun deletedData(capability: InferenceCapability): String =
+    if (capability == InferenceCapability.PET_RECOGNITION) "pet data" else "face data"
 
 internal fun turnOffEverywhereLabel(capability: InferenceCapability): String =
-    if (turnOffDeletes(capability)) "Turn off everywhere and delete face data" else "Turn off everywhere"
+    if (turnOffDeletes(capability)) "Turn off everywhere and delete ${deletedData(capability)}" else "Turn off everywhere"
 
 /** [deviceName] is `null` for every device at once. */
 internal fun turnOffTitle(capability: InferenceCapability, deviceName: String?): String =
@@ -240,9 +247,9 @@ internal fun turnOffTitle(capability: InferenceCapability, deviceName: String?):
  */
 internal fun turnOffText(capability: InferenceCapability, everywhere: Boolean): String = when {
     turnOffDeletes(capability) && everywhere ->
-        "Face data is deleted on every device. The names you typed are kept."
+        "${deletedData(capability).replaceFirstChar { it.uppercase() }} is deleted on every device. The names you typed are kept."
     turnOffDeletes(capability) ->
-        "Its face data is deleted. The names you typed are kept, and other devices are not changed."
+        "Its ${deletedData(capability)} is deleted. The names you typed are kept, and other devices are not changed."
     everywhere -> "Every device stops indexing, and searching by description stops working."
     else -> "It stops indexing. Other devices are not changed."
 }

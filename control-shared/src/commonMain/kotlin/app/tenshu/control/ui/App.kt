@@ -10,6 +10,11 @@ import app.tenshu.control.data.SyncRepository
 import app.tenshu.control.data.confirm
 import app.tenshu.control.data.rememberBiometricPromptHost
 import app.tenshu.control.shared.resources.Res
+import app.tenshu.control.shared.resources.apps_title
+import app.tenshu.control.shared.resources.control_nav_home
+import app.tenshu.control.shared.resources.data_title
+import app.tenshu.control.shared.resources.services_title
+import app.tenshu.control.shared.resources.settings_title
 import app.tenshu.control.shared.resources.reauth_forget_device_subtitle
 import app.tenshu.control.shared.resources.reauth_forget_device_system_reason
 import app.tenshu.control.shared.resources.reauth_title
@@ -227,7 +232,7 @@ private fun AppContent(initialDestination: Destination) {
         AdaptiveNavItem(
             key = dest,
             icon = dest.icon,
-            label = dest.label,
+            label = navLabel(dest),
             selected = currentDestination == dest,
             onClick = {
                 if (currentDestination != dest) {
@@ -764,3 +769,16 @@ private fun AppContent(initialDestination: Destination) {
     }
 
 }
+
+/** The bar / rail label of a top-level [Destination], in the app's language. */
+@Composable
+private fun navLabel(destination: Destination): String = stringResource(
+    when (destination) {
+        Destination.Home -> Res.string.control_nav_home
+        Destination.Apps -> Res.string.apps_title
+        Destination.Data -> Res.string.data_title
+        Destination.Services -> Res.string.services_title
+        Destination.Settings -> Res.string.settings_title
+        else -> error("$destination is not a top-level destination")
+    },
+)

@@ -242,6 +242,32 @@ internal const val INFERENCE_ARRIVALS_PATH = "/inference/arrivals.queue"
  */
 internal const val INFERENCE_FACES_PATH = "/inference/faces.log"
 
+/**
+ * Pets' templates (`photos-pets.md` §2) — a FOURTH log, beside and never inside [INFERENCE_FACES_PATH].
+ *
+ * ⚠⚠ Separate for the faces log's reason one level down: `PET_RECOGNITION` and `FACE_CLUSTERING` are
+ * separate switches, and withdrawing either must delete only its own templates (§4).
+ */
+internal const val INFERENCE_PETS_PATH = "/inference/pets.log"
+
+/** The qualifier of the pets template store — a second `FaceTemplateStore` in the graph. */
+const val PET_TEMPLATE_STORE = "petTemplateStore"
+
+/**
+ * The pets store, **only in a graph that binds a [org.tenshu.inference.proxy.PetBackend]** (Android;
+ * desktop on macOS). ⚠ Elsewhere `null`, and the store is never even opened — an iOS route-1 graph must
+ * not create a log over the App Group's database for a half that cannot run there.
+ */
+fun org.koin.core.scope.Scope.petTemplatesIfPetsRunHere(): FaceTemplateStore? =
+    if (getOrNull<org.tenshu.inference.proxy.PetBackend>() != null) get(named(PET_TEMPLATE_STORE)) else null
+
+/** The qualifier of the pets grouping — a second `FaceGroupingComponents` in the graph. */
+const val PET_GROUPING = "petGrouping"
+
+/** The pet ops' grouping, where [petTemplatesIfPetsRunHere] has a store; `null` elsewhere. */
+fun org.koin.core.scope.Scope.petGroupingIfPetsRunHere(): FaceGroupingComponents? =
+    if (getOrNull<org.tenshu.inference.proxy.PetBackend>() != null) get(named(PET_GROUPING)) else null
+
 /** The qualifier of the `FileDatabase` this process's inference state lives in. */
 const val INFERENCE_FILE_DATABASE = "inferenceFileDatabase"
 
@@ -289,6 +315,12 @@ fun buildProxyModule(): org.koin.core.module.Module = module {
     // reads what `MediaIndexer` writes; two would give an empty People screen beside an index pass
     // that reports faces found, with no error on either side.
     single<FaceTemplateStore> { DefaultFaceTemplateStore(get(named(INFERENCE_FILE_DATABASE)), INFERENCE_FACES_PATH) }
+    // Pets PT-3: the same record format under its own magic and file. A SINGLE instance for the face
+    // store's reason — the pet ops read what `MediaIndexer` writes. Reached only through
+    // [petTemplatesIfPetsRunHere].
+    single<FaceTemplateStore>(named(PET_TEMPLATE_STORE)) {
+        DefaultFaceTemplateStore(get(named(INFERENCE_FILE_DATABASE)), INFERENCE_PETS_PATH, DefaultFaceTemplateStore.PETS_MAGIC)
+    }
     // IN-D6a: the photographs that arrived and no batch has finished with — device-local, beside the
     // other derived stores. ⚠ A `single`: the observer that fills it and the batch that drains it
     // must hold one queue.
@@ -310,6 +342,16 @@ fun buildProxyModule(): org.koin.core.module.Module = module {
     // pass. ⚠ The SAME predicate the media source below hands the reconcile, and the factory gives
     // `photosLike` this one too (one realm, one answer). `MediaLibraryWiringTest` fails if it goes.
     single { FaceGroupingComponents(store = get(), clustering = FaceClustering.Measured, livePaths = get()) }
+    // Pets PT-3b: `pets.log` grouped at PT-D11's 0.85 best guess (`PetClustering.BestGuess`), with
+    // People's read filter. ⚠ The SAME pets store the indexer writes. Reached only through
+    // [petGroupingIfPetsRunHere].
+    single(named(PET_GROUPING)) {
+        FaceGroupingComponents(
+            store = get(named(PET_TEMPLATE_STORE)),
+            clustering = org.tenshu.inference.proxy.PetClustering.BestGuess,
+            livePaths = get(),
+        )
+    }
 
     // The realm half of the read filter and of the reconcile's second proof (`MediaLibrarySeams`).
     single<LivePaths> { fileLivePaths }
@@ -421,6 +463,10 @@ fun buildProxyModule(): org.koin.core.module.Module = module {
             // pass's charging/idle constraints, so this is the only thing between opening Control and
             // a multi-hour index run on battery (inference-service.md §32).
             conditions = getOrNull<IndexingConditions>(named("indexingConditions")) ?: IndexingConditions.Never,
+            // Pets PT-3: the fourth half, where this platform binds a pet backend. Inert until
+            // `PET_RECOGNITION` is switched on (absence = no, IN-D3) and both models are present.
+            pets = petTemplatesIfPetsRunHere(),
+            petBackend = getOrNull(),
         )
     }
 

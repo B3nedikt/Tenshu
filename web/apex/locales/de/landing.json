@@ -52,7 +52,12 @@
     "heading": "Deine Apps. Deine Daten. Deine Kontrolle.",
     "lede": "Tenshu ist ein Open-Source-App-Ökosystem, in dem du die Kontrolle hast.",
     "ledeLine2": "Privatsphäre als Standard.",
-    "learnMore": "Mehr erfahren"
+    "learnMore": "Mehr erfahren",
+    "appsLabel": "Tenshu-Apps",
+    "laptopAlt": "{name} auf einem Laptop",
+    "phoneAlt": "{name} auf einem Handy",
+    "pause": "Anhalten",
+    "play": "Abspielen"
   },
   "block2": {
     "heading": "So funktioniert Big Tech heute.",

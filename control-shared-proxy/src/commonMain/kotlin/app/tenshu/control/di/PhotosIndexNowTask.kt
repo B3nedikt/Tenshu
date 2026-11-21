@@ -20,7 +20,11 @@ object PhotosIndexNowTask {
     /** What every submitted identifier begins with: [PERMITTED] without its `*`. */
     const val PREFIX: String = "app.tenshu.photos.ios.indexnow."
 
-    /** The system's live activity, before the task begins. ⚠ Copy placeholders (M11). */
+    /**
+     * The system's live activity, before the task begins. ⚠ Copy placeholders (M11).
+     * ⚠⚠ [SUBTITLE] is set once, at install, for every pass: it must stay true whichever features
+     * are switched on — a pets-only pass promised search (`photos-pets.md` §10.18).
+     */
     const val TITLE: String = "Indexing your photos"
-    const val SUBTITLE: String = "So you can search them by what's in them"
+    const val SUBTITLE: String = "So Photos can find what's in them"
 }

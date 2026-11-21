@@ -166,6 +166,38 @@ transfer-impact-assessment item drops away.
 
 ---
 
+### A.5 Mailgun EU — production's transport since 2026-11-19
+
+Scaleway TEM **blocked the tenshu.app domain** on 2026-11-19 (`550 5.7.1 Domain name … is blocked.
+Please contact the Scaleway support`), which took down sign-up, sign-in and account-deletion
+mail at once. The fallback that went live the same evening, still running:
+
+| `deploy.env` | Value |
+|---|---|
+| `SMTP_HOST` | `smtp.eu.mailgun.org` (the EU region; the account must be created in it) |
+| `SMTP_PORT` | **`2525`** — STARTTLS |
+| `SMTP_USERNAME` | `postmaster@tenshu.app` — the **tenshu.app** domain's credential, not the sandbox's |
+| `SMTP_FROM` | unchanged, `no-reply@tenshu.app` |
+
+⚠⚠ **The port is the trap, again.** The OVH commerce box gets no answer on outbound 587 (a
+*connect timeout* in the log, then `503 send_failed`), exactly as DigitalOcean and Scaleway
+blocked 25/465/587 (§A.4's 2587). Every provider has an off-list submission port — Scaleway 2587,
+Mailgun 2525 — and that is the one to use. Probe from the box before switching:
+`timeout 8 bash -c "exec 3<>/dev/tcp/<host>/<port> && head -c 3 <&3"` must print `220`.
+Recreate the container (`docker compose … up -d commerce`), not restart it, or the new env is
+not read; its startup line `Commerce email: SMTP <host>:<port>` says what it took.
+
+DNS, as it went wrong the first time:
+- **DKIM** is a TXT at `mta._domainkey.tenshu.app` (newer Mailgun accounts may offer CNAMEs
+  `pdk1`/`pdk2` instead; those must be grey-cloud "DNS only" in Cloudflare). The *sandbox*
+  domain's settings page shows no records at all — pick tenshu.app in the domain picker.
+- **SPF** is ONE record: add `include:mailgun.org` to it, never a second `v=spf1`. It now reads
+  `include:mailgun.org include:_spf.mx.cloudflare.net` — ⚠ going back to Scaleway means adding
+  `include:_spf.tem.scaleway.com` back, or that mail fails SPF against `-all`.
+- **DMARC**: Mailgun's wizard adds its own `_dmarc` record. Two DMARC records count as **none**
+  (RFC 7489) — keep exactly one.
+- **No Mailgun MX**: inbound mail for tenshu.app is Cloudflare Email Routing.
+
 ## 0. What you need
 
 - An AWS account.

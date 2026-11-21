@@ -1,8 +1,10 @@
 package app.tenshu.photos.ui.screens.collections
 
 import app.tenshu.photos.data.AlbumSummary
+import app.tenshu.photos.model.PeopleStatus
 import app.tenshu.photos.ui.screens.feed.FeedError
 import app.tenshu.photos.ui.screens.search.ModelsSwitchHome
+import org.tenshu.inference.FaceGroupsUnavailable
 
 /** A fixed destination at the top of the tab — a compact tile, not a full-width block (§35). */
 data class CollectionsTile(
@@ -44,7 +46,15 @@ data class CollectionsPeopleRow(
     val viewAll: Boolean,
     val pending: Boolean = false,
     val failure: String? = null,
+    /** *People*, or *People & pets* while pet recognition is on here (`photos-pets.md` PT-D3). */
+    val title: String = CollectionSection.PEOPLE.title,
 )
+
+/** PT-D3: the People row's and page's title — *People & pets* only while pet recognition is on here. */
+fun peopleTitle(state: CollectionsUiState): String =
+    if (state.petsOn) PEOPLE_AND_PETS_TITLE else CollectionSection.PEOPLE.title
+
+const val PEOPLE_AND_PETS_TITLE: String = "People & pets"
 
 /**
  * A derived section's row — present when it has something in it, or when its read failed (§36).
@@ -174,6 +184,13 @@ sealed interface CollectionsLayout {
                 null
             } else {
                 peopleStatusLine(state.peopleStatus, hasPeople = state.people.isNotEmpty(), groupingRunsHere, modelsSwitch, faceModelPending)
+                    // ⚠ Pets PT-3d: a row already showing pet cards does not ask for the FACE switch — a
+                    // user who chose pets and not faces made that choice; the line stays where the row
+                    // would otherwise be empty.
+                    ?.takeUnless {
+                        state.petsOn && state.people.isNotEmpty() &&
+                            (state.peopleStatus as? PeopleStatus.Unavailable)?.reason == FaceGroupsUnavailable.Reasons.NO_CONSENT
+                    }
             }
             // ⚠ Gated like everything else People says: a platform that cannot group faces
             // never grows a People section to report a failure in.
@@ -226,6 +243,7 @@ sealed interface CollectionsLayout {
                         viewAll = state.people.isNotEmpty(),
                         pending = peoplePending,
                         failure = peopleFailure,
+                        title = peopleTitle(state),
                     )
                 } else {
                     null

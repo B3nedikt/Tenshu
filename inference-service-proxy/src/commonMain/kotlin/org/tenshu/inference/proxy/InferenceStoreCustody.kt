@@ -192,6 +192,12 @@ class InferenceStoreCustody(
      * left. `null` for a graph that keeps none.
      */
     private val arrivals: ArrivalQueue? = null,
+    /**
+     * Pets' `pets.log` (`photos-pets.md` PT-4b2), where the graph keeps one: keyed by path like the face
+     * templates, so it leaves with the realm — on a realm change, a reset and a relinquish — exactly
+     * where they do. `null` for a graph without pets.
+     */
+    private val pets: FaceTemplateStore? = null,
 ) : InferenceStoreGate {
 
     override suspend fun open(fromPass: Boolean): Boolean = ensureCurrentRealm(fromPass)
@@ -257,6 +263,7 @@ class InferenceStoreCustody(
                 erase(files, stampPath)
                 embeddings.clear()
                 faces.clear()
+                pets?.clear()
                 arrivals?.clear()
                 osUpdateClear.value = false
             } catch (cancellation: CancellationException) {
@@ -280,6 +287,7 @@ class InferenceStoreCustody(
                 if (!fromPass) cancelPass()
                 embeddings.clear()
                 faces.clear()
+                pets?.clear()
                 arrivals?.clear()
                 osUpdateClear.value = false
                 files.writeRawByteArray(stampPath, json.encodeToString(InferenceRealm.serializer(), now).encodeToByteArray())
@@ -371,6 +379,7 @@ class InferenceStoreCustody(
             attempt { cancelPass() },
             attempt { embeddings.clear() },
             attempt { faces.clear() },
+            attempt { pets?.clear() },
             attempt { arrivals?.clear() },
         )
         failures.firstOrNull()?.let { throw it }

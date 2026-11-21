@@ -133,7 +133,7 @@ class MediaIndexRunner(
     private val faceChangesNow = MutableStateFlow(0L)
 
     /**
-     * Moves once for every pass that changed the face template store — ⚠⚠ however it ended:
+     * Moves once for every pass that changed the face **or pet** template store — ⚠⚠ however it ended:
      * finished, refused (a withdrawal's clear), stopped or thrown, judged by
      * [MediaIndexer.faceStoreWrites] across the pass, in the pass's own `finally`, never by its
      * report or by [standing]'s compare-and-set (which a pass superseded mid-unwind loses).
@@ -337,10 +337,21 @@ class MediaIndexRunner(
      * [MediaIndexer.deleteTemplatesOnWithdrawal] for a refusal made before any pass: what a
      * withdrawal owes is deleted however the pass was refused. Counts toward [faceChanges].
      */
-    private suspend fun withdrawalDeleted(executionContext: ExecutionContext): Boolean =
-        indexer.deleteTemplatesOnWithdrawal(executionContext).also { cleared ->
-            if (cleared) faceChangesNow.update { it + 1 }
+    private suspend fun withdrawalDeleted(executionContext: ExecutionContext): Boolean {
+        val before = peopleStoreWrites()
+        return indexer.deleteTemplatesOnWithdrawal(executionContext).also {
+            // ⚠ By the stores, not the answer: the answer is the face half's, and a pets-only
+            // withdrawal clears `pets.log` without it.
+            if (peopleStoreWrites() != before) faceChangesNow.update { it + 1 }
         }
+    }
+
+    /**
+     * Every write to a store People & pets draws from — the face templates and the pet templates.
+     * ⚠⚠ Both, or a pass that only found pets never tells Collections, which keeps its empty answer
+     * until Photos is relaunched (`photos-pets.md` §10.18, measured on an iPhone).
+     */
+    private fun peopleStoreWrites(): Long = indexer.faceStoreWrites.value + indexer.petStoreWrites.value
 
     /**
      * Stops the running pass and waits for it to let go.
@@ -428,8 +439,8 @@ class MediaIndexRunner(
         // scheduled pass dispatched by the in-process drain loop with a client open promoted the
         // dataSync service for an hours-long automatic pass.
         val livenessKey = if (manual) BackgroundLiveness.MEDIA_INDEX_PASS else BackgroundLiveness.SCHEDULED_MEDIA_INDEX_PASS
-        // ⚠ Read before the pass exists: every face write of this pass lands after it.
-        val faceWritesBefore = indexer.faceStoreWrites.value
+        // ⚠ Read before the pass exists: every face or pet write of this pass lands after it.
+        val peopleWritesBefore = peopleStoreWrites()
         val launched = scope.async(start = CoroutineStart.ATOMIC) {
 
             // ⚠ Set by every ending that returned or threw; a cancellation leaves it `null`, which is
@@ -527,7 +538,7 @@ class MediaIndexRunner(
                 // this value is this pass's alone, whatever pass replaced it.
                 // ⚠⚠ Unconditional on the standing, like the outcome: whatever pass replaced
                 // this one, what this one wrote changed People.
-                if (indexer.faceStoreWrites.value != faceWritesBefore) faceChangesNow.update { it + 1 }
+                if (peopleStoreWrites() != peopleWritesBefore) faceChangesNow.update { it + 1 }
                 outcome.complete(passOutcomeOf(ended))
                 liveness?.setActive(false, livenessKey)
             }

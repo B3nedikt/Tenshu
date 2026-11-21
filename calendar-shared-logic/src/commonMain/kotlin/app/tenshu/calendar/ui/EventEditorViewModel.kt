@@ -83,8 +83,11 @@ data class EventEditorUiState(
     val isSaving: Boolean = false,
     val saved: Boolean = false,
     val deleted: Boolean = false,
-    val errorMessage: String? = null,
+    val problem: CalendarProblem? = null,
 ) {
+    /** [problem] in English — the SwiftUI shell's text; Compose words [problem] itself. */
+    val errorMessage: String? get() = problem?.english()
+
     val isEditing: Boolean get() = eventId.isNotBlank()
 
     /** Whether this edit could apply to more than one occurrence. */
@@ -549,7 +552,7 @@ class EventEditorViewModel(
                 onSuccess = { _uiState.update { it.copy(isSaving = false, saved = true) } },
                 onFailure = { error ->
                     _uiState.update {
-                        it.copy(isSaving = false, errorMessage = error.message ?: "Could not save")
+                        it.copy(isSaving = false, problem = CalendarProblem.failure(CalendarAction.SAVE, error))
                     }
                 },
             )
@@ -618,7 +621,7 @@ class EventEditorViewModel(
                 onSuccess = { _uiState.update { it.copy(isSaving = false, deleted = true) } },
                 onFailure = { error ->
                     _uiState.update {
-                        it.copy(isSaving = false, errorMessage = error.message ?: "Could not delete")
+                        it.copy(isSaving = false, problem = CalendarProblem.failure(CalendarAction.DELETE, error))
                     }
                 },
             )

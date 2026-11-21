@@ -220,7 +220,7 @@ struct HomeView: View {
     /// Each value opens its series' detail (fit-app.md §18.18) — steps, distance, energy burned.
     private func statStrip(today: DailyAggregate) -> some View {
         HStack {
-            statLink(.steps) { StatBlock(value: "\(today.steps)", label: "steps") }
+            statLink(.steps) { StatBlock(value: FitUnitFormat.number(Int(today.steps)), label: "steps") }
             Divider().frame(height: 32)
             statLink(.distance) { StatBlock(value: FitUnitFormat.distance(Int(today.distanceM)), label: "distance") }
             Divider().frame(height: 32)
@@ -249,7 +249,7 @@ struct HomeView: View {
                       label: { FitUnitFormat.energy($0) })
         WeekTrendCard(title: "Steps", metric: .steps, open: open,
                       values: week.map { Int($0.steps) }, goal: Int(goals?.steps ?? 0), dates: dates,
-                      label: { "\($0.formatted()) steps" })
+                      label: { "\(FitUnitFormat.number($0)) steps" })
         WeekTrendCard(title: "Active minutes", metric: .activeMinutes, open: open,
                       values: week.map { Int($0.activeMinutes) }, goal: Int(goals?.activeMinutes ?? 30),
                       dates: dates, label: { "\($0) min" },

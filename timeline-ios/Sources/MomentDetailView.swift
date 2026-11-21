@@ -216,9 +216,14 @@ struct MomentDetailView: View {
     }
 }
 
-/// Metres → "850 m" / "1.2 km" (the Compose `distanceText` shape: km with one decimal from 1 km).
+/// Metres → "850 m" / "1.2 km" (the Compose `distanceText` shape: km with one decimal from 1 km),
+/// the decimal in the user's locale — "1,2 km" in German. ⚠ Never `String(format: "%.1f")`: that is
+/// a point everywhere (`docs/proposals/locale-number-formatting.md`).
 private func distanceText(metres: Int64) -> String {
     if metres < 1000 { return "\(metres) m" }
     let km = Double(metres) / 1000.0
-    return String(format: "%.1f km", km)
+    let figure = km.formatted(
+        .number.precision(.fractionLength(1)).rounded(rule: .toNearestOrAwayFromZero).locale(.autoupdatingCurrent)
+    )
+    return "\(figure) km"
 }

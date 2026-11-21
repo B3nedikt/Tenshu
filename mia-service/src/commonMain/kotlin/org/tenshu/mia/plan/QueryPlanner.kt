@@ -84,6 +84,10 @@ object QueryPlanner {
      */
     private val RUN_VERBS = setOf("run", "start", "trigger", "execute", "fire", "activate")
 
+    private val GENERIC_DEVICE_NOUNS = setOf("device", "devices")
+
+    private const val NAME_THE_DEVICE = "Which one? Name the device — “turn on the kitchen light”."
+
     private val DEVICE_WORDS = setOf(
         "light", "lights", "lamp", "lamps", "plug", "plugs", "socket", "sockets",
         "switch", "switches", "thermostat", "sensor", "sensors", "device", "devices",
@@ -458,7 +462,7 @@ object QueryPlanner {
         val window = TimeGrammar.resolve(words, nowMs, zone)
         val wantsPhotos = words.any { it in PHOTO_WORDS }
         val wantsFiles = words.any { it in FILE_WORDS }
-        val wantsDevices = words.any { it in DEVICE_WORDS }
+        val wantsDevices = words.any { it in DEVICE_WORDS } || commandsADevice(words)
         val wantsFitness = words.any { it in FITNESS_WORDS }
         val wantsPlaces = words.any { it in PLACE_WORDS }
 
@@ -474,7 +478,7 @@ object QueryPlanner {
         val likeContent = likeAnchor(words)
 
         val wantsEvent = words.any { it in CREATE_EVENT_WORDS }
-        val wantsRoutine = words.any { it in ROUTINE_WORDS }
+        val wantsRoutine = words.any { it in ROUTINE_WORDS } || commandsARoutine(words, utterance, quoted)
         val wantsLatest = words.indices.any { isLatestSignal(words, it) }
         val wantsRecall = words.any { it in RECALL_WORDS } || wantsLatest
         // ⚠ An anchor is preferred but not required here, unlike the photo intent: "when did I
@@ -537,7 +541,7 @@ object QueryPlanner {
             // tell me when" is itself an offer, and answering it would walk the user through
             // completing a request this runtime then refuses.
             wantsEvent && withheld -> QueryPlan.ActionWithheld(WITHHELD_EVENT)
-            wantsEvent -> createEvent(words, nowMs, zone)
+            wantsEvent -> createEvent(words, casedTokens(utterance, words), nowMs, zone)
 
             // ⚠ Ahead of the reads for the same reason `wantsEvent` is: "run my evening routine"
             // carries a time word ("evening") and would otherwise be read as a search, quietly
@@ -546,7 +550,7 @@ object QueryPlanner {
             // routine is run it, and its no-verb answer ("I can run a routine for you — try …")
             // is the same offer in another form.
             wantsRoutine && withheld -> QueryPlan.ActionWithheld(WITHHELD_ROUTINE)
-            wantsRoutine -> routineIntent(words)
+            wantsRoutine -> routineIntent(commandWords(words))
 
             quoted != null -> findFilesNamed(quoted)
 
@@ -555,7 +559,7 @@ object QueryPlanner {
             // incidental; "photo" and a bare leftover word are the vaguest signals, so
             // they resolve last. Getting this order wrong is how a router answers a
             // different question confidently (MQ-D4).
-            wantsDevices -> deviceIntent(words, withheld)
+            wantsDevices -> deviceIntent(commandWords(words), withheld)
 
             wantsFitness -> findWorkouts(window, nowMs)
 
@@ -664,6 +668,7 @@ object QueryPlanner {
             if (level == null) {
                 return QueryPlan.NoMatch("How bright should it be? Try “dim the bedroom light to 30 percent”.")
             }
+            if (target.isEmpty()) return QueryPlan.NoMatch(NAME_THE_DEVICE)
             return QueryPlan.ControlDevice(
                 text = target,
                 on = level > 0,
@@ -686,6 +691,9 @@ object QueryPlanner {
         // ⚠⚠ Only the COMMAND is withheld. The question above — "is the kitchen light on" — is a
         // read and stays one, which is the whole of what a read-only runtime owes devices.
         if (withheld) return QueryPlan.ActionWithheld(WITHHELD_DEVICE)
+        // ⚠⚠ A command names its device. "turn on the device" leaves no name once the generic
+        // noun is dropped, and a command with an empty name must never reach the device search.
+        if (text.isEmpty()) return QueryPlan.NoMatch(NAME_THE_DEVICE)
 
         return QueryPlan.ControlDevice(
             text = text,
@@ -701,7 +709,7 @@ object QueryPlanner {
      * creates a wrong *row* that persists, syncs and fires a reminder three weeks later (MQ-D1's
      * amendment). So a missing or impossible start is a question, never "probably now".
      */
-    private fun createEvent(words: List<String>, nowMs: Long, zone: TimeZone): QueryPlan {
+    private fun createEvent(words: List<String>, cased: List<String>, nowMs: Long, zone: TimeZone): QueryPlan {
         val time = EventTimeGrammar.resolve(words, nowMs, zone)
         // ⚠⚠ Ask back only when the request OPENS with its verb ("add …", "can you add …",
         // "remind me …"). A create verb inside a question ("can you recommend a good BOOK") is
@@ -713,7 +721,7 @@ object QueryPlanner {
             )
         }
         val partial = EventTimeGrammar.partial(words, nowMs, zone)
-        val title = eventTitle(words, time?.consumed ?: partial.consumed)
+        val title = eventTitle(words, cased, time?.consumed ?: partial.consumed)
         return checkEvent(
             title = title,
             start = time?.start,
@@ -724,6 +732,59 @@ object QueryPlanner {
             alternative = time?.alternative,
         )
     }
+
+    /**
+     * ⚠⚠ **A command's shape names a device, whatever the device is called** (§25.14). A device's
+     * name is the user's, so no noun list covers it: "turn on the bulb", "switch off the fan" and
+     * "dim the desk bulb to 30 percent" carry no word from [DEVICE_WORDS], and planned as reads
+     * they became a file search for "bulb". The shape is the verb opening the request:
+     * "turn"/"switch" with exactly one of on/off, "dim"/"brighten", or "set" with a level heard
+     * ("set a reminder" is not a device). ⚠ "put" stays out: "put on some music" is no device.
+     */
+    private fun commandsADevice(words: List<String>): Boolean {
+        val opened = words.dropWhile { it in COMMAND_LEAD_INS }
+        return when (opened.firstOrNull()) {
+            "turn", "switch" -> opened.any { it in TURN_ON_WORDS } != opened.any { it in TURN_OFF_WORDS }
+            "dim", "brighten" -> true
+            "set" -> levelOf(opened) != null
+            else -> false
+        }
+    }
+
+    /**
+     * ⚠⚠ **A run verb opening the request names a routine, whatever the routine is called** — the
+     * routine twin of [commandsADevice] (§25.15). A routine's name is the user's: "run evening
+     * lights" carries no word from [ROUTINE_WORDS], and its "lights" made it a device command that
+     * could only ask "on or off?". ⚠ Device nouns do not veto it (routine names are full of them);
+     * any other source's noun does, so "start a workout" and "run the photo backup" keep their
+     * reading. ⚠ Something must be left to name: "run yesterday" is a question about running.
+     * ⚠⚠ The verb must stand **outside** a quoted phrase: `"Run Lola Run"` is a file's name, and
+     * this arm runs ahead of the quoted one (Codex review). `run "evening lights"` still runs.
+     */
+    private fun commandsARoutine(words: List<String>, utterance: String, quoted: String?): Boolean {
+        if (quoted != null) {
+            val head = tokenize(utterance.substring(0, utterance.indexOfFirst { it == '"' || it == '“' }))
+            if (head.dropWhile { it in COMMAND_LEAD_INS }.firstOrNull() !in RUN_VERBS) return false
+        }
+        val opened = words.dropWhile { it in COMMAND_LEAD_INS }
+        if (opened.firstOrNull() !in RUN_VERBS) return false
+        val rest = opened.drop(1)
+        if (rest.any { it in ROUTINE_VETO_WORDS }) return false
+        return leftoverText(rest) != null
+    }
+
+    /** The nouns that name another source — a run verb before one of these is not a routine. */
+    private val ROUTINE_VETO_WORDS by lazy {
+        FITNESS_WORDS + PHOTO_WORDS + FILE_WORDS + PLACE_WORDS + CALENDAR_READ_WORDS + CREATE_EVENT_WORDS
+    }
+
+    /**
+     * The command without its opening lead-ins, so "hey mia turn on the bulb" names "bulb" and not
+     * "hey mia bulb" — the lead-ins [commandsADevice] and [commandsARoutine] skip are no part of a
+     * name either (Codex review, §25.15).
+     */
+    private fun commandWords(words: List<String>): List<String> =
+        words.dropWhile { it in COMMAND_LEAD_INS }.ifEmpty { words }
 
     /** Polite lead-ins a command may open with before its verb. */
     private val COMMAND_LEAD_INS = setOf("please", "can", "could", "would", "will", "you", "hey", "mia", "ok", "okay")
@@ -801,6 +862,20 @@ object QueryPlanner {
      * ⚠⚠ `null` when the reply does not parse as the param. The caller then plans the reply as a
      * new question, so "actually, what's on tomorrow" is answered rather than asked again.
      */
+    /**
+     * "never mind" while Mia's question is open: the user is declining, not asking something new.
+     *
+     * ⚠⚠ The whole reply, never a word in it: "no, at 9" answers the question, and "cancel my
+     * dentist" is a request. Found on the first phone pass (§25.13): "never mind" fell through to
+     * the catch-all and searched file names for it.
+     */
+    fun isDismissal(reply: String): Boolean = tokenize(reply).joinToString(" ") in DISMISSALS
+
+    private val DISMISSALS = setOf(
+        "never mind", "nevermind", "cancel", "forget it", "no", "nope", "no thanks", "stop",
+        "skip", "leave it", "don't", "dont", "not now",
+    )
+
     fun answerClarification(clarify: QueryPlan.Clarify, reply: String, nowMs: Long, zone: TimeZone): QueryPlan? {
         if (clarify.op != SaveEvent.ID) return null
         val title = clarify.heard[SaveEvent.Params.TITLE] as? String
@@ -943,24 +1018,28 @@ object QueryPlanner {
      * a *title* is free text the user will read back — "lunch with anna" must not become
      * "lunch anna". The two look like the same operation and are not.
      */
-    private fun eventTitle(words: List<String>, consumed: Set<Int>): String? {
+    private fun eventTitle(words: List<String>, cased: List<String>, consumed: Set<Int>): String? {
         // ⚠ The first request verb only: "add book club tomorrow at 7" keeps its "book".
         val verb = words.indexOfFirst { it in CREATE_EVENT_WORDS }
-        val remaining = words.filterIndexed { i, _ -> i != verb && i !in consumed }
-            // ⚠ The request's own scaffolding at the front: "remind me to call mum", "add an event
-            // dentist", "schedule a call". Only while something is left, so "add a meeting at 10"
-            // stays "meeting".
-            .dropWhileKeepingOne { it in TITLE_SCAFFOLD }
-        return remaining.joinToString(" ").trim().takeIf { it.length >= MIN_TEXT_LENGTH }
+        // ⚠⚠ Politeness only BEFORE the verb: "please add a dentist appointment" drops its
+        // "please", but "add Can we talk tomorrow" keeps its "Can" (Codex review). Matched as a
+        // title-prefix word it could not tell the two apart.
+        val kept = words.indices.filter { it != verb && it !in consumed && !(it < verb && words[it] in POLITE_LEAD_INS) }
+        // ⚠ The request's own scaffolding at the front: "remind me to call mum", "add an event
+        // dentist", "schedule a call". Only while something is left, so "add a meeting at 10"
+        // stays "meeting".
+        var start = 0
+        while (start < kept.size - 1 && words[kept[start]] in TITLE_SCAFFOLD) start++
+        // ⚠⚠ Matched on the lowercased words, written from the user's own: the title is what the
+        // card shows and the calendar keeps, so "dinner with Anna" must not become "… anna".
+        return kept.drop(start).joinToString(" ") { cased[it] }.trim().takeIf { it.length >= MIN_TEXT_LENGTH }
     }
 
     private val TITLE_SCAFFOLD = setOf("me", "to", "a", "an", "event", "appointment", "reminder")
 
-    private fun List<String>.dropWhileKeepingOne(predicate: (String) -> Boolean): List<String> {
-        var start = 0
-        while (start < size - 1 && predicate(this[start])) start++
-        return drop(start)
-    }
+    // ⚠ "please" / "can you": politeness before the request verb is not title ("please add a
+    // dentist appointment" was stored as "please a dentist appointment", §25.13).
+    private val POLITE_LEAD_INS = setOf("please", "can", "could", "would", "will", "you")
 
     private fun findDevices(text: String) = QueryPlan.FindDevices(
         text = text,
@@ -1194,6 +1273,18 @@ object QueryPlanner {
             .map { it.trim('.', '\'', '’', '"', '“', '”', '(', ')') }
             .filter { it.isNotEmpty() }
 
+    /**
+     * [tokenize] without the lowercasing: the same tokens at the same positions, in the user's own
+     * case. Falls back to [words] in the rare case lowercasing changed where a token splits.
+     */
+    private fun casedTokens(utterance: String, words: List<String>): List<String> {
+        val cased = utterance
+            .split(' ', '\t', '\n', '\r', ',', ';', '?', '!')
+            .map { it.trim('.', '\'', '’', '"', '“', '”', '(', ')') }
+            .filter { it.isNotEmpty() }
+        return if (cased.size == words.size && cased.indices.all { cased[it].lowercase() == words[it] }) cased else words
+    }
+
     /** The contents of the first `"…"` or `“…”` pair, if the user quoted anything. */
     private fun quotedPhrase(utterance: String): String? {
         val open = utterance.indexOfFirst { it == '"' || it == '“' }
@@ -1234,8 +1325,10 @@ object QueryPlanner {
         return QueryPlan.RunRoutine(text = text, explanation = "Run “$text”")
     }
 
+    // ⚠ The kind words stay ("kitchen light" names a light), but the generic noun names nothing:
+    // "what devices do I have" searched for a device called "devices" (§25.13).
     private fun deviceText(words: List<String>): String =
-        words.filterNot { it in STOP_WORDS || TimeGrammar.isTimeWord(it) }
+        words.filterNot { it in STOP_WORDS || it in GENERIC_DEVICE_NOUNS || TimeGrammar.isTimeWord(it) }
             .joinToString(" ")
             .trim()
 

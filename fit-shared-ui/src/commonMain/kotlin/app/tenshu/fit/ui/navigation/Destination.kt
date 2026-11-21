@@ -12,7 +12,8 @@ import kotlinx.serialization.Serializable
  * push/pop.
  *
  * The five [TopLevel] destinations are the `AdaptiveNavScaffold` bar items (Record is the
- * emphasized centre item); the detail destinations (workout / category / medical) and the
+ * emphasized centre item on a phone, and a bottom-end FAB instead of a rail item on wider
+ * windows — fit-app.md §18.20); the detail destinations (workout / category / medical) and the
  * always-dark [RecordLive] are pushed full-screen with their own back bar and no nav
  * chrome. Onboarding is a separate gate above this shell (D5), not a destination here.
  */

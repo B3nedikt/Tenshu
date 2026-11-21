@@ -308,6 +308,7 @@ val platformProxyModule = module {
                     embeddings = get(),
                     faces = get(),
                     arrivals = get(),
+                    pets = petTemplatesIfPetsRunHere(),
                 )
             },
             cryptoManager = get(),
@@ -322,7 +323,7 @@ val platformProxyModule = module {
 
     single<SemanticMergerRegistry> {
         SemanticMergerRegistry().apply {
-            register(FolderMerger())
+            register(FolderMerger(fileDatabase = get<FileDatabase>()))
             register(DailyActivityMerger())
             // Calendar: the union of a series' deleted occurrences, and a
             // dismissal that a concurrent snooze cannot undo.
@@ -657,6 +658,19 @@ val platformProxyModule = module {
         )
     }
 
+    // Pets PT-3 (`photos-pets.md` §2): RF-DETR on every photograph — its OWN instance, never the face
+    // backend's veto detector, which runs under that backend's lock — then DINOv2-S's CLS half, over the
+    // face path's own decode. ⚠ Inert until `PET_RECOGNITION` is on (absence = no) AND both models are
+    // installed or side-loaded (`rfdetr-nano-coco-int8.onnx`, `dinov2-small-zeroshot.onnx`).
+    single<org.tenshu.inference.proxy.PetBackend> {
+        val root = androidContext().filesDir
+        org.tenshu.inference.proxy.PixelPetBackend(
+            decoder = org.tenshu.inference.proxy.onnx.AndroidFaceImageDecoder,
+            detector = OnnxAnimalDetector(locate = OnnxModelFiles.animalDetectorStoreLocator(get(), root)),
+            embedder = org.tenshu.inference.proxy.onnx.OnnxPetEmbedder(locate = OnnxModelFiles.petEmbedderStoreLocator(get(), root)),
+        )
+    }
+
     // Server-side preview cache (`docs/tech-debt.md` §"File Previews Are
     // Regenerated From the Full File on Every Access"). Persistent
     // `<filesDir>/.previews/` store — the on-device cure for the
@@ -859,7 +873,7 @@ val platformProxyModule = module {
                 },
             )
             initIdentityService()
-            initNotificationService()
+            initNotificationService(tombstoneEmitterHolder = emitterHolder)
             initTimelineService(mergerRegistry)
             initHealthService()
             // ⚠ The corroboration source is the timeline's moments (§10.12): a pair of adjacent
@@ -1392,6 +1406,10 @@ val platformProxyModule = module {
                     // `ProxyModule`); while its clustering is `Uncalibrated`, `faceGroups` answers
                     // `UNCALIBRATED` rather than "nobody is here".
                     faceGrouping = get(),
+                    // Pets PT-3b: the pet ops over the SAME `pets.log` the indexer writes; absent where pets
+                    // cannot run, so there is no `petGroups` op rather than an empty one.
+                    petGrouping = petGroupingIfPetsRunHere(),
+                    petBackend = getOrNull(),
                 )
                 // Cross-app open (control-cross-app-open.md). Control pushes the
                 // request straight in when the handler is connected, and otherwise hands the

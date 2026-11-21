@@ -50,8 +50,6 @@ interface NativeMiaGrant {
   // A `MiaSource` name: 'FILES' | 'TIMELINE' | 'FITNESS' | 'PLACES' | 'DEVICES' | 'ROUTINES' | …
   readonly source: string
   readonly read: boolean
-  // null where nothing can write the source.
-  readonly write: boolean | null
 }
 
 type NativeMiaOk<T> = ({ readonly ok: true } & T) | NativeFailure
@@ -80,13 +78,10 @@ interface MiaInstance {
 
   // What the planner may read, as the proxy reads it per question.
   grants(): Promise<NativeMiaOk<{ readonly grants: NativeMiaGrant[] }>>
-  // Native Settings' switches (`MiaGrantsRepository.setGranted` / `setWritable`): the realm row,
-  // then the whole set read back. Refused, nothing written: an unknown source
-  // (`error_mia_unknown_source`), a write switch on a source with no write tier
-  // (`error_mia_no_write_grant`).
+  // Native Settings' switch (`MiaGrantsRepository.setGranted`): the realm row, then the whole set
+  // read back. Refused, nothing written: an unknown source (`error_mia_unknown_source`).
   // `grants: null` = written, but the read-back failed: re-read (the push follows). `ok: false` = nothing written.
   setGranted(source: string, granted: boolean): Promise<NativeMiaOk<{ readonly grants: NativeMiaGrant[] | null }>>
-  setWritable(source: string, granted: boolean): Promise<NativeMiaOk<{ readonly grants: NativeMiaGrant[] | null }>>
   observeGrants(
     callback: (result: NativeMiaOk<{ readonly grants: NativeMiaGrant[] }>) => void,
     onError: (message: string) => void,

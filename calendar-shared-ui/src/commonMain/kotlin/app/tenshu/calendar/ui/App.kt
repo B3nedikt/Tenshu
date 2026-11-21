@@ -100,6 +100,9 @@ import org.tenshu.calendar.common.recurrence.ResolvedOccurrence
 import app.tenshu.ui.legal.OpenSourceLicencesListItem
 import app.tenshu.ui.legal.OpenSourceLicencesScreen
 import app.tenshu.ui.legal.AppPrivacyPolicyListItem
+import app.tenshu.calendar.shared.resources.calendar_app_title
+import app.tenshu.calendar.shared.resources.calendar_calendars
+import app.tenshu.calendar.shared.resources.calendar_new_event
 
 /**
  * Calendar's app root — the month/agenda surface plus the event editor.
@@ -511,13 +514,13 @@ private fun CalendarPane(
           // the bar: the bar is where you are, the banner is what is wrong.
           Column {
             AppTopAppBar(
-                title = "Calendar",
+                title = stringResource(Res.string.calendar_app_title),
                 actions = {
                     if (wide) {
                         // ⚠ Same rule as the FAB (`CalendarCreateButton`): creates on
                         // the *selected* day, not today.
                         IconButton(onClick = { onCreate(state.selectedDate) }) {
-                            Icon(Icons.Default.Add, contentDescription = "New event")
+                            Icon(Icons.Default.Add, contentDescription = stringResource(Res.string.calendar_new_event))
                         }
                     }
                     // ⚠ Dropped once the sidebar is up: it carries its own "Manage
@@ -525,7 +528,7 @@ private fun CalendarPane(
                     // in one window is how a user learns to distrust both.
                     if (!showSidebar) {
                         IconButton(onClick = onManageCalendars) {
-                            Icon(Icons.Default.DateRange, contentDescription = "Calendars")
+                            Icon(Icons.Default.DateRange, contentDescription = stringResource(Res.string.calendar_calendars))
                         }
                     }
                 },
@@ -601,7 +604,7 @@ private fun CalendarsPane(
         modifier = modifier.fillMaxSize(),
         topBar = {
             Column {
-                AppTopAppBar(title = "Calendars", onBack = onClose)
+                AppTopAppBar(title = stringResource(Res.string.calendar_calendars), onBack = onClose)
                 ControlBanner()
             }
         },

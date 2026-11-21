@@ -52,7 +52,12 @@
     "heading": "Vos applis. Vos données. Votre contrôle.",
     "lede": "Tenshu est un écosystème d’applications open source dont vous gardez le contrôle.",
     "ledeLine2": "La confidentialité par défaut.",
-    "learnMore": "En savoir plus"
+    "learnMore": "En savoir plus",
+    "appsLabel": "Apps Tenshu",
+    "laptopAlt": "{name} sur un ordinateur portable",
+    "phoneAlt": "{name} sur un téléphone",
+    "pause": "Pause",
+    "play": "Lecture"
   },
   "block2": {
     "heading": "Comment fonctionnent les géants de la tech aujourd’hui.",

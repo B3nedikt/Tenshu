@@ -11,6 +11,8 @@ import org.tenshu.core.entity.DataId
 import org.tenshu.core.entity.Entity
 import org.tenshu.core.file.notifications.FolderAddedNotification
 import org.tenshu.core.file.system.createFolder
+import org.tenshu.core.common.relation.relationReference
+import org.tenshu.core.notifications.AppRegisteredNotification
 import org.tenshu.core.notifications.Notification
 import org.tenshu.core.notifications.NotificationService
 import org.tenshu.file.client.fileService
@@ -106,6 +108,68 @@ class NotificationSyncSystemTest {
             system.shutdown()
         }
     }
+
+    /**
+     * `control-central-notifications.md` §10 D2: a prune on the device that writes notifications must
+     * reach the others. ⚠⚠ `deleteData` alone deletes locally only, and a catching-up device never
+     * prunes on ingest — so without the tombstone every peer kept every row for ever.
+     */
+    @Test fun prunedNotification_isRemovedOnThePairedDeviceToo() = runBlocking {
+        val system = TestSystem.builder().build()
+        try {
+            val (host, joiner) = pairedHostAndJoiner(system)
+            val rows = 201
+            repeat(rows) { i ->
+                host.executionContext.saveData(
+                    AppRegisteredNotification.create(
+                        context = host.executionContext.context,
+                        uuid = "retention-$i",
+                        timestamp = 1_000_000L + i,
+                        appName = "App $i",
+                    )
+                )
+            }
+
+            // The oldest goes on the host (the cap), and its tombstone takes it off the joiner.
+            system.advanceUntil(timeout = 30.seconds) {
+                "retention-0" !in host.executionContext.notificationUuids() &&
+                    "retention-200" in joiner.executionContext.notificationUuids() &&
+                    "retention-0" !in joiner.executionContext.notificationUuids()
+            }
+            assertTrue("retention-1" in joiner.executionContext.notificationUuids(), "the rest stay on the joiner")
+        } finally {
+            system.shutdown()
+        }
+    }
+
+    private suspend fun pairedHostAndJoiner(system: TestSystem): Pair<TestClient, TestClient> {
+        val host = system.client("host", TestClientRole.RealmHost)
+        val joiner = system.client("joiner", TestClientRole.JoiningDevice)
+        host.bootstrapAsHost(deviceName = "Host Tablet")
+        host.tenshuClient.syncService.startPairing()
+        val parsed = PairingUri.parse(host.syncManager.getPairingString()!!)
+        joiner.tenshuClient.syncService.initiatePairing(
+            ownerId = parsed.ownerId,
+            pairingSecret = parsed.secret,
+            deviceName = "Joiner Phone",
+            otherDevicePublicKey = parsed.hostPairingPublicKey
+        )
+        val request = host.tenshuClient.syncService.getPendingPairingRequests()
+            .let { it.valueOrFail("getPendingPairingRequests")!!.toList().single() }
+        host.tenshuClient.syncService.approvePairingRequest(request.deviceId.get())
+        system.advanceUntil(timeout = 15.seconds) {
+            val status = joiner.tenshuClient.syncService.getPairingStatus(
+                pairingSecret = parsed.secret,
+                otherDevicePublicKey = parsed.hostPairingPublicKey
+            )
+            status is TResult.Success && status.value?.get() == true
+        }
+        return host to joiner
+    }
+
+    private fun ExecutionContext.notificationUuids(): Set<String> =
+        getArrayData(relationReference(NotificationService.Relations.NOTIFICATIONS))?.toList().orEmpty()
+            .filterIsInstance<Notification>().map { it.uuid.get() }.toSet()
 
     /**
      * Read the joiner's notification relation as paths. The relation array

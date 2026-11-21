@@ -2,6 +2,7 @@ package org.tenshu.core.common.proxy
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
@@ -268,6 +269,18 @@ class ExecutionContext(
     fun removeDatabaseListener(streamId: Long) {
         streamRegistry.removeDatabaseListener(executionContext = this, streamId = streamId)
     }
+
+    /**
+     * Runs [block] on [sessionScope] as the feeder of the push stream [streamId], ended with that
+     * stream ([StreamRegistry.ownStreamJob]): its `EndStream`, a resubscribe of the same id, or the
+     * session's end cancels it. ⚠ Started only once bound, so it cannot finish before it is owned.
+     * For a stream that stays open; one that ends by itself may still use it.
+     */
+    fun launchStreamJob(streamId: Long, block: suspend CoroutineScope.() -> Unit): Job =
+        sessionScope.launch(start = CoroutineStart.LAZY, block = block).also { job ->
+            streamRegistry.ownStreamJob(streamId, job)
+            job.start()
+        }
 
     fun withEvaluationScope(
         scope: CoroutineScope,

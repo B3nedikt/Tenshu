@@ -397,6 +397,8 @@
 
     <!-- Data section — control-ia.md §5. -->
     <string name="data_title">Data</string>
+    <!-- The bar / rail's first tab (App.kt navLabel); the others reuse their screen titles. -->
+    <string name="control_nav_home">Home</string>
     <string name="data_shares_title">Shares</string>
     <string name="data_shares_subtitle">Links you've shared from your realm</string>
     <string name="data_empty">Nothing stored yet. Data from your Tenshu apps will show up here.</string>

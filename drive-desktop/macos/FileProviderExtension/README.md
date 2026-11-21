@@ -68,6 +68,12 @@ What was measured on 2026-10-04, and what was not:
   same `providerNotFound`: the system has not re-discovered the extension in the freshly copied
   bundle yet. Seen twice on 2026-10-04, seconds after the copy; Drive retries
   (`FinderIntegration.kt`) and a later attempt in the same launch registered.
+- ⚠⚠ **Replacing the bundle unregisters the extension** (2026-11-19). After `rm -rf` + `cp -R`
+  into `/Applications` (`scripts/reinstall-all-apps.sh`), `pluginkit -m -i
+  app.tenshu.drive.ios.fileprovider` was empty even after `lsregister -f`; `fileproviderd` could
+  not start the extension and parked the domain with FP -1004 "couldn't connect to the server"
+  although Control was up. `pluginkit -a <appex>` re-registers it, and Drive's next launch
+  un-parks Finder. The reinstall script now does both.
 - ⚠ **Not established:** whether `Contents/Helpers` would also work when Drive spawns it (from a
   shell the daemon saw `calling bundle (null)` there and a non-null bundle from `Contents/MacOS`,
   which is why it lives in `Contents/MacOS`), and whether a Drive run out of the build directory

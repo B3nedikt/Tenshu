@@ -64,7 +64,6 @@ import org.tenshu.mia.proxy.MiaActionRegistry
 import org.tenshu.mia.proxy.MiaChainValidator
 import org.tenshu.mia.proxy.CalendarSlots
 import org.tenshu.mia.proxy.PendingMiaAction
-import org.tenshu.mia.proxy.canWrite
 import org.tenshu.mia.proxy.dispatchOperationForResult
 import org.tenshu.mia.proxy.QueryPlanLowering
 import org.tenshu.mia.proxy.readMiaGrants
@@ -445,6 +444,19 @@ internal class AskMiaImplementation(
      * ⚠ A quoted phrase or an explicit "file"/"document" is a positive signal, so `viaCatchAll` is
      * false there and those searches stand.
      */
+    /**
+     * ⚠⚠ Whether a reply that answered no open question still reads as a question of its own
+     * (§25.14). One the grammar can only answer with the catch-all or a no-match — "kitchen" to
+     * *"Which “bulb” did you mean?"* — is a missed answer, and planned as a new question it became
+     * a file search for "kitchen". The caller asks again instead.
+     *
+     * ⚠⚠ Read with every source granted: [QueryPlanner.plan] turns a question about a source that is
+     * switched off into a `NoMatch`, and that is a recognised question, not a missed answer. It is
+     * answered, grants and all, by `answerUtterance` (Codex review).
+     */
+    internal fun readsAsANewQuestion(utterance: String, nowMs: Long, zoneId: String): Boolean =
+        !isSecondGuessable(QueryPlanner.plan(utterance, nowMs, zoneOf(zoneId), actionOffer))
+
     private fun isSecondGuessable(plan: QueryPlan): Boolean = when (plan) {
         is QueryPlan.NoMatch -> true
         is QueryPlan.FindFilesNamed -> plan.viaCatchAll
@@ -597,12 +609,14 @@ internal class AskMiaImplementation(
         plan: QueryPlan.CreateEvent,
         zone: TimeZone,
     ): MiaAnswer {
-        if (!executionContext.canWrite(MiaSource.CALENDAR)) {
+        // ⚠ The calendar grant, read again here: a reply can complete an event after the user
+        // turned Calendar off, and that revocation must hold. There is no separate write switch
+        // (removed 2026-11-19): MQ-D7's card, showing the resolved row, is the gate for a write.
+        if (MiaSource.CALENDAR !in executionContext.readMiaGrants()) {
             return answer(
                 executionContext,
                 MiaAnswer.VERDICT_NO_MATCH,
-                "I'm not allowed to add things to your calendar — you can turn that on in " +
-                    "Mia's settings.",
+                "I'm not allowed to use your calendar — you can turn that back on in Mia's settings.",
             )
         }
 
@@ -1239,12 +1253,14 @@ internal class AskMiaImplementation(
 
     /** Why a calendar write would be refused, or `null` when it would not. */
     private fun calendarRefusal(executionContext: ExecutionContext): MiaAnswer? {
-        if (!executionContext.canWrite(MiaSource.CALENDAR)) {
+        // ⚠ The calendar grant, read again here: a reply can complete an event after the user
+        // turned Calendar off, and that revocation must hold. There is no separate write switch
+        // (removed 2026-11-19): MQ-D7's card, showing the resolved row, is the gate for a write.
+        if (MiaSource.CALENDAR !in executionContext.readMiaGrants()) {
             return answer(
                 executionContext,
                 MiaAnswer.VERDICT_NO_MATCH,
-                "I'm not allowed to add things to your calendar — you can turn that on in " +
-                    "Mia's settings.",
+                "I'm not allowed to use your calendar — you can turn that back on in Mia's settings.",
             )
         }
         if (CalendarSlots.defaultCalendar(executionContext) == null) {

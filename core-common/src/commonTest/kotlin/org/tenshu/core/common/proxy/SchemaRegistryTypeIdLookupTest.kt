@@ -5,6 +5,8 @@ import org.tenshu.core.common.module.ModuleConfigurationImpl
 import org.tenshu.core.common.util.idToUuid
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+import kotlin.test.assertFailsWith
 
 /**
  * `SchemaRegistry.getTypeId(ByteArray)` — the by-bytes type-id lookup the binary parser hits once
@@ -45,21 +47,32 @@ class SchemaRegistryTypeIdLookupTest {
         assertEquals(registry.getTypeId(a), registry.getTypeId(b))
     }
 
+    /** The same id from two modules is one mapping, not a clash: every module registers its prerequisites' ids. */
     @Test
-    fun theLastRegisteredConfigWinsADuplicatedMapping() {
-        // ⚠⚠ PRECEDENCE, and it is inverted from the loop this replaced. The old code was
-        // `configs.asReversed().firstNotNullOfOrNull { … }` — last-registered wins. An index built
-        // in reversed order would resolve a duplicated type id to the WRONG type, silently, and
-        // nothing about the resulting parse failure would point at this lookup.
+    fun theSameIdRegisteredTwiceResolves() {
         val registry = createCoreTestRegistry()
-        val bytes = idToUuid("tenshu/test/duplicated")
+        val id = "tenshu/test/duplicated"
+        registry.registerConfig(ModuleConfigurationImpl().apply { typeMapping[idToUuid(id)] = id })
+        registry.registerConfig(ModuleConfigurationImpl().apply { typeMapping[idToUuid(id)] = id })
 
-        val first = ModuleConfigurationImpl().apply { typeMapping[bytes] = "first-wins-if-broken" }
-        val second = ModuleConfigurationImpl().apply { typeMapping[bytes] = "last-must-win" }
-        registry.registerConfig(first)
-        registry.registerConfig(second)
+        assertEquals(id, registry.getTypeId(idToUuid(id)))
+    }
 
-        assertEquals("last-must-win", registry.getTypeId(bytes))
+    /**
+     * ⚠⚠ **Two ids on one set of bytes are refused** (threat model T-SP-02). Every production mapping
+     * is `idToUuid(id) → id`, so this can only be an MD5 collision, and the wire could not tell the two
+     * apart. It used to resolve to the last-registered id, silently. Simulated by mapping one id's
+     * bytes to another id, since no two valid id strings are known to collide.
+     */
+    @Test
+    fun twoIdsOnTheSameBytesAreRefused() {
+        val registry = createCoreTestRegistry()
+        val bytes = idToUuid("tenshu/test/one")
+        registry.registerConfig(ModuleConfigurationImpl().apply { typeMapping[bytes] = "tenshu/test/one" })
+        registry.registerConfig(ModuleConfigurationImpl().apply { typeMapping[bytes] = "tenshu/test/other" })
+
+        val failure = assertFailsWith<IllegalStateException> { registry.getTypeId(bytes) }
+        assertTrue(failure.message!!.contains("tenshu/test/other"), failure.message)
     }
 
     @Test

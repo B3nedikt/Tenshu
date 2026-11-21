@@ -243,7 +243,9 @@ private fun MainShell(appViewModel: AppViewModel, openTargets: Flow<DataId>) {
             icon = navIcon(destination),
             label = navLabel(destination),
             selected = current == destination,
-            emphasized = destination == Destination.Record,
+            // A phone keeps Record as the emphasized centre bar item; a rail drops it for a
+            // bottom-end "+ Record" FAB, because in a rail it reads as a place (fit-app.md §18.20).
+            primaryAction = destination == Destination.Record,
             onClick = { selectTop(destination) },
         )
     }
@@ -281,6 +283,10 @@ private fun MainShell(appViewModel: AppViewModel, openTargets: Flow<DataId>) {
     AdaptiveNavScaffold(
         navItems = navItems,
         showNav = current is Destination.TopLevel,
+        // ⚠ Home and History only (fit-app.md §18.20): the screens about workouts. Browse is the
+        // imported health data and Profile is settings — a Record FAB there would cover their rows
+        // and say the screen is about something it is not.
+        showPrimaryActionFab = current == Destination.Home || current == Destination.History,
         // ⚠⚠ **Bottom only** (§18.15). Every screen carries a `FitTopBar`, and a `TopAppBar`
         // applies `TopAppBarDefaults.windowInsets` itself — so a shell that also supplied the top
         // would double-pad every screen in the app.
@@ -511,7 +517,7 @@ private fun NavContent(
 
 private const val RECORD_VM_KEY = "fit_record"
 
-private fun navIcon(destination: Destination.TopLevel): ImageVector = when (destination) {
+internal fun navIcon(destination: Destination.TopLevel): ImageVector = when (destination) {
     Destination.Home -> FitIcons.Home
     Destination.History -> FitIcons.History
     Destination.Record -> FitIcons.Plus
@@ -520,7 +526,7 @@ private fun navIcon(destination: Destination.TopLevel): ImageVector = when (dest
 }
 
 @Composable
-private fun navLabel(destination: Destination.TopLevel): String = stringResource(
+internal fun navLabel(destination: Destination.TopLevel): String = stringResource(
     when (destination) {
         Destination.Home -> Res.string.fit_nav_home
         Destination.History -> Res.string.fit_history_title

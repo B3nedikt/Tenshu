@@ -286,6 +286,7 @@
     <string name="device_revoke_dialog_cancel">Abbrechen</string>
 
     <string name="data_title">Daten</string>
+    <string name="control_nav_home">Start</string>
     <string name="data_shares_title">Freigaben</string>
     <string name="data_shares_subtitle">Links, die du aus deinem Realm geteilt hast</string>
     <string name="data_empty">Noch nichts gespeichert. Daten aus deinen Tenshu-Apps erscheinen hier.</string>

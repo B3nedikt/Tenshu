@@ -86,6 +86,7 @@ Always-relevant guidance for writing platform-shaped code.
 - [`how-to/play-console-answers.md`](how-to/play-console-answers.md) — the Play Console answers per app, task by task, and the Data safety CSVs.
 - [`oss-licences.md`](oss-licences.md) — the open-source notices every app and the web ship (AboutLibraries, generated per binary), the map-data credits, and the licence audit. ⚠⚠ The basemap chip is a map's only OSM credit.
 - [`proposals/store-presence-and-support-pages.md`](proposals/store-presence-and-support-pages.md) — everything a store listing needs, listing text as files, generated screenshots, and the public support page per app, platform and language.
+- [`proposals/store-screenshot-stories.md`](proposals/store-screenshot-stories.md) — **Plan, no code.** One 3–5 frame story per app (Drive, Photos, Calendar, Contacts, Fit), desktop captures (automated windows, manual Finder/tray), seeded content owed; feeds the apex hero. ⚠ A platform's set drops a frame its build doesn't ship — never capture a flagged-off screen.
 - [`proposals/desktop-macos-distribution.md`](proposals/desktop-macos-distribution.md) — getting the macOS apps to users: Developer ID + notarization first, one suite `.pkg`, lockstep updates; the Mac App Store assessed and deferred. ⚠ Every Mach-O must be re-signed by our team, including dylibs inside jars.
 - [`proposals/desktop-windows-port.md`](proposals/desktop-windows-port.md) — Control on Windows: DPAPI key store, peer gate, tray, autostart, toasts/reminders; the Microsoft Store (MSIX) first, which also serves `winget --source msstore`, and a SignPath-signed per-machine MSI later. ⚠⚠ The transport is AF_UNIX, not named pipes. ⚠⚠ A per-user install cannot be protected by any certificate — the gate pins package identity or signer + `%ProgramFiles%`, never a signer alone.
 
@@ -279,6 +280,7 @@ renumbered in 2026-08-13 to break the collision.
 - [`adr/0014-proxy-session-lifecycle-teardown.md`](adr/0014-proxy-session-lifecycle-teardown.md) — proxy session lifecycle: owned scope + deterministic suspend teardown.
 - [`adr/0015-loop-db-stream-unification.md`](adr/0015-loop-db-stream-unification.md) — event-driven array listeners + channel-based sync emit.
 - [`adr/0016-localisation.md`](adr/0016-localisation.md) — CMP resources + react-i18next, ICU MessageFormat, proxy emits codes.
+- [`proposals/locale-number-formatting.md`](proposals/locale-number-formatting.md) — figures in the user's language: `LocaleNumbers` (`:core-common`, Compose facade in `:ui-core`) and the one binary byte formatter. ⚠ Never `"$whole.$tenth"` / `String(format: "%.1f")`.
 - [`adr/0017-file-content-two-plane-channel.md`](adr/0017-file-content-two-plane-channel.md) — file-content sync via a two-plane channel (manifest + on-demand chunks).
 - [`adr/0018-file-sharing-mode-a.md`](adr/0018-file-sharing-mode-a.md) — file sharing Mode A: anonymous link sharing via capability URL.
 - [`adr/0019-storage-capacity-gating.md`](adr/0019-storage-capacity-gating.md) — storage capacity gating: account-and-fits, enforced at the op.

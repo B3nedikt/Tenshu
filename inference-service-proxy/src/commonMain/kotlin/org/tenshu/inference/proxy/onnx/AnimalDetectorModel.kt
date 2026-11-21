@@ -50,6 +50,20 @@ class AnimalDetectorModel(
             byteSize = 28_806_262L,
             minConfidence = 0.3f,
         )
+
+        /**
+         * The same checkpoint for iOS Pets (`photos-pets.md` PT-4, §10.13): Core ML fp16 from torch fp32, by
+         * `scripts/inference/export-coreml-pets.py` — never Android's int8. ⚠ The same id and version, as the
+         * face embedder's Core ML twin keeps AuraFace's: one checkpoint under several runtimes (the signer's
+         * rule). End-to-end template parity with Android: median 0.989, min 0.8695.
+         */
+        val RfDetrNanoCoreMl = AnimalDetectorModel(
+            modelId = "rfdetr-nano-coco-int8",
+            modelVersion = 1,
+            sha256 = "ed3df77920ca3f235ae82451e32770dc15188f0def52f8ca6b39452dca63b8ce",
+            byteSize = 54_077_440L,
+            minConfidence = 0.3f,
+        )
     }
 }
 

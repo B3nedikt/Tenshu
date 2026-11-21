@@ -69,6 +69,49 @@ import app.tenshu.calendar.ui.CalendarInteropViewModel
 import app.tenshu.calendar.ui.CalendarManagementViewModel
 import app.tenshu.calendar.ui.ExternalCopyViewModel
 import app.tenshu.calendar.ui.external.rememberDeviceCalendarAccess
+import app.tenshu.calendar.shared.resources.Res
+import app.tenshu.calendar.shared.resources.calendar_cancel
+import app.tenshu.calendar.shared.resources.calendar_colour
+import app.tenshu.calendar.shared.resources.calendar_copy_from_device
+import app.tenshu.calendar.shared.resources.calendar_default_for_new
+import app.tenshu.calendar.shared.resources.calendar_delete
+import app.tenshu.calendar.shared.resources.calendar_delete_message
+import app.tenshu.calendar.shared.resources.calendar_delete_title
+import app.tenshu.calendar.shared.resources.calendar_details_hidden
+import app.tenshu.calendar.shared.resources.calendar_edit_calendar
+import app.tenshu.calendar.shared.resources.calendar_hide_details
+import app.tenshu.calendar.shared.resources.calendar_hide_details_note
+import app.tenshu.calendar.shared.resources.calendar_import_export
+import app.tenshu.calendar.shared.resources.calendar_make_default
+import app.tenshu.calendar.shared.resources.calendar_mirror_from_elsewhere
+import app.tenshu.calendar.shared.resources.calendar_mirror_from_here
+import app.tenshu.calendar.shared.resources.calendar_mirror_not_updated
+import app.tenshu.calendar.shared.resources.calendar_mirror_updated
+import app.tenshu.calendar.shared.resources.calendar_more_for
+import app.tenshu.calendar.shared.resources.calendar_name
+import app.tenshu.calendar.shared.resources.calendar_new_calendar
+import app.tenshu.calendar.shared.resources.calendar_no_calendars
+import app.tenshu.calendar.shared.resources.calendar_pause_updates
+import app.tenshu.calendar.shared.resources.calendar_refresh_now
+import app.tenshu.calendar.shared.resources.calendar_remind_too
+import app.tenshu.calendar.shared.resources.calendar_resume_updates
+import app.tenshu.calendar.shared.resources.calendar_save
+import app.tenshu.calendar.shared.resources.calendar_stop_reminders
+import app.tenshu.calendar.shared.resources.calendar_stop_syncing
+import app.tenshu.calendar.shared.resources.calendar_subscribe
+import app.tenshu.calendar.shared.resources.calendar_subscribe_address
+import app.tenshu.calendar.shared.resources.calendar_subscribe_disclosure
+import app.tenshu.calendar.shared.resources.calendar_subscribe_name
+import app.tenshu.calendar.shared.resources.calendar_subscribe_placeholder
+import app.tenshu.calendar.shared.resources.calendar_subscribe_title
+import app.tenshu.calendar.shared.resources.calendar_subscribed
+import app.tenshu.calendar.shared.resources.calendar_subscription_paused
+import app.tenshu.calendar.shared.resources.calendar_unsubscribe
+import app.tenshu.calendar.ui.external.DeviceKind
+import app.tenshu.calendar.ui.external.word
+import org.jetbrains.compose.resources.stringResource
+import app.tenshu.calendar.ui.CalendarProblem
+import app.tenshu.calendar.ui.i18n.text
 
 /**
  * The calendars screen (CA-5f).
@@ -113,7 +156,7 @@ fun CalendarsScreen(
                 // speed dial: subscribing is the rarer action, and a speed dial
                 // would hide the common one behind a tap.
                 SmallFloatingActionButton(onClick = viewModel::startSubscribing) {
-                    Icon(Icons.Default.Refresh, contentDescription = "Subscribe to a calendar")
+                    Icon(Icons.Default.Refresh, contentDescription = stringResource(Res.string.calendar_subscribe_title))
                 }
                 copyFromPhone?.let { copy ->
                     SmallFloatingActionButton(
@@ -126,13 +169,13 @@ fun CalendarsScreen(
                         },
                     ) {
                         Icon(
-                            if (deviceCalendars.deviceName == "phone") Icons.Default.PhoneAndroid else Icons.Default.Computer,
-                            contentDescription = "Copy a calendar from this ${deviceCalendars.deviceName}",
+                            if (deviceCalendars.deviceKind == DeviceKind.PHONE) Icons.Default.PhoneAndroid else Icons.Default.Computer,
+                            contentDescription = stringResource(Res.string.calendar_copy_from_device, deviceCalendars.deviceKind.word()),
                         )
                     }
                 }
                 FloatingActionButton(onClick = viewModel::startCreating) {
-                    Icon(Icons.Default.Add, contentDescription = "New calendar")
+                    Icon(Icons.Default.Add, contentDescription = stringResource(Res.string.calendar_new_calendar))
                 }
             }
         },
@@ -141,19 +184,19 @@ fun CalendarsScreen(
             when {
                 state.isLoading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                 state.calendars.isEmpty() -> Text(
-                    state.errorMessage ?: "No calendars yet.",
+                    state.problem?.text() ?: stringResource(Res.string.calendar_no_calendars),
                     Modifier.align(Alignment.Center).padding(24.dp),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                else -> CalendarList(state, viewModel, interopViewModel, deviceName = deviceCalendars.deviceName)
+                else -> CalendarList(state, viewModel, interopViewModel, deviceKind = deviceCalendars.deviceKind)
             }
         }
     }
 
     state.draft?.let { draft ->
         ModalBottomSheet(onDismissRequest = viewModel::dismissDraft) {
-            CalendarDraftSheet(draft, state.draftError, viewModel)
+            CalendarDraftSheet(draft, state.draftProblem, viewModel)
         }
     }
 
@@ -181,23 +224,23 @@ fun CalendarsScreen(
 private fun SubscribeDialog(draft: SubscribeDraft, viewModel: CalendarManagementViewModel) {
     M3AlertDialog(
         onDismissRequest = viewModel::dismissSubscribe,
-        title = { Text("Subscribe to a calendar") },
+        title = { Text(stringResource(Res.string.calendar_subscribe_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = draft.url,
                     onValueChange = viewModel::setSubscribeUrl,
-                    label = { Text("Calendar address") },
-                    placeholder = { Text("https://… or webcal://…") },
+                    label = { Text(stringResource(Res.string.calendar_subscribe_address)) },
+                    placeholder = { Text(stringResource(Res.string.calendar_subscribe_placeholder)) },
                     singleLine = true,
-                    isError = draft.error != null,
-                    supportingText = draft.error?.let { { Text(it) } },
+                    isError = draft.problem != null,
+                    supportingText = draft.problem?.let { { Text(it.text()) } },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     value = draft.name,
                     onValueChange = viewModel::setSubscribeName,
-                    label = { Text("Name (optional)") },
+                    label = { Text(stringResource(Res.string.calendar_subscribe_name)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -207,10 +250,7 @@ private fun SubscribeDialog(draft: SubscribeDraft, viewModel: CalendarManagement
                 // owns the calendar, so nothing you add to it survives. "About every 6 hours on
                 // Wi-Fi" is SUBSCRIPTION_REFRESH_PERIOD_MS + NETWORK_UNMETERED, as iOS says it.
                 Text(
-                    "Tenshu will fetch this address about every 6 hours on Wi-Fi. The " +
-                        "publisher will see your device's IP address and that you follow this " +
-                        "calendar — each of your devices checks for itself. The calendar it " +
-                        "creates is read-only: an update replaces whatever is in it.",
+                    stringResource(Res.string.calendar_subscribe_disclosure),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -218,11 +258,11 @@ private fun SubscribeDialog(draft: SubscribeDraft, viewModel: CalendarManagement
         },
         confirmButton = {
             TextButton(onClick = viewModel::commitSubscribe, enabled = !draft.isSaving) {
-                Text("Subscribe")
+                Text(stringResource(Res.string.calendar_subscribe))
             }
         },
         dismissButton = {
-            TextButton(onClick = viewModel::dismissSubscribe) { Text("Cancel") }
+            TextButton(onClick = viewModel::dismissSubscribe) { Text(stringResource(Res.string.calendar_cancel)) }
         },
     )
 }
@@ -232,7 +272,7 @@ private fun CalendarList(
     state: CalendarManagementUiState,
     viewModel: CalendarManagementViewModel,
     interopViewModel: CalendarInteropViewModel?,
-    deviceName: String = "phone",
+    deviceKind: DeviceKind = DeviceKind.PHONE,
 ) {
     LazyColumn(Modifier.fillMaxSize()) {
         items(state.calendars, key = { it.calendarId }) { calendar ->
@@ -255,7 +295,7 @@ private fun CalendarList(
                 onRefreshMirror = viewModel::refreshMirrorNow,
                 onMirrorReminders = viewModel::setMirrorReminders,
                 onStopMirror = viewModel::stopMirror,
-                deviceName = deviceName,
+                deviceKind = deviceKind,
             )
             HorizontalDivider()
         }
@@ -280,7 +320,7 @@ private fun CalendarRow(
     onRefreshMirror: (String) -> Unit = {},
     onMirrorReminders: (String, Boolean) -> Unit = { _, _ -> },
     onStopMirror: (String) -> Unit = {},
-    deviceName: String = "phone",
+    deviceKind: DeviceKind = DeviceKind.PHONE,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
 
@@ -301,21 +341,21 @@ private fun CalendarRow(
         Column(Modifier.weight(1f)) {
             Text(calendar.name, style = MaterialTheme.typography.bodyLarge)
             val notes = buildList {
-                if (isDefault) add("Default for new events")
+                if (isDefault) add(stringResource(Res.string.calendar_default_for_new))
                 // ⚠ Surfaced on the row, not only in the sheet: a calendar whose
                 // reminders are redacted should say so where you can see every
                 // calendar at once, or the setting is invisible until you go
                 // looking for it.
-                if (calendar.sensitive) add("Details hidden on lock screen")
+                if (calendar.sensitive) add(stringResource(Res.string.calendar_details_hidden))
                 // ⚠ A subscribed calendar says so on the row: everything in it is
                 // read-only and a refresh will overwrite it, which the user has to
                 // be able to see without opening anything.
                 subscription?.let {
-                    add(if (it.enabled) "Subscribed" else "Subscription paused")
+                    add(if (it.enabled) stringResource(Res.string.calendar_subscribed) else stringResource(Res.string.calendar_subscription_paused))
                 }
                 // ⚠ CX-1b: where it is kept in sync from, and how fresh it is — on every device,
                 // because only one can refresh it and the others must be able to see it going stale.
-                mirror?.let { add(mirrorNote(it, deviceName)) }
+                mirror?.let { add(mirrorNote(it, deviceKind)) }
             }
             if (notes.isNotEmpty()) {
                 Text(
@@ -331,18 +371,18 @@ private fun CalendarRow(
         // starts competing with the row's own tap target.
         Box {
             IconButton(onClick = { menuOpen = true }) {
-                Icon(Icons.Default.MoreVert, contentDescription = "More for ${calendar.name}")
+                Icon(Icons.Default.MoreVert, contentDescription = stringResource(Res.string.calendar_more_for, calendar.name))
             }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                 if (!isDefault && !calendar.readOnly) {
                     DropdownMenuItem(
-                        text = { Text("Make default") },
+                        text = { Text(stringResource(Res.string.calendar_make_default)) },
                         onClick = { menuOpen = false; onMakeDefault() },
                     )
                 }
                 onInterop?.let { open ->
                     DropdownMenuItem(
-                        text = { Text("Import or export…") },
+                        text = { Text(stringResource(Res.string.calendar_import_export)) },
                         onClick = { menuOpen = false; open() },
                     )
                 }
@@ -351,18 +391,18 @@ private fun CalendarRow(
                 // `canDelete`'s KDoc carries why.
                 subscription?.let { feed ->
                     DropdownMenuItem(
-                        text = { Text("Refresh now") },
+                        text = { Text(stringResource(Res.string.calendar_refresh_now)) },
                         onClick = { menuOpen = false; onRefreshFeeds() },
                     )
                     DropdownMenuItem(
-                        text = { Text(if (feed.enabled) "Pause updates" else "Resume updates") },
+                        text = { Text(if (feed.enabled) stringResource(Res.string.calendar_pause_updates) else stringResource(Res.string.calendar_resume_updates)) },
                         onClick = {
                             menuOpen = false
                             onToggleSubscription(feed.subscriptionId, !feed.enabled)
                         },
                     )
                     DropdownMenuItem(
-                        text = { Text("Unsubscribe") },
+                        text = { Text(stringResource(Res.string.calendar_unsubscribe)) },
                         onClick = { menuOpen = false; onUnsubscribe(feed.subscriptionId) },
                     )
                 }
@@ -370,15 +410,15 @@ private fun CalendarRow(
                     // ⚠ Only where the source is: no other device can read it.
                     if (synced.boundHere) {
                         DropdownMenuItem(
-                            text = { Text("Refresh now") },
+                            text = { Text(stringResource(Res.string.calendar_refresh_now)) },
                             onClick = { menuOpen = false; onRefreshMirror(synced.mirrorId) },
                         )
                     }
                     DropdownMenuItem(
                         text = {
                             Text(
-                                if (synced.remindersEnabled) "Stop Tenshu reminders"
-                                else "Remind me from Tenshu too",
+                                if (synced.remindersEnabled) stringResource(Res.string.calendar_stop_reminders)
+                                else stringResource(Res.string.calendar_remind_too),
                             )
                         },
                         onClick = {
@@ -389,7 +429,7 @@ private fun CalendarRow(
                     // ⚠ Keeps the events — the calendar becomes an ordinary, editable one. *Delete*
                     // below still removes calendar and sync together.
                     DropdownMenuItem(
-                        text = { Text("Stop syncing (keep events)") },
+                        text = { Text(stringResource(Res.string.calendar_stop_syncing)) },
                         onClick = { menuOpen = false; onStopMirror(synced.mirrorId) },
                     )
                 }
@@ -399,7 +439,7 @@ private fun CalendarRow(
                 // longer exists.
                 if (canDelete && subscription == null) {
                     DropdownMenuItem(
-                        text = { Text("Delete") },
+                        text = { Text(stringResource(Res.string.calendar_delete)) },
                         onClick = { menuOpen = false; onDelete() },
                     )
                 }
@@ -412,7 +452,7 @@ private fun CalendarRow(
 @Composable
 private fun CalendarDraftSheet(
     draft: CalendarDraft,
-    error: String?,
+    problem: CalendarProblem?,
     viewModel: CalendarManagementViewModel,
 ) {
     Column(
@@ -420,22 +460,22 @@ private fun CalendarDraftSheet(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text(
-            if (draft.isCreating) "New calendar" else "Edit calendar",
+            if (draft.isCreating) stringResource(Res.string.calendar_new_calendar) else stringResource(Res.string.calendar_edit_calendar),
             style = MaterialTheme.typography.titleLarge,
         )
 
         OutlinedTextField(
             value = draft.name,
             onValueChange = viewModel::setDraftName,
-            label = { Text("Name") },
+            label = { Text(stringResource(Res.string.calendar_name)) },
             singleLine = true,
-            isError = error != null,
-            supportingText = error?.let { { Text(it) } },
+            isError = problem != null,
+            supportingText = problem?.let { { Text(it.text()) } },
             modifier = Modifier.fillMaxWidth(),
         )
 
         Column {
-            Text("Colour", style = MaterialTheme.typography.labelLarge)
+            Text(stringResource(Res.string.calendar_colour), style = MaterialTheme.typography.labelLarge)
             FlowRow(
                 Modifier.fillMaxWidth().padding(top = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -477,9 +517,9 @@ private fun CalendarDraftSheet(
         // *happens*, not what the flag is called.
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Hide details on the lock screen", style = MaterialTheme.typography.bodyLarge)
+                Text(stringResource(Res.string.calendar_hide_details), style = MaterialTheme.typography.bodyLarge)
                 Text(
-                    "Reminders for this calendar show only \"Reminder\" — no title, no location.",
+                    stringResource(Res.string.calendar_hide_details_note),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -488,8 +528,8 @@ private fun CalendarDraftSheet(
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = viewModel::dismissDraft) { Text("Cancel") }
-            AssistChip(onClick = viewModel::saveDraft, label = { Text("Save") })
+            TextButton(onClick = viewModel::dismissDraft) { Text(stringResource(Res.string.calendar_cancel)) }
+            AssistChip(onClick = viewModel::saveDraft, label = { Text(stringResource(Res.string.calendar_save)) })
         }
     }
 }
@@ -501,23 +541,22 @@ private fun DeleteCalendarDialog(
 ) {
     AlertDialog(
         onDismissRequest = viewModel::dismissDelete,
-        title = { Text("Delete \"${target.name}\"?") },
+        title = { Text(stringResource(Res.string.calendar_delete_title, target.name)) },
         // ⚠⚠ Names the consequence rather than asking "are you sure": the op
         // cascades to every event in the calendar, and this is the only action in
         // the app with no undo.
         text = {
             Text(
-                "Every event in this calendar will be deleted on all your devices. " +
-                    "This cannot be undone."
+                stringResource(Res.string.calendar_delete_message)
             )
         },
         confirmButton = {
             TextButton(onClick = viewModel::confirmDelete) {
-                Text("Delete", fontWeight = FontWeight.Bold)
+                Text(stringResource(Res.string.calendar_delete), fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
-            TextButton(onClick = viewModel::dismissDelete) { Text("Cancel") }
+            TextButton(onClick = viewModel::dismissDelete) { Text(stringResource(Res.string.calendar_cancel)) }
         },
     )
 }
@@ -528,11 +567,20 @@ private fun DeleteCalendarDialog(
  * ⚠ The device's own zone is read here, for display only: this is presentation of an instant,
  * not a calendar time, and nothing is computed from it.
  */
-private fun mirrorNote(mirror: CalendarMirrorSummary, deviceName: String): String {
-    val from = if (mirror.boundHere) "Kept in sync from this $deviceName" else "Kept in sync from another device"
-    if (mirror.lastRefreshedEpochMs <= 0L) return "$from · not updated yet"
+@Composable
+private fun mirrorNote(mirror: CalendarMirrorSummary, deviceKind: DeviceKind): String {
+    val from = if (mirror.boundHere) {
+        stringResource(Res.string.calendar_mirror_from_here, deviceKind.word())
+    } else {
+        stringResource(Res.string.calendar_mirror_from_elsewhere)
+    }
+    if (mirror.lastRefreshedEpochMs <= 0L) return stringResource(Res.string.calendar_mirror_not_updated, from)
     val local = kotlin.time.Instant.fromEpochMilliseconds(mirror.lastRefreshedEpochMs)
         .toLocalDateTime(TimeZone.currentSystemDefault())
-    return "$from · updated ${CalendarDateFormat.mediumDate(local.date)}, " +
-        CalendarDateFormat.shortTime(local.time)
+    return stringResource(
+        Res.string.calendar_mirror_updated,
+        from,
+        CalendarDateFormat.mediumDate(local.date),
+        CalendarDateFormat.shortTime(local.time),
+    )
 }

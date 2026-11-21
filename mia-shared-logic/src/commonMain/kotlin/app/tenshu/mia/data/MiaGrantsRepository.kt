@@ -21,15 +21,7 @@ interface MiaGrantsRepository {
     /** The currently-granted sources; emits again when the user flips a switch. */
     fun granted(): Flow<Set<MiaSource>>
 
-    /**
-     * The sources Mia may also **write** (MQ-D6 as amended). ⚠ Only ever a subset of
-     * [granted] — write without read is unsatisfiable and is never offered.
-     */
-    fun writable(): Flow<Set<MiaSource>>
-
     suspend fun setGranted(source: MiaSource, granted: Boolean)
-
-    suspend fun setWritable(source: MiaSource, granted: Boolean)
 }
 
 /**
@@ -52,21 +44,6 @@ class TenshuMiaGrantsRepository(
         return combine(flows) { values ->
             MiaSource.entries.filterIndexedTo(mutableSetOf()) { index, _ -> values[index] }
         }
-    }
-
-    override fun writable(): Flow<Set<MiaSource>> {
-        val preferences = service ?: return flowOf(emptySet())
-        val writables = MiaSource.entries.filter { it.writable }
-        if (writables.isEmpty()) return flowOf(emptySet())
-        val flows = writables.map { source -> preferences.read(source.writePreference!!) }
-        return combine(flows) { values ->
-            writables.filterIndexedTo(mutableSetOf()) { index, _ -> values[index] }
-        }
-    }
-
-    override suspend fun setWritable(source: MiaSource, granted: Boolean) {
-        val preference = source.writePreference ?: return
-        service?.set(preference, granted)
     }
 
     override suspend fun setGranted(source: MiaSource, granted: Boolean) {

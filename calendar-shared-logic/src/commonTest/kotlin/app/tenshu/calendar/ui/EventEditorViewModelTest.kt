@@ -1150,8 +1150,8 @@ class EventEditorViewModelTest {
         val state = model.uiState.value
         assertFalse(state.saved)
         assertFalse(state.isSaving)
-        assertNotNull(state.errorMessage)
-        assertEquals("no calendar", state.errorMessage)
+        assertEquals(CalendarProblem.Failed(CalendarAction.SAVE), state.problem)
+        assertEquals("Could not save", state.errorMessage)
     }
 
     // --- reminder defaults (CA-5e) --------------------------------------------

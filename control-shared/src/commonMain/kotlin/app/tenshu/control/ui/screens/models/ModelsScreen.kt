@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material.icons.filled.ImageSearch
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.AlertDialog
@@ -59,9 +60,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.tenshu.control.ui.screens.offlinemaps.SectionHeader
-import app.tenshu.control.ui.screens.offlinemaps.formatBytes
 import app.tenshu.ui.chrome.AppListItem
 import app.tenshu.ui.chrome.AppTopAppBar
+import app.tenshu.ui.format.LocaleNumbers
 import app.tenshu.ui.layout.appContentWidth
 import org.tenshu.inference.InferenceCapability
 
@@ -73,8 +74,8 @@ import org.tenshu.inference.InferenceCapability
  * ⚠⚠ **This is the only route by which a model reaches a device.**
  *
  * ⚠ Strings are inline, matching the Offline maps and Errors entries — this expert surface is not
- * localised. ⚠ `formatBytes` is reused from the Offline maps screen rather than
- * copied: same module, and it already has tests.
+ * localised — but its sizes are figures, so they go through `LocaleNumbers.bytes` (the one byte
+ * formatter) and read `8,3 MB` in German.
  */
 @Composable
 fun ModelsScreen(
@@ -436,7 +437,9 @@ private fun devices(count: Int, other: Boolean = false): String {
  *
  * ⚠⚠ A switch that changes nothing is a claim the product cannot keep, so `FACE_CLUSTERING` appears
  * only where [faceClusteringRunsHere] — a build fact, deliberately not inferred from the catalog,
- * which cannot tell "this platform cannot" from "the catalog is unreachable".
+ * which cannot tell "this platform cannot" from "the catalog is unreachable". ⚠ `PET_RECOGNITION`
+ * runs exactly where faces do (Android; macOS desktop — `photos-pets.md` §10.9), so the same fact
+ * gates it.
  *
  * ⚠ Search is always shown. ⚠⚠ And a switch that is **on** is
  * never hidden, for [showsDeviceRow]'s reason: a live consent must stay visible and withdrawable.
@@ -446,7 +449,7 @@ internal fun visibleConsents(
     runsFaces: Boolean = faceClusteringRunsHere,
 ): List<CapabilityConsent> =
     consents.filter { consent ->
-        consent.capability != InferenceCapability.FACE_CLUSTERING ||
+        (consent.capability != InferenceCapability.FACE_CLUSTERING && consent.capability != InferenceCapability.PET_RECOGNITION) ||
             runsFaces || consent.realm || consent.device
     }
 
@@ -480,11 +483,13 @@ internal fun otherDeviceSupportingText(realm: Boolean, other: OtherDeviceConsent
 internal fun consentHeadline(capability: InferenceCapability): String = when (capability) {
     InferenceCapability.SEMANTIC_IMAGE_SEARCH -> "Search photos by description"
     InferenceCapability.FACE_CLUSTERING -> "Group photos by people"
+    InferenceCapability.PET_RECOGNITION -> "Recognise your pets"
     else -> capability.id
 }
 
 internal fun consentIcon(capability: InferenceCapability): ImageVector = when (capability) {
     InferenceCapability.FACE_CLUSTERING -> Icons.Default.Face
+    InferenceCapability.PET_RECOGNITION -> Icons.Default.Pets
     else -> Icons.Default.ImageSearch
 }
 
@@ -505,6 +510,12 @@ internal fun featureDescription(capability: InferenceCapability): String = when 
         "Find faces in your photos and group them so you can name people. Face data is made on " +
             "each device you allow and never leaves it. Only the names you type sync to your " +
             "devices. Turning this off deletes the face data and keeps the names."
+    // `photos-pets.md` §4: not special-category, but the same custody and the same three statements —
+    // where the pet data lives, that only typed names travel, and what switching off removes.
+    InferenceCapability.PET_RECOGNITION ->
+        "Find your cats and dogs in your photos so you can name them. Pet data is made on each " +
+            "device you allow and never leaves it. Only the names you type sync to your devices. " +
+            "Turning this off deletes the pet data and keeps the names."
     else -> ""
 }
 
@@ -775,7 +786,7 @@ internal fun storeReadOnlyNotice(why: StoreReadOnly): String = when (why) {
  */
 internal fun removeConfirmationText(model: ModelRow, spaceReturns: ModelsCapabilities.SpaceReturns): String {
     // ⚠ The record's own size: what is on this device, whatever the catalog now offers.
-    val size = formatBytes((model.setup as? ModelSetup.Held)?.model?.onDeviceBytes ?: 0L)
+    val size = LocaleNumbers.bytes((model.setup as? ModelSetup.Held)?.model?.onDeviceBytes ?: 0L)
     val space = when (spaceReturns) {
         ModelsCapabilities.SpaceReturns.AT_NEXT_START ->
             "Its $size is released the next time Control starts."
@@ -822,7 +833,7 @@ internal fun supportingTextFor(setup: ModelSetup, removing: Boolean = false, sta
     if (removing) return "Removing…"
     return when (setup) {
         is ModelSetup.Absent -> {
-            val size = formatBytes(setup.model.downloadBytes)
+            val size = LocaleNumbers.bytes(setup.model.downloadBytes)
             if (starting) "Starting… · $size" else size.with(setup.last?.let(::downloadSaidText))
         }
         is ModelSetup.Fetching -> downloadingText(setup.download)
@@ -831,13 +842,13 @@ internal fun supportingTextFor(setup: ModelSetup, removing: Boolean = false, sta
             // before it does. Then whatever the row offered a download of: an update, or a file
             // that is missing.
             (setup.update as? ModelSetup.Update.Fetching)?.let { return downloadingText(it.download) }
-            if (starting) return "Starting… · ${formatBytes(setup.model.onDeviceBytes)}"
-            val standing = standingText(setup.standing, formatBytes(setup.model.onDeviceBytes))
+            if (starting) return "Starting… · ${LocaleNumbers.bytes(setup.model.onDeviceBytes)}"
+            val standing = standingText(setup.standing, LocaleNumbers.bytes(setup.model.onDeviceBytes))
             when (val update = setup.update) {
                 ModelSetup.Update.None, ModelSetup.Update.Unknown -> standing
                 is ModelSetup.Update.Fetching -> downloadingText(update.download)
                 is ModelSetup.Update.Available -> {
-                    val size = formatBytes(update.model.downloadBytes)
+                    val size = LocaleNumbers.bytes(update.model.downloadBytes)
                     val offer = "Update available · $size".with(update.last?.let(::downloadSaidText))
                     // ⚠ A model that is simply installed says only that there is an update; one
                     // that stands anywhere else says where first.
@@ -859,8 +870,8 @@ internal fun supportingTextFor(setup: ModelSetup, removing: Boolean = false, sta
 private fun String.with(more: String?): String = if (more == null) this else "$this · $more"
 
 private fun downloadingText(download: ModelSetup.Download): String {
-    val total = formatBytes(download.totalBytes)
-    val progress = download.writtenBytes?.let { "${formatBytes(it)} of $total" } ?: "Downloading… · $total"
+    val total = LocaleNumbers.bytes(download.totalBytes)
+    val progress = download.writtenBytes?.let { "${LocaleNumbers.bytes(it)} of $total" } ?: "Downloading… · $total"
     return progress.with(download.held?.let(::downloadSaidText))
 }
 
@@ -871,7 +882,7 @@ private fun downloadingText(download: ModelSetup.Download): String {
  */
 internal fun downloadSaidText(said: ModelSetup.DownloadSaid): String? = when (said) {
     is ModelSetup.DownloadSaid.NeedsSpace ->
-        "Needs ${formatBytes(said.neededBytes)} free. This device has ${formatBytes(said.freeBytes)}."
+        "Needs ${LocaleNumbers.bytes(said.neededBytes)} free. This device has ${LocaleNumbers.bytes(said.freeBytes)}."
     ModelSetup.DownloadSaid.FreeSpaceUnknown -> "Couldn't check the free space."
     ModelSetup.DownloadSaid.NoTransport -> "Couldn't start the download just now."
     ModelSetup.DownloadSaid.TransfersUnknown -> "Couldn't check on the download just now."
@@ -904,7 +915,7 @@ internal fun standingText(standing: ModelSetup.Standing, size: String): String =
         ModelSetup.Standing.Preparing.How.Pending -> "Preparing…"
         ModelSetup.Standing.Preparing.How.NotInForeground -> "Preparing goes on when the app is open."
         is ModelSetup.Standing.Preparing.How.Failed -> "Couldn't prepare the model.".let { failed ->
-            how.space?.let { "$failed Needs ${formatBytes(it.neededBytes)} free; this device has ${formatBytes(it.freeBytes)}." }
+            how.space?.let { "$failed Needs ${LocaleNumbers.bytes(it.neededBytes)} free; this device has ${LocaleNumbers.bytes(it.freeBytes)}." }
                 ?: failed
         }
         ModelSetup.Standing.Preparing.How.Incomplete -> "Part of the model is missing. Download it again."

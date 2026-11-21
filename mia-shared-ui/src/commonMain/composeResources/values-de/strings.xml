@@ -31,7 +31,6 @@
     <string name="mia_settings_coming_soon">Demnächst verfügbar</string>
     <string name="mia_settings_grants_title">Was Mia lesen darf</string>
     <string name="mia_settings_grants_body">Mia liest nur, was du erlaubst – App für App. Schaltest du hier etwas aus, nutzt Mia es nicht mehr: Mia kann dann nicht daraus antworten und sagt dir das, statt so zu tun, als gäbe es dort nichts.</string>
-    <string name="mia_settings_grants_write">Mia darf Termine hinzufügen</string>
     <string name="mia_settings_grants_files">Dateien</string>
     <string name="mia_settings_grants_timeline">Timeline</string>
     <string name="mia_settings_grants_fitness">Trainings</string>

@@ -261,6 +261,23 @@ entity is treated as recreated. Standard CRDT tombstone behaviour. The tombstone
 the prior incarnation stays in the registry indefinitely; it's the merge precondition
 for any block with `hlc < tombstone.hlc`.
 
+⚠⚠ **A recreate revives the container, never what it held at the tombstone.** A folder delete
+emits one tombstone, for the folder (ADR 0006 #7); its children's blocks name no tombstone of
+their own, and `Folder.FILES` membership is derived from the child's path. So a folder deleted at
+T and re-created at the same path (`rm -rf` + `rsync` through the macOS File Provider, incident
+2026-11-20) brought its old children back on every peer that saw the tombstone *after* the
+re-create — while the deleting device, which cascaded locally, did not. Two rules close it, both
+the `SubtreeReapOrdering` rule (≤ T dies, > T lives) applied everywhere, not only by a reaper:
+
+- **A superseded tombstone still reaps.** When `processDeleteBlock` keeps the target because it
+  postdates the tombstone, the merger's `reapMembersDeletedAt` removes every member at or below T
+  (recording its reap point) and walks members newer than T. A member with no version yet — a
+  placeholder, which for a joiner is usually a *new* child whose block has not arrived — is kept.
+- **A block is dead when a container died after it.** `resolveConflictAndSave` refuses a block at
+  `hlc ≤ T` of any container up its entity-field relation chain (a tombstone or a reap point), so
+  an old child arriving after the tombstone is refused in any order. A container type no tombstone
+  ever targeted costs one in-memory count. Pinned by `FolderRecreatedOverTombstoneTest`.
+
 #### Ingest-time guard: a tombstone is compared against the entity's last write
 
 The short-circuit above is one direction — *tombstone first, later block second*. The

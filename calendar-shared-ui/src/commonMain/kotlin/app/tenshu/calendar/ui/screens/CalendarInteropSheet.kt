@@ -30,14 +30,44 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.tenshu.calendar.data.CalendarSummary
 import app.tenshu.calendar.data.IcsImportResult
+import app.tenshu.calendar.shared.resources.Res
+import app.tenshu.calendar.shared.resources.calendar_cancel
+import app.tenshu.calendar.shared.resources.calendar_do_something_else
+import app.tenshu.calendar.shared.resources.calendar_done
+import app.tenshu.calendar.shared.resources.calendar_entries_skipped_one
+import app.tenshu.calendar.shared.resources.calendar_entries_skipped_other
+import app.tenshu.calendar.shared.resources.calendar_events_one
+import app.tenshu.calendar.shared.resources.calendar_events_other
+import app.tenshu.calendar.shared.resources.calendar_export_failed
+import app.tenshu.calendar.shared.resources.calendar_export_to_file
+import app.tenshu.calendar.shared.resources.calendar_export_to_file_detail
+import app.tenshu.calendar.shared.resources.calendar_exported
+import app.tenshu.calendar.shared.resources.calendar_import_calendar
+import app.tenshu.calendar.shared.resources.calendar_import_empty_file
+import app.tenshu.calendar.shared.resources.calendar_import_from_file
+import app.tenshu.calendar.shared.resources.calendar_import_from_file_detail
+import app.tenshu.calendar.shared.resources.calendar_import_into_this
+import app.tenshu.calendar.shared.resources.calendar_import_no_target
+import app.tenshu.calendar.shared.resources.calendar_import_nothing
+import app.tenshu.calendar.shared.resources.calendar_import_unreadable
+import app.tenshu.calendar.shared.resources.calendar_import_which
+import app.tenshu.calendar.shared.resources.calendar_imported_one
+import app.tenshu.calendar.shared.resources.calendar_imported_other
+import app.tenshu.calendar.shared.resources.calendar_imported_with_overrides
+import app.tenshu.calendar.shared.resources.calendar_overrides_one
+import app.tenshu.calendar.shared.resources.calendar_overrides_other
+import app.tenshu.calendar.shared.resources.calendar_untitled_calendar_long
+import app.tenshu.calendar.shared.resources.calendar_working
 import app.tenshu.calendar.ui.CalendarInteropUiState
 import app.tenshu.calendar.ui.CalendarInteropViewModel
 import app.tenshu.calendar.ui.InteropProblem
+import app.tenshu.calendar.ui.i18n.countOf
 import app.tenshu.calendar.ui.interop.CalendarFileAccess
 import app.tenshu.calendar.ui.interop.FilePickOutcome
 import app.tenshu.calendar.ui.interop.FileProblem
 import app.tenshu.calendar.ui.interop.FileSaveOutcome
 import app.tenshu.calendar.ui.interop.rememberCalendarFileAccess
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Import and export for one calendar (CA-6b).
@@ -75,7 +105,7 @@ fun CalendarInteropSheet(viewModel: CalendarInteropViewModel) {
                 // the user can use to tell *which* file they just double-clicked, and
                 // a blank title over a list of calendars explains nothing.
                 if (state.choosingCalendar) {
-                    state.pendingImportOrigin.ifBlank { "Import calendar" }
+                    state.pendingImportOrigin.ifBlank { stringResource(Res.string.calendar_import_calendar) }
                 } else {
                     state.calendarName
                 },
@@ -89,7 +119,7 @@ fun CalendarInteropSheet(viewModel: CalendarInteropViewModel) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     CircularProgressIndicator()
-                    Text("Working…", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(Res.string.calendar_working), style = MaterialTheme.typography.bodyMedium)
                 }
 
                 state.choosingCalendar -> CalendarChooser(state.importTargets, viewModel)
@@ -116,7 +146,7 @@ private fun CalendarChooser(
     viewModel: CalendarInteropViewModel,
 ) {
     Text(
-        "Which calendar should these events go into?",
+        stringResource(Res.string.calendar_import_which),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -126,12 +156,12 @@ private fun CalendarChooser(
         // not have been read yet (the file can arrive on a launch where Control is
         // not even running), or every calendar may be subscribed and therefore not
         // something to import into — see the caller.
-        Text("There is no calendar here to import into.", style = MaterialTheme.typography.bodyLarge)
+        Text(stringResource(Res.string.calendar_import_no_target), style = MaterialTheme.typography.bodyLarge)
     } else {
         calendars.forEach { calendar ->
             InteropRow(
-                title = calendar.name.ifBlank { "Untitled calendar" },
-                subtitle = "Add the file's events to this calendar.",
+                title = calendar.name.ifBlank { stringResource(Res.string.calendar_untitled_calendar_long) },
+                subtitle = stringResource(Res.string.calendar_import_into_this),
                 icon = {
                     Box(
                         Modifier.size(16.dp).clip(CircleShape).background(Color(calendar.colorArgb)),
@@ -141,7 +171,7 @@ private fun CalendarChooser(
         }
     }
 
-    TextButton(onClick = viewModel::dismiss) { Text("Cancel") }
+    TextButton(onClick = viewModel::dismiss) { Text(stringResource(Res.string.calendar_cancel)) }
 }
 
 @Composable
@@ -152,8 +182,8 @@ private fun InteropChoices(
 ) {
     // ⚠ Not for a subscribed or mirrored calendar: its next refresh would delete the import.
     if (state.canImport) InteropRow(
-        title = "Import from a file",
-        subtitle = "Add the events in an .ics file to this calendar.",
+        title = stringResource(Res.string.calendar_import_from_file),
+        subtitle = stringResource(Res.string.calendar_import_from_file_detail),
     ) {
         viewModel.pickStarted()
         files.openIcs { outcome ->
@@ -166,8 +196,8 @@ private fun InteropChoices(
     }
 
     InteropRow(
-        title = "Export to a file",
-        subtitle = "Save this calendar as an .ics file you can open anywhere.",
+        title = stringResource(Res.string.calendar_export_to_file),
+        subtitle = stringResource(Res.string.calendar_export_to_file_detail),
         icon = { Icon(Icons.Default.Share, contentDescription = null) },
     ) {
         // ⚠⚠ The text is produced *first*, then the save dialog opens with it —
@@ -214,8 +244,8 @@ private fun InteropResult(state: CalendarInteropUiState, viewModel: CalendarInte
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(state.resultMessage(), style = MaterialTheme.typography.bodyLarge)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = viewModel::acknowledgeResult) { Text("Do something else") }
-            TextButton(onClick = viewModel::dismiss) { Text("Done") }
+            TextButton(onClick = viewModel::acknowledgeResult) { Text(stringResource(Res.string.calendar_do_something_else)) }
+            TextButton(onClick = viewModel::dismiss) { Text(stringResource(Res.string.calendar_done)) }
         }
     }
 }
@@ -225,6 +255,7 @@ private fun InteropResult(state: CalendarInteropUiState, viewModel: CalendarInte
  * when the file held 44 is how a user loses two appointments and never finds out —
  * which is why `IcsImportResult` carries the count at all.
  */
+@Composable
 private fun CalendarInteropUiState.resultMessage(): String {
     // ⚠ Locals, not smart casts: these are public properties of a different
     // module, which Kotlin will not narrow.
@@ -232,30 +263,37 @@ private fun CalendarInteropUiState.resultMessage(): String {
     val imported = lastImport
     return when {
         failure != null -> failure.message()
-        exported -> "Exported."
+        exported -> stringResource(Res.string.calendar_exported)
         imported != null -> imported.message()
         else -> ""
     }
 }
 
-private fun IcsImportResult.message(): String = buildString {
-    append("Imported $imported event")
-    if (imported != 1) append("s")
-    if (overrides > 0) append(" and $overrides changed occurrence${if (overrides == 1) "" else "s"}")
-    append(".")
-    if (skipped > 0) {
-        append(" $skipped entr${if (skipped == 1) "y" else "ies"} could not be read and ")
-        append(if (skipped == 1) "was" else "were")
-        append(" left out.")
+@Composable
+private fun IcsImportResult.message(): String {
+    val main = if (overrides > 0) {
+        stringResource(
+            Res.string.calendar_imported_with_overrides,
+            countOf(imported, Res.string.calendar_events_one, Res.string.calendar_events_other),
+            countOf(overrides, Res.string.calendar_overrides_one, Res.string.calendar_overrides_other),
+        )
+    } else {
+        countOf(imported, Res.string.calendar_imported_one, Res.string.calendar_imported_other)
     }
+    if (skipped == 0) return main
+    return main + " " +
+        countOf(skipped, Res.string.calendar_entries_skipped_one, Res.string.calendar_entries_skipped_other)
 }
 
-private fun InteropProblem.message(): String = when (this) {
-    InteropProblem.EmptyFile -> "That file is empty."
-    InteropProblem.NothingImported -> "Nothing in that file could be read as an event."
-    InteropProblem.ExportFailed -> "Could not write the file."
-    InteropProblem.Unreadable -> "Could not read that file."
-}
+@Composable
+private fun InteropProblem.message(): String = stringResource(
+    when (this) {
+        InteropProblem.EmptyFile -> Res.string.calendar_import_empty_file
+        InteropProblem.NothingImported -> Res.string.calendar_import_nothing
+        InteropProblem.ExportFailed -> Res.string.calendar_export_failed
+        InteropProblem.Unreadable -> Res.string.calendar_import_unreadable
+    },
+)
 
 private fun FileProblem.toInterop(): InteropProblem = when (this) {
     FileProblem.Empty -> InteropProblem.EmptyFile

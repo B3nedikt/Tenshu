@@ -139,6 +139,12 @@ data class CollectionsUiState(
      */
     val peopleStatus: PeopleStatus = PeopleStatus.Unavailable(FaceGroupsUnavailable.Reasons.NO_BACKEND),
     /**
+     * Pets PT-3d (`photos-pets.md` PT-D3): pet recognition is switched on for this device, so the row
+     * is *People & pets* and [people] holds pet cards (id `pet:…`) beside the people. ⚠ `false` — a
+     * user with pets off sees People exactly as before, pet names synced from elsewhere included.
+     */
+    val petsOn: Boolean = false,
+    /**
      * Why a name the user typed did NOT save — `null` when nothing has failed.
      *
      * ⚠⚠ It has its own field rather than folding into [error] or [peopleStatus], because
@@ -929,6 +935,9 @@ class CollectionsViewModel(
         // small device-local read; a failure (or an older Control without the op) costs the folds
         // and the questions, never the section.
         val rejectionsRead = async { bounded("faceSuggestionRejections", timings) { repository.faceSuggestionRejections() } }
+        // Pets PT-3d: their own read, beside faces'. ⚠ Any failure — an older Control without the op
+        // included — costs the pet cards only, never the People row.
+        val petsRead = async { bounded("petGroups", timings) { repository.petGroups(PEOPLE_GROUP_LIMIT) } }
 
         // ⚠⚠ ONE walk for every derived section. The alternative — `photosNear` per place — is an
         // O(files-in-realm) scan each. Here the walk happens once and the grouping is arithmetic.
@@ -1046,6 +1055,29 @@ class CollectionsViewModel(
                     )
                 }
             }
+            // Pets PT-3d (PT-D3): mixed into the same row, named first. ⚠ Only where pet recognition is
+            // ON here, so a user with pets off sees People exactly as before.
+            // ⚠⚠ "On" is read only from answers the proxy gives AFTER its consent check: `Available`,
+            // `NOT_INDEXED`, `UNCALIBRATED`. `NO_BACKEND` is answered BEFORE it (`FaceGroupsImplementation`
+            // asks for the backend first), so it says nothing about consent — counting it as "on" drew
+            // pet cards on a device with pets off and no pet models.
+            val pets = petsRead.await()
+            val petStatus = pets?.second
+            val petsOn = petStatus == PeopleStatus.Available ||
+                (petStatus as? PeopleStatus.Unavailable)?.reason in CONSENTED_PET_REFUSALS
+            val petCards = if (!petsOn || pets == null) {
+                emptyList()
+            } else {
+                derived {
+                    val byPath = everything.associateBy { photo -> photo.path }
+                    petAlbums(
+                        petGroups = pets.first.withoutEditedCovers(byPath),
+                        petLabels = labels.filter { label -> label.capability == InferenceCapability.PET_RECOGNITION.id },
+                        byPath = byPath,
+                    )
+                }
+            }
+            val mixed = if (petCards.isEmpty()) people else mixPeopleAndPets(people, petCards)
             // ⚠ Keyed by the card the answer is given on: a question on the unnamed group's card, a
             // fold on the NAME's card (where its photographs now are). Only cards on screen.
             val shown = people.mapTo(HashSet()) { it.id }
@@ -1054,8 +1086,9 @@ class CollectionsViewModel(
                 .filterKeys { it in shown }
             _state.update {
                 it.copy(
-                    people = people,
+                    people = mixed,
                     peopleStatus = peopleStatus,
+                    petsOn = petsOn,
                     nameSuggestions = suggestions,
                     // ⚠⚠ The naming fields are NOT cleared here: a refresh is how a naming
                     // failure's own state gets to the screen — see [nameFailure].
@@ -1233,7 +1266,13 @@ class CollectionsViewModel(
     /** [nameGroup]'s write and verdicts, over exactly [paths]. */
     private fun name(smartId: String, paths: List<String>, typed: String) {
         viewModelScope.launch {
-            val outcome = repository.nameFaceGroup(paths, typed)
+            // ⚠⚠ A pet card names a pet (`petRecognition`), never a person — routed by the id this
+            // screen minted (`pet:`), which also holds for a card restored from the snapshot.
+            val outcome = if (smartId.startsWith(PET_ID_PREFIX)) {
+                repository.namePetGroup(paths, typed)
+            } else {
+                repository.nameFaceGroup(paths, typed)
+            }
             // ⚠⚠ The verdict FIRST, then the re-read — and the re-read happens on every
             // outcome, not only on success. A person spanning several calls can be half named
             // when a later one is refused, and those rows are already durable and synced; not
@@ -1343,6 +1382,12 @@ class CollectionsViewModel(
          * strangers out, and raising this would not substitute for it.
          */
         private const val PEOPLE_GROUP_LIMIT = 200
+
+        /** The `petGroups` refusals that come after the proxy's consent check, and so prove consent. */
+        private val CONSENTED_PET_REFUSALS = setOf(
+            FaceGroupsUnavailable.Reasons.NOT_INDEXED,
+            FaceGroupsUnavailable.Reasons.UNCALIBRATED,
+        )
 
         /** How long the library must be quiet before a change is walked for — a burst is one walk. */
         const val CHANGE_SETTLE_MS = 500L

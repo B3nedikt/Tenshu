@@ -170,6 +170,9 @@ class StreamRegistry {
     private fun isLive(streamId: Long, registration: Any) = guarded { streamIdToRegistration[streamId] === registration }
     private val streamIdToDeferredJobs = mutableMapOf<Long, MutableSet<Job>>()
 
+    /** The job a push stream's implementation runs for each stream id — see [ownStreamJob]. Under [state]. */
+    private val streamIdToOwnedJob = mutableMapOf<Long, Job>()
+
     // Dedupe: one in-flight resolution per (stream, row, property). A later
     // re-evaluation that re-writes the same marker while a resolution runs
     // must not double-resolve; once the patch lands the key clears and a
@@ -626,9 +629,28 @@ class StreamRegistry {
             )
         )
 
+    /**
+     * Binds [job] — the coroutine a **push** stream's implementation runs to feed [streamId] — to the
+     * stream's lifetime: it is cancelled when the stream's `EndStream` arrives
+     * ([removeDatabaseListener], which every `EndStream` reaches) and when the session ends ([clear]).
+     *
+     * ⚠⚠ Without it a push stream that stays open leaks: `EndStream` tears down only database
+     * listeners, so the implementation's own collector would go on sending to a dead stream id for
+     * the life of the session — once per subscribe (`inference-service.md` §30.2).
+     * ⚠ A second job for the same id (a resubscribe) cancels the first: one id, one feeder.
+     */
+    fun ownStreamJob(streamId: Long, job: Job) {
+        val previous: Job? = guarded { streamIdToOwnedJob.put(streamId, job) }
+        // Cancelled outside the lock: a cancellation runs completion handlers, which take it again.
+        if (previous !== job) previous?.cancel()
+        job.invokeOnCompletion { guarded { if (streamIdToOwnedJob[streamId] === job) streamIdToOwnedJob.remove(streamId) } }
+    }
+
     fun removeDatabaseListener(executionContext: ExecutionContext, streamId: Long) {
         executionContext.clientConnection.forgetStream(streamId)
         var jobs: List<Job> = emptyList()
+        val owned: Job? = guarded { streamIdToOwnedJob.remove(streamId) }
+        owned?.cancel()
         val wasRegistered = guarded {
             streamIdToRegistration.remove(streamId)
             val wasRegistered = streamIdToRef.remove(streamId) != null
@@ -650,6 +672,7 @@ class StreamRegistry {
         guarded {
             streamIdToDeferredJobs.keys.toList().flatMap { dropDeferredResolutions(it) }
         }.forEach { it.cancel() }
+        guarded { streamIdToOwnedJob.values.toList().also { streamIdToOwnedJob.clear() } }.forEach { it.cancel() }
         guarded { clearLocked() }
     }
 

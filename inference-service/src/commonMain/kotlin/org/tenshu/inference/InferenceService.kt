@@ -30,7 +30,9 @@ interface InferenceService : Service {
         val Schema: ServiceSchema = service(
             id = ID,
             // v1 = release baseline (`core-schema-evolution.md` Appendix A).
-            version = 1,
+            // v2 = Pets PT-3b: the four pet operations (`photos-pets.md` §3); empty migration step.
+            // v3 = `peopleIndexChanges`, People & pets' revision stream (`photos-pets.md` §10.19); empty step.
+            version = 3,
             relations = listOf(
                 serviceDataRelation(
                     id = Relations.LABELS,

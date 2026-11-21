@@ -12,6 +12,8 @@ data class FileUiModel(
     // Carried so row clicks can branch folder-vs-file without holding the
     // domain model — the paged list only ever sees FileUiModel.
     val isFolder: Boolean = false,
+    /** A folder's child count — see [FileModel.Folder.childCount]. */
+    val childCount: Long? = null,
 )
 
 fun FileModel.toUiModel(): FileUiModel {
@@ -22,5 +24,6 @@ fun FileModel.toUiModel(): FileUiModel {
         previewIcon = previewIcon,
         previewBytes = previewBytes,
         isFolder = this is FileModel.Folder,
+        childCount = (this as? FileModel.Folder)?.childCount,
     )
 }

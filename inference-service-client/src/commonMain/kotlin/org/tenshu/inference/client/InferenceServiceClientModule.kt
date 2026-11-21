@@ -10,30 +10,35 @@ import org.tenshu.inference.AvailableModels
 import org.tenshu.inference.DeleteModel
 import org.tenshu.inference.DownloadModel
 import org.tenshu.inference.DownloadProgress
+import org.tenshu.inference.FaceGroups
+import org.tenshu.inference.FaceSuggestionRejections
 import org.tenshu.inference.IndexProgress
 import org.tenshu.inference.InferenceService
 import org.tenshu.inference.InstalledModel
 import org.tenshu.inference.InstalledModels
 import org.tenshu.inference.MediaLabel
-import org.tenshu.inference.FaceGroups
 import org.tenshu.inference.NameFaceGroup
-import org.tenshu.inference.FaceSuggestionRejections
-import org.tenshu.inference.RejectFaceSuggestion
 import org.tenshu.inference.PhotosLike
+import org.tenshu.inference.RejectFaceSuggestion
 import org.tenshu.inference.StartMediaIndexPass
-import org.tenshu.inference.client.impl.InferenceServiceRo
 import org.tenshu.inference.client.impl.AvailableModelsRo
 import org.tenshu.inference.client.impl.DeleteModelRo
-import org.tenshu.inference.client.impl.StartMediaIndexPassRo
 import org.tenshu.inference.client.impl.DownloadModelRo
 import org.tenshu.inference.client.impl.DownloadProgressRo
-import org.tenshu.inference.client.impl.IndexProgressRo
-import org.tenshu.inference.client.impl.InstalledModelsRo
 import org.tenshu.inference.client.impl.FaceGroupsRo
-import org.tenshu.inference.client.impl.NameFaceGroupRo
 import org.tenshu.inference.client.impl.FaceSuggestionRejectionsRo
-import org.tenshu.inference.client.impl.RejectFaceSuggestionRo
+import org.tenshu.inference.client.impl.IndexProgressRo
+import org.tenshu.inference.client.impl.InferenceServiceRo
+import org.tenshu.inference.client.impl.InstalledModelsRo
+import org.tenshu.inference.client.impl.NameFaceGroupRo
+import org.tenshu.inference.client.impl.NamePetGroupRo
+import org.tenshu.inference.client.impl.PeopleIndexChangesRo
+import org.tenshu.inference.client.impl.PetGroupsRo
+import org.tenshu.inference.client.impl.PetSuggestionRejectionsRo
 import org.tenshu.inference.client.impl.PhotosLikeRo
+import org.tenshu.inference.client.impl.RejectFaceSuggestionRo
+import org.tenshu.inference.client.impl.RejectPetSuggestionRo
+import org.tenshu.inference.client.impl.StartMediaIndexPassRo
 
 val inferenceServiceClientModule = tModule {
 
@@ -87,6 +92,28 @@ val inferenceServiceClientModule = tModule {
         interfaceClass = FaceSuggestionRejections::class,
         protocolSchema = FaceSuggestionRejections.Schema,
         roFactory = ::FaceSuggestionRejectionsRo,
+    )
+
+    // Pets PT-3b — both halves registered, for the reason above (`photos-pets.md` §3).
+    operation(
+        interfaceClass = org.tenshu.inference.PetGroups::class,
+        protocolSchema = org.tenshu.inference.PetGroups.Schema,
+        roFactory = ::PetGroupsRo,
+    )
+    operation(
+        interfaceClass = org.tenshu.inference.NamePetGroup::class,
+        protocolSchema = org.tenshu.inference.NamePetGroup.Schema,
+        roFactory = ::NamePetGroupRo,
+    )
+    operation(
+        interfaceClass = org.tenshu.inference.RejectPetSuggestion::class,
+        protocolSchema = org.tenshu.inference.RejectPetSuggestion.Schema,
+        roFactory = ::RejectPetSuggestionRo,
+    )
+    operation(
+        interfaceClass = org.tenshu.inference.PetSuggestionRejections::class,
+        protocolSchema = org.tenshu.inference.PetSuggestionRejections.Schema,
+        roFactory = ::PetSuggestionRejectionsRo,
     )
 
     // ⚠ `SimilarPhoto` needs no `roFactory`, unlike `MediaLabel` above: it is only ever READ back
@@ -160,6 +187,13 @@ val inferenceServiceClientModule = tModule {
         interfaceClass = IndexProgress::class,
         protocolSchema = IndexProgress.Schema,
         roFactory = ::IndexProgressRo,
+    )
+
+    // v3 — People & pets' revision stream (`photos-pets.md` §10.19). Its element is a bare integer.
+    operation(
+        interfaceClass = org.tenshu.inference.PeopleIndexChanges::class,
+        protocolSchema = org.tenshu.inference.PeopleIndexChanges.Schema,
+        roFactory = ::PeopleIndexChangesRo,
     )
 
     service(

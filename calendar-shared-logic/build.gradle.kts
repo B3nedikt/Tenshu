@@ -57,6 +57,9 @@ kotlin {
                 // The OS-notification seam. `api` so a shell binding a
                 // presenter sees the types without depending on it twice.
                 api(project(":app-notify"))
+                // `ErrorCopyKey`, which `CalendarProblem.Failed` carries instead of an error's own
+                // message (docs/agent.md, *Errors: the proxy emits codes, the app writes the copy*).
+                api(project(":app-error-handling"))
                 // The one Control-reachability engine an app shell reads to
                 // explain an empty screen. `api` for the same reason as above — the
                 // iOS surface hands `ControlReachability.state` straight to Swift.

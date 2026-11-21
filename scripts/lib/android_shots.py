@@ -1315,7 +1315,9 @@ def import_ics(calendar_name, file_name, events):
     tap("Import or export…")
     tap("Import from a file")
     pick_in_downloads(file_name)
-    wait(f"Imported {events} event", timeout=120, startswith=True)
+    # ⚠ The whole first sentence, not "Imported N event": a German launch finds this through the
+    # resource's template, which a prefix that stops inside a placeholder's word cannot reach.
+    wait(f"Imported {events} event{'' if events == 1 else 's'}.", timeout=120, startswith=True)
     tap("Done")
     wait_gone("Done", timeout=15)
 

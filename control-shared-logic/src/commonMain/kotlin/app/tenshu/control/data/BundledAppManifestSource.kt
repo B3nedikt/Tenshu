@@ -73,6 +73,15 @@ class BundledAppManifestSource : AppManifestSource {
                     gesture = GestureRequirement.None,
                     humanLabel = "Load file thumbnails synced from your other devices",
                 ),
+                // The change-lost banner's dismiss (`control-central-notifications.md` §10 D1): a
+                // synced "seen" record, so a dismissed notice stays dismissed on every device.
+                AppPermission(
+                    serviceId = "tenshu/notification/service",
+                    operationId = "tenshu/notification/service/dismissPendingRequest",
+                    capabilityClass = CapabilityClass.Ambient,
+                    gesture = GestureRequirement.RequiresUserGesture,
+                    humanLabel = "Mark notices as seen",
+                ),
                 AppPermission(
                     serviceId = "tenshu/ingest/service",
                     operationId = "tenshu/ingest/service/pickSecurityScopedFolder",
@@ -659,6 +668,30 @@ class BundledAppManifestSource : AppManifestSource {
                     capabilityClass = CapabilityClass.Ambient,
                     gesture = GestureRequirement.None,
                     humanLabel = "Check which face suggestions you already answered",
+                ),
+                // ── Pets (`photos-pets.md` PT-3d) — gated in the proxy by `PET_RECOGNITION`'s two switches ──
+                AppPermission(
+                    serviceId = "tenshu/inference/service",
+                    operationId = "tenshu/inference/petGroups",
+                    capabilityClass = CapabilityClass.Ambient,
+                    gesture = GestureRequirement.None,
+                    humanLabel = "Group your photos by the cats and dogs in them, on this device",
+                ),
+                // ⚠ The one Pets write that syncs: a typed pet name on photographs (A40, *Pets beside it*).
+                AppPermission(
+                    serviceId = "tenshu/inference/service",
+                    operationId = "tenshu/inference/namePetGroup",
+                    capabilityClass = CapabilityClass.Ambient,
+                    gesture = GestureRequirement.RequiresUserGesture,
+                    humanLabel = "Name the pets in your photos",
+                ),
+                // `photos-pets.md` §10.19: when this device's index changed People & pets — a counter, no content.
+                AppPermission(
+                    serviceId = "tenshu/inference/service",
+                    operationId = "tenshu/inference/service/peopleIndexChanges",
+                    capabilityClass = CapabilityClass.Ambient,
+                    gesture = GestureRequirement.None,
+                    humanLabel = "Notice when indexing on this device changed People & pets",
                 ),
 
                 // ── albums and favourites (PH-2) ─────────────────────────────────────────────

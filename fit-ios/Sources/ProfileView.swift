@@ -205,8 +205,8 @@ struct ProfileView: View {
         // `HealthSample`, so "Not set" means the store holds no weight reading (fit-app.md §18.2).
         guard let weightKg = profile.weightKg else { return notSet }
         return profile.units == .imperial
-            ? String(format: "%.1f lb", weightKg.doubleValue * lbPerKg)
-            : String(format: "%.1f kg", weightKg.doubleValue)
+            ? "\(FitUnitFormat.oneDecimal(weightKg.doubleValue * lbPerKg)) lb"
+            : "\(FitUnitFormat.oneDecimal(weightKg.doubleValue)) kg"
     }
 
 }

@@ -63,7 +63,14 @@ sealed interface MessageBody {
         val alternatives: List<Choice> = emptyList(),
         /** Replaced by an alternative's card, so it can no longer be confirmed. */
         val replaced: Boolean = false,
-    ) : MessageBody
+        /** Tapped, and nothing was written (expired, spent or failed): spent, but never "Done". */
+        val refused: Boolean = false,
+        /** Tapped, and no answer came back: it may or may not have run. Spent, never "Not done". */
+        val outcomeUnknown: Boolean = false,
+    ) : MessageBody {
+        /** Tapped already, whatever came of it: the card can neither be confirmed nor changed. */
+        val spent: Boolean get() = done || replaced || refused || outcomeUnknown
+    }
 
     /**
      * Mia asking back for one value (`mia-query-layer.md` §25, CL-2).

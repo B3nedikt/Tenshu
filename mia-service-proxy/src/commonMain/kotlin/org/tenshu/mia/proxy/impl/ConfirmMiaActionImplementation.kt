@@ -52,10 +52,11 @@ internal class ConfirmMiaActionImplementation(
         val action = actions.take(token)
             ?: return answer(
                 executionContext,
+                wrote = false,
                 // ⚠ Says the shape of the problem rather than "failed". An expired or
                 // already-tapped confirmation is an ordinary thing to hit, and the useful
                 // instruction is to ask again — not to retry the tap.
-                "That's no longer waiting to be confirmed — ask me again if you still want it.",
+                text = "That's no longer waiting to be confirmed — ask me again if you still want it.",
             ) as T
 
         return dispatch(executionContext, implementationFactory, action) as T
@@ -83,7 +84,7 @@ internal class ConfirmMiaActionImplementation(
         val unresolved = frame.params.filter { it.fill != MiaFrames.Fill.MINTED && it.id !in action.values }
         if (unresolved.isNotEmpty()) {
             println("Mia: ${action.op} confirmed with unresolved params ${unresolved.map { it.id }}")
-            return answer(executionContext, action.failed)
+            return answer(executionContext, action.failed, wrote = false)
         }
         val params = frame.params.associate { param ->
             val value: Any = if (param.fill == MiaFrames.Fill.MINTED) newCommandId() else action.values.getValue(param.id)
@@ -100,15 +101,19 @@ internal class ConfirmMiaActionImplementation(
                 params = params,
             )
         }.getOrDefault(false)
-        return answer(executionContext, if (dispatched) action.done else action.failed)
+        return answer(executionContext, if (dispatched) action.done else action.failed, wrote = dispatched)
     }
 
-    private fun answer(executionContext: ExecutionContext, text: String): MiaAnswer =
+    private fun answer(executionContext: ExecutionContext, text: String, wrote: Boolean): MiaAnswer =
         MiaAnswer.create(
             context = executionContext.context,
-            // ⚠ `answered` with no hits, not `confirm`: the tap is spent either way, so a
-            // surface that re-rendered a confirmation button would offer to do it twice.
-            verdict = MiaAnswer.VERDICT_ANSWERED,
+            // ⚠ Never `confirm`: the tap is spent either way, so a surface that re-rendered a
+            // confirmation button would offer to do it twice.
+            // ⚠⚠ `answered` only when the action ran; `noMatch` when nothing was written (an
+            // expired or spent token, a failed dispatch). One verdict for both let the card say
+            // "Done" over "That's no longer waiting to be confirmed" — found on the first phone
+            // pass, after Control restarted between the card and the tap (§25.13).
+            verdict = if (wrote) MiaAnswer.VERDICT_ANSWERED else MiaAnswer.VERDICT_NO_MATCH,
             explanation = text,
         )
 }

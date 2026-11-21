@@ -42,7 +42,6 @@ class MiaClarifySystemTest {
             reachability = null,
         )
         calendars.ensureDefaultCalendar()
-        phone.tenshuClient.preferenceService.set(MiaSource.CALENDAR.writePreference!!, true)
         val mia = TenshuConversationRepository(phone.tenshuClient, now = { now }, timeZoneId = { "UTC" })
         return Fixture(system, mia, calendars)
     }
@@ -156,6 +155,35 @@ class MiaClarifySystemTest {
             assertTrue(old.replaced, "the 08:00 card is marked replaced")
 
             f.mia.confirm(second.token)
+            assertEquals(LocalDateTime(2026, 7, 16, 20, 0), f.calendars.occurrencesOn(tomorrow).single().startLocal)
+        } finally {
+            f.system.shutdown()
+        }
+    }
+
+    /**
+     * ⚠⚠ A tap that writes nothing never reads "Done" (§25.13). On the first phone pass Control
+     * restarted between a card and its tap: the proxy no longer held the action, said so, and the
+     * card still said "Done". Here the spent token is the replaced card's.
+     */
+    @Test
+    fun aTapThatWritesNothingIsNotDone() = runBlocking<Unit> {
+        val f = fixture()
+        try {
+            f.mia.send("add dinner tomorrow at 8")
+            val first = assertIs<MessageBody.Confirmation>(f.mia.last())
+            f.mia.alternative(first.token, first.alternatives.single().label, first.alternatives.single().reply)
+            val second = assertIs<MessageBody.Confirmation>(f.mia.last())
+
+            f.mia.confirm(first.token)
+            val cards = { runBlocking { f.mia.messages().first().map { it.body }.filterIsInstance<MessageBody.Confirmation>() } }
+            assertTrue(f.calendars.occurrencesOn(tomorrow).isEmpty())
+            assertFalse(cards().first().done, "a spent token wrote nothing, so its card is not Done")
+            assertTrue(cards().first().refused)
+
+            f.mia.confirm(second.token)
+            assertTrue(cards().last().done)
+            assertFalse(cards().last().refused)
             assertEquals(LocalDateTime(2026, 7, 16, 20, 0), f.calendars.occurrencesOn(tomorrow).single().startLocal)
         } finally {
             f.system.shutdown()

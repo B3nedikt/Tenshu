@@ -33,6 +33,14 @@
 
     <string name="file_search_close">Schließen</string>
     <string name="file_search_settings">Einstellungen</string>
+    <string name="file_search_placeholder">Suchen</string>
+
+    <string name="drive_nav_home">Start</string>
+    <string name="drive_nav_files">Dateien</string>
+    <string name="drive_nav_shared">Freigegeben</string>
+
+    <string name="folder_item_file_count_one">1 Datei</string>
+    <string name="folder_item_file_count">%1$d Dateien</string>
 
     <string name="rename_file_dialog_title">Datei umbenennen</string>
     <string name="rename_file_dialog_icon_description">Umbenennen</string>
