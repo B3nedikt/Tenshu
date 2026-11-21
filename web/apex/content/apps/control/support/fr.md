@@ -222,13 +222,13 @@ ajouter de nouveau ce navigateur, ou restaurez avec votre phrase de récupérati
 - Android 7.0 ou version ultérieure.
 :::
 
+::: macos
+- Un Mac. Tenshu Control fonctionne dans la barre des menus.
+:::
+
 ::: windows
 - Windows 10 version 1809 ou ultérieure, ou Windows 11, sur un PC 64 bits (x64).
 - Tenshu Control fonctionne dans la zone de notification.
-:::
-
-::: macos
-- Un Mac. Tenshu Control fonctionne dans la barre des menus.
 :::
 
 ::: web

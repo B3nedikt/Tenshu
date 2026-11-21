@@ -214,13 +214,13 @@ hinzuzufügen, oder stelle mit deiner Wiederherstellungsphrase wieder her.
 - Android 7.0 oder neuer.
 :::
 
+::: macos
+- Ein Mac. Tenshu Control läuft in der Menüleiste.
+:::
+
 ::: windows
 - Windows 10 ab Version 1809 oder Windows 11, auf einem 64-Bit-PC (x64).
 - Tenshu Control läuft im Infobereich der Taskleiste.
-:::
-
-::: macos
-- Ein Mac. Tenshu Control läuft in der Menüleiste.
 :::
 
 ::: web

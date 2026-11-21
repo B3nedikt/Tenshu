@@ -30,7 +30,7 @@
     }
   },
   "planned": {
-    "10-services": { "shows": "The Services screen with the Free, Basic and Premium plans", "platforms": ["macos", "web"] },
+    "10-services": { "shows": "The Services screen with the Free, Basic and Premium plans", "platforms": ["macos", "windows", "web"] },
     "11-sign-up": { "shows": "The web sign-up page", "platforms": ["web"] }
   }
 }
