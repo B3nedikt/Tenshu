@@ -908,10 +908,16 @@ window may need F5). If it stays: `cfapiSpike -PspikeArgs=--cleanup`. ✅ (1) se
 `ExplorerMirror` (pure, `ExplorerMirrorTest`). Control's **Settings → Show Drive in File Explorer** turns it on.
 Log: `diagnostics/explorer.log`.
 
-**Off by default, decided by the maintainer 2026-11-21**, now that the folder is writable too: with it on, any
-same-user process can make Control decrypt a file (threat model T-C-21), and names and downloaded files are plaintext
-in the profile. ⚠ Turning it on by default, or asking during setup, needs a threat-model amendment, and it must not
-start until setup is finished: an enabled switch starts at Control's launch, before a realm exists.
+**Off for the first Store submission, on by default planned for the next release (maintainer, 2026-11-21).** macOS
+already registers its Finder location on every Drive launch, so the trade-off itself is one we ship. Windows is
+somewhat wider: any same-user process can make Control decrypt a file (threat model T-C-21 a), downloaded copies are
+plain files in the profile until freed, and while Control is not running another process can pose as the provider
+(T-C-21 b/c). Start at login being opt-in makes that last window larger. The next release:
+
+1. Turns it on once setup has finished. ⚠ Never at launch before a realm exists, which is what an enabled switch does
+   today. ⚠ A stored `explorerIntegration=false` is the user's choice and stays off.
+2. Amends T-C-21 in the same change: it lists "off by default" as a defense in (a) and (c).
+3. As a follow-up, verifies what appeared in the folder while Control was not running before uploading it.
 
 - **Where**: `%USERPROFILE%\Tenshu Drive`, registered as `TenshuDrive!<user SID>!default` by
   `StorageProviderSyncRootManager.Register` on every start (idempotent), then connected with
