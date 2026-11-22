@@ -6,7 +6,7 @@ name: Tenshu Control
 lang: en
 title: Tenshu Control support
 description: Help for Tenshu Control on {platform}: how to set up Tenshu, add your devices, keep your recovery phrase safe, and fix common problems.
-platforms: ios, android, macos, web
+platforms: ios, android, macos, windows, web
 defaultPlatform: web
 ---
 
@@ -69,6 +69,26 @@ Control set up on the same device.
    ![Tenshu Control's Services window with the Free, Basic and Premium plans](shot:10-services)
 5. **Add your other device.** Install Tenshu Control there and choose **I have Tenshu on another
    device**. On this Mac, go to **Realm Devices** → **Add new device**. Check that both devices
+   show the same confirmation code.
+   ![Tenshu Control's "Add Device" window with a pairing code](shot:09-add-device)
+:::
+
+::: windows
+1. **Install Tenshu Control** from the Microsoft Store, or from the
+   [Windows download page](/apps/control/download/windows), and open it. Control lives in the
+   notification area, next to the clock. To quit it, right-click its icon and choose
+   **Quit Tenshu Control**.
+   ![Tenshu Control's welcome window on Windows, with the buttons "Start fresh on this device", "I have Tenshu on another device" and "Recover from a recovery phrase"](shot:01-welcome)
+2. **Create your realm.** Click **Start fresh on this device**, then **Continue**.
+   ![Tenshu Control's "Protected by your device" window, with a "Continue" button](shot:02-protected)
+3. **Save your recovery phrase.** Open **Recovery Phrase** and write the 24 words down. Keep them
+   somewhere safe, offline.
+   ![Tenshu Control's Recovery Phrase window](shot:03-recovery-phrase)
+4. **Turn on sync.** Open **Services** and pick a storage plan. Until you do, everything stays
+   on this PC.
+   ![Tenshu Control's Services window with the Free, Basic and Premium plans](shot:10-services)
+5. **Add your other device.** Install Tenshu Control there and choose **I have Tenshu on another
+   device**. On this PC, go to **Realm Devices** → **Add new device**. Check that both devices
    show the same confirmation code.
    ![Tenshu Control's "Add Device" window with a pairing code](shot:09-add-device)
 :::
@@ -140,11 +160,19 @@ stay on each device. Nothing is lost. Pick a plan under **Services**, or **Stora
 In **Settings**, a realm without a plan shows as **Local only**.
 :::
 
-::: ios android macos
+::: ios android macos windows
 ### I forgot my passphrase
 
 If you added a passphrase, it can't be reset. Your recovery phrase is what restores your realm:
 choose **Recover from a recovery phrase** on this device.
+:::
+
+::: windows
+### Nothing syncs after I restart my PC
+
+Tenshu Control only syncs while it's running. Open it once and it catches up. To have that happen
+on its own, turn on **Start at login** in **Settings**. If the switch sends you to Windows, turn
+Tenshu Control on there, under **Settings** → **Apps** → **Startup**.
 :::
 
 ::: web
@@ -167,6 +195,11 @@ part of your realm. Your other devices still have your data. Choose **I have Ten
 
 ::: macos
 - A Mac. Tenshu Control runs in the menu bar.
+:::
+
+::: windows
+- Windows 10 version 1809 or later, or Windows 11, on a 64-bit (x64) PC.
+- Tenshu Control runs in the notification area.
 :::
 
 ::: web

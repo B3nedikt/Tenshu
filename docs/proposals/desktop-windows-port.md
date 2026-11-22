@@ -301,6 +301,10 @@ only *start at logon, hidden*. The docs disagree on the mechanism (`tenshu-rei.m
 > - ⚠ **Every call starts a process**, so Settings makes them on `Dispatchers.IO` with the switch disabled
 >   meanwhile, and `runAgent` waits for the exit (15 s bound) before reading the one-word answer. A failed agent
 >   reads as *unavailable*, and a disable that ends there is reported as failed, not done.
+> - **Consent is asked once (2026-11-21).** The task stays `Enabled="false"`, so without an answer a reboot silently
+>   ends sync. `StartAtLoginPrompt` therefore asks on Home after setup, once: never over a lock or a pairing request,
+>   and never from a hidden window. A no or a dismissal is recorded (`startAtLoginPromptAnswered`). A task already on,
+>   or decided in Windows' Settings or by policy, is not asked about; an unreadable one is looked at again next launch.
 > - ⚠ **Login start depends on the agent.** Control is started by the agent's `OnLaunched`; an agent that cannot
 >   start at all (e.g. the Windows App Runtime missing) means no Control at login although the switch reads on.
 >   Accepted for the Store build, where the runtime is a declared dependency the Store installs; a side-channel MSI
@@ -671,10 +675,10 @@ What MSIX changes, all *not verified* until the W4 spike:
   the spike must prove Drive-MSIX ↔ Control-MSIX over `ipc.sock`.
 - **Bundled JVM** — no JIT entitlement problem as on the MAS (Windows has no equivalent), but the package
   size and the `runFullTrust` restricted capability need review sign-off.
-- **ADR 0025 channel detection:** today Windows always answers `SameChannelAsThisApp`. A Store build can
-  tell it is one (package identity + the Store as installer source) and offer the Store link —
-  `tenshu.control.microsoftStoreUrl` beside the existing `playUrl`/`macAppStoreUrl` keys, and a new row in
-  ADR 0025 §6's table (amend the ADR in the same change).
+- **ADR 0025 channel detection:** ✅ (2026-11-20). A copy whose package origin is the Store offers the
+  Store link; everything else keeps `SameChannelAsThisApp`. ⚠ Built differently from the plan here: the
+  Store ids are fixed in code (`WINDOWS_STORE_IDS`), not a `tenshu.control.microsoftStoreUrl` setting —
+  the reasoning is ADR 0025's 2026-11-20 amendment under §6.
 - ⚖️ **Commerce.** Microsoft Store policy has allowed non-game apps to use their own payment rail; if that
   still holds, Store Control keeps Stripe (`commerce-store-link-out.md` D3 would need no Microsoft rail).
   Check the current policy text and get counsel sign-off before the listing — same gate as the other stores.
@@ -689,7 +693,7 @@ What MSIX changes, all *not verified* until the W4 spike:
 | **W1** | Defects §3.4 (close quits, hide autostart switch off macOS); §3.3 transport leftovers; Windows `desktopTest` CI lane; correct `desktop-ipc.md` §4 and the threat model's named-pipe wording | the four red tests green on Windows — ✅ 2026-11-09, plus the lane; socket-directory DACL moved to W2 (it is part of the peer-gate posture) |
 | **W2** | DPAPI key store (§3.1) ✅; Windows peer gate by **package family name**, both halves (§3.2) ✅; socket-directory DACL (§3.3) ✅; threat-model amendment (A14/T-C-11) ✅, ⚠ amended after review: the gate also requires a signed package origin (a loose registration can claim our family name), and states that it cannot stop same-user malware borrowing a running package; certificate decision ✅ D1–D4 | ✅ a side-loaded Drive MSIX connects to a strict side-loaded Control MSIX (2026-11-10). ⚠ "pair, restart, still paired" not yet run end to end |
 | **W3** | In-process tray (§3.4) ✅ verified by the maintainer 2026-11-10; native tray agent T0–T3 (§3.9, D5) incl. toasts + scheduled reminders (§3.7/§3.6); `StartupTask` autostart (§3.5); power/idle + metered probes (§3.6) ✅ | closed-window Control reachable from the tray; a reminder fires with Control quit — verified from a side-loaded MSIX |
-| **W4** | Microsoft Store: spike, then MSIX per app, lockstep version, ADR 0025 Store row, uninstall (§4.3, §5.2). Store-mode `packageMsix` + runbook ✅ (§5.2 as-built); Partner Center, WACK, submission owed by the maintainer; ADR 0025 row and uninstall still open | the Store build passes certification; `winget install --source msstore` installs it on a clean VM |
+| **W4** | Microsoft Store: spike, then MSIX per app, lockstep version, ADR 0025 Store row, uninstall (§4.3, §5.2). Store-mode `packageMsix` + runbook ✅ (§5.2 as-built); Partner Center, WACK, submission owed by the maintainer; ADR 0025 row ✅ (unverified until a Store install); uninstall still open | the Store build passes certification; `winget install --source msstore` installs it on a clean VM |
 | **W5** | The other desktop apps over the same pipeline | each passes the W4 check |
 | **W6** | Side channel, revised by D6: the MSIX signed with A45 on `releases.tenshu.app` ✅ built 2026-11-17, unpublished (§5.1 as-built); then SignPath as the signer, `.appinstaller` updates, winget-pkgs manifests. (D2's MSI and the gate's SignPath + `%ProgramFiles%` arm are not needed while the channel is MSIX.) | a downloaded Drive connects to a downloaded Control on a clean VM, the tray and a toast work, no Store involved |
 | **W7** | (merged into W4 — kept so phase numbers in other docs stay valid) | — |
@@ -901,8 +905,19 @@ window may need F5). If it stays: `cfapiSpike -PspikeArgs=--cleanup`. ✅ (1) se
 ### 7.8 X1 as built — the read path
 
 `ExplorerSyncRoot` (`:control-shared`, `bridge/`) behind `ExplorerIntegration`; the rules are
-`ExplorerMirror` (pure, `ExplorerMirrorTest`). Control's **Settings → Show Drive in File Explorer** turns it on;
-off by default while the folder is read-only. Log: `diagnostics/explorer.log`.
+`ExplorerMirror` (pure, `ExplorerMirrorTest`). Control's **Settings → Show Drive in File Explorer** turns it on.
+Log: `diagnostics/explorer.log`.
+
+**Off for the first Store submission, on by default planned for the next release (maintainer, 2026-11-21).** macOS
+already registers its Finder location on every Drive launch, so the trade-off itself is one we ship. Windows is
+somewhat wider: any same-user process can make Control decrypt a file (threat model T-C-21 a), downloaded copies are
+plain files in the profile until freed, and while Control is not running another process can pose as the provider
+(T-C-21 b/c). Start at login being opt-in makes that last window larger. The next release:
+
+1. Turns it on once setup has finished. ⚠ Never at launch before a realm exists, which is what an enabled switch does
+   today. ⚠ A stored `explorerIntegration=false` is the user's choice and stays off.
+2. Amends T-C-21 in the same change: it lists "off by default" as a defense in (a) and (c).
+3. As a follow-up, verifies what appeared in the folder while Control was not running before uploading it.
 
 - **Where**: `%USERPROFILE%\Tenshu Drive`, registered as `TenshuDrive!<user SID>!default` by
   `StorageProviderSyncRootManager.Register` on every start (idempotent), then connected with

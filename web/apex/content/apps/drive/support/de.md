@@ -13,7 +13,7 @@ lang: de
 reviewed: false
 title: Tenshu Drive – Support
 description: Hilfe zu Tenshu Drive auf {platform}: wie du loslegst, wie deine Dateien privat bleiben, Antworten auf häufige Probleme und wie du den Support erreichst.
-platforms: ios, android, macos, web
+platforms: ios, android, macos, windows, web
 defaultPlatform: web
 ---
 
@@ -86,6 +86,34 @@ zuerst Control ein.
    **Realm-Geräte** → **Neues Gerät hinzufügen**. Prüfe, dass beide Geräte denselben Code
    anzeigen. Öffne Drive auf dem anderen Gerät. Deine Datei erscheint innerhalb weniger Minuten.
    ![Fenster „Gerät hinzufügen“ von Tenshu Control, mit „Code scannen“ und „Code zeigen“](shot:control/09-add-device)
+:::
+
+::: windows
+1. **Installiere Tenshu Control** aus dem Microsoft Store oder von der
+   [Windows-Downloadseite](/apps/control/download/windows) und öffne es. Control lebt im
+   Infobereich der Taskleiste, neben der Uhr.
+   ![Willkommensfenster von Tenshu Control unter Windows, mit den Schaltflächen „Auf diesem Gerät neu beginnen“, „Ich habe Tenshu auf einem anderen Gerät“ und „Mit Wiederherstellungsphrase wiederherstellen“](shot:control/01-welcome)
+2. **Richte Control ein.** Klicke auf **Auf diesem Gerät neu beginnen**. Öffne dann **Dienste**
+   und wähle einen Speicherplan, damit deine Dateien deine anderen Geräte erreichen können. Ohne
+   Plan bleiben deine Dateien auf diesem PC. Schreib deine Wiederherstellungsphrase auf, wenn
+   Control sie anzeigt, und bewahre sie an einem sicheren Ort auf.
+   ![Bildschirm „Dienste“ von Tenshu Control mit den Plänen Free, Basic und Premium](shot:control/10-services)
+3. **Installiere Tenshu Drive** auf demselben Weg und öffne es. Drive verbindet sich von selbst
+   mit Control. Wenn es **Tenshu Control einrichten** anzeigt, schließe zuerst Schritt 2 ab.
+   ![Die leere Dateiliste von Tenshu Drive unter Windows mit „Noch keine Dateien hier“](shot:07-empty)
+4. **Lade eine Datei hoch.** Klicke auf **+** und dann unter **Hochladen** auf **Datei**.
+   ![Das Hochladen-Menü von Tenshu Drive, mit „Datei“, „Ordner hochladen“ und „Bilder“](shot:05-add)
+5. **Sieh sie auf einem anderen Gerät.** Richte Tenshu Control auf deinem anderen Gerät ein und
+   wähle **Ich habe Tenshu auf einem anderen Gerät**. Öffne auf diesem PC Control und gehe zu
+   **Realm-Geräte** → **Neues Gerät hinzufügen**. Prüfe, dass beide Geräte denselben Code
+   anzeigen. Öffne Drive auf dem anderen Gerät. Deine Datei erscheint innerhalb weniger Minuten.
+   ![Fenster „Gerät hinzufügen“ von Tenshu Control, mit „Code scannen“ und „Code zeigen“](shot:control/09-add-device)
+
+Um deine Dateien auch im Datei-Explorer zu erreichen, öffne in Tenshu Control die
+**Einstellungen** und schalte **Drive im Datei-Explorer anzeigen** ein. Im Datei-Explorer
+erscheint ein Ordner **Tenshu Drive**. Seine Dateien werden beim Öffnen geladen, Änderungen darin
+werden synchronisiert, und Dateien, die du dort löschst, landen in Drive im Ordner **Trash**
+(Papierkorb), wo du sie wiederherstellen kannst.
 :::
 
 ::: web
@@ -166,7 +194,7 @@ wähle einen Plan. Der kostenlose Plan braucht eine bestätigte E-Mail-Adresse. 
 funktioniert auch ohne.
 :::
 
-::: android macos
+::: android macos windows
 ### Drive zeigt „Keine Synchronisierung – dieses Gerät hat keinen Speicherplan“
 
 Deine Dateien sind auf diesem Gerät sicher, können deine anderen Geräte aber noch nicht erreichen.
@@ -211,7 +239,7 @@ gestoppt**. Wenn du sie selbst gestoppt hast, tippe auf **Fortsetzen**. Einen ei
 einzuschalten hebt die Pause nicht auf.
 :::
 
-::: android macos
+::: android macos windows
 ### Drive zeigt „Speicher voll“
 
 Deine Dateien bleiben auf diesem Gerät und nichts wird gelöscht, aber neue Änderungen können nicht
@@ -222,6 +250,15 @@ unter **Dienste** einen größeren Plan.
 
 Öffne Tenshu Control und füge dieses Gerät erneut zu deinem Realm hinzu. Verwende nicht zuerst
 **Dieses Gerät vergessen**: Alles, was noch auf den Upload wartet, ginge sonst verloren.
+:::
+
+::: windows
+### Nach einem Neustart wird nichts mehr synchronisiert
+
+Das Synchronisieren übernimmt Tenshu Control, und nur, solange es läuft. Öffne es einmal, dann holt
+es alles nach. Damit das von selbst passiert, schalte in den **Einstellungen** von Control **Bei
+Anmeldung starten** ein. Schickt dich der Schalter zu Windows, aktiviere Tenshu Control dort unter
+**Einstellungen** → **Apps** → **Autostart**.
 :::
 
 ::: web
@@ -248,6 +285,11 @@ weiterhin auf deinen anderen Geräten. Wähle **Ich habe Tenshu schon** auf
 ::: macos
 - Ein Mac mit macOS 13 Ventura oder neuer.
 - Tenshu Control, installiert und eingerichtet auf demselben Mac.
+:::
+
+::: windows
+- Windows 10 ab Version 1809 oder Windows 11, auf einem 64-Bit-PC (x64).
+- Tenshu Control, installiert und eingerichtet auf demselben PC.
 :::
 
 ::: web

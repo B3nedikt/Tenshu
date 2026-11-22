@@ -6,7 +6,7 @@ name: Tenshu Drive
 lang: en
 title: Tenshu Drive support
 description: Help for Tenshu Drive on {platform}: how to get started, how your files stay private, answers to common problems, and how to reach support.
-platforms: ios, android, macos, web
+platforms: ios, android, macos, windows, web
 defaultPlatform: web
 ---
 
@@ -72,6 +72,32 @@ with Tenshu Control, which holds your keys and connects your devices. Set up Con
    **Realm Devices** → **Add new device**. Check that both devices show the same code. Open
    Drive on the other device. Your file appears within a few minutes.
    ![Tenshu Control's "Add a device" window, with "Scan a code" and "Show a code"](shot:control/09-add-device)
+:::
+
+::: windows
+1. **Install Tenshu Control** from the Microsoft Store, or from the
+   [Windows download page](/apps/control/download/windows), and open it. Control lives in the
+   notification area, next to the clock.
+   ![Tenshu Control's welcome window on Windows, with the buttons "Start fresh on this device", "I have Tenshu on another device" and "Recover from a recovery phrase"](shot:control/01-welcome)
+2. **Set up Control.** Click **Start fresh on this device**. Then open **Services** and pick a
+   storage plan, so your files can reach your other devices. Without one, your files stay on
+   this PC. Write down your recovery phrase when Control shows it, and keep it somewhere safe.
+   ![Tenshu Control's Services screen with the Free, Basic and Premium plans](shot:control/10-services)
+3. **Install Tenshu Drive** the same way, and open it. Drive connects to Control on its own.
+   If it says **Set up Tenshu Control**, finish step 2 first.
+   ![Tenshu Drive's empty file list on Windows, saying "No files here yet"](shot:07-empty)
+4. **Upload a file.** Click **+**, then **File** under **Upload**.
+   ![Tenshu Drive's upload menu, with "File", "Folder upload" and "Images"](shot:05-add)
+5. **See it on another device.** Set up Tenshu Control on your other device and choose
+   **I have Tenshu on another device**. On this PC, open Control and go to
+   **Realm Devices** → **Add new device**. Check that both devices show the same code. Open
+   Drive on the other device. Your file appears within a few minutes.
+   ![Tenshu Control's "Add a device" window, with "Scan a code" and "Show a code"](shot:control/09-add-device)
+
+To reach your files from File Explorer too, open Tenshu Control's **Settings** and turn on
+**Show Drive in File Explorer**. A **Tenshu Drive** folder appears in File Explorer. Its files
+download when you open them, what you change in it syncs, and files you delete there go to
+the **Trash** folder in Drive, so you can still restore them.
 :::
 
 ::: web
@@ -147,7 +173,7 @@ plan yet, so nothing leaves this iPhone. Open **Storage** and pick a plan. The f
 verified email address. A redemption code works without one.
 :::
 
-::: android macos
+::: android macos windows
 ### Drive says "Not syncing — this device has no storage plan"
 
 Your files are safe on this device, but they cannot reach your other devices yet. Open Tenshu
@@ -189,7 +215,7 @@ If the backup status says **Paused**, the reason follows: **out of space**, **on
 **Resume**. Turning a single folder on does not undo the pause.
 :::
 
-::: android macos
+::: android macos windows
 ### Drive says "Storage full"
 
 Your files stay on this device and nothing is deleted, but new changes can't sync. Delete files
@@ -199,6 +225,14 @@ you no longer need, or choose a larger plan in Tenshu Control under **Services**
 
 Open Tenshu Control and add this device to your realm again. Don't use **Forget this device**
 first: anything still waiting to upload would be lost.
+:::
+
+::: windows
+### Nothing syncs after I restart my PC
+
+Tenshu Control does the syncing, and only while it's running. Open it once and it catches up. To
+have that happen on its own, turn on **Start at login** in Control's **Settings**. If the switch
+sends you to Windows, turn Tenshu Control on there, under **Settings** → **Apps** → **Startup**.
 :::
 
 ::: web
@@ -224,6 +258,11 @@ already** at [tenshu.app/start](/start) to add this browser again.
 ::: macos
 - A Mac with macOS 13 Ventura or later.
 - Tenshu Control, installed and set up on the same Mac.
+:::
+
+::: windows
+- Windows 10 version 1809 or later, or Windows 11, on a 64-bit (x64) PC.
+- Tenshu Control, installed and set up on the same PC.
 :::
 
 ::: web

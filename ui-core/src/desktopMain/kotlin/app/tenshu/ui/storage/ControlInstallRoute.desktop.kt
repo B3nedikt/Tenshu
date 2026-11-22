@@ -14,8 +14,10 @@ import java.io.File
  * because a Homebrew user sent to the App Store ends up with two copies from two channels and no
  * idea which one updates. That is the whole reason this is not just a URL.
  *
- * ⚠ Windows and Linux answer [ControlInstallRoute.SameChannelAsThisApp] outright: an installer,
- * `apt`, a package manager or a zip, and none of them is a store we can link to.
+ * ⚠ Windows asks its package's origin ([windowsInstallRoute]): a copy from the Microsoft Store is sent
+ * to Control's Store page, anything else installs Control the way it was installed itself.
+ * Linux answers [ControlInstallRoute.SameChannelAsThisApp] outright: `apt`, a package manager or a
+ * zip, and none of them is a store we can link to.
  *
  * ⚠ A dev run (no bundle at all) lands there too, which is honest — there is no store copy of
  * anything in a Gradle tree.
@@ -24,6 +26,7 @@ import java.io.File
 actual fun rememberControlInstallRoute(): ControlInstallRoute = remember {
     val configured = ControlStoreConfig.MAC_APP_STORE_URL
     when {
+        isWindows() -> windowsInstallRoute(app.tenshu.windows.WindowsInstalledPackages.current())
         !isMacOs() -> ControlInstallRoute.SameChannelAsThisApp
         !installedFromMacAppStore() -> ControlInstallRoute.SameChannelAsThisApp
         configured.isBlank() -> ControlInstallRoute.NotPublishedYet

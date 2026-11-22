@@ -105,6 +105,7 @@ import app.tenshu.control.ui.screens.sync.RecoveryPhraseScreen
 import app.tenshu.control.ui.screens.sync.SyncDashboardScreen
 import app.tenshu.control.ui.screens.unlock.SetupUnlockScreen
 import app.tenshu.control.ui.screens.welcome.ForgetNotice
+import app.tenshu.control.ui.screens.settings.PlatformFirstRunPrompt
 import app.tenshu.control.ui.screens.welcome.WelcomeScreen
 import app.tenshu.control.ui.screens.welcome.forgetNoticesFor
 import app.tenshu.ui.layout.AdaptiveNavItem
@@ -734,6 +735,10 @@ private fun AppContent(initialDestination: Destination) {
         }
     }
     }
+    val appLocked by appLockController.locked.collectAsState()
+    PlatformFirstRunPrompt(
+        active = currentDestination == Destination.Home && pendingPairingRequest == null && !appLocked,
+    )
     if (showForgetDialog) {
         ForgetDeviceDialog(
             phrase = forgetPhrase,

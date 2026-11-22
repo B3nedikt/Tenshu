@@ -1,0 +1,7 @@
+verschlüsselter Cloudspeicher
+Dateien synchronisieren
+Ende-zu-Ende-Verschlüsselung
+Freigabelink
+private Dateien
+Backup
+e2ee

@@ -1,0 +1,7 @@
+end-to-end encryption
+private sync
+recovery phrase
+device pairing
+privacy
+e2ee
+encrypted sync

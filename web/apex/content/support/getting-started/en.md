@@ -29,14 +29,16 @@ Control set up on the same device.
 
 Control's support page has every step, with screenshots, for
 [iPhone and iPad](/apps/control/support/ios/en), [Android](/apps/control/support/android/en),
-[Mac](/apps/control/support/macos/en) and the [web](/apps/control/support/web/en).
+[Mac](/apps/control/support/macos/en), [Windows](/apps/control/support/windows/en) and the
+[web](/apps/control/support/web/en).
 
 ## Add apps and your other devices {#apps-and-devices}
 
 - **Add apps.** Install the Tenshu apps you want on the same device, like Tenshu Drive. Drive
   finds Control on its own. Drive's support page shows how to upload your first file, for
   [iPhone and iPad](/apps/drive/support/ios/en), [Android](/apps/drive/support/android/en),
-  [Mac](/apps/drive/support/macos/en) and the [web](/apps/drive/support/web/en).
+  [Mac](/apps/drive/support/macos/en), [Windows](/apps/drive/support/windows/en) and the
+  [web](/apps/drive/support/web/en).
 - **Add your other devices.** Install Tenshu Control there and choose **I have Tenshu on another
   device**. One device shows a code and the other scans it. Check that both devices show the same
   confirmation code.

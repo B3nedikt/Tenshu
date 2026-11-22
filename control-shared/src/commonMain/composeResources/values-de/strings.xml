@@ -528,6 +528,13 @@
     <string name="settings_start_at_login_headline">Bei Anmeldung starten</string>
     <string name="settings_start_at_login_support">Tenshu automatisch starten, wenn du dich anmeldest</string>
     <string name="settings_start_at_login_approval_support_windows">Aktiviere Tenshu Control unter Einstellungen → Apps → Autostart</string>
+    <string name="start_at_login_prompt_title">Im Hintergrund weiter synchronisieren?</string>
+    <string name="start_at_login_prompt_body">Tenshu Control kann starten, sobald du dich bei Windows anmeldest, und deine Geräte synchron halten, ohne dass du es öffnest. Du kannst das jederzeit in den Einstellungen ändern.</string>
+    <string name="start_at_login_prompt_accept">Bei Anmeldung starten</string>
+    <string name="start_at_login_prompt_decline">Jetzt nicht</string>
+    <string name="start_at_login_prompt_failed_title">Das hat nicht geklappt</string>
+    <string name="start_at_login_prompt_failed_body">Windows hat es nicht zugelassen. Du kannst es in den Einstellungen unter „Bei Anmeldung starten“ noch einmal versuchen.</string>
+    <string name="start_at_login_prompt_failed_ok">OK</string>
     <string name="settings_explorer_integration_headline">Drive im Datei-Explorer anzeigen</string>
     <string name="settings_explorer_integration_support">Ein Ordner „Tenshu Drive“, dessen Dateien beim Öffnen geladen werden. Änderungen darin werden synchronisiert; gelöschte Dateien landen im Papierkorb.</string>
     <string name="settings_explorer_status_starting">Wird gestartet …</string>

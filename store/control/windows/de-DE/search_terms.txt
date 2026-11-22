@@ -1,0 +1,7 @@
+Ende-zu-Ende-Verschlüsselung
+privater Sync
+Wiederherstellungsphrase
+Geräte koppeln
+Datenschutz
+e2ee
+verschlüsselter Sync

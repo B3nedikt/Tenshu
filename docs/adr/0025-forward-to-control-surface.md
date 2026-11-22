@@ -208,7 +208,8 @@ other way, and only the package manager's installer record says so.
 | Android | the package manager attributes this install to Play (`com.android.vending` / `com.google.android.feedback`) | another store client (F-Droid, Aurora, Obtainium, …) → `SameChannelAsThisApp`; a debuggable build → as before; **any other installer → the website's download page** (amendment below) |
 | macOS | the bundle carries `Contents/_MASReceipt/receipt` | `SameChannelAsThisApp` — DMG, Homebrew, or a dev run |
 | iOS | the id is configured | `NotPublishedYet` — one channel, so nothing to detect |
-| Windows / Linux | never | `SameChannelAsThisApp` — an installer or a package manager, neither linkable |
+| Windows | this app's MSIX package was staged by the Microsoft Store (`GetStagedPackageOrigin` = `PackageOrigin_Store`; amendment below) | `SameChannelAsThisApp` — a side-loaded MSIX from the download page, or a dev run |
+| Linux | never | `SameChannelAsThisApp` — an installer or a package manager, neither linkable |
 
 ⚠ The macOS receipt is checked for **presence, not validity**. A real receipt check is a
 cryptographic verification, and this is not that, nor should it be: the question is *which sentence
@@ -226,6 +227,22 @@ and our own page is not. ⚠ A debuggable build keeps the earlier answer — a d
 has no installer either, and the website's Control is signed by a different key. ⚠ The page must be
 live before the first downloadable APK ships. The decision is `androidControlInstallRoute`
 (`:ui-core` commonMain, tested in `AndroidControlInstallRouteTest`).
+
+**Amendment (2026-11-20): a Microsoft Store copy gets the Microsoft Store.** On Windows the channel
+is the package's *origin*, which Windows records per installed package: `GetStagedPackageOrigin` on
+the app's own package full name (`WindowsInstalledPackages`, `:windows-helpers`). Only
+`PackageOrigin_Store` offers a store; a developer-signed side-load (our download page's MSIX), an
+unpackaged dev run (no package identity at all) or an unreadable origin answers
+`SameChannelAsThisApp`, as before. The route is `Store(https://apps.microsoft.com/detail/<Store ID>)`,
+or `NotPublishedYet` should a Store copy ever lack a known id. ⚠ Unlike the other stores the ids are
+**fixed in code, not configured** (`WINDOWS_STORE_IDS`, `:ui-core` desktopMain, pinned by
+`WindowsStoreRoutesTest`): Partner Center reserves the id together with the package identity name
+the build already pins (`desktop-windows-port.md` D7), so there is no build in which one is known
+and the other is not — a build setting would only add a way for them to disagree. The update
+banner's pages follow the same rule per copy (`windowsAppUpdatePages`): this app's own page only if
+it is a Store copy, Control's page only if the installed Control's package — looked up by family,
+`62647B3nedikt.TenshuControl_<publisher id>` — is one too. ⚠ Unverified against a real Store install
+until the first publication (`windows-store-submission.md` §9).
 
 **7. "No link" is two different sentences, and picking the wrong one makes a promise the build
 cannot keep.** `ControlInstallRoute` therefore has three cases, not a nullable URL:

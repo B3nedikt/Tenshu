@@ -705,6 +705,13 @@
     <string name="settings_start_at_login_support">Launch Tenshu automatically when you sign in</string>
     <string name="settings_start_at_login_approval_support">Allow Tenshu in System Settings → Login Items</string>
     <string name="settings_start_at_login_approval_support_windows">Turn Tenshu Control on in Settings → Apps → Startup</string>
+    <string name="start_at_login_prompt_title">Keep syncing in the background?</string>
+    <string name="start_at_login_prompt_body">Tenshu Control can start when you sign in to Windows and keep your devices in sync without you opening it. You can change this anytime in Settings.</string>
+    <string name="start_at_login_prompt_accept">Start when I sign in</string>
+    <string name="start_at_login_prompt_decline">Not now</string>
+    <string name="start_at_login_prompt_failed_title">Couldn't turn this on</string>
+    <string name="start_at_login_prompt_failed_body">Windows didn't allow it. You can try again in Settings, under Start at login.</string>
+    <string name="start_at_login_prompt_failed_ok">OK</string>
     <string name="settings_explorer_integration_headline">Show Drive in File Explorer</string>
     <string name="settings_explorer_integration_support">A Tenshu Drive folder whose files download when you open them. What you change in it syncs; deleted files go to the Trash.</string>
     <!-- The line under the switch while it is on (desktop-windows-port.md §7.11). One-vs-other keys, not <plurals>:

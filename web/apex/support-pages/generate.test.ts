@@ -46,9 +46,9 @@ const site = await buildSupportSite({ chrome })
  * from a front matter is a visible test change, not a quietly missing store support URL.
  */
 const PLATFORMS: Record<string, readonly string[]> = {
-  control: ['android', 'ios', 'macos', 'web'],
-  drive: ['android', 'ios', 'macos', 'web'],
-  // Calendar, Contacts, Fit and Photos are not distributed on macOS or the web yet.
+  control: ['android', 'ios', 'macos', 'web', 'windows'],
+  drive: ['android', 'ios', 'macos', 'web', 'windows'],
+  // Calendar, Contacts, Fit and Photos are not distributed on macOS, Windows or the web yet.
   calendar: ['android', 'ios'],
   contacts: ['android', 'ios'],
   fit: ['android', 'ios'],

@@ -1,0 +1,29 @@
+Tenshu Control is the companion app the other Tenshu apps need. Install it first. It creates your realm, the private space your Tenshu apps share. It holds your keys and connects your devices. Tenshu Drive and the other Tenshu apps work only when Control is set up on the same PC.
+
+Control lives in the notification area, next to the clock, and keeps your devices in sync while you work.
+
+SET UP TENSHU
+- Click Start fresh on this device, then Continue.
+- Write down your recovery phrase: 24 words that restore your realm if you lose every device. Open Recovery Phrase to see them, and keep them somewhere safe, offline.
+- Open Services and pick a storage plan when you want your data on more than one device. A new account starts on the free plan with 5 GB. Until you do, everything stays on this PC.
+
+ADD YOUR OTHER DEVICES
+Install Tenshu Control on your other device and choose I have Tenshu on another device. On this PC, open Realm Devices, then Add new device. One device shows a code and the other scans or types it. Check that both show the same confirmation code, then confirm.
+
+HOW CONTROL KEEPS YOUR DATA PRIVATE
+- Your keys are made on your devices and never leave them unencrypted. When you add a device, your existing device encrypts the keys for the new one before they pass through our server.
+- Tenshu's servers cannot read your data. They pass on and store only encrypted data. They do see some facts they need to work: how much you store, how many devices you have, and when they sync.
+- Your recovery phrase is yours alone. Nobody else holds a copy, so nobody, including us, can restore your realm without it. Anyone who has it can open everything, so keep it offline.
+- You can use Tenshu without an account. On one device, Tenshu works with no account and sends nothing to our servers.
+
+ALSO IN CONTROL
+- Show Drive in File Explorer: a Tenshu Drive folder whose files download when you open them.
+- Start at login: say yes when Control asks, or turn it on in Settings, and Control syncs in the background from the moment you sign in.
+- See your devices, your storage plan and how much you use.
+
+REQUIREMENTS
+- Windows 10 version 1809 or later, or Windows 11, on a 64-bit (x64) PC.
+- To sync between devices: a storage plan. The free plan has 5 GB.
+
+Help and common problems: tenshu.app/apps/control/support/windows/en
+Support will never ask for your recovery phrase.
